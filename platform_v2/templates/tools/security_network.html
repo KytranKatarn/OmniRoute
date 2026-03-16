@@ -346,11 +346,15 @@
         border-radius: var(--archie-radius-lg);
         overflow: hidden;
         transition: all 0.2s;
+        cursor: pointer;
+        position: relative;
     }
     .camera-card:hover {
         border-color: var(--archie-accent);
         box-shadow: 0 0 12px var(--archie-accent-alpha-20);
     }
+    .camera-card.offline { border-color: rgba(239,68,68,0.4); }
+    .camera-card.offline:hover { box-shadow: 0 0 12px rgba(239,68,68,0.2); }
     .camera-card img {
         width: 100%;
         height: 200px;
@@ -358,6 +362,18 @@
         background: var(--archie-bg-tertiary);
         display: block;
     }
+    .camera-status-dot {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 2px solid rgba(0,0,0,0.5);
+        z-index: 2;
+    }
+    .camera-status-dot.online { background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,0.6); }
+    .camera-status-dot.offline { background: #ef4444; box-shadow: 0 0 8px rgba(239,68,68,0.6); }
     .camera-info {
         padding: 10px 14px;
         display: flex;
@@ -368,6 +384,8 @@
         font-weight: 600;
         font-size: 0.85rem;
         color: var(--archie-text-primary);
+        font-family: 'Antonio', sans-serif;
+        letter-spacing: 0.05em;
     }
     .camera-location {
         font-size: 0.72rem;
@@ -920,6 +938,21 @@
 
     <!-- ==================== TAB: DASHBOARD ==================== -->
     <div id="tab-dashboard" class="tab-content active">
+        <!-- SECURITY Station Panel -->
+        <div class="stn-ops-terminal" id="secOpsTerminal" style="--stn-accent: #ef4444; --stn-accent-rgb: 239, 68, 68;">
+            <div class="stn-ops-header">
+                <div class="stn-ops-elbow"></div>
+                <div class="stn-ops-title">SECURITY STATION</div>
+                <div class="stn-ops-status" id="secOpsOnline">
+                    <span class="stn-ops-dot"></span> ONLINE
+                </div>
+            </div>
+            <div class="stn-ops-body">
+                <div id="secOpsAgents"></div>
+                <div id="secOpsJobs"></div>
+            </div>
+        </div>
+
         <div class="stats-grid" id="dash-stats">
             <div class="stat-card">
                 <div class="stat-label"><span data-i18n="security_network.dns_queries_24h">DNS Queries (24h)</span></div>
@@ -1120,16 +1153,20 @@
             </div>
         </div>
         <div id="surv-configured">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-                <div class="section-header" style="margin:0">
-                    <i data-lucide="camera" style="width:18px;height:18px"></i> Camera Feeds
+            <!-- HA Connection Status Bar -->
+            <div id="surv-status-bar" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding:8px 14px;background:var(--archie-bg-secondary);border:1px solid var(--archie-border-default);border-radius:var(--archie-radius-lg)">
+                <div style="display:flex;align-items:center;gap:10px">
+                    <span id="surv-ha-dot" style="width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block"></span>
+                    <span style="font-family:'Antonio',sans-serif;font-size:0.85rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--archie-text-primary)">HOME ASSISTANT</span>
+                    <span id="surv-ha-version" style="font-size:0.72rem;color:var(--archie-text-muted)"></span>
+                    <span id="surv-cam-count" style="font-size:0.72rem;color:var(--archie-text-muted)"></span>
                 </div>
                 <div style="display:flex;gap:8px">
                     <button class="btn btn-success btn-sm" onclick="armSystem()">
-                        <i data-lucide="shield" style="width:12px;height:12px"></i> Arm All
+                        <i data-lucide="shield" style="width:12px;height:12px"></i> Arm
                     </button>
                     <button class="btn btn-danger btn-sm" onclick="disarmSystem()">
-                        <i data-lucide="shield-off" style="width:12px;height:12px"></i> Disarm All
+                        <i data-lucide="shield-off" style="width:12px;height:12px"></i> Disarm
                     </button>
                     <button class="btn btn-sm" onclick="loadSurveillance()">
                         <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh
@@ -1144,6 +1181,48 @@
             </div>
             <div id="surv-events">
                 <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_events"> Loading events...</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== CAMERA ENLARGE MODAL ==================== -->
+    <div class="bm-overlay" id="camera-modal" style="--bm-accent:#22c55e;--bm-accent-rgb:34,197,94;">
+        <div class="bm-shell" style="max-width:720px;">
+            <div class="bm-frame">
+                <div class="bm-frame-elbow-top"></div>
+                <div class="bm-frame-seg"></div>
+                <div class="bm-frame-seg dim"></div>
+                <div class="bm-frame-light on"></div>
+                <div class="bm-frame-light amber"></div>
+                <div class="bm-frame-seg purple"></div>
+                <div class="bm-frame-fill"></div>
+                <div class="bm-frame-elbow-bottom"></div>
+            </div>
+            <div class="bm-content">
+                <div class="bm-header">
+                    <span class="bm-header-title" id="camera-modal-title">CAMERA FEED</span>
+                    <div class="bm-header-strip">
+                        <div class="bm-header-pip w1"></div>
+                        <div class="bm-header-pip w2"></div>
+                        <div class="bm-header-pip w3"></div>
+                        <button class="bm-close" onclick="closeCameraModal()">&times;</button>
+                    </div>
+                </div>
+                <div class="bm-body" style="padding:12px;text-align:center">
+                    <img id="camera-modal-img" src="" alt="Camera Feed" style="width:100%;max-height:60vh;object-fit:contain;border-radius:8px;background:#000">
+                    <div id="camera-modal-state" style="margin-top:10px;font-size:0.8rem;color:var(--archie-text-muted)"></div>
+                </div>
+                <div class="bm-actions">
+                    <button class="btn-cancel" onclick="closeCameraModal()">Close</button>
+                    <button class="btn-submit" id="camera-modal-refresh" onclick="">Refresh Snapshot</button>
+                </div>
+                <div class="bm-footer">
+                    <div class="bm-footer-strip">
+                        <div class="bm-footer-dot cyan"></div>
+                        <div class="bm-footer-dot gold"></div>
+                        <div class="bm-footer-dot green"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1773,7 +1852,7 @@ function initTabs() {
             const tab = btn.dataset.tab;
             document.getElementById('tab-' + tab).classList.add('active');
             if (tab === 'dns' && !dnsTabLoaded) { dnsTabLoaded = true; loadDNSOverview(); loadUserRules(); }
-            if (tab === 'surveillance' && !survTabLoaded) { survTabLoaded = true; loadSurveillance(); }
+            if (tab === 'surveillance') { if(!survTabLoaded) { survTabLoaded = true; } loadSurveillance(); } else { if(typeof stopSurvAutoRefresh==='function') stopSurvAutoRefresh(); }
             if (tab === 'recon' && !reconTabLoaded) { reconTabLoaded = true; loadReconModules(); loadReconHistory(); }
             if (tab === 'scanning' && !scanTabLoaded) { scanTabLoaded = true; loadScanResults(); loadSSLMonitors(); }
             if (tab === 'access' && !accessTabLoaded) { accessTabLoaded = true; loadFirewall(); loadIPAccess(); loadAutoBlockSettings(); loadSecurityEvents(); loadConnections(); }
@@ -2114,29 +2193,73 @@ function saveUserRules() {
 }
 
 /* ========== Surveillance ========== */
+let survAutoRefreshTimer = null;
+
+async function loadSurveillanceStatus() {
+    try {
+        const r = await fetch(API+'/surveillance/status');
+        const d = await r.json();
+        if(d.success && d.status) {
+            const s = d.status;
+            const dot = document.getElementById('surv-ha-dot');
+            const ver = document.getElementById('surv-ha-version');
+            const cnt = document.getElementById('surv-cam-count');
+            if(s.connected) {
+                dot.style.background = '#22c55e';
+                dot.style.boxShadow = '0 0 8px rgba(34,197,94,0.6)';
+                ver.textContent = 'v' + (s.ha_version||'?');
+                cnt.textContent = s.cameras_online + '/' + s.camera_count + ' online';
+            } else {
+                dot.style.background = '#ef4444';
+                dot.style.boxShadow = '0 0 8px rgba(239,68,68,0.6)';
+                ver.textContent = '';
+                cnt.textContent = s.error || 'Disconnected';
+            }
+        }
+    } catch(e) { /* status bar best-effort */ }
+}
+
 async function loadSurveillance() {
     try {
-        const r = await fetch(API+'/surveillance/cameras');
-        const d = await r.json();
+        const [camRes] = await Promise.all([
+            fetch(API+'/surveillance/cameras'),
+            loadSurveillanceStatus()
+        ]);
+        const d = await camRes.json();
         if(!d.success && (d.error||'').indexOf('not configured')>=0) {
             document.getElementById('surv-not-configured').style.display='block';
             document.getElementById('surv-configured').style.display='none';
             lucide.createIcons();
+            stopSurvAutoRefresh();
             return;
         }
         document.getElementById('surv-not-configured').style.display='none';
         document.getElementById('surv-configured').style.display='block';
         const grid = document.getElementById('camera-grid');
         grid.textContent='';
-        if(d.success && d.cameras) {
+        if(d.success && d.cameras && d.cameras.length) {
             d.cameras.forEach(cam=>{
-                const entityId = cam.entity_id||cam.key;
+                const entityId = cam.entity_id;
+                const isOnline = cam.state && cam.state !== 'unavailable' && cam.state !== 'unknown';
                 const card = document.createElement('div');
-                card.className = 'camera-card';
+                card.className = 'camera-card' + (isOnline ? '' : ' offline');
+                card.addEventListener('click', function(e){
+                    if(e.target.tagName==='BUTTON') return;
+                    openCameraModal(entityId, cam.name||entityId, cam.state);
+                });
+
+                // Status dot
+                const statusDot = document.createElement('div');
+                statusDot.className = 'camera-status-dot ' + (isOnline ? 'online' : 'offline');
+                card.appendChild(statusDot);
+
                 const img = document.createElement('img');
-                img.src = API+'/surveillance/cameras/'+encodeURIComponent(entityId)+'/snapshot?t='+Date.now();
+                img.src = API+'/surveillance/camera/'+encodeURIComponent(entityId)+'/snapshot?t='+Date.now();
                 img.alt = cam.name||entityId;
-                img.onerror = function(){this.style.background='var(--archie-bg-tertiary)';};
+                img.onerror = function(){
+                    this.style.background='var(--archie-bg-tertiary)';
+                    this.style.opacity='0.3';
+                };
                 const info = document.createElement('div');
                 info.className = 'camera-info';
                 const nameDiv = document.createElement('div');
@@ -2145,22 +2268,43 @@ async function loadSurveillance() {
                 nameSpan.textContent = cam.name||entityId;
                 const locSpan = document.createElement('div');
                 locSpan.className = 'camera-location';
-                locSpan.textContent = cam.location||'';
+                locSpan.textContent = isOnline ? cam.state : 'OFFLINE';
+                locSpan.style.color = isOnline ? '' : '#ef4444';
                 nameDiv.appendChild(nameSpan);
                 nameDiv.appendChild(locSpan);
-                const refreshBtn = document.createElement('button');
-                refreshBtn.className = 'btn btn-sm';
-                refreshBtn.textContent = 'Refresh';
-                refreshBtn.addEventListener('click', function(){refreshCamera(entityId);});
                 info.appendChild(nameDiv);
-                info.appendChild(refreshBtn);
                 card.appendChild(img);
                 card.appendChild(info);
                 grid.appendChild(card);
             });
-        } else { showEmpty(grid,'No cameras available'); }
+            startSurvAutoRefresh();
+        } else {
+            showEmpty(grid,'No cameras discovered');
+            stopSurvAutoRefresh();
+        }
         loadSurveillanceEvents();
-    } catch(e) { showEmpty(document.getElementById('camera-grid'),'Error loading cameras'); }
+    } catch(e) {
+        showEmpty(document.getElementById('camera-grid'),'Error loading cameras');
+        stopSurvAutoRefresh();
+    }
+}
+
+function startSurvAutoRefresh() {
+    stopSurvAutoRefresh();
+    survAutoRefreshTimer = setInterval(refreshCameraSnapshots, 10000);
+}
+
+function stopSurvAutoRefresh() {
+    if(survAutoRefreshTimer) { clearInterval(survAutoRefreshTimer); survAutoRefreshTimer = null; }
+}
+
+function refreshCameraSnapshots() {
+    const imgs = document.querySelectorAll('#camera-grid .camera-card img');
+    const t = Date.now();
+    imgs.forEach(img=>{
+        const base = img.src.split('?')[0];
+        img.src = base + '?t=' + t;
+    });
 }
 
 async function loadSurveillanceEvents() {
@@ -2170,16 +2314,26 @@ async function loadSurveillanceEvents() {
         const d = await r.json();
         if(d.success && d.events && d.events.length) {
             container.textContent='';
-            const rows = d.events.map(ev=>[formatTime(ev.created_at), ev.camera_entity||'-', createBadge(ev.event_type,'warning'), ev.location||'-']);
+            const rows = d.events.map(ev=>[formatTime(ev.timestamp), ev.camera_entity||'-', createBadge(ev.event_type,'warning'), ev.location||'-']);
             container.appendChild(buildTable(['Time','Camera','Event','Location'], rows));
         } else { showEmpty(container,'No recent events'); }
     } catch(e) { showEmpty(container,'Error loading events'); }
 }
 
-function refreshCamera(entityId) {
-    fetch(API+'/surveillance/cameras/'+encodeURIComponent(entityId)+'/refresh',{method:'POST'})
-    .then(r=>r.json()).then(d=>{if(d.success){showToast('success','Snapshot refreshed');loadSurveillance();}else showToast('error',d.error||'Failed');})
-    .catch(e=>showToast('error',e.message));
+function openCameraModal(entityId, name, state) {
+    const modal = document.getElementById('camera-modal');
+    document.getElementById('camera-modal-title').textContent = name.toUpperCase();
+    const img = document.getElementById('camera-modal-img');
+    img.src = API+'/surveillance/camera/'+encodeURIComponent(entityId)+'/snapshot?t='+Date.now();
+    document.getElementById('camera-modal-state').textContent = 'Entity: '+entityId+' | State: '+(state||'unknown');
+    document.getElementById('camera-modal-refresh').onclick = function(){
+        img.src = API+'/surveillance/camera/'+encodeURIComponent(entityId)+'/snapshot?t='+Date.now();
+    };
+    modal.classList.add('active');
+}
+
+function closeCameraModal() {
+    document.getElementById('camera-modal').classList.remove('active');
 }
 
 function armSystem() {
@@ -3225,12 +3379,30 @@ document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') { closeDnsModal(); closeProxyModal(); }
 });
 
+/* ========== Security Station Ops ========== */
+var _secOps = null;
+function initSecurityStation() {
+    if (typeof StationOps === 'undefined') return;
+    _secOps = new StationOps({
+        stationCode: 'SECURITY',
+        moduleSource: 'security_network',
+        agentsElId: 'secOpsAgents',
+        jobsElId: 'secOpsJobs',
+        statusElId: 'secOpsOnline'
+    });
+    _secOps.checkJobs().then(function() {
+        _secOps.renderAgents();
+        _secOps.renderJobs();
+    });
+}
+
 /* ========== Init ========== */
 document.addEventListener('DOMContentLoaded', function() {
     if(typeof lucide!=='undefined') lucide.createIcons();
     initTabs();
     initSubtabs();
     loadDashboard();
+    initSecurityStation();
 });
 
 setInterval(function(){

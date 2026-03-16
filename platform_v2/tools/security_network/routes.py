@@ -12,6 +12,7 @@ from psycopg2.extras import RealDictCursor
 import os
 
 from . import security_network_bp
+from .security_alerts import create_security_alert
 
 
 def admin_required(f):
@@ -710,6 +711,15 @@ def run_nmap_scan():
         except Exception:
             pass
 
+        # Security alert for scan completion
+        create_security_alert(
+            "scan_result",
+            f"Nmap scan completed: {target}",
+            f"Nmap {scan_type} scan on {target} completed.",
+            priority="normal",
+            telegram=False,
+        )
+
         return jsonify(result)
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -737,6 +747,16 @@ def run_nikto_scan():
 
     try:
         result = scanner_service.run_nikto_scan(target)
+
+        # Security alert for scan completion
+        create_security_alert(
+            "scan_result",
+            f"Nikto scan completed: {target}",
+            f"Nikto web vulnerability scan on {target} completed.",
+            priority="normal",
+            telegram=False,
+        )
+
         return jsonify(result)
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -1049,6 +1069,13 @@ def api_block_ip():
 
     try:
         result = block_ip(ip_address, reason, current_user.id, duration)
+        if result.get("success"):
+            create_security_alert(
+                "block",
+                f"IP Blocked: {ip_address}",
+                f"IP {ip_address} blocked by {getattr(current_user, 'username', 'admin')}.\nReason: {reason}",
+                priority="high",
+            )
         return jsonify(result)
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -1156,6 +1183,15 @@ def api_execute_auto_block():
 
     try:
         result = auto_block_threats(current_user.id)
+        blocked_count = result.get("blocked", 0)
+        if blocked_count > 0:
+            blocked_ips = result.get("blocked_ips", [])
+            create_security_alert(
+                "intrusion",
+                f"Auto-Block: {blocked_count} IP(s) blocked",
+                f"Auto-block detected and blocked {blocked_count} threat(s).\nIPs: {', '.join(blocked_ips[:10])}",
+                priority="critical" if blocked_count >= 5 else "high",
+            )
         return jsonify(result)
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -1444,7 +1480,7 @@ def api_dashboard_stats():
     # Surveillance camera count
     try:
         if SURVEILLANCE_SERVICE_AVAILABLE and surveillance_service:
-            cameras = surveillance_service.get_all_cameras()
+            cameras = surveillance_service.get_cameras()
             online_count = sum(1 for c in cameras if c.get("state") != "unavailable")
             stats["cameras"] = {
                 "available": True,
@@ -1887,6 +1923,14 @@ def api_dns_hostinger_records_add():
             return jsonify({"success": False, "error": "Failed to add DNS record"}), 500
         if isinstance(result, dict) and "error" in result:
             return jsonify({"success": False, "error": result["error"]}), 500
+
+        create_security_alert(
+            "dns_change",
+            f"DNS Record Added: {name}",
+            f"New {record_type} record added: {name} -> {content} (TTL: {ttl})",
+            priority="normal",
+        )
+
         return jsonify({"success": True, "data": result})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -1917,6 +1961,14 @@ def api_dns_hostinger_records_update(record_id):
             return jsonify({"success": False, "error": "Failed to update DNS record"}), 500
         if isinstance(result, dict) and "error" in result:
             return jsonify({"success": False, "error": result["error"]}), 500
+
+        create_security_alert(
+            "dns_change",
+            f"DNS Record Updated: {name}",
+            f"Updated {record_type} record: {name} -> {content}",
+            priority="normal",
+        )
+
         return jsonify({"success": True, "data": result})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -1974,12 +2026,15 @@ def api_dns_hostinger_domains():
 @login_required
 @admin_required
 def api_surveillance_cameras():
-    """Get all camera states"""
+    """Get all camera states via auto-discovery"""
     if not SURVEILLANCE_SERVICE_AVAILABLE or not surveillance_service:
-        return jsonify({"success": False, "error": "Surveillance service not available"}), 503
+        return (
+            jsonify({"success": False, "error": "Surveillance service not configured"}),
+            503,
+        )
 
     try:
-        cameras = surveillance_service.get_all_cameras()
+        cameras = surveillance_service.get_cameras()
         alarm_state = surveillance_service.get_alarm_state()
         return jsonify(
             {
@@ -1992,36 +2047,76 @@ def api_surveillance_cameras():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@security_network_bp.route("/api/surveillance/cameras/<entity_id>/snapshot")
+@security_network_bp.route("/api/surveillance/camera/<path:entity_id>/snapshot")
 @login_required
 @admin_required
 def api_surveillance_snapshot(entity_id):
-    """Proxy camera snapshot image"""
+    """Proxy camera snapshot image from HA"""
     if not SURVEILLANCE_SERVICE_AVAILABLE or not surveillance_service:
-        return jsonify({"success": False, "error": "Surveillance service not available"}), 503
+        return (
+            jsonify({"success": False, "error": "Surveillance service not configured"}),
+            503,
+        )
 
     try:
         image_bytes = surveillance_service.get_camera_snapshot(entity_id)
         if image_bytes is None:
-            return jsonify({"success": False, "error": "Could not fetch snapshot"}), 404
-        return Response(image_bytes, mimetype="image/jpeg")
+            return (
+                jsonify({"success": False, "error": "Could not fetch snapshot"}),
+                404,
+            )
+        return Response(
+            image_bytes,
+            mimetype="image/jpeg",
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@security_network_bp.route("/api/surveillance/cameras/<entity_id>/refresh", methods=["POST"])
+@security_network_bp.route("/api/surveillance/camera/<path:entity_id>/stream")
 @login_required
 @admin_required
-def api_surveillance_refresh(entity_id):
-    """Force snapshot refresh for a camera"""
+def api_surveillance_stream(entity_id):
+    """Get camera MJPEG stream URL"""
     if not SURVEILLANCE_SERVICE_AVAILABLE or not surveillance_service:
-        return jsonify({"success": False, "error": "Surveillance service not available"}), 503
+        return (
+            jsonify({"success": False, "error": "Surveillance service not configured"}),
+            503,
+        )
 
     try:
-        success = surveillance_service.trigger_snapshot(entity_id)
-        if success:
-            return jsonify({"success": True, "message": f"Snapshot refresh triggered for {entity_id}"})
-        return jsonify({"success": False, "error": "Failed to trigger snapshot"}), 500
+        stream_url = surveillance_service.get_camera_stream_url(entity_id)
+        if stream_url is None:
+            return (
+                jsonify({"success": False, "error": "Invalid camera entity"}),
+                404,
+            )
+        return jsonify({"success": True, "stream_url": stream_url})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/surveillance/status")
+@login_required
+@admin_required
+def api_surveillance_status():
+    """HA connection status + camera count"""
+    if not SURVEILLANCE_SERVICE_AVAILABLE or not surveillance_service:
+        return jsonify(
+            {
+                "success": True,
+                "status": {
+                    "connected": False,
+                    "error": "HA_API_TOKEN not configured",
+                    "camera_count": 0,
+                },
+            }
+        )
+
+    try:
+        health = surveillance_service.check_health()
+        return jsonify({"success": True, "status": health})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -2032,13 +2127,19 @@ def api_surveillance_refresh(entity_id):
 def api_surveillance_arm():
     """Arm the surveillance system"""
     if not SURVEILLANCE_SERVICE_AVAILABLE or not surveillance_service:
-        return jsonify({"success": False, "error": "Surveillance service not available"}), 503
+        return (
+            jsonify({"success": False, "error": "Surveillance service not configured"}),
+            503,
+        )
 
     try:
         success = surveillance_service.arm_system()
         if success:
             return jsonify({"success": True, "message": "System armed"})
-        return jsonify({"success": False, "error": "Failed to arm system"}), 500
+        return (
+            jsonify({"success": False, "error": "Failed to arm system"}),
+            500,
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -2049,13 +2150,19 @@ def api_surveillance_arm():
 def api_surveillance_disarm():
     """Disarm the surveillance system"""
     if not SURVEILLANCE_SERVICE_AVAILABLE or not surveillance_service:
-        return jsonify({"success": False, "error": "Surveillance service not available"}), 503
+        return (
+            jsonify({"success": False, "error": "Surveillance service not configured"}),
+            503,
+        )
 
     try:
         success = surveillance_service.disarm_system()
         if success:
             return jsonify({"success": True, "message": "System disarmed"})
-        return jsonify({"success": False, "error": "Failed to disarm system"}), 500
+        return (
+            jsonify({"success": False, "error": "Failed to disarm system"}),
+            500,
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -2066,7 +2173,10 @@ def api_surveillance_disarm():
 def api_surveillance_events():
     """Get recent surveillance events"""
     if not SURVEILLANCE_SERVICE_AVAILABLE or not surveillance_service:
-        return jsonify({"success": False, "error": "Surveillance service not available"}), 503
+        return (
+            jsonify({"success": False, "error": "Surveillance service not configured"}),
+            503,
+        )
 
     hours = request.args.get("hours", 24, type=int)
 
@@ -2545,3 +2655,80 @@ def api_domains_quick_setup():
             "steps": steps,
         }
     )
+
+
+# ============================================================================
+# SECURITY ALERT CONFIGURATION
+# ============================================================================
+
+
+@security_network_bp.route("/api/security/alert-config")
+@login_required
+@admin_required
+def api_get_alert_config():
+    """Get current security alert configuration"""
+    from .security_alerts import _get_alert_config
+
+    try:
+        config = _get_alert_config()
+        return jsonify({"success": True, "config": config})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/security/alert-config", methods=["POST"])
+@login_required
+@admin_required
+def api_update_alert_config():
+    """Update security alert configuration.
+
+    Expects JSON body with alert type keys, e.g.:
+    {
+        "block": {"enabled": true, "telegram": true},
+        "scan_result": {"enabled": true, "telegram": false},
+        ...
+    }
+    """
+    import json as json_lib
+    from .security_alerts import VALID_ALERT_TYPES, _get_alert_config
+
+    data = request.get_json() or {}
+
+    # Merge with existing config
+    config = _get_alert_config()
+    for alert_type, settings in data.items():
+        if alert_type not in VALID_ALERT_TYPES:
+            return (
+                jsonify({"success": False, "error": f"Invalid alert type: {alert_type}"}),
+                400,
+            )
+        if not isinstance(settings, dict):
+            continue
+        if alert_type not in config:
+            config[alert_type] = {}
+        if "enabled" in settings:
+            config[alert_type]["enabled"] = bool(settings["enabled"])
+        if "telegram" in settings:
+            config[alert_type]["telegram"] = bool(settings["telegram"])
+
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO security_auto_block_settings (setting_key, setting_value, description, updated_by, updated_at)
+            VALUES ('alert_config', %s, 'Security alert Telegram/notification config', %s, NOW())
+            ON CONFLICT (setting_key) DO UPDATE
+            SET setting_value = EXCLUDED.setting_value,
+                updated_by = EXCLUDED.updated_by,
+                updated_at = NOW()
+            """,
+            (json_lib.dumps(config), current_user.id),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "config": config})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500

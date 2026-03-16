@@ -16,8 +16,10 @@
                 <div class="lcars-body" role="navigation" aria-label="Development Tools navigation" style="display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 12px !important; padding: 4px 16px !important; flex: 1 !important; font-family: var(--archie-font-mono, 'JetBrains Mono', monospace) !important;">
                     <div class="cn-zone cn-zone-left">
                         <a href="{{ url_for('dashboard') }}" class="cn-back" onclick="showTransition(event, this.href)" title="Back to Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></a>
-                        <div class="cn-avatar">{{ current_user.username[0] | upper }}</div>
-                        <span class="cn-username">{{ current_user.username }}</span>
+                        <a href="{{ url_for('user_profile.index') }}" class="cn-profile-link" onclick="showTransition(event, this.href)" style="display:flex;align-items:center;gap:8px;text-decoration:none;color:inherit;">
+                            <div class="cn-avatar">{{ current_user.username[0] | upper }}</div>
+                            <span class="cn-username">{{ current_user.username }}</span>
+                        </a></a>
                         {% if current_user.is_admin %}<span class="cn-badge cn-badge-role">ADMIN</span>{% endif %}
                     </div>
                     <div class="cn-zone cn-zone-center">

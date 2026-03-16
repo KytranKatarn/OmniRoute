@@ -9216,6 +9216,44 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
 </div>
 
 <!-- Agent Profile Modal -->
+<!-- Mission Profile Selector Modal -->
+<div class="bm-overlay" id="mission-modal" style="--bm-accent:#00d4ff;--bm-accent-rgb:0,212,255;">
+    <div class="bm-shell" style="max-width:520px;">
+        <div class="bm-frame">
+            <div class="bm-frame-elbow-top"></div>
+            <div class="bm-frame-seg"></div>
+            <div class="bm-frame-seg dim"></div>
+            <div class="bm-frame-light on"></div>
+            <div class="bm-frame-light amber"></div>
+            <div class="bm-frame-seg purple"></div>
+            <div class="bm-frame-fill"></div>
+            <div class="bm-frame-elbow-bottom"></div>
+        </div>
+        <div class="bm-content">
+            <div class="bm-header">
+                <span class="bm-header-title">SELECT MISSION PROFILE</span>
+                <div class="bm-header-strip">
+                    <div class="bm-header-pip w1"></div>
+                    <div class="bm-header-pip w2"></div>
+                    <div class="bm-header-pip w3"></div>
+                    <button class="bm-close" onclick="closeMissionModal()">&times;</button>
+                </div>
+            </div>
+            <div class="bm-body" id="mission-modal-body" style="padding:16px 20px;">
+                <p style="font-size:0.75rem;opacity:0.6;margin:0 0 12px;">Select a mission profile to change dispatch routing, agent priorities, and system behavior.</p>
+                <div id="mission-profile-list"></div>
+            </div>
+            <div class="bm-footer">
+                <div class="bm-footer-strip">
+                    <div class="bm-footer-dot cyan"></div>
+                    <div class="bm-footer-dot gold"></div>
+                    <div class="bm-footer-dot green"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="bm-overlay" id="agent-profile-modal" style="--bm-accent:#8b5cf6;--bm-accent-rgb:139,92,246;">
     <div class="bm-shell" style="max-width:640px;">
         <div class="bm-frame">
@@ -10451,22 +10489,69 @@ function hexToRgb(hex) {
 }
 
 function openMissionSelector() {
+    var modal = document.getElementById('mission-modal');
+    var list = document.getElementById('mission-profile-list');
+    list.textContent = '';
+    var loading = document.createElement('div');
+    loading.style.cssText = 'text-align:center;padding:20px;opacity:0.5;';
+    loading.textContent = 'Loading profiles...';
+    list.appendChild(loading);
+    modal.classList.add('active');
+
     fetch('/tools/bridge/api/mission/profiles').then(function(r){return r.json();}).then(function(d) {
         if (!d.success) return;
-        var profiles = d.profiles;
-        var choice = prompt('Select mission profile:\n\n' + profiles.map(function(p,i){ return (i+1)+'. '+p.display_name; }).join('\n') + '\n\nEnter number:');
-        if (choice) {
-            var idx = parseInt(choice) - 1;
-            if (idx >= 0 && idx < profiles.length) {
-                fetch('/tools/bridge/api/mission/activate/' + profiles[idx].id, {method:'PUT'})
-                .then(function(r){return r.json();}).then(function(d2){
-                    if (d2.success) {
-                        alert('Mission profile switched to: ' + profiles[idx].display_name);
-                        loadMissionBanner();
-                    }
-                });
+        list.textContent = '';
+        d.profiles.forEach(function(p) {
+            var card = document.createElement('div');
+            card.style.cssText = 'display:flex;align-items:center;gap:12px;padding:10px 14px;margin-bottom:6px;border-radius:8px;cursor:pointer;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);transition:all 0.15s;';
+            card.addEventListener('mouseenter', function(){ card.style.background='rgba('+hexToRgb(p.color)+',0.1)'; card.style.borderColor='rgba('+hexToRgb(p.color)+',0.3)'; });
+            card.addEventListener('mouseleave', function(){ card.style.background='rgba(255,255,255,0.02)'; card.style.borderColor='rgba(255,255,255,0.06)'; });
+            card.addEventListener('click', function(){ activateMissionProfile(p.id, p.display_name); });
+
+            var dot = document.createElement('span');
+            dot.style.cssText = 'width:12px;height:12px;border-radius:50%;flex-shrink:0;background:'+p.color+';box-shadow:0 0 8px '+p.color+';';
+            card.appendChild(dot);
+
+            var info = document.createElement('div');
+            info.style.cssText = 'flex:1;';
+            var name = document.createElement('div');
+            name.style.cssText = 'font-size:0.85rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#fff;';
+            name.textContent = p.display_name;
+            var desc = document.createElement('div');
+            desc.style.cssText = 'font-size:0.7rem;color:rgba(255,255,255,0.5);margin-top:2px;';
+            desc.textContent = p.description || '';
+            info.appendChild(name);
+            info.appendChild(desc);
+            card.appendChild(info);
+
+            if (p.is_default) {
+                var badge = document.createElement('span');
+                badge.style.cssText = 'font-size:0.6rem;padding:2px 6px;border-radius:3px;background:rgba(0,212,255,0.15);color:#00d4ff;border:1px solid rgba(0,212,255,0.3);';
+                badge.textContent = 'CURRENT';
+                card.appendChild(badge);
             }
+
+            list.appendChild(card);
+        });
+    }).catch(function(){ list.textContent = 'Error loading profiles'; });
+}
+
+function closeMissionModal() {
+    document.getElementById('mission-modal').classList.remove('active');
+}
+
+function activateMissionProfile(profileId, displayName) {
+    fetch('/tools/bridge/api/mission/activate/' + profileId, {method:'PUT'})
+    .then(function(r){return r.json();}).then(function(d) {
+        closeMissionModal();
+        if (d.success) {
+            if (typeof showToast === 'function') showToast('success', 'Mission profile: ' + displayName);
+            loadMissionBanner();
+        } else {
+            if (typeof showToast === 'function') showToast('error', d.error || 'Failed');
         }
+    }).catch(function(e){
+        closeMissionModal();
     });
 }
 

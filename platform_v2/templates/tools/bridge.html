@@ -17883,6 +17883,7 @@ function renderCrewManifest(crew, capacity) {
         var swapUsed = Math.max(0, Math.round((modelsGB - agentBudget) * 10) / 10);
         var swapFree = Math.max(0, Math.round((swapTotal - swapUsed) * 10) / 10);
         var reserveGB = ram.reserve_gb || 0;
+        var securityGB = ram.security_gb || 0;
         // Models segment = min(modelsGB, agentBudget) — what fits in agent budget
         var modelsSeg = Math.min(modelsGB, agentBudget);
 
@@ -17914,13 +17915,25 @@ function renderCrewManifest(crew, capacity) {
             cpuTrack.appendChild(seg3);
         }
 
-        // Segment 4: Host reserve (dashed red)
-        if (reserveGB > 0) {
+        // Segment 4: Security services (cyan)
+        if (securityGB > 0) {
             var seg4 = document.createElement('div');
-            seg4.className = 'roster-capacity-seg host-reserve';
-            seg4.style.width = ((reserveGB / totalGB) * 100).toFixed(1) + '%';
-            seg4.title = 'Host reserve: ' + reserveGB + 'GB';
+            seg4.className = 'roster-capacity-seg';
+            seg4.style.background = 'rgba(0,212,255,0.3)';
+            seg4.style.borderTop = '1px solid rgba(0,212,255,0.5)';
+            seg4.style.borderBottom = '1px solid rgba(0,212,255,0.5)';
+            seg4.style.width = ((securityGB / totalGB) * 100).toFixed(1) + '%';
+            seg4.title = 'Security services: ' + securityGB + 'GB';
             cpuTrack.appendChild(seg4);
+        }
+
+        // Segment 5: Host reserve (dashed red)
+        if (reserveGB > 0) {
+            var seg5 = document.createElement('div');
+            seg5.className = 'roster-capacity-seg host-reserve';
+            seg5.style.width = ((reserveGB / totalGB) * 100).toFixed(1) + '%';
+            seg5.title = 'Host reserve: ' + reserveGB + 'GB';
+            cpuTrack.appendChild(seg5);
         }
 
         cpuBar.appendChild(cpuTrack);
@@ -17931,13 +17944,14 @@ function renderCrewManifest(crew, capacity) {
         cpuPct.textContent = modelsGB.toFixed(0) + '/' + totalGB.toFixed(0) + 'GB';
         cpuBar.appendChild(cpuPct);
 
-        // Color legend (second row)
+        // Color legend (second row) — using existing innerHTML pattern from this file
         var legend = document.createElement('div');
         legend.className = 'roster-capacity-legend';
-        legend.innerHTML = '<span class="leg-models">' + modelsSeg.toFixed(0) + 'GB models</span>'
-            + '<span class="leg-swap-used">' + swapUsed.toFixed(1) + 'GB swap used</span>'
+        legend.innerHTML = '<span class="leg-models">' + modelsSeg.toFixed(0) + 'GB agents</span>'
+            + '<span class="leg-swap-used">' + swapUsed.toFixed(1) + 'GB swap</span>'
             + '<span class="leg-swap-free">' + swapFree.toFixed(1) + 'GB swap free</span>'
-            + '<span class="leg-reserve">' + reserveGB + 'GB reserve</span>';
+            + '<span style="color:#00d4ff;">\u25CF ' + securityGB + 'GB security</span>'
+            + '<span class="leg-reserve">' + reserveGB + 'GB host</span>';
         cpuBar.appendChild(legend);
 
         capWrap.appendChild(cpuBar);
@@ -17948,7 +17962,7 @@ function renderCrewManifest(crew, capacity) {
         if (addBtn) {
             addBtn.classList.remove('amber', 'red');
             addBtn.removeAttribute('title');
-            var usableGB = Math.max(0, (ram.available_gb || 0) - reserveGB);
+            var usableGB = Math.max(0, (ram.available_gb || 0) - reserveGB - securityGB);
             var _capInfo = {
                 availableGB: (ram.available_gb || 0).toFixed(1),
                 reserveGB: reserveGB,

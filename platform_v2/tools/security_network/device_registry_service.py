@@ -479,7 +479,7 @@ class DeviceRegistryService:
             )
 
             if is_queue_available():
-                result = submit_and_wait("arp_scan", {}, timeout=15, submitted_by="device_registry")
+                result = submit_and_wait("arp_scan", {}, timeout=30, submitted_by="device_registry")
                 if result and result.get("result", {}).get("success"):
                     entries = result["result"]["entries"]
                     # Normalize MAC to uppercase

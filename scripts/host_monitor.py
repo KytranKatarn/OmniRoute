@@ -5305,6 +5305,8 @@ _HANDLER_MAP = {
     "handle_firewall_deny": handle_firewall_deny,
     "handle_firewall_delete": handle_firewall_delete,
     "handle_firewall_update": handle_firewall_update,
+    # Network discovery
+    "handle_arp_scan": handle_arp_scan,
 }
 
 

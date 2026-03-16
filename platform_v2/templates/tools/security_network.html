@@ -3529,35 +3529,191 @@ async function loadConnections() {
 }
 
 /* ========== Reports ========== */
+const REPORT_TYPE_LABELS = {
+    daily_summary: 'Daily Summary',
+    weekly_report: 'Weekly Report',
+    device_audit: 'Device Audit',
+    dns_analysis: 'DNS Analysis'
+};
+
 async function loadReports() {
     const container = document.getElementById('reports-list');
     try {
         const r = await fetch(API+'/reports');
         const d = await r.json();
-        if(d.success && d.reports && d.reports.length) {
+        const allReports = [];
+        if(d.success && d.reports) d.reports.forEach(rp=>allReports.push(rp));
+        if(d.success && d.file_reports) d.file_reports.forEach(rp=>allReports.push(rp));
+
+        if(allReports.length) {
             container.textContent='';
-            d.reports.forEach(report=>{
-                const card = document.createElement('div');
-                card.className='scan-card';
-                const info = document.createElement('div');
-                const name = document.createElement('strong');
-                name.textContent = report.filename||report.title;
-                info.appendChild(name);
-                if(report.created_at){
-                    const br = document.createElement('br');
-                    const meta = document.createElement('small');
-                    meta.style.color='var(--archie-text-muted)';
-                    meta.textContent = ArchieTime.format(new Date(typeof report.created_at==='number'?report.created_at*1000:report.created_at).toISOString(), 'short');
-                    info.appendChild(br); info.appendChild(meta);
+            const tbl = document.createElement('table');
+            tbl.className='data-table';
+            const thead = document.createElement('thead');
+            thead.innerHTML='<tr><th>Title</th><th>Type</th><th>Generated</th><th>Actions</th></tr>';
+            tbl.appendChild(thead);
+            const tbody = document.createElement('tbody');
+
+            allReports.forEach(report=>{
+                const tr = document.createElement('tr');
+                const tdTitle = document.createElement('td');
+                tdTitle.textContent = report.title || report.filename || 'Untitled';
+                tr.appendChild(tdTitle);
+
+                const tdType = document.createElement('td');
+                const badge = document.createElement('span');
+                badge.className='svc-badge';
+                badge.textContent = REPORT_TYPE_LABELS[report.report_type] || report.report_type || 'Scan';
+                tdType.appendChild(badge);
+                tr.appendChild(tdType);
+
+                const tdDate = document.createElement('td');
+                if(report.created_at) {
+                    const ts = typeof report.created_at==='number' ? new Date(report.created_at*1000).toISOString() : report.created_at;
+                    tdDate.textContent = ArchieTime.format(ts, 'short');
+                } else { tdDate.textContent = '-'; }
+                tr.appendChild(tdDate);
+
+                const tdActions = document.createElement('td');
+                tdActions.style.cssText='display:flex;gap:6px';
+                if(report.source==='db' && report.id) {
+                    const viewBtn = document.createElement('button');
+                    viewBtn.className='btn btn-sm';
+                    viewBtn.textContent='View';
+                    viewBtn.onclick=function(){viewReport(report.id);};
+                    tdActions.appendChild(viewBtn);
                 }
-                const dl = document.createElement('a');
-                dl.href=API+'/reports/download/'+encodeURIComponent(report.filename||report.id);
-                dl.className='btn btn-sm'; dl.textContent='Download';
-                card.appendChild(info); card.appendChild(dl);
-                container.appendChild(card);
+                if(report.source==='file' && report.filename) {
+                    const dlBtn = document.createElement('a');
+                    dlBtn.href=API+'/reports/download/'+encodeURIComponent(report.filename);
+                    dlBtn.className='btn btn-sm';
+                    dlBtn.textContent='Download';
+                    tdActions.appendChild(dlBtn);
+                }
+                tr.appendChild(tdActions);
+                tbody.appendChild(tr);
             });
-        } else { showEmpty(container,'No reports generated yet. Run a scan and generate a report from the Scanning tab.'); }
-    } catch(e) { showEmpty(container,'Error loading reports'); }
+            tbl.appendChild(tbody);
+            container.appendChild(tbl);
+        } else { showEmpty(container,'No reports generated yet. Use the form above to generate your first report.'); }
+    } catch(e) { showEmpty(container,'Error loading reports: '+e.message); }
+}
+
+async function generateReport() {
+    const btn = document.getElementById('btn-generate-report');
+    const reportType = document.getElementById('report-type').value;
+    const dateStart = document.getElementById('report-date-start').value || null;
+    const dateEnd = document.getElementById('report-date-end').value || null;
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner" style="width:14px;height:14px"></span> Generating...';
+
+    try {
+        const r = await fetch(API+'/reports/generate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({report_type: reportType, date_start: dateStart, date_end: dateEnd})
+        });
+        const d = await r.json();
+        if(d.success) {
+            showToast('success', 'Report generated: ' + d.title);
+            loadReports();
+        } else {
+            showToast('error', d.error || 'Failed to generate report');
+        }
+    } catch(e) {
+        showToast('error', 'Error: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i data-lucide="file-plus" style="width:14px;height:14px"></i> Generate';
+        if(typeof lucide !== 'undefined') lucide.createIcons();
+    }
+}
+
+async function viewReport(reportId) {
+    try {
+        const r = await fetch(API+'/reports/'+reportId);
+        const d = await r.json();
+        if(!d.success) { showToast('error', d.error||'Failed to load report'); return; }
+        const rpt = d.report;
+        const content = rpt.content || {};
+
+        let html = '<div style="padding:16px;max-height:70vh;overflow-y:auto">';
+        html += '<h2 style="color:var(--archie-text-primary);margin:0 0 4px">' + (rpt.title||'Report') + '</h2>';
+        html += '<p style="color:var(--archie-text-muted);font-size:0.82rem;margin:0 0 16px">Generated: ' + (rpt.created_at||'-') + '</p>';
+
+        if(content.events_by_severity && content.events_by_severity.length) {
+            html += '<h3 style="color:var(--archie-accent)">Events by Severity</h3><ul>';
+            content.events_by_severity.forEach(e=>{ html += '<li><strong>'+e.severity+'</strong>: '+e.count+'</li>'; });
+            html += '</ul>';
+        }
+        if(content.recent_events && content.recent_events.length) {
+            html += '<h3 style="color:var(--archie-accent)">Recent Events ('+content.recent_events.length+')</h3>';
+            html += '<table class="data-table"><thead><tr><th>Type</th><th>Severity</th><th>Status</th><th>Description</th></tr></thead><tbody>';
+            content.recent_events.forEach(e=>{
+                html += '<tr><td>'+e.type+'</td><td>'+e.severity+'</td><td>'+e.status+'</td><td>'+(e.description||'-')+'</td></tr>';
+            });
+            html += '</tbody></table>';
+        }
+        if(content.daily_breakdown) {
+            html += '<h3 style="color:var(--archie-accent)">Daily Breakdown</h3><pre style="background:var(--archie-bg-tertiary);padding:12px;border-radius:6px;overflow-x:auto;color:var(--archie-text-secondary)">' + JSON.stringify(content.daily_breakdown, null, 2) + '</pre>';
+        }
+        if(content.devices && content.devices.length) {
+            html += '<h3 style="color:var(--archie-accent)">Devices ('+content.total_devices+')</h3>';
+            html += '<table class="data-table"><thead><tr><th>Hostname</th><th>IP</th><th>Type</th><th>Zone</th><th>Status</th></tr></thead><tbody>';
+            content.devices.forEach(dev=>{
+                html += '<tr><td>'+(dev.hostname||'-')+'</td><td>'+dev.ip+'</td><td>'+(dev.type||'-')+'</td><td>'+(dev.zone||'-')+'</td><td>'+dev.status+'</td></tr>';
+            });
+            html += '</tbody></table>';
+        }
+        if(content.zone_summary && content.zone_summary.length) {
+            html += '<h3 style="color:var(--archie-accent)">Zone Summary</h3><ul>';
+            content.zone_summary.forEach(z=>{ html += '<li><strong>'+z.zone+'</strong>: '+z.count+' devices</li>'; });
+            html += '</ul>';
+        }
+        if(content.dns_changes && content.dns_changes.length) {
+            html += '<h3 style="color:var(--archie-accent)">DNS Changes ('+content.dns_changes.length+')</h3>';
+            html += '<table class="data-table"><thead><tr><th>Source</th><th>Action</th><th>Domain</th><th>By</th><th>Date</th></tr></thead><tbody>';
+            content.dns_changes.forEach(c=>{
+                html += '<tr><td>'+c.source+'</td><td>'+c.action+'</td><td>'+(c.domain||'-')+'</td><td>'+(c.changed_by||'-')+'</td><td>'+(c.created_at||'-')+'</td></tr>';
+            });
+            html += '</tbody></table>';
+        }
+        if(content.dns_providers && content.dns_providers.length) {
+            html += '<h3 style="color:var(--archie-accent)">DNS Providers</h3><ul>';
+            content.dns_providers.forEach(p=>{ html += '<li><strong>'+p.name+'</strong> ('+p.type+') — '+(p.active?'Active':'Inactive')+'</li>'; });
+            html += '</ul>';
+        }
+        if(content.scan_findings && content.scan_findings.length) {
+            html += '<h3 style="color:var(--archie-accent)">Scan Findings</h3><ul>';
+            content.scan_findings.forEach(f=>{ html += '<li><strong>'+f.severity+'</strong>: '+f.count+'</li>'; });
+            html += '</ul>';
+        }
+
+        // Fallback: show raw JSON if no specific sections rendered
+        const hasContent = (content.events_by_severity||[]).length || (content.recent_events||[]).length ||
+            content.daily_breakdown || (content.devices||[]).length || (content.dns_changes||[]).length;
+        if(!hasContent) {
+            html += '<pre style="background:var(--archie-bg-tertiary);padding:12px;border-radius:6px;overflow-x:auto;color:var(--archie-text-secondary)">' + JSON.stringify(content, null, 2) + '</pre>';
+        }
+
+        html += '</div>';
+
+        // Use a simple overlay modal
+        const overlay = document.createElement('div');
+        overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center';
+        overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
+        const modal = document.createElement('div');
+        modal.style.cssText='background:var(--archie-bg-secondary);border:1px solid var(--archie-border-muted);border-radius:12px;width:90%;max-width:900px;max-height:85vh;overflow:hidden;position:relative';
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent='\u00d7';
+        closeBtn.style.cssText='position:absolute;top:8px;right:12px;background:none;border:none;color:var(--archie-text-muted);font-size:1.5rem;cursor:pointer;z-index:1';
+        closeBtn.onclick=function(){overlay.remove();};
+        modal.innerHTML = html;
+        modal.appendChild(closeBtn);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+    } catch(e) { showToast('error', 'Error viewing report: '+e.message); }
 }
 
 /* ========== Agent Automation ========== */

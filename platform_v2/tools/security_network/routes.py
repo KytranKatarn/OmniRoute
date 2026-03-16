@@ -10,6 +10,7 @@ from functools import wraps
 import psycopg2
 from psycopg2.extras import RealDictCursor, Json
 import os
+from datetime import datetime
 
 from . import security_network_bp
 from .security_alerts import create_security_alert
@@ -1356,13 +1357,132 @@ def api_refresh_ssl_monitors():
 @login_required
 @admin_required
 def api_list_reports():
-    """List all generated reports"""
-    if not REPORT_SERVICE_AVAILABLE:
-        return jsonify({"success": False, "error": "Report service not available"}), 503
+    """List all generated reports from DB + filesystem"""
+    from database import get_db_cursor
 
     try:
-        reports = list_reports()
-        return jsonify({"success": True, "reports": reports})
+        db_reports = []
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT id, report_type, title, date_range_start, date_range_end,
+                          format, file_path, created_at
+                   FROM security_reports
+                   ORDER BY created_at DESC
+                   LIMIT 100"""
+            )
+            for row in cur.fetchall():
+                db_reports.append(
+                    {
+                        "id": row[0],
+                        "report_type": row[1],
+                        "title": row[2],
+                        "date_range_start": row[3].isoformat() if row[3] else None,
+                        "date_range_end": row[4].isoformat() if row[4] else None,
+                        "format": row[5],
+                        "file_path": row[6],
+                        "created_at": row[7].isoformat() if row[7] else None,
+                        "source": "db",
+                    }
+                )
+
+        # Also include filesystem reports if available
+        file_reports = []
+        if REPORT_SERVICE_AVAILABLE:
+            try:
+                for fr in list_reports():
+                    fr["source"] = "file"
+                    file_reports.append(fr)
+            except Exception:
+                pass
+
+        return jsonify({"success": True, "reports": db_reports, "file_reports": file_reports})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/reports/generate", methods=["POST"])
+@login_required
+@admin_required
+def api_generate_report():
+    """Generate a security report and store in DB"""
+    from database import get_db_cursor
+
+    data = request.get_json() or {}
+    report_type = data.get("report_type", "daily_summary")
+    date_start = data.get("date_start")
+    date_end = data.get("date_end")
+
+    valid_types = ["daily_summary", "weekly_report", "device_audit", "dns_analysis"]
+    if report_type not in valid_types:
+        return jsonify({"success": False, "error": f"Invalid report type: {report_type}"}), 400
+
+    type_labels = {
+        "daily_summary": "Daily Summary",
+        "weekly_report": "Weekly Report",
+        "device_audit": "Device Audit",
+        "dns_analysis": "DNS Analysis",
+    }
+    title = f"{type_labels[report_type]} - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+
+    try:
+        # Gather report content based on type
+        content = _gather_report_content(report_type, date_start, date_end)
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """INSERT INTO security_reports
+                   (report_type, title, date_range_start, date_range_end, content, format)
+                   VALUES (%s, %s, %s, %s, %s, 'json')
+                   RETURNING id""",
+                (
+                    report_type,
+                    title,
+                    date_start,
+                    date_end,
+                    Json(content),
+                ),
+            )
+            report_id = cur.fetchone()[0]
+
+        return jsonify({"success": True, "id": report_id, "title": title})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/reports/<int:report_id>")
+@login_required
+@admin_required
+def api_view_report(report_id):
+    """View a single report from DB"""
+    from database import get_db_cursor
+
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT id, report_type, title, date_range_start, date_range_end,
+                          content, format, created_at
+                   FROM security_reports WHERE id = %s""",
+                (report_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"success": False, "error": "Report not found"}), 404
+
+            return jsonify(
+                {
+                    "success": True,
+                    "report": {
+                        "id": row[0],
+                        "report_type": row[1],
+                        "title": row[2],
+                        "date_range_start": row[3].isoformat() if row[3] else None,
+                        "date_range_end": row[4].isoformat() if row[4] else None,
+                        "content": row[5],
+                        "format": row[6],
+                        "created_at": row[7].isoformat() if row[7] else None,
+                    },
+                }
+            )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -1457,6 +1577,189 @@ def api_download_report(filename):
         return send_file(filepath, as_attachment=True)
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# REPORT CONTENT GATHERING
+# ============================================================================
+
+
+def _gather_report_content(report_type, date_start=None, date_end=None):
+    """Gather report content based on type by querying relevant DB data."""
+    from database import get_db_cursor
+
+    content = {"report_type": report_type, "generated_at": datetime.now().isoformat()}
+
+    with get_db_cursor() as (conn, cur):
+        date_filter = ""
+        date_params = []
+        if date_start:
+            date_filter += " AND created_at >= %s"
+            date_params.append(date_start)
+        if date_end:
+            date_filter += " AND created_at <= %s"
+            date_params.append(date_end)
+
+        if report_type == "daily_summary":
+            # Security events from last 24h (or date range)
+            df = date_filter if date_start else " AND created_at >= NOW() - INTERVAL '24 hours'"
+            dp = date_params if date_start else []
+            try:
+                cur.execute(
+                    f"""SELECT severity, COUNT(*) as cnt
+                        FROM security_events
+                        WHERE 1=1 {df}
+                        GROUP BY severity ORDER BY cnt DESC""",
+                    dp,
+                )
+                content["events_by_severity"] = [{"severity": r[0], "count": r[1]} for r in cur.fetchall()]
+            except Exception:
+                conn.rollback()
+                content["events_by_severity"] = []
+
+            try:
+                cur.execute(
+                    f"""SELECT event_type, description, severity, status, created_at
+                        FROM security_events
+                        WHERE 1=1 {df}
+                        ORDER BY created_at DESC LIMIT 50""",
+                    dp,
+                )
+                content["recent_events"] = [
+                    {
+                        "type": r[0],
+                        "description": r[1],
+                        "severity": r[2],
+                        "status": r[3],
+                        "created_at": r[4].isoformat() if r[4] else None,
+                    }
+                    for r in cur.fetchall()
+                ]
+            except Exception:
+                conn.rollback()
+                content["recent_events"] = []
+
+        elif report_type == "weekly_report":
+            df = date_filter if date_start else " AND created_at >= NOW() - INTERVAL '7 days'"
+            dp = date_params if date_start else []
+            try:
+                cur.execute(
+                    f"""SELECT DATE(created_at) as day, severity, COUNT(*)
+                        FROM security_events
+                        WHERE 1=1 {df}
+                        GROUP BY day, severity ORDER BY day DESC""",
+                    dp,
+                )
+                daily = {}
+                for r in cur.fetchall():
+                    day_str = r[0].isoformat()
+                    if day_str not in daily:
+                        daily[day_str] = {}
+                    daily[day_str][r[1]] = r[2]
+                content["daily_breakdown"] = daily
+            except Exception:
+                conn.rollback()
+                content["daily_breakdown"] = {}
+
+            try:
+                cur.execute(
+                    f"""SELECT COUNT(*) FROM security_events WHERE 1=1 {df}""",
+                    dp,
+                )
+                content["total_events"] = cur.fetchone()[0]
+            except Exception:
+                conn.rollback()
+                content["total_events"] = 0
+
+            # Scan results summary
+            try:
+                cur.execute(
+                    f"""SELECT severity, COUNT(*) FROM security_scan_results
+                        WHERE 1=1 {df}
+                        GROUP BY severity ORDER BY COUNT(*) DESC""",
+                    dp,
+                )
+                content["scan_findings"] = [{"severity": r[0], "count": r[1]} for r in cur.fetchall()]
+            except Exception:
+                conn.rollback()
+                content["scan_findings"] = []
+
+        elif report_type == "device_audit":
+            try:
+                cur.execute(
+                    """SELECT hostname, ip_address::text, mac_address, device_type,
+                              status, security_zone, is_registered, last_seen_at
+                       FROM network_devices
+                       ORDER BY last_seen_at DESC NULLS LAST LIMIT 200"""
+                )
+                content["devices"] = [
+                    {
+                        "hostname": r[0],
+                        "ip": r[1],
+                        "mac": r[2],
+                        "type": r[3],
+                        "status": r[4],
+                        "zone": r[5],
+                        "registered": r[6],
+                        "last_seen": r[7].isoformat() if r[7] else None,
+                    }
+                    for r in cur.fetchall()
+                ]
+                content["total_devices"] = len(content["devices"])
+            except Exception:
+                conn.rollback()
+                content["devices"] = []
+                content["total_devices"] = 0
+
+            # Zone summary
+            try:
+                cur.execute(
+                    """SELECT security_zone, COUNT(*) FROM network_devices
+                       GROUP BY security_zone ORDER BY COUNT(*) DESC"""
+                )
+                content["zone_summary"] = [{"zone": r[0], "count": r[1]} for r in cur.fetchall()]
+            except Exception:
+                conn.rollback()
+                content["zone_summary"] = []
+
+        elif report_type == "dns_analysis":
+            df = date_filter if date_start else " AND created_at >= NOW() - INTERVAL '7 days'"
+            dp = date_params if date_start else []
+            # DNS changes
+            try:
+                cur.execute(
+                    f"""SELECT source, action, domain, changed_by, created_at
+                        FROM security_dns_changes
+                        WHERE 1=1 {df}
+                        ORDER BY created_at DESC LIMIT 100""",
+                    dp,
+                )
+                content["dns_changes"] = [
+                    {
+                        "source": r[0],
+                        "action": r[1],
+                        "domain": r[2],
+                        "changed_by": r[3],
+                        "created_at": r[4].isoformat() if r[4] else None,
+                    }
+                    for r in cur.fetchall()
+                ]
+            except Exception:
+                conn.rollback()
+                content["dns_changes"] = []
+
+            # DNS providers
+            try:
+                cur.execute(
+                    """SELECT provider_name, provider_type, is_active
+                       FROM dns_providers ORDER BY provider_name"""
+                )
+                content["dns_providers"] = [{"name": r[0], "type": r[1], "active": r[2]} for r in cur.fetchall()]
+            except Exception:
+                conn.rollback()
+                content["dns_providers"] = []
+
+    return content
 
 
 # ============================================================================

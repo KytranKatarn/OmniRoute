@@ -2316,7 +2316,32 @@ var _engOps = new StationOps({
     agentsElId: 'engOpsAgents',
     jobsElId: 'engOpsJobs',
     commandsElId: 'engOpsCommands',
-    statusElId: 'engOpsOnline'
+    statusElId: 'engOpsOnline',
+    commands: [
+        { label: 'SCAN ALL', cls: 'green', fn: "document.getElementById('scanAllBtn') && document.getElementById('scanAllBtn').click()", id: 'engCmdScan' },
+        { label: 'PROPOSALS', cls: 'purple', fn: "switchTab('proposals')", id: 'engCmdProposals' },
+        { label: 'SANDBOX', cls: 'cyan', fn: "switchTab('sandbox')", id: 'engCmdSandbox' }
+    ],
+    onCapacityChange: function(atCap) {
+        ['engCmdScan','engCmdProposals','engCmdSandbox'].forEach(function(id) {
+            var btn = document.getElementById(id);
+            if (btn) { btn.disabled = atCap; btn.title = atCap ? 'Station at capacity' : ''; }
+        });
+        var status = document.getElementById('engOpsOnline');
+        if (status) {
+            var dot = status.querySelector('.cs-ops-dot');
+            var txt = status.childNodes[status.childNodes.length - 1];
+            if (atCap) {
+                if (dot) { dot.style.background = '#f59e0b'; dot.style.boxShadow = '0 0 4px #f59e0b'; }
+                if (txt && txt.nodeType === 3) txt.textContent = ' AT CAPACITY';
+                status.style.color = '#f59e0b';
+            } else {
+                if (dot) { dot.style.background = ''; dot.style.boxShadow = ''; }
+                if (txt && txt.nodeType === 3) txt.textContent = ' ONLINE';
+                status.style.color = '';
+            }
+        }
+    }
 });
 
 function checkStationJobs() {
@@ -2324,11 +2349,8 @@ function checkStationJobs() {
         _stationFailCount = 0;
         var myJobs = result.myJobs;
 
-        // Render crew with busy badges from active jobs
-        _engOps.renderAgents(myJobs.length ? myJobs : null);
-
-        // Render job progress in ops terminal (single display via StationOps)
-        _engOps.renderJobs(myJobs.length ? myJobs : null);
+        // Render crew + jobs via unified render (matches Consciousness pattern)
+        _engOps.render(myJobs.length ? myJobs : null);
 
         // Clear scan-complete overlay when new jobs start
         var jobsEl = document.getElementById('stationJobs');
@@ -2352,7 +2374,7 @@ function checkStationJobs() {
 function startStationPolling() {
     if (_stationPollInterval) return;
     // Initial render
-    _engOps.renderAgents(null);
+    _engOps.render(null);
     checkStationJobs();
     _startNormalPolling();
 }

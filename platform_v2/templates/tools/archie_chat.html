@@ -3206,6 +3206,7 @@ body.font-large .messages-container{font-size:1.05rem}
             <div class="stn-ops-body cs-ops-body">
                 <div id="cmdOpsAgents"></div>
                 <div id="cmdOpsJobs"></div>
+                <div class="cs-ops-commands" id="cmdOpsCommands"></div>
             </div>
         </div>
 
@@ -5314,14 +5315,31 @@ var _cmdOps = new StationOps({
     moduleSource: 'archie_chat',
     agentsElId: 'cmdOpsAgents',
     jobsElId: 'cmdOpsJobs',
-    commandsElId: null,
-    statusElId: 'cmdOpsOnline'
+    commandsElId: 'cmdOpsCommands',
+    statusElId: 'cmdOpsOnline',
+    commands: [
+        { label: 'CHAT', cls: 'green', fn: "document.getElementById('messageInput') && document.getElementById('messageInput').focus()", id: 'cmdChat' },
+        { label: 'DISPATCH', cls: 'amber', fn: "switchToDispatch && switchToDispatch()", id: 'cmdDispatch' }
+    ],
+    onCapacityChange: function(atCap) {
+        var status = document.getElementById('cmdOpsOnline');
+        if (status) {
+            var dot = status.querySelector('.cs-ops-dot');
+            var txt = status.childNodes[status.childNodes.length - 1];
+            if (atCap) {
+                if (dot) { dot.style.background = '#f59e0b'; }
+                if (txt && txt.nodeType === 3) txt.textContent = ' AT CAPACITY';
+            } else {
+                if (dot) { dot.style.background = ''; }
+                if (txt && txt.nodeType === 3) txt.textContent = ' ONLINE';
+            }
+        }
+    }
 });
 
 function checkCommandStation() {
     _cmdOps.checkJobs().then(function(result) {
-        _cmdOps.renderAgents(result.myJobs.length ? result.myJobs : null);
-        _cmdOps.renderJobs(result.myJobs.length ? result.myJobs : null);
+        _cmdOps.render();
     }).catch(function() {});
 }
 

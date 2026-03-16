@@ -1048,7 +1048,7 @@
         </div>
 
         <div id="subtab-dns-querylog" class="subtab-content">
-            <div class="form-row" style="margin-bottom:16px">
+            <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:flex-end">
                 <div class="form-group">
                     <label class="form-label"><span data-i18n="security_network.search">Search</span></label>
                     <input type="text" class="form-input" id="ql-search" placeholder="Domain or client...">
@@ -3854,9 +3854,10 @@ async function loadDeviceClients() {
         var statsRes = await fetch(API + '/devices/stats');
         var statsData = await statsRes.json();
         if (statsData.success) {
-            document.getElementById('dev-total').textContent = statsData.total || 0;
-            document.getElementById('dev-online').textContent = statsData.online || 0;
-            document.getElementById('dev-unreg').textContent = statsData.unregistered || 0;
+            var s = statsData.stats || statsData;
+            document.getElementById('dev-total').textContent = s.total || 0;
+            document.getElementById('dev-online').textContent = s.online || 0;
+            document.getElementById('dev-unreg').textContent = s.unregistered || 0;
         }
     } catch(e) { console.warn('Device stats error:', e); }
 
@@ -4218,7 +4219,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if(typeof lucide!=='undefined') lucide.createIcons();
     initTabs();
     initSubtabs();
-    loadDashboard();
+    setTimeout(loadDashboard, 500);
     initSecurityStation();
 });
 

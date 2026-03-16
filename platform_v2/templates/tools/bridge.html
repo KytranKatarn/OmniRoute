@@ -3440,12 +3440,12 @@ body.light-mode .bridge-zone-unstaffed {
 .iso-zone-rnd_ai .iso-typing-cursor { background: #06B6D4; }
 .iso-zone-rnd_ai .iso-station-floor-glow { background: #06B6D4; }
 
-.iso-zone-support .iso-station-name { color: #F43F5E; }
-.iso-zone-support .iso-console { box-shadow: 0 0 12px rgba(244,63,94,0.15), 0 4px 16px rgba(0,0,0,0.5); border-color: rgba(244,63,94,0.2); }
-.iso-zone-support .iso-console-glow { background: #F43F5E; }
-.iso-zone-support .iso-avatar-ring { color: #F43F5E; }
-.iso-zone-support .iso-typing-cursor { background: #F43F5E; }
-.iso-zone-support .iso-station-floor-glow { background: #F43F5E; }
+.iso-zone-security .iso-station-name { color: #F43F5E; }
+.iso-zone-security .iso-console { box-shadow: 0 0 12px rgba(244,63,94,0.15), 0 4px 16px rgba(0,0,0,0.5); border-color: rgba(244,63,94,0.2); }
+.iso-zone-security .iso-console-glow { background: #F43F5E; }
+.iso-zone-security .iso-avatar-ring { color: #F43F5E; }
+.iso-zone-security .iso-typing-cursor { background: #F43F5E; }
+.iso-zone-security .iso-station-floor-glow { background: #F43F5E; }
 
 .iso-zone-qa .iso-station-name { color: #10B981; }
 .iso-zone-qa .iso-console { box-shadow: 0 0 12px rgba(16,185,129,0.15), 0 4px 16px rgba(0,0,0,0.5); border-color: rgba(16,185,129,0.2); }
@@ -3453,13 +3453,6 @@ body.light-mode .bridge-zone-unstaffed {
 .iso-zone-qa .iso-avatar-ring { color: #10B981; }
 .iso-zone-qa .iso-typing-cursor { background: #10B981; }
 .iso-zone-qa .iso-station-floor-glow { background: #10B981; }
-
-.iso-zone-security .iso-station-name { color: #EF4444; }
-.iso-zone-security .iso-console { box-shadow: 0 0 12px rgba(239,68,68,0.15), 0 4px 16px rgba(0,0,0,0.5); border-color: rgba(239,68,68,0.2); }
-.iso-zone-security .iso-console-glow { background: #EF4444; }
-.iso-zone-security .iso-avatar-ring { color: #EF4444; }
-.iso-zone-security .iso-typing-cursor { background: #EF4444; }
-.iso-zone-security .iso-station-floor-glow { background: #EF4444; }
 
 /* ── Wall panels (ambient decorations) ── */
 .iso-wall-panel {
@@ -4084,7 +4077,7 @@ body.light-mode .bridge-zone-unstaffed {
 .crew-agent-card[data-station="RESEARCH"] { border-left-color: #6495ED; }
 .crew-agent-card[data-station="DOCUMENTATION"] { border-left-color: #8B5CF6; }
 .crew-agent-card[data-station="RND_AI"] { border-left-color: #06B6D4; }
-.crew-agent-card[data-station="SUPPORT"] { border-left-color: #F43F5E; }
+.crew-agent-card[data-station="SECURITY"] { border-left-color: #F43F5E; }
 .crew-agent-card[data-station="QA"] { border-left-color: #10B981; }
 .crew-agent-card[data-station="SECURITY"] { border-left-color: #EF4444; }
 
@@ -10328,10 +10321,9 @@ const STATION_COLORS = {
     'SUPPORT': '#F43F5E'
 };
 
-// ── Isometric zone grouping (11 active stations → 11 zones) ──
+// ── Isometric zone grouping (10 active stations → 10 zones) ──
 const ISOMETRIC_ZONE_MAP = {
     'COMMAND':       { stations: ['COMMAND'],             color: '#FFD700', label: 'Command',       abbr: 'CMD' },
-    'SECURITY':      { stations: ['SECURITY'],            color: '#EF4444', label: 'Security',      abbr: 'SEC' },
     'CREATIVE':      { stations: ['CREATIVE'],            color: '#FF69B4', label: 'Creative',      abbr: 'CRE' },
     'ENGINEERING':   { stations: ['ENGINEERING'],         color: '#32CD32', label: 'Engineering',   abbr: 'ENG' },
     'OPERATIONS':    { stations: ['OPERATIONS'],          color: '#FF8C00', label: 'Operations',    abbr: 'OPS' },
@@ -10339,7 +10331,7 @@ const ISOMETRIC_ZONE_MAP = {
     'RESEARCH':      { stations: ['RESEARCH'],            color: '#6495ED', label: 'Research',      abbr: 'RES' },
     'DOCUMENTATION': { stations: ['DOCUMENTATION'],       color: '#8B5CF6', label: 'Documentation', abbr: 'DOC' },
     'RND_AI':        { stations: ['RND_AI'],              color: '#06B6D4', label: 'R&D - AI',      abbr: 'R&D' },
-    'SUPPORT':       { stations: ['SUPPORT'],             color: '#F43F5E', label: 'Support',       abbr: 'SUP' },
+    'SECURITY':      { stations: ['SECURITY'],            color: '#F43F5E', label: 'Security',      abbr: 'SEC' },
     'QA':            { stations: ['QA'],                  color: '#10B981', label: 'QA',            abbr: 'QA'  }
 };
 

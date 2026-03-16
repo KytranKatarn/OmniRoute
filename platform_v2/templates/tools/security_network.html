@@ -1045,19 +1045,6 @@
                     <div class="stat-value" id="dns-protection-status">--</div>
                 </div>
             </div>
-            <div class="card">
-                <div class="card-header">
-                    <span class="card-title"><span data-i18n="security_network.quick_block_unblock">Quick Block / Unblock</span></span>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label"><span data-i18n="security_network.domain">Domain</span></label>
-                        <input type="text" class="form-input" id="dns-quick-domain" placeholder="example.com">
-                    </div>
-                    <button class="btn btn-danger btn-sm" onclick="dnsBlockDomain()"><span data-i18n="security_network.block">Block</span></button>
-                    <button class="btn btn-success btn-sm" onclick="dnsUnblockDomain()"><span data-i18n="security_network.unblock">Unblock</span></button>
-                </div>
-            </div>
         </div>
 
         <div id="subtab-dns-querylog" class="subtab-content">
@@ -1134,6 +1121,19 @@
         </div>
 
         <div id="subtab-dns-rules" class="subtab-content">
+            <div class="card" style="margin-bottom:16px">
+                <div class="card-header">
+                    <span class="card-title">Quick Block / Unblock</span>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Domain</label>
+                        <input type="text" class="form-input" id="dns-quick-domain" placeholder="example.com">
+                    </div>
+                    <button class="btn btn-danger btn-sm" onclick="dnsBlockDomain()">Block</button>
+                    <button class="btn btn-success btn-sm" onclick="dnsUnblockDomain()">Unblock</button>
+                </div>
+            </div>
             <div class="card">
                 <div class="card-header">
                     <span class="card-title"><span data-i18n="security_network.custom_filtering_rules">Custom Filtering Rules</span></span>

@@ -721,6 +721,7 @@
         0 24px 80px rgba(0,0,0,0.8), 0 0 60px rgba(var(--bm-accent-rgb),0.06);
     animation: bmTabletIn 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
+@keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
 @keyframes bmTabletIn {
     from { opacity: 0; transform: scale(0.9) translateY(20px); }
     to   { opacity: 1; transform: scale(1) translateY(0); }
@@ -1696,6 +1697,7 @@
                 <div class="bm-body">
                     <label>Domain to Block</label>
                     <input type="text" id="block-domain-input" placeholder="example.com">
+                    <div id="block-domain-error" style="display:none;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);color:#ef4444;padding:8px 12px;border-radius:6px;font-size:0.8rem;margin-top:8px;margin-bottom:8px;animation:shake 0.3s ease-in-out;"></div>
                     <p style="font-size:0.75rem;color:rgba(239,68,68,0.6);margin:0;">This will add the domain to AdGuard's block list. All devices using AdGuard DNS will be unable to access it.</p>
                 </div>
                 <div class="bm-actions">
@@ -2195,8 +2197,10 @@ function quickToggleProtection() {
 function openBlockDomainModal() {
     var input = document.getElementById('block-domain-input');
     input.value = '';
+    input.style.borderColor = '';
+    var errDiv = document.getElementById('block-domain-error');
+    if (errDiv) errDiv.style.display = 'none';
     document.getElementById('block-domain-modal').classList.add('active');
-    // Delay focus to allow modal animation to complete
     setTimeout(function() { input.focus(); }, 300);
 }
 
@@ -2226,12 +2230,25 @@ function submitBlockDomain() {
                 if (rulesBtn) rulesBtn.click();
             }, 200);
         } else {
-            // Keep modal open, show error, let user fix or cancel
-            showToast('error', d.error || 'Failed to block domain');
+            // Keep modal open, show inline error with shake
+            var errDiv = document.getElementById('block-domain-error');
+            var input = document.getElementById('block-domain-input');
+            if (errDiv) {
+                errDiv.textContent = d.error || 'Failed to block domain';
+                errDiv.style.display = 'block';
+                errDiv.style.animation = 'none';
+                void errDiv.offsetWidth;
+                errDiv.style.animation = 'shake 0.3s ease-in-out';
+            }
+            if (input) input.style.borderColor = '#ef4444';
         }
     }).catch(function(e){
         if (btn) btn.textContent = 'Block Domain';
-        showToast('error','Error: ' + e.message);
+        var errDiv = document.getElementById('block-domain-error');
+        if (errDiv) {
+            errDiv.textContent = 'Error: ' + e.message;
+            errDiv.style.display = 'block';
+        }
     });
 }
 

@@ -108,7 +108,9 @@ def _get_cached_hw_capacity():
     total_gb = round(mem.total / (1024**3), 1)
     available_gb = round(mem.available / (1024**3), 1)
     usage_pct = round(mem.percent, 1)
-    reserve_gb = 25  # 20% of 125GB host reserve
+    # RAM budget: 70% LLM / 15% host / 15% security services (ADR-078 updated)
+    reserve_gb = round(total_gb * 0.15, 1)  # 15% host reserve (OS, Docker, platform, DB)
+    security_gb = round(total_gb * 0.15, 1)  # 15% security services (Frigate, CrowdSec, Suricata, etc.)
 
     # Ollama loaded models — categorize GPU vs CPU
     ps_models = _get_cached_ollama_ps()
@@ -206,14 +208,15 @@ def _get_cached_hw_capacity():
         gpu_info["comfyui_status"] = comfyui_status
         gpu_info["comfyui_reserved_gb"] = comfyui_reserved_gb
 
-    llm_budget_gb = round(total_gb * 0.80, 1)  # 80% for LLM
-    agent_budget_gb = round(llm_budget_gb * 0.90, 1)  # 90% of LLM budget
-    swap_buffer_gb = round(llm_budget_gb * 0.10, 1)  # 10% swap buffer
-    # Status: red if eating into reserve, amber if swap buffer is depleted, green if within agent budget
+    llm_budget_gb = round(total_gb * 0.70, 1)  # 70% for LLM agents
+    agent_budget_gb = round(llm_budget_gb * 0.90, 1)  # 90% of LLM budget for active agents
+    swap_buffer_gb = round(llm_budget_gb * 0.10, 1)  # 10% swap buffer for model rotation
+    # Status: red if eating into reserve+security, amber if swap depleted, green if within budget
     swap_used_gb = max(0, models_ram_gb - agent_budget_gb)
+    min_free = reserve_gb + security_gb  # Total non-LLM allocation
     if available_gb <= reserve_gb:
         ram_status = "red"
-    elif swap_used_gb >= swap_buffer_gb or available_gb <= reserve_gb + swap_buffer_gb:
+    elif available_gb <= min_free or swap_used_gb >= swap_buffer_gb:
         ram_status = "amber"
     else:
         ram_status = "green"
@@ -224,6 +227,7 @@ def _get_cached_hw_capacity():
             "available_gb": available_gb,
             "usage_pct": usage_pct,
             "reserve_gb": reserve_gb,
+            "security_gb": security_gb,
             "llm_budget_gb": llm_budget_gb,
             "agent_budget_gb": agent_budget_gb,
             "swap_buffer_gb": swap_buffer_gb,

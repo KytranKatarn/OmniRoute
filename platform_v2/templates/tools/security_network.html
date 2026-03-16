@@ -945,7 +945,7 @@
     <!-- ==================== TAB: DASHBOARD ==================== -->
     <div id="tab-dashboard" class="tab-content active">
         <!-- SECURITY Station Panel -->
-        <div class="stn-ops-terminal" id="secOpsTerminal" style="--stn-accent: #ef4444; --stn-accent-rgb: 239, 68, 68;">
+        <div class="stn-ops-terminal" id="secOpsTerminal" style="--stn-accent: #F43F5E; --stn-accent-rgb: 244, 63, 94;">
             <div class="stn-ops-header">
                 <div class="stn-ops-elbow"></div>
                 <div class="stn-ops-title">SECURITY STATION</div>
@@ -956,6 +956,7 @@
             <div class="stn-ops-body">
                 <div id="secOpsAgents"></div>
                 <div id="secOpsJobs"></div>
+                <div id="secOpsActions"></div>
             </div>
         </div>
 
@@ -3856,12 +3857,12 @@ function initSecurityStation() {
         moduleSource: 'security_network',
         agentsElId: 'secOpsAgents',
         jobsElId: 'secOpsJobs',
+        actionsElId: 'secOpsActions',
         statusElId: 'secOpsOnline'
     });
-    _secOps.checkJobs().then(function() {
-        _secOps.renderAgents();
-        _secOps.renderJobs();
-    });
+    _secOps.renderAgents();
+    _secOps.renderJobs();
+    _secOps.renderActionPanel();
 }
 
 /* ========== Device Registry ========== */

@@ -1524,8 +1524,46 @@
 
     <!-- ==================== TAB: REPORTS ==================== -->
     <div id="tab-reports" class="tab-content">
-        <div style="display:flex;gap:8px;margin-bottom:16px">
-            <button class="btn" onclick="loadReports()">
+        <!-- Generate Report Section -->
+        <div class="lcars-frame" style="margin-bottom:20px">
+            <div class="lcars-elbow top-left"></div>
+            <div class="lcars-elbow top-right"></div>
+            <div class="lcars-bar top"><span>Generate Report</span></div>
+            <div class="lcars-body" style="padding:16px">
+                <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+                    <div style="flex:1;min-width:180px">
+                        <label style="font-size:0.75rem;color:var(--archie-text-muted);display:block;margin-bottom:4px">Report Type</label>
+                        <select id="report-type" class="form-input" style="width:100%">
+                            <option value="daily_summary">Daily Summary</option>
+                            <option value="weekly_report">Weekly Report</option>
+                            <option value="device_audit">Device Audit</option>
+                            <option value="dns_analysis">DNS Analysis</option>
+                        </select>
+                    </div>
+                    <div style="flex:0.7;min-width:140px">
+                        <label style="font-size:0.75rem;color:var(--archie-text-muted);display:block;margin-bottom:4px">From (optional)</label>
+                        <input type="date" id="report-date-start" class="form-input" style="width:100%">
+                    </div>
+                    <div style="flex:0.7;min-width:140px">
+                        <label style="font-size:0.75rem;color:var(--archie-text-muted);display:block;margin-bottom:4px">To (optional)</label>
+                        <input type="date" id="report-date-end" class="form-input" style="width:100%">
+                    </div>
+                    <div>
+                        <button class="btn btn-primary" onclick="generateReport()" id="btn-generate-report">
+                            <i data-lucide="file-plus" style="width:14px;height:14px"></i> Generate
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="lcars-bar bottom"></div>
+            <div class="lcars-elbow bottom-left"></div>
+            <div class="lcars-elbow bottom-right"></div>
+        </div>
+
+        <!-- Report History -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h3 style="margin:0;color:var(--archie-text-primary)">Report History</h3>
+            <button class="btn btn-sm" onclick="loadReports()">
                 <i data-lucide="refresh-cw" style="width:14px;height:14px"></i> Refresh
             </button>
         </div>
@@ -3056,11 +3094,31 @@ function runVulnScan() {
 async function loadScanResults() {
     const container = document.getElementById('scan-results-list');
     try {
-        const r = await fetch(API+'/scans');
-        const d = await r.json();
-        if(d.success && d.scans && d.scans.length) {
+        /* Fetch both filesystem scans and DB recon scans in parallel */
+        const [fileRes, reconRes] = await Promise.allSettled([
+            fetch(API+'/scans').then(r=>r.json()),
+            fetch(API+'/recon/history').then(r=>r.json())
+        ]);
+        const fileScans = (fileRes.status==='fulfilled' && fileRes.value.success && fileRes.value.scans) ? fileRes.value.scans : [];
+        const reconScans = (reconRes.status==='fulfilled' && reconRes.value.success && reconRes.value.history) ? reconRes.value.history : [];
+
+        /* Normalise recon scans to same shape as file scans */
+        const normRecon = reconScans.map(s=>({
+            id: s.id,
+            filename: s.module_name+' → '+s.target,
+            scan_type: s.module_name||'recon',
+            created_at: s.started_at ? new Date(s.started_at).getTime()/1000 : 0,
+            status: s.status,
+            source: 'db'
+        }));
+        const normFile = fileScans.map(s=>({...s, source:'file'}));
+
+        /* Merge and sort by time descending */
+        const allScans = normFile.concat(normRecon).sort((a,b)=>(b.created_at||0)-(a.created_at||0));
+
+        if(allScans.length) {
             container.textContent='';
-            d.scans.forEach(s=>{
+            allScans.forEach(s=>{
                 const card = document.createElement('div');
                 card.className='scan-card';
                 const info = document.createElement('div');
@@ -3068,19 +3126,39 @@ async function loadScanResults() {
                 nameEl.textContent = s.filename;
                 const meta = document.createElement('small');
                 meta.style.color='var(--archie-text-muted)';
-                meta.textContent = ' | '+s.scan_type+' | '+ArchieTime.format(new Date(s.created_at*1000).toISOString(), 'short');
+                const timeStr = s.created_at ? ArchieTime.format(new Date(s.created_at*1000).toISOString(), 'short') : '-';
+                meta.textContent = ' | '+s.scan_type+' | '+timeStr;
+                if(s.status) {
+                    const badge = document.createElement('span');
+                    badge.style.cssText='margin-left:6px;padding:1px 6px;border-radius:4px;font-size:0.7rem;background:'+
+                        (s.status==='completed'?'var(--archie-green)':s.status==='running'?'var(--archie-cyan)':'var(--archie-orange)')+
+                        ';color:#000';
+                    badge.textContent=s.status;
+                    meta.appendChild(badge);
+                }
                 info.appendChild(nameEl);
                 info.appendChild(meta);
                 const actions = document.createElement('div');
                 actions.style.display='flex'; actions.style.gap='6px';
-                const viewBtn = document.createElement('button');
-                viewBtn.className='btn btn-sm'; viewBtn.textContent='View';
-                viewBtn.addEventListener('click',function(){viewScanFile(s.filename);});
-                actions.appendChild(viewBtn);
-                const dlLink = document.createElement('a');
-                dlLink.href=API+'/reports/download/'+encodeURIComponent(s.filename);
-                dlLink.className='btn btn-sm'; dlLink.textContent='Download';
-                actions.appendChild(dlLink);
+                if(s.source==='file') {
+                    const viewBtn = document.createElement('button');
+                    viewBtn.className='btn btn-sm'; viewBtn.textContent='View';
+                    viewBtn.addEventListener('click',function(){viewScanFile(s.filename);});
+                    actions.appendChild(viewBtn);
+                    const dlLink = document.createElement('a');
+                    dlLink.href=API+'/reports/download/'+encodeURIComponent(s.filename);
+                    dlLink.className='btn btn-sm'; dlLink.textContent='Download';
+                    actions.appendChild(dlLink);
+                } else if(s.source==='db' && s.id) {
+                    const viewBtn = document.createElement('button');
+                    viewBtn.className='btn btn-sm'; viewBtn.textContent='View';
+                    viewBtn.addEventListener('click',function(){viewReconScan(s.id);});
+                    actions.appendChild(viewBtn);
+                    const delBtn = document.createElement('button');
+                    delBtn.className='btn btn-sm btn-danger'; delBtn.textContent='Delete';
+                    delBtn.addEventListener('click',function(){deleteReconScan(s.id);});
+                    actions.appendChild(delBtn);
+                }
                 card.appendChild(info); card.appendChild(actions);
                 container.appendChild(card);
             });
@@ -3110,6 +3188,37 @@ function viewScanFile(filename) {
     }).catch(e=>showToast('error',e.message));
 }
 
+function viewReconScan(scanId) {
+    fetch(API+'/recon/scan/'+scanId).then(r=>r.json()).then(d=>{
+        if(!d.success) return showToast('error',d.error||'Failed to load scan');
+        const modal = document.getElementById('modal-content');
+        modal.textContent='';
+        const header = document.createElement('div');
+        header.className='modal-header';
+        const h3 = document.createElement('h3');
+        h3.textContent=(d.scan.module_name||'Scan')+' — '+(d.scan.target||'');
+        const closeBtn = document.createElement('button');
+        closeBtn.className='btn btn-sm'; closeBtn.textContent='Close';
+        closeBtn.addEventListener('click',closeModal);
+        header.appendChild(h3); header.appendChild(closeBtn);
+        modal.appendChild(header);
+        const pre = document.createElement('pre');
+        pre.style.cssText='background:var(--archie-bg-tertiary);padding:12px;border-radius:8px;font-size:0.75rem;max-height:500px;overflow:auto;color:var(--archie-text-secondary)';
+        const content = d.scan.results || d.scan.raw_output || d.scan;
+        pre.textContent = typeof content==='object'?JSON.stringify(content,null,2):String(content);
+        modal.appendChild(pre);
+        document.getElementById('modal-overlay').classList.add('open');
+    }).catch(e=>showToast('error',e.message));
+}
+
+function deleteReconScan(scanId) {
+    if(!confirm('Delete this scan record?')) return;
+    fetch(API+'/recon/scan/'+scanId,{method:'DELETE'}).then(r=>r.json()).then(d=>{
+        if(d.success){showToast('success','Scan deleted');loadScanResults();}
+        else showToast('error',d.error||'Failed');
+    }).catch(e=>showToast('error',e.message));
+}
+
 /* SSL Monitors */
 async function loadSSLMonitors() {
     const container = document.getElementById('ssl-monitors-list');
@@ -3126,8 +3235,51 @@ async function loadSSLMonitors() {
                 return [m.domain, m.issuer||'-', expiry, createBadge(m.grade||'?', (m.grade==='A'||m.grade==='A+')?'success':'warning')];
             });
             container.appendChild(buildTable(['Domain','Issuer','Expires','Grade'], rows));
-        } else { showEmpty(container,'No SSL monitors configured'); }
+        } else {
+            /* No monitors — offer to auto-seed from NPM proxy hosts */
+            container.textContent='';
+            const wrap = document.createElement('div');
+            wrap.style.cssText='text-align:center;padding:24px;color:var(--archie-text-muted)';
+            const msg = document.createElement('p');
+            msg.textContent='No SSL monitors configured.';
+            wrap.appendChild(msg);
+            const seedBtn = document.createElement('button');
+            seedBtn.className='btn btn-primary btn-sm';
+            seedBtn.textContent='Auto-add from NPM Proxy Hosts';
+            seedBtn.addEventListener('click', seedSSLFromProxyHosts);
+            wrap.appendChild(seedBtn);
+            container.appendChild(wrap);
+        }
     } catch(e) { showEmpty(container,'Error loading SSL monitors'); }
+}
+
+async function seedSSLFromProxyHosts() {
+    try {
+        showToast('info','Fetching proxy hosts...');
+        const r = await fetch(API+'/domains/proxy-hosts');
+        const d = await r.json();
+        if(!d.success || !d.proxy_hosts || !d.proxy_hosts.length) {
+            return showToast('warning','No proxy hosts found in NPM');
+        }
+        /* Extract unique domains from proxy hosts */
+        const domains = [];
+        d.proxy_hosts.forEach(h=>{
+            (h.domain_names||[]).forEach(dn=>{
+                if(dn && !domains.includes(dn)) domains.push(dn);
+            });
+        });
+        if(!domains.length) return showToast('warning','No domains found in proxy hosts');
+        let added=0, failed=0;
+        for(const domain of domains) {
+            try {
+                const ar = await fetch(API+'/ssl/monitors',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain:domain})});
+                const ad = await ar.json();
+                if(ad.success) added++; else failed++;
+            } catch(e) { failed++; }
+        }
+        showToast('success','Added '+added+' SSL monitor(s)'+(failed?' ('+failed+' failed)':''));
+        loadSSLMonitors();
+    } catch(e) { showToast('error','Failed to seed: '+e.message); }
 }
 
 function showAddSSLModal() {

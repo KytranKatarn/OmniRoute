@@ -548,9 +548,16 @@ class AgentLoop:
             name="Agent Loop: Camera Motion Anomaly",
             replace_existing=True,
         )
+        self.scheduler.add_job(
+            with_app_context(self._run_auto_block),
+            trigger=IntervalTrigger(minutes=15),
+            id="agent_auto_block",
+            name="Agent Loop: Auto-Block Pipeline",
+            replace_existing=True,
+        )
 
         self._running = True
-        logger.info("Agent loop started with 37 jobs")
+        logger.info("Agent loop started with 38 jobs")
 
     def _update_stock_prices(self):
         """Job #27: Refresh cached stock prices, check price alerts, and auto-scan watchlist every 5 minutes."""
@@ -3867,3 +3874,49 @@ class AgentLoop:
                     logger.warning(f"Camera anomaly: {name} is {state}")
         except Exception as e:
             logger.debug(f"Camera anomaly check failed: {e}")
+
+    def _run_auto_block(self):
+        """Run suggestion engine and auto-execute critical/high suggestions (every 15 min)."""
+        try:
+            from tools.security_network.agent_automation import AgentAutomationService
+            from tools.security_network.security_alerts import create_security_alert
+
+            svc = AgentAutomationService()
+            if not svc.get_config().get("paused"):
+                result = svc.generate_suggestions()
+                if result and result.get("generated", 0) > 0:
+                    logger.info(f"Auto-block: generated {result['generated']} suggestions")
+
+                    # Auto-execute critical/high suggestions
+                    pending = svc.get_pending_suggestions(limit=10)
+                    for suggestion in pending:
+                        data = suggestion.get("data", {})
+                        if isinstance(data, str):
+                            import json
+                            try:
+                                data = json.loads(data)
+                            except (json.JSONDecodeError, TypeError):
+                                data = {}
+                        severity = data.get("severity", "low")
+                        stype = data.get("suggestion_type", "")
+
+                        if severity in ("critical", "high") and stype in (
+                            "ssh_brute_force",
+                            "device_vulnerability",
+                        ):
+                            try:
+                                svc.approve_suggestion(suggestion["id"])
+                                create_security_alert(
+                                    "block",
+                                    f"Auto-blocked: {suggestion.get('title', stype)}",
+                                    suggestion.get("description", "Threat auto-blocked by security pipeline"),
+                                    priority="high",
+                                    telegram=True,
+                                )
+                                logger.info(
+                                    f"Auto-block: executed suggestion #{suggestion['id']} ({stype})"
+                                )
+                            except Exception as e:
+                                logger.debug(f"Auto-block execute failed: {e}")
+        except Exception as e:
+            logger.debug(f"Auto-block pipeline failed: {e}")

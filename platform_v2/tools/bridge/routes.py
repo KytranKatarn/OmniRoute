@@ -10191,6 +10191,124 @@ def starship_update_profile():
 
 
 # ============================================================================
+# MISSION PROFILES
+# ============================================================================
+
+
+@bridge_bp.route("/api/mission/active")
+@login_required
+def api_mission_active():
+    """Get current active mission profile."""
+    try:
+        from ai_bridge.mission_manager import MissionManager
+
+        mm = MissionManager()
+        profile = mm.get_active_profile()
+        return jsonify({"success": True, "profile": profile})
+    except Exception as e:
+        logger.exception("Failed to get active mission profile")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/mission/profiles")
+@login_required
+def api_mission_profiles():
+    """List all mission profiles."""
+    try:
+        from ai_bridge.mission_manager import MissionManager
+
+        mm = MissionManager()
+        profiles = mm.get_all_profiles()
+        return jsonify({"success": True, "profiles": profiles})
+    except Exception as e:
+        logger.exception("Failed to list mission profiles")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/mission/activate/<int:profile_id>", methods=["PUT"])
+@login_required
+def api_mission_activate(profile_id):
+    """Activate a mission profile."""
+    try:
+        from ai_bridge.mission_manager import MissionManager
+
+        mm = MissionManager()
+        profile = mm.activate_profile(profile_id, triggered_by="manual", reason="User activated from Bridge UI")
+        if profile:
+            return jsonify({"success": True, "profile": profile})
+        return jsonify({"success": False, "error": "Profile not found"}), 404
+    except Exception as e:
+        logger.exception("Failed to activate mission profile")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/mission/schedule", methods=["GET"])
+@login_required
+def api_mission_schedule_list():
+    """List mission schedules."""
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """
+                SELECT ms.*, mp.name as profile_name, mp.display_name as profile_display_name
+                FROM mission_schedules ms
+                JOIN mission_profiles mp ON mp.id = ms.profile_id
+                ORDER BY ms.id
+            """
+            )
+            schedules = [dict(r) for r in cur.fetchall()]
+        return jsonify({"success": True, "schedules": schedules})
+    except Exception as e:
+        logger.exception("Failed to list mission schedules")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/mission/schedule", methods=["POST"])
+@login_required
+def api_mission_schedule_add():
+    """Add a mission schedule rule."""
+    try:
+        data = request.get_json() or {}
+        profile_id = data.get("profile_id")
+        cron = data.get("cron_expression")
+        duration = data.get("duration_minutes")
+        if not profile_id or not cron:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "profile_id and cron_expression required",
+                    }
+                ),
+                400,
+            )
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "INSERT INTO mission_schedules (profile_id, cron_expression, duration_minutes) VALUES (%s, %s, %s) RETURNING id",
+                (profile_id, cron, duration),
+            )
+            new_id = cur.fetchone()[0] if cur.description else None
+        return jsonify({"success": True, "id": new_id})
+    except Exception as e:
+        logger.exception("Failed to add mission schedule")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/mission/schedule/<int:schedule_id>", methods=["DELETE"])
+@login_required
+def api_mission_schedule_delete(schedule_id):
+    """Delete a mission schedule rule."""
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute("DELETE FROM mission_schedules WHERE id = %s", (schedule_id,))
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.exception("Failed to delete mission schedule")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
 # MESH CLUSTER API ROUTES
 # ============================================================================
 try:

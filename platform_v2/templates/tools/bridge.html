@@ -7898,6 +7898,14 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
         </button>
     </nav>
 
+    <!-- Mission Profile Banner -->
+    <div id="mission-banner" style="display:none;padding:8px 16px;margin:0 0 8px;border-radius:8px;align-items:center;gap:12px;font-family:'Antonio',sans-serif;">
+        <span id="mission-dot" style="width:10px;height:10px;border-radius:50%;display:inline-block;"></span>
+        <span id="mission-name" style="font-size:0.85rem;letter-spacing:2px;text-transform:uppercase;font-weight:600;"></span>
+        <span id="mission-since" style="font-size:0.7rem;opacity:0.6;"></span>
+        <button onclick="openMissionSelector()" style="margin-left:auto;font-size:0.7rem;padding:2px 10px;border-radius:4px;cursor:pointer;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:inherit;letter-spacing:1px;text-transform:uppercase;">CHANGE</button>
+    </div>
+
     <!-- Compact Status Bar (visible on all tabs) -->
     <div class="bridge-status-bar">
         <div class="status-bar-item">
@@ -10419,6 +10427,50 @@ function loadStatusBarStats() {
 }
 
 // ============================================================================
+// MISSION PROFILES
+// ============================================================================
+
+function loadMissionBanner() {
+    fetch('/tools/bridge/api/mission/active').then(function(r){return r.json();}).then(function(d) {
+        if (!d.success || !d.profile) return;
+        var banner = document.getElementById('mission-banner');
+        var p = d.profile;
+        banner.style.display = 'flex';
+        banner.style.background = 'rgba(' + hexToRgb(p.color) + ',0.1)';
+        banner.style.border = '1px solid rgba(' + hexToRgb(p.color) + ',0.3)';
+        banner.style.color = p.color;
+        document.getElementById('mission-dot').style.background = p.color;
+        document.getElementById('mission-dot').style.boxShadow = '0 0 8px ' + p.color;
+        document.getElementById('mission-name').textContent = 'MISSION: ' + p.display_name;
+    }).catch(function(){});
+}
+
+function hexToRgb(hex) {
+    hex = hex.replace('#','');
+    return parseInt(hex.substring(0,2),16)+','+parseInt(hex.substring(2,4),16)+','+parseInt(hex.substring(4,6),16);
+}
+
+function openMissionSelector() {
+    fetch('/tools/bridge/api/mission/profiles').then(function(r){return r.json();}).then(function(d) {
+        if (!d.success) return;
+        var profiles = d.profiles;
+        var choice = prompt('Select mission profile:\n\n' + profiles.map(function(p,i){ return (i+1)+'. '+p.display_name; }).join('\n') + '\n\nEnter number:');
+        if (choice) {
+            var idx = parseInt(choice) - 1;
+            if (idx >= 0 && idx < profiles.length) {
+                fetch('/tools/bridge/api/mission/activate/' + profiles[idx].id, {method:'PUT'})
+                .then(function(r){return r.json();}).then(function(d2){
+                    if (d2.success) {
+                        alert('Mission profile switched to: ' + profiles[idx].display_name);
+                        loadMissionBanner();
+                    }
+                });
+            }
+        }
+    });
+}
+
+// ============================================================================
 // INITIALIZATION
 // ============================================================================
 
@@ -10441,6 +10493,10 @@ document.addEventListener('DOMContentLoaded', function() {
     loadStations();
     loadIAAEStatus();
     loadStaffingStatus();
+
+    // Mission profile banner
+    loadMissionBanner();
+    setInterval(loadMissionBanner, 60000);
 
     // Check for running benchmarks on page load + periodic recheck
     setTimeout(_checkActiveBenchmark, 1500);

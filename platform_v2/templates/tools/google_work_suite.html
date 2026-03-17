@@ -40,11 +40,6 @@
       <button class="gws-btn gws-btn-primary" onclick="connectAccount('user')">
         <i data-lucide="mail"></i> Connect Gmail
       </button>
-      {% if current_user.is_admin %}
-      <button class="gws-btn gws-btn-secondary" onclick="connectAccount('agent')">
-        <i data-lucide="bot"></i> Connect Agent Gmail
-      </button>
-      {% endif %}
       <button class="gws-btn gws-btn-sync" onclick="syncInbox()" title="Sync inbox">
         <i data-lucide="refresh-cw"></i> Sync
       </button>

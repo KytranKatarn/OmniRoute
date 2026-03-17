@@ -280,6 +280,26 @@
       col.appendChild(snippet);
       item.appendChild(col);
 
+      // Status badges (analyzed, saved to KB)
+      var badges = document.createElement('div');
+      badges.className = 'gws-email-badges';
+      if (email.ai_priority) {
+        var ab = document.createElement('span');
+        ab.className = 'gws-email-badge-ai';
+        if (email.ai_priority === 'critical' || email.ai_priority === 'high') ab.classList.add('high');
+        ab.textContent = email.ai_priority.toUpperCase();
+        ab.title = 'AI Analyzed: ' + (email.ai_category || '') + ' / ' + (email.ai_sentiment || '');
+        badges.appendChild(ab);
+      }
+      if (email.filed_to_kb) {
+        var kb = document.createElement('span');
+        kb.className = 'gws-email-badge-kb';
+        kb.textContent = 'KB';
+        kb.title = 'Saved to Knowledge Base';
+        badges.appendChild(kb);
+      }
+      if (badges.children.length) item.appendChild(badges);
+
       // Star
       if (email.is_starred) {
         const star = document.createElement('span');

@@ -346,7 +346,7 @@ def file_to_kb_route(account_id, gmail_id):
     if not _verify_ownership(account_id):
         return jsonify({"error": "Not found or permission denied"}), 403
 
-    result = file_to_knowledge_base(account_id, gmail_id)
+    result = file_to_knowledge_base(account_id, gmail_id, user_id=current_user.id)
     if "error" in result:
         return jsonify(result), 500
     return jsonify(result)

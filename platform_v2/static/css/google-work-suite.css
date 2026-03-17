@@ -455,6 +455,43 @@
   flex-wrap: wrap;
 }
 
+/* ── Email List Badges (analyzed, KB) ───────────────────── */
+
+.gws-email-badges {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.gws-email-badge-ai {
+  font-size: 0.55rem;
+  font-family: 'Antonio', sans-serif;
+  letter-spacing: 0.5px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(0, 204, 255, 0.1);
+  color: rgba(0, 204, 255, 0.7);
+  border: 1px solid rgba(0, 204, 255, 0.2);
+}
+
+.gws-email-badge-ai.high {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.gws-email-badge-kb {
+  font-size: 0.55rem;
+  font-family: 'Antonio', sans-serif;
+  letter-spacing: 0.5px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(139, 92, 246, 0.12);
+  color: #a78bfa;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+}
+
 /* ── AI Analysis Badges ─────────────────────────────────── */
 
 .gws-ai-bar {

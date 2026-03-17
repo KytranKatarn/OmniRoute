@@ -587,22 +587,16 @@ def analyze_email(account_id, gmail_id):
             f"From: {sender}\nSubject: {subject}\n\n{body[:2000]}"
         )
 
-        import json
-        from ai_bridge.archie_bridge import dispatch_to_bridge
+        from ai_bridge.bridge_dispatcher import dispatch_json
 
-        result = dispatch_to_bridge(
+        analysis = dispatch_json(
+            capability="email",
             prompt=prompt,
+            module_id="google_work_suite",
             system_prompt="You are an email analysis assistant. Return ONLY valid JSON, no markdown.",
-            model_hint="fast",
         )
 
-        text = result.get("response", "") if isinstance(result, dict) else str(result)
-        # Extract JSON from response
-        start = text.find("{")
-        end = text.rfind("}") + 1
-        if start >= 0 and end > start:
-            analysis = json.loads(text[start:end])
-        else:
+        if not analysis or not isinstance(analysis, dict):
             analysis = {"sentiment": "neutral", "priority": "medium", "category": "notification", "summary": subject}
 
         with get_db_cursor(commit=True) as (conn, cur):
@@ -648,8 +642,8 @@ def analyze_batch(account_id, limit=5):
     return {"analyzed": len(results), "results": results}
 
 
-def file_to_knowledge_base(account_id, gmail_id):
-    """Save an email to the knowledge base as a vault_note."""
+def file_to_knowledge_base(account_id, gmail_id, user_id=None):
+    """Save an email to the user's personal saved emails collection."""
     try:
         email = get_email(account_id, gmail_id)
         subject = email.get("subject", "(no subject)")
@@ -657,28 +651,54 @@ def file_to_knowledge_base(account_id, gmail_id):
         body = email.get("body_plain") or email.get("snippet") or ""
         date = email.get("date", "")
 
-        content = f"From: {sender}\nDate: {date}\nSubject: {subject}\n\n{body}"
-
         with get_db_cursor(commit=True) as (conn, cur):
+            # Get owner_id from account if user_id not provided
+            if not user_id:
+                cur.execute("SELECT owner_id FROM google_accounts WHERE id = %s", (account_id,))
+                row = cur.fetchone()
+                user_id = row["owner_id"] if row else None
+
+            if not user_id:
+                return {"error": "Could not determine user for this account"}
+
             cur.execute(
-                """INSERT INTO knowledge_base (title, content, category, tags, source)
-                   VALUES (%s, %s, 'vault_note', %s, 'google_work_suite')
+                """INSERT INTO user_saved_emails
+                       (user_id, account_id, gmail_id, subject, sender, body_text,
+                        received_at, ai_sentiment, ai_priority, ai_category, ai_summary)
+                   VALUES (%s, %s, %s, %s, %s, %s,
+                           %s, %s, %s, %s, %s)
+                   ON CONFLICT (user_id, gmail_id) DO UPDATE SET
+                       subject = EXCLUDED.subject,
+                       body_text = EXCLUDED.body_text,
+                       ai_sentiment = EXCLUDED.ai_sentiment,
+                       ai_priority = EXCLUDED.ai_priority,
+                       ai_category = EXCLUDED.ai_category,
+                       ai_summary = EXCLUDED.ai_summary,
+                       saved_at = NOW()
                    RETURNING id""",
                 (
-                    f"Email: {subject}"[:200],
-                    content[:10000],
-                    f"email,gmail,{email.get('ai_category', 'general')}",
+                    user_id,
+                    account_id,
+                    gmail_id,
+                    subject[:500],
+                    sender[:200],
+                    body[:10000],
+                    date or None,
+                    email.get("ai_sentiment"),
+                    email.get("ai_priority"),
+                    email.get("ai_category"),
+                    email.get("ai_summary"),
                 ),
             )
-            kb_id = cur.fetchone()["id"]
+            saved_id = cur.fetchone()["id"]
 
             cur.execute(
                 "UPDATE google_email_cache SET filed_to_kb = TRUE WHERE account_id = %s AND gmail_id = %s",
                 (account_id, gmail_id),
             )
 
-        logger.info("Filed email %s to knowledge base as #%d", gmail_id, kb_id)
-        return {"success": True, "kb_id": kb_id}
+        logger.info("Saved email %s for user %d as #%d", gmail_id, user_id, saved_id)
+        return {"success": True, "saved_id": saved_id}
     except Exception as e:
         logger.error("file_to_knowledge_base failed: %s", e)
         return {"error": str(e)}

@@ -536,66 +536,48 @@ def login():
         session.pop("pending_2fa_username", None)
 
     if request.method == "POST":
+        from services.auth_service import (
+            get_user_by_username,
+            record_failed_login,
+            update_last_login,
+            log_auth_event,
+            reset_failed_login_count,
+            increment_failed_login_count,
+        )
+
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
+        ip = request.remote_addr
+        ua = request.headers.get("User-Agent", "")
 
         if not username or not password:
             flash("Please enter both username and password", "error")
             return render_template("login.html")
 
         try:
-            conn = get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("SELECT * FROM users WHERE username = %s", (username,))
-            user_data = cur.fetchone()
+            user_data = get_user_by_username(username)
 
             if not user_data:
-                # Record failed login for unknown username
-                try:
-                    cur.execute(
-                        "INSERT INTO failed_logins (username, ip_address, user_agent, reason) VALUES (%s, %s, %s, %s)",
-                        (
-                            username,
-                            request.remote_addr,
-                            request.headers.get("User-Agent"),
-                            "unknown_username",
-                        ),
-                    )
-                    conn.commit()
-                except Exception:
-                    pass
+                record_failed_login(username, ip, ua, "unknown_username")
                 flash("Invalid username or password", "error")
-                cur.close()
-                conn.close()
                 return render_template("login.html")
 
-            # Check if account is inactive (pending approval)
             if not user_data.get("is_active", False):
-                flash(
-                    "Your account is pending admin approval. Please wait for activation.",
-                    "error",
-                )
-                cur.close()
-                conn.close()
+                flash("Your account is pending admin approval. Please wait for activation.", "error")
                 return render_template("login.html")
 
             if check_password_hash(user_data["password_hash"], password):
-                # Update last login
-                cur.execute(
-                    "UPDATE users SET last_login = %s, last_login_ip = %s WHERE id = %s",
-                    (datetime.now(), request.remote_addr, user_data["id"]),
-                )
-                conn.commit()
+                update_last_login(user_data["id"], ip)
 
-                # Check if 2FA is enabled for this user
                 if user_data.get("totp_enabled", False):
                     session["pending_2fa_user_id"] = user_data["id"]
                     session["pending_2fa_username"] = user_data["username"]
-                    cur.close()
-                    conn.close()
                     return redirect(url_for("verify_2fa"))
 
-                # Log in user (no 2FA required)
+                # Extract theme from metadata
+                metadata = user_data.get("metadata") or {}
+                theme_pref = metadata.get("theme_preference") if isinstance(metadata, dict) else None
+
                 user = User(
                     id=user_data["id"],
                     username=user_data["username"],
@@ -605,83 +587,25 @@ def login():
                     is_super_admin=user_data.get("is_super_admin", False),
                     subscription_tier=user_data.get("subscription_tier", "free"),
                     subscription_expires_at=user_data.get("subscription_expires_at"),
+                    theme_preference=theme_pref,
+                    profile_picture=user_data.get("profile_picture"),
+                    oauth_picture=user_data.get("oauth_picture"),
+                    created_at=user_data.get("created_at"),
                 )
                 login_user(user, remember=True)
                 create_user_session(user_data["id"])
 
-                # Log audit + activity
-                try:
-                    cur.execute(
-                        "INSERT INTO audit_log (user_id, action, ip_address, user_agent) VALUES (%s, %s, %s, %s)",
-                        (
-                            user_data["id"],
-                            "login",
-                            request.remote_addr,
-                            request.headers.get("User-Agent"),
-                        ),
-                    )
-                    cur.execute(
-                        "INSERT INTO user_activity_log"
-                        " (user_id, username, action, module, ip_address, user_agent)"
-                        " VALUES (%s, %s, %s, %s, %s, %s)",
-                        (
-                            user_data["id"],
-                            user_data["username"],
-                            "login_success",
-                            "auth",
-                            request.remote_addr,
-                            request.headers.get("User-Agent"),
-                        ),
-                    )
-                    # Reset failed login count on successful login
-                    cur.execute(
-                        "UPDATE users SET failed_login_count = 0 WHERE id = %s",
-                        (user_data["id"],),
-                    )
-                    conn.commit()
-                except Exception:
-                    pass
+                log_auth_event(user_data["id"], "login_success", ip, ua)
+                reset_failed_login_count(user_data["id"])
 
                 flash("Login successful!", "success")
-                cur.close()
-                conn.close()
                 return redirect(url_for("dashboard"))
             else:
-                # Record failed login for wrong password
-                try:
-                    cur.execute(
-                        "INSERT INTO failed_logins (username, ip_address, user_agent, reason) VALUES (%s, %s, %s, %s)",
-                        (
-                            username,
-                            request.remote_addr,
-                            request.headers.get("User-Agent"),
-                            "invalid_password",
-                        ),
-                    )
-                    cur.execute(
-                        "UPDATE users SET failed_login_count = COALESCE(failed_login_count, 0) + 1 WHERE id = %s",
-                        (user_data["id"],),
-                    )
-                    cur.execute(
-                        "INSERT INTO user_activity_log"
-                        " (user_id, username, action, module, ip_address, user_agent)"
-                        " VALUES (%s, %s, %s, %s, %s, %s)",
-                        (
-                            user_data["id"],
-                            user_data["username"],
-                            "login_failed",
-                            "auth",
-                            request.remote_addr,
-                            request.headers.get("User-Agent"),
-                        ),
-                    )
-                    conn.commit()
-                except Exception:
-                    pass
+                record_failed_login(username, ip, ua, "invalid_password")
+                increment_failed_login_count(user_data["id"])
+                log_auth_event(user_data["id"], "login_failed", ip, ua)
                 flash("Invalid username or password", "error")
 
-            cur.close()
-            conn.close()
         except Exception as e:
             print(f"Login error: {e}")
             flash("An error occurred. Please try again.", "error")
@@ -707,26 +631,28 @@ def verify_2fa():
 
         try:
             import pyotp
-
-            conn = get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute(
-                "SELECT * FROM users WHERE id = %s AND is_active = TRUE",
-                (pending_user_id,),
+            from services.auth_service import (
+                get_active_user_by_id,
+                log_auth_event,
+                reset_failed_login_count,
             )
-            user_data = cur.fetchone()
+
+            user_data = get_active_user_by_id(pending_user_id)
 
             if not user_data:
                 session.pop("pending_2fa_user_id", None)
                 session.pop("pending_2fa_username", None)
-                cur.close()
-                conn.close()
                 flash("User account not found or inactive", "error")
                 return redirect(url_for("login"))
 
+            ip = request.remote_addr
+            ua = request.headers.get("User-Agent", "")
+
             totp = pyotp.TOTP(user_data["totp_secret"])
             if totp.verify(code, valid_window=1):
-                # 2FA verified - complete login
+                metadata = user_data.get("metadata") or {}
+                theme_pref = metadata.get("theme_preference") if isinstance(metadata, dict) else None
+
                 user = User(
                     id=user_data["id"],
                     username=user_data["username"],
@@ -736,72 +662,25 @@ def verify_2fa():
                     is_super_admin=user_data.get("is_super_admin", False),
                     subscription_tier=user_data.get("subscription_tier", "free"),
                     subscription_expires_at=user_data.get("subscription_expires_at"),
+                    theme_preference=theme_pref,
+                    profile_picture=user_data.get("profile_picture"),
+                    oauth_picture=user_data.get("oauth_picture"),
+                    created_at=user_data.get("created_at"),
                 )
                 login_user(user, remember=True)
                 create_user_session(user_data["id"])
 
-                # Clear pending 2FA session
                 session.pop("pending_2fa_user_id", None)
                 session.pop("pending_2fa_username", None)
 
-                # Log audit + activity
-                try:
-                    cur.execute(
-                        "INSERT INTO audit_log (user_id, action, ip_address, user_agent)" " VALUES (%s, %s, %s, %s)",
-                        (
-                            user_data["id"],
-                            "login_2fa_verified",
-                            request.remote_addr,
-                            request.headers.get("User-Agent"),
-                        ),
-                    )
-                    cur.execute(
-                        "INSERT INTO user_activity_log"
-                        " (user_id, username, action, module, ip_address, user_agent)"
-                        " VALUES (%s, %s, %s, %s, %s, %s)",
-                        (
-                            user_data["id"],
-                            user_data["username"],
-                            "login_success",
-                            "auth",
-                            request.remote_addr,
-                            request.headers.get("User-Agent"),
-                        ),
-                    )
-                    cur.execute(
-                        "UPDATE users SET failed_login_count = 0 WHERE id = %s",
-                        (user_data["id"],),
-                    )
-                    conn.commit()
-                except Exception:
-                    pass
+                log_auth_event(user_data["id"], "login_2fa_verified", ip, ua)
+                reset_failed_login_count(user_data["id"])
 
                 flash("Login successful!", "success")
-                cur.close()
-                conn.close()
                 return redirect(url_for("dashboard"))
             else:
-                # Log failed 2FA attempt
-                try:
-                    cur.execute(
-                        "INSERT INTO user_activity_log"
-                        " (user_id, username, action, module, ip_address, user_agent)"
-                        " VALUES (%s, %s, %s, %s, %s, %s)",
-                        (
-                            user_data["id"],
-                            user_data["username"],
-                            "login_2fa_failed",
-                            "auth",
-                            request.remote_addr,
-                            request.headers.get("User-Agent"),
-                        ),
-                    )
-                    conn.commit()
-                except Exception:
-                    pass
+                log_auth_event(user_data["id"], "login_2fa_failed", ip, ua)
                 flash("Invalid verification code. Please try again.", "error")
-                cur.close()
-                conn.close()
                 return render_template("verify_2fa.html", username=pending_username)
 
         except Exception as e:
@@ -843,48 +722,24 @@ def signup():
             return render_template("signup.html")
 
         try:
-            conn = get_db()
-            cur = conn.cursor()
-
-            # Check if username exists
-            cur.execute("SELECT id FROM users WHERE username = %s", (username,))
-            if cur.fetchone():
-                flash("Username already exists", "error")
-                cur.close()
-                conn.close()
-                return render_template("signup.html")
-
-            # Check if email exists
-            cur.execute("SELECT id FROM users WHERE email = %s", (email,))
-            if cur.fetchone():
-                flash("Email already registered", "error")
-                cur.close()
-                conn.close()
-                return render_template("signup.html")
-
-            # Create inactive user (pending admin approval)
-            password_hash = generate_password_hash(password)
-            cur.execute(
-                """
-                INSERT INTO users (username, email, password_hash, role, is_active, is_admin)
-                VALUES (%s, %s, %s, 'user', FALSE, FALSE)
-            """,
-                (username, email, password_hash),
+            from services.auth_service import (
+                check_username_exists,
+                check_email_exists,
+                create_inactive_user,
+                log_signup_audit,
             )
-            conn.commit()
 
-            # Log audit
-            try:
-                cur.execute(
-                    "INSERT INTO audit_log (action, details, ip_address) VALUES (%s, %s, %s)",
-                    ("user_signup", f"New signup: {username}", request.remote_addr),
-                )
-                conn.commit()
-            except Exception:
-                pass
+            if check_username_exists(username):
+                flash("Username already exists", "error")
+                return render_template("signup.html")
 
-            cur.close()
-            conn.close()
+            if check_email_exists(email):
+                flash("Email already registered", "error")
+                return render_template("signup.html")
+
+            password_hash = generate_password_hash(password)
+            create_inactive_user(username, email, password_hash)
+            log_signup_audit(username, request.remote_addr)
 
             flash(
                 "Registration successful! Your account is pending admin approval.",
@@ -894,9 +749,6 @@ def signup():
 
         except Exception as e:
             print(f"Signup error: {e}")
-            import traceback
-
-            traceback.print_exc()
             flash("An error occurred. Please try again.", "error")
 
     return render_template("signup.html")
@@ -906,20 +758,13 @@ def signup():
 @login_required
 def logout():
     """Logout"""
+    from services.auth_service import log_auth_event, delete_session_token
+
     try:
-        conn = get_db()
-        cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO audit_log (user_id, action, ip_address) VALUES (%s, %s, %s)",
-            (current_user.id, "logout", request.remote_addr),
-        )
-        # Remove this user's active session record
+        log_auth_event(current_user.id, "logout", request.remote_addr)
         token = session.get("_session_token")
         if token:
-            cur.execute("DELETE FROM active_sessions WHERE session_token = %s", (token,))
-        conn.commit()
-        cur.close()
-        conn.close()
+            delete_session_token(token)
     except Exception as e:
         print(f"Logout logging error: {e}")
 

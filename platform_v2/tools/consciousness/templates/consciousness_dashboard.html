@@ -2093,6 +2093,22 @@
 
 /* Consciousness page — purple accent override (admin-ops default is orange) */
 .admin-ops-nav { --cat-accent: #8b5cf6; --cat-accent-light: #6d28d9; }
+
+/* ── Code Health Tab ─────────────────────────────────────── */
+.ch-stats-row { grid-template-columns: repeat(6, 1fr); }
+.ch-actions { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+.ch-charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
+
+@media (max-width: 768px) {
+    .ch-stats-row { grid-template-columns: repeat(3, 1fr); }
+    .ch-charts-row { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 480px) {
+    .ch-stats-row { grid-template-columns: repeat(2, 1fr); }
+    .ch-charts-row { grid-template-columns: 1fr; }
+    .ch-actions { flex-direction: column; }
+}
 </style>
 
 <div class="cs-container" data-module="consciousness">
@@ -2785,7 +2801,7 @@
         <div class="cs-panel" id="panel-codehealth">
 
             <!-- Stats Row -->
-            <div class="cs-stats" id="chStatsRow" style="grid-template-columns: repeat(6, 1fr);">
+            <div class="cs-stats ch-stats-row">
                 <div class="cs-stat-card">
                     <div class="cs-stat-value" id="chTotalFiles">—</div>
                     <div class="cs-stat-label">TOTAL FILES</div>
@@ -2813,14 +2829,14 @@
             </div>
 
             <!-- Actions -->
-            <div style="display:flex; gap:8px; margin:12px 0;">
+            <div class="ch-actions">
                 <button class="cs-btn purple" onclick="chRunScan()">SCAN CODEBASE</button>
                 <button class="cs-btn cyan" onclick="chLoadHistory()">LOAD HISTORY</button>
                 <button class="cs-btn amber" onclick="chBackfillGit()">BACKFILL GIT (90 DAYS)</button>
             </div>
 
             <!-- Charts Row -->
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:12px;">
+            <div class="ch-charts-row">
                 <div class="cs-card">
                     <div class="cs-card-title">Lines by Module</div>
                     <div style="position:relative; height:400px; overflow-y:auto;">

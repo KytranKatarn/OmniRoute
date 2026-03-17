@@ -230,6 +230,52 @@ def _get_module_stats():
             core_stats["by_type"][ftype]["files"] += counts["files"]
             core_stats["by_type"][ftype]["lines"] += counts["lines"]
 
+    # Add core static CSS files (base, login, signup, dashboard, etc.)
+    core_css = [
+        "base.css",
+        "login.css",
+        "signup.css",
+        "dashboard.css",
+        "dev-hq.css",
+        "verify-2fa.css",
+        "competitors.css",
+        "directory.css",
+    ]
+    css_dir = os.path.join(PLATFORM_ROOT, "static", "css")
+    if os.path.isdir(css_dir):
+        for fname in core_css:
+            fpath = os.path.join(css_dir, fname)
+            if os.path.isfile(fpath):
+                lines = _count_lines(fpath)
+                core_stats["files"] += 1
+                core_stats["lines"] += lines
+                if "css" not in core_stats["by_type"]:
+                    core_stats["by_type"]["css"] = {"files": 0, "lines": 0}
+                core_stats["by_type"]["css"]["files"] += 1
+                core_stats["by_type"]["css"]["lines"] += lines
+
+    # Add core static JS files (base, login, signup, dashboard, etc.)
+    core_js = [
+        "base.js",
+        "login.js",
+        "signup.js",
+        "dashboard.js",
+        "verify-2fa.js",
+        "directory.js",
+    ]
+    js_dir = os.path.join(PLATFORM_ROOT, "static", "js")
+    if os.path.isdir(js_dir):
+        for fname in core_js:
+            fpath = os.path.join(js_dir, fname)
+            if os.path.isfile(fpath):
+                lines = _count_lines(fpath)
+                core_stats["files"] += 1
+                core_stats["lines"] += lines
+                if "js" not in core_stats["by_type"]:
+                    core_stats["by_type"]["js"] = {"files": 0, "lines": 0}
+                core_stats["by_type"]["js"]["files"] += 1
+                core_stats["by_type"]["js"]["lines"] += lines
+
     if core_stats["lines"] > 0:
         modules["[APP_CORE]"] = core_stats
 

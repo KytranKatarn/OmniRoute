@@ -8,6 +8,7 @@ import sys
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
+import psycopg2.extras
 from database import get_db_cursor
 from tools.google_work_suite.services.google_api_service import get_gmail_client, get_account
 
@@ -95,6 +96,9 @@ def sync_inbox(account_id, max_results=50):
                 labels = msg.get("labelIds", [])
                 is_read = "UNREAD" not in labels
 
+                # recipients is jsonb — wrap as JSON array
+                to_list = [r.strip() for r in headers.get("to", "").split(",") if r.strip()]
+
                 with get_db_cursor(commit=True) as (conn, cur):
                     cur.execute(
                         """
@@ -108,17 +112,17 @@ def sync_inbox(account_id, max_results=50):
                             labels          = EXCLUDED.labels,
                             is_read         = EXCLUDED.is_read,
                             has_attachments = EXCLUDED.has_attachments,
-                            updated_at      = NOW()
+                            cached_at       = NOW()
                         """,
                         (
                             account_id,
                             msg["id"],
                             msg.get("threadId"),
-                            headers.get("subject", "(no subject)"),
-                            headers.get("from", ""),
-                            headers.get("to", ""),
+                            headers.get("subject", "(no subject)")[:200],
+                            headers.get("from", "")[:200],
+                            psycopg2.extras.Json(to_list),
                             msg.get("internalDate", "0"),
-                            ",".join(labels),
+                            psycopg2.extras.Json(labels),
                             has_attachments,
                             is_read,
                         ),
@@ -154,13 +158,12 @@ def get_inbox(account_id, page=1, per_page=20, label=None):
             )
             params = [account_id]
             if label:
-                query += " AND labels ILIKE %s"
-                params.append(f"%{label}%")
+                query += " AND labels @> %s::jsonb"
+                params.append(f'["{label}"]')
             query += " ORDER BY received_at DESC LIMIT %s OFFSET %s"
             params += [per_page, offset]
             cur.execute(query, params)
-            cols = [d[0] for d in cur.description]
-            return [dict(zip(cols, row)) for row in cur.fetchall()]
+            return [dict(row) for row in cur.fetchall()]
     except Exception as e:
         logger.error("get_inbox failed for account %s: %s", account_id, e)
         raise

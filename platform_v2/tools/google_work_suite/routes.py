@@ -47,8 +47,9 @@ def oauth_authorize():
     owner_type = request.args.get("owner_type", "user")
     owner_id = int(request.args.get("owner_id", current_user.id))
 
-    auth_url, state = get_auth_url(owner_type, owner_id)
+    auth_url, state, code_verifier = get_auth_url(owner_type, owner_id)
     session["google_oauth_state"] = state
+    session["google_oauth_code_verifier"] = code_verifier
     return redirect(auth_url)
 
 
@@ -60,11 +61,19 @@ def oauth_callback():
     code = request.args.get("code")
     state = request.args.get("state")
     expected_state = session.pop("google_oauth_state", None)
+    code_verifier = session.pop("google_oauth_code_verifier", None)
 
     if not state or state != expected_state:
         return jsonify({"error": "Invalid OAuth state"}), 400
 
-    result = handle_callback(code, state)
+    try:
+        result = handle_callback(code, state, code_verifier=code_verifier)
+    except Exception as e:
+        import logging
+
+        logging.getLogger(__name__).exception("Google OAuth callback error")
+        return jsonify({"error": str(e)}), 500
+
     if result.get("success"):
         return redirect("/tools/google-work-suite")
     return jsonify({"error": result.get("error", "OAuth callback failed")}), 400
@@ -121,6 +130,7 @@ def disconnect_account(account_id):
 @login_required
 def get_inbox(account_id):
     from .services import get_inbox as svc_get_inbox
+    from .services import sync_inbox as svc_sync_inbox
 
     if not _verify_ownership(account_id):
         return jsonify({"error": "Not found or permission denied"}), 403
@@ -129,16 +139,22 @@ def get_inbox(account_id):
     per_page = int(request.args.get("per_page", 20))
     label = request.args.get("label", "INBOX")
 
-    result = svc_get_inbox(account_id, page, per_page, label)
+    # Auto-sync if cache is empty for this account
+    messages = svc_get_inbox(account_id, page, per_page, label)
+    if not messages and page == 1:
+        try:
+            svc_sync_inbox(account_id)
+            messages = svc_get_inbox(account_id, page, per_page, label)
+        except Exception:
+            pass
 
     # Serialize datetimes
-    messages = result.get("messages", [])
     for msg in messages:
         for key, val in msg.items():
             if hasattr(val, "isoformat"):
                 msg[key] = val.isoformat()
 
-    return jsonify(result)
+    return jsonify({"emails": messages, "total": len(messages)})
 
 
 @google_work_suite_bp.route("/api/email/<int:account_id>/<gmail_id>")
@@ -185,8 +201,11 @@ def sync_inbox(account_id):
     if not _verify_ownership(account_id):
         return jsonify({"error": "Not found or permission denied"}), 403
 
-    result = svc_sync_inbox(account_id)
-    return jsonify({"success": result.get("success", False), "count": result.get("count", 0)})
+    try:
+        count = svc_sync_inbox(account_id)
+        return jsonify({"success": True, "count": count or 0})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ---------------------------------------------------------------------------

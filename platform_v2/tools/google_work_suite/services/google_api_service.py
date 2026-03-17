@@ -13,6 +13,9 @@ from database import get_db_cursor
 logger = logging.getLogger(__name__)
 
 SCOPES = [
+    "openid",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
     "https://www.googleapis.com/auth/gmail.modify",
     "https://www.googleapis.com/auth/gmail.send",
     "https://www.googleapis.com/auth/calendar",
@@ -77,10 +80,11 @@ def get_auth_url(owner_type, owner_id):
         state=state,
         prompt="consent",
     )
-    return auth_url, state
+    # Return code_verifier so caller can store it in session for callback
+    return auth_url, state, flow.code_verifier
 
 
-def handle_callback(code, state):
+def handle_callback(code, state, code_verifier=None):
     """Exchange OAuth code for tokens, store encrypted in DB."""
     from google_auth_oauthlib.flow import Flow
     from googleapiclient.discovery import build
@@ -96,6 +100,8 @@ def handle_callback(code, state):
 
     client_config = _build_client_config(client_id, client_secret, redirect_uri)
     flow = Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri=redirect_uri, state=state)
+    if code_verifier:
+        flow.code_verifier = code_verifier
     flow.fetch_token(code=code)
     creds = flow.credentials
 
@@ -116,7 +122,7 @@ def handle_callback(code, state):
                 (owner_type, owner_id, email, access_token, refresh_token,
                  token_expiry, scopes, permission_level)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (owner_type, owner_id, email) DO UPDATE SET
+            ON CONFLICT (email) DO UPDATE SET
                 access_token    = EXCLUDED.access_token,
                 refresh_token   = EXCLUDED.refresh_token,
                 token_expiry    = EXCLUDED.token_expiry,
@@ -137,7 +143,7 @@ def handle_callback(code, state):
             ),
         )
         row = cur.fetchone()
-        account_id = row[0]
+        account_id = row["id"] if isinstance(row, dict) else row[0]
 
     logger.info("Google account connected: %s (owner=%s:%s)", email, owner_type, owner_id)
     return {"success": True, "account_id": account_id, "email": email}
@@ -151,8 +157,7 @@ def get_google_client(account_id, api_name, api_version):
 
     with get_db_cursor() as (conn, cur):
         cur.execute(
-            "SELECT access_token, refresh_token, token_expiry, client_id_override, client_secret_override "
-            "FROM google_accounts WHERE id = %s",
+            "SELECT access_token, refresh_token, token_expiry " "FROM google_accounts WHERE id = %s",
             (account_id,),
         )
         row = cur.fetchone()
@@ -160,12 +165,11 @@ def get_google_client(account_id, api_name, api_version):
     if not row:
         raise ValueError(f"Google account {account_id} not found")
 
-    access_token = _decrypt(row[0])
-    refresh_tok = _decrypt(row[1])
-    expiry = row[2]
-    # Fall back to env-level credentials
-    client_id = row[3] or os.environ.get("GOOGLE_CLIENT_ID")
-    client_secret = row[4] or os.environ.get("GOOGLE_CLIENT_SECRET")
+    access_token = _decrypt(row["access_token"])
+    refresh_tok = _decrypt(row["refresh_token"])
+    expiry = row["token_expiry"]
+    client_id = os.environ.get("GOOGLE_CLIENT_ID")
+    client_secret = os.environ.get("GOOGLE_CLIENT_SECRET")
 
     creds = Credentials(
         token=access_token,
@@ -203,8 +207,7 @@ def refresh_token(account_id):
 
     with get_db_cursor() as (conn, cur):
         cur.execute(
-            "SELECT access_token, refresh_token, token_expiry, client_id_override, client_secret_override "
-            "FROM google_accounts WHERE id = %s",
+            "SELECT access_token, refresh_token, token_expiry " "FROM google_accounts WHERE id = %s",
             (account_id,),
         )
         row = cur.fetchone()
@@ -212,10 +215,10 @@ def refresh_token(account_id):
     if not row:
         raise ValueError(f"Google account {account_id} not found")
 
-    access_token = _decrypt(row[0])
-    refresh_tok = _decrypt(row[1])
-    client_id = row[3] or os.environ.get("GOOGLE_CLIENT_ID")
-    client_secret = row[4] or os.environ.get("GOOGLE_CLIENT_SECRET")
+    access_token = _decrypt(row["access_token"])
+    refresh_tok = _decrypt(row["refresh_token"])
+    client_id = os.environ.get("GOOGLE_CLIENT_ID")
+    client_secret = os.environ.get("GOOGLE_CLIENT_SECRET")
 
     creds = Credentials(
         token=access_token,
@@ -252,8 +255,7 @@ def list_accounts(owner_type=None, owner_id=None):
             params.append(owner_id)
         query += " ORDER BY created_at DESC"
         cur.execute(query, params)
-        cols = [d[0] for d in cur.description]
-        return [dict(zip(cols, row)) for row in cur.fetchall()]
+        return [dict(row) for row in cur.fetchall()]
 
 
 def get_account(account_id):
@@ -267,8 +269,7 @@ def get_account(account_id):
         row = cur.fetchone()
         if not row:
             return None
-        cols = [d[0] for d in cur.description]
-        return dict(zip(cols, row))
+        return dict(row)
 
 
 def disconnect_account(account_id, owner_type, owner_id):

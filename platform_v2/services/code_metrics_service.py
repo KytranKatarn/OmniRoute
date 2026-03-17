@@ -182,6 +182,81 @@ def _get_module_stats():
     # Remove empty modules (like 'static' with 0 lines)
     modules = {k: v for k, v in modules.items() if v["lines"] > 0}
 
+    # Step 6: Add "app_core" — root-level platform files (login, dashboard, rbac, etc.)
+    core_files = [
+        "app.py",
+        "rbac.py",
+        "oauth_routes.py",
+        "dashboard_generator.py",
+        "module_registry.py",
+        "database.py",
+        "logging_config.py",
+    ]
+    core_stats = {"files": 0, "lines": 0, "folders": 0, "by_type": {}}
+    for fname in core_files:
+        fpath = os.path.join(PLATFORM_ROOT, fname)
+        if os.path.isfile(fpath):
+            lines = _count_lines(fpath)
+            core_stats["files"] += 1
+            core_stats["lines"] += lines
+            if "python" not in core_stats["by_type"]:
+                core_stats["by_type"]["python"] = {"files": 0, "lines": 0}
+            core_stats["by_type"]["python"]["files"] += 1
+            core_stats["by_type"]["python"]["lines"] += lines
+
+    # Add core templates (login, dashboard, base, etc.)
+    core_templates = os.path.join(PLATFORM_ROOT, "templates")
+    if os.path.isdir(core_templates):
+        for fname in os.listdir(core_templates):
+            fpath = os.path.join(core_templates, fname)
+            if os.path.isfile(fpath) and fname.endswith(".html"):
+                lines = _count_lines(fpath)
+                core_stats["files"] += 1
+                core_stats["lines"] += lines
+                if "html" not in core_stats["by_type"]:
+                    core_stats["by_type"]["html"] = {"files": 0, "lines": 0}
+                core_stats["by_type"]["html"]["files"] += 1
+                core_stats["by_type"]["html"]["lines"] += lines
+
+    # Add services layer
+    services_dir = os.path.join(PLATFORM_ROOT, "services")
+    if os.path.isdir(services_dir):
+        svc_stats = _scan_directory(services_dir)
+        core_stats["files"] += svc_stats["files"]
+        core_stats["lines"] += svc_stats["lines"]
+        for ftype, counts in svc_stats["by_type"].items():
+            if ftype not in core_stats["by_type"]:
+                core_stats["by_type"][ftype] = {"files": 0, "lines": 0}
+            core_stats["by_type"][ftype]["files"] += counts["files"]
+            core_stats["by_type"][ftype]["lines"] += counts["lines"]
+
+    if core_stats["lines"] > 0:
+        modules["[APP_CORE]"] = core_stats
+
+    # Step 7: Add "ai_bridge" — the AI routing/orchestration layer
+    bridge_dir = AI_BRIDGE_ROOT
+    if os.path.isdir(bridge_dir):
+        bridge_stats = _scan_directory(bridge_dir)
+        if bridge_stats["lines"] > 0:
+            modules["[AI_BRIDGE]"] = {
+                "files": bridge_stats["files"],
+                "lines": bridge_stats["lines"],
+                "folders": bridge_stats["folders"],
+                "by_type": {k: dict(v) for k, v in bridge_stats["by_type"].items()},
+            }
+
+    # Step 8: Add "migrations" — database schema
+    mig_dir = MIGRATIONS_ROOT
+    if os.path.isdir(mig_dir):
+        mig_stats = _scan_directory(mig_dir)
+        if mig_stats["lines"] > 0:
+            modules["[MIGRATIONS]"] = {
+                "files": mig_stats["files"],
+                "lines": mig_stats["lines"],
+                "folders": mig_stats["folders"],
+                "by_type": {k: dict(v) for k, v in mig_stats["by_type"].items()},
+            }
+
     return modules
 
 

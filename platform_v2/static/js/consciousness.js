@@ -2712,6 +2712,8 @@ function _renderCodeHealthStats(d) {
   setHtml("chJsLines", fmt(d.js ? d.js.lines : 0));
   setHtml("chHtmlLines", fmt(d.html ? d.html.lines : 0));
   setHtml("chCssLines", fmt(d.css ? d.css.lines : 0));
+  setHtml("chSqlLines", fmt(d.sql ? d.sql.lines : 0));
+  setHtml("chShellLines", fmt(d.shell ? d.shell.lines : 0));
 }
 
 function _renderModuleChart(modules) {

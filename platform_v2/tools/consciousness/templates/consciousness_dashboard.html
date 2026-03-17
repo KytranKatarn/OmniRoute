@@ -2095,7 +2095,7 @@
 .admin-ops-nav { --cat-accent: #8b5cf6; --cat-accent-light: #6d28d9; }
 
 /* ── Code Health Tab ─────────────────────────────────────── */
-.ch-stats-row { grid-template-columns: repeat(6, 1fr); gap: 12px; }
+.ch-stats-row { grid-template-columns: repeat(8, 1fr); gap: 12px; }
 .ch-stats-row .cs-stat-card { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 18px 12px; border: 1px solid rgba(139, 92, 246, 0.2); border-radius: 8px; background: rgba(139, 92, 246, 0.04); border-left: 3px solid rgba(139, 92, 246, 0.5); }
 .ch-stats-row .cs-stat-value { font-size: 1.8rem; }
 .ch-stats-row .cs-stat-label { font-size: 0.65rem; letter-spacing: 1.5px; margin-top: 4px; }
@@ -2103,7 +2103,7 @@
 .ch-charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
 
 @media (max-width: 768px) {
-    .ch-stats-row { grid-template-columns: repeat(3, 1fr); }
+    .ch-stats-row { grid-template-columns: repeat(4, 1fr); }
     .ch-stats-row .cs-stat-value { font-size: 1.4rem; }
     .ch-charts-row { grid-template-columns: 1fr; }
 }
@@ -2830,6 +2830,14 @@
                 <div class="cs-stat-card">
                     <div class="cs-stat-value" id="chCssLines">—</div>
                     <div class="cs-stat-label">CSS</div>
+                </div>
+                <div class="cs-stat-card">
+                    <div class="cs-stat-value" id="chSqlLines">—</div>
+                    <div class="cs-stat-label">SQL</div>
+                </div>
+                <div class="cs-stat-card">
+                    <div class="cs-stat-value" id="chShellLines">—</div>
+                    <div class="cs-stat-label">SHELL</div>
                 </div>
             </div>
 

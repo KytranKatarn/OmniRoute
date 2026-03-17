@@ -215,6 +215,9 @@ class User(UserMixin):
         subscription_tier=None,
         subscription_expires_at=None,
         theme_preference=None,
+        profile_picture=None,
+        oauth_picture=None,
+        created_at=None,
     ):
         self.id = id
         self.username = username
@@ -225,6 +228,9 @@ class User(UserMixin):
         self.subscription_tier = subscription_tier or "free"
         self.subscription_expires_at = subscription_expires_at
         self.theme_preference = theme_preference  # None = no explicit choice
+        self.profile_picture = profile_picture
+        self.oauth_picture = oauth_picture
+        self.created_at = created_at
         # Note: is_authenticated, is_active, is_anonymous are provided by UserMixin
 
 
@@ -254,6 +260,9 @@ def load_user(user_id):
                 subscription_tier=user_data.get("subscription_tier", "free"),
                 subscription_expires_at=user_data.get("subscription_expires_at"),
                 theme_preference=theme_pref,
+                profile_picture=user_data.get("profile_picture"),
+                oauth_picture=user_data.get("oauth_picture"),
+                created_at=user_data.get("created_at"),
             )
     except Exception as e:
         print(f"Error loading user: {e}")

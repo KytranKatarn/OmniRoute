@@ -147,6 +147,7 @@ function loadTabData(tab) {
     /* team tab merged into Bridge Command */
     case "github":      loadGitHub(); break;
     case "languages":   loadLanguages(); checkActiveJobs(); break;
+    case "codehealth":  loadCodeHealth(); break;
   }
 }
 
@@ -2679,4 +2680,209 @@ function updateBreadcrumbs(repoName, path) {
       bc.appendChild(link);
     }
   });
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   CODE HEALTH TAB
+   ══════════════════════════════════════════════════════════════ */
+
+var _chModuleChart = null;
+var _chHistoryChart = null;
+
+function loadCodeHealth() {
+  api("/api/code-health/current").then(function(d) {
+    _renderCodeHealthStats(d);
+    _renderModuleChart(d.modules || {});
+    _renderModuleTable(d.modules || {});
+  }).catch(function(err) {
+    console.error("Code health load error:", err);
+  });
+
+  chLoadHistory();
+  _loadAuditLog();
+}
+
+function _renderCodeHealthStats(d) {
+  var fmt = function(n) { return (n || 0).toLocaleString(); };
+  setHtml("chTotalFiles", fmt(d.total_files));
+  setHtml("chTotalLines", fmt(d.total_lines));
+  setHtml("chPythonLines", fmt(d.python ? d.python.lines : 0));
+  setHtml("chJsLines", fmt(d.js ? d.js.lines : 0));
+  setHtml("chHtmlLines", fmt(d.html ? d.html.lines : 0));
+  setHtml("chCssLines", fmt(d.css ? d.css.lines : 0));
+}
+
+function _renderModuleChart(modules) {
+  var canvas = document.getElementById("chModuleChart");
+  if (!canvas) return;
+
+  var names = Object.keys(modules).sort(function(a, b) {
+    return (modules[b].lines || 0) - (modules[a].lines || 0);
+  }).slice(0, 20);
+
+  var lines = names.map(function(n) { return modules[n].lines || 0; });
+
+  if (_chModuleChart) _chModuleChart.destroy();
+  _chModuleChart = new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels: names,
+      datasets: [{
+        label: "Lines of Code",
+        data: lines,
+        backgroundColor: "rgba(139, 92, 246, 0.6)",
+        borderColor: "#8b5cf6",
+        borderWidth: 1
+      }]
+    },
+    options: {
+      indexAxis: "y",
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: "rgba(255,255,255,0.5)" }, grid: { color: "rgba(255,255,255,0.05)" } },
+        y: { ticks: { color: "rgba(255,255,255,0.7)", font: { size: 10 } }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+function _renderModuleTable(modules) {
+  var el = document.getElementById("chModuleTable");
+  if (!el) return;
+
+  var sorted = Object.keys(modules).sort(function(a, b) {
+    return (modules[b].lines || 0) - (modules[a].lines || 0);
+  });
+
+  var html = '<table class="cs-table"><thead><tr>' +
+    '<th>Module</th><th class="center">Files</th><th class="center">Lines</th>' +
+    '<th class="center">Python</th><th class="center">JS</th><th class="center">HTML</th><th class="center">CSS</th>' +
+    '</tr></thead><tbody>';
+
+  sorted.forEach(function(name) {
+    var m = modules[name];
+    var bt = m.by_type || {};
+    html += '<tr>' +
+      '<td>' + escHtml(name) + '</td>' +
+      '<td class="center">' + (m.files || 0) + '</td>' +
+      '<td class="center"><strong>' + (m.lines || 0).toLocaleString() + '</strong></td>' +
+      '<td class="center">' + (bt.python ? bt.python.lines : 0).toLocaleString() + '</td>' +
+      '<td class="center">' + (bt.js ? bt.js.lines : 0).toLocaleString() + '</td>' +
+      '<td class="center">' + (bt.html ? bt.html.lines : 0).toLocaleString() + '</td>' +
+      '<td class="center">' + (bt.css ? bt.css.lines : 0).toLocaleString() + '</td>' +
+      '</tr>';
+  });
+
+  html += '</tbody></table>';
+  setHtml(el, html);
+}
+
+window.chRunScan = function() {
+  api("/api/code-health/scan", "POST").then(function(d) {
+    if (d.success) {
+      _renderCodeHealthStats(d.metrics);
+      _renderModuleChart(d.metrics.modules || {});
+      _renderModuleTable(d.metrics.modules || {});
+      chLoadHistory();
+    }
+  }).catch(function(err) {
+    console.error("Scan failed:", err);
+  });
+};
+
+window.chLoadHistory = function() {
+  api("/api/code-health/snapshots").then(function(d) {
+    var snaps = (d.snapshots || []).reverse();
+    _renderHistoryChart(snaps);
+  }).catch(function() {});
+};
+
+function _renderHistoryChart(snapshots) {
+  var canvas = document.getElementById("chHistoryChart");
+  if (!canvas || !snapshots.length) return;
+
+  var labels = snapshots.map(function(s) {
+    var d = new Date(s.scanned_at);
+    return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  });
+
+  if (_chHistoryChart) _chHistoryChart.destroy();
+  _chHistoryChart = new Chart(canvas, {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: "Total Lines",
+          data: snapshots.map(function(s) { return s.total_lines; }),
+          borderColor: "#8b5cf6",
+          backgroundColor: "rgba(139, 92, 246, 0.1)",
+          fill: true,
+          tension: 0.3
+        },
+        {
+          label: "Total Files",
+          data: snapshots.map(function(s) { return s.total_files; }),
+          borderColor: "#0cf",
+          backgroundColor: "rgba(0, 204, 255, 0.1)",
+          fill: true,
+          tension: 0.3,
+          yAxisID: "y1"
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: "rgba(255,255,255,0.6)" } } },
+      scales: {
+        x: { ticks: { color: "rgba(255,255,255,0.5)" }, grid: { color: "rgba(255,255,255,0.05)" } },
+        y: { position: "left", ticks: { color: "#8b5cf6" }, grid: { color: "rgba(255,255,255,0.05)" } },
+        y1: { position: "right", ticks: { color: "#0cf" }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+function _loadAuditLog() {
+  api("/api/code-health/audit-log").then(function(d) {
+    var entries = d.entries || [];
+    var el = document.getElementById("chAuditTable");
+    if (!el) return;
+
+    if (!entries.length) {
+      setHtml(el, '<div class="cs-empty">No audit entries yet. Start auditing modules to see progress here.</div>');
+      return;
+    }
+
+    var html = '<table class="cs-table"><thead><tr>' +
+      '<th>Module</th><th>Category</th><th class="center">Files</th>' +
+      '<th class="center">Before</th><th class="center">After</th><th class="center">\u0394</th>' +
+      '<th class="center">Issues</th><th class="center">Fixed</th><th>Status</th><th>Date</th>' +
+      '</tr></thead><tbody>';
+
+    entries.forEach(function(e) {
+      var delta = (e.lines_after || 0) - (e.lines_before || 0);
+      var deltaClass = delta > 0 ? "color:#22c55e" : delta < 0 ? "color:#ef4444" : "";
+      var statusClass = e.status === "completed" ? "green" : e.status === "in_progress" ? "amber" : "";
+      html += '<tr>' +
+        '<td>' + escHtml(e.module_name) + '</td>' +
+        '<td style="font-size:0.75rem; color:rgba(255,255,255,0.4);">' + escHtml(e.category || "") + '</td>' +
+        '<td class="center">' + (e.files_reviewed || 0) + '</td>' +
+        '<td class="center">' + (e.lines_before || 0).toLocaleString() + '</td>' +
+        '<td class="center">' + (e.lines_after || 0).toLocaleString() + '</td>' +
+        '<td class="center" style="' + deltaClass + ';">' + (delta > 0 ? "+" : "") + delta.toLocaleString() + '</td>' +
+        '<td class="center">' + (e.issues_found || 0) + '</td>' +
+        '<td class="center">' + (e.issues_fixed || 0) + '</td>' +
+        '<td><span class="cs-badge ' + statusClass + '">' + escHtml(e.status || "pending") + '</span></td>' +
+        '<td style="font-size:0.75rem; white-space:nowrap;">' + formatAge(e.audited_at) + '</td>' +
+        '</tr>';
+    });
+
+    html += '</tbody></table>';
+    setHtml(el, html);
+  }).catch(function() {});
 }

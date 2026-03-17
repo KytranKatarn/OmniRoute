@@ -2145,6 +2145,10 @@
                 <i data-lucide="languages"></i>
                 <span data-i18n="consciousness.tabs.languages">Languages</span>
             </button>
+            <button class="glass-nav-item" data-tab="codehealth">
+                <i data-lucide="activity"></i>
+                <span>Code Health</span>
+            </button>
         </div>
     </nav>
 
@@ -2774,6 +2778,71 @@
             </div>
         </div>
     </div>
+
+        <!-- ════════════════════════════════════════════════════════ -->
+        <!-- Code Health Panel                                        -->
+        <!-- ════════════════════════════════════════════════════════ -->
+        <div class="cs-panel" id="panel-codehealth">
+
+            <!-- Stats Row -->
+            <div class="cs-stats" id="chStatsRow" style="grid-template-columns: repeat(6, 1fr);">
+                <div class="cs-stat-card">
+                    <div class="cs-stat-value" id="chTotalFiles">—</div>
+                    <div class="cs-stat-label">TOTAL FILES</div>
+                </div>
+                <div class="cs-stat-card">
+                    <div class="cs-stat-value" id="chTotalLines">—</div>
+                    <div class="cs-stat-label">TOTAL LINES</div>
+                </div>
+                <div class="cs-stat-card">
+                    <div class="cs-stat-value" id="chPythonLines">—</div>
+                    <div class="cs-stat-label">PYTHON</div>
+                </div>
+                <div class="cs-stat-card">
+                    <div class="cs-stat-value" id="chJsLines">—</div>
+                    <div class="cs-stat-label">JAVASCRIPT</div>
+                </div>
+                <div class="cs-stat-card">
+                    <div class="cs-stat-value" id="chHtmlLines">—</div>
+                    <div class="cs-stat-label">HTML</div>
+                </div>
+                <div class="cs-stat-card">
+                    <div class="cs-stat-value" id="chCssLines">—</div>
+                    <div class="cs-stat-label">CSS</div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div style="display:flex; gap:8px; margin:12px 0;">
+                <button class="cs-btn purple" onclick="chRunScan()">SCAN CODEBASE</button>
+                <button class="cs-btn cyan" onclick="chLoadHistory()">LOAD HISTORY</button>
+            </div>
+
+            <!-- Charts Row -->
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:12px;">
+                <div class="cs-card">
+                    <div class="cs-card-title">Lines by Module</div>
+                    <canvas id="chModuleChart" height="300"></canvas>
+                </div>
+                <div class="cs-card">
+                    <div class="cs-card-title">Lines Over Time</div>
+                    <canvas id="chHistoryChart" height="300"></canvas>
+                </div>
+            </div>
+
+            <!-- Module Breakdown Table -->
+            <div class="cs-card" style="margin-top:16px;">
+                <div class="cs-card-title">Module Breakdown</div>
+                <div id="chModuleTable" style="max-height:400px; overflow-y:auto;"></div>
+            </div>
+
+            <!-- Audit Progress -->
+            <div class="cs-card" style="margin-top:16px;">
+                <div class="cs-card-title">Audit Progress</div>
+                <div id="chAuditTable"></div>
+            </div>
+
+        </div>
 
 </div><!-- /.cs-container -->
 

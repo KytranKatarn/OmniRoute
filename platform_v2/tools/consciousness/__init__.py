@@ -27,6 +27,7 @@ from .knowledge_routes import register_knowledge_routes  # noqa: E402
 from .insights_routes import register_insights_routes  # noqa: E402
 from .github_routes import register_github_routes  # noqa: E402
 from .integration_routes import register_integration_routes  # noqa: E402
+from .code_health_routes import register_code_health_routes  # noqa: E402
 
 # Register processing routes as nested blueprint
 consciousness_bp.register_blueprint(processing_bp)
@@ -44,6 +45,9 @@ register_github_routes(consciousness_bp, admin_required)
 
 # Register integration routes (cross-module health)
 register_integration_routes(consciousness_bp, admin_required)
+
+# Register code health routes (metrics, audit progress)
+register_code_health_routes(consciousness_bp, admin_required)
 
 # Resume any server-side loops that were active before restart
 try:

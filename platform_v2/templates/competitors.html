@@ -399,10 +399,27 @@
             background: var(--lcars-cyan);
         }
 
+        /* ── Language Selector ────────────────────────── */
+        .comp-lang-selector { position: relative; display: inline-block; margin-left: 1rem; }
+        .comp-lang-btn { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 4px 8px; cursor: pointer; color: var(--lcars-beige); display: flex; align-items: center; }
+        .comp-lang-btn:hover { background: rgba(255,156,0,0.15); border-color: var(--lcars-orange); }
+        .comp-lang-menu { position: absolute; right: 0; top: 100%; margin-top: 8px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 4px; z-index: 1000; min-width: 160px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); display: none; }
+        .comp-lang-menu button { display: block; width: 100%; text-align: left; padding: 8px 14px; background: none; border: none; color: #ccc; cursor: pointer; border-radius: 6px; font-size: 0.85rem; font-family: 'IBM Plex Mono', monospace; }
+        .comp-lang-menu button:hover { background: rgba(255,156,0,0.15); color: #fff; }
+        .comp-lang-menu button.active { color: var(--lcars-cyan); font-weight: 600; }
+        [dir="rtl"] .content-area { margin-left: 0; margin-right: 140px; }
+        [dir="rtl"] .lcars-sidebar { left: auto; right: 0; }
+        [dir="rtl"] .lcars-pill { border-radius: 16px 0 0 16px; margin-left: auto; margin-right: 0; }
+        [dir="rtl"] .matrix-table tbody td:first-child, [dir="rtl"] .matrix-table thead th:first-child { text-align: right; }
+        [dir="rtl"] .cat-card { text-align: right; }
+        [dir="rtl"] .comp-lang-menu { right: auto; left: 0; }
+        [dir="rtl"] .comp-lang-menu button { text-align: right; }
+
         /* ── Responsive ───────────────────────────────── */
         @media (max-width: 900px) {
             .lcars-sidebar { display: none; }
             .content-area { margin-left: 0; padding: 0 1rem 3rem; }
+            [dir="rtl"] .content-area { margin-right: 0; }
             .lcars-elbow { width: 60px; min-height: 50px; border-radius: 0 0 0 20px; }
             .lcars-bar { min-height: 50px; clip-path: polygon(0 0, 100% 0, 100% 100%, 15px 100%); }
             .hero-stats { gap: 1.5rem; }
@@ -421,7 +438,22 @@
         <div class="lcars-header">
             <div class="lcars-elbow"></div>
             <div class="lcars-bar">
-                <span class="lcars-bar-label">Competitive Analysis &bull; Stardate {{ stardate }}</span>
+                <span class="lcars-bar-label" data-i18n="comp_bar_label">Competitive Analysis</span><span class="lcars-bar-label"> &bull; Stardate {{ stardate }}</span>
+                <div class="comp-lang-selector">
+                    <button class="comp-lang-btn" onclick="toggleCompLangMenu()" aria-label="Language">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
+                    </button>
+                    <div class="comp-lang-menu" id="compLangMenu">
+                        <button class="active" onclick="compSwitchLang('en')">English</button>
+                        <button onclick="compSwitchLang('fr')">Fran&ccedil;ais (QC)</button>
+                        <button onclick="compSwitchLang('es')">Espa&ntilde;ol</button>
+                        <button onclick="compSwitchLang('pt')">Portugu&ecirc;s</button>
+                        <button onclick="compSwitchLang('de')">Deutsch</button>
+                        <button onclick="compSwitchLang('zh')">&#x4E2D;&#x6587;</button>
+                        <button onclick="compSwitchLang('ar')">&#x0627;&#x0644;&#x0639;&#x0631;&#x0628;&#x064A;&#x0629;</button>
+                        <button onclick="compSwitchLang('he')">&#x05E2;&#x05D1;&#x05E8;&#x05D9;&#x05EA;</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -446,27 +478,27 @@
 
             <!-- HERO -->
             <section class="hero">
-                <h1>A.R.C.H.I.E. vs The Competition</h1>
-                <p class="subtitle">It takes 7+ tools to match what ARCHIE does in one platform</p>
+                <h1 data-i18n="comp_hero_title">A.R.C.H.I.E. vs The Competition</h1>
+                <p class="subtitle" data-i18n="comp_hero_subtitle">It takes 7+ tools to match what ARCHIE does in one platform</p>
                 <div class="hero-stats">
                     <div class="stat-block">
                         <div class="stat-number orange">25+</div>
-                        <div class="stat-label">Competitors Analyzed</div>
+                        <div class="stat-label" data-i18n="comp_stat_analyzed">Competitors Analyzed</div>
                     </div>
                     <div class="stat-block">
                         <div class="stat-number cyan">12</div>
-                        <div class="stat-label">Unique Features No One Else Has</div>
+                        <div class="stat-label" data-i18n="comp_stat_unique">Unique Features No One Else Has</div>
                     </div>
                 </div>
             </section>
 
             <!-- FEATURE MATRIX -->
-            <div class="section-header"><span class="dot"></span>Feature Matrix</div>
+            <div class="section-header"><span class="dot"></span><span data-i18n="comp_section_matrix">Feature Matrix</span></div>
             <div class="matrix-wrap">
                 <table class="matrix-table">
                     <thead>
                         <tr>
-                            <th>Feature</th>
+                            <th data-i18n="comp_th_feature">Feature</th>
                             <th class="archie-col">ARCHIE</th>
                             <th>CrewAI</th>
                             <th>AutoGen</th>
@@ -478,7 +510,7 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td>Multi-agent orchestration</td>
+                            <td data-i18n="comp_feat_multi">Multi-agent orchestration</td>
                             <td><span class="archie-check">&#10003;</span></td>
                             <td><span class="check">&#10003;</span></td>
                             <td><span class="check">&#10003;</span></td>
@@ -488,7 +520,7 @@
                             <td><span class="check">&#10003;</span></td>
                         </tr>
                         <tr>
-                            <td>Station-based dispatch</td>
+                            <td data-i18n="comp_feat_station">Station-based dispatch</td>
                             <td><span class="archie-check">&#10003;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
@@ -498,7 +530,7 @@
                             <td><span class="cross">&#10007;</span></td>
                         </tr>
                         <tr>
-                            <td>GPU/VRAM-aware routing</td>
+                            <td data-i18n="comp_feat_gpu">GPU/VRAM-aware routing</td>
                             <td><span class="archie-check">&#10003;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
@@ -508,7 +540,7 @@
                             <td><span class="cross">&#10007;</span></td>
                         </tr>
                         <tr>
-                            <td>Agent welfare (IAAE ethics)</td>
+                            <td data-i18n="comp_feat_welfare">Agent welfare (IAAE ethics)</td>
                             <td><span class="archie-check">&#10003;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
@@ -518,7 +550,7 @@
                             <td><span class="cross">&#10007;</span></td>
                         </tr>
                         <tr>
-                            <td>Warm-boot model lifecycle</td>
+                            <td data-i18n="comp_feat_warmboot">Warm-boot model lifecycle</td>
                             <td><span class="archie-check">&#10003;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
@@ -528,7 +560,7 @@
                             <td><span class="cross">&#10007;</span></td>
                         </tr>
                         <tr>
-                            <td>5-step escalation chain</td>
+                            <td data-i18n="comp_feat_escalation">5-step escalation chain</td>
                             <td><span class="archie-check">&#10003;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
@@ -538,7 +570,7 @@
                             <td><span class="cross">&#10007;</span></td>
                         </tr>
                         <tr>
-                            <td>Cross-station assists</td>
+                            <td data-i18n="comp_feat_crossstation">Cross-station assists</td>
                             <td><span class="archie-check">&#10003;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
@@ -548,7 +580,7 @@
                             <td><span class="cross">&#10007;</span></td>
                         </tr>
                         <tr>
-                            <td>Mission profiles</td>
+                            <td data-i18n="comp_feat_mission">Mission profiles</td>
                             <td><span class="archie-check">&#10003;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
@@ -558,7 +590,7 @@
                             <td><span class="cross">&#10007;</span></td>
                         </tr>
                         <tr>
-                            <td>Physical security (cameras, DNS, SSH)</td>
+                            <td data-i18n="comp_feat_security">Physical security (cameras, DNS, SSH)</td>
                             <td><span class="archie-check">&#10003;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
@@ -568,7 +600,7 @@
                             <td><span class="cross">&#10007;</span></td>
                         </tr>
                         <tr>
-                            <td>Self-improvement pipeline</td>
+                            <td data-i18n="comp_feat_selfimprove">Self-improvement pipeline</td>
                             <td><span class="archie-check">&#10003;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
@@ -578,7 +610,7 @@
                             <td><span class="cross">&#10007;</span></td>
                         </tr>
                         <tr>
-                            <td>Distributed GPU node fleet</td>
+                            <td data-i18n="comp_feat_distributed">Distributed GPU node fleet</td>
                             <td><span class="archie-check">&#10003;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
@@ -588,7 +620,7 @@
                             <td><span class="cross">&#10007;</span></td>
                         </tr>
                         <tr>
-                            <td>Durable execution (checkpoints)</td>
+                            <td data-i18n="comp_feat_durable">Durable execution (checkpoints)</td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
@@ -598,7 +630,7 @@
                             <td><span class="cross">&#10007;</span></td>
                         </tr>
                         <tr>
-                            <td>Structured agent schemas</td>
+                            <td data-i18n="comp_feat_schemas">Structured agent schemas</td>
                             <td><span class="archie-check">&#10003;</span></td>
                             <td><span class="check">&#10003;</span></td>
                             <td><span class="check">&#10003;</span></td>
@@ -608,7 +640,7 @@
                             <td><span class="cross">&#10007;</span></td>
                         </tr>
                         <tr>
-                            <td>Event-driven flow router</td>
+                            <td data-i18n="comp_feat_eventrouter">Event-driven flow router</td>
                             <td><span class="archie-check">&#10003;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
@@ -618,7 +650,7 @@
                             <td><span class="cross">&#10007;</span></td>
                         </tr>
                         <tr>
-                            <td>Agents-as-tools delegation</td>
+                            <td data-i18n="comp_feat_delegation">Agents-as-tools delegation</td>
                             <td><span class="archie-check">&#10003;</span></td>
                             <td><span class="check">&#10003;</span></td>
                             <td><span class="check">&#10003;</span></td>
@@ -628,7 +660,7 @@
                             <td><span class="cross">&#10007;</span></td>
                         </tr>
                         <tr>
-                            <td>Telegram human-in-the-loop</td>
+                            <td data-i18n="comp_feat_telegram">Telegram human-in-the-loop</td>
                             <td><span class="archie-check">&#10003;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
@@ -638,7 +670,7 @@
                             <td><span class="cross">&#10007;</span></td>
                         </tr>
                         <tr>
-                            <td>Visual station map</td>
+                            <td data-i18n="comp_feat_visualmap">Visual station map</td>
                             <td><span class="archie-check">&#10003;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
@@ -648,7 +680,7 @@
                             <td><span class="check">&#10003;</span></td>
                         </tr>
                         <tr>
-                            <td>39 autonomous loop jobs</td>
+                            <td data-i18n="comp_feat_loopjobs">39 autonomous loop jobs</td>
                             <td><span class="archie-check">&#10003;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
@@ -662,181 +694,89 @@
             </div>
 
             <!-- CATEGORY COMPARISON -->
-            <div class="section-header"><span class="dot"></span>Category Comparison</div>
+            <div class="section-header"><span class="dot"></span><span data-i18n="comp_section_category">Category Comparison</span></div>
             <div class="category-grid">
                 <div class="cat-card">
-                    <h3 class="orch">Orchestration Frameworks</h3>
+                    <h3 class="orch" data-i18n="comp_cat_orch_title">Orchestration Frameworks</h3>
                     <div class="competitors">CrewAI &bull; AutoGen &bull; LangGraph &bull; MetaGPT &bull; OpenAI Agents SDK</div>
-                    <p>Libraries for building multi-agent systems. You write code, define roles, and wire agents together. Great for developers who want full control over agent behavior and workflows.</p>
-                    <div class="archie-edge"><strong>ARCHIE's edge:</strong> These are libraries you build with. ARCHIE is a running system &mdash; GPU-aware routing, warm-boot lifecycle, physical security, and 39 autonomous background jobs out of the box. No assembly required.</div>
+                    <p data-i18n="comp_cat_orch_desc">Libraries for building multi-agent systems. You write code, define roles, and wire agents together. Great for developers who want full control over agent behavior and workflows.</p>
+                    <div class="archie-edge"><strong>ARCHIE's edge:</strong> <span data-i18n="comp_cat_orch_edge">These are libraries you build with. ARCHIE is a running system &mdash; GPU-aware routing, warm-boot lifecycle, physical security, and 39 autonomous background jobs out of the box. No assembly required.</span></div>
                 </div>
                 <div class="cat-card">
-                    <h3 class="work">Workflow Builders</h3>
+                    <h3 class="work" data-i18n="comp_cat_work_title">Workflow Builders</h3>
                     <div class="competitors">Langflow &bull; n8n &bull; Dify &bull; Flowise</div>
-                    <p>Visual drag-and-drop platforms for connecting LLMs to tools and data sources. Strong for no-code teams and rapid prototyping of AI-powered automations.</p>
-                    <div class="archie-edge"><strong>ARCHIE's edge:</strong> Workflow builders connect things. ARCHIE orchestrates a fleet of 23 autonomous agents with station-based dispatch, VRAM-aware model management, and self-improvement &mdash; capabilities no visual builder offers.</div>
+                    <p data-i18n="comp_cat_work_desc">Visual drag-and-drop platforms for connecting LLMs to tools and data sources. Strong for no-code teams and rapid prototyping of AI-powered automations.</p>
+                    <div class="archie-edge"><strong>ARCHIE's edge:</strong> <span data-i18n="comp_cat_work_edge">Workflow builders connect things. ARCHIE orchestrates a fleet of 23 autonomous agents with station-based dispatch, VRAM-aware model management, and self-improvement &mdash; capabilities no visual builder offers.</span></div>
                 </div>
                 <div class="cat-card">
-                    <h3 class="code">Autonomous Coding Agents</h3>
+                    <h3 class="code" data-i18n="comp_cat_code_title">Autonomous Coding Agents</h3>
                     <div class="competitors">Devin &bull; Cursor &bull; Windsurf &bull; Claude Code</div>
-                    <p>AI-powered coding tools that write, edit, and debug code. From full IDEs to terminal agents, they excel at software engineering tasks but focus exclusively on code.</p>
-                    <div class="archie-edge"><strong>ARCHIE's edge:</strong> Coding agents write code. ARCHIE is a multi-domain operations platform &mdash; it manages physical security, monitors network devices, runs background intelligence, and self-evolves its own codebase through an automated pipeline.</div>
+                    <p data-i18n="comp_cat_code_desc">AI-powered coding tools that write, edit, and debug code. From full IDEs to terminal agents, they excel at software engineering tasks but focus exclusively on code.</p>
+                    <div class="archie-edge"><strong>ARCHIE's edge:</strong> <span data-i18n="comp_cat_code_edge">Coding agents write code. ARCHIE is a multi-domain operations platform &mdash; it manages physical security, monitors network devices, runs background intelligence, and self-evolves its own codebase through an automated pipeline.</span></div>
                 </div>
                 <div class="cat-card">
-                    <h3 class="ent">Enterprise Platforms</h3>
+                    <h3 class="ent" data-i18n="comp_cat_ent_title">Enterprise Platforms</h3>
                     <div class="competitors">Semantic Kernel &bull; Haystack &bull; Relevance AI &bull; Dust.tt &bull; OpenAI Assistants</div>
-                    <p>Production-grade platforms backed by major vendors. Cloud-first, enterprise-scale, with managed infrastructure and broad integration ecosystems.</p>
-                    <div class="archie-edge"><strong>ARCHIE's edge:</strong> Enterprise platforms are cloud-dependent. ARCHIE runs entirely on local hardware (128GB RAM, Quadro M4000), with agent welfare governance, physical-digital convergence, and zero cloud lock-in.</div>
+                    <p data-i18n="comp_cat_ent_desc">Production-grade platforms backed by major vendors. Cloud-first, enterprise-scale, with managed infrastructure and broad integration ecosystems.</p>
+                    <div class="archie-edge"><strong>ARCHIE's edge:</strong> <span data-i18n="comp_cat_ent_edge">Enterprise platforms are cloud-dependent. ARCHIE runs entirely on local hardware (128GB RAM, Quadro M4000), with agent welfare governance, physical-digital convergence, and zero cloud lock-in.</span></div>
                 </div>
             </div>
 
             <!-- HOW MANY TOOLS TO MATCH -->
-            <div class="section-header"><span class="dot"></span>How Many Tools to Match A.R.C.H.I.E.?</div>
+            <div class="section-header"><span class="dot"></span><span data-i18n="comp_section_stack">How Many Tools to Match A.R.C.H.I.E.?</span></div>
             <section class="stack-section">
-                <p class="intro">One platform vs. a patchwork of seven</p>
+                <p class="intro" data-i18n="comp_stack_intro">One platform vs. a patchwork of seven</p>
                 <div class="stack-vs">
                     <div class="stack-archie">
-                        <div class="name">A.R.C.H.I.E.</div>
-                        <div class="desc">One unified platform</div>
+                        <div class="name" data-i18n="comp_stack_archie">A.R.C.H.I.E.</div>
+                        <div class="desc" data-i18n="comp_stack_archie_desc">One unified platform</div>
                     </div>
                     <div class="vs-badge">VS</div>
                     <div class="stack-others">
                         <div class="stack-tool">
                             <span class="tool-name">CrewAI</span>
-                            <span class="tool-role">Agent orchestration</span>
+                            <span class="tool-role" data-i18n="comp_tool_crewai">Agent orchestration</span>
                         </div>
                         <div class="stack-tool">
                             <span class="tool-name">Ollama</span>
-                            <span class="tool-role">Local model serving</span>
+                            <span class="tool-role" data-i18n="comp_tool_ollama">Local model serving</span>
                         </div>
                         <div class="stack-tool">
                             <span class="tool-name">n8n</span>
-                            <span class="tool-role">Workflow automation</span>
+                            <span class="tool-role" data-i18n="comp_tool_n8n">Workflow automation</span>
                         </div>
                         <div class="stack-tool">
                             <span class="tool-name">Frigate NVR</span>
-                            <span class="tool-role">Camera security</span>
+                            <span class="tool-role" data-i18n="comp_tool_frigate">Camera security</span>
                         </div>
                         <div class="stack-tool">
                             <span class="tool-name">AdGuard Home</span>
-                            <span class="tool-role">DNS protection</span>
+                            <span class="tool-role" data-i18n="comp_tool_adguard">DNS protection</span>
                         </div>
                         <div class="stack-tool">
                             <span class="tool-name">Grafana</span>
-                            <span class="tool-role">Monitoring &amp; dashboards</span>
+                            <span class="tool-role" data-i18n="comp_tool_grafana">Monitoring &amp; dashboards</span>
                         </div>
                         <div class="stack-tool">
                             <span class="tool-name">Custom Scripts</span>
-                            <span class="tool-role">Glue code &amp; cron jobs</span>
+                            <span class="tool-role" data-i18n="comp_tool_scripts">Glue code &amp; cron jobs</span>
                         </div>
                     </div>
                 </div>
                 <p style="color:#777; font-size:0.85rem; max-width:600px; margin:0 auto;">
-                    And you'd still be missing agent welfare, warm-boot lifecycle, station-based dispatch, mission profiles, self-improvement, and Telegram escalation.
+                    <span data-i18n="comp_stack_missing">And you'd still be missing agent welfare, warm-boot lifecycle, station-based dispatch, mission profiles, self-improvement, and Telegram escalation.</span>
                 </p>
             </section>
 
             <!-- FOOTER -->
             <footer class="comp-footer">
-                <div class="tagline">A.R.C.H.I.E.</div>
-                <div class="full-name">Autonomous Resource &amp; Cognitive Hyperintelligence Engine</div>
-                <a href="/">Enter the Platform</a>
+                <div class="tagline" data-i18n="comp_footer_tagline">A.R.C.H.I.E.</div>
+                <div class="full-name" data-i18n="comp_footer_fullname">Autonomous Resource &amp; Cognitive Hyperintelligence Engine</div>
+                <a href="/" data-i18n="comp_footer_cta">Enter the Platform</a>
             </footer>
         </div>
     </div>
 
-    <!-- Language Switcher & AI Translation -->
-    <div id="lang-switcher" style="position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;align-items:center;gap:8px;">
-        <div id="archie-translation-badge" style="display:none;background:rgba(139,92,246,0.15);border:1px solid #8b5cf6;border-radius:8px;padding:6px 12px;font-size:0.75rem;color:#c4b5fd;font-family:'IBM Plex Mono',monospace;white-space:nowrap;">
-        </div>
-        <select id="lang-select" style="background:#1a1b23;color:#FF9C00;border:1px solid #FF9C00;border-radius:8px;padding:8px 12px;font-family:'IBM Plex Mono',monospace;font-size:0.8rem;cursor:pointer;outline:none;">
-            <option value="en">English</option>
-            <option value="fr">Fran&ccedil;ais</option>
-            <option value="es">Espa&ntilde;ol</option>
-            <option value="de">Deutsch</option>
-            <option value="ja">&#26085;&#26412;&#35486;</option>
-            <option value="ko">&#54620;&#44397;&#50612;</option>
-            <option value="zh">&#20013;&#25991;</option>
-            <option value="ar">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</option>
-            <option value="vi">Ti&#7871;ng Vi&#7879;t</option>
-        </select>
-    </div>
-
-    <script>
-    (function() {
-        var LANG_NAMES = {en:'English',fr:'French',es:'Spanish',de:'German',ja:'Japanese',ko:'Korean',zh:'Chinese',ar:'Arabic',vi:'Vietnamese'};
-        var sel = document.getElementById('lang-select');
-        var badge = document.getElementById('archie-translation-badge');
-        var originalTexts = [];
-        var currentLang = 'en';
-        var translating = false;
-
-        function getTranslatableElements() {
-            return document.querySelectorAll('.content-area p, .content-area td, .content-area h3, .content-area .archie-edge, .content-area .desc, .content-area .tool-role, .content-area .intro, .comp-footer .full-name');
-        }
-
-        function storeOriginals() {
-            if (originalTexts.length > 0) return;
-            var els = getTranslatableElements();
-            for (var i = 0; i < els.length; i++) {
-                originalTexts.push(els[i].textContent);
-            }
-        }
-
-        function restoreOriginals() {
-            var els = getTranslatableElements();
-            for (var i = 0; i < els.length; i++) {
-                if (i < originalTexts.length) els[i].textContent = originalTexts[i];
-            }
-            badge.style.display = 'none';
-        }
-
-        function translateText(text, targetLang) {
-            return fetch('/api/translate', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({text: text, target_lang: LANG_NAMES[targetLang] || targetLang, source_lang: 'English'})
-            }).then(function(resp) { return resp.json(); })
-              .then(function(data) { return data.success ? data.translated : text; });
-        }
-
-        function translatePage(targetLang) {
-            if (translating) return;
-            storeOriginals();
-
-            if (targetLang === 'en') { restoreOriginals(); currentLang = 'en'; return; }
-
-            translating = true;
-            sel.disabled = true;
-            badge.style.display = 'block';
-            badge.textContent = '\u23F3 Translating...';
-
-            var elements = getTranslatableElements();
-            var chain = Promise.resolve();
-            for (var i = 0; i < elements.length; i++) {
-                (function(idx) {
-                    chain = chain.then(function() {
-                        var original = originalTexts[idx];
-                        if (!original || original.trim().length < 3) return;
-                        return translateText(original.trim(), targetLang).then(function(translated) {
-                            elements[idx].textContent = translated;
-                        }).catch(function(e) {
-                            console.warn('Translation failed for element', idx, e);
-                        });
-                    });
-                })(i);
-            }
-
-            chain.then(function() {
-                badge.textContent = '\uD83E\uDD16 Translated by A.R.C.H.I.E. AI';
-                sel.disabled = false;
-                translating = false;
-                currentLang = targetLang;
-            });
-        }
-
-        sel.addEventListener('change', function() { translatePage(sel.value); });
-    })();
-    </script>
+    <script src="/static/js/competitors-i18n.js"></script>
 </body>
 </html>

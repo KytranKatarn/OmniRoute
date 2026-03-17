@@ -12,19 +12,19 @@
 {% include 'includes/business_tools_nav.html' %}
 <div class="gws-wrapper" data-user-id="{{ current_user.id if current_user else '' }}">
 
-  <!-- Station Operations Terminal -->
-  <div class="stn-ops-terminal" id="gwsOpsTerminal" style="--stn-accent: #0cf; margin: 12px 16px;">
-    <div class="stn-ops-header">
-      <div class="stn-ops-elbow"></div>
-      <div class="stn-ops-title">COMMUNICATIONS OPERATIONS</div>
-      <div class="stn-ops-status" id="gwsOpsOnline">
-        <span class="stn-ops-dot"></span> ONLINE
+  <!-- Station Operations Terminal (same pattern as Consciousness) -->
+  <div class="cs-ops-terminal" id="gwsOpsTerminal">
+    <div class="cs-ops-header">
+      <div class="cs-ops-elbow"></div>
+      <div class="cs-ops-title">EMAIL OPERATIONS</div>
+      <div class="cs-ops-status" id="gwsOpsOnline">
+        <span class="cs-ops-dot"></span> ONLINE
       </div>
     </div>
-    <div class="stn-ops-body">
+    <div class="cs-ops-body">
       <div id="gwsOpsAgents"></div>
       <div id="gwsOpsJobs"></div>
-      <div id="gwsOpsCommands"></div>
+      <div class="cs-ops-commands" id="gwsOpsCommands"></div>
     </div>
   </div>
 
@@ -401,46 +401,57 @@
 <script>
   if (typeof lucide !== 'undefined') { lucide.createIcons(); }
 
-  // Station Operations
+  // ── Station Operations (follows Consciousness pattern exactly) ──
   var _gwsOps = null;
-  function initGwsStation() {
-    if (typeof StationOps === 'undefined') return;
-    _gwsOps = new StationOps({
-      stationCode: "OPERATIONS",
-      moduleSource: "google_work_suite",
-      agentsElId: "gwsOpsAgents",
-      jobsElId: "gwsOpsJobs",
-      commandsElId: "gwsOpsCommands",
-      statusElId: "gwsOpsOnline",
-      commands: [
-        { label: "SYNC INBOX", cls: "purple", fn: "gwsStationSync()", id: "gwsCmdSync" },
-        { label: "ANALYZE EMAILS", cls: "cyan", fn: "gwsStationAnalyze()", id: "gwsCmdAnalyze" },
-        { label: "COMPOSE", cls: "green", fn: "openCompose(null)", id: "gwsCmdCompose" }
-      ],
-      onCapacityChange: function(atCap) {
-        ['gwsCmdSync','gwsCmdAnalyze'].forEach(function(id) {
-          var btn = document.getElementById(id);
-          if (btn) { btn.disabled = atCap; }
-        });
-      }
-    });
-    refreshGwsStation();
+  var _gwsStationAtCapacity = false;
+
+  function _getGwsOps() {
+    if (!_gwsOps && typeof StationOps !== 'undefined') {
+      _gwsOps = new StationOps({
+        stationCode: "OPERATIONS",
+        moduleSource: "google_work_suite",
+        agentsElId: "gwsOpsAgents",
+        jobsElId: "gwsOpsJobs",
+        commandsElId: "gwsOpsCommands",
+        statusElId: "gwsOpsOnline",
+        commands: [
+          { label: "SYNC INBOX", cls: "purple", fn: "gwsStationSync()", id: "gwsCmdSync" },
+          { label: "ANALYZE", cls: "cyan", fn: "gwsStationAnalyze()", id: "gwsCmdAnalyze" },
+          { label: "COMPOSE", cls: "green", fn: "openCompose(null)", id: "gwsCmdCompose" }
+        ],
+        onCapacityChange: function(atCap) {
+          _gwsStationAtCapacity = atCap;
+          ["gwsCmdSync", "gwsCmdAnalyze", "gwsCmdCompose"].forEach(function(id) {
+            var btn = document.getElementById(id);
+            if (btn) {
+              btn.disabled = atCap;
+              btn.title = atCap ? "Station at capacity — all agents busy" : "";
+            }
+          });
+          var statusEl = document.getElementById("gwsOpsOnline");
+          if (statusEl) {
+            var dot = statusEl.querySelector(".cs-ops-dot");
+            if (dot) dot.style.background = atCap ? "#f59e0b" : "#22c55e";
+          }
+        }
+      });
+    }
+    return _gwsOps;
   }
 
-  function refreshGwsStation() {
-    if (!_gwsOps) return;
-    fetch('/tools/google-work-suite/api/station')
-      .then(function(r) { return r.json(); })
-      .then(function(data) { _gwsOps.render(data); })
-      .catch(function() {});
+  function renderGwsOps(jobData) {
+    var ops = _getGwsOps();
+    if (ops) ops.render(jobData);
   }
 
   window.gwsStationSync = function() {
+    if (_gwsStationAtCapacity) return;
     var sel = document.getElementById('gwsAccountSelect');
-    if (sel && sel.value) { syncInbox(); refreshGwsStation(); }
+    if (sel && sel.value) { syncInbox(); }
   };
 
   window.gwsStationAnalyze = function() {
+    if (_gwsStationAtCapacity) return;
     var sel = document.getElementById('gwsAccountSelect');
     if (!sel || !sel.value) return;
     fetch('/tools/google-work-suite/api/email/' + sel.value + '/analyze-batch', {
@@ -450,11 +461,11 @@
       .then(function(d) {
         var count = d.analyzed || 0;
         if (typeof toast !== 'undefined') toast('Analyzed ' + count + ' emails');
-        refreshGwsStation();
       });
   };
 
-  document.addEventListener('DOMContentLoaded', initGwsStation);
-  setInterval(refreshGwsStation, 30000);
+  // Init station on load + refresh every 30s
+  document.addEventListener('DOMContentLoaded', function() { renderGwsOps(); });
+  setInterval(function() { renderGwsOps(); }, 30000);
 </script>
 {% endblock %}

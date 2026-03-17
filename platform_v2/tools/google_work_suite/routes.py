@@ -372,37 +372,6 @@ def bulk_operation_route(account_id):
 
 
 # ---------------------------------------------------------------------------
-# Station Operations
-# ---------------------------------------------------------------------------
-
-
-@google_work_suite_bp.route("/api/station")
-@login_required
-def station_data():
-    """Return station data for the StationOps panel."""
-    from database import get_db_cursor
-
-    with get_db_cursor() as (conn, cur):
-        # Get recent jobs for this module
-        cur.execute(
-            """SELECT id, job_type, status, agent_name, prompt,
-                      completed_steps, total_steps, created_at, updated_at
-               FROM bridge_jobs
-               WHERE module_source = 'google_work_suite'
-               ORDER BY created_at DESC LIMIT 10"""
-        )
-        jobs = []
-        for row in cur.fetchall():
-            r = dict(row)
-            for k, v in r.items():
-                if hasattr(v, "isoformat"):
-                    r[k] = v.isoformat()
-            jobs.append(r)
-
-    return jsonify({"jobs": jobs, "station_code": "OPERATIONS"})
-
-
-# ---------------------------------------------------------------------------
 # Rules
 # ---------------------------------------------------------------------------
 

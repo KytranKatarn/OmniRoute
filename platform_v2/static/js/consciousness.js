@@ -2720,12 +2720,7 @@ function _renderModuleChart(modules) {
   var canvas = document.getElementById("chModuleChart");
   if (!canvas) return;
 
-  // Sort modules by lines, but push infrastructure categories to the bottom
-  var infra = {'[SHARED]':1, '[AI_BRIDGE]':1, '[APP_CORE]':1, '[MIGRATIONS]':1};
   var names = Object.keys(modules).sort(function(a, b) {
-    var aInfra = infra[a] ? 1 : 0;
-    var bInfra = infra[b] ? 1 : 0;
-    if (aInfra !== bInfra) return aInfra - bInfra;
     return (modules[b].lines || 0) - (modules[a].lines || 0);
   }).slice(0, 25);
 

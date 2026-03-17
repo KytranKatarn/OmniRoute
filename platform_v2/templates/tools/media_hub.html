@@ -4,6 +4,68 @@
 
 {% block module_name %}media_hub{% endblock %}
 
+{% block styles %}
+<link rel="stylesheet" href="/static/css/lcars-frames.css">
+<style>
+    /* LCARS Frame Integration for Media Hub */
+    .media-hub-container {
+        --archie-accent: var(--archie-orange);
+        --archie-accent-dim: var(--archie-orange-dim, #b87a00);
+        --archie-accent-alpha-10: var(--archie-orange-alpha-10);
+        --archie-accent-alpha-20: var(--archie-orange-alpha-20);
+        --archie-accent-alpha-30: var(--archie-orange-alpha-30);
+        --archie-glow-accent: var(--archie-glow-orange, 0 0 12px rgba(229,160,13,0.4));
+        --frame-color: #E5A00D;
+        --frame-rgb: 229, 160, 13;
+        --lcars-accent-rgb: 229, 160, 13;
+        padding: 20px;
+        font-family: var(--archie-font-body);
+    }
+    .media-hub-container .lcars-frame,
+    .media-hub-container .lcars-frame * {
+        --frame-color: #E5A00D;
+        --frame-rgb: 229, 160, 13;
+    }
+
+    /* Service Badges (inside lcars-body) */
+    .header-services {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+    }
+    .svc-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.75rem;
+        padding: 4px 10px;
+        border-radius: 20px;
+        background: var(--archie-bg-tertiary);
+        border: 1px solid var(--archie-border-muted);
+        color: var(--archie-text-muted);
+    }
+    .svc-badge .dot {
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        background: var(--archie-text-muted);
+    }
+    .svc-badge.online .dot { background: var(--archie-green); }
+    .svc-badge.offline .dot { background: var(--archie-red); }
+    .svc-badge.online { color: var(--archie-text-secondary); border-color: var(--archie-green-alpha-20, rgba(0,255,65,0.2)); }
+    .svc-badge.offline { color: var(--archie-text-muted); }
+
+    /* Ensure media-hub content fills lcars-body */
+    .lcars-body .media-hub {
+        padding-bottom: 20px;
+    }
+    .lcars-body .hub-header {
+        position: relative;
+        top: auto;
+    }
+</style>
+{% endblock %}
+
 {% block extra_head %}
 <!-- PWA Meta Tags -->
 <meta name="theme-color" content="#E5A00D">
@@ -30,14 +92,48 @@
 {% endblock %}
 
 {% block content %}
-<!-- Include Standalone Apps Navigation -->
-{% include 'includes/standalone_apps_nav.html' %}
+<div class="media-hub-container" data-module="media-hub">
+    <!-- Include Standalone Apps Navigation -->
+    {% include 'includes/standalone_apps_nav.html' %}
 
-<!-- Scanline Overlay -->
-<div class="scanline-overlay"></div>
+    <div class="lcars-frame">
+        <!-- LEFT SIDEBAR -->
+        <div class="lcars-sidebar">
+            <div class="lcars-elbow-top"></div>
+            <div class="lcars-seg" style="--seg-color: #E5A00D"></div>
+            <div class="lcars-seg" style="--seg-color: #f59e0b"></div>
+            <div class="lcars-seg" style="--seg-color: #E5A00D"></div>
+            <div class="lcars-seg" style="--seg-color: #d97706"></div>
+            <div class="lcars-seg-fill"></div>
+            <div class="lcars-elbow-bottom"></div>
+        </div>
 
-<!-- Main Container -->
-<div class="media-hub">
+        <!-- RIGHT CONTENT -->
+        <div class="lcars-content">
+            <div class="lcars-bar">
+                <span class="lcars-bar-title" data-i18n="media_hub.media_hub">MEDIA HUB</span>
+                <div class="lcars-bar-spacer"></div>
+                <div class="lcars-pips">
+                    <span class="lcars-pip" style="width:20px"></span>
+                    <span class="lcars-pip" style="width:35px"></span>
+                    <span class="lcars-pip" style="width:14px"></span>
+                </div>
+                <span class="lcars-bar-status">STREAMING</span>
+            </div>
+
+            <div class="lcars-body">
+                <!-- Service Badges -->
+                <div class="header-services" id="media-service-badges">
+                    {% for svc in services %}
+                    <span class="svc-badge{% if svc.health_status == 'healthy' %} online{% elif svc.health_status == 'unhealthy' %} offline{% endif %}" id="svc-{{ svc.service_type }}"><span class="dot"></span> {{ svc.name }}</span>
+                    {% endfor %}
+                </div>
+
+                <!-- Scanline Overlay -->
+                <div class="scanline-overlay"></div>
+
+                <!-- Main Container -->
+                <div class="media-hub">
     <!-- Cinematic Header -->
     <header class="hub-header">
         <div class="header-content">
@@ -526,6 +622,11 @@
     </main>
 </div>
 
+            </div><!-- /lcars-body -->
+            <div class="lcars-footer-bar"></div>
+        </div><!-- /lcars-content -->
+    </div><!-- /lcars-frame -->
+
 <!-- Media Details Modal -->
 <div class="media-modal" id="mediaPanel">
     <div class="media-modal-backdrop" onclick="closeMediaPanel()"></div>
@@ -623,6 +724,8 @@
         </form>
     </div>
 </div>
+
+</div><!-- /media-hub-container -->
 
 <style>
 /* ═══════════════════════════════════════════════════════════════════════════════
@@ -5691,4 +5794,31 @@ body.light-mode .stat-value { color: #1a1a1a; }
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js"></script>
 
 <script src="{{ url_for('static', filename='js/media-hub.js') }}"></script>
+<script>
+/* LCARS Service Badge Status Updates */
+(function() {
+    function updateServiceBadges() {
+        fetch('/tools/media-hub/api/status')
+            .then(r => r.json())
+            .then(data => {
+                if (!data.services) return;
+                Object.entries(data.services).forEach(([svcType, svc]) => {
+                    const badge = document.getElementById('svc-' + svcType);
+                    if (badge) {
+                        badge.classList.remove('online', 'offline');
+                        badge.classList.add(svc.online ? 'online' : 'offline');
+                    }
+                });
+            })
+            .catch(() => {});
+    }
+    // Initial load + refresh every 60s
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', updateServiceBadges);
+    } else {
+        updateServiceBadges();
+    }
+    setInterval(updateServiceBadges, 60000);
+})();
+</script>
 {% endblock %}

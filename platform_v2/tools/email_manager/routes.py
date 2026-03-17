@@ -29,7 +29,7 @@ import re
 
 # Import user context helpers
 try:
-    from user_context import is_admin_user
+    from services.user_context import is_admin_user
 except ImportError:
 
     def is_admin_user():

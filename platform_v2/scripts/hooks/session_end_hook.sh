@@ -70,7 +70,7 @@ EOF
 # ============================================================================
 echo "📸 Capturing final conversation state..."
 
-python3 "$PLATFORM_DIR/capture_conversation.py" > /dev/null 2>&1
+python3 "$PLATFORM_DIR/scripts/capture_conversation.py" > /dev/null 2>&1
 
 LATEST_TRANSCRIPT=$(ls -t "$LOG_DIR"/transcript_*.md 2>/dev/null | head -1)
 if [ -n "$LATEST_TRANSCRIPT" ]; then

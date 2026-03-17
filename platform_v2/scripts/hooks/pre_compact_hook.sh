@@ -109,7 +109,7 @@ echo "📸 Capturing conversation from Claude history..."
 
 # Run capture_conversation.py to extract conversation
 TRANSCRIPT_FILE="$LOG_DIR/transcript_${TIMESTAMP}.md"
-python3 "$PLATFORM_DIR/capture_conversation.py" > /dev/null 2>&1
+python3 "$PLATFORM_DIR/scripts/capture_conversation.py" > /dev/null 2>&1
 
 # Find the most recent transcript file
 LATEST_TRANSCRIPT=$(ls -t "$LOG_DIR"/transcript_*.md 2>/dev/null | head -1)

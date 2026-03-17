@@ -42,7 +42,7 @@ logger = logging.getLogger("archie_platform")
 
 # Import user context helpers
 try:
-    from user_context import (
+    from services.user_context import (
         get_user_filter,
         can_access_resource,
         require_ownership,

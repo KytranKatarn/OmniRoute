@@ -136,11 +136,7 @@ class NPMService:
             "nginx/certificates",
             {
                 "domain_names": [domain],
-                "meta": {
-                    "letsencrypt_email": self.email,
-                    "letsencrypt_agree": True,
-                    "dns_challenge": False,
-                },
+                "meta": {},
                 "provider": "letsencrypt",
             },
         )

@@ -744,5 +744,99 @@
             </footer>
         </div>
     </div>
+
+    <!-- Language Switcher & AI Translation -->
+    <div id="lang-switcher" style="position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;align-items:center;gap:8px;">
+        <div id="archie-translation-badge" style="display:none;background:rgba(139,92,246,0.15);border:1px solid #8b5cf6;border-radius:8px;padding:6px 12px;font-size:0.75rem;color:#c4b5fd;font-family:'IBM Plex Mono',monospace;white-space:nowrap;">
+        </div>
+        <select id="lang-select" style="background:#1a1b23;color:#FF9C00;border:1px solid #FF9C00;border-radius:8px;padding:8px 12px;font-family:'IBM Plex Mono',monospace;font-size:0.8rem;cursor:pointer;outline:none;">
+            <option value="en">English</option>
+            <option value="fr">Fran&ccedil;ais</option>
+            <option value="es">Espa&ntilde;ol</option>
+            <option value="de">Deutsch</option>
+            <option value="ja">&#26085;&#26412;&#35486;</option>
+            <option value="ko">&#54620;&#44397;&#50612;</option>
+            <option value="zh">&#20013;&#25991;</option>
+            <option value="ar">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</option>
+            <option value="vi">Ti&#7871;ng Vi&#7879;t</option>
+        </select>
+    </div>
+
+    <script>
+    (function() {
+        var LANG_NAMES = {en:'English',fr:'French',es:'Spanish',de:'German',ja:'Japanese',ko:'Korean',zh:'Chinese',ar:'Arabic',vi:'Vietnamese'};
+        var sel = document.getElementById('lang-select');
+        var badge = document.getElementById('archie-translation-badge');
+        var originalTexts = [];
+        var currentLang = 'en';
+        var translating = false;
+
+        function getTranslatableElements() {
+            return document.querySelectorAll('.content-area p, .content-area td, .content-area h3, .content-area .archie-edge, .content-area .desc, .content-area .tool-role, .content-area .intro, .comp-footer .full-name');
+        }
+
+        function storeOriginals() {
+            if (originalTexts.length > 0) return;
+            var els = getTranslatableElements();
+            for (var i = 0; i < els.length; i++) {
+                originalTexts.push(els[i].textContent);
+            }
+        }
+
+        function restoreOriginals() {
+            var els = getTranslatableElements();
+            for (var i = 0; i < els.length; i++) {
+                if (i < originalTexts.length) els[i].textContent = originalTexts[i];
+            }
+            badge.style.display = 'none';
+        }
+
+        function translateText(text, targetLang) {
+            return fetch('/api/translate', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({text: text, target_lang: LANG_NAMES[targetLang] || targetLang, source_lang: 'English'})
+            }).then(function(resp) { return resp.json(); })
+              .then(function(data) { return data.success ? data.translated : text; });
+        }
+
+        function translatePage(targetLang) {
+            if (translating) return;
+            storeOriginals();
+
+            if (targetLang === 'en') { restoreOriginals(); currentLang = 'en'; return; }
+
+            translating = true;
+            sel.disabled = true;
+            badge.style.display = 'block';
+            badge.textContent = '\u23F3 Translating...';
+
+            var elements = getTranslatableElements();
+            var chain = Promise.resolve();
+            for (var i = 0; i < elements.length; i++) {
+                (function(idx) {
+                    chain = chain.then(function() {
+                        var original = originalTexts[idx];
+                        if (!original || original.trim().length < 3) return;
+                        return translateText(original.trim(), targetLang).then(function(translated) {
+                            elements[idx].textContent = translated;
+                        }).catch(function(e) {
+                            console.warn('Translation failed for element', idx, e);
+                        });
+                    });
+                })(i);
+            }
+
+            chain.then(function() {
+                badge.textContent = '\uD83E\uDD16 Translated by A.R.C.H.I.E. AI';
+                sel.disabled = false;
+                translating = false;
+                currentLang = targetLang;
+            });
+        }
+
+        sel.addEventListener('change', function() { translatePage(sel.value); });
+    })();
+    </script>
 </body>
 </html>

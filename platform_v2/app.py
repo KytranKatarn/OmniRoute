@@ -3203,6 +3203,55 @@ def blocked_page():
     return render_template("block_page.html", domain=domain)
 
 
+@app.route("/api/translate", methods=["POST"])
+def api_translate_public():
+    """Public AI translation endpoint — showcases ARCHIE's translation capability."""
+    data = request.get_json() or {}
+    text = data.get("text", "")
+    target_lang = data.get("target_lang", "en")
+    source_lang = data.get("source_lang", "en")
+
+    if not text:
+        return jsonify({"success": False, "error": "text required"}), 400
+    if len(text) > 2000:
+        return jsonify({"success": False, "error": "text too long (max 2000 chars)"}), 400
+
+    try:
+        import requests as http_requests
+
+        ollama_host = os.environ.get("OLLAMA_HOST", "http://host.docker.internal:11434")
+        if not ollama_host.startswith("http"):
+            ollama_host = f"http://{ollama_host}"
+
+        prompt = (
+            f"Translate the following text from {source_lang} to {target_lang}. "
+            f"Return ONLY the translated text, nothing else.\n\nText: {text}"
+        )
+
+        resp = http_requests.post(
+            f"{ollama_host}/api/generate",
+            json={"model": "llama3.2:3b", "prompt": prompt, "stream": False},
+            timeout=30,
+        )
+
+        if resp.status_code == 200:
+            translated = resp.json().get("response", "").strip()
+            return jsonify(
+                {
+                    "success": True,
+                    "translated": translated,
+                    "source": source_lang,
+                    "target": target_lang,
+                    "engine": "A.R.C.H.I.E. AI",
+                }
+            )
+
+        return jsonify({"success": False, "error": "Translation failed"}), 500
+    except Exception as e:
+        logger.error(f"Public translate error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route("/competitors")
 def competitors_page():
     """Public page comparing ARCHIE against 25+ AI agent frameworks."""

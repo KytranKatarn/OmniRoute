@@ -1902,6 +1902,7 @@
     .stats-grid .stat-card:nth-child(6) { --lcars-accent-rgb: 0, 255, 65; }     /* Sessions=green */
     .stats-grid .stat-card:nth-child(7) { --lcars-accent-rgb: 139, 92, 246; }   /* API Keys=purple */
     .stats-grid .stat-card:nth-child(8) { --lcars-accent-rgb: 255, 107, 107; }   /* Orgs=accent */
+    .stats-grid .stat-card:nth-child(9) { --lcars-accent-rgb: 255, 193, 7; }    /* Pending=amber */
 
     /* ── LCARS Tab Navigation ──────────────────────────────── */
     .account-center-container .tab-nav {
@@ -2411,11 +2412,16 @@
                     <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.orgs">ORGS</span></div>
                     <div class="stat-value" id="stat-orgs" style="color: rgb(255, 107, 107);">{{ stats.organizations }}</div>
                 </div>
+                <div class="stat-card" id="pending-stat-card" style="cursor: pointer; {% if stats.pending_approval == 0 %}display: none;{% endif %}" onclick="document.querySelector('[data-tab=pending]').click()">
+                    <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.pending_approval">PENDING APPROVAL</span></div>
+                    <div class="stat-value" id="stat-pending" style="color: rgb(255, 193, 7);">{{ stats.pending_approval }}</div>
+                </div>
             </div>
 
             <!-- Tabs -->
             <div class="tab-nav" style="margin-bottom: var(--archie-space-4);">
                 <button class="tab-btn active" data-tab="list"><span data-i18n="account_center.users">USERS</span></button>
+                <button class="tab-btn" data-tab="pending" id="pending-tab-btn" style="{% if stats.pending_approval == 0 %}display: none;{% endif %}"><span data-i18n="account_center.pending">PENDING</span> <span class="badge badge-warning" id="pending-tab-badge" style="margin-left: 4px; font-size: 0.7em;">{{ stats.pending_approval }}</span></button>
                 <button class="tab-btn" data-tab="permissions"><span data-i18n="account_center.permissions">PERMISSIONS</span></button>
                 <button class="tab-btn" data-tab="subscriptions"><span data-i18n="account_center.subscriptions">SUBSCRIPTIONS</span></button>
                 <button class="tab-btn" data-tab="security"><span data-i18n="account_center.security">SECURITY</span></button>
@@ -2497,6 +2503,42 @@
                         <span class="page-info" id="pagination-info"><span data-i18n="account_center.showing_1_10_of_0">Showing 1–10 of 0</span></span>
                         <button class="btn btn-sm" onclick="changePage(1)" id="next-page-btn" disabled><span data-i18n="account_center.next">Next</span></button>
                     </div>
+                </div>
+            </div>
+
+            <!-- PENDING APPROVAL Tab -->
+            <div class="tab-content" id="tab-pending">
+                <div class="lcars-section-label">
+                    <div class="lcars-section-cap"></div>
+                    <div class="lcars-section-title">PENDING USER APPROVALS</div>
+                </div>
+                <p style="color: var(--archie-text-secondary); margin-bottom: var(--archie-space-4);">
+                    Users who have registered and are waiting for admin approval. Approved users can log in immediately.
+                </p>
+                <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Registered</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pending-users-table-body">
+                        <tr>
+                            <td colspan="5" class="loading">
+                                <div class="loading-spinner"></div>
+                                <p>Loading pending users...</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                </div>
+                <div id="pending-empty-state" style="display: none; text-align: center; padding: var(--archie-space-8); color: var(--archie-text-secondary);">
+                    <p style="font-size: var(--archie-text-lg);">No pending registrations</p>
+                    <p>All user signups have been reviewed.</p>
                 </div>
             </div>
 
@@ -3673,6 +3715,7 @@ document.querySelectorAll('.tab-btn').forEach(tab => {
         stopSessionsAutoRefresh();
         stopActivityAutoRefresh();
 
+        if (tab.dataset.tab === 'pending') loadPendingUsers();
         if (tab.dataset.tab === 'permissions') loadPermissions();
         if (tab.dataset.tab === 'subscriptions') loadTiers();
         if (tab.dataset.tab === 'security') loadSecurityData();
@@ -3853,6 +3896,148 @@ function renderUsersTable(userList) {
 function getTierBadgeClass(tier) {
     const classes = { 'free': '', 'pro': 'badge-success', 'business': 'badge-warning', 'enterprise': 'badge-purple', 'kytran': 'badge-info', 'vip': 'badge-purple' };
     return classes[tier] || '';
+}
+
+// ─── Pending User Approval ───────────────────────────────────────────
+
+async function loadPendingUsers() {
+    try {
+        const res = await fetch('/tools/account-center/api/users/pending');
+        const data = await res.json();
+        if (data.success) {
+            renderPendingUsers(data.users);
+            updatePendingBadge(data.total);
+        }
+    } catch (err) {
+        console.error('Error loading pending users:', err);
+    }
+}
+
+function renderPendingUsers(userList) {
+    const tbody = document.getElementById('pending-users-table-body');
+    const emptyState = document.getElementById('pending-empty-state');
+    const table = tbody.closest('table');
+
+    if (userList.length === 0) {
+        table.style.display = 'none';
+        emptyState.style.display = 'block';
+        return;
+    }
+
+    table.style.display = '';
+    emptyState.style.display = 'none';
+    tbody.textContent = '';
+
+    userList.forEach(user => {
+        const tr = document.createElement('tr');
+
+        const tdUsername = document.createElement('td');
+        const strong = document.createElement('strong');
+        strong.textContent = user.username;
+        tdUsername.appendChild(strong);
+
+        const tdEmail = document.createElement('td');
+        tdEmail.textContent = user.email || '-';
+
+        const tdRole = document.createElement('td');
+        const roleBadge = document.createElement('span');
+        roleBadge.className = 'badge badge-info';
+        roleBadge.textContent = (user.role || 'user').toUpperCase();
+        tdRole.appendChild(roleBadge);
+
+        const tdRegistered = document.createElement('td');
+        tdRegistered.textContent = user.created_at ? ArchieTime.date(user.created_at) : '-';
+
+        const tdActions = document.createElement('td');
+        const actionsDiv = document.createElement('div');
+        actionsDiv.style.display = 'flex';
+        actionsDiv.style.gap = '8px';
+
+        const approveBtn = document.createElement('button');
+        approveBtn.className = 'btn btn-sm btn-primary';
+        approveBtn.textContent = 'Approve';
+        approveBtn.onclick = () => approveUser(user.id, user.username);
+
+        const denyBtn = document.createElement('button');
+        denyBtn.className = 'btn btn-sm btn-danger';
+        denyBtn.textContent = 'Deny';
+        denyBtn.onclick = () => denyUser(user.id, user.username);
+
+        actionsDiv.appendChild(approveBtn);
+        actionsDiv.appendChild(denyBtn);
+        tdActions.appendChild(actionsDiv);
+
+        tr.appendChild(tdUsername);
+        tr.appendChild(tdEmail);
+        tr.appendChild(tdRole);
+        tr.appendChild(tdRegistered);
+        tr.appendChild(tdActions);
+        tbody.appendChild(tr);
+    });
+}
+
+async function approveUser(userId, username) {
+    if (!confirm('Approve user "' + username + '"? They will be able to log in immediately.')) return;
+    try {
+        const res = await fetch('/tools/account-center/api/users/' + userId + '/approve', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message, 'success');
+            loadPendingUsers();
+        } else {
+            showToast(data.error || 'Failed to approve user', 'error');
+        }
+    } catch (err) {
+        console.error('Error approving user:', err);
+        showToast('Error approving user', 'error');
+    }
+}
+
+async function denyUser(userId, username) {
+    if (!confirm('Deny and DELETE user "' + username + '"? This cannot be undone.')) return;
+    try {
+        const res = await fetch('/tools/account-center/api/users/' + userId + '/deny', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message, 'success');
+            loadPendingUsers();
+        } else {
+            showToast(data.error || 'Failed to deny user', 'error');
+        }
+    } catch (err) {
+        console.error('Error denying user:', err);
+        showToast('Error denying user', 'error');
+    }
+}
+
+function updatePendingBadge(count) {
+    const badge = document.getElementById('pending-tab-badge');
+    const tabBtn = document.getElementById('pending-tab-btn');
+    const statCard = document.getElementById('pending-stat-card');
+    const statValue = document.getElementById('stat-pending');
+
+    if (badge) badge.textContent = count;
+    if (statValue) statValue.textContent = count;
+
+    // Hide tab and stat card when no pending users
+    if (count === 0) {
+        if (tabBtn) tabBtn.style.display = 'none';
+        if (statCard) statCard.style.display = 'none';
+    } else {
+        if (tabBtn) tabBtn.style.display = '';
+        if (statCard) statCard.style.display = '';
+    }
+}
+
+function showToast(message, type) {
+    // Use existing toast system if available, otherwise alert
+    if (typeof acShowToast === 'function') {
+        acShowToast(message, type);
+    } else if (typeof saaShowToast === 'function') {
+        saasShowToast(message, type);
+    } else {
+        alert(message);
+    }
 }
 
 function showAddUserModal() {

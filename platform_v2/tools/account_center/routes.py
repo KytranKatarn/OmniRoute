@@ -175,6 +175,7 @@ def index():
         "active_sessions": 0,
         "api_keys": 0,
         "organizations": 0,
+        "pending_approval": 0,
     }
 
     try:
@@ -215,6 +216,10 @@ def index():
                 stats["organizations"] = cur.fetchone()["count"]
             except Exception:
                 stats["organizations"] = 0
+
+            # Count pending approval users (inactive, never logged in)
+            cur.execute("SELECT COUNT(*) as count FROM users WHERE is_active = false AND last_login IS NULL")
+            stats["pending_approval"] = cur.fetchone()["count"]
     except Exception as e:
         print(f"Error getting stats: {e}")
 
@@ -548,6 +553,159 @@ def api_reset_password(user_id):
         return jsonify({"success": True, "message": "Password reset successfully"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# USER APPROVAL API
+# ============================================================================
+
+
+@account_center_bp.route("/api/users/pending")
+@login_required
+@admin_required
+def api_pending_users():
+    """List users pending admin approval (inactive, never logged in)"""
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT id, username, email, role, created_at
+                FROM users
+                WHERE is_active = false AND last_login IS NULL
+                ORDER BY created_at DESC
+                """
+            )
+            rows = cur.fetchall()
+            users = []
+            for row in rows:
+                users.append(
+                    {
+                        "id": row["id"],
+                        "username": row["username"],
+                        "email": row["email"],
+                        "role": row["role"],
+                        "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                    }
+                )
+            return jsonify({"success": True, "users": users, "total": len(users)})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@account_center_bp.route("/api/users/<int:user_id>/approve", methods=["POST"])
+@login_required
+@admin_required
+def api_approve_user(user_id):
+    """Approve a pending user — sets is_active = true"""
+    try:
+        with get_db_cursor() as (conn, cur):
+            # Verify user exists and is pending
+            cur.execute(
+                "SELECT id, username, email FROM users WHERE id = %s AND is_active = false AND last_login IS NULL",
+                (user_id,),
+            )
+            user = cur.fetchone()
+            if not user:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": "User not found or not pending approval",
+                        }
+                    ),
+                    404,
+                )
+
+            # Activate the user
+            cur.execute("UPDATE users SET is_active = true WHERE id = %s", (user_id,))
+
+        log_activity(
+            current_user.id,
+            "user_approved",
+            details={
+                "target_user_id": user_id,
+                "username": user["username"],
+            },
+        )
+
+        # Try to send Telegram notification to admin channel
+        _notify_user_approved(user["username"], user["email"])
+
+        return jsonify(
+            {
+                "success": True,
+                "message": f"User '{user['username']}' has been approved and activated.",
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@account_center_bp.route("/api/users/<int:user_id>/deny", methods=["POST"])
+@login_required
+@admin_required
+def api_deny_user(user_id):
+    """Deny and delete a pending user registration"""
+    try:
+        with get_db_cursor() as (conn, cur):
+            # Verify user exists and is pending
+            cur.execute(
+                "SELECT id, username FROM users WHERE id = %s AND is_active = false AND last_login IS NULL",
+                (user_id,),
+            )
+            user = cur.fetchone()
+            if not user:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": "User not found or not pending approval",
+                        }
+                    ),
+                    404,
+                )
+
+            # Delete the pending user
+            cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
+
+        log_activity(
+            current_user.id,
+            "user_denied",
+            details={
+                "target_user_id": user_id,
+                "username": user["username"],
+            },
+        )
+
+        return jsonify(
+            {
+                "success": True,
+                "message": f"User '{user['username']}' registration has been denied and removed.",
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+def _notify_user_approved(username, email):
+    """Best-effort Telegram notification when a user is approved"""
+    try:
+        import requests
+
+        # Notify via platform's internal notification system
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO system_notifications (type, title, message, created_at)
+                VALUES ('info', %s, %s, NOW())
+                """,
+                (
+                    "User Approved",
+                    f"User '{username}' ({email}) has been approved and can now log in.",
+                ),
+            )
+    except Exception:
+        pass  # Best-effort — don't fail the approval
 
 
 # ============================================================================

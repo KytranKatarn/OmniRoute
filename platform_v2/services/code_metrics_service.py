@@ -74,14 +74,36 @@ def _scan_directory(root_dir, label=None):
     return stats
 
 
+def _match_module_name(filename, module_names):
+    """Try to match a filename to a module name."""
+    base = os.path.splitext(filename)[0].lower()
+    # Direct match: security_network.html -> security_network
+    if base in module_names:
+        return base
+    # Hyphen to underscore: google-work-suite.js -> google_work_suite
+    underscore = base.replace("-", "_")
+    if underscore in module_names:
+        return underscore
+    # Partial match: consciousness.js -> consciousness
+    for mod in module_names:
+        if base == mod or underscore == mod:
+            return mod
+    return None
+
+
 def _get_module_stats():
-    """Get per-module breakdown from platform_v2/tools/."""
+    """Get per-module breakdown including templates, JS, and CSS files."""
     tools_dir = os.path.join(PLATFORM_ROOT, "tools")
+    templates_dir = os.path.join(PLATFORM_ROOT, "templates", "tools")
+    js_dir = os.path.join(PLATFORM_ROOT, "static", "js")
+    css_dir = os.path.join(PLATFORM_ROOT, "static", "css")
+
     modules = {}
 
     if not os.path.isdir(tools_dir):
         return modules
 
+    # Step 1: Scan Python files in each module directory
     for entry in sorted(os.listdir(tools_dir)):
         module_path = os.path.join(tools_dir, entry)
         if not os.path.isdir(module_path) or entry.startswith("_"):
@@ -94,6 +116,71 @@ def _get_module_stats():
             "folders": stats["folders"],
             "by_type": {k: dict(v) for k, v in stats["by_type"].items()},
         }
+
+    module_names = set(modules.keys())
+
+    # Step 2: Map template HTML files to modules
+    if os.path.isdir(templates_dir):
+        for fname in os.listdir(templates_dir):
+            if not fname.endswith(".html"):
+                continue
+            mod = _match_module_name(fname, module_names)
+            if mod and mod in modules:
+                lines = _count_lines(os.path.join(templates_dir, fname))
+                modules[mod]["files"] += 1
+                modules[mod]["lines"] += lines
+                if "html" not in modules[mod]["by_type"]:
+                    modules[mod]["by_type"]["html"] = {"files": 0, "lines": 0}
+                modules[mod]["by_type"]["html"]["files"] += 1
+                modules[mod]["by_type"]["html"]["lines"] += lines
+
+    # Step 3: Map static JS files to modules
+    if os.path.isdir(js_dir):
+        for fname in os.listdir(js_dir):
+            if not fname.endswith(".js"):
+                continue
+            mod = _match_module_name(fname, module_names)
+            if mod and mod in modules:
+                lines = _count_lines(os.path.join(js_dir, fname))
+                modules[mod]["files"] += 1
+                modules[mod]["lines"] += lines
+                if "js" not in modules[mod]["by_type"]:
+                    modules[mod]["by_type"]["js"] = {"files": 0, "lines": 0}
+                modules[mod]["by_type"]["js"]["files"] += 1
+                modules[mod]["by_type"]["js"]["lines"] += lines
+
+    # Step 4: Map static CSS files to modules
+    if os.path.isdir(css_dir):
+        for fname in os.listdir(css_dir):
+            if not fname.endswith(".css"):
+                continue
+            mod = _match_module_name(fname, module_names)
+            if mod and mod in modules:
+                lines = _count_lines(os.path.join(css_dir, fname))
+                modules[mod]["files"] += 1
+                modules[mod]["lines"] += lines
+                if "css" not in modules[mod]["by_type"]:
+                    modules[mod]["by_type"]["css"] = {"files": 0, "lines": 0}
+                modules[mod]["by_type"]["css"]["files"] += 1
+                modules[mod]["by_type"]["css"]["lines"] += lines
+
+    # Step 5: Also scan module-local templates (e.g. consciousness/templates/)
+    for mod in list(modules.keys()):
+        local_templates = os.path.join(tools_dir, mod, "templates")
+        if os.path.isdir(local_templates):
+            for fname in os.listdir(local_templates):
+                if not fname.endswith(".html"):
+                    continue
+                lines = _count_lines(os.path.join(local_templates, fname))
+                modules[mod]["files"] += 1
+                modules[mod]["lines"] += lines
+                if "html" not in modules[mod]["by_type"]:
+                    modules[mod]["by_type"]["html"] = {"files": 0, "lines": 0}
+                modules[mod]["by_type"]["html"]["files"] += 1
+                modules[mod]["by_type"]["html"]["lines"] += lines
+
+    # Remove empty modules (like 'static' with 0 lines)
+    modules = {k: v for k, v in modules.items() if v["lines"] > 0}
 
     return modules
 
@@ -137,9 +224,68 @@ def scan_codebase():
             "migrations": {"files": migration_stats["files"], "lines": migration_stats["lines"]},
         },
         "modules": module_stats,
+        "orphans": _find_orphan_files(set(module_stats.keys())),
     }
 
     return result
+
+
+def _find_orphan_files(module_names):
+    """Find template, JS, and CSS files that don't map to any module."""
+    templates_dir = os.path.join(PLATFORM_ROOT, "templates", "tools")
+    js_dir = os.path.join(PLATFORM_ROOT, "static", "js")
+    css_dir = os.path.join(PLATFORM_ROOT, "static", "css")
+
+    # Shared files that are intentionally not module-specific
+    shared_files = {
+        "archie-time.js",
+        "archie-i18n.js",
+        "archie-theme.js",
+        "agent-badge.js",
+        "station-ops.js",
+        "holo-sphere.js",
+        "neural-core.js",
+        "pixel-crew.js",
+        "glass-nav.js",
+        "lcars-panels.css",
+        "lcars-frames.css",
+        "station-ops.css",
+        "glass-nav.css",
+        "holo-sphere.css",
+        "category-nav.css",
+        "base.html",
+    }
+
+    orphans = {"templates": [], "js": [], "css": []}
+
+    if os.path.isdir(templates_dir):
+        for fname in sorted(os.listdir(templates_dir)):
+            if not fname.endswith(".html") or fname in shared_files:
+                continue
+            mod = _match_module_name(fname, module_names)
+            if not mod:
+                lines = _count_lines(os.path.join(templates_dir, fname))
+                orphans["templates"].append({"file": fname, "lines": lines})
+
+    if os.path.isdir(js_dir):
+        for fname in sorted(os.listdir(js_dir)):
+            if not fname.endswith(".js") or fname in shared_files:
+                continue
+            mod = _match_module_name(fname, module_names)
+            if not mod:
+                lines = _count_lines(os.path.join(js_dir, fname))
+                orphans["js"].append({"file": fname, "lines": lines})
+
+    if os.path.isdir(css_dir):
+        for fname in sorted(os.listdir(css_dir)):
+            if not fname.endswith(".css") or fname in shared_files:
+                continue
+            mod = _match_module_name(fname, module_names)
+            if not mod:
+                lines = _count_lines(os.path.join(css_dir, fname))
+                orphans["css"].append({"file": fname, "lines": lines})
+
+    return orphans
 
 
 def save_snapshot(metrics=None):

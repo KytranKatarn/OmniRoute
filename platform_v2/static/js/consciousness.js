@@ -2695,6 +2695,7 @@ function loadCodeHealth() {
     _renderCodeHealthStats(d);
     _renderModuleChart(d.modules || {});
     _renderModuleTable(d.modules || {});
+    _renderOrphanTable(d.orphans || {});
   }).catch(function(err) {
     console.error("Code health load error:", err);
   });
@@ -2783,6 +2784,34 @@ function _renderModuleTable(modules) {
       '</tr>';
   });
 
+  html += '</tbody></table>';
+  setHtml(el, html);
+}
+
+function _renderOrphanTable(orphans) {
+  var el = document.getElementById("chOrphanTable");
+  if (!el) return;
+
+  var all = [];
+  (orphans.templates || []).forEach(function(o) { all.push({type: "HTML", file: o.file, lines: o.lines}); });
+  (orphans.js || []).forEach(function(o) { all.push({type: "JS", file: o.file, lines: o.lines}); });
+  (orphans.css || []).forEach(function(o) { all.push({type: "CSS", file: o.file, lines: o.lines}); });
+
+  if (!all.length) {
+    setHtml(el, '<div class="cs-empty" style="color:#22c55e;">All files mapped to modules — no orphans found.</div>');
+    return;
+  }
+
+  var html = '<table class="cs-table"><thead><tr>' +
+    '<th>Type</th><th>File</th><th class="center">Lines</th>' +
+    '</tr></thead><tbody>';
+  all.forEach(function(o) {
+    html += '<tr>' +
+      '<td><span class="cs-badge amber">' + o.type + '</span></td>' +
+      '<td>' + escHtml(o.file) + '</td>' +
+      '<td class="center">' + (o.lines || 0).toLocaleString() + '</td>' +
+      '</tr>';
+  });
   html += '</tbody></table>';
   setHtml(el, html);
 }

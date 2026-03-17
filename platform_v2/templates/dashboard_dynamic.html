@@ -857,6 +857,30 @@ body.light-mode .cb-search-result-icon {
 .cb-notif-source-badge.src-proposals { background: var(--archie-green-alpha-20); color: var(--archie-green); }
 .cb-notif-source-badge.src-admin-panel { background: rgba(247, 168, 62, 0.15); color: var(--archie-orange-bright); }
 .cb-notif-source-badge.src-default { background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.4); }
+.cb-notif-dismiss {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.2);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0 2px;
+    line-height: 1;
+    flex-shrink: 0;
+    margin-top: 1px;
+    transition: color 0.15s ease;
+    font-weight: 600;
+}
+.cb-notif-dismiss:hover {
+    color: var(--archie-danger);
+}
+[data-theme="light"] .cb-notif-dismiss,
+body.light-mode .cb-notif-dismiss {
+    color: rgba(0, 0, 0, 0.2);
+}
+[data-theme="light"] .cb-notif-dismiss:hover,
+body.light-mode .cb-notif-dismiss:hover {
+    color: var(--archie-danger);
+}
 .cb-notif-empty {
     padding: 24px 16px;
     text-align: center;
@@ -3623,6 +3647,43 @@ window.timeAgo = function timeAgo(isoString) {
 
             info.appendChild(meta);
             div.appendChild(info);
+
+            // Dismiss (X) button
+            var dismissBtn = document.createElement('button');
+            dismissBtn.className = 'cb-notif-dismiss';
+            dismissBtn.title = 'Dismiss';
+            dismissBtn.textContent = '\u00D7';
+            dismissBtn.addEventListener('click', (function(notif, itemDiv) {
+                return function(e) {
+                    e.stopPropagation();
+                    itemDiv.style.opacity = '0.3';
+                    fetch('/api/notifications/dismiss/' + notif.id, { method: 'POST' })
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            if (data.success) {
+                                itemDiv.style.transition = 'all 0.2s ease';
+                                itemDiv.style.maxHeight = '0';
+                                itemDiv.style.padding = '0 16px';
+                                itemDiv.style.overflow = 'hidden';
+                                setTimeout(function() { itemDiv.remove(); fetchNotifCount(); }, 200);
+                                // If list is now empty, show empty state
+                                setTimeout(function() {
+                                    if (notifList.querySelectorAll('.cb-notif-item').length === 0) {
+                                        var emptyDiv = document.createElement('div');
+                                        emptyDiv.className = 'cb-notif-empty';
+                                        emptyDiv.textContent = archieI18n.t('js.notif.none', 'No notifications');
+                                        notifList.appendChild(emptyDiv);
+                                    }
+                                }, 250);
+                            } else {
+                                itemDiv.style.opacity = '1';
+                            }
+                        })
+                        .catch(function() { itemDiv.style.opacity = '1'; });
+                };
+            })(n, div));
+            div.appendChild(dismissBtn);
+
             notifList.appendChild(div);
 
             // Click to open detail modal
@@ -3707,8 +3768,27 @@ window.timeAgo = function timeAgo(isoString) {
             });
             modalFooter.appendChild(markBtn);
         }
+        // Dismiss (archive) button
+        if (n.id > 0) {
+            var dismissModalBtn = document.createElement('button');
+            dismissModalBtn.className = 'cb-notif-modal-btn dismiss';
+            dismissModalBtn.textContent = 'Dismiss';
+            dismissModalBtn.addEventListener('click', function() {
+                fetch('/api/notifications/dismiss/' + n.id, { method: 'POST' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (data.success) {
+                            modal.classList.remove('visible');
+                            fetchNotifications();
+                            fetchNotifCount();
+                        }
+                    });
+            });
+            modalFooter.appendChild(dismissModalBtn);
+        }
+
         var closeBtn = document.createElement('button');
-        closeBtn.className = 'cb-notif-modal-btn dismiss';
+        closeBtn.className = 'cb-notif-modal-btn';
         closeBtn.textContent = 'Close';
         closeBtn.addEventListener('click', function() {
             modal.classList.remove('visible');

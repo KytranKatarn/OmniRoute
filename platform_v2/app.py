@@ -3183,6 +3183,57 @@ def archive_old_notifications():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@app.route("/api/notifications/dismiss/<int:notification_id>", methods=["POST"])
+@login_required
+def dismiss_notification(notification_id):
+    """Dismiss (archive) a single notification and its group."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Find the notification's title+source to archive entire group
+        cur.execute(
+            "SELECT title, source FROM system_notifications WHERE id = %s",
+            (notification_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "Notification not found"}), 404
+
+        # Mark as read for this user
+        cur.execute(
+            """
+            INSERT INTO notification_reads (notification_id, user_id, read_at)
+            SELECT id, %s, NOW()
+            FROM system_notifications
+            WHERE title = %s AND source = %s AND is_archived = FALSE
+            ON CONFLICT (notification_id, user_id) DO NOTHING
+        """,
+            (current_user.id, row["title"], row["source"]),
+        )
+
+        # Archive the group
+        cur.execute(
+            """
+            UPDATE system_notifications
+            SET is_archived = TRUE
+            WHERE title = %s AND source = %s AND is_archived = FALSE
+        """,
+            (row["title"], row["source"]),
+        )
+
+        archived_count = cur.rowcount
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "archived": archived_count})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route("/api/notifications/clear-all", methods=["POST"])
 @login_required
 def clear_all_notifications():

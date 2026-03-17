@@ -269,7 +269,7 @@ def scan_codebase():
     bridge_stats = _scan_directory(AI_BRIDGE_ROOT)
     migration_stats = _scan_directory(MIGRATIONS_ROOT)
 
-    # Per-module breakdown
+    # Per-module breakdown (includes [APP_CORE], [AI_BRIDGE], [MIGRATIONS])
     module_stats = _get_module_stats()
 
     # Aggregate totals
@@ -301,6 +301,19 @@ def scan_codebase():
         "modules": module_stats,
         "orphans": _find_orphan_files(set(module_stats.keys())),
     }
+
+    # Add [SHARED] — everything not claimed by any module
+    module_lines = sum(v["lines"] for v in module_stats.values())
+    module_files = sum(v["files"] for v in module_stats.values())
+    shared_lines = total_lines - module_lines
+    shared_files = total_files - module_files
+    if shared_lines > 0:
+        result["modules"]["[SHARED]"] = {
+            "files": max(shared_files, 0),
+            "lines": shared_lines,
+            "folders": 0,
+            "by_type": {"other": {"files": max(shared_files, 0), "lines": shared_lines}},
+        }
 
     return result
 

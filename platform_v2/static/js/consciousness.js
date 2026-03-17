@@ -2925,8 +2925,9 @@ function _loadAuditLog() {
       var delta = (e.lines_after || 0) - (e.lines_before || 0);
       var deltaClass = delta > 0 ? "color:#22c55e" : delta < 0 ? "color:#ef4444" : "";
       var statusClass = e.status === "completed" ? "green" : e.status === "in_progress" ? "amber" : "";
-      html += '<tr>' +
-        '<td>' + escHtml(e.module_name) + '</td>' +
+      var rowStyle = e.status === "completed" ? "background:rgba(74,222,128,0.06);" : "";
+      html += '<tr style="' + rowStyle + '">' +
+        '<td style="' + (e.status === "completed" ? "color:#4ade80;font-weight:600;" : "") + '">' + escHtml(e.module_name) + '</td>' +
         '<td style="font-size:0.75rem; color:rgba(255,255,255,0.4);">' + escHtml(e.category || "") + '</td>' +
         '<td class="center">' + (e.files_reviewed || 0) + '</td>' +
         '<td class="center">' + (e.lines_before || 0).toLocaleString() + '</td>' +

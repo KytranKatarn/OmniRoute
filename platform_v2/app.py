@@ -1241,7 +1241,7 @@ from cursor_api import cursor_bp  # noqa: E402
 
 # OAuth authentication (Phase 6.5 - User Management & Subscription System)
 from oauth_routes import oauth_bp, init_oauth  # noqa: E402
-from git_commit_poller import start_poller  # noqa: E402
+from services.git_commit_poller import start_poller  # noqa: E402
 from conversation_triage.routes import triage_bp  # noqa: E402
 
 # Initialize OAuth (Phase 6.5)
@@ -1338,7 +1338,7 @@ except Exception as e:
 # ============================================================================
 print("[A.R.C.H.I.E.] Initializing Obsidian vault indexing...")
 try:
-    from knowledge_vault_indexer import reindex_all_notes
+    from tools.consciousness.services.knowledge_vault_indexer import reindex_all_notes
 
     # Check if vault is already indexed
     conn = get_db()
@@ -2262,7 +2262,7 @@ def clear_all_notifications():
 # Automatic error detection and learning system
 # ============================================================================
 
-from mistake_detector import get_mistake_detector  # noqa: E402
+from tools.consciousness.services.mistake_detector import get_mistake_detector  # noqa: E402
 
 
 @app.route("/blocked")

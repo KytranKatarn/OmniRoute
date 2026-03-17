@@ -216,7 +216,7 @@ def get_cursor_status(proposal_id):
         }
     """
     try:
-        from git_branch_manager import GitBranchManager
+        from services.git_branch_manager import GitBranchManager
 
         git_manager = GitBranchManager()
         branch_name = f"sandbox-proposal-{proposal_id}"
@@ -297,7 +297,7 @@ def get_branch_info(proposal_id):
         }
     """
     try:
-        from git_branch_manager import GitBranchManager
+        from services.git_branch_manager import GitBranchManager
 
         git_manager = GitBranchManager()
         branch_name = f"sandbox-proposal-{proposal_id}"
@@ -544,7 +544,7 @@ def get_poller_status_endpoint():
         }
     """
     try:
-        from git_commit_poller import get_poller_status
+        from services.git_commit_poller import get_poller_status
 
         status = get_poller_status()
 

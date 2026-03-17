@@ -14,8 +14,8 @@ import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 import json
-from unified_knowledge_search import unified_knowledge_search
-from mistake_detector import get_mistake_detector
+from tools.consciousness.services.unified_knowledge_search import unified_knowledge_search
+from tools.consciousness.services.mistake_detector import get_mistake_detector
 
 logger = logging.getLogger("archie_platform")
 

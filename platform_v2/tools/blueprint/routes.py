@@ -2453,7 +2453,7 @@ def get_git_activity():
         # Check if git poller is running
         poller_status = "unknown"
         try:
-            from git_commit_poller import GitCommitPoller  # noqa: F401
+            from services.git_commit_poller import GitCommitPoller  # noqa: F401
 
             # Can't easily check if running without a reference
             poller_status = "available"
@@ -2520,7 +2520,7 @@ def initialize_git_tracking():
 
     try:
         # Install git hooks
-        from git_hook_manager import GitHookManager
+        from services.git_hook_manager import GitHookManager
 
         hook_manager = GitHookManager()
         results["hooks"] = hook_manager.install_post_commit_hook()
@@ -2530,7 +2530,7 @@ def initialize_git_tracking():
     try:
         # Note: Poller should be started by app.py on startup, not here
         # But we can check status
-        from git_commit_poller import GitCommitPoller  # noqa: F401
+        from services.git_commit_poller import GitCommitPoller  # noqa: F401
 
         results["poller"] = {
             "success": True,

@@ -1699,7 +1699,7 @@ def delete_page(page_id):
 
 # Import GitHub deployment if available
 try:
-    from github_deployment import (
+    from services.github_deployment import (
         deploy_website,
         get_latest_commit,
         get_repo_info,

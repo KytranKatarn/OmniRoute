@@ -1229,7 +1229,7 @@ def get_knowledge_graph():
     Returns nodes and edges of all knowledge connections.
     """
     try:
-        from knowledge_vault_indexer import KnowledgeVaultIndexer
+        from tools.consciousness.services.knowledge_vault_indexer import KnowledgeVaultIndexer
 
         limit = request.args.get("limit", 100, type=int)
 
@@ -1528,7 +1528,7 @@ def get_knowledge_backlinks(knowledge_id):
     Essential for understanding how knowledge is interconnected.
     """
     try:
-        from knowledge_vault_indexer import KnowledgeVaultIndexer
+        from tools.consciousness.services.knowledge_vault_indexer import KnowledgeVaultIndexer
 
         indexer = KnowledgeVaultIndexer()
         backlinks = indexer.get_backlinks(knowledge_id)

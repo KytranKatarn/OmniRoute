@@ -284,7 +284,7 @@ def obsidian_vault_health_check() -> Dict:
 
         # Check watcher status
         try:
-            from obsidian_vault_watcher import get_watcher_status
+            from tools.consciousness.services.obsidian_vault_watcher import get_watcher_status
 
             watcher_status = get_watcher_status()
             watcher_running = watcher_status.get("running", False)

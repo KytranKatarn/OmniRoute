@@ -9,7 +9,7 @@ from flask import render_template, jsonify, request, abort
 from flask_login import login_required, current_user
 from psycopg2.extras import RealDictCursor, Json
 from database import get_db_connection
-from services import knowledge_service
+from tools.consciousness.services import knowledge_service
 from . import dev_hq_bp
 
 # DB Schema and API Docs - reuse Blueprint intelligence functions

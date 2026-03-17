@@ -26,15 +26,15 @@ logger = logging.getLogger("archie_platform")
 from rbac import require_permission, require_role, Permission, Role, has_permission
 
 # Import vault components
-from obsidian_vault_manager import ObsidianVaultManager
-from knowledge_vault_indexer import (
+from tools.consciousness.services.obsidian_vault_manager import ObsidianVaultManager
+from tools.consciousness.services.knowledge_vault_indexer import (
     KnowledgeVaultIndexer,
     reindex_note,
     reindex_all_notes,
     delete_note_from_index,
     get_indexing_stats,
 )
-from obsidian_vault_watcher import get_watcher_status
+from tools.consciousness.services.obsidian_vault_watcher import get_watcher_status
 
 # ============================================================================
 # BLUEPRINT SETUP

@@ -267,7 +267,7 @@ except ImportError:
 
 # Legacy network integration (fallback)
 try:
-    from network_integration import get_network_overview, check_security_threats
+    from tools.security_network.network_integration import get_network_overview, check_security_threats
 
     NETWORK_AVAILABLE = True
 except ImportError:

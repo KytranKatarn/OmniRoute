@@ -28,9 +28,12 @@ SKIP_DIRS = {"__pycache__", "node_modules", ".git", ".venv", "venv", "static/ven
 EXT_MAP = {
     ".py": "python",
     ".js": "js",
+    ".mjs": "js",
     ".css": "css",
     ".html": "html",
     ".sql": "sql",
+    ".sh": "shell",
+    ".json": "json",
 }
 
 

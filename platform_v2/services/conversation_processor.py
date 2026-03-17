@@ -25,7 +25,7 @@ logger = logging.getLogger("archie_platform")
 
 # Import conversation summarizer
 try:
-    from conversation_summarizer import get_conversation_summarizer
+    from services.conversation_summarizer import get_conversation_summarizer
 
     SUMMARIZER_AVAILABLE = True
 except ImportError:

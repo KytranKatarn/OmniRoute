@@ -79,7 +79,7 @@ except ImportError:
 # Phase 5: Knowledge-aware improvement workflow
 try:
     sys.path.insert(0, "/mnt/archie_brain/platform_v2")
-    from improvement_workflow import get_improvement_workflow
+    from services.improvement_workflow import get_improvement_workflow
 
     WORKFLOW_AVAILABLE = True
 except ImportError:

@@ -87,6 +87,26 @@ docker logs -f archie_platform                # Logs
 docker exec -it archie_database psql -U archie -d archie  # DB
 ```
 
+## Code Health & Audit Workflow
+
+**Tracking**: Consciousness → Code Health tab (6th tab)
+- `code_metrics_snapshots` table — daily auto-scan at 3:00 AM (agent loop job #40)
+- `code_audit_log` table — records every module audit with before/after line counts
+- Pattern compliance scan at 4:00 AM (job #41) — flags direct Ollama calls, missing user_id
+
+**After completing any module audit:**
+1. Run `scan_codebase()` before and after changes
+2. Call `log_audit(module_name, category, files_reviewed, lines_before, lines_after, issues_found, issues_fixed, notes, status)`
+3. Commit changes with descriptive message
+4. Verify Code Health tab reflects the changes
+
+**Pattern Rules (NEVER violate):**
+- ALL LLM calls → `bridge_dispatcher.dispatch()` or `dispatch_json()` (ADR-013)
+- ALL SaaS data → scoped by `user_id` (per-user isolation)
+- ALL station panels → copy Consciousness pattern exactly (StationOps constructor)
+- ALL modals → LCARS tablet design (bm- CSS classes)
+- ALL features → read existing code FIRST, never assume
+
 ## Skills (Use These!)
 
 - `/archie-status` - Platform health check

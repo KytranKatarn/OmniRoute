@@ -563,8 +563,24 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        self.scheduler.add_job(
+            with_app_context(self._daily_code_metrics_scan),
+            trigger=CronTrigger(hour=3, minute=0),
+            id="agent_code_metrics",
+            name="Agent Loop: Daily Code Metrics Scan",
+            replace_existing=True,
+        )
+
+        self.scheduler.add_job(
+            with_app_context(self._pattern_compliance_check),
+            trigger=CronTrigger(hour=4, minute=0),
+            id="agent_pattern_compliance",
+            name="Agent Loop: Pattern Compliance Check",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 39 jobs")
+        logger.info("Agent loop started with 41 jobs")
 
     def _update_stock_prices(self):
         """Job #27: Refresh cached stock prices, check price alerts, and auto-scan watchlist every 5 minutes."""
@@ -3937,3 +3953,64 @@ class AgentLoop:
                                 logger.debug(f"Auto-block execute failed: {e}")
         except Exception as e:
             logger.debug(f"Auto-block pipeline failed: {e}")
+
+    def _daily_code_metrics_scan(self):
+        """Job #40: Daily codebase metrics snapshot at 3:00 AM."""
+        try:
+            from services.code_metrics_service import scan_codebase, save_snapshot
+
+            metrics = scan_codebase()
+            snapshot_id = save_snapshot(metrics)
+            logger.info(
+                "Daily code metrics: %d files, %d lines (snapshot #%s)",
+                metrics["total_files"],
+                metrics["total_lines"],
+                snapshot_id,
+            )
+        except Exception as e:
+            logger.debug(f"Code metrics scan failed: {e}")
+
+    def _pattern_compliance_check(self):
+        """Job #41: Scan for pattern violations at 4:00 AM."""
+        try:
+            import os
+            import re
+            from services.code_metrics_service import log_audit
+
+            tools_dir = "/app/tools" if os.path.isdir("/app/tools") else "/mnt/archie_brain/platform_v2/tools"
+            violations = []
+
+            for root, dirs, files in os.walk(tools_dir):
+                dirs[:] = [d for d in dirs if d != "__pycache__"]
+                for fname in files:
+                    if not fname.endswith(".py"):
+                        continue
+                    filepath = os.path.join(root, fname)
+                    try:
+                        with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                            content = f.read()
+
+                        # Check for direct Ollama calls (ADR-013 violation)
+                        if "call_ollama(" in content and "bridge" not in filepath and "archie_bridge" not in filepath:
+                            violations.append(f"DIRECT_OLLAMA: {filepath}")
+
+                        # Check for call_claude_api / call_openai_api in modules
+                        if ("call_claude_api(" in content or "call_openai_api(" in content) and "archie_bridge" not in filepath:
+                            violations.append(f"DIRECT_CLOUD: {filepath}")
+
+                    except Exception:
+                        pass
+
+            if violations:
+                log_audit(
+                    module_name="PATTERN_COMPLIANCE",
+                    category="automated_scan",
+                    issues_found=len(violations),
+                    notes="; ".join(violations[:20]),
+                    status="violations_found",
+                )
+                logger.warning("Pattern compliance: %d violations found", len(violations))
+            else:
+                logger.info("Pattern compliance: clean — no violations found")
+        except Exception as e:
+            logger.debug(f"Pattern compliance check failed: {e}")

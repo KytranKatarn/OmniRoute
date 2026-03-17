@@ -156,50 +156,9 @@
     <!-- Extra JS Block -->
     {% block extra_js %}{% endblock %}
 
+    <script src="{{ url_for('static', filename='js/base.js') }}"></script>
+
     <script>
-        // Auto-hide flash messages
-        setTimeout(() => {
-            const flashes = document.querySelectorAll('.flash');
-            flashes.forEach(flash => {
-                flash.style.opacity = '0';
-                flash.style.transition = 'opacity 0.3s';
-                setTimeout(() => flash.remove(), 300);
-            });
-        }, 5000);
-
-        // Initialize Lucide icons on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            if (typeof lucide !== 'undefined') {
-                lucide.createIcons();
-            }
-        });
-
-        // ═══════════════════════════════════════════════════════════════════════
-        // GLOBAL PROFILE MODAL
-        // ═══════════════════════════════════════════════════════════════════════
-        window.toggleProfileModal = function() {
-            var modal = document.getElementById('globalProfileModal');
-            if (modal) {
-                modal.style.display = modal.style.display === 'none' ? '' : 'none';
-            }
-        }
-        // Close on click outside
-        document.addEventListener('click', function(e) {
-            var modal = document.getElementById('globalProfileModal');
-            var btn = document.getElementById('globalProfileBtn');
-            if (modal && modal.style.display !== 'none' &&
-                btn && !modal.contains(e.target) && !btn.contains(e.target)) {
-                modal.style.display = 'none';
-            }
-        });
-        // Close on Escape
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                var modal = document.getElementById('globalProfileModal');
-                if (modal) modal.style.display = 'none';
-            }
-        });
-
         // ═══════════════════════════════════════════════════════════════════════
         // GLOBAL ADMIN NOTIFICATION SYSTEM
         // Cross-tab, cross-module notification bar for admin alerts

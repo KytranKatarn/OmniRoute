@@ -2720,14 +2720,21 @@ function _renderModuleChart(modules) {
   var canvas = document.getElementById("chModuleChart");
   if (!canvas) return;
 
+  // Sort modules by lines, but push infrastructure categories to the bottom
+  var infra = {'[SHARED]':1, '[AI_BRIDGE]':1, '[APP_CORE]':1, '[MIGRATIONS]':1};
   var names = Object.keys(modules).sort(function(a, b) {
+    var aInfra = infra[a] ? 1 : 0;
+    var bInfra = infra[b] ? 1 : 0;
+    if (aInfra !== bInfra) return aInfra - bInfra;
     return (modules[b].lines || 0) - (modules[a].lines || 0);
-  }).slice(0, 20);
+  }).slice(0, 25);
 
   var pyData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.python ? bt.python.lines : 0; });
   var jsData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.js ? bt.js.lines : 0; });
   var htmlData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.html ? bt.html.lines : 0; });
   var cssData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.css ? bt.css.lines : 0; });
+  var sqlData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.sql ? bt.sql.lines : 0; });
+  var shellData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.shell ? bt.shell.lines : 0; });
 
   var barHeight = Math.max(names.length * 26, 300);
   canvas.style.height = barHeight + "px";
@@ -2742,7 +2749,9 @@ function _renderModuleChart(modules) {
         { label: "Python", data: pyData, backgroundColor: "rgba(139, 92, 246, 0.7)", borderWidth: 0, barThickness: 16 },
         { label: "HTML", data: htmlData, backgroundColor: "rgba(245, 158, 11, 0.7)", borderWidth: 0, barThickness: 16 },
         { label: "JavaScript", data: jsData, backgroundColor: "rgba(0, 204, 255, 0.7)", borderWidth: 0, barThickness: 16 },
-        { label: "CSS", data: cssData, backgroundColor: "rgba(34, 197, 94, 0.7)", borderWidth: 0, barThickness: 16 }
+        { label: "CSS", data: cssData, backgroundColor: "rgba(34, 197, 94, 0.7)", borderWidth: 0, barThickness: 16 },
+        { label: "SQL", data: sqlData, backgroundColor: "rgba(234, 179, 8, 0.7)", borderWidth: 0, barThickness: 16 },
+        { label: "Shell", data: shellData, backgroundColor: "rgba(239, 68, 68, 0.7)", borderWidth: 0, barThickness: 16 }
       ]
     },
     options: {
@@ -2771,7 +2780,7 @@ function _renderModuleTable(modules) {
 
   var html = '<table class="cs-table"><thead><tr>' +
     '<th>Module</th><th class="center">Files</th><th class="center">Lines</th>' +
-    '<th class="center">Python</th><th class="center">JS</th><th class="center">HTML</th><th class="center">CSS</th>' +
+    '<th class="center">Python</th><th class="center">JS</th><th class="center">HTML</th><th class="center">CSS</th><th class="center">SQL</th><th class="center">Shell</th>' +
     '</tr></thead><tbody>';
 
   sorted.forEach(function(name) {
@@ -2785,6 +2794,8 @@ function _renderModuleTable(modules) {
       '<td class="center">' + (bt.js ? bt.js.lines : 0).toLocaleString() + '</td>' +
       '<td class="center">' + (bt.html ? bt.html.lines : 0).toLocaleString() + '</td>' +
       '<td class="center">' + (bt.css ? bt.css.lines : 0).toLocaleString() + '</td>' +
+      '<td class="center">' + (bt.sql ? bt.sql.lines : 0).toLocaleString() + '</td>' +
+      '<td class="center">' + (bt.shell ? bt.shell.lines : 0).toLocaleString() + '</td>' +
       '</tr>';
   });
 

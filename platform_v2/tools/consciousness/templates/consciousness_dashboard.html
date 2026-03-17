@@ -2823,11 +2823,15 @@
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:12px;">
                 <div class="cs-card">
                     <div class="cs-card-title">Lines by Module</div>
-                    <canvas id="chModuleChart" height="300"></canvas>
+                    <div style="position:relative; height:400px; overflow-y:auto;">
+                        <canvas id="chModuleChart"></canvas>
+                    </div>
                 </div>
                 <div class="cs-card">
                     <div class="cs-card-title">Lines Over Time</div>
-                    <canvas id="chHistoryChart" height="300"></canvas>
+                    <div style="position:relative; height:400px;">
+                        <canvas id="chHistoryChart"></canvas>
+                    </div>
                 </div>
             </div>
 

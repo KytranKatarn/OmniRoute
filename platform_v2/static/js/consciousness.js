@@ -2723,6 +2723,11 @@ function _renderModuleChart(modules) {
 
   var lines = names.map(function(n) { return modules[n].lines || 0; });
 
+  // Set canvas height based on number of bars (20px per bar minimum)
+  var barHeight = Math.max(names.length * 22, 300);
+  canvas.style.height = barHeight + "px";
+  canvas.height = barHeight;
+
   if (_chModuleChart) _chModuleChart.destroy();
   _chModuleChart = new Chart(canvas, {
     type: "bar",
@@ -2733,13 +2738,15 @@ function _renderModuleChart(modules) {
         data: lines,
         backgroundColor: "rgba(139, 92, 246, 0.6)",
         borderColor: "#8b5cf6",
-        borderWidth: 1
+        borderWidth: 1,
+        barThickness: 14
       }]
     },
     options: {
       indexAxis: "y",
       responsive: true,
       maintainAspectRatio: false,
+      animation: { duration: 0 },
       plugins: { legend: { display: false } },
       scales: {
         x: { ticks: { color: "rgba(255,255,255,0.5)" }, grid: { color: "rgba(255,255,255,0.05)" } },
@@ -2823,6 +2830,9 @@ function _renderHistoryChart(snapshots) {
     return d.toLocaleDateString([], { month: "short", day: "numeric" });
   });
 
+  canvas.style.height = "380px";
+  canvas.height = 380;
+
   if (_chHistoryChart) _chHistoryChart.destroy();
   _chHistoryChart = new Chart(canvas, {
     type: "line",
@@ -2851,9 +2861,10 @@ function _renderHistoryChart(snapshots) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      animation: { duration: 0 },
       plugins: { legend: { labels: { color: "rgba(255,255,255,0.6)" } } },
       scales: {
-        x: { ticks: { color: "rgba(255,255,255,0.5)" }, grid: { color: "rgba(255,255,255,0.05)" } },
+        x: { ticks: { color: "rgba(255,255,255,0.5)", maxRotation: 45 }, grid: { color: "rgba(255,255,255,0.05)" } },
         y: { position: "left", ticks: { color: "#8b5cf6" }, grid: { color: "rgba(255,255,255,0.05)" } },
         y1: { position: "right", ticks: { color: "#0cf" }, grid: { display: false } }
       }

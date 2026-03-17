@@ -2751,9 +2751,9 @@ function _renderModuleChart(modules) {
         { label: "HTML", data: htmlData, backgroundColor: "rgba(245, 158, 11, 0.7)", borderWidth: 0 },
         { label: "JavaScript", data: jsData, backgroundColor: "rgba(0, 204, 255, 0.7)", borderWidth: 0 },
         { label: "CSS", data: cssData, backgroundColor: "rgba(34, 197, 94, 0.7)", borderWidth: 0 },
-        { label: "SQL", data: sqlData, backgroundColor: "rgba(234, 179, 8, 0.7)", borderWidth: 0 },
+        { label: "SQL", data: sqlData, backgroundColor: "rgba(253, 224, 71, 0.7)", borderWidth: 0 },
         { label: "Shell", data: shellData, backgroundColor: "rgba(239, 68, 68, 0.7)", borderWidth: 0 },
-        { label: "JSON", data: jsonData, backgroundColor: "rgba(251, 146, 60, 0.7)", borderWidth: 0 },
+        { label: "JSON", data: jsonData, backgroundColor: "rgba(45, 212, 191, 0.7)", borderWidth: 0 },
         { label: "Other", data: otherData, backgroundColor: "rgba(168, 162, 255, 0.7)", borderWidth: 0 }
       ]
     },

@@ -342,6 +342,8 @@ def scan_codebase():
         "css": dict(type_totals.get("css", {"files": 0, "lines": 0})),
         "html": dict(type_totals.get("html", {"files": 0, "lines": 0})),
         "sql": dict(type_totals.get("sql", {"files": 0, "lines": 0})),
+        "shell": dict(type_totals.get("shell", {"files": 0, "lines": 0})),
+        "json": dict(type_totals.get("json", {"files": 0, "lines": 0})),
         "areas": {
             "platform": {"files": platform_stats["files"], "lines": platform_stats["lines"]},
             "ai_bridge": {"files": bridge_stats["files"], "lines": bridge_stats["lines"]},

@@ -2722,10 +2722,12 @@ function _renderModuleChart(modules) {
     return (modules[b].lines || 0) - (modules[a].lines || 0);
   }).slice(0, 20);
 
-  var lines = names.map(function(n) { return modules[n].lines || 0; });
+  var pyData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.python ? bt.python.lines : 0; });
+  var jsData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.js ? bt.js.lines : 0; });
+  var htmlData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.html ? bt.html.lines : 0; });
+  var cssData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.css ? bt.css.lines : 0; });
 
-  // Set canvas height based on number of bars (20px per bar minimum)
-  var barHeight = Math.max(names.length * 22, 300);
+  var barHeight = Math.max(names.length * 26, 300);
   canvas.style.height = barHeight + "px";
   canvas.height = barHeight;
 
@@ -2734,24 +2736,24 @@ function _renderModuleChart(modules) {
     type: "bar",
     data: {
       labels: names,
-      datasets: [{
-        label: "Lines of Code",
-        data: lines,
-        backgroundColor: "rgba(139, 92, 246, 0.6)",
-        borderColor: "#8b5cf6",
-        borderWidth: 1,
-        barThickness: 14
-      }]
+      datasets: [
+        { label: "Python", data: pyData, backgroundColor: "rgba(139, 92, 246, 0.7)", borderWidth: 0, barThickness: 16 },
+        { label: "HTML", data: htmlData, backgroundColor: "rgba(245, 158, 11, 0.7)", borderWidth: 0, barThickness: 16 },
+        { label: "JavaScript", data: jsData, backgroundColor: "rgba(0, 204, 255, 0.7)", borderWidth: 0, barThickness: 16 },
+        { label: "CSS", data: cssData, backgroundColor: "rgba(34, 197, 94, 0.7)", borderWidth: 0, barThickness: 16 }
+      ]
     },
     options: {
       indexAxis: "y",
       responsive: true,
       maintainAspectRatio: false,
       animation: { duration: 0 },
-      plugins: { legend: { display: false } },
+      plugins: {
+        legend: { labels: { color: "rgba(255,255,255,0.6)", boxWidth: 12, padding: 10 } }
+      },
       scales: {
-        x: { ticks: { color: "rgba(255,255,255,0.5)" }, grid: { color: "rgba(255,255,255,0.05)" } },
-        y: { ticks: { color: "rgba(255,255,255,0.7)", font: { size: 10 } }, grid: { display: false } }
+        x: { stacked: true, ticks: { color: "rgba(255,255,255,0.5)" }, grid: { color: "rgba(255,255,255,0.05)" } },
+        y: { stacked: true, ticks: { color: "rgba(255,255,255,0.7)", font: { size: 10 } }, grid: { display: false } }
       }
     }
   });

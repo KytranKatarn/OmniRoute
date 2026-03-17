@@ -15,6 +15,7 @@
   let _activeTab = 'inbox';
   let _currentPage = 1;
   let _totalEmails = 0;
+  let _currentLabel = 'INBOX';
   const PER_PAGE = 20;
 
   // ── Helpers ──────────────────────────────────────────────────────────────
@@ -105,13 +106,80 @@
   window.selectAccount = function (id) {
     _currentAccountId = id || null;
     if (_currentAccountId) {
+      _currentLabel = 'INBOX';
+      loadLabels();
       if (_activeTab === 'inbox') loadInbox(1);
       if (_activeTab === 'rules') loadRules();
       if (_activeTab === 'calendar') loadCalendarEvents(_currentAccountId);
       if (_activeTab === 'drive') loadDriveFiles(_currentAccountId);
-      // Always prime inbox on account switch
       if (_activeTab !== 'inbox') loadInbox(1);
     }
+  };
+
+  // ── Labels ──────────────────────────────────────────────────────────────
+
+  window.loadLabels = async function () {
+    if (!_currentAccountId) return;
+    try {
+      var data = await api('GET', '/api/labels/' + encodeURIComponent(_currentAccountId));
+      var labels = data.labels || [];
+
+      // Update system label counts
+      var systemIds = ['INBOX', 'STARRED', 'SENT', 'DRAFT', 'IMPORTANT', 'SPAM', 'TRASH'];
+      systemIds.forEach(function (id) {
+        var el = document.getElementById('gwsCount' + id);
+        if (!el) return;
+        var lbl = labels.find(function (l) { return l.id === id; });
+        if (lbl && lbl.messagesUnread > 0) {
+          el.textContent = lbl.messagesUnread;
+          el.style.display = '';
+        } else if (lbl && lbl.messagesTotal > 0 && (id === 'DRAFT' || id === 'SPAM' || id === 'TRASH')) {
+          el.textContent = lbl.messagesTotal;
+          el.style.display = '';
+        } else {
+          el.textContent = '';
+          el.style.display = 'none';
+        }
+      });
+
+      // Render custom labels
+      var customContainer = document.getElementById('gwsCustomLabels');
+      if (customContainer) {
+        clearEl(customContainer);
+        labels.filter(function (l) { return l.type === 'user'; })
+          .sort(function (a, b) { return a.name.localeCompare(b.name); })
+          .forEach(function (lbl) {
+            var div = document.createElement('div');
+            div.className = 'gws-label-item';
+            if (_currentLabel === lbl.id) div.classList.add('active');
+            div.setAttribute('data-label', lbl.id);
+            div.addEventListener('click', function () { switchLabel(lbl.id); });
+            var icon = document.createElement('i');
+            icon.setAttribute('data-lucide', 'tag');
+            div.appendChild(icon);
+            var span = document.createElement('span');
+            span.textContent = lbl.name;
+            div.appendChild(span);
+            customContainer.appendChild(div);
+          });
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+      }
+
+      // Highlight active label
+      document.querySelectorAll('.gws-label-item').forEach(function (el) {
+        el.classList.toggle('active', el.getAttribute('data-label') === _currentLabel);
+      });
+    } catch (err) {
+      // Labels are non-critical, silently fail
+    }
+  };
+
+  window.switchLabel = function (label) {
+    _currentLabel = label;
+    document.querySelectorAll('.gws-label-item').forEach(function (el) {
+      el.classList.toggle('active', el.getAttribute('data-label') === label);
+    });
+    loadInbox(1);
   };
 
   // ── Inbox ─────────────────────────────────────────────────────────────────
@@ -120,9 +188,10 @@
     if (!_currentAccountId) return;
     _currentPage = page || 1;
     try {
+      var labelParam = _currentLabel ? '&label=' + encodeURIComponent(_currentLabel) : '';
       const data = await api('GET',
         '/api/inbox/' + encodeURIComponent(_currentAccountId) +
-        '?page=' + _currentPage + '&per_page=' + PER_PAGE
+        '?page=' + _currentPage + '&per_page=' + PER_PAGE + labelParam
       );
       _emails = Array.isArray(data) ? data : (data.emails || []);
       _totalEmails = data.total || _emails.length;

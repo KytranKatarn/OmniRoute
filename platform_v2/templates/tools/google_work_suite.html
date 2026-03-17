@@ -8,6 +8,7 @@
 {% endblock %}
 
 {% block content %}
+{% include 'includes/business_tools_nav.html' %}
 <div class="gws-wrapper" data-user-id="{{ current_user.id if current_user else '' }}">
 
   <!-- Top Bar -->
@@ -22,9 +23,11 @@
       <button class="gws-btn gws-btn-primary" onclick="connectAccount('user')">
         <i data-lucide="mail"></i> Connect Gmail
       </button>
+      {% if current_user.is_admin %}
       <button class="gws-btn gws-btn-secondary" onclick="connectAccount('agent')">
         <i data-lucide="bot"></i> Connect Agent Gmail
       </button>
+      {% endif %}
       <button class="gws-btn gws-btn-sync" onclick="syncInbox()" title="Sync inbox">
         <i data-lucide="refresh-cw"></i> Sync
       </button>
@@ -69,6 +72,38 @@
     </div>
 
     <div class="gws-inbox-layout">
+      <!-- Label Sidebar -->
+      <div id="gwsLabelSidebar" class="gws-label-sidebar">
+        <div class="gws-label-list" id="gwsLabelList">
+          <div class="gws-label-item active" data-label="INBOX" onclick="switchLabel('INBOX')">
+            <i data-lucide="inbox"></i><span>Inbox</span><span class="gws-label-count" id="gwsCountINBOX"></span>
+          </div>
+          <div class="gws-label-item" data-label="STARRED" onclick="switchLabel('STARRED')">
+            <i data-lucide="star"></i><span>Starred</span><span class="gws-label-count" id="gwsCountSTARRED"></span>
+          </div>
+          <div class="gws-label-item" data-label="SENT" onclick="switchLabel('SENT')">
+            <i data-lucide="send"></i><span>Sent</span><span class="gws-label-count" id="gwsCountSENT"></span>
+          </div>
+          <div class="gws-label-item" data-label="DRAFT" onclick="switchLabel('DRAFT')">
+            <i data-lucide="file-edit"></i><span>Drafts</span><span class="gws-label-count" id="gwsCountDRAFT"></span>
+          </div>
+          <div class="gws-label-item" data-label="IMPORTANT" onclick="switchLabel('IMPORTANT')">
+            <i data-lucide="bookmark"></i><span>Important</span><span class="gws-label-count" id="gwsCountIMPORTANT"></span>
+          </div>
+          <div class="gws-label-item" data-label="SPAM" onclick="switchLabel('SPAM')">
+            <i data-lucide="alert-octagon"></i><span>Spam</span><span class="gws-label-count" id="gwsCountSPAM"></span>
+          </div>
+          <div class="gws-label-item" data-label="TRASH" onclick="switchLabel('TRASH')">
+            <i data-lucide="trash-2"></i><span>Trash</span><span class="gws-label-count" id="gwsCountTRASH"></span>
+          </div>
+          <div class="gws-label-item" data-label="" onclick="switchLabel('')">
+            <i data-lucide="mail"></i><span>All Mail</span><span class="gws-label-count" id="gwsCountALL"></span>
+          </div>
+          <div class="gws-label-separator"></div>
+          <div id="gwsCustomLabels"></div>
+        </div>
+      </div>
+
       <!-- Email List -->
       <div id="gwsEmailList" class="gws-email-list" role="list">
         <div class="gws-empty-state">

@@ -122,6 +122,55 @@ def disconnect_account(account_id):
 
 
 # ---------------------------------------------------------------------------
+# Labels
+# ---------------------------------------------------------------------------
+
+
+@google_work_suite_bp.route("/api/labels/<int:account_id>")
+@login_required
+def get_labels(account_id):
+    from .services.google_api_service import get_gmail_client
+
+    if not _verify_ownership(account_id):
+        return jsonify({"error": "Not found or permission denied"}), 403
+
+    try:
+        service = get_gmail_client(account_id)
+        result = service.users().labels().list(userId="me").execute()
+        labels = result.get("labels", [])
+
+        # Fetch counts for system labels
+        detailed = []
+        for lbl in labels:
+            info = {
+                "id": lbl["id"],
+                "name": lbl["name"],
+                "type": lbl.get("type", "user"),
+            }
+            # Only fetch counts for key system labels to avoid rate limits
+            if lbl["id"] in (
+                "INBOX",
+                "SENT",
+                "DRAFT",
+                "SPAM",
+                "TRASH",
+                "STARRED",
+                "IMPORTANT",
+            ):
+                try:
+                    detail = service.users().labels().get(userId="me", id=lbl["id"]).execute()
+                    info["messagesTotal"] = detail.get("messagesTotal", 0)
+                    info["messagesUnread"] = detail.get("messagesUnread", 0)
+                except Exception:
+                    pass
+            detailed.append(info)
+
+        return jsonify({"labels": detailed})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
 # Email — inbox
 # ---------------------------------------------------------------------------
 
@@ -140,11 +189,11 @@ def get_inbox(account_id):
     label = request.args.get("label", "INBOX")
 
     # Auto-sync if cache is empty for this account
-    messages = svc_get_inbox(account_id, page, per_page, label)
+    messages = svc_get_inbox(account_id, page, per_page, label if label else None)
     if not messages and page == 1:
         try:
-            svc_sync_inbox(account_id)
-            messages = svc_get_inbox(account_id, page, per_page, label)
+            svc_sync_inbox(account_id, label_ids=[label] if label else None)
+            messages = svc_get_inbox(account_id, page, per_page, label if label else None)
         except Exception:
             pass
 

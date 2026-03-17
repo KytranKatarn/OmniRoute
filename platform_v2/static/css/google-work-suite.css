@@ -233,11 +233,77 @@
   min-height: 500px;
 }
 
+/* ── Label Sidebar ─────────────────────────────────────────── */
+
+.gws-label-sidebar {
+  width: 180px;
+  min-width: 160px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--gws-border, #234);
+  background: rgba(0, 0, 0, 0.15);
+  overflow-y: auto;
+  max-height: calc(100vh - 220px);
+  padding: 6px 0;
+}
+
+.gws-label-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.78rem;
+  transition: background 0.15s, color 0.15s;
+  border-left: 3px solid transparent;
+}
+
+.gws-label-item:hover {
+  background: rgba(0, 204, 255, 0.06);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.gws-label-item.active {
+  background: rgba(0, 204, 255, 0.1);
+  color: var(--gws-accent, #0cf);
+  border-left-color: var(--gws-accent, #0cf);
+}
+
+.gws-label-item i, .gws-label-item svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.gws-label-item span:first-of-type {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gws-label-count {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--gws-accent, #0cf);
+  background: rgba(0, 204, 255, 0.12);
+  padding: 1px 6px;
+  border-radius: 8px;
+  min-width: 18px;
+  text-align: center;
+}
+
+.gws-label-separator {
+  height: 1px;
+  background: var(--gws-border, #234);
+  margin: 6px 12px;
+}
+
 /* ── Email List ──────────────────────────────────────────── */
 
 .gws-email-list {
-  width: 40%;
-  min-width: 240px;
+  width: 35%;
+  min-width: 220px;
   border-right: 1px solid var(--gws-border);
   overflow-y: auto;
   max-height: calc(100vh - 220px);

@@ -67,14 +67,19 @@ def _build_mime(to, subject, body, reply_to_msg=None):
 # ---------------------------------------------------------------------------
 
 
-def sync_inbox(account_id, max_results=50):
+def sync_inbox(account_id, max_results=50, label_ids=None):
     """
-    Pull recent INBOX messages from Gmail and upsert into google_email_cache.
+    Pull recent messages from Gmail and upsert into google_email_cache.
     Returns the number of messages synced.
     """
     try:
         service = get_gmail_client(account_id)
-        result = service.users().messages().list(userId="me", maxResults=max_results, labelIds=["INBOX"]).execute()
+        list_args = {"userId": "me", "maxResults": max_results}
+        if label_ids:
+            list_args["labelIds"] = label_ids
+        else:
+            list_args["labelIds"] = ["INBOX"]
+        result = service.users().messages().list(**list_args).execute()
         messages = result.get("messages", [])
         synced = 0
 

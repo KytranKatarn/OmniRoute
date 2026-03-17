@@ -2748,7 +2748,7 @@ function _renderModuleChart(modules) {
         { label: "CSS", data: cssData, backgroundColor: "rgba(34, 197, 94, 0.7)", borderWidth: 0, barThickness: 16 },
         { label: "SQL", data: sqlData, backgroundColor: "rgba(234, 179, 8, 0.7)", borderWidth: 0, barThickness: 16 },
         { label: "Shell", data: shellData, backgroundColor: "rgba(239, 68, 68, 0.7)", borderWidth: 0, barThickness: 16 },
-        { label: "Other", data: otherData, backgroundColor: "rgba(107, 114, 128, 0.7)", borderWidth: 0, barThickness: 16 }
+        { label: "Other", data: otherData, backgroundColor: "rgba(168, 162, 255, 0.7)", borderWidth: 0, barThickness: 16 }
       ]
     },
     options: {

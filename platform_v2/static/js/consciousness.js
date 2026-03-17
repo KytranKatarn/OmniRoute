@@ -2720,9 +2720,11 @@ function _renderModuleChart(modules) {
   var canvas = document.getElementById("chModuleChart");
   if (!canvas) return;
 
+  // Responsive: show fewer modules on mobile
+  var maxBars = window.innerWidth < 480 ? 12 : window.innerWidth < 768 ? 18 : 25;
   var names = Object.keys(modules).sort(function(a, b) {
     return (modules[b].lines || 0) - (modules[a].lines || 0);
-  }).slice(0, 25);
+  }).slice(0, maxBars);
 
   var pyData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.python ? bt.python.lines : 0; });
   var jsData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.js ? bt.js.lines : 0; });
@@ -2732,7 +2734,8 @@ function _renderModuleChart(modules) {
   var shellData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.shell ? bt.shell.lines : 0; });
   var otherData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.other ? bt.other.lines : 0; });
 
-  var barHeight = Math.max(names.length * 28, 300);
+  var rowH = window.innerWidth < 480 ? 24 : 28;
+  var barHeight = Math.max(names.length * rowH, 300);
   canvas.style.height = barHeight + "px";
   canvas.height = barHeight;
 
@@ -2757,11 +2760,18 @@ function _renderModuleChart(modules) {
       maintainAspectRatio: false,
       animation: { duration: 0 },
       plugins: {
-        legend: { labels: { color: "rgba(255,255,255,0.6)", boxWidth: 12, padding: 10 } }
+        legend: {
+          labels: {
+            color: "rgba(255,255,255,0.6)",
+            boxWidth: window.innerWidth < 480 ? 8 : 12,
+            padding: window.innerWidth < 480 ? 6 : 10,
+            font: { size: window.innerWidth < 480 ? 9 : 11 }
+          }
+        }
       },
       scales: {
-        x: { stacked: true, ticks: { color: "rgba(255,255,255,0.5)" }, grid: { color: "rgba(255,255,255,0.05)" } },
-        y: { stacked: true, ticks: { color: "rgba(255,255,255,0.7)", font: { size: 11 }, padding: 4 }, grid: { color: "rgba(255,255,255,0.06)", drawTicks: false } }
+        x: { stacked: true, ticks: { color: "rgba(255,255,255,0.5)", font: { size: window.innerWidth < 480 ? 8 : 11 } }, grid: { color: "rgba(255,255,255,0.05)" } },
+        y: { stacked: true, ticks: { color: "rgba(255,255,255,0.7)", font: { size: window.innerWidth < 480 ? 9 : 11 }, padding: 4 }, grid: { color: "rgba(255,255,255,0.06)", drawTicks: false } }
       }
     }
   });

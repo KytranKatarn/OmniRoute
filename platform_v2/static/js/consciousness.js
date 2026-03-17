@@ -2732,7 +2732,7 @@ function _renderModuleChart(modules) {
   var shellData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.shell ? bt.shell.lines : 0; });
   var otherData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.other ? bt.other.lines : 0; });
 
-  var barHeight = Math.max(names.length * 26, 300);
+  var barHeight = Math.max(names.length * 28, 300);
   canvas.style.height = barHeight + "px";
   canvas.height = barHeight;
 
@@ -2742,13 +2742,13 @@ function _renderModuleChart(modules) {
     data: {
       labels: names,
       datasets: [
-        { label: "Python", data: pyData, backgroundColor: "rgba(139, 92, 246, 0.7)", borderWidth: 0, barThickness: 16 },
-        { label: "HTML", data: htmlData, backgroundColor: "rgba(245, 158, 11, 0.7)", borderWidth: 0, barThickness: 16 },
-        { label: "JavaScript", data: jsData, backgroundColor: "rgba(0, 204, 255, 0.7)", borderWidth: 0, barThickness: 16 },
-        { label: "CSS", data: cssData, backgroundColor: "rgba(34, 197, 94, 0.7)", borderWidth: 0, barThickness: 16 },
-        { label: "SQL", data: sqlData, backgroundColor: "rgba(234, 179, 8, 0.7)", borderWidth: 0, barThickness: 16 },
-        { label: "Shell", data: shellData, backgroundColor: "rgba(239, 68, 68, 0.7)", borderWidth: 0, barThickness: 16 },
-        { label: "Other", data: otherData, backgroundColor: "rgba(168, 162, 255, 0.7)", borderWidth: 0, barThickness: 16 }
+        { label: "Python", data: pyData, backgroundColor: "rgba(139, 92, 246, 0.7)", borderWidth: 0 },
+        { label: "HTML", data: htmlData, backgroundColor: "rgba(245, 158, 11, 0.7)", borderWidth: 0 },
+        { label: "JavaScript", data: jsData, backgroundColor: "rgba(0, 204, 255, 0.7)", borderWidth: 0 },
+        { label: "CSS", data: cssData, backgroundColor: "rgba(34, 197, 94, 0.7)", borderWidth: 0 },
+        { label: "SQL", data: sqlData, backgroundColor: "rgba(234, 179, 8, 0.7)", borderWidth: 0 },
+        { label: "Shell", data: shellData, backgroundColor: "rgba(239, 68, 68, 0.7)", borderWidth: 0 },
+        { label: "Other", data: otherData, backgroundColor: "rgba(168, 162, 255, 0.7)", borderWidth: 0 }
       ]
     },
     options: {

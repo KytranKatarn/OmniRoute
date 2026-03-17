@@ -351,17 +351,34 @@ def scan_codebase():
         "orphans": _find_orphan_files(set(module_stats.keys())),
     }
 
-    # Add [SHARED] — everything not claimed by any module
+    # Add [SHARED] — everything not claimed by any module, with proper type breakdown
     module_lines = sum(v["lines"] for v in module_stats.values())
     module_files = sum(v["files"] for v in module_stats.values())
     shared_lines = total_lines - module_lines
     shared_files = total_files - module_files
     if shared_lines > 0:
+        # Calculate per-type breakdown for shared (total type - sum of module types)
+        shared_by_type = {}
+        for ftype in ["python", "js", "css", "html", "sql", "shell", "json"]:
+            total_t = type_totals.get(ftype, {"files": 0, "lines": 0})
+            mod_t_files = sum(v.get("by_type", {}).get(ftype, {}).get("files", 0) for v in module_stats.values())
+            mod_t_lines = sum(v.get("by_type", {}).get(ftype, {}).get("lines", 0) for v in module_stats.values())
+            rem_files = total_t["files"] - mod_t_files
+            rem_lines = total_t["lines"] - mod_t_lines
+            if rem_lines > 0:
+                shared_by_type[ftype] = {"files": max(rem_files, 0), "lines": rem_lines}
+        # Any remaining goes to other
+        typed_lines = sum(v["lines"] for v in shared_by_type.values())
+        if shared_lines > typed_lines:
+            shared_by_type["other"] = {
+                "files": max(shared_files - sum(v["files"] for v in shared_by_type.values()), 0),
+                "lines": shared_lines - typed_lines,
+            }
         result["modules"]["[SHARED]"] = {
             "files": max(shared_files, 0),
             "lines": shared_lines,
             "folders": 0,
-            "by_type": {"other": {"files": max(shared_files, 0), "lines": shared_lines}},
+            "by_type": shared_by_type,
         }
 
     return result

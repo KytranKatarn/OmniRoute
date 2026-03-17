@@ -40,3 +40,14 @@ def register_code_health_routes(bp, admin_required):
 
         entries = get_audit_log()
         return jsonify({"entries": entries})
+
+    @bp.route("/api/code-health/backfill-git", methods=["POST"])
+    @admin_required
+    def code_health_backfill_git():
+        from flask import request
+        from services.code_metrics_service import backfill_git_history
+
+        data = request.get_json() or {}
+        days = min(int(data.get("days", 90)), 365)
+        result = backfill_git_history(days=days)
+        return jsonify(result)

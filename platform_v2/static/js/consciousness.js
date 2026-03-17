@@ -2793,6 +2793,20 @@ window.chRunScan = function() {
   });
 };
 
+window.chBackfillGit = function() {
+  if (typeof toast !== "undefined") toast("Backfilling git history...");
+  api("/api/code-health/backfill-git", "POST", {days: 90}).then(function(d) {
+    if (d.success) {
+      if (typeof toast !== "undefined") toast("Backfilled " + (d.inserted || 0) + " days");
+      chLoadHistory();
+    } else {
+      if (typeof toast !== "undefined") toast("Backfill failed: " + (d.error || ""), true);
+    }
+  }).catch(function(err) {
+    if (typeof toast !== "undefined") toast("Backfill error: " + err.message, true);
+  });
+};
+
 window.chLoadHistory = function() {
   api("/api/code-health/snapshots").then(function(d) {
     var snaps = (d.snapshots || []).reverse();

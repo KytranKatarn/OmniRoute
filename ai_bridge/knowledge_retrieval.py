@@ -21,7 +21,7 @@ if platform_path not in sys.path:
     sys.path.insert(0, platform_path)
 
 try:
-    from unified_knowledge_search import (
+    from tools.consciousness.services.unified_knowledge_search import (
         unified_knowledge_search,
         get_mistake_learnings,
         get_top_knowledge,
@@ -310,7 +310,7 @@ def get_knowledge_stats() -> Dict:
         return {}
 
     try:
-        from unified_knowledge_search import get_knowledge_stats as get_unified_stats
+        from tools.consciousness.services.unified_knowledge_search import get_knowledge_stats as get_unified_stats
 
         return get_unified_stats()
     except Exception as e:

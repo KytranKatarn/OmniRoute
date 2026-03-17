@@ -1235,9 +1235,9 @@ app.config["MODULE_REGISTRY_FAILED"] = failed_modules
 # NOTE: consciousness_bp and backup_manager_bp are now loaded via module_registry
 from tools.archie_core.api import archie_api_bp  # noqa: E402
 from tools.github_integration.github_routes import github_bp  # noqa: E402
-from sandbox_routes import sandbox_bp  # noqa: E402
+from tools.dev_pipeline.services.sandbox_routes import sandbox_bp  # noqa: E402
 
-from cursor_api import cursor_bp  # noqa: E402
+from tools.dev_pipeline.services.cursor_api import cursor_bp  # noqa: E402
 
 # OAuth authentication (Phase 6.5 - User Management & Subscription System)
 from oauth_routes import oauth_bp, init_oauth  # noqa: E402

@@ -262,118 +262,134 @@ def log_audit(
         return cur.fetchone()["id"]
 
 
-def backfill_git_history(repo_path="/mnt/archie_brain", days=90):
+def backfill_git_history(repo_path="/mnt/archie_brain"):
     """
-    Walk git log and create daily snapshots from commit history.
-    Uses git log --numstat to calculate cumulative lines per day.
+    Walk full git history and create daily snapshots.
+    Tracks both line changes (--numstat) and file changes (--diff-filter).
     """
     import subprocess
     import json
-    from datetime import datetime, timedelta
 
     try:
-        # Ensure git trusts the repo directory (needed inside Docker)
         subprocess.run(
             ["git", "config", "--global", "--add", "safe.directory", repo_path],
             capture_output=True,
             timeout=5,
         )
 
-        # Get daily insertions/deletions from git log
+        # Get line changes per commit (full history)
         result = subprocess.run(
-            [
-                "git",
-                "log",
-                "--numstat",
-                "--format=%ad",
-                "--date=short",
-                "--since",
-                f"{days} days ago",
-            ],
+            ["git", "log", "--numstat", "--format=%ad", "--date=short"],
             cwd=repo_path,
             capture_output=True,
             text=True,
-            timeout=60,
+            timeout=120,
         )
-
         if result.returncode != 0:
-            logger.error("git log failed: %s", result.stderr)
             return {"error": result.stderr}
 
-        # Parse git log output into daily totals
-        daily = defaultdict(lambda: {"added": 0, "removed": 0, "commits": 0})
+        # Get file additions/deletions per commit (full history)
+        file_result = subprocess.run(
+            ["git", "log", "--diff-filter=AD", "--summary", "--format=%ad", "--date=short"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+
+        # Parse line changes
+        daily = defaultdict(lambda: {"added": 0, "removed": 0, "commits": 0, "files_added": 0, "files_deleted": 0})
         current_date = None
 
         for line in result.stdout.splitlines():
             line = line.strip()
             if not line:
                 continue
-            # Date line (YYYY-MM-DD)
             if len(line) == 10 and line[4] == "-" and line[7] == "-":
                 current_date = line
                 daily[current_date]["commits"] += 1
                 continue
-            # Numstat line: added\tremoved\tfile
             parts = line.split("\t")
             if len(parts) == 3 and current_date:
                 try:
-                    added = int(parts[0]) if parts[0] != "-" else 0
-                    removed = int(parts[1]) if parts[1] != "-" else 0
-                    daily[current_date]["added"] += added
-                    daily[current_date]["removed"] += removed
+                    a = int(parts[0]) if parts[0] != "-" else 0
+                    r = int(parts[1]) if parts[1] != "-" else 0
+                    daily[current_date]["added"] += a
+                    daily[current_date]["removed"] += r
                 except ValueError:
                     pass
+
+        # Parse file additions/deletions
+        current_date = None
+        if file_result.returncode == 0:
+            for line in file_result.stdout.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                if len(line) == 10 and line[4] == "-" and line[7] == "-":
+                    current_date = line
+                    continue
+                if current_date:
+                    if line.startswith("create mode"):
+                        daily[current_date]["files_added"] += 1
+                    elif line.startswith("delete mode"):
+                        daily[current_date]["files_deleted"] += 1
 
         if not daily:
             return {"error": "No git history found", "days": 0}
 
-        # Build cumulative timeline
         sorted_dates = sorted(daily.keys())
 
-        # Get current total as baseline and work backwards
+        # Get current totals as baseline
         current = scan_codebase()
         current_total = current["total_lines"]
         current_files = current["total_files"]
 
-        # Calculate cumulative by working backwards from today
+        # Calculate cumulative line delta
+        total_line_delta = sum(daily[d]["added"] - daily[d]["removed"] for d in sorted_dates)
+        base_lines = current_total - total_line_delta
+
+        # Calculate cumulative file delta
+        total_file_delta = sum(daily[d]["files_added"] - daily[d]["files_deleted"] for d in sorted_dates)
+        base_files = current_files - total_file_delta
+
+        # Build timeline
         timeline = []
-        cumulative_lines = current_total
-        cumulative_delta = 0
-
-        # First pass: sum all deltas from oldest to newest
-        for date in sorted_dates:
-            d = daily[date]
-            cumulative_delta += d["added"] - d["removed"]
-
-        # Now work forward, starting from (current - total_delta)
-        base_lines = current_total - cumulative_delta
-        running = base_lines
+        running_lines = base_lines
+        running_files = base_files
 
         for date in sorted_dates:
             d = daily[date]
-            net = d["added"] - d["removed"]
-            running += net
+            running_lines += d["added"] - d["removed"]
+            running_files += d["files_added"] - d["files_deleted"]
             timeline.append(
                 {
                     "date": date,
-                    "total_lines": running,
+                    "total_lines": max(running_lines, 0),
+                    "total_files": max(running_files, 0),
                     "added": d["added"],
                     "removed": d["removed"],
-                    "net": net,
+                    "files_added": d["files_added"],
+                    "files_deleted": d["files_deleted"],
                     "commits": d["commits"],
                 }
             )
 
-        # Store as snapshots in DB (one per day, skip if already exists)
+        # Clear old backfill data and re-insert (keeps today's full scan)
         inserted = 0
         with get_db_cursor(commit=True) as (conn, cur):
+            # Delete old git-backfilled rows (keep today's full scan)
+            cur.execute(
+                "DELETE FROM code_metrics_snapshots WHERE total_folders = 0 AND scanned_at::date < CURRENT_DATE"
+            )
+
             for entry in timeline:
                 cur.execute(
                     "SELECT id FROM code_metrics_snapshots WHERE scanned_at::date = %s",
                     (entry["date"],),
                 )
                 if cur.fetchone():
-                    continue  # Already have this day
+                    continue
 
                 cur.execute(
                     """INSERT INTO code_metrics_snapshots
@@ -383,13 +399,15 @@ def backfill_git_history(repo_path="/mnt/archie_brain", days=90):
                             sql_files, sql_lines, per_module, scanned_at)
                        VALUES (%s, %s, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, %s, %s)""",
                     (
-                        current_files,
+                        entry["total_files"],
                         entry["total_lines"],
                         json.dumps(
                             {
                                 "git_daily": {
                                     "added": entry["added"],
                                     "removed": entry["removed"],
+                                    "files_added": entry["files_added"],
+                                    "files_deleted": entry["files_deleted"],
                                     "commits": entry["commits"],
                                 }
                             }
@@ -399,8 +417,8 @@ def backfill_git_history(repo_path="/mnt/archie_brain", days=90):
                 )
                 inserted += 1
 
-        logger.info("Backfilled %d days of git history (%d total days found)", inserted, len(timeline))
-        return {"success": True, "days": len(timeline), "inserted": inserted, "timeline": timeline}
+        logger.info("Backfilled %d days of git history (%d total)", inserted, len(timeline))
+        return {"success": True, "days": len(timeline), "inserted": inserted}
     except Exception as e:
         logger.error("backfill_git_history failed: %s", e)
         return {"error": str(e)}

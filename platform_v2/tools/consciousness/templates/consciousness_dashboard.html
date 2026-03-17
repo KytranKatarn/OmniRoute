@@ -2095,17 +2095,22 @@
 .admin-ops-nav { --cat-accent: #8b5cf6; --cat-accent-light: #6d28d9; }
 
 /* ── Code Health Tab ─────────────────────────────────────── */
-.ch-stats-row { grid-template-columns: repeat(6, 1fr); }
-.ch-actions { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+.ch-stats-row { grid-template-columns: repeat(6, 1fr); gap: 12px; }
+.ch-stats-row .cs-stat-card { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px 8px; }
+.ch-stats-row .cs-stat-value { font-size: 1.8rem; }
+.ch-stats-row .cs-stat-label { font-size: 0.65rem; letter-spacing: 1.5px; margin-top: 4px; }
+.ch-actions { display: flex; gap: 8px; margin: 16px 0; flex-wrap: wrap; justify-content: center; }
 .ch-charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
 
 @media (max-width: 768px) {
     .ch-stats-row { grid-template-columns: repeat(3, 1fr); }
+    .ch-stats-row .cs-stat-value { font-size: 1.4rem; }
     .ch-charts-row { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 480px) {
     .ch-stats-row { grid-template-columns: repeat(2, 1fr); }
+    .ch-stats-row .cs-stat-value { font-size: 1.2rem; }
     .ch-charts-row { grid-template-columns: 1fr; }
     .ch-actions { flex-direction: column; }
 }
@@ -2831,8 +2836,7 @@
             <!-- Actions -->
             <div class="ch-actions">
                 <button class="cs-btn purple" onclick="chRunScan()">SCAN CODEBASE</button>
-                <button class="cs-btn cyan" onclick="chLoadHistory()">LOAD HISTORY</button>
-                <button class="cs-btn amber" onclick="chBackfillGit()">BACKFILL GIT (90 DAYS)</button>
+                <button class="cs-btn amber" onclick="chBackfillGit()">LIFETIME TRACKER</button>
             </div>
 
             <!-- Charts Row -->

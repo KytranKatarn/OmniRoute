@@ -2801,16 +2801,17 @@ window.chRunScan = function() {
 };
 
 window.chBackfillGit = function() {
-  if (typeof toast !== "undefined") toast("Backfilling git history...");
-  api("/api/code-health/backfill-git", "POST", {days: 90}).then(function(d) {
+  if (typeof toast !== "undefined") toast("Building lifetime tracker...");
+  api("/api/code-health/backfill-git", "POST", {}).then(function(d) {
     if (d.success) {
-      if (typeof toast !== "undefined") toast("Backfilled " + (d.inserted || 0) + " days");
-      chLoadHistory();
+      if (typeof toast !== "undefined") toast("Tracked " + (d.days || 0) + " days of history");
+      _cache.codehealth = false;
+      loadCodeHealth();
     } else {
-      if (typeof toast !== "undefined") toast("Backfill failed: " + (d.error || ""), true);
+      if (typeof toast !== "undefined") toast("Failed: " + (d.error || ""), true);
     }
   }).catch(function(err) {
-    if (typeof toast !== "undefined") toast("Backfill error: " + err.message, true);
+    if (typeof toast !== "undefined") toast("Error: " + err.message, true);
   });
 };
 

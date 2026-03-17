@@ -543,6 +543,8 @@ def login():
             log_auth_event,
             reset_failed_login_count,
             increment_failed_login_count,
+            is_account_locked,
+            check_ip_rate_limit,
         )
 
         username = request.form.get("username", "").strip()
@@ -552,6 +554,12 @@ def login():
 
         if not username or not password:
             flash("Please enter both username and password", "error")
+            return render_template("login.html")
+
+        # IP rate limiting
+        ip_limited, ip_wait = check_ip_rate_limit(ip)
+        if ip_limited:
+            flash(f"Too many login attempts. Please wait {ip_wait} seconds.", "error")
             return render_template("login.html")
 
         try:
@@ -564,6 +572,12 @@ def login():
 
             if not user_data.get("is_active", False):
                 flash("Your account is pending admin approval. Please wait for activation.", "error")
+                return render_template("login.html")
+
+            # Account lockout check
+            locked, lock_minutes = is_account_locked(user_data)
+            if locked:
+                flash(f"Account locked due to too many failed attempts. Try again in {lock_minutes} minutes.", "error")
                 return render_template("login.html")
 
             if check_password_hash(user_data["password_hash"], password):
@@ -712,8 +726,11 @@ def signup():
             flash("Passwords do not match", "error")
             return render_template("signup.html")
 
-        if len(password) < 8:
-            flash("Password must be at least 8 characters", "error")
+        from services.auth_service import validate_password_complexity
+
+        pw_valid, pw_error = validate_password_complexity(password)
+        if not pw_valid:
+            flash(pw_error, "error")
             return render_template("signup.html")
 
         # Validate username (alphanumeric only)

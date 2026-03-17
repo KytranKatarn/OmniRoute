@@ -101,12 +101,15 @@ def change_password():
             400,
         )
 
-    if len(new_password) < 8:
+    from services.auth_service import validate_password_complexity
+
+    pw_valid, pw_error = validate_password_complexity(new_password)
+    if not pw_valid:
         return (
             jsonify(
                 {
                     "success": False,
-                    "error": "New password must be at least 8 characters",
+                    "error": pw_error,
                 }
             ),
             400,

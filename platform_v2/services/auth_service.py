@@ -8,10 +8,23 @@ Import:
 """
 
 import logging
-from datetime import datetime
+import re
+from datetime import datetime, timedelta
+from collections import defaultdict
+import threading
 
 from psycopg2.extras import RealDictCursor
 from database import get_db_connection
+
+# In-memory IP rate limiter (resets on restart — intentional)
+_ip_attempts = defaultdict(list)
+_ip_lock = threading.Lock()
+
+# Security constants
+MAX_FAILED_ATTEMPTS = 5
+LOCKOUT_MINUTES = 15
+IP_RATE_LIMIT = 10  # max attempts per IP per window
+IP_RATE_WINDOW = 300  # 5 minutes in seconds
 
 logger = logging.getLogger(__name__)
 
@@ -194,3 +207,82 @@ def delete_session_token(session_token):
                 cur.close()
     except Exception as e:
         logger.debug("delete_session_token error: %s", e)
+
+
+# ============================================================================
+# SECURITY — Account lockout, password complexity, IP rate limiting
+# ============================================================================
+
+
+def is_account_locked(user_data):
+    """Check if account is locked due to too many failed login attempts.
+    Returns (is_locked, minutes_remaining) tuple.
+    """
+    failed_count = user_data.get("failed_login_count", 0) or 0
+    if failed_count < MAX_FAILED_ATTEMPTS:
+        return False, 0
+
+    # Check when the last failed login happened
+    with get_db_connection() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute(
+                "SELECT MAX(attempted_at) as last_attempt FROM failed_logins WHERE username = %s",
+                (user_data["username"],),
+            )
+            row = cur.fetchone()
+            if row and row["last_attempt"]:
+                last_attempt = row["last_attempt"]
+                # Strip timezone if present for comparison
+                if hasattr(last_attempt, "tzinfo") and last_attempt.tzinfo:
+                    last_attempt = last_attempt.replace(tzinfo=None)
+                unlock_at = last_attempt + timedelta(minutes=LOCKOUT_MINUTES)
+                now = datetime.utcnow()
+                if now < unlock_at:
+                    remaining = int((unlock_at - now).total_seconds() / 60) + 1
+                    return True, remaining
+                else:
+                    # Lockout expired — reset count
+                    reset_failed_login_count(user_data["id"])
+                    return False, 0
+        finally:
+            cur.close()
+
+    return False, 0
+
+
+def validate_password_complexity(password):
+    """Validate password meets complexity requirements.
+    Returns (is_valid, error_message) tuple.
+    """
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters"
+    if not re.search(r"[A-Z]", password):
+        return False, "Password must contain at least one uppercase letter"
+    if not re.search(r"[a-z]", password):
+        return False, "Password must contain at least one lowercase letter"
+    if not re.search(r"[0-9]", password):
+        return False, "Password must contain at least one number"
+    return True, ""
+
+
+def check_ip_rate_limit(ip_address):
+    """Check if an IP has exceeded the login rate limit.
+    Returns (is_limited, seconds_remaining) tuple.
+    """
+    now = datetime.utcnow()
+    cutoff = now - timedelta(seconds=IP_RATE_WINDOW)
+
+    with _ip_lock:
+        # Clean old entries
+        _ip_attempts[ip_address] = [t for t in _ip_attempts[ip_address] if t > cutoff]
+
+        if len(_ip_attempts[ip_address]) >= IP_RATE_LIMIT:
+            oldest = min(_ip_attempts[ip_address])
+            remaining = int((oldest + timedelta(seconds=IP_RATE_WINDOW) - now).total_seconds()) + 1
+            return True, max(remaining, 1)
+
+        # Record this attempt
+        _ip_attempts[ip_address].append(now)
+
+    return False, 0

@@ -169,6 +169,54 @@ def get_email(account_id, gmail_id):
     return jsonify(result)
 
 
+@google_work_suite_bp.route("/api/email/<int:account_id>/<gmail_id>/read", methods=["POST"])
+@login_required
+def mark_as_read(account_id, gmail_id):
+    from .services.google_api_service import get_gmail_client
+
+    if not _verify_ownership(account_id):
+        return jsonify({"error": "Not found or permission denied"}), 403
+
+    try:
+        service = get_gmail_client(account_id)
+        service.users().messages().modify(userId="me", id=gmail_id, body={"removeLabelIds": ["UNREAD"]}).execute()
+        # Update local cache
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "UPDATE google_email_cache SET is_read = TRUE WHERE account_id = %s AND gmail_id = %s",
+                (account_id, gmail_id),
+            )
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@google_work_suite_bp.route("/api/email/<int:account_id>/<gmail_id>", methods=["DELETE"])
+@login_required
+def trash_email(account_id, gmail_id):
+    from .services.google_api_service import get_gmail_client
+
+    if not _verify_ownership(account_id):
+        return jsonify({"error": "Not found or permission denied"}), 403
+
+    try:
+        service = get_gmail_client(account_id)
+        service.users().messages().trash(userId="me", id=gmail_id).execute()
+        # Remove from local cache
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "DELETE FROM google_email_cache WHERE account_id = %s AND gmail_id = %s",
+                (account_id, gmail_id),
+            )
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @google_work_suite_bp.route("/api/email/send", methods=["POST"])
 @login_required
 def send_email():

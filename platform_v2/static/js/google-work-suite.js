@@ -305,23 +305,75 @@
     header.appendChild(meta);
     panel.appendChild(header);
 
-    // Body — use textContent, never innerHTML
-    const body = document.createElement('div');
-    body.className = 'gws-email-body';
-    const pre = document.createElement('pre');
-    pre.className = 'gws-email-body-text';
-    pre.textContent = email.body || email.body_text || '(no content)';
-    body.appendChild(pre);
-    panel.appendChild(body);
+    // Body — prefer HTML, fall back to plain text
+    const bodyDiv = document.createElement('div');
+    bodyDiv.className = 'gws-email-body';
+    const bodyContent = email.body_html || email.body_plain || email.body || email.body_text || '';
+    if (email.body_html) {
+      const iframe = document.createElement('iframe');
+      iframe.className = 'gws-email-iframe';
+      iframe.sandbox = 'allow-same-origin';
+      iframe.srcdoc = bodyContent;
+      iframe.style.width = '100%';
+      iframe.style.border = 'none';
+      iframe.style.minHeight = '300px';
+      iframe.style.background = '#1a1a2e';
+      iframe.onload = function () {
+        try {
+          const doc = iframe.contentDocument;
+          doc.body.style.color = '#e0e0e0';
+          doc.body.style.fontFamily = 'sans-serif';
+          doc.body.style.fontSize = '14px';
+          doc.body.style.background = '#1a1a2e';
+          iframe.style.height = doc.body.scrollHeight + 20 + 'px';
+        } catch (_) {}
+      };
+      bodyDiv.appendChild(iframe);
+    } else if (bodyContent) {
+      const pre = document.createElement('pre');
+      pre.className = 'gws-email-body-text';
+      pre.textContent = bodyContent;
+      bodyDiv.appendChild(pre);
+    } else {
+      const empty = document.createElement('p');
+      empty.className = 'gws-muted';
+      empty.textContent = '(no content)';
+      bodyDiv.appendChild(empty);
+    }
+    panel.appendChild(bodyDiv);
+
+    // Attachments
+    if (email.attachments && email.attachments.length > 0) {
+      const attDiv = document.createElement('div');
+      attDiv.className = 'gws-email-attachments';
+      const attLabel = document.createElement('span');
+      attLabel.className = 'gws-email-meta-label';
+      attLabel.textContent = 'Attachments:';
+      attDiv.appendChild(attLabel);
+      email.attachments.forEach(function (att) {
+        const chip = document.createElement('span');
+        chip.className = 'gws-attachment-chip';
+        chip.textContent = att.filename + ' (' + Math.round((att.size || 0) / 1024) + ' KB)';
+        attDiv.appendChild(chip);
+      });
+      panel.appendChild(attDiv);
+    }
 
     // Action buttons
     const actions = document.createElement('div');
     actions.className = 'gws-email-actions';
 
+    const gId = email.gmail_id || email.id;
+
+    const markReadBtn = document.createElement('button');
+    markReadBtn.className = 'gws-btn gws-btn-secondary';
+    markReadBtn.textContent = 'Mark as Read';
+    markReadBtn.addEventListener('click', function () { markAsRead(gId); });
+    actions.appendChild(markReadBtn);
+
     const replyBtn = document.createElement('button');
     replyBtn.className = 'gws-btn gws-btn-primary';
     replyBtn.textContent = 'Reply';
-    const gId = email.gmail_id || email.id;
     replyBtn.addEventListener('click', function () { openCompose(gId); });
     actions.appendChild(replyBtn);
 
@@ -330,6 +382,13 @@
     fwdBtn.textContent = 'Forward';
     fwdBtn.addEventListener('click', function () { forwardEmail(email); });
     actions.appendChild(fwdBtn);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'gws-btn gws-btn-ghost';
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.style.color = '#ef4444';
+    deleteBtn.addEventListener('click', function () { trashEmail(gId); });
+    actions.appendChild(deleteBtn);
 
     panel.appendChild(actions);
   }
@@ -348,6 +407,45 @@
         (email.body || email.body_text || '');
     }
   }
+
+  window.markAsRead = async function (gmailId) {
+    if (!_currentAccountId) return;
+    try {
+      await api('POST', '/api/email/' + encodeURIComponent(_currentAccountId) +
+        '/' + encodeURIComponent(gmailId) + '/read', {});
+      toast('Marked as read.');
+      _emails.forEach(function (e) {
+        if ((e.gmail_id || e.id) === gmailId) e.is_read = true;
+      });
+      renderEmailList();
+    } catch (err) {
+      toast('Failed: ' + err.message, true);
+    }
+  };
+
+  window.trashEmail = async function (gmailId) {
+    if (!_currentAccountId) return;
+    if (!confirm('Move this email to trash?')) return;
+    try {
+      await api('DELETE', '/api/email/' + encodeURIComponent(_currentAccountId) +
+        '/' + encodeURIComponent(gmailId), {});
+      toast('Email deleted.');
+      _emails = _emails.filter(function (e) { return (e.gmail_id || e.id) !== gmailId; });
+      renderEmailList();
+      var panel = document.getElementById('gwsEmailDetail');
+      if (panel) {
+        clearEl(panel);
+        var empty = document.createElement('div');
+        empty.className = 'gws-empty-state';
+        var p = document.createElement('p');
+        p.textContent = 'Select an email to read it.';
+        empty.appendChild(p);
+        panel.appendChild(empty);
+      }
+    } catch (err) {
+      toast('Delete failed: ' + err.message, true);
+    }
+  };
 
   window.syncInbox = async function () {
     if (!_currentAccountId) { toast('Select an account first.', true); return; }

@@ -221,6 +221,20 @@ def _get_module_stats():
                 core_stats["by_type"]["html"]["files"] += 1
                 core_stats["by_type"]["html"]["lines"] += lines
 
+    # Add template includes (nav bars, theme controls)
+    includes_dir = os.path.join(PLATFORM_ROOT, "templates", "includes")
+    if os.path.isdir(includes_dir):
+        for fname in os.listdir(includes_dir):
+            fpath = os.path.join(includes_dir, fname)
+            if os.path.isfile(fpath) and fname.endswith(".html"):
+                lines = _count_lines(fpath)
+                core_stats["files"] += 1
+                core_stats["lines"] += lines
+                if "html" not in core_stats["by_type"]:
+                    core_stats["by_type"]["html"] = {"files": 0, "lines": 0}
+                core_stats["by_type"]["html"]["files"] += 1
+                core_stats["by_type"]["html"]["lines"] += lines
+
     # Add services layer
     services_dir = os.path.join(PLATFORM_ROOT, "services")
     if os.path.isdir(services_dir):
@@ -243,6 +257,24 @@ def _get_module_stats():
         "verify-2fa.css",
         "competitors.css",
         "directory.css",
+        "components.css",
+        "animations.css",
+        "theme.css",
+        "light-mode.css",
+        "mobile.css",
+        "lcars-panels.css",
+        "lcars-frames.css",
+        "category-nav.css",
+        "station-ops.css",
+        "glass-nav.css",
+        "holo-sphere.css",
+        "neural-core.css",
+        "pixel-crew.css",
+        "admin-ops.css",
+        "agent-badge.css",
+        "ops-alert-bar.css",
+        "dual-chat.css",
+        "xterm.css",
     ]
     css_dir = os.path.join(PLATFORM_ROOT, "static", "css")
     if os.path.isdir(css_dir):
@@ -265,6 +297,19 @@ def _get_module_stats():
         "dashboard.js",
         "verify-2fa.js",
         "directory.js",
+        "archie-time.js",
+        "archie-i18n.js",
+        "archie-theme.js",
+        "station-ops.js",
+        "glass-nav.js",
+        "holo-sphere.js",
+        "neural-core.js",
+        "pixel-crew.js",
+        "agent-badge.js",
+        "ops-alert-bar.js",
+        "collaboration.js",
+        "competitors-i18n.js",
+        "devhq.js",
     ]
     js_dir = os.path.join(PLATFORM_ROOT, "static", "js")
     if os.path.isdir(js_dir):

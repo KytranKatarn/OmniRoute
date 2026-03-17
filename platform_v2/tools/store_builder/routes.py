@@ -1033,7 +1033,7 @@ def create_category(store_id):
 
 # Import Printful integration if available
 try:
-    from printful_integration import sync_products, get_product_catalog
+    from tools.store_builder.printful_integration import sync_products, get_product_catalog
 
     PRINTFUL_AVAILABLE = True
 except ImportError:

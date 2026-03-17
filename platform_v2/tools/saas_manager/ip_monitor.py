@@ -63,7 +63,7 @@ def check_and_update_ip():
 
 def _update_dns_records(new_ip):
     """Update all Hostinger DNS A records to point to new IP."""
-    from hostinger_integration import get_hostinger_api
+    from services.hostinger_integration import get_hostinger_api
 
     updated = []
     api = get_hostinger_api()

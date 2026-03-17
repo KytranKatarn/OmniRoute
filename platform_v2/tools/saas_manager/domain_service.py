@@ -153,7 +153,7 @@ def setup_domain(domain_row, public_ip):
     Returns:
         dict with status of each step
     """
-    from hostinger_integration import get_hostinger_api
+    from services.hostinger_integration import get_hostinger_api
 
     result = {"dns": None, "proxy": None, "ssl": None}
     domain = domain_row["domain"]

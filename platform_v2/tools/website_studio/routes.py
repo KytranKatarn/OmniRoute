@@ -2346,7 +2346,7 @@ def delete_directory_entry(entry_id):
 # ============================================================================
 
 try:
-    from hostinger_integration import get_hostinger_api
+    from services.hostinger_integration import get_hostinger_api
 
     HOSTINGER_AVAILABLE = True
 except ImportError:

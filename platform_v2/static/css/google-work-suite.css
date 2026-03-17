@@ -455,6 +455,59 @@
   flex-wrap: wrap;
 }
 
+/* ── AI Analysis Badges ─────────────────────────────────── */
+
+.gws-ai-bar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--gws-border, #234);
+}
+
+.gws-ai-badge {
+  font-size: 0.68rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(0, 204, 255, 0.08);
+  color: rgba(0, 204, 255, 0.8);
+  border: 1px solid rgba(0, 204, 255, 0.15);
+  font-family: 'Antonio', sans-serif;
+  letter-spacing: 0.5px;
+}
+
+.gws-ai-badge.gws-ai-urgent {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.gws-ai-badge.gws-ai-high {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+/* ── Attachment Chips ───────────────────────────────────── */
+
+.gws-email-attachments {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.gws-attachment-chip {
+  font-size: 0.7rem;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 /* ── Rules Tab ───────────────────────────────────────────── */
 
 .gws-rules-toolbar {

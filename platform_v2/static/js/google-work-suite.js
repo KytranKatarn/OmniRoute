@@ -452,6 +452,18 @@
     fwdBtn.addEventListener('click', function () { forwardEmail(email); });
     actions.appendChild(fwdBtn);
 
+    const analyzeBtn = document.createElement('button');
+    analyzeBtn.className = 'gws-btn gws-btn-secondary';
+    analyzeBtn.textContent = 'AI Analyze';
+    analyzeBtn.addEventListener('click', function () { analyzeEmailAction(gId); });
+    actions.appendChild(analyzeBtn);
+
+    const kbBtn = document.createElement('button');
+    kbBtn.className = 'gws-btn gws-btn-secondary';
+    kbBtn.textContent = 'Save to KB';
+    kbBtn.addEventListener('click', function () { fileToKB(gId); });
+    actions.appendChild(kbBtn);
+
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'gws-btn gws-btn-ghost';
     deleteBtn.textContent = 'Delete';
@@ -460,6 +472,26 @@
     actions.appendChild(deleteBtn);
 
     panel.appendChild(actions);
+
+    // Show AI analysis badge if already analyzed
+    if (email.ai_priority || email.ai_sentiment) {
+      var aiBar = document.createElement('div');
+      aiBar.className = 'gws-ai-bar';
+      var badges = [];
+      if (email.ai_priority) badges.push('Priority: ' + email.ai_priority.toUpperCase());
+      if (email.ai_sentiment) badges.push('Sentiment: ' + email.ai_sentiment);
+      if (email.ai_category) badges.push('Category: ' + email.ai_category);
+      if (email.ai_summary) badges.push(email.ai_summary);
+      badges.forEach(function(txt) {
+        var badge = document.createElement('span');
+        badge.className = 'gws-ai-badge';
+        if (txt.indexOf('critical') >= 0 || txt.indexOf('urgent') >= 0) badge.classList.add('gws-ai-urgent');
+        if (txt.indexOf('high') >= 0) badge.classList.add('gws-ai-high');
+        badge.textContent = txt;
+        aiBar.appendChild(badge);
+      });
+      header.appendChild(aiBar);
+    }
   }
 
   function forwardEmail(email) {
@@ -476,6 +508,38 @@
         (email.body || email.body_text || '');
     }
   }
+
+  window.analyzeEmailAction = async function (gmailId) {
+    if (!_currentAccountId) return;
+    try {
+      toast('Analyzing...');
+      var data = await api('POST', '/api/email/' + encodeURIComponent(_currentAccountId) +
+        '/' + encodeURIComponent(gmailId) + '/analyze', {});
+      if (data.success) {
+        toast('Analysis: ' + (data.priority || '') + ' / ' + (data.category || ''));
+        viewEmail(gmailId);
+      } else {
+        toast('Analysis failed: ' + (data.error || ''), true);
+      }
+    } catch (err) {
+      toast('Analysis failed: ' + err.message, true);
+    }
+  };
+
+  window.fileToKB = async function (gmailId) {
+    if (!_currentAccountId) return;
+    try {
+      var data = await api('POST', '/api/email/' + encodeURIComponent(_currentAccountId) +
+        '/' + encodeURIComponent(gmailId) + '/file-kb', {});
+      if (data.success) {
+        toast('Saved to Knowledge Base (#' + data.kb_id + ')');
+      } else {
+        toast('Failed: ' + (data.error || ''), true);
+      }
+    } catch (err) {
+      toast('Failed: ' + err.message, true);
+    }
+  };
 
   window.markAsRead = async function (gmailId) {
     if (!_currentAccountId) return;

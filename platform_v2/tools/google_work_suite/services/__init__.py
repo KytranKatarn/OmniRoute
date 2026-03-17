@@ -9,4 +9,8 @@ from .gmail_service import (
     get_email,
     send_email,
     sync_inbox,
+    analyze_email,
+    analyze_batch,
+    file_to_knowledge_base,
+    bulk_operation,
 )

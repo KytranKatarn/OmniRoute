@@ -5,11 +5,28 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/google-work-suite.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/station-ops.css') }}">
 {% endblock %}
 
 {% block content %}
 {% include 'includes/business_tools_nav.html' %}
 <div class="gws-wrapper" data-user-id="{{ current_user.id if current_user else '' }}">
+
+  <!-- Station Operations Terminal -->
+  <div class="stn-ops-terminal" id="gwsOpsTerminal" style="--stn-accent: #0cf; margin: 12px 16px;">
+    <div class="stn-ops-header">
+      <div class="stn-ops-elbow"></div>
+      <div class="stn-ops-title">COMMUNICATIONS OPERATIONS</div>
+      <div class="stn-ops-status" id="gwsOpsOnline">
+        <span class="stn-ops-dot"></span> ONLINE
+      </div>
+    </div>
+    <div class="stn-ops-body">
+      <div id="gwsOpsAgents"></div>
+      <div id="gwsOpsJobs"></div>
+      <div id="gwsOpsCommands"></div>
+    </div>
+  </div>
 
   <!-- Top Bar -->
   <div class="gws-top-bar">
@@ -379,9 +396,65 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{{ url_for('static', filename='js/station-ops.js') }}"></script>
 <script src="{{ url_for('static', filename='js/google-work-suite.js') }}"></script>
 <script>
-  // Re-init Lucide icons rendered by Jinja
   if (typeof lucide !== 'undefined') { lucide.createIcons(); }
+
+  // Station Operations
+  var _gwsOps = null;
+  function initGwsStation() {
+    if (typeof StationOps === 'undefined') return;
+    _gwsOps = new StationOps({
+      stationCode: "OPERATIONS",
+      moduleSource: "google_work_suite",
+      agentsElId: "gwsOpsAgents",
+      jobsElId: "gwsOpsJobs",
+      commandsElId: "gwsOpsCommands",
+      statusElId: "gwsOpsOnline",
+      commands: [
+        { label: "SYNC INBOX", cls: "purple", fn: "gwsStationSync()", id: "gwsCmdSync" },
+        { label: "ANALYZE EMAILS", cls: "cyan", fn: "gwsStationAnalyze()", id: "gwsCmdAnalyze" },
+        { label: "COMPOSE", cls: "green", fn: "openCompose(null)", id: "gwsCmdCompose" }
+      ],
+      onCapacityChange: function(atCap) {
+        ['gwsCmdSync','gwsCmdAnalyze'].forEach(function(id) {
+          var btn = document.getElementById(id);
+          if (btn) { btn.disabled = atCap; }
+        });
+      }
+    });
+    refreshGwsStation();
+  }
+
+  function refreshGwsStation() {
+    if (!_gwsOps) return;
+    fetch('/tools/google-work-suite/api/station')
+      .then(function(r) { return r.json(); })
+      .then(function(data) { _gwsOps.render(data); })
+      .catch(function() {});
+  }
+
+  window.gwsStationSync = function() {
+    var sel = document.getElementById('gwsAccountSelect');
+    if (sel && sel.value) { syncInbox(); refreshGwsStation(); }
+  };
+
+  window.gwsStationAnalyze = function() {
+    var sel = document.getElementById('gwsAccountSelect');
+    if (!sel || !sel.value) return;
+    fetch('/tools/google-work-suite/api/email/' + sel.value + '/analyze-batch', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({limit: 5})
+    }).then(function(r) { return r.json(); })
+      .then(function(d) {
+        var count = d.analyzed || 0;
+        if (typeof toast !== 'undefined') toast('Analyzed ' + count + ' emails');
+        refreshGwsStation();
+      });
+  };
+
+  document.addEventListener('DOMContentLoaded', initGwsStation);
+  setInterval(refreshGwsStation, 30000);
 </script>
 {% endblock %}

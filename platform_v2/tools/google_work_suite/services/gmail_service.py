@@ -158,7 +158,8 @@ def get_inbox(account_id, page=1, per_page=20, label=None):
         with get_db_cursor() as (conn, cur):
             query = (
                 "SELECT id, gmail_id, thread_id, subject, sender, recipients, "
-                "received_at, labels, has_attachments, is_read, snippet "
+                "received_at, labels, has_attachments, is_read, snippet, "
+                "ai_sentiment, ai_priority, ai_category, ai_summary, filed_to_kb "
                 "FROM google_email_cache WHERE account_id=%s"
             )
             params = [account_id]
@@ -205,7 +206,7 @@ def get_email(account_id, gmail_id):
             elif mime == "text/html" and not body_html:
                 body_html = _decode_body(data)
 
-        return {
+        result = {
             "gmail_id": gmail_id,
             "thread_id": msg.get("threadId"),
             "subject": headers.get("subject", "(no subject)"),
@@ -218,6 +219,26 @@ def get_email(account_id, gmail_id):
             "attachments": attachments,
             "snippet": msg.get("snippet", ""),
         }
+
+        # Merge AI analysis from cache if available
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT ai_sentiment, ai_priority, ai_category, ai_summary, filed_to_kb "
+                    "FROM google_email_cache WHERE account_id = %s AND gmail_id = %s",
+                    (account_id, gmail_id),
+                )
+                cached = cur.fetchone()
+                if cached:
+                    result["ai_sentiment"] = cached["ai_sentiment"]
+                    result["ai_priority"] = cached["ai_priority"]
+                    result["ai_category"] = cached["ai_category"]
+                    result["ai_summary"] = cached["ai_summary"]
+                    result["filed_to_kb"] = cached["filed_to_kb"]
+        except Exception:
+            pass
+
+        return result
     except Exception as e:
         logger.error("get_email failed (account=%s, id=%s): %s", account_id, gmail_id, e)
         raise
@@ -539,3 +560,166 @@ def _execute_email_action(account_id, gmail_id, sender, subject, decision):
         # 'ignore' = mark read only (handled by caller)
     except Exception as e:
         logger.warning("_execute_email_action failed (action=%s, msg=%s): %s", decision.get("action"), gmail_id, e)
+
+
+# ---------------------------------------------------------------------------
+# AI Email Analysis
+# ---------------------------------------------------------------------------
+
+
+def analyze_email(account_id, gmail_id):
+    """
+    Analyze a single email using AI Bridge. Returns sentiment, priority,
+    category, and summary. Stores results in google_email_cache.
+    """
+    try:
+        email = get_email(account_id, gmail_id)
+        body = email.get("body_plain") or email.get("snippet") or ""
+        subject = email.get("subject", "")
+        sender = email.get("sender", "")
+
+        prompt = (
+            "Analyze this email and return ONLY valid JSON with these fields:\n"
+            '{"sentiment": "positive|neutral|negative|urgent",\n'
+            ' "priority": "low|medium|high|critical",\n'
+            ' "category": "business|personal|newsletter|notification|spam|support|finance|social",\n'
+            ' "summary": "one-line summary of the email"}\n\n'
+            f"From: {sender}\nSubject: {subject}\n\n{body[:2000]}"
+        )
+
+        import json
+        from ai_bridge.archie_bridge import dispatch_to_bridge
+
+        result = dispatch_to_bridge(
+            prompt=prompt,
+            system_prompt="You are an email analysis assistant. Return ONLY valid JSON, no markdown.",
+            model_hint="fast",
+        )
+
+        text = result.get("response", "") if isinstance(result, dict) else str(result)
+        # Extract JSON from response
+        start = text.find("{")
+        end = text.rfind("}") + 1
+        if start >= 0 and end > start:
+            analysis = json.loads(text[start:end])
+        else:
+            analysis = {"sentiment": "neutral", "priority": "medium", "category": "notification", "summary": subject}
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """UPDATE google_email_cache
+                   SET ai_sentiment = %s, ai_priority = %s, ai_category = %s,
+                       ai_summary = %s, ai_analyzed_at = NOW()
+                   WHERE account_id = %s AND gmail_id = %s""",
+                (
+                    analysis.get("sentiment", "neutral"),
+                    analysis.get("priority", "medium"),
+                    analysis.get("category", "notification"),
+                    analysis.get("summary", subject)[:500],
+                    account_id,
+                    gmail_id,
+                ),
+            )
+
+        logger.info(
+            "Analyzed email %s: priority=%s, category=%s", gmail_id, analysis.get("priority"), analysis.get("category")
+        )
+        return analysis
+    except Exception as e:
+        logger.error("analyze_email failed (account=%s, msg=%s): %s", account_id, gmail_id, e)
+        return {"error": str(e)}
+
+
+def analyze_batch(account_id, limit=5):
+    """Analyze up to `limit` unanalyzed emails for an account."""
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """SELECT gmail_id FROM google_email_cache
+               WHERE account_id = %s AND ai_analyzed_at IS NULL
+               ORDER BY received_at DESC LIMIT %s""",
+            (account_id, limit),
+        )
+        rows = cur.fetchall()
+
+    results = []
+    for row in rows:
+        r = analyze_email(account_id, row["gmail_id"])
+        results.append(r)
+    return {"analyzed": len(results), "results": results}
+
+
+def file_to_knowledge_base(account_id, gmail_id):
+    """Save an email to the knowledge base as a vault_note."""
+    try:
+        email = get_email(account_id, gmail_id)
+        subject = email.get("subject", "(no subject)")
+        sender = email.get("sender", "")
+        body = email.get("body_plain") or email.get("snippet") or ""
+        date = email.get("date", "")
+
+        content = f"From: {sender}\nDate: {date}\nSubject: {subject}\n\n{body}"
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """INSERT INTO knowledge_base (title, content, category, tags, source)
+                   VALUES (%s, %s, 'vault_note', %s, 'google_work_suite')
+                   RETURNING id""",
+                (
+                    f"Email: {subject}"[:200],
+                    content[:10000],
+                    f"email,gmail,{email.get('ai_category', 'general')}",
+                ),
+            )
+            kb_id = cur.fetchone()["id"]
+
+            cur.execute(
+                "UPDATE google_email_cache SET filed_to_kb = TRUE WHERE account_id = %s AND gmail_id = %s",
+                (account_id, gmail_id),
+            )
+
+        logger.info("Filed email %s to knowledge base as #%d", gmail_id, kb_id)
+        return {"success": True, "kb_id": kb_id}
+    except Exception as e:
+        logger.error("file_to_knowledge_base failed: %s", e)
+        return {"error": str(e)}
+
+
+def bulk_operation(account_id, gmail_ids, operation):
+    """
+    Perform bulk operations on multiple emails.
+    Operations: mark_read, mark_unread, star, unstar, archive, trash
+    """
+    service = get_gmail_client(account_id)
+    count = 0
+    for gid in gmail_ids:
+        try:
+            if operation == "mark_read":
+                service.users().messages().modify(userId="me", id=gid, body={"removeLabelIds": ["UNREAD"]}).execute()
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        "UPDATE google_email_cache SET is_read=TRUE WHERE account_id=%s AND gmail_id=%s",
+                        (account_id, gid),
+                    )
+            elif operation == "mark_unread":
+                service.users().messages().modify(userId="me", id=gid, body={"addLabelIds": ["UNREAD"]}).execute()
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        "UPDATE google_email_cache SET is_read=FALSE WHERE account_id=%s AND gmail_id=%s",
+                        (account_id, gid),
+                    )
+            elif operation == "star":
+                service.users().messages().modify(userId="me", id=gid, body={"addLabelIds": ["STARRED"]}).execute()
+            elif operation == "unstar":
+                service.users().messages().modify(userId="me", id=gid, body={"removeLabelIds": ["STARRED"]}).execute()
+            elif operation == "archive":
+                service.users().messages().modify(userId="me", id=gid, body={"removeLabelIds": ["INBOX"]}).execute()
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute("DELETE FROM google_email_cache WHERE account_id=%s AND gmail_id=%s", (account_id, gid))
+            elif operation == "trash":
+                service.users().messages().trash(userId="me", id=gid).execute()
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute("DELETE FROM google_email_cache WHERE account_id=%s AND gmail_id=%s", (account_id, gid))
+            count += 1
+        except Exception as e:
+            logger.warning("bulk_operation %s failed for %s: %s", operation, gid, e)
+    return {"success": True, "count": count}

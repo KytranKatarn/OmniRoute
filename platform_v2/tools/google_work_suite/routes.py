@@ -306,6 +306,103 @@ def sync_inbox(account_id):
 
 
 # ---------------------------------------------------------------------------
+# AI Analysis, KB Filing, Bulk Operations
+# ---------------------------------------------------------------------------
+
+
+@google_work_suite_bp.route("/api/email/<int:account_id>/<gmail_id>/analyze", methods=["POST"])
+@login_required
+def analyze_email_route(account_id, gmail_id):
+    from .services.gmail_service import analyze_email
+
+    if not _verify_ownership(account_id):
+        return jsonify({"error": "Not found or permission denied"}), 403
+
+    result = analyze_email(account_id, gmail_id)
+    if "error" in result:
+        return jsonify(result), 500
+    return jsonify({"success": True, **result})
+
+
+@google_work_suite_bp.route("/api/email/<int:account_id>/analyze-batch", methods=["POST"])
+@login_required
+def analyze_batch_route(account_id):
+    from .services.gmail_service import analyze_batch
+
+    if not _verify_ownership(account_id):
+        return jsonify({"error": "Not found or permission denied"}), 403
+
+    data = request.get_json() or {}
+    limit = min(int(data.get("limit", 5)), 20)
+    result = analyze_batch(account_id, limit=limit)
+    return jsonify(result)
+
+
+@google_work_suite_bp.route("/api/email/<int:account_id>/<gmail_id>/file-kb", methods=["POST"])
+@login_required
+def file_to_kb_route(account_id, gmail_id):
+    from .services.gmail_service import file_to_knowledge_base
+
+    if not _verify_ownership(account_id):
+        return jsonify({"error": "Not found or permission denied"}), 403
+
+    result = file_to_knowledge_base(account_id, gmail_id)
+    if "error" in result:
+        return jsonify(result), 500
+    return jsonify(result)
+
+
+@google_work_suite_bp.route("/api/email/<int:account_id>/bulk", methods=["POST"])
+@login_required
+def bulk_operation_route(account_id):
+    from .services.gmail_service import bulk_operation
+
+    if not _verify_ownership(account_id):
+        return jsonify({"error": "Not found or permission denied"}), 403
+
+    data = request.get_json() or {}
+    gmail_ids = data.get("gmail_ids", [])
+    operation = data.get("operation", "")
+
+    if not gmail_ids or operation not in ("mark_read", "mark_unread", "star", "unstar", "archive", "trash"):
+        return jsonify({"error": "gmail_ids and valid operation required"}), 400
+
+    result = bulk_operation(account_id, gmail_ids, operation)
+    return jsonify(result)
+
+
+# ---------------------------------------------------------------------------
+# Station Operations
+# ---------------------------------------------------------------------------
+
+
+@google_work_suite_bp.route("/api/station")
+@login_required
+def station_data():
+    """Return station data for the StationOps panel."""
+    from database import get_db_cursor
+
+    with get_db_cursor() as (conn, cur):
+        # Get recent jobs for this module
+        cur.execute(
+            """SELECT id, job_type, status, agent_name, prompt,
+                      completed_steps, total_steps, created_at, updated_at
+               FROM bridge_jobs
+               WHERE module_source = 'google_work_suite'
+               ORDER BY created_at DESC LIMIT 10"""
+        )
+        jobs = []
+        for row in cur.fetchall():
+            r = dict(row)
+            for k, v in r.items():
+                if hasattr(v, "isoformat"):
+                    r[k] = v.isoformat()
+            jobs.append(r)
+
+    return jsonify({"jobs": jobs, "station_code": "OPERATIONS"})
+
+
+# ---------------------------------------------------------------------------
 # Rules
 # ---------------------------------------------------------------------------
 

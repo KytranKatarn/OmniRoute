@@ -741,7 +741,12 @@ body.light-mode .cb-search-result-icon {
     text-transform: uppercase;
     color: rgba(255, 255, 255, 0.7);
 }
-.cb-notif-mark-all {
+.cb-notif-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+.cb-notif-mark-all, .cb-notif-clear-all {
     background: none;
     border: 1px solid var(--archie-green-alpha-20);
     color: var(--archie-green);
@@ -753,10 +758,19 @@ body.light-mode .cb-search-result-icon {
     letter-spacing: 0.5px;
     transition: all 0.2s ease;
 }
-.cb-notif-mark-all:hover {
+.cb-notif-mark-all:hover, .cb-notif-clear-all:hover {
     background: var(--archie-green-alpha-10);
     border-color: var(--archie-green-alpha-30);
     color: var(--archie-green);
+}
+.cb-notif-clear-all {
+    border-color: rgba(255, 59, 59, 0.2);
+    color: var(--archie-danger);
+}
+.cb-notif-clear-all:hover {
+    background: rgba(255, 59, 59, 0.1);
+    border-color: rgba(255, 59, 59, 0.3);
+    color: var(--archie-danger);
 }
 .cb-notif-list {
     max-height: 360px;
@@ -2722,7 +2736,10 @@ body.light-mode .module-card-accent {
         <div class="cb-notif-popover" id="cbNotifPopover">
             <div class="cb-notif-header">
                 <span class="cb-notif-title" data-i18n="js.notif.title">Notifications</span>
-                <button class="cb-notif-mark-all" id="cbNotifMarkAll" data-i18n="js.notif.mark_all_read">Mark all read</button>
+                <div class="cb-notif-actions">
+                    <button class="cb-notif-mark-all" id="cbNotifMarkAll" data-i18n="js.notif.mark_all_read">Mark all read</button>
+                    <button class="cb-notif-clear-all" id="cbNotifClearAll" title="Archive all notifications">Clear all</button>
+                </div>
             </div>
             <div class="cb-notif-list" id="cbNotifList">
                 <div class="cb-notif-empty" data-i18n="js.notif.loading">Loading...</div>
@@ -3504,6 +3521,23 @@ window.timeAgo = function timeAgo(isoString) {
                         }
                     })
                     .catch(function(err) { console.warn('Mark all read failed:', err); });
+            });
+        }
+
+        // Clear all (archive all notifications)
+        var notifClearAll = document.getElementById('cbNotifClearAll');
+        if (notifClearAll) {
+            notifClearAll.addEventListener('click', function() {
+                if (!confirm('Archive all notifications? This clears the list.')) return;
+                fetch('/api/notifications/clear-all', { method: 'POST' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (data.success) {
+                            fetchNotifications();
+                            fetchNotifCount();
+                        }
+                    })
+                    .catch(function(err) { console.warn('Clear all failed:', err); });
             });
         }
     }

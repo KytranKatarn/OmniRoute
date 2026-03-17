@@ -3148,27 +3148,74 @@ def export_notifications():
 @app.route("/api/notifications/archive-old", methods=["POST"])
 @login_required
 def archive_old_notifications():
-    """Archive notifications older than specified days"""
-    # Check if user is admin
+    """Archive notifications older than specified days (default 7).
+    Archives ALL old notifications regardless of read status to prevent pile-up.
+    """
     if not getattr(current_user, "is_admin", False):
         return jsonify({"success": False, "error": "Admin access required"}), 403
 
     try:
-        days = request.json.get("days", 30)
+        days = int(request.json.get("days", 7)) if request.json else 7
+        days = max(1, min(days, 90))  # Clamp to 1-90 days
 
         conn = get_db()
         cur = conn.cursor()
 
-        # Archive old read notifications
+        # Archive ALL old notifications (read or unread) to prevent stale pile-up
         cur.execute(
             """
             UPDATE system_notifications
             SET is_archived = TRUE
-            WHERE is_read = TRUE
-            AND created_at < NOW() - INTERVAL '%s days'
+            WHERE created_at < NOW() - make_interval(days => %s)
             AND is_archived = FALSE
         """,
             (days,),
+        )
+
+        archived_count = cur.rowcount
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "archived": archived_count})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/notifications/clear-all", methods=["POST"])
+@login_required
+def clear_all_notifications():
+    """Archive all visible (non-archived) notifications for cleanup.
+    Also marks them as read for the current user.
+    """
+    if not getattr(current_user, "is_admin", False):
+        return jsonify({"success": False, "error": "Admin access required"}), 403
+
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        # First mark all as read for this user
+        cur.execute(
+            """
+            INSERT INTO notification_reads (notification_id, user_id, read_at)
+            SELECT id, %s, NOW()
+            FROM system_notifications
+            WHERE is_archived = FALSE
+              AND id NOT IN (SELECT notification_id FROM notification_reads WHERE user_id = %s)
+            ON CONFLICT (notification_id, user_id) DO NOTHING
+        """,
+            (current_user.id, current_user.id),
+        )
+
+        # Then archive everything
+        cur.execute(
+            """
+            UPDATE system_notifications
+            SET is_archived = TRUE
+            WHERE is_archived = FALSE
+        """
         )
 
         archived_count = cur.rowcount

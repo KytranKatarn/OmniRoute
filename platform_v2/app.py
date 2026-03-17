@@ -2050,171 +2050,14 @@ def get_module_health(module_id):
 @login_required
 def get_notifications():
     """Blended notifications — grouped system_notifications + bridge alerts + security."""
-
-    def _ts_notif(dt):
-        if dt is None:
-            return None
-        return dt.isoformat() + "Z" if dt.tzinfo is None else dt.isoformat()
+    from services.notification_service import get_notifications as _get_notifications
 
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        notifications_list = []
-
-        # 1. System notifications — grouped by title+source (last 7 days)
-        is_admin = getattr(current_user, "is_admin", False)
-        user_id = current_user.id
-
-        if is_admin:
-            visibility_filter = ""
-            notif_params = [user_id]
-        else:
-            visibility_filter = "AND (sn.visibility = 'all' OR (sn.visibility = 'user' AND sn.target_user_id = %s))"
-            notif_params = [user_id, user_id]
-
-        cur.execute(
-            f"""
-            SELECT title, source, type, priority,
-                   MAX(message) as message,
-                   MAX(sn.id) as id,
-                   COUNT(*) as group_count,
-                   MAX(sn.created_at) as latest,
-                   COUNT(*) FILTER (WHERE nr.notification_id IS NULL) = 0 as all_read
-            FROM system_notifications sn
-            LEFT JOIN notification_reads nr ON nr.notification_id = sn.id AND nr.user_id = %s
-            WHERE sn.is_archived = FALSE
-              AND sn.created_at >= NOW() - INTERVAL '7 days'
-              {visibility_filter}
-            GROUP BY title, source, type, priority
-            ORDER BY MAX(sn.created_at) DESC
-            LIMIT 20
-        """,
-            notif_params,
+        notifications = _get_notifications(
+            user_id=current_user.id,
+            is_admin=getattr(current_user, "is_admin", False),
         )
-        for n in cur.fetchall():
-            count = n["group_count"]
-            title = n["title"] or "Notification"
-            if count > 1:
-                title = f"{title} ({count}x)"
-            notifications_list.append(
-                {
-                    "id": n["id"],
-                    "type": n["type"] or "info",
-                    "title": title,
-                    "message": n["message"],
-                    "source": n["source"] or "system",
-                    "is_read": n["all_read"],
-                    "priority": n["priority"] or "normal",
-                    "created_at": _ts_notif(n["latest"]),
-                }
-            )
-
-        # 2-4. Admin-only blended sources
-        if is_admin:
-
-            # 2. Failed bridge jobs (last 24h) — grouped by module+capability
-            cur.execute(
-                """
-                SELECT t.module_source, t.capability,
-                       LEFT(t.error_message, 120) as error_summary,
-                       COUNT(*) as fail_count, MAX(t.created_at) as latest,
-                       a.first_name, a.last_name
-                FROM task_execution_log t
-                LEFT JOIN agents a ON a.name = SPLIT_PART(t.agent_name, '→', 1)
-                WHERE t.success = false AND t.created_at >= NOW() - INTERVAL '24 hours'
-                GROUP BY t.module_source, t.capability,
-                         LEFT(t.error_message, 120), a.first_name, a.last_name
-                ORDER BY latest DESC
-                LIMIT 3
-            """
-            )
-            for row in cur.fetchall():
-                first = (row["first_name"] or "").strip()
-                last = (row["last_name"] or "").strip()
-                agent = f"{first} {last}".strip() or "Bridge"
-                module = (row["module_source"] or "bridge").replace("_", " ").title()
-                count = row["fail_count"]
-                notifications_list.append(
-                    {
-                        "id": 0,
-                        "type": "warning" if count < 10 else "error",
-                        "title": f"{module}: {count} failed {row['capability']}",
-                        "message": f"{agent} — {row['error_summary'] or 'Unknown error'}",
-                        "source": "bridge",
-                        "is_read": True,
-                        "priority": "high" if count >= 10 else "medium",
-                        "created_at": _ts_notif(row["latest"]),
-                    }
-                )
-
-            # 3. Failed logins (last 24h) — grouped by username
-            cur.execute(
-                """
-                SELECT username, COUNT(*) as attempts, MAX(attempted_at) as latest,
-                       (array_agg(DISTINCT ip_address))[1:2] as ips
-                FROM failed_logins
-                WHERE attempted_at >= NOW() - INTERVAL '24 hours'
-                GROUP BY username
-                ORDER BY attempts DESC
-                LIMIT 3
-            """
-            )
-            for row in cur.fetchall():
-                count = row["attempts"]
-                ips = ", ".join(row["ips"]) if row["ips"] else "unknown"
-                notifications_list.append(
-                    {
-                        "id": 0,
-                        "type": "warning" if count < 5 else "error",
-                        "title": f"{count} failed login{'s' if count > 1 else ''} — {row['username']}",
-                        "message": f"From IP: {ips}",
-                        "source": "security",
-                        "is_read": True,
-                        "priority": "high" if count >= 5 else "medium",
-                        "created_at": _ts_notif(row["latest"]),
-                    }
-                )
-
-            # 4. Unresolved system alerts
-            cur.execute(
-                """
-                SELECT alert_type, severity, message, created_at
-                FROM system_alerts
-                WHERE resolved = false
-                ORDER BY created_at DESC
-                LIMIT 3
-            """
-            )
-            for row in cur.fetchall():
-                notifications_list.append(
-                    {
-                        "id": 0,
-                        "type": "error" if row["severity"] in ("critical", "error") else "warning",
-                        "title": row["alert_type"].replace("_", " ").title(),
-                        "message": row["message"],
-                        "source": "system",
-                        "is_read": True,
-                        "priority": row["severity"],
-                        "created_at": _ts_notif(row["created_at"]),
-                    }
-                )
-
-        cur.close()
-        conn.close()
-
-        # Sort: unread first, then by timestamp DESC
-        notifications_list.sort(
-            key=lambda n: (n["is_read"], n.get("created_at") or ""),
-            reverse=False,
-        )
-        # Unread first (is_read=False sorts before True when reverse=False)
-        # Within each group, newest first
-        unread = [n for n in notifications_list if not n["is_read"]]
-        read = [n for n in notifications_list if n["is_read"]]
-        unread.sort(key=lambda n: n.get("created_at") or "", reverse=True)
-        read.sort(key=lambda n: n.get("created_at") or "", reverse=True)
-
-        return jsonify({"success": True, "notifications": (unread + read)[:30]})
+        return jsonify({"success": True, "notifications": notifications})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -2223,39 +2066,10 @@ def get_notifications():
 @login_required
 def mark_notification_read(notification_id):
     """Mark notification and its group as read"""
+    from services.notification_service import mark_read
+
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        # Find the notification's title+source to mark entire group
-        cur.execute(
-            "SELECT title, source FROM system_notifications WHERE id = %s",
-            (notification_id,),
-        )
-        row = cur.fetchone()
-        if row:
-            # Insert read records for all notifications in this group
-            cur.execute(
-                """
-                INSERT INTO notification_reads (notification_id, user_id, read_at)
-                SELECT id, %s, NOW()
-                FROM system_notifications
-                WHERE title = %s AND source = %s AND is_archived = FALSE
-                ON CONFLICT (notification_id, user_id) DO NOTHING
-            """,
-                (current_user.id, row["title"], row["source"]),
-            )
-        else:
-            cur.execute(
-                """
-                INSERT INTO notification_reads (notification_id, user_id, read_at)
-                VALUES (%s, %s, NOW())
-                ON CONFLICT (notification_id, user_id) DO NOTHING
-            """,
-                (notification_id, current_user.id),
-            )
-        conn.commit()
-        cur.close()
-        conn.close()
+        mark_read(notification_id, current_user.id)
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -2265,37 +2079,10 @@ def mark_notification_read(notification_id):
 @login_required
 def mark_all_notifications_read():
     """Mark all visible notifications as read for the current user"""
+    from services.notification_service import mark_all_read
+
     try:
-        conn = get_db()
-        cur = conn.cursor()
-
-        is_admin = getattr(current_user, "is_admin", False)
-        user_id = current_user.id
-
-        if is_admin:
-            visibility_clause = ""
-            params = [user_id, user_id]
-        else:
-            visibility_clause = "AND (visibility = 'all' OR (visibility = 'user' AND target_user_id = %s))"
-            params = [user_id, user_id, user_id]
-
-        cur.execute(
-            f"""
-            INSERT INTO notification_reads (notification_id, user_id, read_at)
-            SELECT id, %s, NOW()
-            FROM system_notifications
-            WHERE is_archived = FALSE
-              AND created_at >= NOW() - INTERVAL '7 days'
-              AND id NOT IN (SELECT notification_id FROM notification_reads WHERE user_id = %s)
-              {visibility_clause}
-            ON CONFLICT (notification_id, user_id) DO NOTHING
-        """,
-            params,
-        )
-
-        conn.commit()
-        cur.close()
-        conn.close()
+        mark_all_read(current_user.id, getattr(current_user, "is_admin", False))
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -2304,94 +2091,23 @@ def mark_all_notifications_read():
 @app.route("/api/notifications", methods=["POST"])
 @login_required
 def create_notification_endpoint():
-    """
-    Create a new notification with grouping and deduplication
+    """Create a new notification with grouping and deduplication"""
+    from services.notification_service import create_notification
 
-    IMPORTANT: All notifications are created as UNREAD (is_read = FALSE)
-    This forces the counter to increment and user must manually mark as read
-    """
     try:
         data = request.json
-        notification_type = data.get("type", "info")
-        title = data.get("title", "Notification")
-        message = data.get("message", "")
-        source = data.get("source", "dashboard")
-        priority = data.get("priority", "normal")
-        source_icon = data.get("source_icon", "")
-        related_action = data.get("related_action", None)
-        visibility = data.get("visibility", "all")
-        target_user_id = data.get("target_user_id", None)
-
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # DEDUPLICATION: Check for duplicate in last 5 minutes
-        cur.execute(
-            """
-            SELECT id, grouped_count FROM system_notifications
-            WHERE message = %s
-            AND type = %s
-            AND source = %s
-            AND created_at > NOW() - INTERVAL '5 minutes'
-            AND is_read = FALSE
-            ORDER BY created_at DESC
-            LIMIT 1
-        """,
-            (message, notification_type, source),
+        result = create_notification(
+            notification_type=data.get("type", "info"),
+            title=data.get("title", "Notification"),
+            message=data.get("message", ""),
+            source=data.get("source", "dashboard"),
+            priority=data.get("priority", "normal"),
+            source_icon=data.get("source_icon", ""),
+            related_action=data.get("related_action", None),
+            visibility=data.get("visibility", "all"),
+            target_user_id=data.get("target_user_id", None),
         )
-
-        existing = cur.fetchone()
-
-        if existing:
-            # Update grouped count instead of creating duplicate
-            cur.execute(
-                """
-                UPDATE system_notifications
-                SET grouped_count = grouped_count + 1,
-                    created_at = NOW()
-                WHERE id = %s
-            """,
-                (existing["id"],),
-            )
-            conn.commit()
-            cur.close()
-            conn.close()
-            return jsonify(
-                {
-                    "success": True,
-                    "grouped": True,
-                    "count": existing["grouped_count"] + 1,
-                }
-            )
-
-        # Create new notification
-        cur.execute(
-            """
-            INSERT INTO system_notifications
-                (type, title, message, source, priority,
-                 source_icon, related_action, is_read, visibility, target_user_id, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, FALSE, %s, %s, NOW())
-            RETURNING id
-        """,
-            (
-                notification_type,
-                title,
-                message,
-                source,
-                priority,
-                source_icon,
-                related_action,
-                visibility,
-                target_user_id,
-            ),
-        )
-
-        notification_id = cur.fetchone()["id"]
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        return jsonify({"success": True, "id": notification_id})
+        return jsonify({"success": True, **result})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -2400,45 +2116,11 @@ def create_notification_endpoint():
 @login_required
 def get_notification_count():
     """Get unread notification count — only markable system_notifications, per-user."""
+    from services.notification_service import get_unread_count
+
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        is_admin = getattr(current_user, "is_admin", False)
-        user_id = current_user.id
-
-        if is_admin:
-            visibility_clause = ""
-            params = [user_id]
-        else:
-            visibility_clause = "AND (sn.visibility = 'all' OR (sn.visibility = 'user' AND sn.target_user_id = %s))"
-            params = [user_id, user_id]
-
-        cur.execute(
-            f"""
-            SELECT
-                COUNT(DISTINCT (sn.title, sn.source)) FILTER (WHERE nr.notification_id IS NULL AND sn.is_archived = FALSE) as unread,
-                COUNT(*) FILTER (WHERE sn.priority = 'critical' AND nr.notification_id IS NULL) as critical,
-                COUNT(*) FILTER (WHERE sn.type = 'error' AND nr.notification_id IS NULL) as errors
-            FROM system_notifications sn
-            LEFT JOIN notification_reads nr ON nr.notification_id = sn.id AND nr.user_id = %s
-            WHERE sn.created_at >= NOW() - INTERVAL '7 days'
-              {visibility_clause}
-        """,
-            params,
-        )
-        counts = cur.fetchone()
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "unread": counts["unread"],
-                "critical": counts["critical"],
-                "errors": counts["errors"],
-            }
-        )
+        counts = get_unread_count(current_user.id, getattr(current_user, "is_admin", False))
+        return jsonify({"success": True, **counts})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -2447,106 +2129,22 @@ def get_notification_count():
 @login_required
 def search_notifications():
     """Search and filter notifications with pagination"""
+    from services.notification_service import search_notifications as _search
+
     try:
-        # Get query parameters
-        filter_type = request.args.get("filter", "all")
-        notification_type = request.args.get("type", "all")
-        priority = request.args.get("priority", "all")
-        source = request.args.get("source", "all")
-        search_query = request.args.get("q", "")
-        date_range = request.args.get("date_range", "all")
-        page = int(request.args.get("page", 1))
-        per_page = int(request.args.get("per_page", 20))
-
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # Build WHERE clauses
-        where_clauses = ["is_archived = FALSE"]
-        params = []
-
-        # Visibility filter — non-admins only see 'all' or targeted notifications
-        is_admin = getattr(current_user, "is_admin", False)
-        if not is_admin:
-            where_clauses.append("(visibility = 'all' OR (visibility = 'user' AND target_user_id = %s))")
-            params.append(current_user.id)
-
-        if filter_type == "unread":
-            where_clauses.append("id NOT IN (SELECT notification_id FROM notification_reads WHERE user_id = %s)")
-            params.append(current_user.id)
-        elif filter_type == "read":
-            where_clauses.append("id IN (SELECT notification_id FROM notification_reads WHERE user_id = %s)")
-            params.append(current_user.id)
-
-        if notification_type != "all":
-            where_clauses.append("type = %s")
-            params.append(notification_type)
-
-        if priority != "all":
-            where_clauses.append("priority = %s")
-            params.append(priority)
-
-        if source != "all":
-            where_clauses.append("source = %s")
-            params.append(source)
-
-        if search_query:
-            where_clauses.append("(message ILIKE %s OR title ILIKE %s)")
-            params.extend([f"%{search_query}%", f"%{search_query}%"])
-
-        if date_range == "24h":
-            where_clauses.append("created_at > NOW() - INTERVAL '24 hours'")
-        elif date_range == "7d":
-            where_clauses.append("created_at > NOW() - INTERVAL '7 days'")
-        elif date_range == "30d":
-            where_clauses.append("created_at > NOW() - INTERVAL '30 days'")
-
-        where_sql = " AND ".join(where_clauses)
-
-        # Get total count
-        cur.execute(
-            f"SELECT COUNT(*) as total FROM system_notifications WHERE {where_sql}",
-            params,
+        result = _search(
+            user_id=current_user.id,
+            is_admin=getattr(current_user, "is_admin", False),
+            filter_type=request.args.get("filter", "all"),
+            notification_type=request.args.get("type", "all"),
+            priority=request.args.get("priority", "all"),
+            source=request.args.get("source", "all"),
+            search_query=request.args.get("q", ""),
+            date_range=request.args.get("date_range", "all"),
+            page=int(request.args.get("page", 1)),
+            per_page=int(request.args.get("per_page", 20)),
         )
-        total = cur.fetchone()["total"]
-
-        # Get paginated results
-        offset = (page - 1) * per_page
-        params.extend([per_page, offset])
-
-        cur.execute(
-            f"""
-            SELECT id, type, title, message, source, source_icon, priority,
-                   grouped_count, related_action, is_read, created_at
-            FROM system_notifications
-            WHERE {where_sql}
-            ORDER BY
-                CASE priority
-                    WHEN 'critical' THEN 1
-                    WHEN 'high' THEN 2
-                    WHEN 'normal' THEN 3
-                    WHEN 'low' THEN 4
-                END,
-                created_at DESC
-            LIMIT %s OFFSET %s
-        """,
-            params,
-        )
-
-        notifications = cur.fetchall()
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "notifications": [dict(n) for n in notifications],
-                "total": total,
-                "page": page,
-                "per_page": per_page,
-                "total_pages": (total + per_page - 1) // per_page,
-            }
-        )
+        return jsonify({"success": True, **result})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -2558,32 +2156,17 @@ def export_notifications():
     from flask import Response
     from io import StringIO
     import csv
+    from services.notification_service import export_notifications as _export
+
+    if not getattr(current_user, "is_admin", False):
+        return jsonify({"success": False, "error": "Admin access required"}), 403
 
     try:
-        if not getattr(current_user, "is_admin", False):
-            return jsonify({"success": False, "error": "Admin access required"}), 403
-
+        notifications = _export()
         format_type = request.args.get("format", "csv")
 
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        cur.execute(
-            """
-            SELECT id, type, title, message, source, priority, is_read, created_at
-            FROM system_notifications
-            WHERE is_archived = FALSE
-            ORDER BY created_at DESC
-            LIMIT 1000
-        """
-        )
-
-        notifications = cur.fetchall()
-        cur.close()
-        conn.close()
-
         if format_type == "json":
-            output = json.dumps([dict(n) for n in notifications], indent=2, default=str)
+            output = json.dumps(notifications, indent=2, default=str)
             return Response(
                 output,
                 mimetype="application/json",
@@ -2596,7 +2179,6 @@ def export_notifications():
                 writer.writeheader()
                 for notif in notifications:
                     writer.writerow({k: str(v) for k, v in notif.items()})
-
             return Response(
                 output.getvalue(),
                 mimetype="text/csv",
@@ -2609,36 +2191,15 @@ def export_notifications():
 @app.route("/api/notifications/archive-old", methods=["POST"])
 @login_required
 def archive_old_notifications():
-    """Archive notifications older than specified days (default 7).
-    Archives ALL old notifications regardless of read status to prevent pile-up.
-    """
+    """Archive notifications older than specified days (default 7)."""
+    from services.notification_service import archive_old
+
     if not getattr(current_user, "is_admin", False):
         return jsonify({"success": False, "error": "Admin access required"}), 403
 
     try:
         days = int(request.json.get("days", 7)) if request.json else 7
-        days = max(1, min(days, 90))  # Clamp to 1-90 days
-
-        conn = get_db()
-        cur = conn.cursor()
-
-        # Archive ALL old notifications (read or unread) to prevent stale pile-up
-        cur.execute(
-            """
-            UPDATE system_notifications
-            SET is_archived = TRUE
-            WHERE created_at < NOW() - make_interval(days => %s)
-            AND is_archived = FALSE
-        """,
-            (days,),
-        )
-
-        archived_count = cur.rowcount
-
-        conn.commit()
-        cur.close()
-        conn.close()
-
+        archived_count = archive_old(days)
         return jsonify({"success": True, "archived": archived_count})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -2648,49 +2209,13 @@ def archive_old_notifications():
 @login_required
 def dismiss_notification(notification_id):
     """Dismiss (archive) a single notification and its group."""
+    from services.notification_service import dismiss_notification as _dismiss
+
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # Find the notification's title+source to archive entire group
-        cur.execute(
-            "SELECT title, source FROM system_notifications WHERE id = %s",
-            (notification_id,),
-        )
-        row = cur.fetchone()
-        if not row:
-            cur.close()
-            conn.close()
+        result = _dismiss(notification_id, current_user.id)
+        if result is None:
             return jsonify({"success": False, "error": "Notification not found"}), 404
-
-        # Mark as read for this user
-        cur.execute(
-            """
-            INSERT INTO notification_reads (notification_id, user_id, read_at)
-            SELECT id, %s, NOW()
-            FROM system_notifications
-            WHERE title = %s AND source = %s AND is_archived = FALSE
-            ON CONFLICT (notification_id, user_id) DO NOTHING
-        """,
-            (current_user.id, row["title"], row["source"]),
-        )
-
-        # Archive the group
-        cur.execute(
-            """
-            UPDATE system_notifications
-            SET is_archived = TRUE
-            WHERE title = %s AND source = %s AND is_archived = FALSE
-        """,
-            (row["title"], row["source"]),
-        )
-
-        archived_count = cur.rowcount
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        return jsonify({"success": True, "archived": archived_count})
+        return jsonify({"success": True, **result})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -2698,44 +2223,14 @@ def dismiss_notification(notification_id):
 @app.route("/api/notifications/clear-all", methods=["POST"])
 @login_required
 def clear_all_notifications():
-    """Archive all visible (non-archived) notifications for cleanup.
-    Also marks them as read for the current user.
-    """
+    """Archive all visible (non-archived) notifications for cleanup."""
+    from services.notification_service import clear_all
+
     if not getattr(current_user, "is_admin", False):
         return jsonify({"success": False, "error": "Admin access required"}), 403
 
     try:
-        conn = get_db()
-        cur = conn.cursor()
-
-        # First mark all as read for this user
-        cur.execute(
-            """
-            INSERT INTO notification_reads (notification_id, user_id, read_at)
-            SELECT id, %s, NOW()
-            FROM system_notifications
-            WHERE is_archived = FALSE
-              AND id NOT IN (SELECT notification_id FROM notification_reads WHERE user_id = %s)
-            ON CONFLICT (notification_id, user_id) DO NOTHING
-        """,
-            (current_user.id, current_user.id),
-        )
-
-        # Then archive everything
-        cur.execute(
-            """
-            UPDATE system_notifications
-            SET is_archived = TRUE
-            WHERE is_archived = FALSE
-        """
-        )
-
-        archived_count = cur.rowcount
-
-        conn.commit()
-        cur.close()
-        conn.close()
-
+        archived_count = clear_all(current_user.id)
         return jsonify({"success": True, "archived": archived_count})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

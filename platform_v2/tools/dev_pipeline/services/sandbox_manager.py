@@ -31,25 +31,25 @@ except ImportError:
     logger.warning("Docker SDK not available - container management disabled")
 
 try:
-    from sandbox_docker import DockerSandboxManager
+    from tools.dev_pipeline.services.sandbox_docker import DockerSandboxManager
 except ImportError as e:
     DockerSandboxManager = None
     logger.info(f"DockerSandboxManager not available: {e}")
 
 try:
-    from sandbox_schema import SchemaSandboxManager
+    from tools.dev_pipeline.services.sandbox_schema import SchemaSandboxManager
 except ImportError as e:
     SchemaSandboxManager = None
     logger.info(f"SchemaSandboxManager not available: {e}")
 
 try:
-    from sandbox_test_runner import SandboxTestRunner
+    from tools.dev_pipeline.services.sandbox_test_runner import SandboxTestRunner
 except ImportError as e:
     SandboxTestRunner = None
     logger.info(f"SandboxTestRunner not available: {e}")
 
 try:
-    from sandbox_code_applicator import SandboxCodeApplicator
+    from tools.dev_pipeline.services.sandbox_code_applicator import SandboxCodeApplicator
 except ImportError as e:
     SandboxCodeApplicator = None
     logger.info(f"SandboxCodeApplicator not available: {e}")

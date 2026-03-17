@@ -224,7 +224,7 @@ def api_status():
 def api_compare():
     """Compare sandbox vs production schemas"""
     from flask import jsonify
-    from sandbox_schema import SchemaSandboxManager
+    from tools.dev_pipeline.services.sandbox_schema import SchemaSandboxManager
 
     manager = SchemaSandboxManager()
     result = manager.compare_schemas("sandbox", "public")

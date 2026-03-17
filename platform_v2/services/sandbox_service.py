@@ -29,7 +29,7 @@ sys.path.insert(0, "/mnt/archie_brain/platform_v2")
 # SandboxManager (optional — may not be installed)
 # ---------------------------------------------------------------------------
 try:
-    from sandbox_manager import SandboxManager
+    from tools.dev_pipeline.services.sandbox_manager import SandboxManager
 except ImportError:
     SandboxManager = None
 

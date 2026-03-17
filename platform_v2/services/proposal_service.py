@@ -227,7 +227,7 @@ def approve_proposal(proposal_id, user_id):
         # Auto-sandbox
         sandbox_info = None
         try:
-            from sandbox_manager import SandboxManager
+            from tools.dev_pipeline.services.sandbox_manager import SandboxManager
 
             fp = None
             if metadata:
@@ -977,7 +977,7 @@ def auto_run(proposal_id):
 
         _update_status(proposal_id, "testing")
         try:
-            from sandbox_manager import SandboxManager
+            from tools.dev_pipeline.services.sandbox_manager import SandboxManager
 
             mgr = SandboxManager()
             test_result = mgr.run_tests_for_proposal(proposal_id)

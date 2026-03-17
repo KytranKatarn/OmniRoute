@@ -2714,6 +2714,7 @@ function _renderCodeHealthStats(d) {
   setHtml("chCssLines", fmt(d.css ? d.css.lines : 0));
   setHtml("chSqlLines", fmt(d.sql ? d.sql.lines : 0));
   setHtml("chShellLines", fmt(d.shell ? d.shell.lines : 0));
+  setHtml("chJsonLines", fmt(d.json ? d.json.lines : 0));
 }
 
 function _renderModuleChart(modules) {
@@ -2732,6 +2733,7 @@ function _renderModuleChart(modules) {
   var cssData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.css ? bt.css.lines : 0; });
   var sqlData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.sql ? bt.sql.lines : 0; });
   var shellData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.shell ? bt.shell.lines : 0; });
+  var jsonData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.json ? bt.json.lines : 0; });
   var otherData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.other ? bt.other.lines : 0; });
 
   var rowH = window.innerWidth < 480 ? 24 : 28;
@@ -2751,6 +2753,7 @@ function _renderModuleChart(modules) {
         { label: "CSS", data: cssData, backgroundColor: "rgba(34, 197, 94, 0.7)", borderWidth: 0 },
         { label: "SQL", data: sqlData, backgroundColor: "rgba(234, 179, 8, 0.7)", borderWidth: 0 },
         { label: "Shell", data: shellData, backgroundColor: "rgba(239, 68, 68, 0.7)", borderWidth: 0 },
+        { label: "JSON", data: jsonData, backgroundColor: "rgba(251, 146, 60, 0.7)", borderWidth: 0 },
         { label: "Other", data: otherData, backgroundColor: "rgba(168, 162, 255, 0.7)", borderWidth: 0 }
       ]
     },
@@ -2787,7 +2790,7 @@ function _renderModuleTable(modules) {
 
   var html = '<table class="cs-table"><thead><tr>' +
     '<th>Module</th><th class="center">Files</th><th class="center">Lines</th>' +
-    '<th class="center">Python</th><th class="center">JS</th><th class="center">HTML</th><th class="center">CSS</th><th class="center">SQL</th><th class="center">Shell</th>' +
+    '<th class="center">Python</th><th class="center">JS</th><th class="center">HTML</th><th class="center">CSS</th><th class="center">SQL</th><th class="center">Shell</th><th class="center">JSON</th>' +
     '</tr></thead><tbody>';
 
   sorted.forEach(function(name) {
@@ -2803,6 +2806,7 @@ function _renderModuleTable(modules) {
       '<td class="center">' + (bt.css ? bt.css.lines : 0).toLocaleString() + '</td>' +
       '<td class="center">' + (bt.sql ? bt.sql.lines : 0).toLocaleString() + '</td>' +
       '<td class="center">' + (bt.shell ? bt.shell.lines : 0).toLocaleString() + '</td>' +
+      '<td class="center">' + (bt.json ? bt.json.lines : 0).toLocaleString() + '</td>' +
       '</tr>';
   });
 

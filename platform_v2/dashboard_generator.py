@@ -190,11 +190,29 @@ def get_categories_info() -> Dict[str, Dict]:
             "description": "Media management and home automation",
             "priority": 6,
         },
+        "crypto": {
+            "name": "Crypto",
+            "icon": "fas fa-coins",
+            "description": "Cryptocurrency mining and pool management",
+            "priority": 7,
+        },
+        "applications": {
+            "name": "Applications",
+            "icon": "fas fa-mobile-alt",
+            "description": "Standalone apps — web and Android",
+            "priority": 8,
+        },
+        "creative_studios": {
+            "name": "Creative Studios",
+            "icon": "fas fa-palette",
+            "description": "Game development and media creation",
+            "priority": 9,
+        },
         "placeholders_future": {
             "name": "Coming Soon",
             "icon": "fas fa-rocket",
             "description": "Planned features for future development",
-            "priority": 7,
+            "priority": 10,
         },
     }
     # Return sorted by priority

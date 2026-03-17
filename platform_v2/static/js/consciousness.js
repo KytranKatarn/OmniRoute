@@ -2761,7 +2761,7 @@ function _renderModuleChart(modules) {
       },
       scales: {
         x: { stacked: true, ticks: { color: "rgba(255,255,255,0.5)" }, grid: { color: "rgba(255,255,255,0.05)" } },
-        y: { stacked: true, ticks: { color: "rgba(255,255,255,0.7)", font: { size: 10 } }, grid: { display: false } }
+        y: { stacked: true, ticks: { color: "rgba(255,255,255,0.7)", font: { size: 11 }, padding: 4 }, grid: { color: "rgba(255,255,255,0.06)", drawTicks: false } }
       }
     }
   });

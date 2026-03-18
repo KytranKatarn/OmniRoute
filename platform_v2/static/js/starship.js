@@ -1358,7 +1358,9 @@ function _populateStarbaseDetail(crew, activeJobs, cap) {
         gpuDiv.innerHTML = gpuList.length ? gpuList.map(function(m) {  // nosemgrep: innerHTML with escaped content
             var label = _escSb((m.name || m) + (m.vram_gb ? ' (' + m.vram_gb + 'GB)' : ''));
             return '<span class="sc-model-badge sc-live">' + label + '</span>';
-        }).join('') : '<span class="sc-label sc-static">None on GPU</span>';
+        }).join('') : (cap.gpu && cap.gpu.comfyui_vram_gb
+            ? '<span class="sc-model-badge sc-live">ComfyUI (' + cap.gpu.comfyui_vram_gb + ' GB VRAM)</span>'
+            : '<span class="sc-label sc-static">None on GPU</span>');
     }
 
     // CPU model badges (cap.cpu_models = [{name, size_gb}, ...])

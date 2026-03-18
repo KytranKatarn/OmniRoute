@@ -538,6 +538,14 @@ body {
     letter-spacing: 2px;
     text-transform: uppercase;
 }
+.trending-scan-date {
+    text-align: center;
+    color: #555;
+    font-size: 0.7rem;
+    margin-top: 0.6rem;
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 1px;
+}
 
 /* ── Matrix Group Rows ────────────────────────── */
 .matrix-group {

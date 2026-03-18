@@ -33,7 +33,7 @@ sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
 # Try to import learning loop modules
 try:
     from ai_bridge.conversation_ingest import ingest_conversation, retrieve_similar_conversations
-    from ai_bridge.auto_tagger import auto_tag_conversation
+    from ai_bridge.auto_tagger import generate_tags_from_conversation as auto_tag_conversation
 
     LEARNING_AVAILABLE = True
 except ImportError as e:
@@ -41,8 +41,8 @@ except ImportError as e:
     LEARNING_AVAILABLE = False
 
 try:
-    from improvement_engine import run_auto_improvement_detection
-    from improvement_chat import self_reflection_chat
+    from tools.dev_pipeline.services.improvement_engine import run_auto_improvement_detection
+    from ai_bridge.improvement_chat import self_reflection_chat
 
     IMPROVEMENT_AVAILABLE = True
 except ImportError as e:

@@ -22,8 +22,8 @@ from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 
 # Import existing components
-from obsidian_vault_manager import ObsidianVaultManager
-from knowledge_embedding_generator import KnowledgeEmbeddingGenerator
+from tools.consciousness.services.obsidian_vault_manager import ObsidianVaultManager
+from tools.consciousness.services.knowledge_embedding_generator import KnowledgeEmbeddingGenerator
 from database import get_db
 
 

@@ -55,9 +55,9 @@ Starship routes import dispatcher
 ### Dispatcher Import Pattern
 
 ```python
-from ai_bridge.bridge_dispatcher import BridgeDispatcher
+from ai_bridge.bridge_dispatcher import get_dispatcher
 
-dispatcher = BridgeDispatcher()
+dispatcher = get_dispatcher()  # singleton — do NOT instantiate BridgeDispatcher() directly
 hub_manifest = dispatcher.get_crew_manifest()
 
 # For a specific node's agents:

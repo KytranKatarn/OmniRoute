@@ -98,6 +98,7 @@ Containing rewritten endpoints:
 - `api_update_node_agent(node_id, agent_id)` — keep update logic but remove fake crew references
 - `api_add_agent_to_node(node_id)` — simplified: just INSERT into node_agents with real hub_agent_id (rewrite of `_add_single_agent_to_node` fake logic). Use `check_fleet_model_unique` from database.py.
 - `api_remove_agent_from_node(node_id, agent_id)` — keep as-is (already works with real DB)
+- **DELETE** `api_get_recommendations(node_id)` (routes.py:1635-1645) and `get_agent_recommendations()` (routes.py:1485-1634) — per spec, recommendations now come from dispatcher data, not a custom scoring engine
 
 Import dispatcher using the singleton pattern (not `BridgeDispatcher()` directly):
 ```python

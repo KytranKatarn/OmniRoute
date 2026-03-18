@@ -453,8 +453,9 @@
 }
 
 /* Live data indicator — glowing = real-time, dim = static fallback */
-.sc-live {
-    color: var(--sc-accent);
+/* Use .sc-value.sc-live for specificity over .sc-value { color: #fff } */
+.sc-live, .sc-value.sc-live, .starbase-hero-stat-val.sc-live, .docked-ship-val.sc-live {
+    color: var(--sc-accent) !important;
     text-shadow: 0 0 8px var(--sc-accent), 0 0 20px rgba(0, 229, 255, 0.4), 0 0 40px rgba(0, 229, 255, 0.15);
     animation: sc-pulse-glow 2s ease-in-out infinite alternate;
     transition: all 0.4s ease;
@@ -463,8 +464,8 @@
     from { text-shadow: 0 0 8px var(--sc-accent), 0 0 20px rgba(0, 229, 255, 0.4); }
     to   { text-shadow: 0 0 12px var(--sc-accent), 0 0 30px rgba(0, 229, 255, 0.6), 0 0 50px rgba(0, 229, 255, 0.2); }
 }
-.sc-static {
-    color: rgba(255,255,255,0.4);
+.sc-static, .sc-value.sc-static, .starbase-hero-stat-val.sc-static, .docked-ship-val.sc-static {
+    color: rgba(255,255,255,0.4) !important;
     text-shadow: none;
     opacity: 0.6;
     transition: all 0.4s ease;

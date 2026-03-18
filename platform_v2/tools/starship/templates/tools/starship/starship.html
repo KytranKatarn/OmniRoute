@@ -74,6 +74,10 @@
                             <span class="docked-ship-label">GPU</span>
                         </div>
                         <div class="docked-ship-stat">
+                            <span class="docked-ship-val" id="dock-vram-{{ node.node_id }}">{{ node.gpu_vram_gb or '--' }} GB</span>
+                            <span class="docked-ship-label">VRAM</span>
+                        </div>
+                        <div class="docked-ship-stat">
                             <span class="docked-ship-val" id="dock-ram-{{ node.node_id }}">{{ node.ram_gb or '--' }} GB</span>
                             <span class="docked-ship-label">RAM</span>
                         </div>

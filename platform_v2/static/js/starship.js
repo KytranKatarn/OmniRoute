@@ -39,8 +39,10 @@ function loadDockedFleetStats() {
     document.querySelectorAll('.docked-ship').forEach(function(ship) {
         var nodeId = ship.getAttribute('data-node-id');
         var gpuEl = document.getElementById('dock-gpu-' + nodeId);
+        var vramEl = document.getElementById('dock-vram-' + nodeId);
         var ramEl = document.getElementById('dock-ram-' + nodeId);
         if (gpuEl && gpuEl.textContent !== '--') _setLive(gpuEl, gpuEl.textContent, true);
+        if (vramEl && vramEl.textContent !== '-- GB') _setLive(vramEl, vramEl.textContent, true);
         if (ramEl && ramEl.textContent !== '-- GB') _setLive(ramEl, ramEl.textContent, true);
     });
 

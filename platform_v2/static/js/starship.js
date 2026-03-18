@@ -1412,10 +1412,13 @@ var _stationConfigs = [
     {code: 'OPERATIONS', name: 'OPERATIONS'}
 ];
 
+var _sbStationPollInterval = null;
+
 function loadStarbaseStations() {
     if (_sbStationsLoaded) return;
     _sbStationsLoaded = true;
 
+    // Create StationOps instances for all 10 stations
     _stationConfigs.forEach(function(cfg) {
         _sbStationOps[cfg.code] = new StationOps({
             stationCode: cfg.code,
@@ -1426,8 +1429,30 @@ function loadStarbaseStations() {
             statusElId: 'sb-stn-' + cfg.code + '-status',
             commands: []
         });
-        _sbStationOps[cfg.code].render();
     });
+
+    // Fetch running jobs from Bridge and render all stations with live data
+    _refreshStarbaseStations();
+
+    // Poll every 10 seconds to keep stations alive
+    _sbStationPollInterval = setInterval(_refreshStarbaseStations, 10000);
+}
+
+function _refreshStarbaseStations() {
+    fetch('/tools/bridge/api/bridge/jobs?status=running')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var allJobs = (data.success && data.jobs) ? data.jobs : [];
+            Object.keys(_sbStationOps).forEach(function(code) {
+                _sbStationOps[code].render(allJobs);
+            });
+        })
+        .catch(function() {
+            // Still render agents even if jobs fetch fails
+            Object.keys(_sbStationOps).forEach(function(code) {
+                _sbStationOps[code].render([]);
+            });
+        });
 }
 
 function executeStationCommand(cmdId) {

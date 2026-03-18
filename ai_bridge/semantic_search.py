@@ -56,7 +56,7 @@ def get_db():
         host=os.getenv("DB_HOST", "archie_database"),
         database=os.getenv("DB_NAME", "archie"),
         user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", "archiepass"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
 
 
@@ -73,15 +73,23 @@ class SemanticSearch:
 
         try:
             conn = get_db()
-            cur = conn.cursor()
-            cur.execute("""
-                SELECT COUNT(*) FROM knowledge_base
-                WHERE embedding IS NOT NULL
-                """)
-            count = cur.fetchone()[0]
-            cur.close()
-            conn.close()
-            self._embedding_available = count > 0
+            try:
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT COUNT(*) FROM knowledge_base
+                    WHERE embedding IS NOT NULL
+                    """)
+                count = cur.fetchone()[0]
+                self._embedding_available = count > 0
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
             return self._embedding_available
         except Exception as e:
             logger.error(f"Error checking embedding availability: {e}")
@@ -139,32 +147,40 @@ class SemanticSearch:
 
         try:
             conn = get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            # Build filter clause
-            filter_clause, filter_params = self._build_filter_clause(filters)
+                # Build filter clause
+                filter_clause, filter_params = self._build_filter_clause(filters)
 
-            # Vector similarity search using cosine distance
-            sql = f"""
-                SELECT
-                    id, title, content, category, tags, source_type, created_at,
-                    1 - (embedding <=> %s::vector) as vector_score,
-                    COALESCE(
-                        (ai_analysis->>'summary')::text,
-                        LEFT(content, 200)
-                    ) as summary
-                FROM knowledge_base
-                WHERE embedding IS NOT NULL
-                {filter_clause}
-                ORDER BY embedding <=> %s::vector
-                LIMIT %s
-            """
+                # Vector similarity search using cosine distance
+                sql = f"""
+                    SELECT
+                        id, title, content, category, tags, source_type, created_at,
+                        1 - (embedding <=> %s::vector) as vector_score,
+                        COALESCE(
+                            (ai_analysis->>'summary')::text,
+                            LEFT(content, 200)
+                        ) as summary
+                    FROM knowledge_base
+                    WHERE embedding IS NOT NULL
+                    {filter_clause}
+                    ORDER BY embedding <=> %s::vector
+                    LIMIT %s
+                """
 
-            params = [query_embedding] + filter_params + [query_embedding, limit * 2]
-            cur.execute(sql, params)
-            rows = cur.fetchall()
-            cur.close()
-            conn.close()
+                params = [query_embedding] + filter_params + [query_embedding, limit * 2]
+                cur.execute(sql, params)
+                rows = cur.fetchall()
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
             results = []
             for row in rows[:limit]:
@@ -198,32 +214,40 @@ class SemanticSearch:
         """Perform PostgreSQL full-text search"""
         try:
             conn = get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            # Build filter clause
-            filter_clause, filter_params = self._build_filter_clause(filters)
+                # Build filter clause
+                filter_clause, filter_params = self._build_filter_clause(filters)
 
-            # Full-text search with ranking
-            sql = f"""
-                SELECT
-                    id, title, content, category, tags, source_type, created_at,
-                    ts_rank_cd(search_vector, plainto_tsquery('english', %s)) as keyword_score,
-                    COALESCE(
-                        (ai_analysis->>'summary')::text,
-                        LEFT(content, 200)
-                    ) as summary
-                FROM knowledge_base
-                WHERE search_vector @@ plainto_tsquery('english', %s)
-                {filter_clause}
-                ORDER BY keyword_score DESC
-                LIMIT %s
-            """
+                # Full-text search with ranking
+                sql = f"""
+                    SELECT
+                        id, title, content, category, tags, source_type, created_at,
+                        ts_rank_cd(search_vector, plainto_tsquery('english', %s)) as keyword_score,
+                        COALESCE(
+                            (ai_analysis->>'summary')::text,
+                            LEFT(content, 200)
+                        ) as summary
+                    FROM knowledge_base
+                    WHERE search_vector @@ plainto_tsquery('english', %s)
+                    {filter_clause}
+                    ORDER BY keyword_score DESC
+                    LIMIT %s
+                """
 
-            params = [query, query] + filter_params + [limit * 2]
-            cur.execute(sql, params)
-            rows = cur.fetchall()
-            cur.close()
-            conn.close()
+                params = [query, query] + filter_params + [limit * 2]
+                cur.execute(sql, params)
+                rows = cur.fetchall()
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
             results = []
             for row in rows[:limit]:
@@ -335,45 +359,51 @@ class SemanticSearch:
         """Find similar knowledge entries by vector similarity"""
         try:
             conn = get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            # Get the embedding for the source entry
-            cur.execute(
-                """
-                SELECT embedding FROM knowledge_base
-                WHERE id = %s AND embedding IS NOT NULL
-                """,
-                (knowledge_id,),
-            )
-            row = cur.fetchone()
-            if not row:
-                cur.close()
-                conn.close()
-                return []
+                # Get the embedding for the source entry
+                cur.execute(
+                    """
+                    SELECT embedding FROM knowledge_base
+                    WHERE id = %s AND embedding IS NOT NULL
+                    """,
+                    (knowledge_id,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return []
 
-            source_embedding = row["embedding"]
+                source_embedding = row["embedding"]
 
-            # Find similar entries
-            cur.execute(
-                """
-                SELECT
-                    id, title, category, tags,
-                    1 - (embedding <=> %s::vector) as similarity,
-                    COALESCE(
-                        (ai_analysis->>'summary')::text,
-                        LEFT(content, 200)
-                    ) as summary
-                FROM knowledge_base
-                WHERE id != %s AND embedding IS NOT NULL
-                ORDER BY embedding <=> %s::vector
-                LIMIT %s
-                """,
-                (source_embedding, knowledge_id, source_embedding, limit),
-            )
+                # Find similar entries
+                cur.execute(
+                    """
+                    SELECT
+                        id, title, category, tags,
+                        1 - (embedding <=> %s::vector) as similarity,
+                        COALESCE(
+                            (ai_analysis->>'summary')::text,
+                            LEFT(content, 200)
+                        ) as summary
+                    FROM knowledge_base
+                    WHERE id != %s AND embedding IS NOT NULL
+                    ORDER BY embedding <=> %s::vector
+                    LIMIT %s
+                    """,
+                    (source_embedding, knowledge_id, source_embedding, limit),
+                )
 
-            rows = cur.fetchall()
-            cur.close()
-            conn.close()
+                rows = cur.fetchall()
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
             return [
                 {
@@ -395,26 +425,33 @@ class SemanticSearch:
         """Get search service statistics"""
         try:
             conn = get_db()
-            cur = conn.cursor()
+            try:
+                cur = conn.cursor()
 
-            # Count total entries
-            cur.execute("SELECT COUNT(*) FROM knowledge_base")
-            total = cur.fetchone()[0]
+                # Count total entries
+                cur.execute("SELECT COUNT(*) FROM knowledge_base")
+                total = cur.fetchone()[0]
 
-            # Count entries with embeddings
-            cur.execute(
-                "SELECT COUNT(*) FROM knowledge_base WHERE embedding IS NOT NULL"
-            )
-            with_embeddings = cur.fetchone()[0]
+                # Count entries with embeddings
+                cur.execute(
+                    "SELECT COUNT(*) FROM knowledge_base WHERE embedding IS NOT NULL"
+                )
+                with_embeddings = cur.fetchone()[0]
 
-            # Count entries with search_vector
-            cur.execute(
-                "SELECT COUNT(*) FROM knowledge_base WHERE search_vector IS NOT NULL"
-            )
-            with_search_vector = cur.fetchone()[0]
-
-            cur.close()
-            conn.close()
+                # Count entries with search_vector
+                cur.execute(
+                    "SELECT COUNT(*) FROM knowledge_base WHERE search_vector IS NOT NULL"
+                )
+                with_search_vector = cur.fetchone()[0]
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
             return {
                 "total_entries": total,

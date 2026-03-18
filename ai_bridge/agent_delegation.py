@@ -91,6 +91,7 @@ def check_api_key_configured(model: str) -> dict:
         }
 
     # Check if API key is configured in database
+    conn = None
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -105,8 +106,6 @@ def check_api_key_configured(model: str) -> dict:
         )
 
         provider_config = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if not provider_config:
             return {
@@ -137,6 +136,16 @@ def check_api_key_configured(model: str) -> dict:
             "provider": detected_provider,
             "error": f"Error checking API key: {str(e)}",
         }
+    finally:
+        try:
+            cur.close()
+        except Exception:
+            pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 def select_best_agent_for_task(
@@ -231,61 +240,74 @@ def select_best_agent_for_task(
     # Query for best agent (with optimized indexed lookup)
     # Prefer internal (free) agents, then by last_used (least recently used gets priority)
     conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    query = """
-        SELECT
-            a.id, a.name, a.first_name, a.last_name, a.title,
-            a.department, a.worker_type, a.model,
-            a.tier, a.bio, a.total_cost, a.last_used, a.status
-        FROM agents a
-        WHERE a.status = 'active'
-    """
-    params = []
-
-    if detected_department:
-        query += " AND a.department = %s"
-        params.append(detected_department)
-
-    # Order by: worker_type preference, then by last_used (NULLS first for never-used agents)
-    # If prefer_contractor=True, put contractors first; otherwise internal first
-    if prefer_contractor:
-        query += """
-            ORDER BY
-                CASE WHEN a.worker_type = 'contract' THEN 0 ELSE 1 END,
-                a.last_used ASC NULLS FIRST
-            LIMIT 1
+        query = """
+            SELECT
+                a.id, a.name, a.first_name, a.last_name, a.title,
+                a.department, a.worker_type, a.model,
+                a.tier, a.bio, a.total_cost, a.last_used, a.status
+            FROM agents a
+            WHERE a.status = 'active'
         """
-    else:
-        query += """
-            ORDER BY
-                CASE WHEN a.worker_type = 'internal' THEN 0 ELSE 1 END,
-                a.last_used ASC NULLS FIRST
-            LIMIT 1
-        """
+        params = []
 
-    cur.execute(query, params)
-    agent = cur.fetchone()
+        if detected_department:
+            query += " AND a.department = %s"
+            params.append(detected_department)
 
-    cur.close()
-    conn.close()
+        if prefer_contractor:
+            query += """
+                ORDER BY
+                    CASE WHEN a.worker_type = 'contract' THEN 0 ELSE 1 END,
+                    a.last_used ASC NULLS FIRST
+                LIMIT 1
+            """
+        else:
+            query += """
+                ORDER BY
+                    CASE WHEN a.worker_type = 'internal' THEN 0 ELSE 1 END,
+                    a.last_used ASC NULLS FIRST
+                LIMIT 1
+            """
+
+        cur.execute(query, params)
+        agent = cur.fetchone()
+    finally:
+        try:
+            cur.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
     if not agent:
         # Fallback: get any active agent
         conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("""
-            SELECT id, name, first_name, last_name, title, department, worker_type, model, tier, bio
-            FROM agents
-            WHERE status = 'active'
-            ORDER BY
-                CASE WHEN worker_type = 'internal' THEN 0 ELSE 1 END,
-                last_used ASC NULLS FIRST
-            LIMIT 1
-        """)
-        agent = cur.fetchone()
-        cur.close()
-        conn.close()
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("""
+                SELECT id, name, first_name, last_name, title, department, worker_type, model, tier, bio
+                FROM agents
+                WHERE status = 'active'
+                ORDER BY
+                    CASE WHEN worker_type = 'internal' THEN 0 ELSE 1 END,
+                    last_used ASC NULLS FIRST
+                LIMIT 1
+            """)
+            agent = cur.fetchone()
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
         if not agent:
             return None
@@ -303,39 +325,46 @@ def select_best_agent_for_task(
             print(f"⚠️  Falling back to internal staff...")
 
             conn = get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            # Try to find internal agent in same department
-            fallback_query = """
-                SELECT id, name, first_name, last_name, title, department, worker_type, model, tier, bio
-                FROM agents
-                WHERE status = 'active'
-                  AND worker_type = 'internal'
-            """
-            fallback_params = []
-
-            if detected_department:
-                fallback_query += " AND department = %s"
-                fallback_params.append(detected_department)
-
-            fallback_query += " ORDER BY last_used ASC NULLS FIRST LIMIT 1"
-
-            cur.execute(fallback_query, fallback_params)
-            fallback_agent = cur.fetchone()
-
-            if not fallback_agent:
-                # No internal agent in same department, get any internal agent
-                cur.execute("""
+                # Try to find internal agent in same department
+                fallback_query = """
                     SELECT id, name, first_name, last_name, title, department, worker_type, model, tier, bio
                     FROM agents
-                    WHERE status = 'active' AND worker_type = 'internal'
-                    ORDER BY last_used ASC NULLS FIRST
-                    LIMIT 1
-                """)
+                    WHERE status = 'active'
+                      AND worker_type = 'internal'
+                """
+                fallback_params = []
+
+                if detected_department:
+                    fallback_query += " AND department = %s"
+                    fallback_params.append(detected_department)
+
+                fallback_query += " ORDER BY last_used ASC NULLS FIRST LIMIT 1"
+
+                cur.execute(fallback_query, fallback_params)
                 fallback_agent = cur.fetchone()
 
-            cur.close()
-            conn.close()
+                if not fallback_agent:
+                    # No internal agent in same department, get any internal agent
+                    cur.execute("""
+                        SELECT id, name, first_name, last_name, title, department, worker_type, model, tier, bio
+                        FROM agents
+                        WHERE status = 'active' AND worker_type = 'internal'
+                        ORDER BY last_used ASC NULLS FIRST
+                        LIMIT 1
+                    """)
+                    fallback_agent = cur.fetchone()
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
             if fallback_agent:
                 agent = fallback_agent
@@ -434,17 +463,25 @@ def execute_with_delegation(
     # Select agent
     if force_agent_id:
         conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute(
-            """
-            SELECT id, name, department, worker_type, model, tier, bio
-            FROM agents WHERE id = %s
-        """,
-            (force_agent_id,),
-        )
-        agent = cur.fetchone()
-        cur.close()
-        conn.close()
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """
+                SELECT id, name, department, worker_type, model, tier, bio
+                FROM agents WHERE id = %s
+            """,
+                (force_agent_id,),
+            )
+            agent = cur.fetchone()
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
         if not agent:
             return {"success": False, "error": f"Agent {force_agent_id} not found"}
@@ -459,254 +496,264 @@ def execute_with_delegation(
 
     # Create execution record for audit trail
     conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-
-    # Validate user_id exists, otherwise use NULL
-    validated_user_id = None
-    if user_id:
-        try:
-            cur.execute("SELECT id FROM users WHERE id = %s", (user_id,))
-            if cur.fetchone():
-                validated_user_id = user_id
-        except:
-            pass  # Use NULL if validation fails
-
-    cur.execute(
-        """
-        INSERT INTO agent_executions
-        (agent_id, user_id, task_description, status, started_at, input_data)
-        VALUES (%s, %s, %s, 'running', NOW(), %s)
-        RETURNING id, started_at
-    """,
-        (
-            agent["id"],
-            validated_user_id,
-            task,
-            json.dumps({"task": task, "department": department}),
-        ),
-    )
-
-    execution = cur.fetchone()
-    execution_id = execution["id"]
-    started_at = execution["started_at"]
-    conn.commit()
-
-    # Build delegation message with actual name
-    first_name = agent.get("first_name", "")
-    last_name = agent.get("last_name", "")
-    full_name = (
-        f"{first_name} {last_name}".strip()
-        if first_name or last_name
-        else agent["name"]
-    )
-
-    delegation_info = {
-        "employee_name": full_name,
-        "employee_title": agent.get("title")
-        or agent.get("bio")
-        or f"{agent['department']} Specialist",
-        "department": agent["department"],
-        "worker_type": agent["worker_type"],
-        "model": agent["model"],
-        "tier": agent.get("tier", "standard"),
-        "reason": agent["reason"],
-    }
-
-    # Generate quick acknowledgment (INSTANT - no LLM call)
-    quick_ack_msg = quick_acknowledgment(full_name, delegation_info["employee_title"])
-    print(f"⚡ Fast routing complete in {(time.time() - start_time) * 1000:.1f}ms")
-    print(f"📨 {quick_ack_msg}")
-
-    # Import tools for agents
+    cur = None
     try:
-        from consciousness.archie_tools import list_available_tools, execute_tool
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        tools_enabled = True
-        available_tools = list_available_tools()
-    except:
-        tools_enabled = False
-        available_tools = {}
+        # Validate user_id exists, otherwise use NULL
+        validated_user_id = None
+        if user_id:
+            try:
+                cur.execute("SELECT id FROM users WHERE id = %s", (user_id,))
+                if cur.fetchone():
+                    validated_user_id = user_id
+            except:
+                pass  # Use NULL if validation fails
 
-    # Build system prompt with delegation context AND TOOLS
-    # IMPORTANT: Keep focused on the current task, avoid pulling unrelated memories
-    system_prompt = f"""You are {full_name}, working as {delegation_info['employee_title']} in the {agent['department']} department.
-
-Role: {agent.get('bio', '')}
-
-Context: You have been assigned this task by A.R.C.H.I.E.'s delegation system.
-
-Instructions:
-- Focus ONLY on the current user request
-- Provide direct, helpful, and professional assistance
-- If you don't have enough information, ask clarifying questions
-- Do NOT reference unrelated past conversations or topics
-- Stay on topic and be concise
-"""
-
-    if tools_enabled and available_tools:
-        system_prompt += f"""
-
-CRITICAL: You have access to TOOLS that can ACTUALLY DO THINGS (not just talk about them):
-
-Available Tools:
-{chr(10).join(f'  • {name}: {desc}' for name, desc in available_tools.items())}
-
-TOOL FORMAT (EXACT):
-TOOL_CALL: tool_name
-{{
-  "parameter_name": "value"
-}}
-
-REAL EXAMPLES:
-
-Example 1 - Create a proposal:
-User: "We should improve error handling in the login function"
-You: "Great idea! Let me create an improvement proposal for this.
-
-TOOL_CALL: create_improvement_proposal
-{{
-  "title": "Improve error handling in login function",
-  "description": "Add better error handling and user feedback for login failures",
-  "category": "bug_fix",
-  "priority": "high"
-}}
-
-I've created a proposal to track this improvement!"
-
-Example 2 - Search code:
-User: "Find all authentication functions"
-You: "Let me search for authentication code.
-
-TOOL_CALL: search_code
-{{
-  "pattern": "def.*auth",
-  "directory": "/app"
-}}
-
-Found the authentication functions..."
-
-IMPORTANT RULES:
-1. USE TOOLS to actually complete tasks - don't just talk about doing them
-2. For improvement suggestions → use create_improvement_proposal
-3. For code questions → use search_code or read_file
-4. For database queries → use query_database
-5. Always explain what you're doing before and after using a tool
-"""
-
-    # Execute task using archie_bridge
-    # NOTE: Memory disabled for agents to keep responses focused and fast
-    result = archie_bridge(
-        task,
-        user_id=user_id,
-        system_prompt=system_prompt,
-        force_model=agent["model"],
-        enable_memory=False,  # Disabled to prevent confusing cross-talk from unrelated memories
-        agent_id=agent["id"],
-    )
-
-    # Process tool calls if present
-    if tools_enabled and result.get("success") and result.get("response"):
-        response_text = result["response"]
-
-        # Check for tool calls in response
-        if "TOOL_CALL:" in response_text:
-            print(f"🔧 TOOL CALL DETECTED in response!")
-            tool_results = []
-            lines = response_text.split("\n")
-
-            i = 0
-            while i < len(lines):
-                if lines[i].startswith("TOOL_CALL:"):
-                    tool_name = lines[i].replace("TOOL_CALL:", "").strip()
-
-                    # Collect JSON args
-                    json_str = ""
-                    i += 1
-                    brace_count = 0
-                    while i < len(lines):
-                        line = lines[i]
-                        json_str += line + "\n"
-
-                        if "{" in line:
-                            brace_count += line.count("{")
-                        if "}" in line:
-                            brace_count -= line.count("}")
-
-                        if brace_count == 0 and json_str.strip():
-                            break
-                        i += 1
-
-                    # Execute tool
-                    try:
-                        args = json.loads(json_str)
-                        print(f"🔧 Executing tool: {tool_name} with args: {args}")
-                        tool_result = execute_tool(tool_name, **args)
-                        print(f"✅ Tool result: {tool_result}")
-                        tool_results.append(
-                            {"tool": tool_name, "args": args, "result": tool_result}
-                        )
-                    except Exception as e:
-                        print(f"❌ Tool execution error: {str(e)}")
-                        tool_results.append({"tool": tool_name, "error": str(e)})
-
-                i += 1
-
-            # Append tool results to response
-            if tool_results:
-                result["response"] += "\n\n--- TOOL EXECUTION RESULTS ---\n"
-                for tr in tool_results:
-                    if "error" in tr:
-                        result["response"] += f"\n❌ {tr['tool']}: {tr['error']}"
-                    else:
-                        result[
-                            "response"
-                        ] += f"\n✓ {tr['tool']}: {json.dumps(tr['result'], indent=2)}"
-
-                result["tools_used"] = tool_results
-        else:
-            print(
-                f"⚠️ NO TOOL CALLS detected in response (tools_enabled={tools_enabled})"
-            )
-
-    duration = time.time() - start_time
-
-    # Update execution record
-    if result.get("success"):
         cur.execute(
             """
-            UPDATE agent_executions
-            SET status = 'completed',
-                completed_at = NOW(),
-                duration_seconds = %s,
-                tokens_used = %s,
-                cost = %s,
-                result = %s
-            WHERE id = %s
+            INSERT INTO agent_executions
+            (agent_id, user_id, task_description, status, started_at, input_data)
+            VALUES (%s, %s, %s, 'running', NOW(), %s)
+            RETURNING id, started_at
         """,
             (
-                int(duration),
-                result.get("tokens_used", 0),
-                result.get("cost", 0.0),
-                json.dumps(result),
-                execution_id,
+                agent["id"],
+                validated_user_id,
+                task,
+                json.dumps({"task": task, "department": department}),
             ),
         )
-    else:
-        cur.execute(
-            """
-            UPDATE agent_executions
-            SET status = 'failed',
-                completed_at = NOW(),
-                duration_seconds = %s,
-                error = %s
-            WHERE id = %s
-        """,
-            (int(duration), result.get("error", "Unknown error"), execution_id),
+
+        execution = cur.fetchone()
+        execution_id = execution["id"]
+        started_at = execution["started_at"]
+        conn.commit()
+
+        # Build delegation message with actual name
+        first_name = agent.get("first_name", "")
+        last_name = agent.get("last_name", "")
+        full_name = (
+            f"{first_name} {last_name}".strip()
+            if first_name or last_name
+            else agent["name"]
         )
 
-    conn.commit()
-    cur.close()
-    conn.close()
+        delegation_info = {
+            "employee_name": full_name,
+            "employee_title": agent.get("title")
+            or agent.get("bio")
+            or f"{agent['department']} Specialist",
+            "department": agent["department"],
+            "worker_type": agent["worker_type"],
+            "model": agent["model"],
+            "tier": agent.get("tier", "standard"),
+            "reason": agent["reason"],
+        }
+
+        # Generate quick acknowledgment (INSTANT - no LLM call)
+        quick_ack_msg = quick_acknowledgment(full_name, delegation_info["employee_title"])
+        print(f"⚡ Fast routing complete in {(time.time() - start_time) * 1000:.1f}ms")
+        print(f"📨 {quick_ack_msg}")
+
+        # Import tools for agents
+        try:
+            from consciousness.archie_tools import list_available_tools, execute_tool
+
+            tools_enabled = True
+            available_tools = list_available_tools()
+        except:
+            tools_enabled = False
+            available_tools = {}
+
+        # Build system prompt with delegation context AND TOOLS
+        # IMPORTANT: Keep focused on the current task, avoid pulling unrelated memories
+        system_prompt = f"""You are {full_name}, working as {delegation_info['employee_title']} in the {agent['department']} department.
+
+    Role: {agent.get('bio', '')}
+
+    Context: You have been assigned this task by A.R.C.H.I.E.'s delegation system.
+
+    Instructions:
+    - Focus ONLY on the current user request
+    - Provide direct, helpful, and professional assistance
+    - If you don't have enough information, ask clarifying questions
+    - Do NOT reference unrelated past conversations or topics
+    - Stay on topic and be concise
+    """
+
+        if tools_enabled and available_tools:
+            system_prompt += f"""
+
+    CRITICAL: You have access to TOOLS that can ACTUALLY DO THINGS (not just talk about them):
+
+    Available Tools:
+    {chr(10).join(f'  • {name}: {desc}' for name, desc in available_tools.items())}
+
+    TOOL FORMAT (EXACT):
+    TOOL_CALL: tool_name
+    {{
+      "parameter_name": "value"
+    }}
+
+    REAL EXAMPLES:
+
+    Example 1 - Create a proposal:
+    User: "We should improve error handling in the login function"
+    You: "Great idea! Let me create an improvement proposal for this.
+
+    TOOL_CALL: create_improvement_proposal
+    {{
+      "title": "Improve error handling in login function",
+      "description": "Add better error handling and user feedback for login failures",
+      "category": "bug_fix",
+      "priority": "high"
+    }}
+
+    I've created a proposal to track this improvement!"
+
+    Example 2 - Search code:
+    User: "Find all authentication functions"
+    You: "Let me search for authentication code.
+
+    TOOL_CALL: search_code
+    {{
+      "pattern": "def.*auth",
+      "directory": "/app"
+    }}
+
+    Found the authentication functions..."
+
+    IMPORTANT RULES:
+    1. USE TOOLS to actually complete tasks - don't just talk about doing them
+    2. For improvement suggestions → use create_improvement_proposal
+    3. For code questions → use search_code or read_file
+    4. For database queries → use query_database
+    5. Always explain what you're doing before and after using a tool
+    """
+
+        # Execute task using archie_bridge
+        # NOTE: Memory disabled for agents to keep responses focused and fast
+        result = archie_bridge(
+            task,
+            user_id=user_id,
+            system_prompt=system_prompt,
+            force_model=agent["model"],
+            enable_memory=False,  # Disabled to prevent confusing cross-talk from unrelated memories
+            agent_id=agent["id"],
+        )
+
+        # Process tool calls if present
+        if tools_enabled and result.get("success") and result.get("response"):
+            response_text = result["response"]
+
+            # Check for tool calls in response
+            if "TOOL_CALL:" in response_text:
+                print(f"🔧 TOOL CALL DETECTED in response!")
+                tool_results = []
+                lines = response_text.split("\n")
+
+                i = 0
+                while i < len(lines):
+                    if lines[i].startswith("TOOL_CALL:"):
+                        tool_name = lines[i].replace("TOOL_CALL:", "").strip()
+
+                        # Collect JSON args
+                        json_str = ""
+                        i += 1
+                        brace_count = 0
+                        while i < len(lines):
+                            line = lines[i]
+                            json_str += line + "\n"
+
+                            if "{" in line:
+                                brace_count += line.count("{")
+                            if "}" in line:
+                                brace_count -= line.count("}")
+
+                            if brace_count == 0 and json_str.strip():
+                                break
+                            i += 1
+
+                        # Execute tool
+                        try:
+                            args = json.loads(json_str)
+                            print(f"🔧 Executing tool: {tool_name} with args: {args}")
+                            tool_result = execute_tool(tool_name, **args)
+                            print(f"✅ Tool result: {tool_result}")
+                            tool_results.append(
+                                {"tool": tool_name, "args": args, "result": tool_result}
+                            )
+                        except Exception as e:
+                            print(f"❌ Tool execution error: {str(e)}")
+                            tool_results.append({"tool": tool_name, "error": str(e)})
+
+                    i += 1
+
+                # Append tool results to response
+                if tool_results:
+                    result["response"] += "\n\n--- TOOL EXECUTION RESULTS ---\n"
+                    for tr in tool_results:
+                        if "error" in tr:
+                            result["response"] += f"\n❌ {tr['tool']}: {tr['error']}"
+                        else:
+                            result[
+                                "response"
+                            ] += f"\n✓ {tr['tool']}: {json.dumps(tr['result'], indent=2)}"
+
+                    result["tools_used"] = tool_results
+            else:
+                print(
+                    f"⚠️ NO TOOL CALLS detected in response (tools_enabled={tools_enabled})"
+                )
+
+        duration = time.time() - start_time
+
+        # Update execution record
+        if result.get("success"):
+            cur.execute(
+                """
+                UPDATE agent_executions
+                SET status = 'completed',
+                    completed_at = NOW(),
+                    duration_seconds = %s,
+                    tokens_used = %s,
+                    cost = %s,
+                    result = %s
+                WHERE id = %s
+            """,
+                (
+                    int(duration),
+                    result.get("tokens_used", 0),
+                    result.get("cost", 0.0),
+                    json.dumps(result),
+                    execution_id,
+                ),
+            )
+        else:
+            cur.execute(
+                """
+                UPDATE agent_executions
+                SET status = 'failed',
+                    completed_at = NOW(),
+                    duration_seconds = %s,
+                    error = %s
+                WHERE id = %s
+            """,
+                (int(duration), result.get("error", "Unknown error"), execution_id),
+            )
+
+            conn.commit()
+    finally:
+        try:
+            if cur:
+                cur.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
     # Just return the response without the delegation box (it's shown in UI now)
     final_response = (
@@ -743,34 +790,41 @@ def get_agent_directory(include_inactive=False):
         }
     """
     conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    query = """
-        SELECT
-            a.id, a.name, a.department, a.worker_type, a.model,
-            a.tier, a.bio, a.status, a.last_used, a.total_cost,
-            a.total_tokens_used,
-            COUNT(ae.id) as total_executions
-        FROM agents a
-        LEFT JOIN agent_executions ae ON a.id = ae.agent_id
-    """
+        query = """
+            SELECT
+                a.id, a.name, a.department, a.worker_type, a.model,
+                a.tier, a.bio, a.status, a.last_used, a.total_cost,
+                a.total_tokens_used,
+                COUNT(ae.id) as total_executions
+            FROM agents a
+            LEFT JOIN agent_executions ae ON a.id = ae.agent_id
+        """
 
-    if not include_inactive:
-        query += " WHERE a.status = 'active'"
+        if not include_inactive:
+            query += " WHERE a.status = 'active'"
 
-    query += """
-        GROUP BY a.id
-        ORDER BY
-            a.worker_type ASC,
-            a.department ASC,
-            a.name ASC
-    """
+        query += """
+            GROUP BY a.id
+            ORDER BY
+                a.worker_type ASC,
+                a.department ASC,
+                a.name ASC
+        """
 
-    cur.execute(query)
-    agents = cur.fetchall()
-
-    cur.close()
-    conn.close()
+        cur.execute(query)
+        agents = cur.fetchall()
+    finally:
+        try:
+            cur.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
     internal_staff = []
     contractors = []
@@ -810,30 +864,37 @@ def get_execution_audit_trail(execution_id: int):
         }
     """
     conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    cur.execute(
-        """
-        SELECT
-            ae.*,
-            a.name as agent_name,
-            a.department,
-            a.worker_type,
-            a.model,
-            u.username,
-            u.email
-        FROM agent_executions ae
-        JOIN agents a ON ae.agent_id = a.id
-        LEFT JOIN users u ON ae.user_id = u.id
-        WHERE ae.id = %s
-    """,
-        (execution_id,),
-    )
+        cur.execute(
+            """
+            SELECT
+                ae.*,
+                a.name as agent_name,
+                a.department,
+                a.worker_type,
+                a.model,
+                u.username,
+                u.email
+            FROM agent_executions ae
+            JOIN agents a ON ae.agent_id = a.id
+            LEFT JOIN users u ON ae.user_id = u.id
+            WHERE ae.id = %s
+        """,
+            (execution_id,),
+        )
 
-    record = cur.fetchone()
-
-    cur.close()
-    conn.close()
+        record = cur.fetchone()
+    finally:
+        try:
+            cur.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
     if not record:
         return {"success": False, "error": "Execution not found"}

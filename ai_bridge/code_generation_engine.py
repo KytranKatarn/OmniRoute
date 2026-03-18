@@ -392,7 +392,7 @@ NEW_CONTENT:
                 host=os.getenv("DB_HOST", "localhost"),
                 database=os.getenv("DB_NAME", "archie"),
                 user=os.getenv("DB_USER", "archie"),
-                password=os.getenv("DB_PASSWORD", "archie_secure_2024"),
+                password=os.getenv("DB_PASSWORD", ""),
             )
             cur = conn.cursor(cursor_factory=RealDictCursor)
 

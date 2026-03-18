@@ -38,64 +38,71 @@ def list_agents(filters=None):
         list: List of agent dictionaries
     """
     conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    query = """
-        SELECT
-            a.id,
-            a.name,
-            a.first_name,
-            a.last_name,
-            a.email,
-            a.title,
-            a.department,
-            a.pronouns,
-            a.bio,
-            a.avatar_url,
-            a.tier,
-            a.status,
-            a.model,
-            a.system_prompt,
-            a.capabilities,
-            a.monthly_budget,
-            a.budget_alert_threshold,
-            a.total_tokens_used,
-            a.total_cost,
-            a.metadata,
-            a.created_at,
-            a.last_used,
-            at.name as agent_type,
-            at.category
-        FROM agents a
-        LEFT JOIN agent_types at ON a.type_id = at.id
-    """
+        query = """
+            SELECT
+                a.id,
+                a.name,
+                a.first_name,
+                a.last_name,
+                a.email,
+                a.title,
+                a.department,
+                a.pronouns,
+                a.bio,
+                a.avatar_url,
+                a.tier,
+                a.status,
+                a.model,
+                a.system_prompt,
+                a.capabilities,
+                a.monthly_budget,
+                a.budget_alert_threshold,
+                a.total_tokens_used,
+                a.total_cost,
+                a.metadata,
+                a.created_at,
+                a.last_used,
+                at.name as agent_type,
+                at.category
+            FROM agents a
+            LEFT JOIN agent_types at ON a.type_id = at.id
+        """
 
-    conditions = []
-    params = []
+        conditions = []
+        params = []
 
-    if filters:
-        if "department" in filters:
-            conditions.append("a.department = %s")
-            params.append(filters["department"])
-        if "status" in filters:
-            conditions.append("a.status = %s")
-            params.append(filters["status"])
-        if "tier" in filters:
-            conditions.append("a.tier = %s")
-            params.append(filters["tier"])
+        if filters:
+            if "department" in filters:
+                conditions.append("a.department = %s")
+                params.append(filters["department"])
+            if "status" in filters:
+                conditions.append("a.status = %s")
+                params.append(filters["status"])
+            if "tier" in filters:
+                conditions.append("a.tier = %s")
+                params.append(filters["tier"])
 
-    if conditions:
-        query += " WHERE " + " AND ".join(conditions)
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
 
-    query += " ORDER BY a.department, a.first_name"
+        query += " ORDER BY a.department, a.first_name"
 
-    cur.execute(query, tuple(params))
-    agents = cur.fetchall()
+        cur.execute(query, tuple(params))
+        agents = cur.fetchall()
 
-    cur.close()
-    conn.close()
-
-    return [dict(agent) for agent in agents]
+        return [dict(agent) for agent in agents]
+    finally:
+        try:
+            cur.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 # =============================================================================
@@ -114,27 +121,34 @@ def get_agent(agent_id):
         dict: Agent details or None if not found
     """
     conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    cur.execute(
-        """
-        SELECT
-            a.*,
-            at.name as agent_type,
-            at.category
-        FROM agents a
-        LEFT JOIN agent_types at ON a.type_id = at.id
-        WHERE a.id = %s
-    """,
-        (agent_id,),
-    )
+        cur.execute(
+            """
+            SELECT
+                a.*,
+                at.name as agent_type,
+                at.category
+            FROM agents a
+            LEFT JOIN agent_types at ON a.type_id = at.id
+            WHERE a.id = %s
+        """,
+            (agent_id,),
+        )
 
-    agent = cur.fetchone()
+        agent = cur.fetchone()
 
-    cur.close()
-    conn.close()
-
-    return dict(agent) if agent else None
+        return dict(agent) if agent else None
+    finally:
+        try:
+            cur.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 # =============================================================================
@@ -156,67 +170,71 @@ def add_agent(agent_data):
         dict: Created agent with ID
     """
     conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Check if agent type exists
-    cur.execute("SELECT id FROM agent_types WHERE id = %s", (agent_data["type_id"],))
-    if not cur.fetchone():
-        cur.close()
-        conn.close()
-        raise ValueError(f"Agent type ID {agent_data['type_id']} not found")
+        # Check if agent type exists
+        cur.execute("SELECT id FROM agent_types WHERE id = %s", (agent_data["type_id"],))
+        if not cur.fetchone():
+            raise ValueError(f"Agent type ID {agent_data['type_id']} not found")
 
-    # Check for duplicate email
-    if "email" in agent_data and agent_data["email"]:
-        cur.execute("SELECT id FROM agents WHERE email = %s", (agent_data["email"],))
-        if cur.fetchone():
-            cur.close()
-            conn.close()
-            raise ValueError(f"Email {agent_data['email']} already exists")
+        # Check for duplicate email
+        if "email" in agent_data and agent_data["email"]:
+            cur.execute("SELECT id FROM agents WHERE email = %s", (agent_data["email"],))
+            if cur.fetchone():
+                raise ValueError(f"Email {agent_data['email']} already exists")
 
-    # Insert agent
-    cur.execute(
-        """
-        INSERT INTO agents (
-            name, type_id, tier, status, model, system_prompt,
-            capabilities, monthly_budget, budget_alert_threshold,
-            metadata, first_name, last_name, email, title,
-            department, bio, pronouns, avatar_url, created_at
-        ) VALUES (
-            %(name)s, %(type_id)s, %(tier)s, %(status)s, %(model)s, %(system_prompt)s,
-            %(capabilities)s, %(monthly_budget)s, %(budget_alert_threshold)s,
-            %(metadata)s, %(first_name)s, %(last_name)s, %(email)s, %(title)s,
-            %(department)s, %(bio)s, %(pronouns)s, %(avatar_url)s, NOW()
+        # Insert agent
+        cur.execute(
+            """
+            INSERT INTO agents (
+                name, type_id, tier, status, model, system_prompt,
+                capabilities, monthly_budget, budget_alert_threshold,
+                metadata, first_name, last_name, email, title,
+                department, bio, pronouns, avatar_url, created_at
+            ) VALUES (
+                %(name)s, %(type_id)s, %(tier)s, %(status)s, %(model)s, %(system_prompt)s,
+                %(capabilities)s, %(monthly_budget)s, %(budget_alert_threshold)s,
+                %(metadata)s, %(first_name)s, %(last_name)s, %(email)s, %(title)s,
+                %(department)s, %(bio)s, %(pronouns)s, %(avatar_url)s, NOW()
+            )
+            RETURNING id
+        """,
+            {
+                "name": agent_data["name"],
+                "type_id": agent_data["type_id"],
+                "tier": agent_data.get("tier", 1),
+                "status": agent_data.get("status", "active"),
+                "model": agent_data["model"],
+                "system_prompt": agent_data["system_prompt"],
+                "capabilities": json.dumps(agent_data.get("capabilities", {})),
+                "monthly_budget": agent_data.get("monthly_budget"),
+                "budget_alert_threshold": agent_data.get("budget_alert_threshold", 0.80),
+                "metadata": json.dumps(agent_data.get("metadata", {})),
+                "first_name": agent_data.get("first_name"),
+                "last_name": agent_data.get("last_name"),
+                "email": agent_data.get("email"),
+                "title": agent_data.get("title"),
+                "department": agent_data.get("department"),
+                "bio": agent_data.get("bio"),
+                "pronouns": agent_data.get("pronouns", "they/them"),
+                "avatar_url": agent_data.get("avatar_url"),
+            },
         )
-        RETURNING id
-    """,
-        {
-            "name": agent_data["name"],
-            "type_id": agent_data["type_id"],
-            "tier": agent_data.get("tier", 1),
-            "status": agent_data.get("status", "active"),
-            "model": agent_data["model"],
-            "system_prompt": agent_data["system_prompt"],
-            "capabilities": json.dumps(agent_data.get("capabilities", {})),
-            "monthly_budget": agent_data.get("monthly_budget"),
-            "budget_alert_threshold": agent_data.get("budget_alert_threshold", 0.80),
-            "metadata": json.dumps(agent_data.get("metadata", {})),
-            "first_name": agent_data.get("first_name"),
-            "last_name": agent_data.get("last_name"),
-            "email": agent_data.get("email"),
-            "title": agent_data.get("title"),
-            "department": agent_data.get("department"),
-            "bio": agent_data.get("bio"),
-            "pronouns": agent_data.get("pronouns", "they/them"),
-            "avatar_url": agent_data.get("avatar_url"),
-        },
-    )
 
-    agent_id = cur.fetchone()["id"]
-    conn.commit()
-    cur.close()
-    conn.close()
+        agent_id = cur.fetchone()["id"]
+        conn.commit()
 
-    return get_agent(agent_id)
+        return get_agent(agent_id)
+    finally:
+        try:
+            cur.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 # =============================================================================
@@ -236,74 +254,76 @@ def update_agent(agent_id, updates):
         dict: Updated agent
     """
     conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Check if agent exists
-    cur.execute("SELECT id FROM agents WHERE id = %s", (agent_id,))
-    if not cur.fetchone():
-        cur.close()
-        conn.close()
-        raise ValueError(f"Agent ID {agent_id} not found")
+        # Check if agent exists
+        cur.execute("SELECT id FROM agents WHERE id = %s", (agent_id,))
+        if not cur.fetchone():
+            raise ValueError(f"Agent ID {agent_id} not found")
 
-    # Check for duplicate email if updating email
-    if "email" in updates and updates["email"]:
-        cur.execute(
-            "SELECT id FROM agents WHERE email = %s AND id != %s",
-            (updates["email"], agent_id),
-        )
-        if cur.fetchone():
+        # Check for duplicate email if updating email
+        if "email" in updates and updates["email"]:
+            cur.execute(
+                "SELECT id FROM agents WHERE email = %s AND id != %s",
+                (updates["email"], agent_id),
+            )
+            if cur.fetchone():
+                raise ValueError(f"Email {updates['email']} already exists")
+
+        # Build update query
+        allowed_fields = [
+            "name",
+            "type_id",
+            "tier",
+            "status",
+            "model",
+            "system_prompt",
+            "capabilities",
+            "monthly_budget",
+            "budget_alert_threshold",
+            "metadata",
+            "first_name",
+            "last_name",
+            "email",
+            "title",
+            "department",
+            "bio",
+            "pronouns",
+            "avatar_url",
+        ]
+
+        set_clauses = []
+        params = []
+
+        for field, value in updates.items():
+            if field in allowed_fields:
+                # Handle JSON fields
+                if field in ["capabilities", "metadata"] and not isinstance(value, str):
+                    value = json.dumps(value)
+
+                set_clauses.append(f"{field} = %s")
+                params.append(value)
+
+        if not set_clauses:
+            raise ValueError("No valid fields to update")
+
+        params.append(agent_id)
+        query = f"UPDATE agents SET {', '.join(set_clauses)} WHERE id = %s"
+
+        cur.execute(query, params)
+        conn.commit()
+
+        return get_agent(agent_id)
+    finally:
+        try:
             cur.close()
+        except Exception:
+            pass
+        try:
             conn.close()
-            raise ValueError(f"Email {updates['email']} already exists")
-
-    # Build update query
-    allowed_fields = [
-        "name",
-        "type_id",
-        "tier",
-        "status",
-        "model",
-        "system_prompt",
-        "capabilities",
-        "monthly_budget",
-        "budget_alert_threshold",
-        "metadata",
-        "first_name",
-        "last_name",
-        "email",
-        "title",
-        "department",
-        "bio",
-        "pronouns",
-        "avatar_url",
-    ]
-
-    set_clauses = []
-    params = []
-
-    for field, value in updates.items():
-        if field in allowed_fields:
-            # Handle JSON fields
-            if field in ["capabilities", "metadata"] and not isinstance(value, str):
-                value = json.dumps(value)
-
-            set_clauses.append(f"{field} = %s")
-            params.append(value)
-
-    if not set_clauses:
-        cur.close()
-        conn.close()
-        raise ValueError("No valid fields to update")
-
-    params.append(agent_id)
-    query = f"UPDATE agents SET {', '.join(set_clauses)} WHERE id = %s"
-
-    cur.execute(query, params)
-    conn.commit()
-    cur.close()
-    conn.close()
-
-    return get_agent(agent_id)
+        except Exception:
+            pass
 
 
 # =============================================================================
@@ -323,25 +343,31 @@ def delete_agent(agent_id, soft_delete=True):
         bool: Success
     """
     conn = get_db()
-    cur = conn.cursor()
+    try:
+        cur = conn.cursor()
 
-    # Check if agent exists
-    cur.execute("SELECT id FROM agents WHERE id = %s", (agent_id,))
-    if not cur.fetchone():
-        cur.close()
-        conn.close()
-        raise ValueError(f"Agent ID {agent_id} not found")
+        # Check if agent exists
+        cur.execute("SELECT id FROM agents WHERE id = %s", (agent_id,))
+        if not cur.fetchone():
+            raise ValueError(f"Agent ID {agent_id} not found")
 
-    if soft_delete:
-        cur.execute("UPDATE agents SET status = 'inactive' WHERE id = %s", (agent_id,))
-    else:
-        cur.execute("DELETE FROM agents WHERE id = %s", (agent_id,))
+        if soft_delete:
+            cur.execute("UPDATE agents SET status = 'inactive' WHERE id = %s", (agent_id,))
+        else:
+            cur.execute("DELETE FROM agents WHERE id = %s", (agent_id,))
 
-    conn.commit()
-    cur.close()
-    conn.close()
+        conn.commit()
 
-    return True
+        return True
+    finally:
+        try:
+            cur.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 # =============================================================================
@@ -379,48 +405,55 @@ def search_agents(query):
         list: Matching agents
     """
     conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    search_pattern = f"%{query}%"
+        search_pattern = f"%{query}%"
 
-    cur.execute(
-        """
-        SELECT
-            a.id,
-            a.first_name,
-            a.last_name,
-            a.email,
-            a.title,
-            a.department,
-            a.status,
-            at.name as agent_type
-        FROM agents a
-        LEFT JOIN agent_types at ON a.type_id = at.id
-        WHERE
-            a.first_name ILIKE %s
-            OR a.last_name ILIKE %s
-            OR a.email ILIKE %s
-            OR a.title ILIKE %s
-            OR a.department ILIKE %s
-            OR a.name ILIKE %s
-        ORDER BY a.first_name, a.last_name
-    """,
-        (
-            search_pattern,
-            search_pattern,
-            search_pattern,
-            search_pattern,
-            search_pattern,
-            search_pattern,
-        ),
-    )
+        cur.execute(
+            """
+            SELECT
+                a.id,
+                a.first_name,
+                a.last_name,
+                a.email,
+                a.title,
+                a.department,
+                a.status,
+                at.name as agent_type
+            FROM agents a
+            LEFT JOIN agent_types at ON a.type_id = at.id
+            WHERE
+                a.first_name ILIKE %s
+                OR a.last_name ILIKE %s
+                OR a.email ILIKE %s
+                OR a.title ILIKE %s
+                OR a.department ILIKE %s
+                OR a.name ILIKE %s
+            ORDER BY a.first_name, a.last_name
+        """,
+            (
+                search_pattern,
+                search_pattern,
+                search_pattern,
+                search_pattern,
+                search_pattern,
+                search_pattern,
+            ),
+        )
 
-    agents = cur.fetchall()
+        agents = cur.fetchall()
 
-    cur.close()
-    conn.close()
-
-    return [dict(agent) for agent in agents]
+        return [dict(agent) for agent in agents]
+    finally:
+        try:
+            cur.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 # =============================================================================

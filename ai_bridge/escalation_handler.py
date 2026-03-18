@@ -72,138 +72,144 @@ class EscalationHandler:
             }
         """
         conn = self.get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
         try:
-            # Get proposal details
-            cur.execute(
-                """
-                SELECT * FROM improvement_proposals
-                WHERE id = %s
-            """,
-                (proposal_id,),
-            )
+            cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            proposal = cur.fetchone()
-
-            if not proposal:
-                return {"success": False, "error": f"Proposal {proposal_id} not found"}
-
-            # Determine escalation level
-            current_escalation = proposal.get("metadata", {}).get("escalation_level", 0)
-            next_escalation_level = current_escalation + 1
-
-            # Find escalation target
-            escalation_target = self._find_escalation_target(
-                proposal_id, proposal["category"], next_escalation_level
-            )
-
-            if not escalation_target["success"]:
-                return escalation_target
-
-            # Update proposal metadata
-            metadata = proposal.get("metadata", {})
-            if isinstance(metadata, str):
-                metadata = json.loads(metadata)
-
-            metadata["escalation_level"] = next_escalation_level
-            metadata["escalation_history"] = metadata.get("escalation_history", [])
-            metadata["escalation_history"].append(
-                {
-                    "level": next_escalation_level,
-                    "reason": reason,
-                    "escalated_at": datetime.now().isoformat(),
-                    "escalated_by": escalated_by_user_id,
-                    "auto_triggered": auto_triggered,
-                    "escalated_to": escalation_target.get("agent_name"),
-                }
-            )
-
-            cur.execute(
-                """
-                UPDATE improvement_proposals
-                SET metadata = %s,
-                    status = 'escalated'
-                WHERE id = %s
-            """,
-                (json.dumps(metadata), proposal_id),
-            )
-
-            # Reassign team if needed
-            if escalation_target.get("agent_id"):
-                # Remove old team lead
+            try:
+                # Get proposal details
                 cur.execute(
                     """
-                    DELETE FROM improvement_team_assignments
-                    WHERE proposal_id = %s
-                    AND role = 'lead'
+                    SELECT * FROM improvement_proposals
+                    WHERE id = %s
                 """,
                     (proposal_id,),
                 )
 
-                # Assign new team lead
-                cur.execute(
-                    """
-                    INSERT INTO improvement_team_assignments
-                    (proposal_id, agent_id, role, assigned_at, status)
-                    VALUES (%s, %s, 'lead', NOW(), 'assigned')
-                """,
-                    (proposal_id, escalation_target["agent_id"]),
+                proposal = cur.fetchone()
+
+                if not proposal:
+                    return {"success": False, "error": f"Proposal {proposal_id} not found"}
+
+                # Determine escalation level
+                current_escalation = proposal.get("metadata", {}).get("escalation_level", 0)
+                next_escalation_level = current_escalation + 1
+
+                # Find escalation target
+                escalation_target = self._find_escalation_target(
+                    proposal_id, proposal["category"], next_escalation_level
                 )
 
-            # Create notification
+                if not escalation_target["success"]:
+                    return escalation_target
+
+                # Update proposal metadata
+                metadata = proposal.get("metadata", {})
+                if isinstance(metadata, str):
+                    metadata = json.loads(metadata)
+
+                metadata["escalation_level"] = next_escalation_level
+                metadata["escalation_history"] = metadata.get("escalation_history", [])
+                metadata["escalation_history"].append(
+                    {
+                        "level": next_escalation_level,
+                        "reason": reason,
+                        "escalated_at": datetime.now().isoformat(),
+                        "escalated_by": escalated_by_user_id,
+                        "auto_triggered": auto_triggered,
+                        "escalated_to": escalation_target.get("agent_name"),
+                    }
+                )
+
+                cur.execute(
+                    """
+                    UPDATE improvement_proposals
+                    SET metadata = %s,
+                        status = 'escalated'
+                    WHERE id = %s
+                """,
+                    (json.dumps(metadata), proposal_id),
+                )
+
+                # Reassign team if needed
+                if escalation_target.get("agent_id"):
+                    # Remove old team lead
+                    cur.execute(
+                        """
+                        DELETE FROM improvement_team_assignments
+                        WHERE proposal_id = %s
+                        AND role = 'lead'
+                    """,
+                        (proposal_id,),
+                    )
+
+                    # Assign new team lead
+                    cur.execute(
+                        """
+                        INSERT INTO improvement_team_assignments
+                        (proposal_id, agent_id, role, assigned_at, status)
+                        VALUES (%s, %s, 'lead', NOW(), 'assigned')
+                    """,
+                        (proposal_id, escalation_target["agent_id"]),
+                    )
+
+                # Create notification
+                try:
+                    cur.execute(
+                        """
+                        INSERT INTO notifications
+                        (user_id, type, title, message, created_at)
+                        VALUES (%s, 'escalation', %s, %s, NOW())
+                    """,
+                        (
+                            escalated_by_user_id or 1,  # Default to admin
+                            f"Proposal Escalated to Level {next_escalation_level}",
+                            f"Proposal #{proposal_id} has been escalated. Reason: {reason}",
+                        ),
+                    )
+                except:
+                    pass  # Notifications table might not exist
+
+                conn.commit()
+
+                # Get new team
+                cur.execute(
+                    """
+                    SELECT
+                        ta.*,
+                        a.name as agent_name,
+                        a.model as agent_model
+                    FROM improvement_team_assignments ta
+                    JOIN agents a ON ta.agent_id = a.id
+                    WHERE ta.proposal_id = %s
+                """,
+                    (proposal_id,),
+                )
+
+                new_team = [dict(row) for row in cur.fetchall()]
+
+
+                return {
+                    "success": True,
+                    "proposal_id": proposal_id,
+                    "escalation_level": next_escalation_level,
+                    "escalated_to": escalation_target.get("agent_name"),
+                    "reason": reason,
+                    "new_team": new_team,
+                    "auto_triggered": auto_triggered,
+                }
+
+            except Exception as e:
+                conn.rollback()
+                return {"success": False, "error": str(e)}
+        finally:
             try:
-                cur.execute(
-                    """
-                    INSERT INTO notifications
-                    (user_id, type, title, message, created_at)
-                    VALUES (%s, 'escalation', %s, %s, NOW())
-                """,
-                    (
-                        escalated_by_user_id or 1,  # Default to admin
-                        f"Proposal Escalated to Level {next_escalation_level}",
-                        f"Proposal #{proposal_id} has been escalated. Reason: {reason}",
-                    ),
-                )
-            except:
-                pass  # Notifications table might not exist
-
-            conn.commit()
-
-            # Get new team
-            cur.execute(
-                """
-                SELECT
-                    ta.*,
-                    a.name as agent_name,
-                    a.model as agent_model
-                FROM improvement_team_assignments ta
-                JOIN agents a ON ta.agent_id = a.id
-                WHERE ta.proposal_id = %s
-            """,
-                (proposal_id,),
-            )
-
-            new_team = [dict(row) for row in cur.fetchall()]
-
-            cur.close()
-            conn.close()
-
-            return {
-                "success": True,
-                "proposal_id": proposal_id,
-                "escalation_level": next_escalation_level,
-                "escalated_to": escalation_target.get("agent_name"),
-                "reason": reason,
-                "new_team": new_team,
-                "auto_triggered": auto_triggered,
-            }
-
-        except Exception as e:
-            conn.rollback()
-            cur.close()
-            conn.close()
-            return {"success": False, "error": str(e)}
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def _find_escalation_target(
         self, proposal_id: int, category: str, escalation_level: int
@@ -229,133 +235,131 @@ class EscalationHandler:
             }
         """
         conn = self.get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
         try:
-            if escalation_level == 2:
-                # Find senior agent through can_escalate_to
-                cur.execute(
-                    """
-                    SELECT DISTINCT
-                        se.id as agent_id,
-                        se.name as agent_name,
-                        se.model as agent_model
-                    FROM improvement_team_assignments ta
-                    JOIN agents a ON ta.agent_id = a.id
-                    JOIN agent_skills askill ON a.id = askill.agent_id
-                    JOIN agents se ON askill.can_escalate_to = se.id
-                    WHERE ta.proposal_id = %s
-                    AND se.status = 'active'
-                    AND se.worker_type = 'internal'  -- Prefer internal first
-                    ORDER BY se.id
-                    LIMIT 1
-                """,
-                    (proposal_id,),
-                )
+            cur = conn.cursor(cursor_factory=RealDictCursor)
 
-                senior = cur.fetchone()
+            try:
+                if escalation_level == 2:
+                    # Find senior agent through can_escalate_to
+                    cur.execute(
+                        """
+                        SELECT DISTINCT
+                            se.id as agent_id,
+                            se.name as agent_name,
+                            se.model as agent_model
+                        FROM improvement_team_assignments ta
+                        JOIN agents a ON ta.agent_id = a.id
+                        JOIN agent_skills askill ON a.id = askill.agent_id
+                        JOIN agents se ON askill.can_escalate_to = se.id
+                        WHERE ta.proposal_id = %s
+                        AND se.status = 'active'
+                        AND se.worker_type = 'internal'  -- Prefer internal first
+                        ORDER BY se.id
+                        LIMIT 1
+                    """,
+                        (proposal_id,),
+                    )
 
-                if senior:
-                    cur.close()
-                    conn.close()
-                    return {
-                        "success": True,
-                        "agent_id": senior["agent_id"],
-                        "agent_name": senior["agent_name"],
-                        "escalation_level": 2,
+                    senior = cur.fetchone()
+
+                    if senior:
+                        return {
+                            "success": True,
+                            "agent_id": senior["agent_id"],
+                            "agent_name": senior["agent_name"],
+                            "escalation_level": 2,
+                        }
+
+                    # Fallback: find any senior agent with matching skills
+                    # Map category to skill
+                    skill_mapping = {
+                        "security": "security",
+                        "database": "database",
+                        "performance": "performance",
+                        "ui": "frontend",
+                        "api": "backend",
                     }
 
-                # Fallback: find any senior agent with matching skills
-                # Map category to skill
-                skill_mapping = {
-                    "security": "security",
-                    "database": "database",
-                    "performance": "performance",
-                    "ui": "frontend",
-                    "api": "backend",
-                }
+                    skill = skill_mapping.get(category, "general")
 
-                skill = skill_mapping.get(category, "general")
+                    cur.execute(
+                        """
+                        SELECT
+                            a.id as agent_id,
+                            a.name as agent_name
+                        FROM agents a
+                        JOIN agent_skills askill ON a.id = askill.agent_id
+                        WHERE a.status = 'active'
+                        AND askill.skill_name = %s
+                        AND askill.proficiency_level >= 8  -- Senior level (8-10)
+                        AND a.worker_type = 'internal'
+                        ORDER BY askill.proficiency_level DESC
+                        LIMIT 1
+                    """,
+                        (skill,),
+                    )
 
-                cur.execute(
-                    """
-                    SELECT
-                        a.id as agent_id,
-                        a.name as agent_name
-                    FROM agents a
-                    JOIN agent_skills askill ON a.id = askill.agent_id
-                    WHERE a.status = 'active'
-                    AND askill.skill_name = %s
-                    AND askill.proficiency_level >= 8  -- Senior level (8-10)
-                    AND a.worker_type = 'internal'
-                    ORDER BY askill.proficiency_level DESC
-                    LIMIT 1
-                """,
-                    (skill,),
-                )
+                    fallback_senior = cur.fetchone()
 
-                fallback_senior = cur.fetchone()
+                    if fallback_senior:
+                        return {
+                            "success": True,
+                            "agent_id": fallback_senior["agent_id"],
+                            "agent_name": fallback_senior["agent_name"],
+                            "escalation_level": 2,
+                        }
 
-                if fallback_senior:
-                    cur.close()
-                    conn.close()
+                elif escalation_level == 3:
+                    # Find department manager
+                    # In this system, we'll use the most experienced agent in department
+                    cur.execute("""
+                        SELECT
+                            a.id as agent_id,
+                            a.name as agent_name
+                        FROM agents a
+                        JOIN agent_skills askill ON a.id = askill.agent_id
+                        WHERE a.status = 'active'
+                        AND askill.proficiency_level = 10  -- Expert level
+                        ORDER BY a.id
+                        LIMIT 1
+                    """)
+
+                    manager = cur.fetchone()
+
+                    if manager:
+                        return {
+                            "success": True,
+                            "agent_id": manager["agent_id"],
+                            "agent_name": manager["agent_name"],
+                            "escalation_level": 3,
+                        }
+
+                elif escalation_level >= 4:
+                    # Escalate to admin (no specific agent, just status change)
                     return {
                         "success": True,
-                        "agent_id": fallback_senior["agent_id"],
-                        "agent_name": fallback_senior["agent_name"],
-                        "escalation_level": 2,
+                        "agent_id": None,
+                        "agent_name": "Admin",
+                        "escalation_level": 4,
                     }
 
-            elif escalation_level == 3:
-                # Find department manager
-                # In this system, we'll use the most experienced agent in department
-                cur.execute("""
-                    SELECT
-                        a.id as agent_id,
-                        a.name as agent_name
-                    FROM agents a
-                    JOIN agent_skills askill ON a.id = askill.agent_id
-                    WHERE a.status = 'active'
-                    AND askill.proficiency_level = 10  -- Expert level
-                    ORDER BY a.id
-                    LIMIT 1
-                """)
-
-                manager = cur.fetchone()
-
-                if manager:
-                    cur.close()
-                    conn.close()
-                    return {
-                        "success": True,
-                        "agent_id": manager["agent_id"],
-                        "agent_name": manager["agent_name"],
-                        "escalation_level": 3,
-                    }
-
-            elif escalation_level >= 4:
-                # Escalate to admin (no specific agent, just status change)
-                cur.close()
-                conn.close()
+                # No escalation target found
                 return {
-                    "success": True,
-                    "agent_id": None,
-                    "agent_name": "Admin",
-                    "escalation_level": 4,
+                    "success": False,
+                    "error": f"No escalation target found for level {escalation_level}",
                 }
 
-            # No escalation target found
-            cur.close()
-            conn.close()
-            return {
-                "success": False,
-                "error": f"No escalation target found for level {escalation_level}",
-            }
-
-        except Exception as e:
-            cur.close()
-            conn.close()
-            return {"success": False, "error": str(e)}
+            except Exception as e:
+                return {"success": False, "error": str(e)}
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def escalate_stuck_proposal(self, proposal_id: int, reason: str) -> Dict:
         """
@@ -388,94 +392,98 @@ class EscalationHandler:
             }
         """
         conn = self.get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
         try:
-            if proposal_id:
-                cur.execute(
-                    """
-                    SELECT * FROM improvement_proposals
-                    WHERE id = %s
-                """,
-                    (proposal_id,),
-                )
+            cur = conn.cursor(cursor_factory=RealDictCursor)
 
-                proposal = cur.fetchone()
+            try:
+                if proposal_id:
+                    cur.execute(
+                        """
+                        SELECT * FROM improvement_proposals
+                        WHERE id = %s
+                    """,
+                        (proposal_id,),
+                    )
 
-                if not proposal:
-                    return {"success": False, "error": "Proposal not found"}
+                    proposal = cur.fetchone()
 
-                metadata = proposal.get("metadata", {})
-                if isinstance(metadata, str):
-                    metadata = json.loads(metadata)
+                    if not proposal:
+                        return {"success": False, "error": "Proposal not found"}
 
-                escalations = metadata.get("escalation_history", [])
-
-                cur.close()
-                conn.close()
-
-                return {
-                    "success": True,
-                    "proposal_id": proposal_id,
-                    "escalations": escalations,
-                    "total": len(escalations),
-                    "current_level": metadata.get("escalation_level", 0),
-                }
-
-            else:
-                # Get all escalated proposals
-                cur.execute(
-                    """
-                    SELECT
-                        id,
-                        title,
-                        status,
-                        category,
-                        priority,
-                        metadata
-                    FROM improvement_proposals
-                    WHERE status = 'escalated'
-                    OR metadata::text LIKE '%escalation_level%'
-                    ORDER BY created_at DESC
-                    LIMIT %s
-                """,
-                    (limit,),
-                )
-
-                proposals = cur.fetchall()
-
-                escalations = []
-                for p in proposals:
-                    metadata = p.get("metadata", {})
+                    metadata = proposal.get("metadata", {})
                     if isinstance(metadata, str):
                         metadata = json.loads(metadata)
 
-                    if "escalation_level" in metadata:
-                        escalations.append(
-                            {
-                                "proposal_id": p["id"],
-                                "title": p["title"],
-                                "status": p["status"],
-                                "escalation_level": metadata.get("escalation_level"),
-                                "escalation_history": metadata.get(
-                                    "escalation_history", []
-                                ),
-                            }
-                        )
+                    escalations = metadata.get("escalation_history", [])
 
+
+                    return {
+                        "success": True,
+                        "proposal_id": proposal_id,
+                        "escalations": escalations,
+                        "total": len(escalations),
+                        "current_level": metadata.get("escalation_level", 0),
+                    }
+
+                else:
+                    # Get all escalated proposals
+                    cur.execute(
+                        """
+                        SELECT
+                            id,
+                            title,
+                            status,
+                            category,
+                            priority,
+                            metadata
+                        FROM improvement_proposals
+                        WHERE status = 'escalated'
+                        OR metadata::text LIKE '%escalation_level%'
+                        ORDER BY created_at DESC
+                        LIMIT %s
+                    """,
+                        (limit,),
+                    )
+
+                    proposals = cur.fetchall()
+
+                    escalations = []
+                    for p in proposals:
+                        metadata = p.get("metadata", {})
+                        if isinstance(metadata, str):
+                            metadata = json.loads(metadata)
+
+                        if "escalation_level" in metadata:
+                            escalations.append(
+                                {
+                                    "proposal_id": p["id"],
+                                    "title": p["title"],
+                                    "status": p["status"],
+                                    "escalation_level": metadata.get("escalation_level"),
+                                    "escalation_history": metadata.get(
+                                        "escalation_history", []
+                                    ),
+                                }
+                            )
+
+
+                    return {
+                        "success": True,
+                        "escalations": escalations,
+                        "total": len(escalations),
+                    }
+
+            except Exception as e:
+                return {"success": False, "error": str(e)}
+        finally:
+            try:
                 cur.close()
+            except Exception:
+                pass
+            try:
                 conn.close()
-
-                return {
-                    "success": True,
-                    "escalations": escalations,
-                    "total": len(escalations),
-                }
-
-        except Exception as e:
-            cur.close()
-            conn.close()
-            return {"success": False, "error": str(e)}
+            except Exception:
+                pass
 
 
 # ============================================================================

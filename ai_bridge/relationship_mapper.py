@@ -75,7 +75,7 @@ def get_db():
         host=os.getenv("DB_HOST", "archie_database"),
         database=os.getenv("DB_NAME", "archie"),
         user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", "archiepass"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
 
 
@@ -117,27 +117,35 @@ class RelationshipMapper:
 
         try:
             conn = get_db()
-            cur = conn.cursor()
+            try:
+                cur = conn.cursor()
 
-            # Use ON CONFLICT to update if exists
-            cur.execute(
-                """
-                INSERT INTO knowledge_relationships
-                    (from_id, to_id, relationship_type, strength, metadata)
-                VALUES (%s, %s, %s, %s, %s)
-                ON CONFLICT (from_id, to_id, relationship_type)
-                DO UPDATE SET
-                    strength = EXCLUDED.strength,
-                    metadata = EXCLUDED.metadata
-                RETURNING id
-                """,
-                (from_id, to_id, relationship_type, strength, json.dumps(metadata)),
-            )
+                # Use ON CONFLICT to update if exists
+                cur.execute(
+                    """
+                    INSERT INTO knowledge_relationships
+                        (from_id, to_id, relationship_type, strength, metadata)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (from_id, to_id, relationship_type)
+                    DO UPDATE SET
+                        strength = EXCLUDED.strength,
+                        metadata = EXCLUDED.metadata
+                    RETURNING id
+                    """,
+                    (from_id, to_id, relationship_type, strength, json.dumps(metadata)),
+                )
 
-            result = cur.fetchone()
-            conn.commit()
-            cur.close()
-            conn.close()
+                result = cur.fetchone()
+                conn.commit()
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
             logger.debug(
                 f"Created relationship: {from_id} --[{relationship_type}]--> {to_id}"
@@ -202,44 +210,48 @@ class RelationshipMapper:
         """Find knowledge entry ID by title (fuzzy match)"""
         try:
             conn = get_db()
-            cur = conn.cursor()
+            try:
+                cur = conn.cursor()
 
-            # Try exact match first
-            cur.execute(
-                "SELECT id FROM knowledge_base WHERE title = %s LIMIT 1",
-                (title,),
-            )
-            row = cur.fetchone()
-            if row:
-                cur.close()
-                conn.close()
-                return row[0]
+                # Try exact match first
+                cur.execute(
+                    "SELECT id FROM knowledge_base WHERE title = %s LIMIT 1",
+                    (title,),
+                )
+                row = cur.fetchone()
+                if row:
+                    return row[0]
 
-            # Try case-insensitive match
-            cur.execute(
-                "SELECT id FROM knowledge_base WHERE LOWER(title) = LOWER(%s) LIMIT 1",
-                (title,),
-            )
-            row = cur.fetchone()
-            if row:
-                cur.close()
-                conn.close()
-                return row[0]
+                # Try case-insensitive match
+                cur.execute(
+                    "SELECT id FROM knowledge_base WHERE LOWER(title) = LOWER(%s) LIMIT 1",
+                    (title,),
+                )
+                row = cur.fetchone()
+                if row:
+                    return row[0]
 
-            # Try partial match
-            cur.execute(
-                """
-                SELECT id FROM knowledge_base
-                WHERE LOWER(title) LIKE LOWER(%s)
-                ORDER BY LENGTH(title)
-                LIMIT 1
-                """,
-                (f"%{title}%",),
-            )
-            row = cur.fetchone()
-            cur.close()
-            conn.close()
-            return row[0] if row else None
+                # Try partial match
+                cur.execute(
+                    """
+                    SELECT id FROM knowledge_base
+                    WHERE LOWER(title) LIKE LOWER(%s)
+                    ORDER BY LENGTH(title)
+                    LIMIT 1
+                    """,
+                    (f"%{title}%",),
+                )
+                row = cur.fetchone()
+                return row[0] if row else None
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
         except Exception as e:
             logger.error(f"Title lookup failed: {e}")
@@ -339,9 +351,6 @@ class RelationshipMapper:
                         )
                     )
 
-            cur.close()
-            conn.close()
-
             # Sort by strength and limit
             results.sort(key=lambda r: r.strength, reverse=True)
             return results[:limit]
@@ -349,49 +358,65 @@ class RelationshipMapper:
         except Exception as e:
             logger.error(f"Find related failed: {e}")
             return []
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def get_graph_stats(self) -> dict:
         """Get statistics about the knowledge graph"""
         try:
             conn = get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            # Total relationships
-            cur.execute("SELECT COUNT(*) as total FROM knowledge_relationships")
-            total = cur.fetchone()["total"]
+                # Total relationships
+                cur.execute("SELECT COUNT(*) as total FROM knowledge_relationships")
+                total = cur.fetchone()["total"]
 
-            # Relationships by type
-            cur.execute("""
-                SELECT relationship_type, COUNT(*) as count
-                FROM knowledge_relationships
-                GROUP BY relationship_type
-                ORDER BY count DESC
-                """)
-            by_type = {row["relationship_type"]: row["count"] for row in cur.fetchall()}
+                # Relationships by type
+                cur.execute("""
+                    SELECT relationship_type, COUNT(*) as count
+                    FROM knowledge_relationships
+                    GROUP BY relationship_type
+                    ORDER BY count DESC
+                    """)
+                by_type = {row["relationship_type"]: row["count"] for row in cur.fetchall()}
 
-            # Average strength
-            cur.execute(
-                "SELECT AVG(strength) as avg_strength FROM knowledge_relationships"
-            )
-            avg_strength = cur.fetchone()["avg_strength"]
+                # Average strength
+                cur.execute(
+                    "SELECT AVG(strength) as avg_strength FROM knowledge_relationships"
+                )
+                avg_strength = cur.fetchone()["avg_strength"]
 
-            # Entries with relationships
-            cur.execute("""
-                SELECT COUNT(DISTINCT id) as connected
-                FROM (
-                    SELECT from_id as id FROM knowledge_relationships
-                    UNION
-                    SELECT to_id as id FROM knowledge_relationships
-                ) t
-                """)
-            connected = cur.fetchone()["connected"]
+                # Entries with relationships
+                cur.execute("""
+                    SELECT COUNT(DISTINCT id) as connected
+                    FROM (
+                        SELECT from_id as id FROM knowledge_relationships
+                        UNION
+                        SELECT to_id as id FROM knowledge_relationships
+                    ) t
+                    """)
+                connected = cur.fetchone()["connected"]
 
-            # Total entries
-            cur.execute("SELECT COUNT(*) as total FROM knowledge_base")
-            total_entries = cur.fetchone()["total"]
-
-            cur.close()
-            conn.close()
+                # Total entries
+                cur.execute("SELECT COUNT(*) as total FROM knowledge_base")
+                total_entries = cur.fetchone()["total"]
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
             return {
                 "total_relationships": total,
@@ -419,19 +444,27 @@ class RelationshipMapper:
         """Delete a specific relationship"""
         try:
             conn = get_db()
-            cur = conn.cursor()
-            cur.execute(
-                """
-                DELETE FROM knowledge_relationships
-                WHERE from_id = %s AND to_id = %s AND relationship_type = %s
-                """,
-                (from_id, to_id, relationship_type),
-            )
-            deleted = cur.rowcount > 0
-            conn.commit()
-            cur.close()
-            conn.close()
-            return deleted
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    DELETE FROM knowledge_relationships
+                    WHERE from_id = %s AND to_id = %s AND relationship_type = %s
+                    """,
+                    (from_id, to_id, relationship_type),
+                )
+                deleted = cur.rowcount > 0
+                conn.commit()
+                return deleted
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
         except Exception as e:
             logger.error(f"Delete relationship failed: {e}")
             return False

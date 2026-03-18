@@ -105,104 +105,112 @@ def ingest_conversation(
 
         # 9. Store in database
         conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Store in knowledge_base (unified schema - Phase 3)
-        # Generate title from first 50 chars of user message
-        title_text = user_message[:50].replace("\n", " ")
-        if len(user_message) > 50:
-            title_text += "..."
+            # Store in knowledge_base (unified schema - Phase 3)
+            # Generate title from first 50 chars of user message
+            title_text = user_message[:50].replace("\n", " ")
+            if len(user_message) > 50:
+                title_text += "..."
 
-        cur.execute(
-            """
-            INSERT INTO knowledge_base
-            (knowledge_type, title, content, category, tags, importance_score,
-             memory_metadata, source_type, source_id, created_at, updated_at, indexed_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())
-            RETURNING id
-        """,
-            (
-                "conversation_memory",  # Fixed knowledge type
-                f"Conversation: {title_text}",  # Descriptive title
-                json.dumps(
-                    {
-                        "user_message": user_message,
-                        "ai_response": ai_response,
-                        "summary": summary,
-                    }
-                ),
-                (
-                    content_analysis.get("tags", ["general"])[0]
-                    if content_analysis.get("tags")
-                    else "general"
-                ),
-                tags,
-                calculate_importance_score(sentiment, trust, content_analysis),
-                json.dumps(
-                    {  # memory_metadata (renamed from metadata)
-                        "source": source,
-                        "model": model,
-                        "provider": provider,
-                        "environment": environment,  # Phase 23: Track sandbox vs production
-                        "sentiment": sentiment,
-                        "trust_impact": trust["trust_delta"],
-                        "should_double_check": trust["should_double_check"],
-                        "user_emotion": sentiment["user_emotion"],
-                        "code_detected": content_analysis.get("code_detected", False),
-                        "languages": content_analysis.get("languages", []),
-                        "code_analysis": code_analysis,
-                        "code_snippets_count": len(code_snippets),
-                        "timestamp": datetime.now().isoformat(),
-                        "user_id": user_id,  # Include user_id in metadata
-                        **(metadata or {}),
-                    }
-                ),
-                "conversation_ingest",  # source_type
-                f"conv_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{user_id or 0}",  # source_id (unique)
-            ),
-        )
-
-        memory_id = cur.fetchone()["id"]
-
-        # 10. Store code snippets separately if any
-        for snippet in code_snippets:
             cur.execute(
                 """
-                INSERT INTO archie_codebase_knowledge
-                (knowledge_type, entity_name, file_path, description, code_snippet,
-                 purpose, tags, metadata, auto_learned)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO knowledge_base
+                (knowledge_type, title, content, category, tags, importance_score,
+                 memory_metadata, source_type, source_id, created_at, updated_at, indexed_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())
+                RETURNING id
             """,
                 (
-                    "snippet",
-                    f"Code from conversation #{memory_id}",
-                    None,  # No specific file
-                    summary,
-                    snippet["code"],
-                    f"Code example from conversation ({snippet['language']})",
-                    tags,
+                    "conversation_memory",  # Fixed knowledge type
+                    f"Conversation: {title_text}",  # Descriptive title
                     json.dumps(
                         {
-                            "language": snippet["language"],
-                            "source": source,
-                            "conversation_id": memory_id,
-                            "quality_feedback": code_analysis["code_quality_feedback"],
+                            "user_message": user_message,
+                            "ai_response": ai_response,
+                            "summary": summary,
                         }
                     ),
-                    True,  # auto_learned
+                    (
+                        content_analysis.get("tags", ["general"])[0]
+                        if content_analysis.get("tags")
+                        else "general"
+                    ),
+                    tags,
+                    calculate_importance_score(sentiment, trust, content_analysis),
+                    json.dumps(
+                        {  # memory_metadata (renamed from metadata)
+                            "source": source,
+                            "model": model,
+                            "provider": provider,
+                            "environment": environment,  # Phase 23: Track sandbox vs production
+                            "sentiment": sentiment,
+                            "trust_impact": trust["trust_delta"],
+                            "should_double_check": trust["should_double_check"],
+                            "user_emotion": sentiment["user_emotion"],
+                            "code_detected": content_analysis.get("code_detected", False),
+                            "languages": content_analysis.get("languages", []),
+                            "code_analysis": code_analysis,
+                            "code_snippets_count": len(code_snippets),
+                            "timestamp": datetime.now().isoformat(),
+                            "user_id": user_id,  # Include user_id in metadata
+                            **(metadata or {}),
+                        }
+                    ),
+                    "conversation_ingest",  # source_type
+                    f"conv_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{user_id or 0}",  # source_id (unique)
                 ),
             )
 
-        # 11. Update user relationship and trust score
-        if user_id:
-            update_user_relationship(cur, user_id, sentiment, trust)
+            memory_id = cur.fetchone()["id"]
 
-        # 12. Update A.R.C.H.I.E.'s personality traits
-        personality_update = update_personality_traits(cur, sentiment, trust)
+            # 10. Store code snippets separately if any
+            for snippet in code_snippets:
+                cur.execute(
+                    """
+                    INSERT INTO archie_codebase_knowledge
+                    (knowledge_type, entity_name, file_path, description, code_snippet,
+                     purpose, tags, metadata, auto_learned)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                    (
+                        "snippet",
+                        f"Code from conversation #{memory_id}",
+                        None,  # No specific file
+                        summary,
+                        snippet["code"],
+                        f"Code example from conversation ({snippet['language']})",
+                        tags,
+                        json.dumps(
+                            {
+                                "language": snippet["language"],
+                                "source": source,
+                                "conversation_id": memory_id,
+                                "quality_feedback": code_analysis["code_quality_feedback"],
+                            }
+                        ),
+                        True,  # auto_learned
+                    ),
+                )
 
-        conn.commit()
-        cur.close()
-        conn.close()
+            # 11. Update user relationship and trust score
+            if user_id:
+                update_user_relationship(cur, user_id, sentiment, trust)
+
+            # 12. Update A.R.C.H.I.E.'s personality traits
+            personality_update = update_personality_traits(cur, sentiment, trust)
+
+            conn.commit()
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
         return {
             "success": True,
@@ -411,58 +419,66 @@ def retrieve_similar_conversations(
     """
     try:
         conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Generate tags for query
-        query_analysis = analyze_content(query)
-        query_tags = query_analysis.get("tags", [])
+            # Generate tags for query
+            query_analysis = analyze_content(query)
+            query_tags = query_analysis.get("tags", [])
 
-        # Search for conversations with overlapping tags (from knowledge_base)
-        if query_tags:
-            # Tag-based search
-            cur.execute(
-                """
-                SELECT
-                    id,
-                    content,
-                    category,
-                    tags,
-                    importance_score,
-                    memory_metadata as metadata,
-                    created_at
-                FROM knowledge_base
-                WHERE knowledge_type = 'conversation_memory'
-                AND tags && %s  -- Array overlap operator
-                AND importance_score >= %s
-                ORDER BY importance_score DESC, created_at DESC
-                LIMIT %s
-            """,
-                (query_tags, min_importance, max_results),
-            )
-        else:
-            # Fallback to recent important conversations
-            cur.execute(
-                """
-                SELECT
-                    id,
-                    content,
-                    category,
-                    tags,
-                    importance_score,
-                    memory_metadata as metadata,
-                    created_at
-                FROM knowledge_base
-                WHERE knowledge_type = 'conversation_memory'
-                AND importance_score >= %s
-                ORDER BY created_at DESC
-                LIMIT %s
-            """,
-                (min_importance, max_results),
-            )
+            # Search for conversations with overlapping tags (from knowledge_base)
+            if query_tags:
+                # Tag-based search
+                cur.execute(
+                    """
+                    SELECT
+                        id,
+                        content,
+                        category,
+                        tags,
+                        importance_score,
+                        memory_metadata as metadata,
+                        created_at
+                    FROM knowledge_base
+                    WHERE knowledge_type = 'conversation_memory'
+                    AND tags && %s  -- Array overlap operator
+                    AND importance_score >= %s
+                    ORDER BY importance_score DESC, created_at DESC
+                    LIMIT %s
+                """,
+                    (query_tags, min_importance, max_results),
+                )
+            else:
+                # Fallback to recent important conversations
+                cur.execute(
+                    """
+                    SELECT
+                        id,
+                        content,
+                        category,
+                        tags,
+                        importance_score,
+                        memory_metadata as metadata,
+                        created_at
+                    FROM knowledge_base
+                    WHERE knowledge_type = 'conversation_memory'
+                    AND importance_score >= %s
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                """,
+                    (min_importance, max_results),
+                )
 
-        results = cur.fetchall()
-        cur.close()
-        conn.close()
+            results = cur.fetchall()
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
         # Format results
         conversations = []
@@ -502,16 +518,24 @@ def get_archie_personality() -> Dict:
     """
     try:
         conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
-            SELECT value FROM system_config
-            WHERE key = 'archie_personality'
-        """)
+            cur.execute("""
+                SELECT value FROM system_config
+                WHERE key = 'archie_personality'
+            """)
 
-        result = cur.fetchone()
-        cur.close()
-        conn.close()
+            result = cur.fetchone()
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
         if result and result["value"]:
             return (

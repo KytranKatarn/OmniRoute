@@ -30,7 +30,7 @@ def get_db():
         host=os.getenv("DB_HOST", "archie_database"),
         database=os.getenv("DB_NAME", "archie"),
         user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", "archiepass"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
 
 
@@ -41,9 +41,6 @@ def get_db():
 
 class BriefingGenerator:
     """Compose daily briefings from multiple data sources."""
-
-    def __init__(self):
-        self._ollama_url = os.getenv("OLLAMA_URL", "http://host.docker.internal:11434")
 
     def generate_briefing(self, briefing_id: int) -> Optional[int]:
         """
@@ -503,9 +500,6 @@ class AnomalyDetector:
 
 class ReportEngine:
     """Generate scheduled reports with AI formatting."""
-
-    def __init__(self):
-        self._ollama_url = os.getenv("OLLAMA_URL", "http://host.docker.internal:11434")
 
     def generate_report(self, report_id: int) -> Optional[str]:
         """Generate a scheduled report."""

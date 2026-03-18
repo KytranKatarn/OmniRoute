@@ -142,8 +142,14 @@ class ProposalChatHandler:
             logger.error(f"Failed to send chat message: {e}")
             return {"success": False, "error": str(e)}
         finally:
-            cur.close()
-            conn.close()
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def get_chat_history(
         self,
@@ -218,8 +224,14 @@ class ProposalChatHandler:
             logger.error(f"Failed to get chat history: {e}")
             return {"success": False, "error": str(e)}
         finally:
-            cur.close()
-            conn.close()
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def _format_message(self, message: Dict) -> Dict:
         """Format message for frontend display."""
@@ -297,9 +309,20 @@ class ProposalChatHandler:
             if not proposal["contractor_agent_id"]:
                 return {"success": False, "error": "No contractor assigned"}
 
-            cur.close()
-            conn.close()
+        except Exception as e:
+            logger.error(f"Failed to send to contractor: {e}")
+            return {"success": False, "error": str(e)}
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
+        try:
             # Save human message
             human_msg = self.send_message(
                 proposal_id=proposal_id,
@@ -420,9 +443,20 @@ Respond helpfully and in character. If they ask about code, provide specific sol
             if not proposal["assigned_agent_id"]:
                 return {"success": False, "error": "No agent assigned to this proposal"}
 
-            cur.close()
-            conn.close()
+        except Exception as e:
+            logger.error(f"Failed to send to agent: {e}")
+            return {"success": False, "error": str(e)}
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
+        try:
             # Save human message
             human_msg = self.send_message(
                 proposal_id=proposal_id,
@@ -505,8 +539,14 @@ Respond helpfully as {proposal['agent_name']}.
             conn.rollback()
             return {"success": False, "error": str(e)}
         finally:
-            cur.close()
-            conn.close()
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def get_unread_count(self, proposal_id: int) -> int:
         """Get count of unread messages for a proposal."""
@@ -524,11 +564,18 @@ Respond helpfully as {proposal['agent_name']}.
 
             return cur.fetchone()[0]
 
-        except:
+        except Exception as e:
+            logger.warning("Failed to get unread count: %s", e)
             return 0
         finally:
-            cur.close()
-            conn.close()
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def add_system_message(
         self, proposal_id: int, content: str, message_type: str = "action"
@@ -587,12 +634,20 @@ if __name__ == "__main__":
     # Test database connection
     try:
         conn = handler.get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT COUNT(*) as count FROM proposal_chat_messages")
-        count = cur.fetchone()["count"]
-        print(f"✅ Database connected. {count} chat messages found.")
-        cur.close()
-        conn.close()
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("SELECT COUNT(*) as count FROM proposal_chat_messages")
+            count = cur.fetchone()["count"]
+            print(f"✅ Database connected. {count} chat messages found.")
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
     except Exception as e:
         print(f"❌ Database error: {e}")
 

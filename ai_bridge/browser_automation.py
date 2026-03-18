@@ -34,7 +34,7 @@ def get_db():
         host=os.getenv("DB_HOST", "archie_database"),
         database=os.getenv("DB_NAME", "archie"),
         user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", "archiepass"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
 
 
@@ -49,7 +49,6 @@ class BrowserAutomation:
     """
 
     def __init__(self):
-        self._ollama_url = os.getenv("OLLAMA_URL", "http://host.docker.internal:11434")
         os.makedirs(SCREENSHOT_DIR, exist_ok=True)
 
     def execute_task(self, task_id: int) -> dict:
@@ -59,124 +58,128 @@ class BrowserAutomation:
         Checks domain approval, runs the task via Playwright, stores results.
         """
         conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        cur.execute("SELECT * FROM browser_tasks WHERE id = %s", (task_id,))
-        task = cur.fetchone()
-        if not task:
-            cur.close()
-            conn.close()
-            return {"error": "Task not found"}
-
-        # Parse domain
-        parsed = urlparse(task["url"])
-        domain = parsed.hostname or ""
-
-        # Check domain approval
-        if not self._is_domain_approved(cur, domain):
-            # Request approval
-            from agent_loop import request_approval
-
-            approval_id = request_approval(
-                action_type="browser_new_domain",
-                action_data={"domain": domain, "url": task["url"], "task_id": task_id},
-                reason=f"Browser automation requires access to new domain: {domain}",
-                requested_by="browser_automation",
-                tier=2,
-            )
-
-            cur.execute(
-                """
-                UPDATE browser_tasks
-                SET status = 'awaiting_approval', approval_id = %s, updated_at = NOW()
-                WHERE id = %s
-                """,
-                (approval_id, task_id),
-            )
-            conn.commit()
-            cur.close()
-            conn.close()
-            return {
-                "status": "awaiting_approval",
-                "domain": domain,
-                "approval_id": approval_id,
-            }
-
-        # Mark running
-        cur.execute(
-            "UPDATE browser_tasks SET status = 'running', updated_at = NOW() WHERE id = %s",
-            (task_id,),
-        )
-        conn.commit()
-
-        start = time.time()
-        result = {}
-
         try:
-            task_type = task["task_type"]
-            if task_type == "screenshot":
-                result = self._task_screenshot(task)
-            elif task_type == "scrape":
-                result = self._task_scrape(task)
-            elif task_type == "monitor":
-                result = self._task_monitor(task)
-            elif task_type == "custom":
-                result = self._task_custom(task)
-            else:
-                result = self._task_screenshot(task)  # fallback
+            cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            duration_ms = int((time.time() - start) * 1000)
+            cur.execute("SELECT * FROM browser_tasks WHERE id = %s", (task_id,))
+            task = cur.fetchone()
+            if not task:
+                return {"error": "Task not found"}
 
-            # Store result
+            # Parse domain
+            parsed = urlparse(task["url"])
+            domain = parsed.hostname or ""
+
+            # Check domain approval
+            if not self._is_domain_approved(cur, domain):
+                # Request approval
+                from agent_loop import request_approval
+
+                approval_id = request_approval(
+                    action_type="browser_new_domain",
+                    action_data={"domain": domain, "url": task["url"], "task_id": task_id},
+                    reason=f"Browser automation requires access to new domain: {domain}",
+                    requested_by="browser_automation",
+                    tier=2,
+                )
+
+                cur.execute(
+                    """
+                    UPDATE browser_tasks
+                    SET status = 'awaiting_approval', approval_id = %s, updated_at = NOW()
+                    WHERE id = %s
+                    """,
+                    (approval_id, task_id),
+                )
+                conn.commit()
+                return {
+                    "status": "awaiting_approval",
+                    "domain": domain,
+                    "approval_id": approval_id,
+                }
+
+            # Mark running
             cur.execute(
-                """
-                INSERT INTO browser_task_results
-                (task_id, status, screenshot_path, scraped_data, page_title, page_url, duration_ms, metadata)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
-                """,
-                (
-                    task_id,
-                    "success" if not result.get("error") else "failed",
-                    result.get("screenshot_path"),
+                "UPDATE browser_tasks SET status = 'running', updated_at = NOW() WHERE id = %s",
+                (task_id,),
+            )
+            conn.commit()
+
+            start = time.time()
+            result = {}
+
+            try:
+                task_type = task["task_type"]
+                if task_type == "screenshot":
+                    result = self._task_screenshot(task)
+                elif task_type == "scrape":
+                    result = self._task_scrape(task)
+                elif task_type == "monitor":
+                    result = self._task_monitor(task)
+                elif task_type == "custom":
+                    result = self._task_custom(task)
+                else:
+                    result = self._task_screenshot(task)  # fallback
+
+                duration_ms = int((time.time() - start) * 1000)
+
+                # Store result
+                cur.execute(
+                    """
+                    INSERT INTO browser_task_results
+                    (task_id, status, screenshot_path, scraped_data, page_title, page_url, duration_ms, metadata)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                    """,
                     (
-                        json.dumps(result.get("scraped_data"))
-                        if result.get("scraped_data")
-                        else None
+                        task_id,
+                        "success" if not result.get("error") else "failed",
+                        result.get("screenshot_path"),
+                        (
+                            json.dumps(result.get("scraped_data"))
+                            if result.get("scraped_data")
+                            else None
+                        ),
+                        result.get("page_title"),
+                        result.get("page_url"),
+                        duration_ms,
+                        json.dumps(result.get("metadata", {})),
                     ),
-                    result.get("page_title"),
-                    result.get("page_url"),
-                    duration_ms,
-                    json.dumps(result.get("metadata", {})),
-                ),
-            )
+                )
 
-            cur.execute(
-                """
-                UPDATE browser_tasks
-                SET status = %s, last_run_at = NOW(), error_message = %s, updated_at = NOW()
-                WHERE id = %s
-                """,
-                (
-                    "completed" if not result.get("error") else "failed",
-                    result.get("error"),
-                    task_id,
-                ),
-            )
-            conn.commit()
+                cur.execute(
+                    """
+                    UPDATE browser_tasks
+                    SET status = %s, last_run_at = NOW(), error_message = %s, updated_at = NOW()
+                    WHERE id = %s
+                    """,
+                    (
+                        "completed" if not result.get("error") else "failed",
+                        result.get("error"),
+                        task_id,
+                    ),
+                )
+                conn.commit()
 
-        except Exception as e:
-            logger.error(f"Browser task #{task_id} failed: {e}")
-            cur.execute(
-                "UPDATE browser_tasks SET status = 'failed', error_message = %s, updated_at = NOW() WHERE id = %s",
-                (str(e)[:500], task_id),
-            )
-            conn.commit()
-            result = {"error": str(e)}
+            except Exception as e:
+                logger.error(f"Browser task #{task_id} failed: {e}")
+                cur.execute(
+                    "UPDATE browser_tasks SET status = 'failed', error_message = %s, updated_at = NOW() WHERE id = %s",
+                    (str(e)[:500], task_id),
+                )
+                conn.commit()
+                result = {"error": str(e)}
 
-        cur.close()
-        conn.close()
-        return result
+            return result
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def _task_screenshot(self, task: dict) -> dict:
         """Capture a screenshot of a URL."""
@@ -392,19 +395,27 @@ Respond with ONLY the Python code, no markdown fences."""
         """Add a domain to the approved list."""
         try:
             conn = get_db()
-            cur = conn.cursor()
-            cur.execute(
-                """
-                INSERT INTO browser_approved_domains (domain, approved_by, notes)
-                VALUES (%s, %s, %s)
-                ON CONFLICT (domain) DO NOTHING
-                """,
-                (domain, approved_by, notes),
-            )
-            conn.commit()
-            cur.close()
-            conn.close()
-            return True
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    INSERT INTO browser_approved_domains (domain, approved_by, notes)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (domain) DO NOTHING
+                    """,
+                    (domain, approved_by, notes),
+                )
+                conn.commit()
+                return True
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
         except Exception as e:
             logger.error(f"Failed to approve domain: {e}")
             return False

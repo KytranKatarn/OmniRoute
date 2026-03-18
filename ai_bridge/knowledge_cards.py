@@ -44,7 +44,7 @@ def get_db():
         host=os.getenv("DB_HOST", "archie_database"),
         database=os.getenv("DB_NAME", "archie"),
         user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", "archiepass"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
 
 
@@ -94,110 +94,118 @@ def save_knowledge_card(
     """
     try:
         conn = get_db()
-        cur = conn.cursor()
+        try:
+            cur = conn.cursor()
 
-        # Build content from card
-        content_parts = [card.summary]
-        if card.detailed:
-            content_parts.append(card.detailed)
-        if card.code_examples:
-            content_parts.append("\n\n## Code Examples\n")
-            for i, example in enumerate(card.code_examples, 1):
-                content_parts.append(f"```\n{example}\n```\n")
-        content = "\n\n".join(content_parts)
+            # Build content from card
+            content_parts = [card.summary]
+            if card.detailed:
+                content_parts.append(card.detailed)
+            if card.code_examples:
+                content_parts.append("\n\n## Code Examples\n")
+                for i, example in enumerate(card.code_examples, 1):
+                    content_parts.append(f"```\n{example}\n```\n")
+            content = "\n\n".join(content_parts)
 
-        # Build metadata
-        metadata = {
-            "card_type": card.card_type,
-            "topics": card.topics,
-            "technologies": card.technologies,
-            "difficulty": card.difficulty,
-            "confidence": card.confidence,
-            "source_type": card.source_type,
-            "source_ref": card.source_ref,
-            "batch_id": batch_id,
-            "created_by": "knowledge_analyzer",
-            "analysis_version": 1,
-        }
+            # Build metadata
+            metadata = {
+                "card_type": card.card_type,
+                "topics": card.topics,
+                "technologies": card.technologies,
+                "difficulty": card.difficulty,
+                "confidence": card.confidence,
+                "source_type": card.source_type,
+                "source_ref": card.source_ref,
+                "batch_id": batch_id,
+                "created_by": "knowledge_analyzer",
+                "analysis_version": 1,
+            }
 
-        # Build AI analysis structure
-        ai_analysis = {
-            "card_type": card.card_type,
-            "summary": card.summary,
-            "detailed": card.detailed,
-            "code_examples": card.code_examples,
-            "topics": card.topics,
-            "technologies": card.technologies,
-            "difficulty": card.difficulty,
-            "confidence": card.confidence,
-            "extraction_date": datetime.now().isoformat(),
-        }
+            # Build AI analysis structure
+            ai_analysis = {
+                "card_type": card.card_type,
+                "summary": card.summary,
+                "detailed": card.detailed,
+                "code_examples": card.code_examples,
+                "topics": card.topics,
+                "technologies": card.technologies,
+                "difficulty": card.difficulty,
+                "confidence": card.confidence,
+                "extraction_date": datetime.now().isoformat(),
+            }
 
-        # Insert into knowledge_base (upsert on duplicate title)
-        if embedding:
-            cur.execute(
-                """
-                INSERT INTO knowledge_base
-                    (title, content, knowledge_type, source_type, category,
-                     importance_score, memory_metadata, tags, embedding, embedding_generated_at,
-                     ai_analysis, analysis_version)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, 1)
-                ON CONFLICT (title) WHERE title IS NOT NULL DO UPDATE SET
-                    content = EXCLUDED.content,
-                    ai_analysis = EXCLUDED.ai_analysis,
-                    embedding = EXCLUDED.embedding,
-                    embedding_generated_at = NOW(),
-                    importance_score = EXCLUDED.importance_score,
-                    updated_at = NOW()
-                RETURNING id
-                """,
-                (
-                    card.title,
-                    content,
-                    f"knowledge_card_{card.card_type}",
-                    card.source_type,
-                    card.card_type,
-                    card.confidence,  # Use confidence as importance
-                    json.dumps(metadata),
-                    card.topics + card.technologies,
-                    embedding,
-                    json.dumps(ai_analysis),
-                ),
-            )
-        else:
-            cur.execute(
-                """
-                INSERT INTO knowledge_base
-                    (title, content, knowledge_type, source_type, category,
-                     importance_score, memory_metadata, tags, ai_analysis, analysis_version)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 1)
-                ON CONFLICT (title) WHERE title IS NOT NULL DO UPDATE SET
-                    content = EXCLUDED.content,
-                    ai_analysis = EXCLUDED.ai_analysis,
-                    importance_score = EXCLUDED.importance_score,
-                    updated_at = NOW()
-                RETURNING id
-                """,
-                (
-                    card.title,
-                    content,
-                    f"knowledge_card_{card.card_type}",
-                    card.source_type,
-                    card.card_type,
-                    card.confidence,
-                    json.dumps(metadata),
-                    card.topics + card.technologies,
-                    json.dumps(ai_analysis),
-                ),
-            )
+            # Insert into knowledge_base (upsert on duplicate title)
+            if embedding:
+                cur.execute(
+                    """
+                    INSERT INTO knowledge_base
+                        (title, content, knowledge_type, source_type, category,
+                         importance_score, memory_metadata, tags, embedding, embedding_generated_at,
+                         ai_analysis, analysis_version)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, 1)
+                    ON CONFLICT (title) WHERE title IS NOT NULL DO UPDATE SET
+                        content = EXCLUDED.content,
+                        ai_analysis = EXCLUDED.ai_analysis,
+                        embedding = EXCLUDED.embedding,
+                        embedding_generated_at = NOW(),
+                        importance_score = EXCLUDED.importance_score,
+                        updated_at = NOW()
+                    RETURNING id
+                    """,
+                    (
+                        card.title,
+                        content,
+                        f"knowledge_card_{card.card_type}",
+                        card.source_type,
+                        card.card_type,
+                        card.confidence,  # Use confidence as importance
+                        json.dumps(metadata),
+                        card.topics + card.technologies,
+                        embedding,
+                        json.dumps(ai_analysis),
+                    ),
+                )
+            else:
+                cur.execute(
+                    """
+                    INSERT INTO knowledge_base
+                        (title, content, knowledge_type, source_type, category,
+                         importance_score, memory_metadata, tags, ai_analysis, analysis_version)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 1)
+                    ON CONFLICT (title) WHERE title IS NOT NULL DO UPDATE SET
+                        content = EXCLUDED.content,
+                        ai_analysis = EXCLUDED.ai_analysis,
+                        importance_score = EXCLUDED.importance_score,
+                        updated_at = NOW()
+                    RETURNING id
+                    """,
+                    (
+                        card.title,
+                        content,
+                        f"knowledge_card_{card.card_type}",
+                        card.source_type,
+                        card.card_type,
+                        card.confidence,
+                        json.dumps(metadata),
+                        card.topics + card.technologies,
+                        json.dumps(ai_analysis),
+                    ),
+                )
 
-        result = cur.fetchone()
-        conn.commit()
-        cur.close()
-        conn.close()
+            result = cur.fetchone()
+            conn.commit()
 
-        logger.info(f"Saved knowledge card '{card.title}' as ID {result[0]}")
-        return result[0]
+            logger.info(f"Saved knowledge card '{card.title}' as ID {result[0]}")
+            return result[0]
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     except Exception as e:
         logger.error(f"Failed to save knowledge card: {e}")
@@ -225,61 +233,69 @@ def export_to_markdown(
 
     try:
         conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Build query based on parameters
-        if knowledge_ids:
-            cur.execute(
-                """
-                SELECT id, title, content, knowledge_type, category,
-                       importance_score, memory_metadata, tags, ai_analysis, created_at
-                FROM knowledge_base
-                WHERE id = ANY(%s) AND ai_analysis IS NOT NULL
-                ORDER BY created_at DESC
-                """,
-                (knowledge_ids,),
-            )
-        elif since_date:
-            cur.execute(
-                """
-                SELECT id, title, content, knowledge_type, category,
-                       importance_score, memory_metadata, tags, ai_analysis, created_at
-                FROM knowledge_base
-                WHERE ai_analysis IS NOT NULL AND created_at >= %s
-                ORDER BY created_at DESC
-                LIMIT %s
-                """,
-                (since_date, limit),
-            )
-        else:
-            cur.execute(
-                """
-                SELECT id, title, content, knowledge_type, category,
-                       importance_score, memory_metadata, tags, ai_analysis, created_at
-                FROM knowledge_base
-                WHERE ai_analysis IS NOT NULL
-                ORDER BY created_at DESC
-                LIMIT %s
-                """,
-                (limit,),
-            )
+            # Build query based on parameters
+            if knowledge_ids:
+                cur.execute(
+                    """
+                    SELECT id, title, content, knowledge_type, category,
+                           importance_score, memory_metadata, tags, ai_analysis, created_at
+                    FROM knowledge_base
+                    WHERE id = ANY(%s) AND ai_analysis IS NOT NULL
+                    ORDER BY created_at DESC
+                    """,
+                    (knowledge_ids,),
+                )
+            elif since_date:
+                cur.execute(
+                    """
+                    SELECT id, title, content, knowledge_type, category,
+                           importance_score, memory_metadata, tags, ai_analysis, created_at
+                    FROM knowledge_base
+                    WHERE ai_analysis IS NOT NULL AND created_at >= %s
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                    """,
+                    (since_date, limit),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT id, title, content, knowledge_type, category,
+                           importance_score, memory_metadata, tags, ai_analysis, created_at
+                    FROM knowledge_base
+                    WHERE ai_analysis IS NOT NULL
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
 
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
+            rows = cur.fetchall()
 
-        for row in rows:
+            for row in rows:
+                try:
+                    filepath = _export_single_card(dict(row))
+                    if filepath:
+                        stats["exported"] += 1
+                        stats["files"].append(filepath)
+                    else:
+                        stats["skipped"] += 1
+                except Exception as e:
+                    stats["errors"].append({"id": row["id"], "error": str(e)})
+
+            return stats
+        finally:
             try:
-                filepath = _export_single_card(dict(row))
-                if filepath:
-                    stats["exported"] += 1
-                    stats["files"].append(filepath)
-                else:
-                    stats["skipped"] += 1
-            except Exception as e:
-                stats["errors"].append({"id": row["id"], "error": str(e)})
-
-        return stats
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     except Exception as e:
         logger.error(f"Export failed: {e}")
@@ -417,20 +433,28 @@ def get_card_by_id(knowledge_id: int) -> Optional[dict]:
     """Get a knowledge card by ID"""
     try:
         conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute(
-            """
-            SELECT id, title, content, knowledge_type, category,
-                   importance_score, memory_metadata, tags, ai_analysis, created_at
-            FROM knowledge_base
-            WHERE id = %s
-            """,
-            (knowledge_id,),
-        )
-        row = cur.fetchone()
-        cur.close()
-        conn.close()
-        return dict(row) if row else None
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """
+                SELECT id, title, content, knowledge_type, category,
+                       importance_score, memory_metadata, tags, ai_analysis, created_at
+                FROM knowledge_base
+                WHERE id = %s
+                """,
+                (knowledge_id,),
+            )
+            row = cur.fetchone()
+            return dict(row) if row else None
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
     except Exception as e:
         logger.error(f"Failed to get card {knowledge_id}: {e}")
         return None

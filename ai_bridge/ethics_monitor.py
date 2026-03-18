@@ -120,8 +120,6 @@ class EthicsMonitor:
             """)
 
             row = cur.fetchone()
-            cur.close()
-            conn.close()
 
             if row and row["config_value"]:
                 config = row["config_value"]
@@ -144,6 +142,15 @@ class EthicsMonitor:
         except Exception as e:
             logger.warning(f"Error loading thresholds: {e}, using defaults")
             return MonitoringThresholds()
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def run_full_monitoring_cycle(self, triggered_by: int = None) -> MonitoringResult:
         """
@@ -221,8 +228,6 @@ class EthicsMonitor:
             )
 
             conn.commit()
-            cur.close()
-            conn.close()
 
             logger.info(
                 f"[ATHENA] Monitoring cycle complete: {agents_checked} agents, {issues_found} issues, {alerts_created} alerts"
@@ -243,6 +248,7 @@ class EthicsMonitor:
 
             # Mark run as failed if we have a run_id
             if run_id:
+                conn = None
                 try:
                     conn = get_db()
                     cur = conn.cursor()
@@ -257,10 +263,18 @@ class EthicsMonitor:
                         (str(e), run_id),
                     )
                     conn.commit()
-                    cur.close()
-                    conn.close()
                 except:
                     pass
+                finally:
+                    try:
+                        cur.close()
+                    except Exception:
+                        pass
+                    if conn:
+                        try:
+                            conn.close()
+                        except Exception:
+                            pass
 
             return MonitoringResult(
                 run_id=run_id or 0,
@@ -270,6 +284,15 @@ class EthicsMonitor:
                 duration_ms=int((datetime.now() - start_time).total_seconds() * 1000),
                 errors=errors,
             )
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def _run_advanced_checks(self, cur) -> Tuple[int, int]:
         """Run additional checks not covered by the database function"""
@@ -370,14 +393,21 @@ class EthicsMonitor:
             cur.execute(query, params)
             results = cur.fetchall()
 
-            cur.close()
-            conn.close()
 
             return [dict(r) for r in results]
 
         except Exception as e:
             logger.error(f"Error getting welfare status: {e}")
             return []
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def get_active_alerts(
         self, severity: str = None, agent_id: int = None
@@ -401,14 +431,21 @@ class EthicsMonitor:
             cur.execute(query, params)
             results = cur.fetchall()
 
-            cur.close()
-            conn.close()
 
             return [dict(r) for r in results]
 
         except Exception as e:
             logger.error(f"Error getting alerts: {e}")
             return []
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def acknowledge_alert(self, alert_id: int, user_id: int) -> bool:
         """Acknowledge an alert"""
@@ -429,14 +466,21 @@ class EthicsMonitor:
 
             affected = cur.rowcount
             conn.commit()
-            cur.close()
-            conn.close()
 
             return affected > 0
 
         except Exception as e:
             logger.error(f"Error acknowledging alert: {e}")
             return False
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def resolve_alert(self, alert_id: int, user_id: int, notes: str = None) -> bool:
         """Resolve an alert"""
@@ -458,14 +502,21 @@ class EthicsMonitor:
 
             affected = cur.rowcount
             conn.commit()
-            cur.close()
-            conn.close()
 
             return affected > 0
 
         except Exception as e:
             logger.error(f"Error resolving alert: {e}")
             return False
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def generate_weekly_report(self) -> Optional[int]:
         """Generate weekly compliance report"""
@@ -535,8 +586,6 @@ class EthicsMonitor:
                 )
 
             conn.commit()
-            cur.close()
-            conn.close()
 
             logger.info(f"[ATHENA] Weekly compliance report generated: ID {report_id}")
             return report_id
@@ -544,6 +593,15 @@ class EthicsMonitor:
         except Exception as e:
             logger.error(f"Error generating weekly report: {e}")
             return None
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def get_compliance_summary(self, days: int = 30) -> Dict[str, Any]:
         """Get compliance summary for dashboard"""
@@ -600,8 +658,6 @@ class EthicsMonitor:
             )
             run_stats = cur.fetchone()
 
-            cur.close()
-            conn.close()
 
             return {
                 "alert_counts": {
@@ -622,6 +678,15 @@ class EthicsMonitor:
         except Exception as e:
             logger.error(f"Error getting compliance summary: {e}")
             return {}
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def get_athena_status(self) -> Dict[str, Any]:
         """Get ATHENA's current status"""
@@ -657,8 +722,6 @@ class EthicsMonitor:
             """)
             critical_count = cur.fetchone()["count"]
 
-            cur.close()
-            conn.close()
 
             return {
                 "status": "active" if athena["status"] == "active" else "inactive",
@@ -676,6 +739,15 @@ class EthicsMonitor:
         except Exception as e:
             logger.error(f"Error getting ATHENA status: {e}")
             return {"status": "error", "message": str(e)}
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     # =========================================================================
     # SUB-AGENT GOVERNANCE (Phase 2)
@@ -707,7 +779,6 @@ class EthicsMonitor:
             budget = cur.fetchone()
 
             if not budget or not budget["can_create_sub_agents"]:
-                cur.close()
                 return {
                     "allowed": False,
                     "reason": "Agent not authorized to create sub-agents",
@@ -724,7 +795,6 @@ class EthicsMonitor:
             count = cur.fetchone()["count"]
 
             if count >= budget["max_sub_agents"]:
-                cur.close()
                 return {
                     "allowed": False,
                     "reason": f"Sub-agent limit reached ({count}/{budget['max_sub_agents']})",
@@ -740,13 +810,11 @@ class EthicsMonitor:
                 and gen_row["agent_generation"] is not None
                 and gen_row["agent_generation"] >= 3
             ):
-                cur.close()
                 return {
                     "allowed": False,
                     "reason": "Maximum agent generation depth reached (3)",
                 }
 
-            cur.close()
             return {
                 "allowed": True,
                 "remaining": budget["max_sub_agents"] - count,
@@ -757,8 +825,15 @@ class EthicsMonitor:
             logger.error(f"Error checking agent creation permission: {e}")
             return {"allowed": False, "reason": f"Governance check failed: {str(e)}"}
         finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
             if close_conn:
-                conn.close()
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     def log_agent_creation_event(
         self,
@@ -811,7 +886,6 @@ class EthicsMonitor:
             )
 
             conn.commit()
-            cur.close()
             logger.info(
                 f"Agent creation logged: parent={parent_agent_id}, child={child_agent_id}"
             )
@@ -822,8 +896,15 @@ class EthicsMonitor:
             logger.error(f"Error logging agent creation: {e}")
             return False
         finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
             if close_conn:
-                conn.close()
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
 
 # Singleton instance

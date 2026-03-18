@@ -30,7 +30,7 @@ def get_db():
         host=os.getenv("DB_HOST", "archie_database"),
         database=os.getenv("DB_NAME", "archie"),
         user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", "archiepass"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
 
 
@@ -180,61 +180,67 @@ class TelegramGateway:
 
         try:
             conn = get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            # Find matching code
-            cur.execute(
-                """
-                SELECT id, user_id FROM telegram_users
-                WHERE link_code = %s AND link_code_expires_at > NOW()
-                """,
-                (code,),
-            )
-            row = cur.fetchone()
-
-            if not row:
-                await update.message.reply_text(
-                    "Invalid or expired code. Please generate a new one."
+                # Find matching code
+                cur.execute(
+                    """
+                    SELECT id, user_id FROM telegram_users
+                    WHERE link_code = %s AND link_code_expires_at > NOW()
+                    """,
+                    (code,),
                 )
-                cur.close()
-                conn.close()
-                return
+                row = cur.fetchone()
 
-            # Update with Telegram info
-            cur.execute(
-                """
-                UPDATE telegram_users
-                SET telegram_id = %s, telegram_username = %s, first_name = %s, last_name = %s,
-                    is_authorized = TRUE, link_code = NULL, link_code_expires_at = NULL, updated_at = NOW()
-                WHERE id = %s
-                """,
-                (
-                    tg_user.id,
-                    tg_user.username,
-                    tg_user.first_name,
-                    tg_user.last_name,
-                    row["id"],
-                ),
-            )
+                if not row:
+                    await update.message.reply_text(
+                        "Invalid or expired code. Please generate a new one."
+                    )
+                    return
 
-            # Create default notification rule (all notifications)
-            cur.execute(
-                """
-                INSERT INTO telegram_notification_rules (telegram_user_id, is_active)
-                VALUES (%s, TRUE)
-                ON CONFLICT DO NOTHING
-                """,
-                (row["id"],),
-            )
+                # Update with Telegram info
+                cur.execute(
+                    """
+                    UPDATE telegram_users
+                    SET telegram_id = %s, telegram_username = %s, first_name = %s, last_name = %s,
+                        is_authorized = TRUE, link_code = NULL, link_code_expires_at = NULL, updated_at = NOW()
+                    WHERE id = %s
+                    """,
+                    (
+                        tg_user.id,
+                        tg_user.username,
+                        tg_user.first_name,
+                        tg_user.last_name,
+                        row["id"],
+                    ),
+                )
 
-            conn.commit()
-            cur.close()
-            conn.close()
+                # Create default notification rule (all notifications)
+                cur.execute(
+                    """
+                    INSERT INTO telegram_notification_rules (telegram_user_id, is_active)
+                    VALUES (%s, TRUE)
+                    ON CONFLICT DO NOTHING
+                    """,
+                    (row["id"],),
+                )
 
-            await update.message.reply_text(
-                "Account linked successfully! You'll now receive notifications here.\n"
-                "Send me any message to chat with ARCHIE."
-            )
+                conn.commit()
+
+                await update.message.reply_text(
+                    "Account linked successfully! You'll now receive notifications here.\n"
+                    "Send me any message to chat with ARCHIE."
+                )
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
         except Exception as e:
             logger.error(f"Link failed: {e}")
@@ -251,35 +257,43 @@ class TelegramGateway:
 
         try:
             conn = get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            # Unread notifications
-            cur.execute(
-                "SELECT COUNT(*) as c FROM system_notifications WHERE is_read = FALSE"
-            )
-            unread = cur.fetchone()["c"]
+                # Unread notifications
+                cur.execute(
+                    "SELECT COUNT(*) as c FROM system_notifications WHERE is_read = FALSE"
+                )
+                unread = cur.fetchone()["c"]
 
-            # Pending approvals
-            cur.execute(
-                "SELECT COUNT(*) as c FROM autonomy_approval_queue WHERE status = 'pending'"
-            )
-            pending = cur.fetchone()["c"]
+                # Pending approvals
+                cur.execute(
+                    "SELECT COUNT(*) as c FROM autonomy_approval_queue WHERE status = 'pending'"
+                )
+                pending = cur.fetchone()["c"]
 
-            # Unread emails
-            cur.execute(
-                "SELECT COUNT(*) as c FROM email_inbox WHERE is_read = FALSE AND is_archived = FALSE"
-            )
-            unread_emails = cur.fetchone()["c"]
+                # Unread emails
+                cur.execute(
+                    "SELECT COUNT(*) as c FROM email_inbox WHERE is_read = FALSE AND is_archived = FALSE"
+                )
+                unread_emails = cur.fetchone()["c"]
 
-            cur.close()
-            conn.close()
 
-            await update.message.reply_text(
-                "ARCHIE Status\n"
-                f"Notifications: {unread} unread\n"
-                f"Approvals: {pending} pending\n"
-                f"Emails: {unread_emails} unread"
-            )
+                await update.message.reply_text(
+                    "ARCHIE Status\n"
+                    f"Notifications: {unread} unread\n"
+                    f"Approvals: {pending} pending\n"
+                    f"Emails: {unread_emails} unread"
+                )
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
         except Exception as e:
             await update.message.reply_text(f"Error: {e}")
 
@@ -295,41 +309,49 @@ class TelegramGateway:
             from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
             conn = get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("""
-                SELECT id, action_type, reason, priority, created_at
-                FROM autonomy_approval_queue
-                WHERE status = 'pending'
-                ORDER BY priority ASC, created_at ASC
-                LIMIT 5
-                """)
-            items = cur.fetchall()
-            cur.close()
-            conn.close()
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur.execute("""
+                    SELECT id, action_type, reason, priority, created_at
+                    FROM autonomy_approval_queue
+                    WHERE status = 'pending'
+                    ORDER BY priority ASC, created_at ASC
+                    LIMIT 5
+                    """)
+                items = cur.fetchall()
 
-            if not items:
-                await update.message.reply_text("No pending approvals.")
-                return
+                if not items:
+                    await update.message.reply_text("No pending approvals.")
+                    return
 
-            for item in items:
-                keyboard = InlineKeyboardMarkup(
-                    [
+                for item in items:
+                    keyboard = InlineKeyboardMarkup(
                         [
-                            InlineKeyboardButton(
-                                "Approve", callback_data=f"approve_{item['id']}"
-                            ),
-                            InlineKeyboardButton(
-                                "Reject", callback_data=f"reject_{item['id']}"
-                            ),
+                            [
+                                InlineKeyboardButton(
+                                    "Approve", callback_data=f"approve_{item['id']}"
+                                ),
+                                InlineKeyboardButton(
+                                    "Reject", callback_data=f"reject_{item['id']}"
+                                ),
+                            ]
                         ]
-                    ]
-                )
-                await update.message.reply_text(
-                    f"#{item['id']} | {item['action_type']}\n"
-                    f"Priority: {item['priority']} | {item['reason'] or 'No reason'}\n"
-                    f"Created: {item['created_at']}",
-                    reply_markup=keyboard,
-                )
+                    )
+                    await update.message.reply_text(
+                        f"#{item['id']} | {item['action_type']}\n"
+                        f"Priority: {item['priority']} | {item['reason'] or 'No reason'}\n"
+                        f"Created: {item['created_at']}",
+                        reply_markup=keyboard,
+                    )
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
         except Exception as e:
             await update.message.reply_text(f"Error: {e}")
@@ -344,30 +366,38 @@ class TelegramGateway:
 
         try:
             conn = get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("""
-                SELECT from_name, from_address, subject, ai_category, ai_priority, received_at
-                FROM email_inbox
-                WHERE is_read = FALSE AND is_archived = FALSE
-                ORDER BY received_at DESC
-                LIMIT 10
-                """)
-            emails = cur.fetchall()
-            cur.close()
-            conn.close()
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur.execute("""
+                    SELECT from_name, from_address, subject, ai_category, ai_priority, received_at
+                    FROM email_inbox
+                    WHERE is_read = FALSE AND is_archived = FALSE
+                    ORDER BY received_at DESC
+                    LIMIT 10
+                    """)
+                emails = cur.fetchall()
 
-            if not emails:
-                await update.message.reply_text("No unread emails.")
-                return
+                if not emails:
+                    await update.message.reply_text("No unread emails.")
+                    return
 
-            lines = ["Unread Emails:\n"]
-            for e in emails:
-                cat = f"[{e['ai_category']}]" if e.get("ai_category") else ""
-                pri = f"P{e['ai_priority']}" if e.get("ai_priority") else ""
-                name = e["from_name"] or e["from_address"]
-                lines.append(f"{cat}{pri} {name}: {e['subject'] or '(no subject)'}")
+                lines = ["Unread Emails:\n"]
+                for e in emails:
+                    cat = f"[{e['ai_category']}]" if e.get("ai_category") else ""
+                    pri = f"P{e['ai_priority']}" if e.get("ai_priority") else ""
+                    name = e["from_name"] or e["from_address"]
+                    lines.append(f"{cat}{pri} {name}: {e['subject'] or '(no subject)'}")
 
-            await update.message.reply_text("\n".join(lines))
+                await update.message.reply_text("\n".join(lines))
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
         except Exception as e:
             await update.message.reply_text(f"Error: {e}")
 
@@ -513,48 +543,56 @@ class TelegramGateway:
 
         try:
             conn = get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            if action == "approve":
-                cur.execute("""
-                    UPDATE autonomy_approval_queue
-                    SET status = 'approved', approved_by = %s, approved_at = NOW(), updated_at = NOW()
-                    WHERE id = %s AND status = 'pending'
-                    RETURNING action_data
-                """, (user_info["user_id"], approval_id))
-                row = cur.fetchone()
-                conn.commit()
-                if row:
-                    action_data = row["action_data"] if isinstance(row["action_data"], dict) else json.loads(row["action_data"])
-                    await query.edit_message_text(
-                        f"\u2705 Approved escalation #{approval_id}\n"
-                        f"Model: {action_data.get('escalated_model', '?')}\n"
-                        f"Will execute on next dispatch cycle."
-                    )
-                else:
-                    await query.edit_message_text(f"Escalation #{approval_id} not found or already processed.")
+                if action == "approve":
+                    cur.execute("""
+                        UPDATE autonomy_approval_queue
+                        SET status = 'approved', approved_by = %s, approved_at = NOW(), updated_at = NOW()
+                        WHERE id = %s AND status = 'pending'
+                        RETURNING action_data
+                    """, (user_info["user_id"], approval_id))
+                    row = cur.fetchone()
+                    conn.commit()
+                    if row:
+                        action_data = row["action_data"] if isinstance(row["action_data"], dict) else json.loads(row["action_data"])
+                        await query.edit_message_text(
+                            f"\u2705 Approved escalation #{approval_id}\n"
+                            f"Model: {action_data.get('escalated_model', '?')}\n"
+                            f"Will execute on next dispatch cycle."
+                        )
+                    else:
+                        await query.edit_message_text(f"Escalation #{approval_id} not found or already processed.")
 
-            elif action == "deny":
-                cur.execute("""
-                    UPDATE autonomy_approval_queue
-                    SET status = 'rejected', approved_by = %s,
-                        rejected_reason = 'Denied via Telegram', updated_at = NOW()
-                    WHERE id = %s AND status = 'pending'
-                """, (user_info["user_id"], approval_id))
-                conn.commit()
-                await query.edit_message_text(f"\u274c Denied escalation #{approval_id}")
+                elif action == "deny":
+                    cur.execute("""
+                        UPDATE autonomy_approval_queue
+                        SET status = 'rejected', approved_by = %s,
+                            rejected_reason = 'Denied via Telegram', updated_at = NOW()
+                        WHERE id = %s AND status = 'pending'
+                    """, (user_info["user_id"], approval_id))
+                    conn.commit()
+                    await query.edit_message_text(f"\u274c Denied escalation #{approval_id}")
 
-            elif action == "defer":
-                cur.execute("""
-                    UPDATE autonomy_approval_queue
-                    SET expires_at = NOW() + INTERVAL '1 hour', updated_at = NOW()
-                    WHERE id = %s AND status = 'pending'
-                """, (approval_id,))
-                conn.commit()
-                await query.edit_message_text(f"\u23f3 Deferred escalation #{approval_id} for 1 hour")
+                elif action == "defer":
+                    cur.execute("""
+                        UPDATE autonomy_approval_queue
+                        SET expires_at = NOW() + INTERVAL '1 hour', updated_at = NOW()
+                        WHERE id = %s AND status = 'pending'
+                    """, (approval_id,))
+                    conn.commit()
+                    await query.edit_message_text(f"\u23f3 Deferred escalation #{approval_id} for 1 hour")
 
-            cur.close()
-            conn.close()
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
         except Exception as e:
             logger.error(f"Escalation callback error: {e}")
@@ -587,22 +625,30 @@ class TelegramGateway:
         async def _send():
             try:
                 conn = get_db()
-                cur = conn.cursor()
-                cur.execute(
-                    "SELECT telegram_id FROM telegram_users "
-                    "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
-                )
-                rows = cur.fetchall()
-                cur.close()
-                conn.close()
+                try:
+                    cur = conn.cursor()
+                    cur.execute(
+                        "SELECT telegram_id FROM telegram_users "
+                        "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
+                    )
+                    rows = cur.fetchall()
 
-                for row in rows:
+                    for row in rows:
+                        try:
+                            await self._application.bot.send_message(
+                                chat_id=row[0], text=text, reply_markup=keyboard
+                            )
+                        except Exception as e:
+                            logger.warning(f"Failed to notify {row[0]}: {e}")
+                finally:
                     try:
-                        await self._application.bot.send_message(
-                            chat_id=row[0], text=text, reply_markup=keyboard
-                        )
-                    except Exception as e:
-                        logger.warning(f"Failed to notify {row[0]}: {e}")
+                        cur.close()
+                    except Exception:
+                        pass
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
             except Exception as e:
                 logger.error(f"Escalation notification failed: {e}")
 
@@ -622,21 +668,29 @@ class TelegramGateway:
 
         try:
             conn = get_db()
-            cur = conn.cursor()
-            cur.execute(
-                "SELECT telegram_id FROM telegram_users "
-                "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
-            )
-            rows = cur.fetchall()
-            cur.close()
-            conn.close()
-            for row in rows:
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT telegram_id FROM telegram_users "
+                    "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
+                )
+                rows = cur.fetchall()
+                for row in rows:
+                    try:
+                        _req.post(
+                            f"https://api.telegram.org/bot{self.bot_token}/sendMessage",
+                            json={"chat_id": row[0], "text": text, "parse_mode": "Markdown"},
+                            timeout=15,
+                        )
+                    except Exception:
+                        pass
+            finally:
                 try:
-                    _req.post(
-                        f"https://api.telegram.org/bot{self.bot_token}/sendMessage",
-                        json={"chat_id": row[0], "text": text, "parse_mode": "Markdown"},
-                        timeout=15,
-                    )
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
                 except Exception:
                     pass
         except Exception as e:
@@ -673,56 +727,64 @@ class TelegramGateway:
 
         try:
             conn = get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            if action == "archive":
-                cur.execute(
-                    "UPDATE email_inbox SET is_archived = TRUE, updated_at = NOW() WHERE id = %s",
-                    (email_id,),
-                )
-                conn.commit()
-                await query.edit_message_text(query.message.text + "\n\nArchived")
-
-            elif action == "star":
-                cur.execute(
-                    "UPDATE email_inbox SET is_starred = NOT is_starred, updated_at = NOW() WHERE id = %s RETURNING is_starred",
-                    (email_id,),
-                )
-                row = cur.fetchone()
-                conn.commit()
-                status = "Starred" if row and row["is_starred"] else "Unstarred"
-                await query.edit_message_text(query.message.text + "\n\n" + status)
-
-            elif action == "read":
-                cur.execute(
-                    "UPDATE email_inbox SET is_read = TRUE, updated_at = NOW() WHERE id = %s",
-                    (email_id,),
-                )
-                conn.commit()
-                await query.edit_message_text(query.message.text + "\n\nMarked as read")
-
-            elif action == "reply":
-                # Set user into reply mode
-                context.user_data["pending_reply_email_id"] = email_id
-                cur.execute(
-                    "SELECT from_address, from_name, subject FROM email_inbox WHERE id = %s",
-                    (email_id,),
-                )
-                email = cur.fetchone()
-                if email:
-                    reply_to = email.get("from_name") or email["from_address"]
-                    await query.message.reply_text(
-                        f"Replying to: {reply_to}\n"
-                        f"Subject: Re: {email['subject']}\n\n"
-                        "Type your reply message now. Send /cancel to abort."
+                if action == "archive":
+                    cur.execute(
+                        "UPDATE email_inbox SET is_archived = TRUE, updated_at = NOW() WHERE id = %s",
+                        (email_id,),
                     )
-                else:
-                    await query.message.reply_text("Email not found.")
-            else:
-                await query.message.reply_text(f"Unknown action: {action}")
+                    conn.commit()
+                    await query.edit_message_text(query.message.text + "\n\nArchived")
 
-            cur.close()
-            conn.close()
+                elif action == "star":
+                    cur.execute(
+                        "UPDATE email_inbox SET is_starred = NOT is_starred, updated_at = NOW() WHERE id = %s RETURNING is_starred",
+                        (email_id,),
+                    )
+                    row = cur.fetchone()
+                    conn.commit()
+                    status = "Starred" if row and row["is_starred"] else "Unstarred"
+                    await query.edit_message_text(query.message.text + "\n\n" + status)
+
+                elif action == "read":
+                    cur.execute(
+                        "UPDATE email_inbox SET is_read = TRUE, updated_at = NOW() WHERE id = %s",
+                        (email_id,),
+                    )
+                    conn.commit()
+                    await query.edit_message_text(query.message.text + "\n\nMarked as read")
+
+                elif action == "reply":
+                    # Set user into reply mode
+                    context.user_data["pending_reply_email_id"] = email_id
+                    cur.execute(
+                        "SELECT from_address, from_name, subject FROM email_inbox WHERE id = %s",
+                        (email_id,),
+                    )
+                    email = cur.fetchone()
+                    if email:
+                        reply_to = email.get("from_name") or email["from_address"]
+                        await query.message.reply_text(
+                            f"Replying to: {reply_to}\n"
+                            f"Subject: Re: {email['subject']}\n\n"
+                            "Type your reply message now. Send /cancel to abort."
+                        )
+                    else:
+                        await query.message.reply_text("Email not found.")
+                else:
+                    await query.message.reply_text(f"Unknown action: {action}")
+
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
         except Exception as e:
             logger.error(f"Email callback failed: {e}")
             try:
@@ -741,93 +803,101 @@ class TelegramGateway:
 
         try:
             conn = get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-
-            # Get original email
-            cur.execute(
-                "SELECT from_address, subject, message_id FROM email_inbox WHERE id = %s",
-                (email_id,),
-            )
-            email = cur.fetchone()
-            if not email:
-                await update.message.reply_text("Original email not found.")
-                del context.user_data["pending_reply_email_id"]
-                return
-
-            # Get SMTP settings
-            cur.execute(
-                "SELECT * FROM email_settings WHERE is_default = TRUE AND is_active = TRUE LIMIT 1"
-            )
-            smtp = cur.fetchone()
-            if not smtp:
-                await update.message.reply_text(
-                    "No SMTP configured. Cannot send reply."
-                )
-                del context.user_data["pending_reply_email_id"]
-                return
-
-            # Build and send email
-            import smtplib
-            from email.mime.text import MIMEText
-
-            msg = MIMEText(reply_text, "plain")
-            msg["From"] = f"{smtp['from_name']} <{smtp['from_email']}>"
-            msg["To"] = email["from_address"]
-            msg["Subject"] = f"Re: {email['subject']}"
-            if email.get("message_id"):
-                msg["In-Reply-To"] = email["message_id"]
-                msg["References"] = email["message_id"]
-
-            if smtp["encryption"] == "ssl":
-                server = smtplib.SMTP_SSL(smtp["smtp_host"], smtp["smtp_port"])
-            else:
-                server = smtplib.SMTP(smtp["smtp_host"], smtp["smtp_port"])
-                if smtp["encryption"] == "tls":
-                    server.starttls()
             try:
-                server.login(smtp["smtp_user"], smtp["smtp_password_encrypted"])
-                server.send_message(msg)
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+
+                # Get original email
+                cur.execute(
+                    "SELECT from_address, subject, message_id FROM email_inbox WHERE id = %s",
+                    (email_id,),
+                )
+                email = cur.fetchone()
+                if not email:
+                    await update.message.reply_text("Original email not found.")
+                    del context.user_data["pending_reply_email_id"]
+                    return
+
+                # Get SMTP settings
+                cur.execute(
+                    "SELECT * FROM email_settings WHERE is_default = TRUE AND is_active = TRUE LIMIT 1"
+                )
+                smtp = cur.fetchone()
+                if not smtp:
+                    await update.message.reply_text(
+                        "No SMTP configured. Cannot send reply."
+                    )
+                    del context.user_data["pending_reply_email_id"]
+                    return
+
+                # Build and send email
+                import smtplib
+                from email.mime.text import MIMEText
+
+                msg = MIMEText(reply_text, "plain")
+                msg["From"] = f"{smtp['from_name']} <{smtp['from_email']}>"
+                msg["To"] = email["from_address"]
+                msg["Subject"] = f"Re: {email['subject']}"
+                if email.get("message_id"):
+                    msg["In-Reply-To"] = email["message_id"]
+                    msg["References"] = email["message_id"]
+
+                if smtp["encryption"] == "ssl":
+                    server = smtplib.SMTP_SSL(smtp["smtp_host"], smtp["smtp_port"])
+                else:
+                    server = smtplib.SMTP(smtp["smtp_host"], smtp["smtp_port"])
+                    if smtp["encryption"] == "tls":
+                        server.starttls()
+                try:
+                    server.login(smtp["smtp_user"], smtp["smtp_password_encrypted"])
+                    server.send_message(msg)
+                finally:
+                    server.quit()
+
+                # Log the send
+                cur.execute(
+                    """
+                    INSERT INTO email_logs (recipient, subject, body_preview, status, sent_at, created_by, created_at)
+                    VALUES (%s, %s, %s, 'sent', NOW(), %s, NOW())
+                    """,
+                    (email["from_address"], f"Re: {email['subject']}", reply_text[:200], 1),
+                )
+
+                # Mark original as read
+                cur.execute(
+                    "UPDATE email_inbox SET is_read = TRUE, updated_at = NOW() WHERE id = %s",
+                    (email_id,),
+                )
+                conn.commit()
+
+                # Log governance event
+                try:
+                    from ai_bridge.agent_loop import log_governance_event
+
+                    log_governance_event(
+                        "email_sent_telegram",
+                        "execute",
+                        "success",
+                        {
+                            "email_id": email_id,
+                            "to": email["from_address"],
+                            "method": "telegram",
+                        },
+                    )
+                except Exception:
+                    pass
+
+                del context.user_data["pending_reply_email_id"]
+                await update.message.reply_text(f"Reply sent to {email['from_address']}")
+
             finally:
-                server.quit()
-
-            # Log the send
-            cur.execute(
-                """
-                INSERT INTO email_logs (recipient, subject, body_preview, status, sent_at, created_by, created_at)
-                VALUES (%s, %s, %s, 'sent', NOW(), %s, NOW())
-                """,
-                (email["from_address"], f"Re: {email['subject']}", reply_text[:200], 1),
-            )
-
-            # Mark original as read
-            cur.execute(
-                "UPDATE email_inbox SET is_read = TRUE, updated_at = NOW() WHERE id = %s",
-                (email_id,),
-            )
-            conn.commit()
-
-            # Log governance event
-            try:
-                from ai_bridge.agent_loop import log_governance_event
-
-                log_governance_event(
-                    "email_sent_telegram",
-                    "execute",
-                    "success",
-                    {
-                        "email_id": email_id,
-                        "to": email["from_address"],
-                        "method": "telegram",
-                    },
-                )
-            except Exception:
-                pass
-
-            del context.user_data["pending_reply_email_id"]
-            await update.message.reply_text(f"Reply sent to {email['from_address']}")
-
-            cur.close()
-            conn.close()
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
         except Exception as e:
             logger.error(f"Telegram email reply failed: {e}")
             await update.message.reply_text(f"Failed to send reply: {str(e)}")
@@ -856,60 +926,66 @@ class TelegramGateway:
 
         try:
             conn = get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            # Get un-forwarded notifications
-            cur.execute("""
-                SELECT n.id, n.type, n.title, n.message, n.priority, n.source, n.created_at
-                FROM system_notifications n
-                WHERE n.telegram_forwarded = FALSE AND n.is_read = FALSE
-                ORDER BY n.created_at DESC
-                LIMIT 20
-                """)
-            notifications = cur.fetchall()
+                # Get un-forwarded notifications
+                cur.execute("""
+                    SELECT n.id, n.type, n.title, n.message, n.priority, n.source, n.created_at
+                    FROM system_notifications n
+                    WHERE n.telegram_forwarded = FALSE AND n.is_read = FALSE
+                    ORDER BY n.created_at DESC
+                    LIMIT 20
+                    """)
+                notifications = cur.fetchall()
 
-            if not notifications:
-                cur.close()
-                conn.close()
-                return
+                if not notifications:
+                    return
 
-            # Get authorized users with rules
-            cur.execute("""
-                SELECT tu.id, tu.telegram_id, tu.user_id,
-                       tnr.notification_type, tnr.priority_min, tnr.source_filter,
-                       tnr.quiet_hours_start, tnr.quiet_hours_end
-                FROM telegram_users tu
-                JOIN telegram_notification_rules tnr ON tnr.telegram_user_id = tu.id
-                WHERE tu.is_authorized = TRUE AND tu.telegram_id IS NOT NULL AND tnr.is_active = TRUE
-                """)
-            rules = cur.fetchall()
+                # Get authorized users with rules
+                cur.execute("""
+                    SELECT tu.id, tu.telegram_id, tu.user_id,
+                           tnr.notification_type, tnr.priority_min, tnr.source_filter,
+                           tnr.quiet_hours_start, tnr.quiet_hours_end
+                    FROM telegram_users tu
+                    JOIN telegram_notification_rules tnr ON tnr.telegram_user_id = tu.id
+                    WHERE tu.is_authorized = TRUE AND tu.telegram_id IS NOT NULL AND tnr.is_active = TRUE
+                    """)
+                rules = cur.fetchall()
 
-            forwarded_ids = set()
+                forwarded_ids = set()
 
-            for notif in notifications:
-                for rule in rules:
-                    if self._matches_rule(notif, rule):
-                        try:
-                            self._send_telegram_message(
-                                rule["telegram_id"],
-                                f"[{notif['type'].upper()}] {notif['title']}\n{notif['message']}",
-                            )
-                            forwarded_ids.add(notif["id"])
-                        except Exception as e:
-                            logger.warning(
-                                f"Failed to forward notification #{notif['id']}: {e}"
-                            )
+                for notif in notifications:
+                    for rule in rules:
+                        if self._matches_rule(notif, rule):
+                            try:
+                                self._send_telegram_message(
+                                    rule["telegram_id"],
+                                    f"[{notif['type'].upper()}] {notif['title']}\n{notif['message']}",
+                                )
+                                forwarded_ids.add(notif["id"])
+                            except Exception as e:
+                                logger.warning(
+                                    f"Failed to forward notification #{notif['id']}: {e}"
+                                )
 
-            # Mark as forwarded
-            if forwarded_ids:
-                cur.execute(
-                    "UPDATE system_notifications SET telegram_forwarded = TRUE WHERE id = ANY(%s)",
-                    (list(forwarded_ids),),
-                )
-                conn.commit()
+                # Mark as forwarded
+                if forwarded_ids:
+                    cur.execute(
+                        "UPDATE system_notifications SET telegram_forwarded = TRUE WHERE id = ANY(%s)",
+                        (list(forwarded_ids),),
+                    )
+                    conn.commit()
 
-            cur.close()
-            conn.close()
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
         except Exception as e:
             logger.error(f"Notification forwarding error: {e}")
@@ -958,25 +1034,33 @@ class TelegramGateway:
         """Create or update Telegram user record."""
         try:
             conn = get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute(
-                """
-                INSERT INTO telegram_users (telegram_id, telegram_username, first_name, last_name)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (telegram_id) DO UPDATE
-                SET telegram_username = EXCLUDED.telegram_username,
-                    first_name = EXCLUDED.first_name,
-                    last_name = EXCLUDED.last_name,
-                    updated_at = NOW()
-                RETURNING id, user_id, is_authorized
-                """,
-                (tg_user.id, tg_user.username, tg_user.first_name, tg_user.last_name),
-            )
-            result = cur.fetchone()
-            conn.commit()
-            cur.close()
-            conn.close()
-            return dict(result) if result else {}
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur.execute(
+                    """
+                    INSERT INTO telegram_users (telegram_id, telegram_username, first_name, last_name)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (telegram_id) DO UPDATE
+                    SET telegram_username = EXCLUDED.telegram_username,
+                        first_name = EXCLUDED.first_name,
+                        last_name = EXCLUDED.last_name,
+                        updated_at = NOW()
+                    RETURNING id, user_id, is_authorized
+                    """,
+                    (tg_user.id, tg_user.username, tg_user.first_name, tg_user.last_name),
+                )
+                result = cur.fetchone()
+                conn.commit()
+                return dict(result) if result else {}
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
         except Exception as e:
             logger.error(f"Failed to ensure telegram user: {e}")
             return {}
@@ -985,15 +1069,23 @@ class TelegramGateway:
         """Get authorized Telegram user info."""
         try:
             conn = get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute(
-                "SELECT * FROM telegram_users WHERE telegram_id = %s AND is_authorized = TRUE",
-                (telegram_id,),
-            )
-            result = cur.fetchone()
-            cur.close()
-            conn.close()
-            return dict(result) if result else None
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur.execute(
+                    "SELECT * FROM telegram_users WHERE telegram_id = %s AND is_authorized = TRUE",
+                    (telegram_id,),
+                )
+                result = cur.fetchone()
+                return dict(result) if result else None
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
         except Exception as e:
             logger.error(f"Failed to get authorized user: {e}")
             return None
@@ -1026,28 +1118,36 @@ class TelegramGateway:
         """Process an approval/rejection from Telegram."""
         try:
             conn = get_db()
-            cur = conn.cursor()
-            if approved:
-                cur.execute(
-                    """
-                    UPDATE autonomy_approval_queue
-                    SET status = 'approved', approved_by = %s, approved_at = NOW(), updated_at = NOW()
-                    WHERE id = %s AND status = 'pending'
-                    """,
-                    (user_id, approval_id),
-                )
-            else:
-                cur.execute(
-                    """
-                    UPDATE autonomy_approval_queue
-                    SET status = 'rejected', approved_by = %s, rejected_reason = 'Rejected via Telegram', updated_at = NOW()
-                    WHERE id = %s AND status = 'pending'
-                    """,
-                    (user_id, approval_id),
-                )
-            conn.commit()
-            cur.close()
-            conn.close()
+            try:
+                cur = conn.cursor()
+                if approved:
+                    cur.execute(
+                        """
+                        UPDATE autonomy_approval_queue
+                        SET status = 'approved', approved_by = %s, approved_at = NOW(), updated_at = NOW()
+                        WHERE id = %s AND status = 'pending'
+                        """,
+                        (user_id, approval_id),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        UPDATE autonomy_approval_queue
+                        SET status = 'rejected', approved_by = %s, rejected_reason = 'Rejected via Telegram', updated_at = NOW()
+                        WHERE id = %s AND status = 'pending'
+                        """,
+                        (user_id, approval_id),
+                    )
+                conn.commit()
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
         except Exception as e:
             logger.error(f"Failed to process approval: {e}")
 
@@ -1057,22 +1157,30 @@ class TelegramGateway:
         """Log a Telegram message."""
         try:
             conn = get_db()
-            cur = conn.cursor()
-            cur.execute(
-                """
-                INSERT INTO telegram_messages (telegram_user_id, direction, message_type, content)
-                VALUES (%s, %s, %s, %s)
-                """,
-                (
-                    telegram_user_id,
-                    direction,
-                    msg_type,
-                    content[:5000] if content else "",
-                ),
-            )
-            conn.commit()
-            cur.close()
-            conn.close()
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    INSERT INTO telegram_messages (telegram_user_id, direction, message_type, content)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    (
+                        telegram_user_id,
+                        direction,
+                        msg_type,
+                        content[:5000] if content else "",
+                    ),
+                )
+                conn.commit()
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
         except Exception as e:
             logger.error(f"Failed to log telegram message: {e}")
 
@@ -1094,34 +1202,42 @@ def generate_link_code(user_id: int) -> str:
     code = secrets.token_hex(4).upper()  # 8 char hex code
     try:
         conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Check if user already has a telegram_users entry
-        cur.execute("SELECT id FROM telegram_users WHERE user_id = %s", (user_id,))
-        existing = cur.fetchone()
+            # Check if user already has a telegram_users entry
+            cur.execute("SELECT id FROM telegram_users WHERE user_id = %s", (user_id,))
+            existing = cur.fetchone()
 
-        if existing:
-            cur.execute(
-                """
-                UPDATE telegram_users
-                SET link_code = %s, link_code_expires_at = NOW() + INTERVAL '15 minutes', updated_at = NOW()
-                WHERE id = %s
-                """,
-                (code, existing["id"]),
-            )
-        else:
-            cur.execute(
-                """
-                INSERT INTO telegram_users (telegram_id, user_id, link_code, link_code_expires_at)
-                VALUES (0, %s, %s, NOW() + INTERVAL '15 minutes')
-                """,
-                (user_id, code),
-            )
+            if existing:
+                cur.execute(
+                    """
+                    UPDATE telegram_users
+                    SET link_code = %s, link_code_expires_at = NOW() + INTERVAL '15 minutes', updated_at = NOW()
+                    WHERE id = %s
+                    """,
+                    (code, existing["id"]),
+                )
+            else:
+                cur.execute(
+                    """
+                    INSERT INTO telegram_users (telegram_id, user_id, link_code, link_code_expires_at)
+                    VALUES (0, %s, %s, NOW() + INTERVAL '15 minutes')
+                    """,
+                    (user_id, code),
+                )
 
-        conn.commit()
-        cur.close()
-        conn.close()
-        return code
+            conn.commit()
+            return code
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
     except Exception as e:
         logger.error(f"Failed to generate link code: {e}")
         return ""

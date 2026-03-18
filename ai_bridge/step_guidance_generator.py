@@ -218,51 +218,59 @@ class StepGuidanceGenerator:
         """
         # Load current steps from database
         conn = self._get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute(
-            """
-            SELECT plan_steps FROM improvement_proposals
-            WHERE id = %s
-        """,
-            (proposal_id,),
-        )
-        row = cur.fetchone()
+            cur.execute(
+                """
+                SELECT plan_steps FROM improvement_proposals
+                WHERE id = %s
+            """,
+                (proposal_id,),
+            )
+            row = cur.fetchone()
 
-        if not row or not row["plan_steps"]:
-            return {"success": False, "error": "No steps found for proposal"}
+            if not row or not row["plan_steps"]:
+                return {"success": False, "error": "No steps found for proposal"}
 
-        steps_data = row["plan_steps"]
-        steps = steps_data.get("steps", [])
+            steps_data = row["plan_steps"]
+            steps = steps_data.get("steps", [])
 
-        # Find and update the step
-        for step in steps:
-            if step["step_number"] == step_number:
-                step["status"] = status
-                if notes:
-                    step["notes"] = notes
-                if files_modified:
-                    step["files_to_modify"] = files_modified
-                if status == "completed":
-                    step["completed_at"] = datetime.now().isoformat()
-                break
+            # Find and update the step
+            for step in steps:
+                if step["step_number"] == step_number:
+                    step["status"] = status
+                    if notes:
+                        step["notes"] = notes
+                    if files_modified:
+                        step["files_to_modify"] = files_modified
+                    if status == "completed":
+                        step["completed_at"] = datetime.now().isoformat()
+                    break
 
-        # Recalculate progress
-        steps_data["progress"] = self._calculate_progress(steps)
+            # Recalculate progress
+            steps_data["progress"] = self._calculate_progress(steps)
 
-        # Save back to database
-        cur.execute(
-            """
-            UPDATE improvement_proposals
-            SET plan_steps = %s
-            WHERE id = %s
-        """,
-            (json.dumps(steps_data), proposal_id),
-        )
+            # Save back to database
+            cur.execute(
+                """
+                UPDATE improvement_proposals
+                SET plan_steps = %s
+                WHERE id = %s
+            """,
+                (json.dumps(steps_data), proposal_id),
+            )
 
-        conn.commit()
-        cur.close()
-        conn.close()
+            conn.commit()
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
         return {
             "success": True,
@@ -274,19 +282,27 @@ class StepGuidanceGenerator:
         """Load proposal from database"""
         try:
             conn = self._get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute(
-                """
-                SELECT title, description, category, complexity
-                FROM improvement_proposals
-                WHERE id = %s
-            """,
-                (proposal_id,),
-            )
-            proposal = cur.fetchone()
-            cur.close()
-            conn.close()
-            return dict(proposal) if proposal else None
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur.execute(
+                    """
+                    SELECT title, description, category, complexity
+                    FROM improvement_proposals
+                    WHERE id = %s
+                """,
+                    (proposal_id,),
+                )
+                proposal = cur.fetchone()
+                return dict(proposal) if proposal else None
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
         except:
             return None
 

@@ -79,7 +79,7 @@ def get_db():
         host=os.getenv("DB_HOST", "archie_database"),
         database=os.getenv("DB_NAME", "archie"),
         user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", "archiepass"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
 
 
@@ -126,8 +126,13 @@ class CostController:
         """Get current daily usage status"""
         try:
             conn = get_db()
-            usage = self._get_today_usage(conn)
-            conn.close()
+            try:
+                usage = self._get_today_usage(conn)
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
             input_tokens = usage.get("claude_input_tokens", 0) or 0
             output_tokens = usage.get("claude_output_tokens", 0) or 0
@@ -254,31 +259,39 @@ class CostController:
             total_cost = input_cost + output_cost
 
             conn = get_db()
-            self._ensure_daily_record(conn)
+            try:
+                self._ensure_daily_record(conn)
 
-            cur = conn.cursor()
-            cur.execute(
-                """
-                UPDATE api_usage_daily SET
-                    claude_input_tokens = claude_input_tokens + %s,
-                    claude_output_tokens = claude_output_tokens + %s,
-                    claude_requests = claude_requests + 1,
-                    ollama_embedding_tokens = ollama_embedding_tokens + %s,
-                    estimated_cost_usd = estimated_cost_usd + %s,
-                    updated_at = NOW()
-                WHERE date = %s
-                """,
-                (
-                    input_tokens,
-                    output_tokens,
-                    embedding_tokens,
-                    total_cost,
-                    date.today(),
-                ),
-            )
-            conn.commit()
-            cur.close()
-            conn.close()
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    UPDATE api_usage_daily SET
+                        claude_input_tokens = claude_input_tokens + %s,
+                        claude_output_tokens = claude_output_tokens + %s,
+                        claude_requests = claude_requests + 1,
+                        ollama_embedding_tokens = ollama_embedding_tokens + %s,
+                        estimated_cost_usd = estimated_cost_usd + %s,
+                        updated_at = NOW()
+                    WHERE date = %s
+                    """,
+                    (
+                        input_tokens,
+                        output_tokens,
+                        embedding_tokens,
+                        total_cost,
+                        date.today(),
+                    ),
+                )
+                conn.commit()
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
             logger.info(
                 f"Recorded usage: {input_tokens} in, {output_tokens} out, "
@@ -294,19 +307,27 @@ class CostController:
         """Get usage history for the last N days"""
         try:
             conn = get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute(
-                """
-                SELECT * FROM api_usage_daily
-                ORDER BY date DESC
-                LIMIT %s
-                """,
-                (days,),
-            )
-            rows = cur.fetchall()
-            cur.close()
-            conn.close()
-            return [dict(r) for r in rows]
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur.execute(
+                    """
+                    SELECT * FROM api_usage_daily
+                    ORDER BY date DESC
+                    LIMIT %s
+                    """,
+                    (days,),
+                )
+                rows = cur.fetchall()
+                return [dict(r) for r in rows]
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
         except Exception as e:
             logger.error(f"Error getting usage history: {e}")
             return []

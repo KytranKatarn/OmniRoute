@@ -153,20 +153,28 @@ def get_glossary(language: str) -> List[Dict]:
     """
     try:
         conn = _get_db()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute(
-            """
-            SELECT source_text, translated_text, category
-            FROM translation_memory
-            WHERE language = %s
-            ORDER BY category, source_text
-            """,
-            (language,),
-        )
-        rows = [dict(r) for r in cur.fetchall()]
-        cur.close()
-        conn.close()
-        return rows
+        try:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur.execute(
+                """
+                SELECT source_text, translated_text, category
+                FROM translation_memory
+                WHERE language = %s
+                ORDER BY category, source_text
+                """,
+                (language,),
+            )
+            rows = [dict(r) for r in cur.fetchall()]
+            return rows
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
     except Exception as e:
         logger.error("Failed to fetch glossary for %s: %s", language, e)
         return []
@@ -459,40 +467,48 @@ def store_translations(
 
     try:
         conn = _get_db()
-        cur = conn.cursor()
+        try:
+            cur = conn.cursor()
 
-        for item in results:
-            if not item.get("success", False):
-                counts["failed"] += 1
-                continue
+            for item in results:
+                if not item.get("success", False):
+                    counts["failed"] += 1
+                    continue
 
+                try:
+                    cur.execute(
+                        """
+                        INSERT INTO translations (key, language, text, generated_by, source, status, created_at, updated_at)
+                        VALUES (%s, %s, %s, %s, 'ai_generated', 'approved', NOW(), NOW())
+                        ON CONFLICT (key, language) DO UPDATE SET
+                            text = EXCLUDED.text,
+                            generated_by = EXCLUDED.generated_by,
+                            status = 'approved',
+                            updated_at = NOW()
+                        RETURNING (xmax = 0) AS is_insert
+                        """,
+                        (item["key"], language, item["translation"], model),
+                    )
+                    row = cur.fetchone()
+                    if row and row[0]:
+                        counts["inserted"] += 1
+                    else:
+                        counts["updated"] += 1
+                except Exception as e:
+                    logger.error("Failed to store translation key=%s: %s", item.get("key"), e)
+                    conn.rollback()
+                    counts["failed"] += 1
+
+            conn.commit()
+        finally:
             try:
-                cur.execute(
-                    """
-                    INSERT INTO translations (key, language, text, generated_by, source, status, created_at, updated_at)
-                    VALUES (%s, %s, %s, %s, 'ai_generated', 'approved', NOW(), NOW())
-                    ON CONFLICT (key, language) DO UPDATE SET
-                        text = EXCLUDED.text,
-                        generated_by = EXCLUDED.generated_by,
-                        status = 'approved',
-                        updated_at = NOW()
-                    RETURNING (xmax = 0) AS is_insert
-                    """,
-                    (item["key"], language, item["translation"], model),
-                )
-                row = cur.fetchone()
-                if row and row[0]:
-                    counts["inserted"] += 1
-                else:
-                    counts["updated"] += 1
-            except Exception as e:
-                logger.error("Failed to store translation key=%s: %s", item.get("key"), e)
-                conn.rollback()
-                counts["failed"] += 1
-
-        conn.commit()
-        cur.close()
-        conn.close()
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
     except Exception as e:
         logger.error("store_translations DB error: %s", e)
 
@@ -514,20 +530,28 @@ def get_translations(language: str) -> Dict[str, str]:
     """
     try:
         conn = _get_db()
-        cur = conn.cursor()
-        cur.execute(
-            """
-            SELECT key, text
-            FROM translations
-            WHERE language = %s AND status = 'approved'
-            ORDER BY key
-            """,
-            (language,),
-        )
-        result = {row[0]: row[1] for row in cur.fetchall()}
-        cur.close()
-        conn.close()
-        return result
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT key, text
+                FROM translations
+                WHERE language = %s AND status = 'approved'
+                ORDER BY key
+                """,
+                (language,),
+            )
+            result = {row[0]: row[1] for row in cur.fetchall()}
+            return result
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
     except Exception as e:
         logger.error("get_translations failed for %s: %s", language, e)
         return {}
@@ -544,33 +568,41 @@ def get_translation_stats(language: str) -> Dict[str, int]:
     """
     try:
         conn = _get_db()
-        cur = conn.cursor()
-        cur.execute(
-            """
-            SELECT
-                COUNT(*) AS total,
-                COUNT(*) FILTER (WHERE status = 'approved') AS approved,
-                COUNT(*) FILTER (WHERE status = 'pending_review') AS pending,
-                COUNT(*) FILTER (WHERE status = 'rejected') AS rejected,
-                COUNT(*) FILTER (WHERE source = 'human_edited') AS human_edited
-            FROM translations
-            WHERE language = %s
-            """,
-            (language,),
-        )
-        row = cur.fetchone()
-        cur.close()
-        conn.close()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) AS total,
+                    COUNT(*) FILTER (WHERE status = 'approved') AS approved,
+                    COUNT(*) FILTER (WHERE status = 'pending_review') AS pending,
+                    COUNT(*) FILTER (WHERE status = 'rejected') AS rejected,
+                    COUNT(*) FILTER (WHERE source = 'human_edited') AS human_edited
+                FROM translations
+                WHERE language = %s
+                """,
+                (language,),
+            )
+            row = cur.fetchone()
 
-        if row:
-            return {
-                "total": row[0],
-                "approved": row[1],
-                "pending": row[2],
-                "rejected": row[3],
-                "human_edited": row[4],
-            }
-        return {"total": 0, "approved": 0, "pending": 0, "rejected": 0, "human_edited": 0}
+            if row:
+                return {
+                    "total": row[0],
+                    "approved": row[1],
+                    "pending": row[2],
+                    "rejected": row[3],
+                    "human_edited": row[4],
+                }
+            return {"total": 0, "approved": 0, "pending": 0, "rejected": 0, "human_edited": 0}
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
     except Exception as e:
         logger.error("get_translation_stats failed for %s: %s", language, e)
         return {"total": 0, "approved": 0, "pending": 0, "rejected": 0, "human_edited": 0}

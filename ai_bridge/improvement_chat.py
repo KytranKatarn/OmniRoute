@@ -401,20 +401,28 @@ Remember: You genuinely want to improve and serve users better!"""
     agent_id = None
     if use_specific_agent:
         conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute(
-            """
-            SELECT id, name, model FROM agents
-            WHERE name = %s AND status = 'active'
-            LIMIT 1
-        """,
-            (use_specific_agent,),
-        )
-        agent = cur.fetchone()
-        if agent:
-            agent_id = agent["id"]
-        cur.close()
-        conn.close()
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """
+                SELECT id, name, model FROM agents
+                WHERE name = %s AND status = 'active'
+                LIMIT 1
+            """,
+                (use_specific_agent,),
+            )
+            agent = cur.fetchone()
+            if agent:
+                agent_id = agent["id"]
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     # Get AI response using delegation system (shows which employee handles the task)
     if agent_id:
@@ -651,8 +659,14 @@ Remember: You genuinely want to improve and serve users better!"""
                 }
             )
 
-        cur_temp.close()
-        conn_temp.close()
+        try:
+            cur_temp.close()
+        except Exception:
+            pass
+        try:
+            conn_temp.close()
+        except Exception:
+            pass
 
     elif is_improvement_discussion and len(user_message) > 50:
         # Lower confidence - just track as potential improvement
@@ -664,9 +678,17 @@ Remember: You genuinely want to improve and serve users better!"""
             }
         )
 
-    conn.commit()
-    cur.close()
-    conn.close()
+    try:
+        conn.commit()
+    finally:
+        try:
+            cur.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
     return {
         "success": True,
@@ -706,23 +728,25 @@ def discuss_proposal(
         Response with context about the proposal
     """
     conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur = None
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Get proposal details
-    cur.execute(
-        """
-        SELECT * FROM improvement_proposals WHERE id = %s
-    """,
-        (proposal_id,),
-    )
+        # Get proposal details
+        cur.execute(
+            """
+            SELECT * FROM improvement_proposals WHERE id = %s
+        """,
+            (proposal_id,),
+        )
 
-    proposal = cur.fetchone()
+        proposal = cur.fetchone()
 
-    if not proposal:
-        return {"success": False, "error": f"Proposal {proposal_id} not found"}
+        if not proposal:
+            return {"success": False, "error": f"Proposal {proposal_id} not found"}
 
-    # Build context-aware prompt
-    context_prompt = f"""You are discussing an improvement proposal with the user.
+        # Build context-aware prompt
+        context_prompt = f"""You are discussing an improvement proposal with the user.
 
 Proposal #{proposal_id}: {proposal['title']}
 Category: {proposal['category']}
@@ -734,79 +758,83 @@ The user says: {user_message}
 
 Respond thoughtfully about this specific improvement. If they're asking questions, answer them. If they're providing feedback, acknowledge it and discuss next steps."""
 
-    # Get AI response via Bridge Command dispatcher
-    disp = _get_dispatcher()
-    if not disp:
-        cur.close()
-        conn.close()
-        return {"success": False, "error": "Dispatcher unavailable"}
+        # Get AI response via Bridge Command dispatcher
+        disp = _get_dispatcher()
+        if not disp:
+            return {"success": False, "error": "Dispatcher unavailable"}
 
-    result = disp.request_work(
-        capability="conversation",
-        prompt=context_prompt,
-        module_id="improvement_labs",
-        user_id=user_id,
-    )
+        result = disp.request_work(
+            capability="conversation",
+            prompt=context_prompt,
+            module_id="improvement_labs",
+            user_id=user_id,
+        )
 
-    if not result.success:
-        cur.close()
-        conn.close()
-        return {"success": False, "error": result.error or "Dispatch failed"}
+        if not result.success:
+            return {"success": False, "error": result.error or "Dispatch failed"}
 
-    # Store conversation linked to proposal
-    cur.execute(
-        """
-        INSERT INTO improvement_conversations
-        (user_id, user_message, archie_response, conversation_data)
-        VALUES (%s, %s, %s, %s)
-        RETURNING id
-    """,
-        (
-            user_id,
-            user_message,
-            result.response,
-            json.dumps({"proposal_id": proposal_id}),
-        ),
-    )
-
-    conversation_id = cur.fetchone()["id"]
-
-    # Update proposal with conversation reference
-    cur.execute(
-        """
-        UPDATE improvement_proposals
-        SET
-            conversation_id = %s,
-            metadata = metadata || %s::jsonb
-        WHERE id = %s
-    """,
-        (
-            conversation_id,
-            json.dumps(
-                {
-                    "last_discussion": datetime.now().isoformat(),
-                    "discussion_count": proposal.get("metadata", {}).get(
-                        "discussion_count", 0
-                    )
-                    + 1,
-                }
+        # Store conversation linked to proposal
+        cur.execute(
+            """
+            INSERT INTO improvement_conversations
+            (user_id, user_message, archie_response, conversation_data)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id
+        """,
+            (
+                user_id,
+                user_message,
+                result.response,
+                json.dumps({"proposal_id": proposal_id}),
             ),
-            proposal_id,
-        ),
-    )
+        )
 
-    conn.commit()
-    cur.close()
-    conn.close()
+        conversation_id = cur.fetchone()["id"]
 
-    return {
-        "success": True,
-        "response": result.response,
-        "proposal_id": proposal_id,
-        "conversation_id": conversation_id,
-        "proposal": dict(proposal),
-        "model_used": result.model_used,
-    }
+        # Update proposal with conversation reference
+        cur.execute(
+            """
+            UPDATE improvement_proposals
+            SET
+                conversation_id = %s,
+                metadata = metadata || %s::jsonb
+            WHERE id = %s
+        """,
+            (
+                conversation_id,
+                json.dumps(
+                    {
+                        "last_discussion": datetime.now().isoformat(),
+                        "discussion_count": proposal.get("metadata", {}).get(
+                            "discussion_count", 0
+                        )
+                        + 1,
+                    }
+                ),
+                proposal_id,
+            ),
+        )
+
+        conn.commit()
+
+        return {
+            "success": True,
+            "response": result.response,
+            "proposal_id": proposal_id,
+            "conversation_id": conversation_id,
+            "proposal": dict(proposal),
+            "model_used": result.model_used,
+        }
+    finally:
+        try:
+            if cur:
+                cur.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 def self_reflection_chat(
@@ -874,34 +902,42 @@ Be honest and specific."""
 
     # Store self-reflection
     conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    cur.execute(
-        """
-        INSERT INTO improvement_conversations
-        (user_id, user_message, archie_response, conversation_data)
-        VALUES (%s, %s, %s, %s)
-        RETURNING id
-    """,
-        (
-            user_id,
-            f"Self-reflection on: {topic or 'general performance'}",
-            result.response,
-            json.dumps(
-                {
-                    "type": "self_reflection",
-                    "personality_snapshot": personality,
-                    "opportunities_detected": len(opportunities),
-                    "topic": topic,
-                }
+        cur.execute(
+            """
+            INSERT INTO improvement_conversations
+            (user_id, user_message, archie_response, conversation_data)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id
+        """,
+            (
+                user_id,
+                f"Self-reflection on: {topic or 'general performance'}",
+                result.response,
+                json.dumps(
+                    {
+                        "type": "self_reflection",
+                        "personality_snapshot": personality,
+                        "opportunities_detected": len(opportunities),
+                        "topic": topic,
+                    }
+                ),
             ),
-        ),
-    )
+        )
 
-    conversation_id = cur.fetchone()["id"]
-    conn.commit()
-    cur.close()
-    conn.close()
+        conversation_id = cur.fetchone()["id"]
+        conn.commit()
+    finally:
+        try:
+            cur.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
     return {
         "success": True,

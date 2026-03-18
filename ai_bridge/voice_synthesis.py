@@ -607,39 +607,47 @@ class VoiceSynthesizer:
         """Check voice_word_cache for existing audio"""
         try:
             conn = self._get_db()
-            cur = conn.cursor()
+            try:
+                cur = conn.cursor()
 
-            # Update hit count and return audio if exists
-            # Using correct column names: full_audio_cache, usage_count, last_used
-            cur.execute(
-                """
-                UPDATE voice_word_cache
-                SET hit_count = COALESCE(hit_count, 0) + 1,
-                    usage_count = COALESCE(usage_count, 0) + 1,
-                    last_used = NOW()
-                WHERE text_hash = %s
-                RETURNING full_audio_cache
-            """,
-                (cache_key,),
-            )
+                # Update hit count and return audio if exists
+                # Using correct column names: full_audio_cache, usage_count, last_used
+                cur.execute(
+                    """
+                    UPDATE voice_word_cache
+                    SET hit_count = COALESCE(hit_count, 0) + 1,
+                        usage_count = COALESCE(usage_count, 0) + 1,
+                        last_used = NOW()
+                    WHERE text_hash = %s
+                    RETURNING full_audio_cache
+                """,
+                    (cache_key,),
+                )
 
-            result = cur.fetchone()
-            conn.commit()
-            cur.close()
-            conn.close()
+                result = cur.fetchone()
+                conn.commit()
 
-            # full_audio_cache is bytea, need to decode if it's base64 stored as text
-            if result and result[0]:
-                cached = result[0]
-                # If it's bytes (bytea), decode to string
-                if isinstance(cached, (bytes, memoryview)):
-                    return (
-                        cached.decode("utf-8")
-                        if isinstance(cached, bytes)
-                        else bytes(cached).decode("utf-8")
-                    )
-                return cached
-            return None
+                # full_audio_cache is bytea, need to decode if it's base64 stored as text
+                if result and result[0]:
+                    cached = result[0]
+                    # If it's bytes (bytea), decode to string
+                    if isinstance(cached, (bytes, memoryview)):
+                        return (
+                            cached.decode("utf-8")
+                            if isinstance(cached, bytes)
+                            else bytes(cached).decode("utf-8")
+                        )
+                    return cached
+                return None
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
         except Exception as e:
             print(f"[VoiceDNA] Cache check error: {e}")
@@ -659,39 +667,47 @@ class VoiceSynthesizer:
         """Save generated audio to cache"""
         try:
             conn = self._get_db()
-            cur = conn.cursor()
+            try:
+                cur = conn.cursor()
 
-            cur.execute(
-                """
-                INSERT INTO voice_word_cache
-                (word_text, phoneme_sequence, full_audio_cache, text_hash, emotion_context, voice_parameters, duration_ms, hit_count, usage_count, last_used, engine, language)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, 0, 0, NOW(), %s, %s)
-                ON CONFLICT (text_hash) WHERE text_hash IS NOT NULL DO UPDATE
-                SET full_audio_cache = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.full_audio_cache ELSE EXCLUDED.full_audio_cache END,
-                    hit_count = COALESCE(voice_word_cache.hit_count, 0) + 1,
-                    usage_count = COALESCE(voice_word_cache.usage_count, 0) + 1,
-                    last_used = NOW(),
-                    emotion_context = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.emotion_context ELSE EXCLUDED.emotion_context END,
-                    voice_parameters = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.voice_parameters ELSE EXCLUDED.voice_parameters END,
-                    engine = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.engine ELSE EXCLUDED.engine END,
-                    language = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.language ELSE EXCLUDED.language END
-            """,
-                (
-                    text[:100],
-                    json.dumps([]),
-                    audio_base64.encode("utf-8"),
-                    cache_key,
-                    emotion,
-                    json.dumps(params),
-                    duration_ms,
-                    engine,
-                    language,
-                ),
-            )
+                cur.execute(
+                    """
+                    INSERT INTO voice_word_cache
+                    (word_text, phoneme_sequence, full_audio_cache, text_hash, emotion_context, voice_parameters, duration_ms, hit_count, usage_count, last_used, engine, language)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, 0, 0, NOW(), %s, %s)
+                    ON CONFLICT (text_hash) WHERE text_hash IS NOT NULL DO UPDATE
+                    SET full_audio_cache = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.full_audio_cache ELSE EXCLUDED.full_audio_cache END,
+                        hit_count = COALESCE(voice_word_cache.hit_count, 0) + 1,
+                        usage_count = COALESCE(voice_word_cache.usage_count, 0) + 1,
+                        last_used = NOW(),
+                        emotion_context = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.emotion_context ELSE EXCLUDED.emotion_context END,
+                        voice_parameters = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.voice_parameters ELSE EXCLUDED.voice_parameters END,
+                        engine = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.engine ELSE EXCLUDED.engine END,
+                        language = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.language ELSE EXCLUDED.language END
+                """,
+                    (
+                        text[:100],
+                        json.dumps([]),
+                        audio_base64.encode("utf-8"),
+                        cache_key,
+                        emotion,
+                        json.dumps(params),
+                        duration_ms,
+                        engine,
+                        language,
+                    ),
+                )
 
-            conn.commit()
-            cur.close()
-            conn.close()
+                conn.commit()
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
         except Exception as e:
             print(f"[VoiceDNA] Cache save error: {e}")
@@ -709,20 +725,28 @@ class VoiceSynthesizer:
         """Log voice generation for analytics"""
         try:
             conn = self._get_db()
-            cur = conn.cursor()
+            try:
+                cur = conn.cursor()
 
-            cur.execute(
-                """
-                INSERT INTO voice_generation_log
-                (user_id, text_length, emotion, cached, generation_time_ms, engine, language)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """,
-                (user_id, text_length, emotion, cached, time_ms, engine, language),
-            )
+                cur.execute(
+                    """
+                    INSERT INTO voice_generation_log
+                    (user_id, text_length, emotion, cached, generation_time_ms, engine, language)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """,
+                    (user_id, text_length, emotion, cached, time_ms, engine, language),
+                )
 
-            conn.commit()
-            cur.close()
-            conn.close()
+                conn.commit()
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
         except Exception as e:
             # Don't fail on logging errors
@@ -753,30 +777,38 @@ class VoiceSynthesizer:
         """
         try:
             conn = self._get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            cur.execute(
-                """
-                SELECT current_mood, mood_intensity, relationship_strength
-                FROM archie_emotional_state
-                WHERE user_id = %s
-                ORDER BY timestamp DESC
-                LIMIT 1
-            """,
-                (user_id,),
-            )
-
-            state = cur.fetchone()
-            cur.close()
-            conn.close()
-
-            if state:
-                return self._map_mood_to_emotion(
-                    state["current_mood"],
-                    float(state.get("mood_intensity", 0.5)),
-                    float(state.get("relationship_strength", 0.5)),
+                cur.execute(
+                    """
+                    SELECT current_mood, mood_intensity, relationship_strength
+                    FROM archie_emotional_state
+                    WHERE user_id = %s
+                    ORDER BY timestamp DESC
+                    LIMIT 1
+                """,
+                    (user_id,),
                 )
-            return "neutral"
+
+                state = cur.fetchone()
+
+                if state:
+                    return self._map_mood_to_emotion(
+                        state["current_mood"],
+                        float(state.get("mood_intensity", 0.5)),
+                        float(state.get("relationship_strength", 0.5)),
+                    )
+                return "neutral"
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
         except Exception as e:
             print(f"[VoiceDNA] Emotional state error: {e}")
@@ -924,31 +956,39 @@ class VoiceSynthesizer:
             word_hash = extractor.get_word_hash(word, emotion)
 
             conn = self._get_db()
-            cur = conn.cursor()
+            try:
+                cur = conn.cursor()
 
-            cur.execute(
-                """
-                UPDATE voice_word_cache
-                SET hit_count = COALESCE(hit_count, 0) + 1,
-                    usage_count = COALESCE(usage_count, 0) + 1,
-                    last_used = NOW()
-                WHERE text_hash = %s
-                RETURNING full_audio_cache
-            """,
-                (word_hash,),
-            )
+                cur.execute(
+                    """
+                    UPDATE voice_word_cache
+                    SET hit_count = COALESCE(hit_count, 0) + 1,
+                        usage_count = COALESCE(usage_count, 0) + 1,
+                        last_used = NOW()
+                    WHERE text_hash = %s
+                    RETURNING full_audio_cache
+                """,
+                    (word_hash,),
+                )
 
-            result = cur.fetchone()
-            conn.commit()
-            cur.close()
-            conn.close()
+                result = cur.fetchone()
+                conn.commit()
 
-            if result and result[0]:
-                cached = result[0]
-                if isinstance(cached, memoryview):
-                    return bytes(cached)
-                return cached
-            return None
+                if result and result[0]:
+                    cached = result[0]
+                    if isinstance(cached, memoryview):
+                        return bytes(cached)
+                    return cached
+                return None
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
         except Exception as e:
             print(f"[VoiceDNA] Word cache check error: {e}")
@@ -980,35 +1020,43 @@ class VoiceSynthesizer:
             )
 
             conn = self._get_db()
-            cur = conn.cursor()
+            try:
+                cur = conn.cursor()
 
-            cur.execute(
-                """
-                INSERT INTO voice_word_cache
-                (word_text, phoneme_sequence, full_audio_cache, text_hash, emotion_context,
-                 voice_parameters, duration_ms, hit_count, usage_count, last_used)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, 0, 0, NOW())
-                ON CONFLICT (text_hash) WHERE text_hash IS NOT NULL DO UPDATE
-                SET full_audio_cache = EXCLUDED.full_audio_cache,
-                    phoneme_sequence = EXCLUDED.phoneme_sequence,
-                    hit_count = COALESCE(voice_word_cache.hit_count, 0) + 1,
-                    usage_count = COALESCE(voice_word_cache.usage_count, 0) + 1,
-                    last_used = NOW()
-            """,
-                (
-                    word[:100],
-                    json.dumps(phonemes),
-                    audio_bytes,
-                    word_hash,
-                    emotion,
-                    json.dumps(params),
-                    duration_ms,
-                ),
-            )
+                cur.execute(
+                    """
+                    INSERT INTO voice_word_cache
+                    (word_text, phoneme_sequence, full_audio_cache, text_hash, emotion_context,
+                     voice_parameters, duration_ms, hit_count, usage_count, last_used)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, 0, 0, NOW())
+                    ON CONFLICT (text_hash) WHERE text_hash IS NOT NULL DO UPDATE
+                    SET full_audio_cache = EXCLUDED.full_audio_cache,
+                        phoneme_sequence = EXCLUDED.phoneme_sequence,
+                        hit_count = COALESCE(voice_word_cache.hit_count, 0) + 1,
+                        usage_count = COALESCE(voice_word_cache.usage_count, 0) + 1,
+                        last_used = NOW()
+                """,
+                    (
+                        word[:100],
+                        json.dumps(phonemes),
+                        audio_bytes,
+                        word_hash,
+                        emotion,
+                        json.dumps(params),
+                        duration_ms,
+                    ),
+                )
 
-            conn.commit()
-            cur.close()
-            conn.close()
+                conn.commit()
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
         except Exception as e:
             print(f"[VoiceDNA] Word cache save error: {e}")
@@ -1023,24 +1071,32 @@ class VoiceSynthesizer:
         """
         try:
             conn = self._get_db()
-            cur = conn.cursor()
+            try:
+                cur = conn.cursor()
 
-            for phoneme in phonemes:
-                if not phoneme or len(phoneme) > 10:
-                    continue
+                for phoneme in phonemes:
+                    if not phoneme or len(phoneme) > 10:
+                        continue
 
-                cur.execute(
-                    """
-                    INSERT INTO voice_phoneme_library (phoneme_text, emotion_context)
-                    VALUES (%s, %s)
-                    ON CONFLICT (phoneme_text, emotion_context) DO NOTHING
-                """,
-                    (phoneme, emotion),
-                )
+                    cur.execute(
+                        """
+                        INSERT INTO voice_phoneme_library (phoneme_text, emotion_context)
+                        VALUES (%s, %s)
+                        ON CONFLICT (phoneme_text, emotion_context) DO NOTHING
+                    """,
+                        (phoneme, emotion),
+                    )
 
-            conn.commit()
-            cur.close()
-            conn.close()
+                conn.commit()
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
         except Exception as e:
             print(f"[VoiceDNA] Phoneme library save error: {e}")
@@ -1228,21 +1284,29 @@ class VoiceSynthesizer:
         """
         try:
             conn = self._get_db()
-            cur = conn.cursor()
-            cur.execute(
-                """
-                DELETE FROM voice_word_cache
-                WHERE COALESCE(hit_count, 0) < %s
-                AND created_at < NOW() - INTERVAL '1 day' * %s
-                RETURNING id
-            """,
-                (min_hits, max_age_days),
-            )
-            deleted = cur.rowcount
-            conn.commit()
-            cur.close()
-            conn.close()
-            return deleted
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    DELETE FROM voice_word_cache
+                    WHERE COALESCE(hit_count, 0) < %s
+                    AND created_at < NOW() - INTERVAL '1 day' * %s
+                    RETURNING id
+                """,
+                    (min_hits, max_age_days),
+                )
+                deleted = cur.rowcount
+                conn.commit()
+                return deleted
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
         except Exception as e:
             print(f"[VoiceDNA] Cache cleanup error: {e}")
             return 0
@@ -1645,20 +1709,28 @@ class VoiceSynthesizer:
         """Load agent's voice profile from DB"""
         try:
             conn = self._get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute(
-                """
-                SELECT speaker, speed, pitch_shift, warmth, default_emotion,
-                       emotion_overrides, engine, voice_blend, language
-                FROM agent_voice_profiles
-                WHERE agent_id = %s AND is_active = TRUE
-            """,
-                (agent_id,),
-            )
-            result = cur.fetchone()
-            cur.close()
-            conn.close()
-            return dict(result) if result else None
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur.execute(
+                    """
+                    SELECT speaker, speed, pitch_shift, warmth, default_emotion,
+                           emotion_overrides, engine, voice_blend, language
+                    FROM agent_voice_profiles
+                    WHERE agent_id = %s AND is_active = TRUE
+                """,
+                    (agent_id,),
+                )
+                result = cur.fetchone()
+                return dict(result) if result else None
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
         except Exception as e:
             print(f"[VoiceDNA] Profile load error: {e}")
             return None
@@ -1681,33 +1753,41 @@ class VoiceSynthesizer:
         """Check voice cache for agent-specific audio"""
         try:
             conn = self._get_db()
-            cur = conn.cursor()
-            cur.execute(
-                """
-                UPDATE voice_word_cache
-                SET hit_count = COALESCE(hit_count, 0) + 1,
-                    usage_count = COALESCE(usage_count, 0) + 1,
-                    last_used = NOW()
-                WHERE text_hash = %s AND (agent_id = %s OR agent_id IS NULL)
-                RETURNING full_audio_cache
-            """,
-                (cache_key, agent_id),
-            )
-            result = cur.fetchone()
-            conn.commit()
-            cur.close()
-            conn.close()
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    UPDATE voice_word_cache
+                    SET hit_count = COALESCE(hit_count, 0) + 1,
+                        usage_count = COALESCE(usage_count, 0) + 1,
+                        last_used = NOW()
+                    WHERE text_hash = %s AND (agent_id = %s OR agent_id IS NULL)
+                    RETURNING full_audio_cache
+                """,
+                    (cache_key, agent_id),
+                )
+                result = cur.fetchone()
+                conn.commit()
 
-            if result and result[0]:
-                cached = result[0]
-                if isinstance(cached, (bytes, memoryview)):
-                    return (
-                        cached.decode("utf-8")
-                        if isinstance(cached, bytes)
-                        else bytes(cached).decode("utf-8")
-                    )
-                return cached
-            return None
+                if result and result[0]:
+                    cached = result[0]
+                    if isinstance(cached, (bytes, memoryview)):
+                        return (
+                            cached.decode("utf-8")
+                            if isinstance(cached, bytes)
+                            else bytes(cached).decode("utf-8")
+                        )
+                    return cached
+                return None
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
         except Exception as e:
             print(f"[VoiceDNA] Agent cache check error: {e}")
             return None
@@ -1727,39 +1807,47 @@ class VoiceSynthesizer:
         """Save audio to cache with agent_id, engine, and language"""
         try:
             conn = self._get_db()
-            cur = conn.cursor()
-            cur.execute(
-                """
-                INSERT INTO voice_word_cache
-                (word_text, phoneme_sequence, full_audio_cache, text_hash, emotion_context,
-                 voice_parameters, duration_ms, hit_count, usage_count, last_used, agent_id, engine, language)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, 0, 0, NOW(), %s, %s, %s)
-                ON CONFLICT (text_hash) WHERE text_hash IS NOT NULL DO UPDATE
-                SET full_audio_cache = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.full_audio_cache ELSE EXCLUDED.full_audio_cache END,
-                    hit_count = COALESCE(voice_word_cache.hit_count, 0) + 1,
-                    usage_count = COALESCE(voice_word_cache.usage_count, 0) + 1,
-                    last_used = NOW(),
-                    voice_parameters = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.voice_parameters ELSE EXCLUDED.voice_parameters END,
-                    agent_id = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.agent_id ELSE EXCLUDED.agent_id END,
-                    engine = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.engine ELSE EXCLUDED.engine END,
-                    language = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.language ELSE EXCLUDED.language END
-            """,
-                (
-                    text[:100],
-                    json.dumps([]),
-                    audio_base64.encode("utf-8"),
-                    cache_key,
-                    emotion,
-                    json.dumps(params),
-                    duration_ms,
-                    agent_id,
-                    engine,
-                    language,
-                ),
-            )
-            conn.commit()
-            cur.close()
-            conn.close()
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    INSERT INTO voice_word_cache
+                    (word_text, phoneme_sequence, full_audio_cache, text_hash, emotion_context,
+                     voice_parameters, duration_ms, hit_count, usage_count, last_used, agent_id, engine, language)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, 0, 0, NOW(), %s, %s, %s)
+                    ON CONFLICT (text_hash) WHERE text_hash IS NOT NULL DO UPDATE
+                    SET full_audio_cache = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.full_audio_cache ELSE EXCLUDED.full_audio_cache END,
+                        hit_count = COALESCE(voice_word_cache.hit_count, 0) + 1,
+                        usage_count = COALESCE(voice_word_cache.usage_count, 0) + 1,
+                        last_used = NOW(),
+                        voice_parameters = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.voice_parameters ELSE EXCLUDED.voice_parameters END,
+                        agent_id = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.agent_id ELSE EXCLUDED.agent_id END,
+                        engine = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.engine ELSE EXCLUDED.engine END,
+                        language = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.language ELSE EXCLUDED.language END
+                """,
+                    (
+                        text[:100],
+                        json.dumps([]),
+                        audio_base64.encode("utf-8"),
+                        cache_key,
+                        emotion,
+                        json.dumps(params),
+                        duration_ms,
+                        agent_id,
+                        engine,
+                        language,
+                    ),
+                )
+                conn.commit()
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
         except Exception as e:
             print(f"[VoiceDNA] Agent cache save error: {e}")
 

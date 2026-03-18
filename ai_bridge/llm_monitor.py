@@ -80,51 +80,59 @@ class LLMMonitor:
 
         try:
             conn = get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            # Get all connections with health check enabled
-            cur.execute(
-                """
-                SELECT id, provider, model_name, endpoint_url, health_check_enabled
-                FROM llm_connections
-                WHERE health_check_enabled = TRUE
-            """
-            )
-            connections = cur.fetchall()
-
-            for connection in connections:
-                provider = connection["provider"]
-                model = connection["model_name"]
-
-                # Check based on provider
-                if provider == "ollama":
-                    status, latency, error = self._check_ollama(connection)
-                elif provider == "claude":
-                    status, latency, error = self._check_claude(connection)
-                elif provider == "openai":
-                    status, latency, error = self._check_openai(connection)
-                elif provider == "grok":
-                    status, latency, error = self._check_grok(connection)
-                elif provider == "gemini":
-                    status, latency, error = self._check_gemini(connection)
-                else:
-                    status, latency, error = "unknown", None, "Unknown provider"
-
-                # Update database
+                # Get all connections with health check enabled
                 cur.execute(
-                    "SELECT update_llm_status(%s, %s, %s, %s, %s)",
-                    (provider, model, status, latency, error),
+                    """
+                    SELECT id, provider, model_name, endpoint_url, health_check_enabled
+                    FROM llm_connections
+                    WHERE health_check_enabled = TRUE
+                """
                 )
+                connections = cur.fetchall()
 
-                results[f"{provider}/{model}"] = {
-                    "status": status,
-                    "latency_ms": latency,
-                    "error": error,
-                }
+                for connection in connections:
+                    provider = connection["provider"]
+                    model = connection["model_name"]
 
-            conn.commit()
-            cur.close()
-            conn.close()
+                    # Check based on provider
+                    if provider == "ollama":
+                        status, latency, error = self._check_ollama(connection)
+                    elif provider == "claude":
+                        status, latency, error = self._check_claude(connection)
+                    elif provider == "openai":
+                        status, latency, error = self._check_openai(connection)
+                    elif provider == "grok":
+                        status, latency, error = self._check_grok(connection)
+                    elif provider == "gemini":
+                        status, latency, error = self._check_gemini(connection)
+                    else:
+                        status, latency, error = "unknown", None, "Unknown provider"
+
+                    # Update database
+                    cur.execute(
+                        "SELECT update_llm_status(%s, %s, %s, %s, %s)",
+                        (provider, model, status, latency, error),
+                    )
+
+                    results[f"{provider}/{model}"] = {
+                        "status": status,
+                        "latency_ms": latency,
+                        "error": error,
+                    }
+
+                conn.commit()
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
         except Exception as e:
             logger.error(f"Check all connections error: {e}")
@@ -291,37 +299,44 @@ class LLMMonitor:
         """Get current status summary of all connections."""
         try:
             conn = get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            # Get summary by provider
-            cur.execute("SELECT * FROM llm_status_summary")
-            summary = cur.fetchall()
+                # Get summary by provider
+                cur.execute("SELECT * FROM llm_status_summary")
+                summary = cur.fetchall()
 
-            # Get all connections
-            cur.execute(
+                # Get all connections
+                cur.execute(
+                    """
+                    SELECT id, provider, model_name, display_name, status,
+                           last_check, last_success, last_failure,
+                           avg_latency_ms, success_rate, consecutive_failures,
+                           capabilities
+                    FROM llm_connections
+                    ORDER BY provider, model_name
                 """
-                SELECT id, provider, model_name, display_name, status,
-                       last_check, last_success, last_failure,
-                       avg_latency_ms, success_rate, consecutive_failures,
-                       capabilities
-                FROM llm_connections
-                ORDER BY provider, model_name
-            """
-            )
-            connections = cur.fetchall()
+                )
+                connections = cur.fetchall()
 
-            # Get recent alerts
-            cur.execute(
+                # Get recent alerts
+                cur.execute(
+                    """
+                    SELECT * FROM recent_llm_alerts
+                    WHERE NOT acknowledged
+                    LIMIT 10
                 """
-                SELECT * FROM recent_llm_alerts
-                WHERE NOT acknowledged
-                LIMIT 10
-            """
-            )
-            alerts = cur.fetchall()
-
-            cur.close()
-            conn.close()
+                )
+                alerts = cur.fetchall()
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
             return {
                 "summary": summary,
@@ -338,21 +353,29 @@ class LLMMonitor:
         """Acknowledge an alert."""
         try:
             conn = get_db()
-            cur = conn.cursor()
+            try:
+                cur = conn.cursor()
 
-            cur.execute(
-                """
-                UPDATE llm_alerts
-                SET acknowledged = TRUE, acknowledged_by = %s, acknowledged_at = NOW()
-                WHERE id = %s
-            """,
-                (user_id, alert_id),
-            )
+                cur.execute(
+                    """
+                    UPDATE llm_alerts
+                    SET acknowledged = TRUE, acknowledged_by = %s, acknowledged_at = NOW()
+                    WHERE id = %s
+                """,
+                    (user_id, alert_id),
+                )
 
-            conn.commit()
-            cur.close()
-            conn.close()
-            return True
+                conn.commit()
+                return True
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
         except Exception as e:
             logger.error(f"Acknowledge alert error: {e}")

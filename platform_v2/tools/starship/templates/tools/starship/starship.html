@@ -6,6 +6,7 @@
 {% include 'includes/admin_ops_nav.html' %}
 
 <link rel="stylesheet" href="{{ url_for('static', filename='css/starship.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/station-ops.css') }}">
 
 <div class="sc-container">
     <div class="sc-header">
@@ -508,7 +509,139 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
 
         <!-- STATIONS TAB -->
         <div class="sc-panel" id="panel-sb-stations">
-            <div id="sb-stations-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;"></div>
+            <div id="sb-stations-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;padding:12px;">
+
+                <div class="stn-ops-terminal" id="sb-stn-COMMAND" style="--stn-accent: #00e5ff; --stn-accent-rgb: 0,229,255;">
+                    <div class="stn-ops-header">
+                        <div class="stn-ops-elbow"></div>
+                        <div class="stn-ops-title">COMMAND OPERATIONS</div>
+                        <div class="stn-ops-status" id="sb-stn-COMMAND-status"><span class="stn-ops-dot"></span> OFFLINE</div>
+                    </div>
+                    <div class="stn-ops-body">
+                        <div id="sb-stn-COMMAND-agents"></div>
+                        <div id="sb-stn-COMMAND-jobs"></div>
+                        <div class="stn-ops-commands" id="sb-stn-COMMAND-commands"></div>
+                    </div>
+                </div>
+
+                <div class="stn-ops-terminal" id="sb-stn-ANALYTICS" style="--stn-accent: #8b5cf6; --stn-accent-rgb: 139,92,246;">
+                    <div class="stn-ops-header">
+                        <div class="stn-ops-elbow"></div>
+                        <div class="stn-ops-title">ANALYTICS OPERATIONS</div>
+                        <div class="stn-ops-status" id="sb-stn-ANALYTICS-status"><span class="stn-ops-dot"></span> OFFLINE</div>
+                    </div>
+                    <div class="stn-ops-body">
+                        <div id="sb-stn-ANALYTICS-agents"></div>
+                        <div id="sb-stn-ANALYTICS-jobs"></div>
+                        <div class="stn-ops-commands" id="sb-stn-ANALYTICS-commands"></div>
+                    </div>
+                </div>
+
+                <div class="stn-ops-terminal" id="sb-stn-CREATIVE" style="--stn-accent: #f472b6; --stn-accent-rgb: 244,114,182;">
+                    <div class="stn-ops-header">
+                        <div class="stn-ops-elbow"></div>
+                        <div class="stn-ops-title">CREATIVE OPERATIONS</div>
+                        <div class="stn-ops-status" id="sb-stn-CREATIVE-status"><span class="stn-ops-dot"></span> OFFLINE</div>
+                    </div>
+                    <div class="stn-ops-body">
+                        <div id="sb-stn-CREATIVE-agents"></div>
+                        <div id="sb-stn-CREATIVE-jobs"></div>
+                        <div class="stn-ops-commands" id="sb-stn-CREATIVE-commands"></div>
+                    </div>
+                </div>
+
+                <div class="stn-ops-terminal" id="sb-stn-ENGINEERING" style="--stn-accent: #fbbf24; --stn-accent-rgb: 251,191,36;">
+                    <div class="stn-ops-header">
+                        <div class="stn-ops-elbow"></div>
+                        <div class="stn-ops-title">ENGINEERING OPERATIONS</div>
+                        <div class="stn-ops-status" id="sb-stn-ENGINEERING-status"><span class="stn-ops-dot"></span> OFFLINE</div>
+                    </div>
+                    <div class="stn-ops-body">
+                        <div id="sb-stn-ENGINEERING-agents"></div>
+                        <div id="sb-stn-ENGINEERING-jobs"></div>
+                        <div class="stn-ops-commands" id="sb-stn-ENGINEERING-commands"></div>
+                    </div>
+                </div>
+
+                <div class="stn-ops-terminal" id="sb-stn-COMMUNICATIONS" style="--stn-accent: #22d3ee; --stn-accent-rgb: 34,211,238;">
+                    <div class="stn-ops-header">
+                        <div class="stn-ops-elbow"></div>
+                        <div class="stn-ops-title">COMMUNICATIONS OPERATIONS</div>
+                        <div class="stn-ops-status" id="sb-stn-COMMUNICATIONS-status"><span class="stn-ops-dot"></span> OFFLINE</div>
+                    </div>
+                    <div class="stn-ops-body">
+                        <div id="sb-stn-COMMUNICATIONS-agents"></div>
+                        <div id="sb-stn-COMMUNICATIONS-jobs"></div>
+                        <div class="stn-ops-commands" id="sb-stn-COMMUNICATIONS-commands"></div>
+                    </div>
+                </div>
+
+                <div class="stn-ops-terminal" id="sb-stn-RESEARCH" style="--stn-accent: #10b981; --stn-accent-rgb: 16,185,129;">
+                    <div class="stn-ops-header">
+                        <div class="stn-ops-elbow"></div>
+                        <div class="stn-ops-title">RESEARCH OPERATIONS</div>
+                        <div class="stn-ops-status" id="sb-stn-RESEARCH-status"><span class="stn-ops-dot"></span> OFFLINE</div>
+                    </div>
+                    <div class="stn-ops-body">
+                        <div id="sb-stn-RESEARCH-agents"></div>
+                        <div id="sb-stn-RESEARCH-jobs"></div>
+                        <div class="stn-ops-commands" id="sb-stn-RESEARCH-commands"></div>
+                    </div>
+                </div>
+
+                <div class="stn-ops-terminal" id="sb-stn-SECURITY" style="--stn-accent: #ef4444; --stn-accent-rgb: 239,68,68;">
+                    <div class="stn-ops-header">
+                        <div class="stn-ops-elbow"></div>
+                        <div class="stn-ops-title">SECURITY OPERATIONS</div>
+                        <div class="stn-ops-status" id="sb-stn-SECURITY-status"><span class="stn-ops-dot"></span> OFFLINE</div>
+                    </div>
+                    <div class="stn-ops-body">
+                        <div id="sb-stn-SECURITY-agents"></div>
+                        <div id="sb-stn-SECURITY-jobs"></div>
+                        <div class="stn-ops-commands" id="sb-stn-SECURITY-commands"></div>
+                    </div>
+                </div>
+
+                <div class="stn-ops-terminal" id="sb-stn-LOGISTICS" style="--stn-accent: #f97316; --stn-accent-rgb: 249,115,22;">
+                    <div class="stn-ops-header">
+                        <div class="stn-ops-elbow"></div>
+                        <div class="stn-ops-title">LOGISTICS OPERATIONS</div>
+                        <div class="stn-ops-status" id="sb-stn-LOGISTICS-status"><span class="stn-ops-dot"></span> OFFLINE</div>
+                    </div>
+                    <div class="stn-ops-body">
+                        <div id="sb-stn-LOGISTICS-agents"></div>
+                        <div id="sb-stn-LOGISTICS-jobs"></div>
+                        <div class="stn-ops-commands" id="sb-stn-LOGISTICS-commands"></div>
+                    </div>
+                </div>
+
+                <div class="stn-ops-terminal" id="sb-stn-DIPLOMATIC" style="--stn-accent: #818cf8; --stn-accent-rgb: 129,140,248;">
+                    <div class="stn-ops-header">
+                        <div class="stn-ops-elbow"></div>
+                        <div class="stn-ops-title">DIPLOMATIC OPERATIONS</div>
+                        <div class="stn-ops-status" id="sb-stn-DIPLOMATIC-status"><span class="stn-ops-dot"></span> OFFLINE</div>
+                    </div>
+                    <div class="stn-ops-body">
+                        <div id="sb-stn-DIPLOMATIC-agents"></div>
+                        <div id="sb-stn-DIPLOMATIC-jobs"></div>
+                        <div class="stn-ops-commands" id="sb-stn-DIPLOMATIC-commands"></div>
+                    </div>
+                </div>
+
+                <div class="stn-ops-terminal" id="sb-stn-OPERATIONS" style="--stn-accent: #a3e635; --stn-accent-rgb: 163,230,53;">
+                    <div class="stn-ops-header">
+                        <div class="stn-ops-elbow"></div>
+                        <div class="stn-ops-title">OPERATIONS</div>
+                        <div class="stn-ops-status" id="sb-stn-OPERATIONS-status"><span class="stn-ops-dot"></span> OFFLINE</div>
+                    </div>
+                    <div class="stn-ops-body">
+                        <div id="sb-stn-OPERATIONS-agents"></div>
+                        <div id="sb-stn-OPERATIONS-jobs"></div>
+                        <div class="stn-ops-commands" id="sb-stn-OPERATIONS-commands"></div>
+                    </div>
+                </div>
+
+            </div>
         </div>
 
         <!-- AGENTS TAB -->
@@ -569,5 +702,6 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
 {% endblock %}
 
 {% block extra_js %}
+<script src="{{ url_for('static', filename='js/station-ops.js') }}"></script>
 <script src="{{ url_for('static', filename='js/starship.js') }}"></script>
 {% endblock %}

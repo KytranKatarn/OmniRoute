@@ -1394,83 +1394,42 @@ function switchSbTab(tabId) {
     if (tabId === 'sb-agents') renderStarbaseCrew();
 }
 
-// ── Stations tab — fetch all 10 stations with live crew ──
+// ── Stations tab — use shared StationOps component ──
 var _sbStationsLoaded = false;
+var _sbStationOps = {};
 var _sbStationsData = null;
+
+var _stationConfigs = [
+    {code: 'COMMAND', name: 'COMMAND'},
+    {code: 'ANALYTICS', name: 'ANALYTICS'},
+    {code: 'CREATIVE', name: 'CREATIVE'},
+    {code: 'ENGINEERING', name: 'ENGINEERING'},
+    {code: 'COMMUNICATIONS', name: 'COMMUNICATIONS'},
+    {code: 'RESEARCH', name: 'RESEARCH'},
+    {code: 'SECURITY', name: 'SECURITY'},
+    {code: 'LOGISTICS', name: 'LOGISTICS'},
+    {code: 'DIPLOMATIC', name: 'DIPLOMATIC'},
+    {code: 'OPERATIONS', name: 'OPERATIONS'}
+];
+
 function loadStarbaseStations() {
-    var grid = document.getElementById('sb-stations-grid');
-    if (!grid) return;
     if (_sbStationsLoaded) return;
-    grid.innerHTML = '<span class="sc-label">Loading stations...</span>';
-    // Build a map of busy agents from crew manifest
-    var busyAgents = {};
-    if (_starbaseData && _starbaseData.crew) {
-        _starbaseData.crew.forEach(function(a) {
-            if (a.current_job) busyAgents[a.name] = a.current_job;
+    _sbStationsLoaded = true;
+
+    _stationConfigs.forEach(function(cfg) {
+        _sbStationOps[cfg.code] = new StationOps({
+            stationCode: cfg.code,
+            moduleSource: 'starship',
+            agentsElId: 'sb-stn-' + cfg.code + '-agents',
+            jobsElId: 'sb-stn-' + cfg.code + '-jobs',
+            commandsElId: 'sb-stn-' + cfg.code + '-commands',
+            statusElId: 'sb-stn-' + cfg.code + '-status',
+            commands: []
         });
-    }
-    fetch('/tools/bridge/api/stations').then(function(r) { return r.json(); }).then(function(data) {
-        if (!data.success) { grid.innerHTML = '<span class="sc-label">Failed to load</span>'; return; }
-        _sbStationsLoaded = true;
-        var stations = data.stations || [];
-        _sbStationsData = stations;
-        grid.innerHTML = stations.map(function(s) {
-            var agents = s.assigned_agents || [];
-            var color = s.color || '#00e5ff';
-            var busyCount = 0;
-            var crewHtml = agents.length ? agents.map(function(a) {
-                var busy = !!busyAgents[a.name];
-                if (busy) busyCount++;
-                var dotColor = busy ? 'var(--sc-green)' : 'rgba(255,255,255,0.3)';
-                var displayName = (a.first_name || '') + ' ' + (a.last_name || '');
-                if (!displayName.trim()) displayName = a.name;
-                var typeTag = a.assignment_type === 'auxiliary' ? ' <span style="font-size:0.6rem;color:rgba(255,255,255,0.3);">AUX</span>' : '';
-                return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">' +
-                    '<span style="width:6px;height:6px;border-radius:50%;background:' + dotColor + ';flex-shrink:0;"></span>' +
-                    '<span style="color:rgba(255,255,255,0.8);font-size:0.8rem;">' + _escSb(displayName) + typeTag + '</span>' +
-                    (busy ? '<span style="margin-left:auto;font-size:0.65rem;color:var(--sc-green);">WORKING</span>' : '') +
-                '</div>';
-            }).join('') : '<span style="color:rgba(255,255,255,0.25);font-size:0.8rem;">No crew assigned</span>';
-            return '<div style="background:rgba(0,0,0,0.3);border:1px solid ' + color + '33;border-radius:8px;overflow:hidden;">' +
-                '<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid ' + color + '22;">' +
-                    '<span style="width:8px;height:8px;border-radius:50%;background:' + color + ';"></span>' +
-                    '<span style="font-family:Antonio,sans-serif;color:' + color + ';font-size:0.9rem;letter-spacing:2px;">' + _escSb(s.name || s.code) + '</span>' +
-                    '<span style="margin-left:auto;font-size:0.7rem;color:rgba(255,255,255,0.4);">' + agents.length + ' crew</span>' +
-                    (busyCount > 0 ? '<span style="font-size:0.65rem;color:var(--sc-green);margin-left:4px;">' + busyCount + ' active</span>' : '') +
-                '</div>' +
-                '<div style="padding:10px 14px;">' + crewHtml + '</div>' +
-                '<div class="sc-station-commands" id="sb-cmds-' + _escSb(s.code) + '"></div>' +
-            '</div>';
-        }).join('');
-        // Load commands for each station
-        stations.forEach(function(s) {
-            loadStationCommands(s.code);
-        });
-    }).catch(function() {
-        grid.innerHTML = '<span class="sc-label">Failed to load stations</span>';
+        _sbStationOps[cfg.code].render();
     });
 }
 
-// ── Station commands — load, render, execute ──
-function loadStationCommands(stationCode) {
-    var container = document.getElementById('sb-cmds-' + stationCode);
-    if (!container) return;
-    fetch('/tools/starship/api/station-commands?station_code=' + encodeURIComponent(stationCode))
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            var cmds = data.commands || [];
-            if (!cmds.length) { container.innerHTML = ''; return; }
-            container.innerHTML = '<div style="padding:6px 14px 10px;border-top:1px solid rgba(255,255,255,0.06);">' +
-                cmds.map(function(cmd) {
-                    return '<button class="sc-station-cmd-btn" onclick="executeStationCommand(' + cmd.id + ')" title="' + _escSb(cmd.description || cmd.command_name) + '">' +
-                        '<span class="cmd-name">' + _escSb(cmd.command_name) + '</span>' +
-                        '<span class="cmd-capability">' + _escSb(cmd.capability) + '</span>' +
-                    '</button>';
-                }).join('') +
-            '</div>';
-        })
-        .catch(function() {});
-}
 function executeStationCommand(cmdId) {
     var prompt = window.prompt('Enter task details (or leave blank for default):');
     if (prompt === null) return;

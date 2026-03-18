@@ -417,6 +417,128 @@ body {
 [dir="rtl"] .comp-lang-menu { right: auto; left: 0; }
 [dir="rtl"] .comp-lang-menu button { text-align: right; }
 
+/* ── Trending Sensor Scan ─────────────────────── */
+.trending-section {
+    padding: 1.5rem 0 2rem;
+}
+.trending-intro {
+    text-align: center;
+    color: #999;
+    font-size: 0.9rem;
+    margin-bottom: 1.5rem;
+    font-style: italic;
+}
+.trending-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+.trending-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.2rem;
+    transition: border-color 0.2s;
+}
+.trending-card:hover {
+    border-color: rgba(255,156,0,0.4);
+}
+.trending-card-watch {
+    border-color: rgba(255,156,0,0.3);
+    background: linear-gradient(135deg, var(--bg-card) 0%, rgba(255,156,0,0.03) 100%);
+}
+.trending-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+.trending-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
+}
+.trending-badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.trending-badge.viral { background: rgba(139,92,246,0.2); color: #a78bfa; }
+.trending-badge.tiny { background: rgba(0,212,255,0.15); color: var(--lcars-cyan); }
+.trending-badge.fun { background: rgba(0,255,101,0.12); color: var(--lcars-green); }
+.trending-badge.watch { background: rgba(255,156,0,0.2); color: var(--lcars-orange); }
+.trending-meta {
+    font-size: 0.75rem;
+    color: #777;
+    margin-bottom: 0.6rem;
+}
+.trending-card p {
+    font-size: 0.8rem;
+    color: #bbb;
+    line-height: 1.5;
+    margin-bottom: 0.8rem;
+}
+.trending-vs {
+    margin-bottom: 0.8rem;
+}
+.trending-vs-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.6rem;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+}
+.trending-vs-bar {
+    height: 26px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 4px;
+    margin-bottom: 4px;
+    overflow: hidden;
+}
+.trending-vs-bar .trending-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, rgba(255,156,0,0.3), rgba(255,156,0,0.15));
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    min-width: 60px;
+}
+.trending-vs-bar.archie .trending-bar-fill {
+    background: linear-gradient(90deg, rgba(0,212,255,0.4), rgba(139,92,246,0.3));
+}
+.trending-bar-text {
+    font-size: 0.65rem;
+    color: rgba(255,255,255,0.7);
+    white-space: nowrap;
+    font-family: 'IBM Plex Mono', monospace;
+}
+.trending-verdict {
+    font-size: 0.75rem;
+    color: var(--lcars-orange);
+    border-top: 1px solid var(--border-color);
+    padding-top: 0.6rem;
+    line-height: 1.5;
+}
+.trending-card-watch .trending-verdict {
+    color: #f59e0b;
+}
+.trending-footer {
+    text-align: center;
+    color: var(--lcars-cyan);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.8rem;
+    margin-top: 1.5rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
 /* ── Matrix Group Rows ────────────────────────── */
 .matrix-group {
     font-family: 'Orbitron', sans-serif;
@@ -499,6 +621,7 @@ body {
 }
 @media (max-width: 900px) {
     .building-grid { grid-template-columns: repeat(2, 1fr); }
+    .trending-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 600px) {
     .category-grid { grid-template-columns: 1fr; }

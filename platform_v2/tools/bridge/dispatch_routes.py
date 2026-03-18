@@ -1,0 +1,709 @@
+"""Bridge Command — Dispatch routes (activity, overview, jobs, cross-station analytics)"""
+
+import logging
+from datetime import datetime
+from flask import jsonify, request
+from flask_login import login_required
+from database import get_db_cursor
+
+logger = logging.getLogger(__name__)
+
+
+def register_dispatch_routes(bp, admin_required):
+    """Register dispatch-related routes on the bridge blueprint."""
+
+    # ============================================================================
+    # DISPATCH ACTIVITY API (Project #91 — Phase 6)
+    # ============================================================================
+
+    @bp.route("/api/bridge/dispatch-status")
+    @login_required
+    def get_dispatch_status():
+        """Get current BridgeDispatcher status: active agents, assignments, queue depth"""
+        try:
+            with get_db_cursor(commit=False) as (conn, cur):
+
+                # Active agents with their station assignments
+                cur.execute(
+                    """
+                    SELECT a.id, a.name, a.first_name, a.last_name, a.title, a.model,
+                           a.status, a.avatar_url,
+                           bs.station_code, bs.station_name, bs.color,
+                           sa.assignment_type
+                    FROM agents a
+                    LEFT JOIN station_assignments sa ON sa.agent_id = a.id AND sa.is_active = TRUE
+                    LEFT JOIN bridge_stations bs ON bs.id = sa.station_id AND bs.is_active = TRUE
+                    WHERE a.status = 'active'
+                    ORDER BY bs.position_row, bs.position_order, a.name
+                """
+                )
+                agents = cur.fetchall()
+
+                # Recent dispatch activity (rolling 24h + 1h)
+                cur.execute(
+                    """
+                    SELECT COUNT(*) as total_dispatches,
+                           COUNT(CASE WHEN success = TRUE THEN 1 END) as successful,
+                           COUNT(CASE WHEN success = FALSE THEN 1 END) as failed,
+                           COALESCE(AVG(duration_ms), 0) as avg_duration_ms
+                    FROM task_execution_log
+                    WHERE created_at > NOW() - INTERVAL '24 hours'
+                """
+                )
+                dispatch_stats_24h = cur.fetchone()
+
+                cur.execute(
+                    """
+                    SELECT COUNT(*) as total_dispatches,
+                           COUNT(CASE WHEN success = TRUE THEN 1 END) as successful,
+                           COUNT(CASE WHEN success = FALSE THEN 1 END) as failed
+                    FROM task_execution_log
+                    WHERE created_at > NOW() - INTERVAL '1 hour'
+                """
+                )
+                dispatch_stats_1h = cur.fetchone()
+
+                # Active tasks (in-progress right now — last 2 minutes)
+                cur.execute(
+                    """
+                    SELECT tel.id, a.name as agent_name, tel.module_source,
+                           tel.task_type, tel.model_used, tel.created_at
+                    FROM task_execution_log tel
+                    LEFT JOIN agents a ON a.id = tel.agent_id
+                    WHERE tel.created_at > NOW() - INTERVAL '2 minutes'
+                          AND tel.success IS NULL
+                    ORDER BY tel.created_at DESC
+                    LIMIT 10
+                """
+                )
+                active_tasks = cur.fetchall()
+
+                # Per-station dispatch counts (last 24h) — use tel.station_code directly
+                cur.execute(
+                    """
+                    SELECT COALESCE(tel.station_code, 'UNASSIGNED') as station_code,
+                           COALESCE(bs.station_name, tel.station_code, 'Unassigned') as station_name,
+                           COALESCE(bs.color, '#666') as color,
+                           COUNT(*) as dispatch_count,
+                           COALESCE(AVG(tel.duration_ms), 0) as avg_ms
+                    FROM task_execution_log tel
+                    LEFT JOIN bridge_stations bs ON bs.station_code = tel.station_code
+                          AND bs.is_active = TRUE
+                    WHERE tel.created_at > NOW() - INTERVAL '24 hours'
+                    GROUP BY tel.station_code, bs.station_name, bs.color
+                    ORDER BY dispatch_count DESC
+                """
+                )
+                station_activity = cur.fetchall()
+
+                return jsonify(
+                    {
+                        "success": True,
+                        "agents": [
+                            {
+                                "id": a["id"],
+                                "name": a["name"],
+                                "first_name": a.get("first_name"),
+                                "last_name": a.get("last_name"),
+                                "title": a["title"],
+                                "model": a["model"],
+                                "status": a["status"],
+                                "avatar_url": a.get("avatar_url"),
+                                "station_code": a.get("station_code"),
+                                "station_name": a.get("station_name"),
+                                "station_color": a.get("color"),
+                                "assignment_type": a.get("assignment_type"),
+                            }
+                            for a in agents
+                        ],
+                        "dispatch_stats": {
+                            "total_1h": dispatch_stats_1h["total_dispatches"],
+                            "total_24h": dispatch_stats_24h["total_dispatches"],
+                            "successful_1h": dispatch_stats_1h["successful"],
+                            "successful_24h": dispatch_stats_24h["successful"],
+                            "failed_1h": dispatch_stats_1h["failed"],
+                            "failed_24h": dispatch_stats_24h["failed"],
+                            "avg_duration_ms": round(float(dispatch_stats_24h["avg_duration_ms"]), 1),
+                        },
+                        "active_tasks": [
+                            {
+                                "id": t["id"],
+                                "agent_name": t["agent_name"],
+                                "module": t["module_source"],
+                                "task_type": t["task_type"],
+                                "model": t["model_used"],
+                                "started": t["created_at"].isoformat() if t["created_at"] else None,
+                            }
+                            for t in active_tasks
+                        ],
+                        "station_activity": [
+                            {
+                                "station_code": s["station_code"],
+                                "station_name": s["station_name"],
+                                "color": s["color"],
+                                "dispatch_count": s["dispatch_count"],
+                                "avg_ms": round(float(s["avg_ms"]), 1),
+                            }
+                            for s in station_activity
+                        ],
+                    }
+                )
+
+        except Exception as e:
+            logger.error(f"Error getting dispatch status: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/bridge/dispatch-history")
+    @login_required
+    def get_dispatch_history():
+        """Get recent task execution history for the Bridge dispatch panel"""
+        try:
+            limit = request.args.get("limit", 50, type=int)
+            limit = min(limit, 200)
+
+            with get_db_cursor(commit=False) as (conn, cur):
+
+                cur.execute(
+                    """
+                    SELECT tel.id,
+                           COALESCE(
+                               NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
+                               a.name,
+                               tel.agent_name
+                           ) as agent_display_name,
+                           COALESCE(a.name, tel.agent_name) as agent_callsign,
+                           a.avatar_url,
+                           tel.module_source, tel.task_type, tel.capability,
+                           tel.model_used, tel.duration_ms, tel.success,
+                           tel.error_message, tel.created_at,
+                           tel.station_code, bs.color as station_color
+                    FROM task_execution_log tel
+                    LEFT JOIN agents a ON a.id = tel.agent_id
+                    LEFT JOIN bridge_stations bs ON bs.station_code = tel.station_code
+                          AND bs.is_active = TRUE
+                    WHERE tel.created_at > NOW() - INTERVAL '24 hours'
+                    ORDER BY tel.created_at DESC
+                    LIMIT %s
+                """,
+                    (limit,),
+                )
+                history = cur.fetchall()
+
+                return jsonify(
+                    {
+                        "success": True,
+                        "history": [
+                            {
+                                "id": h["id"],
+                                "agent_name": h["agent_display_name"] or h.get("agent_callsign") or "Unknown",
+                                "avatar_url": h.get("avatar_url"),
+                                "module": h["module_source"],
+                                "task_type": h["task_type"],
+                                "capability": h.get("capability"),
+                                "model": h["model_used"],
+                                "duration_ms": h["duration_ms"],
+                                "success": h["success"],
+                                "error": h.get("error_message"),
+                                "timestamp": h["created_at"].isoformat() if h["created_at"] else None,
+                                "station_code": h.get("station_code"),
+                                "station_color": h.get("station_color"),
+                            }
+                            for h in history
+                        ],
+                        "total": len(history),
+                    }
+                )
+
+        except Exception as e:
+            logger.error(f"Error getting dispatch history: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # ============================================================================
+    # DISPATCH OVERVIEW — Merged stats + history + jobs in one call
+    # ============================================================================
+
+    @bp.route("/api/bridge/dispatch-overview")
+    @login_required
+    def get_dispatch_overview():
+        """Single endpoint for the Dispatch tab: stats, history, active jobs, station bars."""
+        try:
+            limit = request.args.get("limit", 20, type=int)
+            limit = min(limit, 200)
+            jobs_limit = request.args.get("jobs_limit", 10, type=int)
+
+            with get_db_cursor(commit=False) as (conn, cur):
+
+                # 1. Dispatch stats (24h + 1h)
+                cur.execute(
+                    """
+                    SELECT COUNT(*) as total_dispatches,
+                           COUNT(CASE WHEN success = TRUE THEN 1 END) as successful,
+                           COUNT(CASE WHEN success = FALSE THEN 1 END) as failed,
+                           COALESCE(AVG(duration_ms), 0) as avg_duration_ms
+                    FROM task_execution_log
+                    WHERE created_at > NOW() - INTERVAL '24 hours'
+                """
+                )
+                stats_24h = cur.fetchone()
+
+                cur.execute(
+                    """
+                    SELECT COUNT(*) as total_dispatches,
+                           COUNT(CASE WHEN success = TRUE THEN 1 END) as successful,
+                           COUNT(CASE WHEN success = FALSE THEN 1 END) as failed
+                    FROM task_execution_log
+                    WHERE created_at > NOW() - INTERVAL '1 hour'
+                """
+                )
+                stats_1h = cur.fetchone()
+
+                # 2. Recent dispatch history
+                cur.execute(
+                    """
+                    SELECT tel.id,
+                           COALESCE(
+                               NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
+                               a.name,
+                               tel.agent_name
+                           ) as agent_display_name,
+                           COALESCE(a.name, tel.agent_name) as agent_callsign,
+                           a.avatar_url,
+                           tel.module_source, tel.task_type, tel.capability,
+                           tel.model_used, tel.duration_ms, tel.success,
+                           tel.error_message, tel.created_at,
+                           tel.station_code,
+                           bs.color as station_color
+                    FROM task_execution_log tel
+                    LEFT JOIN agents a ON a.id = tel.agent_id
+                    LEFT JOIN bridge_stations bs ON bs.station_code = tel.station_code
+                          AND bs.is_active = TRUE
+                    WHERE tel.created_at > NOW() - INTERVAL '24 hours'
+                    ORDER BY tel.created_at DESC
+                    LIMIT %s
+                """,
+                    (limit,),
+                )
+                history = cur.fetchall()
+
+                # 3. Per-station activity using tel.station_code directly
+                cur.execute(
+                    """
+                    SELECT COALESCE(tel.station_code, 'UNASSIGNED') as station_code,
+                           COALESCE(bs.station_name, tel.station_code, 'Unassigned') as station_name,
+                           COALESCE(bs.color, '#666') as color,
+                           COUNT(*) as dispatch_count,
+                           COALESCE(AVG(tel.duration_ms), 0) as avg_ms
+                    FROM task_execution_log tel
+                    LEFT JOIN bridge_stations bs ON bs.station_code = tel.station_code
+                          AND bs.is_active = TRUE
+                    WHERE tel.created_at > NOW() - INTERVAL '24 hours'
+                    GROUP BY tel.station_code, bs.station_name, bs.color
+                    ORDER BY dispatch_count DESC
+                """
+                )
+                station_activity = cur.fetchall()
+
+                # 4. Active bridge jobs
+                cur.execute(
+                    """
+                    SELECT bj.id, bj.job_type, bj.status,
+                           bj.completed_steps, bj.total_steps,
+                           bj.created_at, bj.updated_at, bj.completed_at,
+                           bj.description, bj.agent_name,
+                           COALESCE(
+                               NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
+                               a.name,
+                               bj.agent_name
+                           ) as agent_display_name,
+                           a.avatar_url,
+                           bj.station_code, bj.module_source
+                    FROM bridge_jobs bj
+                    LEFT JOIN agents a ON a.name = bj.agent_name
+                    WHERE bj.status IN ('pending', 'running')
+                       OR (bj.status IN ('completed', 'failed')
+                           AND bj.completed_at > NOW() - INTERVAL '2 minutes')
+                    ORDER BY bj.created_at DESC
+                    LIMIT %s
+                """,
+                    (jobs_limit,),
+                )
+                jobs = cur.fetchall()
+
+                return jsonify(
+                    {
+                        "success": True,
+                        "dispatch_stats": {
+                            "total_1h": stats_1h["total_dispatches"],
+                            "total_24h": stats_24h["total_dispatches"],
+                            "successful_1h": stats_1h["successful"],
+                            "successful_24h": stats_24h["successful"],
+                            "failed_1h": stats_1h["failed"],
+                            "failed_24h": stats_24h["failed"],
+                            "avg_duration_ms": round(float(stats_24h["avg_duration_ms"]), 1),
+                        },
+                        "history": [
+                            {
+                                "id": h["id"],
+                                "agent_name": h["agent_display_name"] or h.get("agent_callsign") or "Unknown",
+                                "avatar_url": h.get("avatar_url"),
+                                "module": h["module_source"],
+                                "task_type": h["task_type"],
+                                "capability": h.get("capability"),
+                                "model": h["model_used"],
+                                "duration_ms": h["duration_ms"],
+                                "success": h["success"],
+                                "error": h.get("error_message"),
+                                "timestamp": h["created_at"].isoformat() if h["created_at"] else None,
+                                "station_code": h.get("station_code"),
+                                "station_color": h.get("station_color"),
+                            }
+                            for h in history
+                        ],
+                        "station_activity": [
+                            {
+                                "station_code": s["station_code"],
+                                "station_name": s["station_name"],
+                                "color": s["color"],
+                                "dispatch_count": s["dispatch_count"],
+                                "avg_ms": round(float(s["avg_ms"]), 1),
+                            }
+                            for s in station_activity
+                        ],
+                        "jobs": [
+                            {
+                                "id": j["id"],
+                                "job_type": j["job_type"],
+                                "status": j["status"],
+                                "completed_steps": j["completed_steps"],
+                                "total_steps": j["total_steps"],
+                                "agent_name": j.get("agent_display_name") or j.get("agent_name"),
+                                "avatar_url": j.get("avatar_url"),
+                                "station_code": j.get("station_code"),
+                                "module": j.get("module_source"),
+                                "description": j.get("description"),
+                                "created_at": j["created_at"].isoformat() if j["created_at"] else None,
+                                "completed_at": j["completed_at"].isoformat() if j.get("completed_at") else None,
+                            }
+                            for j in jobs
+                        ],
+                    }
+                )
+
+        except Exception as e:
+            logger.error(f"Error getting dispatch overview: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # ============================================================================
+    # BRIDGE JOBS — Workload tracking for multi-step operations
+    # ============================================================================
+
+    @bp.route("/api/bridge/jobs")
+    @login_required
+    def get_bridge_jobs():
+        """Get active and recent bridge jobs with progress info."""
+        try:
+            limit = request.args.get("limit", 20, type=int)
+            limit = min(limit, 100)
+            status_filter = request.args.get("status")
+
+            with get_db_cursor(commit=False) as (conn, cur):
+
+                if status_filter:
+                    cur.execute(
+                        """
+                        SELECT bj.id, bj.job_type, bj.module_source, bj.description,
+                               bj.total_steps, bj.completed_steps, bj.failed_steps,
+                               bj.status,
+                               COALESCE(
+                                   NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
+                                   a.name,
+                                   bj.agent_name
+                               ) as agent_display_name,
+                               bj.agent_name as agent_callsign,
+                               bj.station_code,
+                               bj.metadata,
+                               bj.created_at, bj.updated_at, bj.completed_at
+                        FROM bridge_jobs bj
+                        LEFT JOIN agents a ON a.name = bj.agent_name AND a.status = 'active'
+                        WHERE bj.status = %s
+                        ORDER BY bj.created_at DESC
+                        LIMIT %s
+                        """,
+                        (status_filter, limit),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT bj.id, bj.job_type, bj.module_source, bj.description,
+                               bj.total_steps, bj.completed_steps, bj.failed_steps,
+                               bj.status,
+                               COALESCE(
+                                   NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
+                                   a.name,
+                                   bj.agent_name
+                               ) as agent_display_name,
+                               bj.agent_name as agent_callsign,
+                               bj.station_code,
+                               bj.metadata,
+                               bj.created_at, bj.updated_at, bj.completed_at
+                        FROM bridge_jobs bj
+                        LEFT JOIN agents a ON a.name = bj.agent_name AND a.status = 'active'
+                        ORDER BY
+                            CASE bj.status
+                                WHEN 'running' THEN 0
+                                WHEN 'pending' THEN 1
+                                ELSE 2
+                            END,
+                            bj.created_at DESC
+                        LIMIT %s
+                        """,
+                        (limit,),
+                    )
+                jobs = cur.fetchall()
+
+                now = datetime.utcnow()
+                result = []
+                for j in jobs:
+                    total = j["total_steps"] or 1
+                    completed = j["completed_steps"] or 0
+                    progress_pct = round((completed / total) * 100, 1) if total > 0 else 0
+
+                    # Estimate ETA for running jobs
+                    eta_seconds = None
+                    if j["status"] == "running" and completed > 0 and j["created_at"]:
+                        elapsed = (now - j["created_at"].replace(tzinfo=None)).total_seconds()
+                        per_step = elapsed / completed
+                        remaining = total - completed
+                        eta_seconds = int(per_step * remaining)
+
+                    result.append(
+                        {
+                            "id": j["id"],
+                            "job_type": j["job_type"],
+                            "module_source": j["module_source"],
+                            "description": j["description"],
+                            "total_steps": total,
+                            "completed_steps": completed,
+                            "failed_steps": j["failed_steps"] or 0,
+                            "status": j["status"],
+                            "agent_name": j.get("agent_display_name") or j.get("agent_callsign") or "Unknown",
+                            "agent_callsign": j.get("agent_callsign") or "",
+                            "station_code": j.get("station_code") or "",
+                            "metadata": j["metadata"] or {},
+                            "progress_pct": progress_pct,
+                            "eta_seconds": eta_seconds,
+                            "created_at": j["created_at"].isoformat() if j["created_at"] else None,
+                            "updated_at": j["updated_at"].isoformat() if j["updated_at"] else None,
+                            "completed_at": j["completed_at"].isoformat() if j["completed_at"] else None,
+                        }
+                    )
+
+                return jsonify({"success": True, "jobs": result, "total": len(result)})
+
+        except Exception as e:
+            logger.error(f"Error getting bridge jobs: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/bridge/jobs/<int:job_id>")
+    @login_required
+    def get_bridge_job_detail(job_id):
+        """Get single bridge job detail with linked execution log entries."""
+        try:
+            with get_db_cursor(commit=False) as (conn, cur):
+
+                # Get the job
+                cur.execute(
+                    """
+                    SELECT bj.id, bj.job_type, bj.module_source, bj.description,
+                           bj.total_steps, bj.completed_steps, bj.failed_steps,
+                           bj.status, bj.station_code,
+                           COALESCE(
+                               NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
+                               a.name,
+                               bj.agent_name
+                           ) as agent_display_name,
+                           bj.metadata,
+                           bj.created_at, bj.updated_at, bj.completed_at
+                    FROM bridge_jobs bj
+                    LEFT JOIN agents a ON a.name = bj.agent_name AND a.status = 'active'
+                    WHERE bj.id = %s
+                    """,
+                    (job_id,),
+                )
+                job = cur.fetchone()
+                if not job:
+                    return jsonify({"success": False, "error": "Job not found"}), 404
+
+                # Get linked execution log entries
+                cur.execute(
+                    """
+                    SELECT tel.id,
+                           COALESCE(
+                               NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
+                               a.name,
+                               tel.agent_name
+                           ) as agent_name,
+                           tel.capability,
+                           tel.model_used, tel.duration_ms, tel.success,
+                           tel.error_message, tel.created_at
+                    FROM task_execution_log tel
+                    LEFT JOIN agents a ON a.id = tel.agent_id
+                    WHERE tel.job_id = %s
+                    ORDER BY tel.created_at
+                    """,
+                    (job_id,),
+                )
+                executions = cur.fetchall()
+
+                total = job["total_steps"] or 1
+                completed = job["completed_steps"] or 0
+                progress_pct = round((completed / total) * 100, 1) if total > 0 else 0
+
+                return jsonify(
+                    {
+                        "success": True,
+                        "job": {
+                            "id": job["id"],
+                            "job_type": job["job_type"],
+                            "module_source": job["module_source"],
+                            "description": job["description"],
+                            "total_steps": total,
+                            "completed_steps": completed,
+                            "failed_steps": job["failed_steps"] or 0,
+                            "status": job["status"],
+                            "agent_name": job.get("agent_display_name") or "Unknown",
+                            "station_code": job.get("station_code") or "",
+                            "metadata": job["metadata"] or {},
+                            "progress_pct": progress_pct,
+                            "created_at": job["created_at"].isoformat() if job["created_at"] else None,
+                            "updated_at": job["updated_at"].isoformat() if job["updated_at"] else None,
+                            "completed_at": job["completed_at"].isoformat() if job["completed_at"] else None,
+                        },
+                        "executions": [
+                            {
+                                "id": e["id"],
+                                "agent_name": e["agent_name"],
+                                "capability": e["capability"],
+                                "model": e["model_used"],
+                                "duration_ms": e["duration_ms"],
+                                "success": e["success"],
+                                "error": e.get("error_message"),
+                                "timestamp": e["created_at"].isoformat() if e["created_at"] else None,
+                            }
+                            for e in executions
+                        ],
+                    }
+                )
+
+        except Exception as e:
+            logger.error(f"Error getting bridge job detail: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # ============================================================================
+    # DURABLE EXECUTION — Resume failed jobs from checkpoint (Task #955)
+    # ============================================================================
+
+    @bp.route("/api/bridge/jobs/<int:job_id>/resume", methods=["POST"])
+    @login_required
+    def api_resume_job(job_id):
+        """Resume a failed job from its last checkpoint."""
+        try:
+            from ai_bridge.bridge_dispatcher import get_dispatcher
+
+            dispatcher = get_dispatcher()
+            result = dispatcher.resume_job(job_id)
+            if result:
+                return jsonify({"success": True, "resumed": result})
+            return jsonify({"success": False, "error": "No checkpoint found or job not failed"}), 404
+        except Exception as e:
+            logger.error(f"Error resuming job {job_id}: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/bridge/jobs/<int:job_id>/delegate", methods=["POST"])
+    @login_required
+    def api_delegate_subtask(job_id):
+        """Delegate a subtask to another agent within a job context."""
+        data = request.get_json() or {}
+        capability = data.get("capability")
+        prompt = data.get("prompt")
+        timeout = data.get("timeout", 60)
+
+        if not capability or not prompt:
+            return jsonify({"success": False, "error": "capability and prompt required"}), 400
+
+        try:
+            from ai_bridge.bridge_dispatcher import get_dispatcher
+
+            dispatcher = get_dispatcher()
+            result = dispatcher.delegate_subtask(job_id, capability, prompt, timeout)
+            return jsonify(result)
+        except Exception as e:
+            logger.error(f"Error delegating subtask for job {job_id}: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # ============================================================================
+    # CROSS-STATION DISPATCH ANALYTICS
+    # ============================================================================
+
+    @bp.route("/api/dispatch/cross-station-analytics")
+    @login_required
+    def cross_station_analytics():
+        """Cross-station dispatch analytics for ARCHIE/Vigil evaluation."""
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY cross_station_dispatch_summary")
+                cur.execute("SELECT * FROM cross_station_dispatch_summary ORDER BY dispatch_count DESC")
+                cross_dispatches = cur.fetchall()
+                cur.execute("SELECT * FROM station_borrowing_summary")
+                borrowing = cur.fetchall()
+            return jsonify(success=True, cross_dispatches=cross_dispatches, borrowing=borrowing)
+        except Exception as e:
+            logger.error(f"cross_station_analytics error: {e}")
+            return jsonify(success=False, error=str(e)), 500
+
+    @bp.route("/api/dispatch/reassignment-recommendations")
+    @login_required
+    def reassignment_recommendations():
+        """Suggest agent reassignments based on cross-station dispatch patterns."""
+        try:
+            with get_db_cursor(commit=False) as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT home_station, dispatch_station, capability, module_source,
+                           dispatch_count, success_rate
+                    FROM cross_station_dispatch_summary
+                    WHERE dispatch_count >= 5
+                    ORDER BY dispatch_count DESC LIMIT 20
+                """
+                )
+                frequent = cur.fetchall()
+
+                recommendations = []
+                for row in frequent:
+                    cur.execute(
+                        """
+                        SELECT a.id, a.name, a.display_name, ask.skill_name,
+                               ask.proficiency_level, sa.assignment_type
+                        FROM agents a
+                        JOIN agent_skills ask ON ask.agent_id = a.id
+                        LEFT JOIN station_assignments sa
+                            ON sa.agent_id = a.id AND sa.is_active = true
+                        LEFT JOIN bridge_stations bs ON bs.id = sa.station_id
+                        WHERE ask.skill_name ILIKE %s
+                          AND (bs.station_code IS NULL OR bs.station_code != %s)
+                        ORDER BY ask.proficiency_level DESC LIMIT 3
+                    """,
+                        (f"%{row['capability']}%", row["home_station"]),
+                    )
+                    candidates = cur.fetchall()
+                    if candidates:
+                        recommendations.append(
+                            {
+                                "pattern": dict(row),
+                                "candidates": [dict(c) for c in candidates],
+                            }
+                        )
+            return jsonify(success=True, recommendations=recommendations)
+        except Exception as e:
+            logger.error(f"reassignment_recommendations error: {e}")
+            return jsonify(success=False, error=str(e)), 500

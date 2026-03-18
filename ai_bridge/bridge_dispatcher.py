@@ -5225,21 +5225,13 @@ class BridgeDispatcher:
                     "error": f"No available agent for capability={capability} (station={station})",
                 }
 
-            # Call Ollama directly for quick delegation (bypasses full job lifecycle)
-            ollama_host = os.getenv(
-                "OLLAMA_HOST", "http://host.docker.internal:11434"
-            )
-            if not ollama_host.startswith("http"):
-                ollama_host = f"http://{ollama_host}"
+            # Route through Bridge call_ollama (ADR-013 compliance)
+            from ai_bridge.archie_bridge import call_ollama
 
-            resp = requests.post(
-                f"{ollama_host}/api/generate",
-                json={"model": model, "prompt": prompt, "stream": False},
-                timeout=timeout,
-            )
+            result_text = call_ollama(model, prompt, timeout=timeout)
 
-            if resp.status_code == 200:
-                result = resp.json()
+            if result_text:
+                result = {"response": result_text}
                 logger.info(
                     f"Subtask delegated: parent_job={parent_job_id}, "
                     f"capability={capability}, model={model}"
@@ -5278,13 +5270,13 @@ class BridgeDispatcher:
 
                 return {
                     "success": True,
-                    "response": result.get("response", ""),
+                    "response": result.get("response", result_text),
                     "model": model,
                 }
 
             return {
                 "success": False,
-                "error": f"Ollama returned {resp.status_code}",
+                "error": f"No response from model {model}",
             }
         except Exception as e:
             logger.debug(f"Subtask delegation failed: {e}")

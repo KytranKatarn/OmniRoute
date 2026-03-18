@@ -139,8 +139,10 @@
 
       /* Station is at capacity when all crew busy AND auxiliary is full */
       var wasAtCapacity = self._atCapacity;
+      var wasFirstRender = !self._hasRendered;
+      self._hasRendered = true;
       self._atCapacity = (busyCrew >= crew.length && crew.length > 0) && (assists.length >= maxAux);
-      if (self._atCapacity !== wasAtCapacity) {
+      if (self._atCapacity !== wasAtCapacity || wasFirstRender) {
         self._applyCapacity(self._atCapacity);
         if (self.onCapacityChange) self.onCapacityChange(self._atCapacity);
       }

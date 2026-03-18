@@ -2691,17 +2691,32 @@ var _chModuleChart = null;
 var _chHistoryChart = null;
 
 function loadCodeHealth() {
-  api("/api/code-health/current").then(function(d) {
+  // Load audit log first so module table can highlight completed modules
+  Promise.all([
+    api("/api/code-health/current"),
+    api("/api/code-health/audit-log")
+  ]).then(function(results) {
+    var d = results[0];
+    var auditData = results[1];
+    var entries = auditData.entries || [];
+    window._chAuditEntries = entries;
+
+    // Build set of audited module names and their statuses
+    var auditedModules = {};
+    entries.forEach(function(e) {
+      auditedModules[e.module_name] = e.status;
+    });
+
     _renderCodeHealthStats(d);
     _renderModuleChart(d.modules || {});
-    _renderModuleTable(d.modules || {});
+    _renderModuleTable(d.modules || {}, auditedModules);
     _renderOrphanTable(d.orphans || {});
+    _renderAuditTable(entries);
   }).catch(function(err) {
     console.error("Code health load error:", err);
   });
 
   chLoadHistory();
-  _loadAuditLog();
 }
 
 function _renderCodeHealthStats(d) {
@@ -2780,9 +2795,10 @@ function _renderModuleChart(modules) {
   });
 }
 
-function _renderModuleTable(modules) {
+function _renderModuleTable(modules, auditedModules) {
   var el = document.getElementById("chModuleTable");
   if (!el) return;
+  auditedModules = auditedModules || {};
 
   var sorted = Object.keys(modules).sort(function(a, b) {
     return (modules[b].lines || 0) - (modules[a].lines || 0);
@@ -2796,8 +2812,13 @@ function _renderModuleTable(modules) {
   sorted.forEach(function(name) {
     var m = modules[name];
     var bt = m.by_type || {};
-    html += '<tr>' +
-      '<td>' + escHtml(name) + '</td>' +
+    var status = auditedModules[name];
+    var isCompleted = status === "completed";
+    var isAudited = !!status;
+    var rowStyle = isCompleted ? "background:rgba(74,222,128,0.06);" : isAudited ? "background:rgba(245,158,11,0.04);" : "";
+    var nameStyle = isCompleted ? "color:#4ade80; font-weight:600;" : isAudited ? "color:#f59e0b;" : "";
+    html += '<tr style="' + rowStyle + '">' +
+      '<td style="' + nameStyle + '">' + escHtml(name) + (isCompleted ? ' <span style="font-size:0.6rem; opacity:0.6;">&#x2713;</span>' : '') + '</td>' +
       '<td class="center">' + (m.files || 0) + '</td>' +
       '<td class="center"><strong>' + (m.lines || 0).toLocaleString() + '</strong></td>' +
       '<td class="center">' + (bt.python ? bt.python.lines : 0).toLocaleString() + '</td>' +
@@ -2928,53 +2949,62 @@ function _renderHistoryChart(snapshots) {
   });
 }
 
-function _loadAuditLog() {
-  api("/api/code-health/audit-log").then(function(d) {
-    var entries = d.entries || [];
-    window._chAuditEntries = entries;
-    var el = document.getElementById("chAuditTable");
-    if (!el) return;
+function _renderAuditTable(entries) {
+  var el = document.getElementById("chAuditTable");
+  if (!el) return;
 
-    if (!entries.length) {
-      setHtml(el, '<div class="cs-empty">No audit entries yet. Start auditing modules to see progress here.</div>');
+  if (!entries.length) {
+    setHtml(el, '<div class="cs-empty">No audit entries yet. Start auditing modules to see progress here.</div>');
+    return;
+  }
+
+  var html = '<table class="cs-table"><thead><tr>' +
+    '<th>Module</th><th>Category</th><th class="center">Files</th>' +
+    '<th class="center">Before</th><th class="center">After</th><th class="center">\u0394</th>' +
+    '<th class="center">Issues</th><th class="center">Fixed</th><th>Status</th><th>Date</th>' +
+    '</tr></thead><tbody>';
+
+  entries.forEach(function(e) {
+    var delta = (e.lines_after || 0) - (e.lines_before || 0);
+    var deltaClass = delta > 0 ? "color:#22c55e" : delta < 0 ? "color:#ef4444" : "";
+    var statusClass = e.status === "completed" ? "green" : e.status === "in_progress" ? "amber" : e.status === "known_issues" ? "amber" : e.status === "violations_found" ? "purple" : "";
+    var rowStyle = e.status === "completed" ? "background:rgba(74,222,128,0.06);" : e.status === "known_issues" ? "background:rgba(245,158,11,0.06);" : "";
+    html += '<tr style="touch-action:manipulation;' + rowStyle + '" data-audit-id="' + e.id + '">' +
+      '<td style="' + (e.status === "completed" ? "color:#4ade80;font-weight:600;" : "") + '">' + escHtml(e.module_name) + '</td>' +
+      '<td style="font-size:0.75rem; color:rgba(255,255,255,0.4);">' + escHtml(e.category || "") + '</td>' +
+      '<td class="center">' + (e.files_reviewed || 0) + '</td>' +
+      '<td class="center">' + (e.lines_before || 0).toLocaleString() + '</td>' +
+      '<td class="center">' + (e.lines_after || 0).toLocaleString() + '</td>' +
+      '<td class="center" style="' + deltaClass + ';">' + (delta > 0 ? "+" : "") + delta.toLocaleString() + '</td>' +
+      '<td class="center">' + (e.issues_found || 0) + '</td>' +
+      '<td class="center">' + (e.issues_fixed || 0) + '</td>' +
+      '<td><span class="cs-badge ' + statusClass + '" style="cursor:pointer;padding:4px 12px;min-width:60px;display:inline-block;text-align:center;touch-action:manipulation;" data-audit-btn="' + e.id + '">' + escHtml(e.status || "pending") + ' &#9654;</span></td>' +
+      '<td style="font-size:0.75rem; white-space:nowrap;">' + formatAge(e.audited_at) + '</td>' +
+      '</tr>';
+  });
+
+  html += '</tbody></table>';
+  setHtml(el, html);
+
+  // Event delegation — badge tap or row click opens audit detail
+  function _auditRowHandler(evt) {
+    // Check badge button first (bigger touch target)
+    var btn = evt.target.closest("[data-audit-btn]");
+    if (btn) {
+      evt.preventDefault();
+      evt.stopPropagation();
+      showAuditDetail(parseInt(btn.getAttribute("data-audit-btn")));
       return;
     }
-
-    var html = '<table class="cs-table"><thead><tr>' +
-      '<th>Module</th><th>Category</th><th class="center">Files</th>' +
-      '<th class="center">Before</th><th class="center">After</th><th class="center">\u0394</th>' +
-      '<th class="center">Issues</th><th class="center">Fixed</th><th>Status</th><th>Date</th>' +
-      '</tr></thead><tbody>';
-
-    entries.forEach(function(e) {
-      var delta = (e.lines_after || 0) - (e.lines_before || 0);
-      var deltaClass = delta > 0 ? "color:#22c55e" : delta < 0 ? "color:#ef4444" : "";
-      var statusClass = e.status === "completed" ? "green" : e.status === "in_progress" ? "amber" : e.status === "known_issues" ? "amber" : e.status === "violations_found" ? "purple" : "";
-      var rowStyle = e.status === "completed" ? "background:rgba(74,222,128,0.06);" : e.status === "known_issues" ? "background:rgba(245,158,11,0.06);" : "";
-      html += '<tr style="cursor:pointer;' + rowStyle + '" data-audit-id="' + e.id + '">' +
-        '<td style="' + (e.status === "completed" ? "color:#4ade80;font-weight:600;" : "") + '">' + escHtml(e.module_name) + '</td>' +
-        '<td style="font-size:0.75rem; color:rgba(255,255,255,0.4);">' + escHtml(e.category || "") + '</td>' +
-        '<td class="center">' + (e.files_reviewed || 0) + '</td>' +
-        '<td class="center">' + (e.lines_before || 0).toLocaleString() + '</td>' +
-        '<td class="center">' + (e.lines_after || 0).toLocaleString() + '</td>' +
-        '<td class="center" style="' + deltaClass + ';">' + (delta > 0 ? "+" : "") + delta.toLocaleString() + '</td>' +
-        '<td class="center">' + (e.issues_found || 0) + '</td>' +
-        '<td class="center">' + (e.issues_fixed || 0) + '</td>' +
-        '<td><span class="cs-badge ' + statusClass + '">' + escHtml(e.status || "pending") + '</span></td>' +
-        '<td style="font-size:0.75rem; white-space:nowrap;">' + formatAge(e.audited_at) + '</td>' +
-        '</tr>';
-    });
-
-    html += '</tbody></table>';
-    setHtml(el, html);
-
-    // Bind click handlers after render (setHtml strips onclick)
-    el.querySelectorAll("tr[data-audit-id]").forEach(function(row) {
-      row.addEventListener("click", function() {
-        showAuditDetail(parseInt(row.getAttribute("data-audit-id")));
-      });
-    });
-  }).catch(function() {});
+    // Fall back to row click
+    var row = evt.target.closest("tr[data-audit-id]");
+    if (row) {
+      evt.preventDefault();
+      showAuditDetail(parseInt(row.getAttribute("data-audit-id")));
+    }
+  }
+  el.addEventListener("click", _auditRowHandler);
+  el.addEventListener("touchend", _auditRowHandler);
 }
 
 window.showAuditDetail = function(id) {
@@ -3032,11 +3062,11 @@ window.showAuditDetail = function(id) {
   h += '<div style="text-align:right; margin-top:12px; font-size:0.65rem; color:rgba(255,255,255,0.3);">Audited: ' + formatAge(entry.audited_at) + '</div>';
 
   setHtml(body, h);
-  modal.style.display = "";
+  modal.classList.add("open");
 };
 
 // Close modal on overlay click
 document.addEventListener("click", function(e) {
   var modal = document.getElementById("chAuditModal");
-  if (modal && e.target === modal) modal.style.display = "none";
+  if (modal && e.target === modal) modal.classList.remove("open");
 });

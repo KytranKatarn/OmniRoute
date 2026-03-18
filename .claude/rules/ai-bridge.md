@@ -26,7 +26,18 @@ globs: ["ai_bridge/**"]
 - Checkpoints: `/mnt/data2/comfyui/models/checkpoints/`
 - VRAM swap: SDXL auto-unloads Ollama GPU models before generating
 
+## Code Structure (Audited 2026-03-18)
+- Shared DB: `ai_bridge/db.py` — single `get_db()` and `get_db_dict()` for all ai_bridge modules (replaces 19 local copies)
+- All DB calls use `try/finally: conn.close()` pattern — no connection leaks
+- No hardcoded passwords — all use `os.getenv("DB_PASSWORD", "")`
+- `archie_bridge.py`: `archie_bridge()` split into orchestrator + 4 helpers (`_parse_bridge_intent`, `_select_bridge_model`, `_execute_bridge_call`, `_log_bridge_result`)
+- `agent_loop.py`: `request_approval()` split into orchestrator + 4 helpers (`_validate_approval_request`, `_check_existing_approval`, `_get_effective_tier`, `_create_approval_record`)
+- `bridge_dispatcher.py`: Input validation on `dispatch()` and `dispatch_json()`
+- Files reduced: 80→45 root Python files after relocating module-specific code
+
 ## Key Gotchas
 - `num_ctx` inflates VRAM massively (phi3.5: 2GB disk but 5.47GB with 2048 ctx)
 - qwen3-coder-cpu needs 600s timeout (55GB, ~9min cold load)
 - Model disk size != runtime size (multiply by ~1.3 for runtime estimate)
+- Import `from db import get_db` (NOT local `get_db()` definitions)
+- All exceptions must be specific (no bare `except:`) — catch `Exception` minimum

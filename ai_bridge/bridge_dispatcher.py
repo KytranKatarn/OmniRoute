@@ -4907,6 +4907,255 @@ class BridgeDispatcher:
         "minicpm-v-cpu": "CPU",
     }
 
+    # Approximate model sizes in GB for VRAM/RAM fitting
+    MODEL_SIZE_GB = {
+        "qwen2.5:1.5b": 1.0,
+        "smollm2:1.7b": 1.8,
+        "llama3.2:3b": 2.0,
+        "phi3.5": 2.2,
+        "mistral:7b": 4.4,
+        "qwen2.5-coder:7b": 4.7,
+        "dolphin3": 4.9,
+        "gemma2:9b": 5.4,
+        "qwen2.5vl:7b": 6.0,
+        "gemma3:12b": 8.1,
+        "llama3.1:8b": 4.9,
+        "aya:8b": 5.0,
+        "qwen2.5:7b": 4.7,
+    }
+
+    def assign_agents_to_node(self, node_db_id: int, max_agents: int = 5) -> list:
+        """
+        Assign barracked agents to a node based on node hardware.
+
+        Rules:
+        - Check node's GPU VRAM and RAM from remote_nodes
+        - Find barracked agents NOT already on this node
+        - Prefer agents whose model size fits the node's VRAM (GPU advantage)
+        - Assign up to max_agents
+        - Set station_codes based on the node's station assignments
+        - If barracked count drops to 5 or below, log advisory notification
+
+        Returns: list of assigned agent names
+        """
+        from psycopg2.extras import RealDictCursor
+
+        conn = self._get_db()
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # 1. Get node hardware
+            cur.execute(
+                "SELECT id, gpu_vram_gb, ram_gb FROM remote_nodes WHERE id = %s",
+                (node_db_id,),
+            )
+            node = cur.fetchone()
+            if not node:
+                logger.warning("assign_agents_to_node: node %s not found", node_db_id)
+                return []
+
+            gpu_vram = float(node["gpu_vram_gb"] or 0)
+            ram_gb = float(node["ram_gb"] or 0)
+
+            # 2. Get station codes for this node
+            cur.execute(
+                """
+                SELECT bs.station_code
+                FROM node_station_assignments nsa
+                JOIN bridge_stations bs ON bs.id = nsa.station_id
+                WHERE nsa.node_id = %s AND nsa.is_active = TRUE
+                ORDER BY bs.station_code
+                """,
+                (node_db_id,),
+            )
+            node_stations = [r["station_code"] for r in cur.fetchall()]
+            if not node_stations:
+                logger.warning(
+                    "assign_agents_to_node: node %s has no station assignments",
+                    node_db_id,
+                )
+                return []
+
+            # 3. Find barracked agents NOT already on this node, with real model names
+            cur.execute(
+                """
+                SELECT a.id, a.name, a.first_name, a.last_name,
+                       a.display_name, a.title, a.model, a.gpu_tools,
+                       ARRAY_AGG(DISTINCT bs.station_code) FILTER (
+                           WHERE bs.station_code IS NOT NULL
+                       ) as station_codes
+                FROM agents a
+                LEFT JOIN station_assignments sa ON sa.agent_id = a.id AND sa.is_active = TRUE
+                LEFT JOIN bridge_stations bs ON bs.id = sa.station_id
+                WHERE a.shift_state = 'barracked'
+                  AND a.status = 'active'
+                  AND (a.model LIKE '%%:%%' OR a.model LIKE '%%/%%')
+                  AND a.id NOT IN (
+                      SELECT hub_agent_id FROM node_agents
+                      WHERE node_id = %s AND hub_agent_id IS NOT NULL
+                  )
+                GROUP BY a.id
+                ORDER BY a.name
+                """,
+                (node_db_id,),
+            )
+            candidates = cur.fetchall()
+
+            if not candidates:
+                logger.info(
+                    "assign_agents_to_node: no eligible barracked agents for node %s",
+                    node_db_id,
+                )
+                return []
+
+            # 4. Score candidates: prefer models that fit VRAM, then smaller first
+            def _score_agent(agent):
+                model = agent["model"] or ""
+                # Lookup known size or estimate from model name
+                size = self.MODEL_SIZE_GB.get(model, None)
+                if size is None:
+                    # Try base name without tag
+                    base = model.split(":")[0] if ":" in model else model
+                    size = self.MODEL_SIZE_GB.get(base, 5.0)  # default 5GB
+
+                fits_vram = size <= gpu_vram if gpu_vram > 0 else False
+                fits_ram = size <= (ram_gb * 0.7) if ram_gb > 0 else False
+
+                # Score: fits VRAM = 100 bonus, fits RAM = 50 bonus
+                # Subtract size so smaller models are preferred (tie-breaker)
+                score = 0
+                if fits_vram:
+                    score += 100
+                if fits_ram:
+                    score += 50
+                score -= size  # prefer smaller
+                return score
+
+            candidates.sort(key=_score_agent, reverse=True)
+
+            # 5. Build station allocation: COMMAND gets max 1, others get max 2
+            station_slots = {}
+            for sc in node_stations:
+                station_slots[sc] = 1 if sc == "COMMAND" else 2
+
+            # 6. Assign agents up to max_agents, distributing across stations
+            assigned = []
+            station_fill = {sc: 0 for sc in node_stations}
+
+            for agent in candidates:
+                if len(assigned) >= max_agents:
+                    break
+
+                # Pick best station for this agent
+                agent_stations = agent["station_codes"] or []
+                target_station = None
+
+                # Prefer a station the agent is already assigned to on the hub
+                for sc in agent_stations:
+                    if sc in station_slots and station_fill.get(sc, 0) < station_slots[sc]:
+                        target_station = sc
+                        break
+
+                # Fall back to any node station with capacity
+                if not target_station:
+                    for sc in node_stations:
+                        if station_fill.get(sc, 0) < station_slots[sc]:
+                            target_station = sc
+                            break
+
+                if not target_station:
+                    # All stations full
+                    continue
+
+                # INSERT into node_agents
+                cur.execute(
+                    """
+                    INSERT INTO node_agents (
+                        node_id, source_agent_id, hub_agent_id,
+                        name, first_name, last_name, display_name,
+                        title, model, status, station_codes,
+                        config_version, gpu_tools
+                    ) VALUES (
+                        %s, %s, %s,
+                        %s, %s, %s, %s,
+                        %s, %s, 'active', %s,
+                        1, %s
+                    )
+                    """,
+                    (
+                        node_db_id,
+                        agent["id"],
+                        agent["id"],
+                        agent["name"],
+                        agent.get("first_name"),
+                        agent.get("last_name"),
+                        agent["display_name"],
+                        agent.get("title"),
+                        agent["model"],
+                        [target_station],
+                        json.dumps(agent["gpu_tools"] or []),
+                    ),
+                )
+                station_fill[target_station] += 1
+                assigned.append(agent["name"])
+                logger.info(
+                    "Assigned barracked agent %s (model=%s) to node %s station %s",
+                    agent["name"],
+                    agent["model"],
+                    node_db_id,
+                    target_station,
+                )
+
+            conn.commit()
+
+            # 7. Check remaining barracked count — advisory if <= 5
+            if assigned:
+                cur.execute(
+                    """
+                    SELECT COUNT(*) as cnt FROM agents
+                    WHERE shift_state = 'barracked' AND status = 'active'
+                    """
+                )
+                remaining = cur.fetchone()["cnt"]
+                if remaining <= 5:
+                    cur.execute(
+                        """
+                        INSERT INTO system_notifications
+                            (type, title, message, created_at)
+                        VALUES
+                            ('alert',
+                             'Low barracked agent pool',
+                             %s,
+                             NOW())
+                        """,
+                        (
+                            f"Only {remaining} barracked agents remaining after "
+                            f"assigning {len(assigned)} to node {node_db_id}. "
+                            f"Consider promoting or creating new agents.",
+                        ),
+                    )
+                    conn.commit()
+                    logger.warning(
+                        "Barracked agent pool low: %d remaining", remaining
+                    )
+
+            logger.info(
+                "assign_agents_to_node: assigned %d agents to node %s: %s",
+                len(assigned),
+                node_db_id,
+                assigned,
+            )
+            return assigned
+
+        except Exception:
+            conn.rollback()
+            logger.exception(
+                "assign_agents_to_node failed for node %s", node_db_id
+            )
+            return []
+        finally:
+            conn.close()
+
     def get_crew_manifest(self) -> list:
         """
         Build a live roster of every agent's real-time status.

@@ -615,3 +615,36 @@ def register_crew_routes(bp, auth_decorator):
             return jsonify({"success": True, "message": "Agent removed"})
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/nodes/<int:node_id>/assign-agents", methods=["POST"])
+    @auth_decorator
+    def api_assign_agents_to_node(node_id):
+        """Auto-assign barracked agents to a node based on its hardware capabilities."""
+        try:
+            # Verify user owns this node
+            node = _get_node_for_user_by_int_id(node_id, current_user.id)
+            if not node:
+                return (
+                    jsonify({"success": False, "error": "Node not found or not owned by you"}),
+                    404,
+                )
+
+            max_agents = request.json.get("max_agents", 5) if request.is_json else 5
+            max_agents = min(int(max_agents), 10)  # cap at 10
+
+            from ai_bridge.bridge_dispatcher import get_dispatcher
+
+            dispatcher = get_dispatcher()
+            assigned = dispatcher.assign_agents_to_node(node_id, max_agents=max_agents)
+
+            return jsonify(
+                {
+                    "success": True,
+                    "assigned": assigned,
+                    "count": len(assigned),
+                    "message": f"Assigned {len(assigned)} agents to node",
+                }
+            )
+        except Exception as e:
+            logger.exception("Failed to assign agents to node %s", node_id)
+            return jsonify({"success": False, "error": str(e)}), 500

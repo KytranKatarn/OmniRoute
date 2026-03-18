@@ -1669,248 +1669,231 @@ def track_token_usage(agent_id, provider, model, tokens_used, cost, user_id=None
         return {"success": False, "error": str(e)}
 
 
-def archie_bridge(
-    prompt,
-    context=None,
-    user_id=None,
-    force_model=None,
-    enable_memory=True,
-    agent_id=None,
-    system_prompt=None,
-    try_local_first=False,
-    environment="production",
-    task_type=None,
-    use_smart_routing=False,
-    complexity=5,
-):
+def _parse_bridge_intent(prompt, original_prompt, user_id, enable_memory, try_local_first):
     """
-    Main A.R.C.H.I.E. Bridge function - routes to best available AI
-    NOW WITH MEMORY INTEGRATION, TOKEN TRACKING & LOCAL ANSWER GENERATION (Phase 3)!
-    ENVIRONMENT AWARENESS (Phase 23) - Tracks sandbox vs production context!
-    SMART LLM ROUTING (Phase 32-37) - Intelligent model selection for cost optimization!
-
-    Args:
-        prompt: The user's question/request
-        context: Optional conversation context
-        user_id: User ID for memory tracking
-        force_model: Force a specific model (e.g., 'deepseek-coder-v2:16b', 'qwen-coder')
-        enable_memory: Enable long-term memory system (default: True)
-        agent_id: Agent ID for token tracking
-        system_prompt: System prompt override
-        try_local_first: Try answering from knowledge base before LLM (default: False, Phase 3)
-        environment: Environment context - 'production', 'sandbox_full', 'sandbox_<module>' (Phase 23)
-        task_type: Task type for smart routing (e.g., 'code_simple', 'architecture')
-        use_smart_routing: Enable smart routing for model selection (default: False)
-        complexity: Task complexity score 1-10 for routing (default: 5)
+    Extract intent, retrieve knowledge, and check for local answers.
 
     Returns:
-        {
-            'success': bool,
-            'response': str,
-            'model': str,
-            'provider': str,
-            'memory_used': bool,
-            'memories_learned': int,
-            'tokens_used': int,
-            'cost': float,
-            'budget_warning': dict (if applicable),
-            'local_answer': bool (if answered locally),
-            'confidence': float (if local answer),
-            'cost_saved': float (if local answer),
-            'environment': str (Phase 23: sandbox/production context),
-            'routing_info': dict (if smart routing used)
-        }
+        dict with keys:
+            prompt (str): possibly enriched prompt
+            memory_used (bool)
+            local_knowledge_used (bool)
+            similar_conversations (list)
+            local_answer (dict or None): if answerable locally, the full return dict
     """
-    # ========================================================================
-    # LOCAL-FIRST KNOWLEDGE RETRIEVAL (Phase 3)
-    # Check unified knowledge base BEFORE external APIs!
-    # ========================================================================
-    memory_context = None
     memory_used = False
-    memories_learned = 0
     similar_conversations = []
-    original_prompt = prompt  # Keep original for learning
     local_knowledge_used = False
-    mistake_warning = None
 
-    if enable_memory and user_id:
-        # STEP 1: Check for known mistakes FIRST (highest priority!)
-        if LOCAL_KNOWLEDGE_AVAILABLE:
-            try:
-                mistake_warning = check_for_known_mistakes(original_prompt)
-                if mistake_warning:
-                    memory_used = True
-                    local_knowledge_used = True
-                    prompt = mistake_warning + "\n\n" + prompt
-                    print(
-                        f"[AI Bridge] Known mistake detected - prepended warning to prompt"
-                    )
-            except Exception as e:
-                print(f"[AI Bridge] Error checking for known mistakes: {e}")
+    if not (enable_memory and user_id):
+        return {
+            "prompt": prompt,
+            "memory_used": memory_used,
+            "local_knowledge_used": local_knowledge_used,
+            "similar_conversations": similar_conversations,
+            "local_answer": None,
+        }
 
-        # STEP 2: Get relevant knowledge from unified knowledge base
-        if LOCAL_KNOWLEDGE_AVAILABLE:
-            try:
-                local_knowledge = get_relevant_knowledge(original_prompt, max_results=5)
-                if local_knowledge:
-                    memory_used = True
-                    local_knowledge_used = True
-                    prompt = local_knowledge + "\n\n" + prompt
-                    print(
-                        f"[AI Bridge] Local knowledge retrieved and prepended to prompt"
-                    )
-            except Exception as e:
-                print(f"[AI Bridge] Error retrieving local knowledge: {e}")
-
-        # STEP 2.5: Try local answer generation (Phase 3)
-        # Check user preference from database (Week 2: per-user control)
-        user_wants_local_answers = try_local_first  # Default to parameter
-        if user_id and not try_local_first:
-            try:
-                # Query user preference from database
-                conn = psycopg2.connect(
-                    host=os.getenv("DB_HOST", "archie_database"),
-                    port=os.getenv("DB_PORT", "5432"),
-                    database=os.getenv("DB_NAME", "archie"),
-                    user=os.getenv("DB_USER", "archie"),
-                    password=os.getenv("DB_PASSWORD", ""),
-                )
-                cur = conn.cursor()
-                cur.execute(
-                    "SELECT enable_local_answers FROM users WHERE id = %s", (user_id,)
-                )
-                result = cur.fetchone()
-                if result:
-                    user_wants_local_answers = result[0]
-                cur.close()
-                conn.close()
-            except Exception as e:
-                print(f"[AI Bridge] Error checking user local answer preference: {e}")
-
-        if user_wants_local_answers and LOCAL_KNOWLEDGE_AVAILABLE and enable_memory:
-            try:
-                from local_answer_generator import (
-                    can_answer_locally,
-                    generate_local_response,
-                    estimate_cost_savings,
-                    track_local_answer_usage,
-                )
-                from knowledge_retrieval import get_relevant_knowledge_enhanced
-
-                # Get enhanced knowledge results (structured data)
-                knowledge_results = get_relevant_knowledge_enhanced(
-                    original_prompt,
-                    max_results=10,
-                    use_semantic=False,  # Start with keyword-only, add semantic later
-                )
-
-                if knowledge_results:
-                    # Evaluate if we can answer locally
-                    decision = can_answer_locally(original_prompt, knowledge_results)
-
-                    if decision["can_answer"]:
-                        print(
-                            f"[AI Bridge] LOCAL ANSWER: confidence={decision['confidence']:.2f}, strategy={decision['strategy']}"
-                        )
-
-                        # Generate local response
-                        local_response = generate_local_response(
-                            original_prompt,
-                            knowledge_results,
-                            strategy=decision["strategy"],
-                        )
-
-                        # Determine what model would have been used
-                        provider, model = get_default_provider()
-
-                        # Track cost savings
-                        track_local_answer_usage(
-                            query=original_prompt,
-                            knowledge_ids=[r["id"] for r in knowledge_results[:5]],
-                            confidence=decision["confidence"],
-                            strategy=decision["strategy"],
-                            user_id=user_id,
-                            default_model=model,
-                            default_provider=provider,
-                        )
-
-                        # Estimate savings
-                        savings = estimate_cost_savings(
-                            original_prompt, model, provider
-                        )
-
-                        print(
-                            f"[AI Bridge] Cost saved: ${savings['cost_saved']:.4f}, tokens: {savings['tokens_saved']}"
-                        )
-
-                        # Return early with local answer
-                        return {
-                            "success": True,
-                            "response": local_response,
-                            "model": "local-knowledge",
-                            "provider": "archie-brain",
-                            "local_answer": True,
-                            "confidence": decision["confidence"],
-                            "strategy": decision["strategy"],
-                            "knowledge_entries_used": len(knowledge_results),
-                            "tokens_used": 0,
-                            "cost": 0.0,
-                            "cost_saved": savings["cost_saved"],
-                            "tokens_saved": savings["tokens_saved"],
-                            "memory_used": True,
-                            "memories_learned": 0,  # Don't re-learn from local answers
-                            "local_knowledge_used": True,
-                        }
-                    else:
-                        print(
-                            f"[AI Bridge] Local answer not confident enough: {decision['reason']}"
-                        )
-
-            except Exception as e:
-                print(f"[AI Bridge] Error in local answer generation: {e}")
-                import traceback
-
-                traceback.print_exc()
-                # Fall through to LLM
-
-        # STEP 3: Fallback to conversation memory (old system)
+    # STEP 1: Check for known mistakes FIRST (highest priority!)
+    if LOCAL_KNOWLEDGE_AVAILABLE:
         try:
-            # NEW: Use tag-based RAG retrieval
-            similar_conversations = retrieve_similar_conversations(
-                query=original_prompt,
-                user_id=user_id,
-                max_results=3,
-                min_importance=0.4,
-            )
-
-            if similar_conversations:
+            mistake_warning = check_for_known_mistakes(original_prompt)
+            if mistake_warning:
                 memory_used = True
-                # Build context from similar conversations
-                memory_context = "## Relevant Knowledge from A.R.C.H.I.E.'s Memory:\n\n"
-                for i, conv in enumerate(similar_conversations, 1):
-                    memory_context += f"{i}. {conv.get('summary', conv.get('user_message', '')[:100])}\n"
-                    if conv.get("ai_response"):
-                        memory_context += (
-                            f"   Response: {conv['ai_response'][:200]}...\n"
-                        )
-                    memory_context += f"   Tags: {', '.join(conv.get('tags', []))}\n\n"
-
-                # Prepend memory context to prompt
-                prompt = f"{memory_context}\n---\n\nCurrent Question: {prompt}"
+                local_knowledge_used = True
+                prompt = mistake_warning + "\n\n" + prompt
+                print(
+                    f"[AI Bridge] Known mistake detected - prepended warning to prompt"
+                )
         except Exception as e:
-            print(f"Error retrieving similar conversations: {e}")
-            # Fallback to old memory system
-            memory_context = get_memory_context(
-                original_prompt, user_id=user_id, max_context=3
-            )
-            if memory_context:
-                memory_used = True
-                prompt = f"{memory_context}\n\n{prompt}"
+            print(f"[AI Bridge] Error checking for known mistakes: {e}")
 
-    # ========================================================================
-    # SMART LLM ROUTING (Phase 32-37)
-    # Intelligent model selection based on task type and complexity
-    # ========================================================================
+    # STEP 2: Get relevant knowledge from unified knowledge base
+    if LOCAL_KNOWLEDGE_AVAILABLE:
+        try:
+            local_knowledge = get_relevant_knowledge(original_prompt, max_results=5)
+            if local_knowledge:
+                memory_used = True
+                local_knowledge_used = True
+                prompt = local_knowledge + "\n\n" + prompt
+                print(
+                    f"[AI Bridge] Local knowledge retrieved and prepended to prompt"
+                )
+        except Exception as e:
+            print(f"[AI Bridge] Error retrieving local knowledge: {e}")
+
+    # STEP 2.5: Try local answer generation (Phase 3)
+    # Check user preference from database (Week 2: per-user control)
+    user_wants_local_answers = try_local_first  # Default to parameter
+    if user_id and not try_local_first:
+        try:
+            # Query user preference from database
+            conn = psycopg2.connect(
+                host=os.getenv("DB_HOST", "archie_database"),
+                port=os.getenv("DB_PORT", "5432"),
+                database=os.getenv("DB_NAME", "archie"),
+                user=os.getenv("DB_USER", "archie"),
+                password=os.getenv("DB_PASSWORD", ""),
+            )
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT enable_local_answers FROM users WHERE id = %s", (user_id,)
+            )
+            result = cur.fetchone()
+            if result:
+                user_wants_local_answers = result[0]
+            cur.close()
+            conn.close()
+        except Exception as e:
+            print(f"[AI Bridge] Error checking user local answer preference: {e}")
+
+    if user_wants_local_answers and LOCAL_KNOWLEDGE_AVAILABLE and enable_memory:
+        try:
+            from local_answer_generator import (
+                can_answer_locally,
+                generate_local_response,
+                estimate_cost_savings,
+                track_local_answer_usage,
+            )
+            from knowledge_retrieval import get_relevant_knowledge_enhanced
+
+            # Get enhanced knowledge results (structured data)
+            knowledge_results = get_relevant_knowledge_enhanced(
+                original_prompt,
+                max_results=10,
+                use_semantic=False,  # Start with keyword-only, add semantic later
+            )
+
+            if knowledge_results:
+                # Evaluate if we can answer locally
+                decision = can_answer_locally(original_prompt, knowledge_results)
+
+                if decision["can_answer"]:
+                    print(
+                        f"[AI Bridge] LOCAL ANSWER: confidence={decision['confidence']:.2f}, strategy={decision['strategy']}"
+                    )
+
+                    # Generate local response
+                    local_response = generate_local_response(
+                        original_prompt,
+                        knowledge_results,
+                        strategy=decision["strategy"],
+                    )
+
+                    # Determine what model would have been used
+                    provider, model = get_default_provider()
+
+                    # Track cost savings
+                    track_local_answer_usage(
+                        query=original_prompt,
+                        knowledge_ids=[r["id"] for r in knowledge_results[:5]],
+                        confidence=decision["confidence"],
+                        strategy=decision["strategy"],
+                        user_id=user_id,
+                        default_model=model,
+                        default_provider=provider,
+                    )
+
+                    # Estimate savings
+                    savings = estimate_cost_savings(
+                        original_prompt, model, provider
+                    )
+
+                    print(
+                        f"[AI Bridge] Cost saved: ${savings['cost_saved']:.4f}, tokens: {savings['tokens_saved']}"
+                    )
+
+                    # Return early with local answer
+                    local_answer = {
+                        "success": True,
+                        "response": local_response,
+                        "model": "local-knowledge",
+                        "provider": "archie-brain",
+                        "local_answer": True,
+                        "confidence": decision["confidence"],
+                        "strategy": decision["strategy"],
+                        "knowledge_entries_used": len(knowledge_results),
+                        "tokens_used": 0,
+                        "cost": 0.0,
+                        "cost_saved": savings["cost_saved"],
+                        "tokens_saved": savings["tokens_saved"],
+                        "memory_used": True,
+                        "memories_learned": 0,  # Don't re-learn from local answers
+                        "local_knowledge_used": True,
+                    }
+                    return {
+                        "prompt": prompt,
+                        "memory_used": memory_used,
+                        "local_knowledge_used": local_knowledge_used,
+                        "similar_conversations": similar_conversations,
+                        "local_answer": local_answer,
+                    }
+                else:
+                    print(
+                        f"[AI Bridge] Local answer not confident enough: {decision['reason']}"
+                    )
+
+        except Exception as e:
+            print(f"[AI Bridge] Error in local answer generation: {e}")
+            import traceback
+
+            traceback.print_exc()
+            # Fall through to LLM
+
+    # STEP 3: Fallback to conversation memory (old system)
+    try:
+        # NEW: Use tag-based RAG retrieval
+        similar_conversations = retrieve_similar_conversations(
+            query=original_prompt,
+            user_id=user_id,
+            max_results=3,
+            min_importance=0.4,
+        )
+
+        if similar_conversations:
+            memory_used = True
+            # Build context from similar conversations
+            memory_context = "## Relevant Knowledge from A.R.C.H.I.E.'s Memory:\n\n"
+            for i, conv in enumerate(similar_conversations, 1):
+                memory_context += f"{i}. {conv.get('summary', conv.get('user_message', '')[:100])}\n"
+                if conv.get("ai_response"):
+                    memory_context += (
+                        f"   Response: {conv['ai_response'][:200]}...\n"
+                    )
+                memory_context += f"   Tags: {', '.join(conv.get('tags', []))}\n\n"
+
+            # Prepend memory context to prompt
+            prompt = f"{memory_context}\n---\n\nCurrent Question: {prompt}"
+    except Exception as e:
+        print(f"Error retrieving similar conversations: {e}")
+        # Fallback to old memory system
+        memory_context = get_memory_context(
+            original_prompt, user_id=user_id, max_context=3
+        )
+        if memory_context:
+            memory_used = True
+            prompt = f"{memory_context}\n\n{prompt}"
+
+    return {
+        "prompt": prompt,
+        "memory_used": memory_used,
+        "local_knowledge_used": local_knowledge_used,
+        "similar_conversations": similar_conversations,
+        "local_answer": None,
+    }
+
+
+def _select_bridge_model(
+    original_prompt, prompt, context, force_model, use_smart_routing,
+    task_type, complexity, agent_id,
+):
+    """
+    Determine which model/provider to use via smart routing or force_model.
+
+    Returns:
+        tuple: (provider_or_none, model_or_none, routing_info_or_none)
+            provider is None when force_model is used (embedded in the call).
+    """
     routing_info = None
     smart_routed_model = None
     smart_routed_provider = None
@@ -1952,7 +1935,30 @@ def archie_bridge(
         except Exception as e:
             print(f"[AI Bridge] Smart routing error: {e}, falling back to default")
 
-    # Determine which model/provider to use
+    if force_model:
+        return None, force_model, routing_info
+    elif smart_routed_model and smart_routed_provider:
+        return smart_routed_provider, smart_routed_model, routing_info
+    else:
+        provider, model = get_default_provider()
+        return provider, model, routing_info
+
+
+def _execute_bridge_call(prompt, context, system_prompt, provider, model, force_model):
+    """
+    Execute the actual LLM call based on provider/model selection.
+
+    Args:
+        prompt: The (possibly enriched) prompt
+        context: Conversation context
+        system_prompt: System prompt override
+        provider: Provider name (None if force_model is used)
+        model: Model name
+        force_model: Original force_model param (if set, provider is None)
+
+    Returns:
+        dict: Raw result from the LLM call
+    """
     if force_model:
         # Parse force_model to determine provider
         # Check for Ollama format first (contains colon like "mistral:latest", "llama3.1:8b")
@@ -1961,65 +1967,74 @@ def archie_bridge(
 
         if is_ollama_format:
             # Ollama model format - route to local Ollama
-            result = call_ollama(
+            return call_ollama(
                 prompt, model=force_model, system_prompt=system_prompt, context=context
             )
         elif "grok" in force_model.lower():
-            result = call_grok_api(
+            return call_grok_api(
                 prompt, model=force_model, system_prompt=system_prompt
             )
         elif "gemini" in force_model.lower():
-            result = call_gemini_api(
+            return call_gemini_api(
                 prompt, model=force_model, system_prompt=system_prompt
             )
         elif "command" in force_model.lower() or "cohere" in force_model.lower():
-            result = call_cohere_api(
+            return call_cohere_api(
                 prompt, model=force_model, system_prompt=system_prompt
             )
         elif "mistral" in force_model.lower() or "codestral" in force_model.lower():
-            result = call_mistral_api(
+            return call_mistral_api(
                 prompt, model=force_model, system_prompt=system_prompt
             )
         elif "gpt" in force_model.lower() or "o1" in force_model.lower():
-            result = call_openai_api(
+            return call_openai_api(
                 prompt, model=force_model, system_prompt=system_prompt
             )
         elif "claude" in force_model.lower():
-            result = call_claude_api(
+            return call_claude_api(
                 prompt, model=force_model, system_prompt=system_prompt
             )
         else:
             # Assume Ollama
-            result = call_ollama(
+            return call_ollama(
                 prompt, model=force_model, system_prompt=system_prompt, context=context
             )
     else:
-        # Use smart routing model if available, otherwise get default
-        if smart_routed_model and smart_routed_provider:
-            provider = smart_routed_provider
-            model = smart_routed_model
-        else:
-            provider, model = get_default_provider()
-
         if provider == "ollama":
-            result = call_ollama(
+            return call_ollama(
                 prompt, model=model, system_prompt=system_prompt, context=context
             )
         elif provider == "claude":
-            result = call_claude_api(prompt, model=model, system_prompt=system_prompt)
+            return call_claude_api(prompt, model=model, system_prompt=system_prompt)
         elif provider == "openai":
-            result = call_openai_api(prompt, model=model, system_prompt=system_prompt)
+            return call_openai_api(prompt, model=model, system_prompt=system_prompt)
         elif provider == "grok":
-            result = call_grok_api(prompt, model=model, system_prompt=system_prompt)
+            return call_grok_api(prompt, model=model, system_prompt=system_prompt)
         elif provider == "gemini":
-            result = call_gemini_api(prompt, model=model, system_prompt=system_prompt)
+            return call_gemini_api(prompt, model=model, system_prompt=system_prompt)
         elif provider == "cohere":
-            result = call_cohere_api(prompt, model=model, system_prompt=system_prompt)
+            return call_cohere_api(prompt, model=model, system_prompt=system_prompt)
         elif provider == "mistral":
-            result = call_mistral_api(prompt, model=model, system_prompt=system_prompt)
+            return call_mistral_api(prompt, model=model, system_prompt=system_prompt)
         else:
             # Fallback
-            result = call_ollama(prompt, system_prompt=system_prompt, context=context)
+            return call_ollama(prompt, system_prompt=system_prompt, context=context)
+
+
+def _log_bridge_result(
+    result, original_prompt, user_id, agent_id, enable_memory,
+    memory_used, local_knowledge_used, similar_conversations,
+    environment, routing_info, task_type,
+):
+    """
+    Handle cost calculation, token tracking, conversation learning, and bridge logging.
+
+    Mutates `result` dict in place (adds cost, memory stats, routing info, etc.).
+
+    Returns:
+        int: memories_learned count
+    """
+    memories_learned = 0
 
     # Calculate cost
     tokens_used = result.get("tokens_used", 0)
@@ -2050,7 +2065,7 @@ def archie_bridge(
         budget_warning = tracking_result.get("warning")
         result["budget_warning"] = budget_warning
 
-    # NEW: Learn from this conversation with emotional intelligence
+    # Learn from this conversation with emotional intelligence
     if enable_memory and user_id and result.get("success"):
         try:
             # Use new ingest_conversation with auto-tagging and emotional learning
@@ -2188,6 +2203,95 @@ def archie_bridge(
         )
     except Exception as e:
         print(f"[AI Bridge] Error in Phase 61 bridge logging: {e}")
+
+    return memories_learned
+
+
+def archie_bridge(
+    prompt,
+    context=None,
+    user_id=None,
+    force_model=None,
+    enable_memory=True,
+    agent_id=None,
+    system_prompt=None,
+    try_local_first=False,
+    environment="production",
+    task_type=None,
+    use_smart_routing=False,
+    complexity=5,
+):
+    """
+    Main A.R.C.H.I.E. Bridge function - routes to best available AI
+    NOW WITH MEMORY INTEGRATION, TOKEN TRACKING & LOCAL ANSWER GENERATION (Phase 3)!
+    ENVIRONMENT AWARENESS (Phase 23) - Tracks sandbox vs production context!
+    SMART LLM ROUTING (Phase 32-37) - Intelligent model selection for cost optimization!
+
+    Args:
+        prompt: The user's question/request
+        context: Optional conversation context
+        user_id: User ID for memory tracking
+        force_model: Force a specific model (e.g., 'deepseek-coder-v2:16b', 'qwen-coder')
+        enable_memory: Enable long-term memory system (default: True)
+        agent_id: Agent ID for token tracking
+        system_prompt: System prompt override
+        try_local_first: Try answering from knowledge base before LLM (default: False, Phase 3)
+        environment: Environment context - 'production', 'sandbox_full', 'sandbox_<module>' (Phase 23)
+        task_type: Task type for smart routing (e.g., 'code_simple', 'architecture')
+        use_smart_routing: Enable smart routing for model selection (default: False)
+        complexity: Task complexity score 1-10 for routing (default: 5)
+
+    Returns:
+        {
+            'success': bool,
+            'response': str,
+            'model': str,
+            'provider': str,
+            'memory_used': bool,
+            'memories_learned': int,
+            'tokens_used': int,
+            'cost': float,
+            'budget_warning': dict (if applicable),
+            'local_answer': bool (if answered locally),
+            'confidence': float (if local answer),
+            'cost_saved': float (if local answer),
+            'environment': str (Phase 23: sandbox/production context),
+            'routing_info': dict (if smart routing used)
+        }
+    """
+    original_prompt = prompt  # Keep original for learning
+
+    # STEP 1: Parse intent, retrieve knowledge, check local answers
+    intent = _parse_bridge_intent(
+        prompt, original_prompt, user_id, enable_memory, try_local_first
+    )
+
+    # If answerable locally, return immediately
+    if intent["local_answer"]:
+        return intent["local_answer"]
+
+    prompt = intent["prompt"]
+    memory_used = intent["memory_used"]
+    local_knowledge_used = intent["local_knowledge_used"]
+    similar_conversations = intent["similar_conversations"]
+
+    # STEP 2: Select model/provider via smart routing or force_model
+    provider, model, routing_info = _select_bridge_model(
+        original_prompt, prompt, context, force_model, use_smart_routing,
+        task_type, complexity, agent_id,
+    )
+
+    # STEP 3: Execute the LLM call
+    result = _execute_bridge_call(
+        prompt, context, system_prompt, provider, model, force_model
+    )
+
+    # STEP 4: Log result, track costs, learn from conversation
+    _log_bridge_result(
+        result, original_prompt, user_id, agent_id, enable_memory,
+        memory_used, local_knowledge_used, similar_conversations,
+        environment, routing_info, task_type,
+    )
 
     return result
 

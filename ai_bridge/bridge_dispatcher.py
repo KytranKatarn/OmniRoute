@@ -5336,6 +5336,19 @@ def dispatch(
         if result.success:
             print(result.response)
     """
+    # Input validation
+    if not capability or not isinstance(capability, str):
+        raise ValueError("capability must be a non-empty string")
+    if not prompt or not isinstance(prompt, str):
+        raise ValueError("prompt must be a non-empty string")
+    if len(prompt) > 100000:
+        raise ValueError("prompt exceeds maximum length (100,000 chars)")
+    if user_id is not None and not isinstance(user_id, int):
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            user_id = None
+
     return get_dispatcher().request_work(
         capability=capability,
         prompt=prompt,
@@ -5364,6 +5377,19 @@ def dispatch_json(
         if data:
             print(data['category'])
     """
+    # Input validation
+    if not capability or not isinstance(capability, str):
+        return None
+    if not prompt or not isinstance(prompt, str):
+        return None
+    if len(prompt) > 100000:
+        return None
+    if user_id is not None and not isinstance(user_id, int):
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            user_id = None
+
     return get_dispatcher().request_json(
         capability=capability,
         prompt=prompt,

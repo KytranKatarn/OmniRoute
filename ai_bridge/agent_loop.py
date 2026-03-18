@@ -131,6 +131,73 @@ def _send_approval_telegram(
         logger.warning(f"Telegram approval notification failed: {e}")
 
 
+def _validate_approval_request(
+    action_type: str, action_data: dict
+) -> Optional[str]:
+    """Validate approval request inputs. Returns error message or None if valid."""
+    if not action_type or not isinstance(action_type, str):
+        return "action_type must be a non-empty string"
+    if not isinstance(action_data, dict):
+        return "action_data must be a dict"
+    return None
+
+
+def _check_existing_approval(
+    action_type: str, cur
+) -> bool:
+    """Check if a pending approval of the same type already exists. Returns True if duplicate found."""
+    cur.execute(
+        "SELECT id FROM autonomy_approval_queue WHERE action_type = %s AND status = 'pending' LIMIT 1",
+        (action_type,),
+    )
+    return cur.fetchone() is not None
+
+
+def _get_effective_tier(action_type: str, tier: int, cur) -> int:
+    """Determine effective tier by checking tier-1 auto-approve config."""
+    cur.execute(
+        "SELECT config_value FROM autonomy_config WHERE config_key = 'tier1_auto_approve'"
+    )
+    row = cur.fetchone()
+    tier1_types = row["config_value"].get("types", []) if row else []
+    return 1 if action_type in tier1_types else tier
+
+
+def _create_approval_record(
+    action_type: str,
+    action_data: dict,
+    reason: str,
+    requested_by: str,
+    priority: int,
+    effective_tier: int,
+    cur,
+) -> int:
+    """Insert approval record into the DB. Returns the new approval_queue ID."""
+    status = "approved" if effective_tier == 1 else "pending"
+
+    cur.execute(
+        f"""
+        INSERT INTO autonomy_approval_queue
+        (action_type, action_data, tier, status, priority, requested_by, reason,
+         approved_at, expires_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s,
+                {'NOW()' if effective_tier == 1 else 'NULL'},
+                NOW() + INTERVAL '24 hours')
+        RETURNING id
+        """,
+        (
+            action_type,
+            json.dumps(action_data),
+            effective_tier,
+            status,
+            priority,
+            requested_by,
+            reason,
+        ),
+    )
+    return cur.fetchone()["id"]
+
+
 def request_approval(
     action_type: str,
     action_data: dict,
@@ -148,54 +215,29 @@ def request_approval(
     Returns the approval_queue ID, or None on failure.
     """
     try:
+        # Validate inputs
+        validation_error = _validate_approval_request(action_type, action_data)
+        if validation_error:
+            logger.error(f"Approval request validation failed: {validation_error}")
+            return None
+
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Check if tier-1 auto-approve
-        cur.execute(
-            "SELECT config_value FROM autonomy_config WHERE config_key = 'tier1_auto_approve'"
-        )
-        row = cur.fetchone()
-        tier1_types = row["config_value"].get("types", []) if row else []
-
-        effective_tier = 1 if action_type in tier1_types else tier
+        # Determine effective tier
+        effective_tier = _get_effective_tier(action_type, tier, cur)
 
         # Dedup: skip if there's already a pending approval of the same type
-        if effective_tier > 1:
-            cur.execute(
-                "SELECT id FROM autonomy_approval_queue WHERE action_type = %s AND status = 'pending' LIMIT 1",
-                (action_type,),
-            )
-            if cur.fetchone():
-                logger.info(f"Skipping duplicate {action_type} — pending approval already exists")
-                cur.close()
-                conn.close()
-                return None
+        if effective_tier > 1 and _check_existing_approval(action_type, cur):
+            logger.info(f"Skipping duplicate {action_type} — pending approval already exists")
+            cur.close()
+            conn.close()
+            return None
 
-        status = "approved" if effective_tier == 1 else "pending"
-        approved_at = "NOW()" if effective_tier == 1 else "NULL"
-
-        cur.execute(
-            f"""
-            INSERT INTO autonomy_approval_queue
-            (action_type, action_data, tier, status, priority, requested_by, reason,
-             approved_at, expires_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s,
-                    {'NOW()' if effective_tier == 1 else 'NULL'},
-                    NOW() + INTERVAL '24 hours')
-            RETURNING id
-            """,
-            (
-                action_type,
-                json.dumps(action_data),
-                effective_tier,
-                status,
-                priority,
-                requested_by,
-                reason,
-            ),
+        # Create the approval record
+        approval_id = _create_approval_record(
+            action_type, action_data, reason, requested_by, priority, effective_tier, cur
         )
-        approval_id = cur.fetchone()["id"]
         conn.commit()
         cur.close()
         conn.close()

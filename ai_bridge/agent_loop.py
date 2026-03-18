@@ -2366,7 +2366,7 @@ class AgentLoop:
             if reaped:
                 logger.info(f"Stale job reaper: cleaned {reaped} orphaned jobs")
         except Exception as e:
-            logger.debug(f"Stale job reaper failed: {e}")
+            logger.warning(f"Failed: {e}")
 
     def _reap_stuck_jobs(self):
         """Kill jobs stuck in 'running' state too long (every 5 min)."""
@@ -2405,7 +2405,7 @@ class AgentLoop:
             if killed:
                 logger.info(f"Stuck job watchdog: killed {len(killed)} hung jobs")
         except Exception as e:
-            logger.debug(f"Stuck job watchdog failed: {e}")
+            logger.warning(f"Failed: {e}")
 
     def _archive_stale_notifications(self):
         """Archive notifications older than 30 days (every 6 hours)."""
@@ -2425,7 +2425,7 @@ class AgentLoop:
             if archived:
                 logger.info(f"Notification archiver: archived {archived} stale notifications")
         except Exception as e:
-            logger.debug(f"Notification archiver failed: {e}")
+            logger.warning(f"Failed: {e}")
 
     def _discover_network_devices(self):
         """Discover new network devices via AdGuard + ARP (every 5 min)."""
@@ -2451,7 +2451,7 @@ class AgentLoop:
             if new_devices:
                 logger.info(f"Network discovery: {len(new_devices)} new devices found")
         except Exception as e:
-            logger.debug(f"Network discovery failed: {e}")
+            logger.warning(f"Failed: {e}")
 
     def _track_agent_hr(self):
         """
@@ -3089,7 +3089,7 @@ class AgentLoop:
                             if result and result.success:
                                 failure_analysis = (result.response or "")[:2000]
                 except Exception as e:
-                    logger.debug(f"Failed to generate failure analysis for {agent_name}/{capability}: {e}")
+                    logger.warning(f"Failed to generate failure analysis for {agent_name}/{capability}: {e}")
 
                 # Calculate training duration from hours_per_level
                 target_level = current_level  # Restore to pre-degradation level
@@ -3258,7 +3258,7 @@ class AgentLoop:
                                     loop,
                                 )
                 except Exception as e:
-                    logger.debug(f"Training tick Telegram notification failed: {e}")
+                    logger.warning(f"Failed: {e}")
 
             cur.close()
             conn.close()
@@ -3616,7 +3616,7 @@ class AgentLoop:
                 logger.info(f"SSH monitor: created {alerts_created} security alerts")
 
         except Exception as e:
-            logger.debug(f"SSH login monitor failed: {e}")
+            logger.warning(f"Failed: {e}")
 
     def _check_mission_schedule(self):
         """Check and apply scheduled mission profile changes (every 5 min)."""
@@ -3626,7 +3626,7 @@ class AgentLoop:
             mm = MissionManager()
             mm.check_schedule()
         except Exception as e:
-            logger.debug(f"Mission schedule check failed: {e}")
+            logger.warning(f"Failed: {e}")
 
     def _run_security_audit(self):
         """Weekly security configuration audit — verify nothing has drifted."""
@@ -3725,7 +3725,7 @@ class AgentLoop:
                 logger.info("Security audit: all checks passed")
 
         except Exception as e:
-            logger.debug(f"Security audit failed: {e}")
+            logger.warning(f"Failed: {e}")
 
     def _check_ssl_expiry(self):
         """Check SSL certificates for upcoming expiry (daily)."""
@@ -3783,7 +3783,7 @@ class AgentLoop:
                     pass  # Can't check this domain
 
         except Exception as e:
-            logger.debug(f"SSL expiry check failed: {e}")
+            logger.warning(f"Failed: {e}")
 
     def _daily_dns_report(self):
         """Generate daily DNS activity summary for Telegram (7 AM daily)."""
@@ -3839,7 +3839,7 @@ class AgentLoop:
             )
             logger.info("Daily DNS report sent")
         except Exception as e:
-            logger.debug(f"Daily DNS report failed: {e}")
+            logger.warning(f"Failed: {e}")
 
     def _detect_query_spike(self):
         """Detect unusual DNS query spikes (hourly)."""
@@ -3878,7 +3878,7 @@ class AgentLoop:
                         f"Query spike: {block_rate:.0%} blocked ({blocked}/{queries})"
                     )
         except Exception as e:
-            logger.debug(f"Query spike detection failed: {e}")
+            logger.warning(f"Failed: {e}")
 
     def _check_camera_anomaly(self):
         """Alert if cameras have been offline or no motion detected in 4+ hours."""
@@ -3906,7 +3906,7 @@ class AgentLoop:
                     )
                     logger.warning(f"Camera anomaly: {name} is {state}")
         except Exception as e:
-            logger.debug(f"Camera anomaly check failed: {e}")
+            logger.warning(f"Failed: {e}")
 
     def _run_auto_block(self):
         """Run suggestion engine and auto-execute critical/high suggestions (every 15 min)."""
@@ -3950,9 +3950,9 @@ class AgentLoop:
                                     f"Auto-block: executed suggestion #{suggestion['id']} ({stype})"
                                 )
                             except Exception as e:
-                                logger.debug(f"Auto-block execute failed: {e}")
+                                logger.warning(f"Failed: {e}")
         except Exception as e:
-            logger.debug(f"Auto-block pipeline failed: {e}")
+            logger.warning(f"Failed: {e}")
 
     def _daily_code_metrics_scan(self):
         """Job #40: Daily codebase metrics snapshot at 3:00 AM."""
@@ -3968,7 +3968,7 @@ class AgentLoop:
                 snapshot_id,
             )
         except Exception as e:
-            logger.debug(f"Code metrics scan failed: {e}")
+            logger.warning(f"Failed: {e}")
 
     def _pattern_compliance_check(self):
         """Job #41: Scan for pattern violations at 4:00 AM."""
@@ -4013,4 +4013,4 @@ class AgentLoop:
             else:
                 logger.info("Pattern compliance: clean — no violations found")
         except Exception as e:
-            logger.debug(f"Pattern compliance check failed: {e}")
+            logger.warning(f"Failed: {e}")

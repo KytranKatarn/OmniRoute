@@ -253,22 +253,27 @@ def detect_current_environment():
     # 3. Check database schema search_path for sandbox indicator
     try:
         conn = get_db()
-        cur = conn.cursor()
-        cur.execute("SHOW search_path")
-        search_path = cur.fetchone()[0]
-        cur.close()
-        conn.close()
+        try:
+            cur = conn.cursor()
+            cur.execute("SHOW search_path")
+            search_path = cur.fetchone()[0]
 
-        if "sandbox" in search_path.lower():
-            # Extract module name from schema like 'sandbox_coderabbit'
-            for schema in search_path.split(","):
-                schema = schema.strip()
-                if schema.startswith("sandbox_"):
-                    module = schema.replace("sandbox_", "")
-                    return f"sandbox_{module}"
-            return "sandbox_full"
-    except Exception:
-        pass  # Default to production if detection fails
+            if "sandbox" in search_path.lower():
+                # Extract module name from schema like 'sandbox_coderabbit'
+                for schema in search_path.split(","):
+                    schema = schema.strip()
+                    if schema.startswith("sandbox_"):
+                        module = schema.replace("sandbox_", "")
+                        return f"sandbox_{module}"
+                return "sandbox_full"
+        finally:
+            try:
+                cur.close()
+                conn.close()
+            except Exception:
+                pass
+    except Exception as e:
+        logger.debug("Environment detection failed, defaulting to production: %s", e)
 
     # 4. Default to production
     return "production"
@@ -404,6 +409,7 @@ def call_ollama(
 def _log_cloud_usage(model, provider, prompt_tokens, completion_tokens, response_ms,
                      success=True, error_message=None, session_id=None, agent_id=None, task_type=None):
     """Log cloud model usage to cloud_model_usage table."""
+    conn = None
     try:
         conn = get_db()
         cur = conn.cursor()
@@ -416,10 +422,14 @@ def _log_cloud_usage(model, provider, prompt_tokens, completion_tokens, response
               prompt_tokens + completion_tokens, response_ms, success,
               error_message, session_id, agent_id, task_type))
         conn.commit()
-        cur.close()
-        conn.close()
     except Exception as e:
         logger.debug(f"Failed to log cloud usage: {e}")
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 def call_ollama_cloud(
@@ -735,32 +745,37 @@ def generate_image(
             # Log usage to database
             try:
                 conn = get_db()
-                cur = conn.cursor()
+                try:
+                    cur = conn.cursor()
 
-                cur.execute(
-                    """
-                    INSERT INTO token_usage_log
-                    (agent_id, provider, model, prompt_tokens, completion_tokens, tokens_used, cost)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """,
-                    (
-                        requesting_agent,
-                        "openai_dalle",
-                        model,
-                        len(prompt.split()),  # Approximate prompt "tokens"
-                        0,
-                        len(prompt.split()),
-                        cost,
-                    ),
-                )
+                    cur.execute(
+                        """
+                        INSERT INTO token_usage_log
+                        (agent_id, provider, model, prompt_tokens, completion_tokens, tokens_used, cost)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """,
+                        (
+                            requesting_agent,
+                            "openai_dalle",
+                            model,
+                            len(prompt.split()),  # Approximate prompt "tokens"
+                            0,
+                            len(prompt.split()),
+                            cost,
+                        ),
+                    )
 
-                conn.commit()
-                cur.close()
-                conn.close()
+                    conn.commit()
 
-                print(
-                    f"[archie_bridge] Logged image generation: model={model}, cost=${cost:.4f}, agent={requesting_agent}"
-                )
+                    print(
+                        f"[archie_bridge] Logged image generation: model={model}, cost=${cost:.4f}, agent={requesting_agent}"
+                    )
+                finally:
+                    try:
+                        cur.close()
+                        conn.close()
+                    except Exception:
+                        pass
 
             except Exception as log_error:
                 print(f"Warning: Failed to log image generation: {log_error}")
@@ -785,29 +800,34 @@ def generate_image(
             # Log failed attempt (cost=0)
             try:
                 conn = get_db()
-                cur = conn.cursor()
-                cur.execute(
-                    """
-                    INSERT INTO token_usage_log
-                    (agent_id, provider, model, prompt_tokens, completion_tokens, tokens_used, cost)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """,
-                    (
-                        requesting_agent,
-                        "openai_dalle",
-                        model,
-                        len(prompt.split()),
-                        0,
-                        0,
-                        0,
-                    ),
-                )
-                conn.commit()
-                cur.close()
-                conn.close()
-                print(
-                    f"[archie_bridge] Logged failed image generation: {error_msg[:100]}"
-                )
+                try:
+                    cur = conn.cursor()
+                    cur.execute(
+                        """
+                        INSERT INTO token_usage_log
+                        (agent_id, provider, model, prompt_tokens, completion_tokens, tokens_used, cost)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """,
+                        (
+                            requesting_agent,
+                            "openai_dalle",
+                            model,
+                            len(prompt.split()),
+                            0,
+                            0,
+                            0,
+                        ),
+                    )
+                    conn.commit()
+                    print(
+                        f"[archie_bridge] Logged failed image generation: {error_msg[:100]}"
+                    )
+                finally:
+                    try:
+                        cur.close()
+                        conn.close()
+                    except Exception:
+                        pass
             except:
                 pass
 
@@ -855,7 +875,8 @@ def check_fooocus_health():
         fooocus_url, node_id = get_foocus_url()
         response = requests.get(f"{fooocus_url}/docs", timeout=5)
         return response.status_code == 200
-    except Exception:
+    except Exception as e:
+        logger.debug("Fooocus health check failed: %s", e)
         return False
 
 
@@ -966,29 +987,34 @@ def generate_image_local(
             # Log to database (cost=0 for local)
             try:
                 conn = get_db()
-                cur = conn.cursor()
-                cur.execute(
-                    """
-                    INSERT INTO token_usage_log
-                    (agent_id, provider, model, prompt_tokens, completion_tokens, tokens_used, cost)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """,
-                    (
-                        requesting_agent,
-                        "fooocus_local",
-                        "fooocus-sdxl",
-                        len(prompt.split()),
-                        0,
-                        len(prompt.split()),
-                        0.0,
-                    ),
-                )
-                conn.commit()
-                cur.close()
-                conn.close()
-                print(
-                    f"[archie_bridge] Logged local image generation: style={style}, duration={duration_ms}ms"
-                )
+                try:
+                    cur = conn.cursor()
+                    cur.execute(
+                        """
+                        INSERT INTO token_usage_log
+                        (agent_id, provider, model, prompt_tokens, completion_tokens, tokens_used, cost)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """,
+                        (
+                            requesting_agent,
+                            "fooocus_local",
+                            "fooocus-sdxl",
+                            len(prompt.split()),
+                            0,
+                            len(prompt.split()),
+                            0.0,
+                        ),
+                    )
+                    conn.commit()
+                    print(
+                        f"[archie_bridge] Logged local image generation: style={style}, duration={duration_ms}ms"
+                    )
+                finally:
+                    try:
+                        cur.close()
+                        conn.close()
+                    except Exception:
+                        pass
             except Exception as log_error:
                 print(f"Warning: Failed to log local image generation: {log_error}")
 
@@ -1244,29 +1270,34 @@ def analyze_image(
             # Log usage (cost=0 for local)
             try:
                 conn = get_db()
-                cur = conn.cursor()
-                cur.execute(
-                    """
-                    INSERT INTO token_usage_log
-                    (agent_id, provider, model, prompt_tokens, completion_tokens, tokens_used, cost)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """,
-                    (
-                        None,  # No specific agent
-                        "ollama_vision",
-                        model,
-                        len(prompt.split()),
-                        len(result.get("response", "").split()),
-                        len(prompt.split()) + len(result.get("response", "").split()),
-                        0.0,
-                    ),
-                )
-                conn.commit()
-                cur.close()
-                conn.close()
-                print(
-                    f"[archie_bridge] Vision analysis complete: model={model}, duration={duration_ms}ms"
-                )
+                try:
+                    cur = conn.cursor()
+                    cur.execute(
+                        """
+                        INSERT INTO token_usage_log
+                        (agent_id, provider, model, prompt_tokens, completion_tokens, tokens_used, cost)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """,
+                        (
+                            None,  # No specific agent
+                            "ollama_vision",
+                            model,
+                            len(prompt.split()),
+                            len(result.get("response", "").split()),
+                            len(prompt.split()) + len(result.get("response", "").split()),
+                            0.0,
+                        ),
+                    )
+                    conn.commit()
+                    print(
+                        f"[archie_bridge] Vision analysis complete: model={model}, duration={duration_ms}ms"
+                    )
+                finally:
+                    try:
+                        cur.close()
+                        conn.close()
+                    except Exception:
+                        pass
             except Exception as log_error:
                 print(f"Warning: Failed to log vision analysis: {log_error}")
 
@@ -1394,24 +1425,29 @@ def get_default_provider():
     """
     try:
         conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
-            SELECT provider, model_name
-            FROM archie_api_settings
-            WHERE enabled = TRUE AND is_default = TRUE
-            LIMIT 1
-        """)
+            cur.execute("""
+                SELECT provider, model_name
+                FROM archie_api_settings
+                WHERE enabled = TRUE AND is_default = TRUE
+                LIMIT 1
+            """)
 
-        result = cur.fetchone()
-        cur.close()
-        conn.close()
+            result = cur.fetchone()
 
-        if result:
-            return (result["provider"], result["model_name"])
-        else:
-            # Fallback to Ollama
-            return ("ollama", "dolphin3-8k:latest")
+            if result:
+                return (result["provider"], result["model_name"])
+            else:
+                # Fallback to Ollama
+                return ("ollama", "dolphin3-8k:latest")
+        finally:
+            try:
+                cur.close()
+                conn.close()
+            except Exception:
+                pass
 
     except Exception as e:
         print(f"Error getting default provider: {e}")
@@ -1495,55 +1531,60 @@ def track_token_usage(agent_id, provider, model, tokens_used, cost, user_id=None
     """
     try:
         conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Record usage
-        cur.execute(
-            """
-            INSERT INTO token_usage_log
-            (agent_id, user_id, provider, model, tokens_used, cost, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s, NOW())
-        """,
-            (agent_id, user_id, provider, model, tokens_used, cost),
-        )
+            # Record usage
+            cur.execute(
+                """
+                INSERT INTO token_usage_log
+                (agent_id, user_id, provider, model, tokens_used, cost, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, NOW())
+            """,
+                (agent_id, user_id, provider, model, tokens_used, cost),
+            )
 
-        # Update agent metrics
-        cur.execute(
-            """
-            UPDATE agents
-            SET total_tokens_used = COALESCE(total_tokens_used, 0) + %s,
-                total_cost = COALESCE(total_cost, 0) + %s,
-                last_used = NOW()
-            WHERE id = %s
-        """,
-            (tokens_used, cost, agent_id),
-        )
+            # Update agent metrics
+            cur.execute(
+                """
+                UPDATE agents
+                SET total_tokens_used = COALESCE(total_tokens_used, 0) + %s,
+                    total_cost = COALESCE(total_cost, 0) + %s,
+                    last_used = NOW()
+                WHERE id = %s
+            """,
+                (tokens_used, cost, agent_id),
+            )
 
-        # Check budget limits
-        cur.execute(
-            """
-            SELECT
-                a.name,
-                a.monthly_budget,
-                a.total_cost,
-                a.budget_alert_threshold,
-                COALESCE(
-                    (SELECT SUM(cost)
-                     FROM token_usage_log
-                     WHERE agent_id = a.id
-                     AND created_at >= DATE_TRUNC('month', NOW())
-                    ), 0
-                ) as monthly_cost
-            FROM agents a
-            WHERE a.id = %s
-        """,
-            (agent_id,),
-        )
+            # Check budget limits
+            cur.execute(
+                """
+                SELECT
+                    a.name,
+                    a.monthly_budget,
+                    a.total_cost,
+                    a.budget_alert_threshold,
+                    COALESCE(
+                        (SELECT SUM(cost)
+                         FROM token_usage_log
+                         WHERE agent_id = a.id
+                         AND created_at >= DATE_TRUNC('month', NOW())
+                        ), 0
+                    ) as monthly_cost
+                FROM agents a
+                WHERE a.id = %s
+            """,
+                (agent_id,),
+            )
 
-        agent_data = cur.fetchone()
-        conn.commit()
-        cur.close()
-        conn.close()
+            agent_data = cur.fetchone()
+            conn.commit()
+        finally:
+            try:
+                cur.close()
+                conn.close()
+            except Exception:
+                pass
 
         warning = None
         if agent_data and agent_data["monthly_budget"]:
@@ -1576,43 +1617,48 @@ def track_token_usage(agent_id, provider, model, tokens_used, cost, user_id=None
             if warning:
                 try:
                     conn2 = get_db()
-                    cur2 = conn2.cursor()
-                    # Check if similar alert exists in last hour to avoid spam
-                    cur2.execute(
-                        """
-                        SELECT id FROM budget_alerts
-                        WHERE agent_id = %s
-                          AND alert_level = %s
-                          AND created_at > NOW() - INTERVAL '1 hour'
-                          AND acknowledged = false
-                        LIMIT 1
-                    """,
-                        (agent_id, warning["level"]),
-                    )
-                    existing = cur2.fetchone()
-
-                    if not existing:
+                    try:
+                        cur2 = conn2.cursor()
+                        # Check if similar alert exists in last hour to avoid spam
                         cur2.execute(
                             """
-                            INSERT INTO budget_alerts
-                            (agent_id, alert_level, message, usage_percent, monthly_cost, monthly_budget)
-                            VALUES (%s, %s, %s, %s, %s, %s)
+                            SELECT id FROM budget_alerts
+                            WHERE agent_id = %s
+                              AND alert_level = %s
+                              AND created_at > NOW() - INTERVAL '1 hour'
+                              AND acknowledged = false
+                            LIMIT 1
                         """,
-                            (
-                                agent_id,
-                                warning["level"],
-                                warning["message"],
-                                usage_percent,
-                                monthly_cost,
-                                monthly_budget,
-                            ),
+                            (agent_id, warning["level"]),
                         )
-                        conn2.commit()
-                        print(
-                            f"[AI Bridge] Budget alert recorded for agent {agent_id}: {warning['level']}"
-                        )
-                    cur2.close()
-                    conn2.close()
+                        existing = cur2.fetchone()
+
+                        if not existing:
+                            cur2.execute(
+                                """
+                                INSERT INTO budget_alerts
+                                (agent_id, alert_level, message, usage_percent, monthly_cost, monthly_budget)
+                                VALUES (%s, %s, %s, %s, %s, %s)
+                            """,
+                                (
+                                    agent_id,
+                                    warning["level"],
+                                    warning["message"],
+                                    usage_percent,
+                                    monthly_cost,
+                                    monthly_budget,
+                                ),
+                            )
+                            conn2.commit()
+                            print(
+                                f"[AI Bridge] Budget alert recorded for agent {agent_id}: {warning['level']}"
+                            )
+                    finally:
+                        try:
+                            cur2.close()
+                            conn2.close()
+                        except Exception:
+                            pass
                 except Exception as alert_err:
                     print(f"[AI Bridge] Error recording budget alert: {alert_err}")
 
@@ -2581,23 +2627,27 @@ def get_contractor_by_id(contractor_id):
     """
     try:
         conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute(
-            """
-            SELECT id, name, api_provider, model, personality_prompt,
-                   communication_style, worker_type, status
-            FROM agents
-            WHERE id = %s AND worker_type = 'contract'
-        """,
-            (contractor_id,),
-        )
+            cur.execute(
+                """
+                SELECT id, name, api_provider, model, personality_prompt,
+                       communication_style, worker_type, status
+                FROM agents
+                WHERE id = %s AND worker_type = 'contract'
+            """,
+                (contractor_id,),
+            )
 
-        contractor = cur.fetchone()
-        cur.close()
-        conn.close()
-
-        return dict(contractor) if contractor else None
+            contractor = cur.fetchone()
+            return dict(contractor) if contractor else None
+        finally:
+            try:
+                cur.close()
+                conn.close()
+            except Exception:
+                pass
 
     except Exception as e:
         print(f"Error getting contractor: {e}")
@@ -2613,23 +2663,27 @@ def list_available_contractors():
     """
     try:
         conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
-            SELECT id, name, api_provider, model, personality_prompt,
-                   communication_style, status, api_enabled
-            FROM agents
-            WHERE worker_type = 'contract'
-            AND status = 'active'
-            AND api_enabled = TRUE
-            ORDER BY api_provider, name
-        """)
+            cur.execute("""
+                SELECT id, name, api_provider, model, personality_prompt,
+                       communication_style, status, api_enabled
+                FROM agents
+                WHERE worker_type = 'contract'
+                AND status = 'active'
+                AND api_enabled = TRUE
+                ORDER BY api_provider, name
+            """)
 
-        contractors = cur.fetchall()
-        cur.close()
-        conn.close()
-
-        return [dict(c) for c in contractors]
+            contractors = cur.fetchall()
+            return [dict(c) for c in contractors]
+        finally:
+            try:
+                cur.close()
+                conn.close()
+            except Exception:
+                pass
 
     except Exception as e:
         print(f"Error listing contractors: {e}")

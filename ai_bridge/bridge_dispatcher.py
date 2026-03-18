@@ -592,8 +592,8 @@ class BridgeDispatcher:
                 try:
                     cur.close()
                     conn.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("DB cleanup failed in rate limiter: %s", e)
             return True, 0, 1, ""  # Fail open
 
     def _log_capacity_event(
@@ -1268,8 +1268,8 @@ class BridgeDispatcher:
             overrides = mm.get_routing_overrides()
             if overrides and capability in overrides:
                 return overrides[capability]
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Capability routing override failed for %s: %s", capability, e)
         return CAPABILITY_STATION_MAP.get(capability, "COMMAND")
 
     def _resolve_module_station(self, module_id: str) -> Optional[str]:

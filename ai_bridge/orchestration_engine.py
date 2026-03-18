@@ -41,7 +41,8 @@ def _default_conversation_model():
         from bridge_dispatcher import get_dispatcher
         model = get_dispatcher().get_model_for_capability("conversation")
         return model or "dolphin3-8k:latest"
-    except Exception:
+    except Exception as e:
+        logger.debug("Conversation model lookup failed, using fallback: %s", e)
         return "dolphin3-8k:latest"
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "platform_v2"))
 
@@ -52,8 +53,8 @@ def _push_event(event_type, agent_id=None, data=None):
         from platform_v2.tools.bridge.routes import push_agent_event
 
         push_agent_event(event_type, agent_id, data)
-    except Exception:
-        pass  # Bridge may not be loaded in test contexts
+    except Exception as e:
+        logger.debug("SSE push skipped (bridge not loaded): %s", e)
 
 
 def get_db():

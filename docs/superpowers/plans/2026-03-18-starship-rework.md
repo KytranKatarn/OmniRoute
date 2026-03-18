@@ -4,7 +4,7 @@
 
 **Goal:** Rework the Starship module to pull real agent/crew data from Bridge dispatcher, delete fake crew generation, split the monolithic routes file, and extract inline CSS/JS from the template.
 
-**Architecture:** Starship becomes a consumer of Bridge's `BridgeDispatcher.get_crew_manifest()` for all crew data. Routes split into 4 files + helpers following Bridge's ADR-045 `register_*_routes(bp, decorator)` pattern. Template restructured from 3 tabs to 2 (FLEET + OPERATIONS) with a hero Starbase section.
+**Architecture:** Starship becomes a consumer of Bridge's `get_dispatcher().get_crew_manifest()` singleton for all crew data. Routes split into 4 files + helpers following Bridge's ADR-045 `register_*_routes(bp, decorator)` pattern. Template restructured from 3 tabs to 2 (FLEET + OPERATIONS) with a hero Starbase section.
 
 **Tech Stack:** Flask Blueprints, psycopg2 (DB), BridgeDispatcher (ai_bridge), LCARS CSS theme, vanilla JS
 
@@ -49,11 +49,11 @@ Create `platform_v2/tools/starship/helpers.py` containing:
 - `HEARTBEAT_TIMEOUT_SECONDS = 120`
 - All 4 helper functions, preserving exact signatures and logic
 - Required imports: `from database import get_db_cursor` and any others these functions use
-- `CURRENT_NODE_VERSION` constant (check line ~440 in routes.py for its value)
+- `LATEST_NODE_VERSION = "1.0.0"` (line 440 in routes.py — note: it's LATEST not CURRENT)
 
 - [ ] **Step 3: Verify helpers.py has no syntax errors**
 
-Run: `docker exec archie_platform python3 -c "from tools.starship.helpers import _compute_node_status, _get_user_nodes, _get_node_for_user, _get_node_for_user_by_int_id, HEARTBEAT_TIMEOUT_SECONDS"`
+Run: `docker exec archie_platform python3 -c "from tools.starship.helpers import _compute_node_status, _get_user_nodes, _get_node_for_user, _get_node_for_user_by_int_id, HEARTBEAT_TIMEOUT_SECONDS, LATEST_NODE_VERSION"`
 Expected: No output (clean import)
 
 - [ ] **Step 4: Commit**
@@ -76,10 +76,10 @@ git commit -m "refactor(starship): extract shared helpers from routes.py"
 - [ ] **Step 1: Read current crew endpoints and dispatcher pattern**
 
 Read these line ranges to understand:
-- `api_node_crew_manifest()` (routes.py:710-788) — currently builds fake crew, needs to use dispatcher
-- `api_node_agent_profile()` (routes.py:789-955) — agent detail, rewrite to use real data
-- `api_node_agent_form_context()` (routes.py:956-986) — form context for editing
-- `api_update_node_agent()` (routes.py:987-1115) — update agent config
+- `api_node_crew_manifest()` (routes.py:708-788, decorator at 708, def at 710) — currently builds fake crew, needs to use dispatcher
+- `api_node_agent_profile()` (routes.py:789-955, decorator at 789, def at 791) — agent detail, rewrite to use real data
+- `api_node_agent_form_context()` (routes.py:956-986, decorator at 956, def at 958) — form context for editing
+- `api_update_node_agent()` (routes.py:987-1115, decorator at 987, def at 989) — update agent config
 - Bridge `crew_routes.py:830-840` for how it imports dispatcher
 - `bridge_dispatcher.py:4911+` for manifest return structure
 
@@ -99,9 +99,10 @@ Containing rewritten endpoints:
 - `api_add_agent_to_node(node_id)` — simplified: just INSERT into node_agents with real hub_agent_id (rewrite of `_add_single_agent_to_node` fake logic). Use `check_fleet_model_unique` from database.py.
 - `api_remove_agent_from_node(node_id, agent_id)` — keep as-is (already works with real DB)
 
-Import dispatcher:
+Import dispatcher using the singleton pattern (not `BridgeDispatcher()` directly):
 ```python
-from ai_bridge.bridge_dispatcher import BridgeDispatcher
+from ai_bridge.bridge_dispatcher import get_dispatcher
+# Usage: dispatcher = get_dispatcher(); manifest = dispatcher.get_crew_manifest()
 ```
 
 Use node ownership check from helpers:
@@ -129,6 +130,7 @@ git commit -m "feat(starship): add crew_routes.py — real crew data via Bridge 
 - Create: `platform_v2/tools/starship/node_routes.py`
 - Read: `platform_v2/tools/starship/routes.py:443-690` (node status + settings)
 - Read: `platform_v2/tools/starship/routes.py:1116-1365` (setup/onboarding/installers)
+- Read: `platform_v2/tools/starship/routes.py:1967-2039` (station commands)
 
 - [ ] **Step 1: Read current node endpoints**
 
@@ -136,13 +138,16 @@ Read these line ranges:
 - `api_node_status(node_id)` (lines 443-642) — big endpoint, keep but remove fake crew calls
 - `api_update_node_settings(node_id)` (lines 643-688) — keep as-is
 - `api_model_catalog()` (lines 689-707) — keep as-is
-- `api_request_node()` (lines 1126-1193) — keep as-is
+- `NODE_CLIENT_DIR` constant (lines 1116-1125) — needed by installer functions, include in this file
+- `api_request_node()` (lines 1126-1193) — keep as-is. **NOTE:** uses `user_id` column on INSERT but `_get_user_nodes` queries `registered_by` — verify these are the same column or reconcile during move
 - `api_setup_instructions(node_id)` (lines 1194-1217) — keep as-is
 - `starship_install_script()` (lines 1218-1253) — keep as-is
 - `_generate_bash_installer()` (lines 1254-1294) — keep as-is (private helper)
 - `_generate_powershell_installer()` (lines 1295-1327) — keep as-is (private helper)
 - `api_request_update(node_id)` (lines 1328-1350) — keep as-is
 - `download_node_package()` (lines 1351-1365) — keep as-is
+- `api_get_station_commands()` (lines 1967-2001) — keep as-is (station command listing)
+- `api_execute_station_command()` (lines 2002-2039) — keep as-is (station command execution)
 
 - [ ] **Step 2: Create node_routes.py**
 
@@ -160,7 +165,7 @@ Move all node endpoints listed above into this file. Key change in `api_node_sta
 
 Import helpers:
 ```python
-from .helpers import _get_node_for_user, _get_node_for_user_by_int_id, _get_user_nodes, _compute_node_status, HEARTBEAT_TIMEOUT_SECONDS, CURRENT_NODE_VERSION
+from .helpers import _get_node_for_user, _get_node_for_user_by_int_id, _get_user_nodes, _compute_node_status, HEARTBEAT_TIMEOUT_SECONDS, LATEST_NODE_VERSION
 ```
 
 - [ ] **Step 3: Verify node_routes.py imports cleanly**
@@ -240,7 +245,7 @@ Replace the entire 2,039-line file with a focused ~150-line file containing:
 - `starship_dashboard()` — renders the template
 - `api_list_nodes()` — lists fleet nodes with real data
 - NEW `api_starbase_stats()` — hero Starbase stats endpoint:
-  - Import `BridgeDispatcher`, call `get_crew_manifest()`
+  - Import `get_dispatcher` from `ai_bridge.bridge_dispatcher`, call `get_dispatcher().get_crew_manifest()`
   - Return: total active agents, loaded models count, active jobs, VRAM/RAM from Ollama ps
   - Count of connected nodes from `remote_nodes WHERE is_active = true`
 

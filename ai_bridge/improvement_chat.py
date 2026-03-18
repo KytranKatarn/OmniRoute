@@ -59,7 +59,7 @@ except ImportError:
 
 
 try:
-    from improvement_engine import (
+    from tools.dev_pipeline.services.improvement_engine import (
         detect_improvement_opportunities,
         propose_improvement,
         analyze_proposal_with_agents,
@@ -850,7 +850,7 @@ def self_reflection_chat(
     Returns:
         Self-reflection insights and improvement suggestions
     """
-    from improvement_engine import (
+    from tools.dev_pipeline.services.improvement_engine import (
         detect_improvement_opportunities,
         get_archie_personality,
     )

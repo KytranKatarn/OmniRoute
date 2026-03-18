@@ -8,6 +8,10 @@ Updated for Phase 3: Unified Brain Integration
 - Searches across all knowledge types (vault, memories, improvements, mistakes)
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
@@ -314,7 +318,7 @@ def get_knowledge_stats() -> Dict:
 
         return get_unified_stats()
     except Exception as e:
-        print(f"Error getting knowledge stats: {e}")
+        logger.warning("Error getting knowledge stats: %s", e)
         return {}
 
 

@@ -39,10 +39,15 @@ def register_crew_routes(bp, auth_decorator):
             # Get all node agents
             cur.execute(
                 """
-                SELECT na.id as agent_id, na.name, na.display_name as full_name,
-                       na.title, na.model, na.status,
-                       na.station_codes, na.is_allowed as allowed
+                SELECT na.id as agent_id, na.name,
+                       COALESCE(a.display_name, na.display_name) as full_name,
+                       COALESCE(na.title, a.title) as title,
+                       COALESCE(na.model, a.model) as model,
+                       COALESCE(na.status, a.status) as status,
+                       na.station_codes, na.is_allowed as allowed,
+                       a.shift_state
                 FROM node_agents na
+                LEFT JOIN agents a ON a.id = na.hub_agent_id
                 WHERE na.node_id = %s
                 ORDER BY na.name
                 """,

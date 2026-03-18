@@ -368,7 +368,7 @@ class BridgeDispatcher:
                            na.station_codes, na.status,
                            rn.node_id AS node_str_id, rn.hostname,
                            rn.last_heartbeat, rn.status AS node_status,
-                           rn.gpu_vram_mb, rn.ram_total_mb, rn.ram_available_mb
+                           rn.gpu_vram_gb, rn.ram_gb
                     FROM node_agents na
                     JOIN remote_nodes rn ON rn.id = na.node_id
                     WHERE na.status = 'active'
@@ -393,9 +393,8 @@ class BridgeDispatcher:
                         "node_db_id": row["node_id"],
                         "hostname": row["hostname"],
                         "is_remote": True,
-                        "gpu_vram_mb": row["gpu_vram_mb"],
-                        "ram_total_mb": row["ram_total_mb"],
-                        "ram_available_mb": row["ram_available_mb"],
+                        "gpu_vram_gb": row["gpu_vram_gb"],
+                        "ram_gb": row["ram_gb"],
                         "shift_state": "active",
                         "stress": 0.0,
                         "energy": 1.0,
@@ -5057,6 +5056,29 @@ class BridgeDispatcher:
             except Exception:
                 pass
 
+            # Station codes per agent (array from station_assignments)
+            station_codes_map = {}  # agent_id → [station_code, ...]
+            try:
+                sc_conn = self._get_db()
+                sc_cur = sc_conn.cursor(cursor_factory=RealDictCursor)
+                sc_cur.execute("""
+                    SELECT sa.agent_id, bs.station_code
+                    FROM station_assignments sa
+                    JOIN bridge_stations bs ON bs.id = sa.station_id
+                    WHERE sa.is_active = true
+                    ORDER BY sa.agent_id, bs.station_code
+                """)
+                for r in sc_cur.fetchall():
+                    aid = r["agent_id"]
+                    if aid not in station_codes_map:
+                        station_codes_map[aid] = []
+                    if r["station_code"] not in station_codes_map[aid]:
+                        station_codes_map[aid].append(r["station_code"])
+                sc_cur.close()
+                sc_conn.close()
+            except Exception as sc_err:
+                logger.debug(f"[BridgeDispatcher] station_codes query failed: {sc_err}")
+
             # Build manifest
             manifest = []
             for name, info in self._agent_cache.items():
@@ -5119,11 +5141,14 @@ class BridgeDispatcher:
                 manifest.append(
                     {
                         "name": name,
+                        "display_name": info.get("display_name") or full_name,
                         "full_name": full_name,
                         "title": info.get("title", ""),
                         "id": agent_id,
                         "agent_id": agent_id,
                         "station": info.get("station_code", "COMMAND"),
+                        "station_codes": station_codes_map.get(agent_id, []),
+                        "shift_state": info.get("shift_state", "active"),
                         "model": model,
                         "image_model": image_model,
                         "hardware": hw,

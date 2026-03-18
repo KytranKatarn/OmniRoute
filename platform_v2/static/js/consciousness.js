@@ -2931,6 +2931,7 @@ function _renderHistoryChart(snapshots) {
 function _loadAuditLog() {
   api("/api/code-health/audit-log").then(function(d) {
     var entries = d.entries || [];
+    window._chAuditEntries = entries;
     var el = document.getElementById("chAuditTable");
     if (!el) return;
 
@@ -2950,7 +2951,7 @@ function _loadAuditLog() {
       var deltaClass = delta > 0 ? "color:#22c55e" : delta < 0 ? "color:#ef4444" : "";
       var statusClass = e.status === "completed" ? "green" : e.status === "in_progress" ? "amber" : e.status === "known_issues" ? "amber" : e.status === "violations_found" ? "purple" : "";
       var rowStyle = e.status === "completed" ? "background:rgba(74,222,128,0.06);" : e.status === "known_issues" ? "background:rgba(245,158,11,0.06);" : "";
-      html += '<tr style="' + rowStyle + '">' +
+      html += '<tr style="cursor:pointer;' + rowStyle + '" onclick="showAuditDetail(' + e.id + ')">' +
         '<td style="' + (e.status === "completed" ? "color:#4ade80;font-weight:600;" : "") + '">' + escHtml(e.module_name) + '</td>' +
         '<td style="font-size:0.75rem; color:rgba(255,255,255,0.4);">' + escHtml(e.category || "") + '</td>' +
         '<td class="center">' + (e.files_reviewed || 0) + '</td>' +
@@ -2967,4 +2968,69 @@ function _loadAuditLog() {
     html += '</tbody></table>';
     setHtml(el, html);
   }).catch(function() {});
+}
+
+window.showAuditDetail = function(id) {
+  var entries = window._chAuditEntries || [];
+  var entry = entries.find(function(e) { return e.id === id; });
+  if (!entry) return;
+
+  var modal = document.getElementById("chAuditModal");
+  var title = document.getElementById("chAuditModalTitle");
+  var body = document.getElementById("chAuditModalBody");
+  if (!modal || !body) return;
+
+  var statusColor = entry.status === "completed" ? "#4ade80" : entry.status === "known_issues" ? "#f59e0b" : "#a78bfa";
+  var delta = (entry.lines_after || 0) - (entry.lines_before || 0);
+
+  title.textContent = entry.module_name + " — AUDIT REPORT";
+
+  var h = '<div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">';
+  h += '<div style="background:rgba(139,92,246,0.08); padding:10px; border-radius:6px; border-left:3px solid #8b5cf6;">';
+  h += '<div style="font-size:0.65rem; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:1px;">Status</div>';
+  h += '<div style="color:' + statusColor + '; font-weight:600; font-size:1.1rem; text-transform:uppercase;">' + (entry.status || "pending") + '</div></div>';
+  h += '<div style="background:rgba(0,204,255,0.08); padding:10px; border-radius:6px; border-left:3px solid #0cf;">';
+  h += '<div style="font-size:0.65rem; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:1px;">Category</div>';
+  h += '<div style="color:#0cf;">' + escHtml(entry.category || "—") + '</div></div>';
+  h += '</div>';
+
+  h += '<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:16px;">';
+  h += '<div style="text-align:center; padding:8px; background:rgba(255,255,255,0.03); border-radius:4px;">';
+  h += '<div style="font-size:1.2rem; font-weight:700; color:#8b5cf6;">' + (entry.files_reviewed || 0) + '</div><div style="font-size:0.6rem; color:rgba(255,255,255,0.4);">FILES</div></div>';
+  h += '<div style="text-align:center; padding:8px; background:rgba(255,255,255,0.03); border-radius:4px;">';
+  h += '<div style="font-size:1.2rem; font-weight:700; color:#0cf;">' + (entry.lines_before || 0).toLocaleString() + '</div><div style="font-size:0.6rem; color:rgba(255,255,255,0.4);">BEFORE</div></div>';
+  h += '<div style="text-align:center; padding:8px; background:rgba(255,255,255,0.03); border-radius:4px;">';
+  h += '<div style="font-size:1.2rem; font-weight:700; color:#22c55e;">' + (entry.lines_after || 0).toLocaleString() + '</div><div style="font-size:0.6rem; color:rgba(255,255,255,0.4);">AFTER</div></div>';
+  h += '<div style="text-align:center; padding:8px; background:rgba(255,255,255,0.03); border-radius:4px;">';
+  h += '<div style="font-size:1.2rem; font-weight:700; color:' + (delta < 0 ? "#ef4444" : "#22c55e") + ';">' + (delta > 0 ? "+" : "") + delta.toLocaleString() + '</div><div style="font-size:0.6rem; color:rgba(255,255,255,0.4);">DELTA</div></div>';
+  h += '</div>';
+
+  h += '<div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:16px;">';
+  h += '<div style="text-align:center; padding:8px; background:rgba(245,158,11,0.06); border-radius:4px; border:1px solid rgba(245,158,11,0.2);">';
+  h += '<div style="font-size:1.4rem; font-weight:700; color:#f59e0b;">' + (entry.issues_found || 0) + '</div><div style="font-size:0.6rem; color:rgba(255,255,255,0.4);">ISSUES FOUND</div></div>';
+  h += '<div style="text-align:center; padding:8px; background:rgba(74,222,128,0.06); border-radius:4px; border:1px solid rgba(74,222,128,0.2);">';
+  h += '<div style="font-size:1.4rem; font-weight:700; color:#4ade80;">' + (entry.issues_fixed || 0) + '</div><div style="font-size:0.6rem; color:rgba(255,255,255,0.4);">ISSUES FIXED</div></div>';
+  h += '</div>';
+
+  // Render notes as formatted report
+  var notes = entry.notes || "No detailed report available.";
+  // Convert markdown-style headers and bullets
+  notes = notes.replace(/^## (.+)$/gm, '<div style="color:#8b5cf6; font-weight:700; font-size:0.85rem; margin-top:14px; margin-bottom:6px; text-transform:uppercase; letter-spacing:1px; border-bottom:1px solid rgba(139,92,246,0.2); padding-bottom:4px;">$1</div>');
+  notes = notes.replace(/^- (.+)$/gm, '<div style="padding-left:12px; margin:2px 0;"><span style="color:#8b5cf6;">▸</span> $1</div>');
+  notes = notes.replace(/\n\n/g, '<div style="height:8px;"></div>');
+  notes = notes.replace(/\n/g, '<br>');
+
+  h += '<div style="background:rgba(0,0,0,0.2); padding:12px; border-radius:6px; border:1px solid rgba(139,92,246,0.1);">' + notes + '</div>';
+
+  h += '<div style="text-align:right; margin-top:12px; font-size:0.65rem; color:rgba(255,255,255,0.3);">Audited: ' + formatAge(entry.audited_at) + '</div>';
+
+  setHtml(body, h);
+  modal.style.display = "";
+};
+
+// Close modal on overlay click
+document.addEventListener("click", function(e) {
+  var modal = document.getElementById("chAuditModal");
+  if (modal && e.target === modal) modal.style.display = "none";
+});
 }

@@ -8,7 +8,7 @@
 
 ## 1. Problem Statement
 
-The Starship module (72KB monolith, 1,900-line `routes.py`, 2,334-line inline template) generates fake crew data via `_generate_node_crew()` with 96 hardcoded names and random assignment. It duplicates Bridge logic (`MODULE_STATION_MAP`, `MODEL_SIZE_HINTS`, `get_agent_recommendations()`) instead of consuming Bridge as the single source of truth.
+The Starship module (72KB monolith, ~2,040-line `routes.py`, 2,334-line inline template) generates fake crew data via `_generate_node_crew()` with 96 hardcoded names and random assignment. It duplicates Bridge logic (`MODULE_STATION_MAP`, `MODEL_SIZE_HINTS`, `get_agent_recommendations()`) instead of consuming Bridge as the single source of truth.
 
 Bridge rules state: "Starship module = remote view of Bridge (should NOT generate own agents)."
 
@@ -33,7 +33,7 @@ Nodes are autonomous (local mode, private data, own modules) but stay connected 
 | Node registration, status, hardware | `remote_nodes` table | Direct DB query |
 | Real agent roster, wellness, jobs | `agents` + `station_assignments` | `BridgeDispatcher.get_crew_manifest()` |
 | Node-specific agent deployments | `node_agents` table (FK to `agents` via `hub_agent_id`) | Direct DB query + enrichment from manifest |
-| Node agent configs, sync state | `node_agents.config_version`, `fleet_nodes` | Direct DB query |
+| Node agent configs, sync state | `node_agents.config_version` | Direct DB query |
 
 ### Data Flow
 
@@ -93,6 +93,8 @@ platform_v2/static/
 ### `__init__.py` Pattern
 
 ```python
+from flask_login import login_required
+
 from .routes import starship_bp
 from .node_routes import register_node_routes
 from .crew_routes import register_crew_routes
@@ -187,7 +189,7 @@ Three sections:
 
 ### Net Result
 
-- `routes.py`: 1,900 lines → ~1,100 lines across 6 focused Python files
+- `routes.py`: ~2,040 lines → ~1,100 lines across 6 focused Python files
 - `starship.html`: 2,334 lines → ~500 lines + ~1,400 lines cacheable static assets
 - Zero fake data. All crew/agent data from real DB + dispatcher.
 
@@ -199,7 +201,7 @@ No migrations needed. All tables already exist:
 - `node_agents` — agent deployments per node, FK to `agents` (existing)
 - `agents` — the real roster (existing, read via dispatcher)
 - `station_assignments` — station mapping (existing, read via dispatcher)
-- `fleet_nodes` — legacy table, referenced by some OTA code (kept for compatibility)
+- ~~`fleet_nodes`~~ — legacy table, zero references in codebase, can be ignored
 
 ## 8. Boundaries & Future Work
 

@@ -718,69 +718,10 @@ async function renderNodeManifest(nodeDbId) {
     }
 }
 
+// Unified agent card renderer — same card for hub AGENTS tab, node CREW tab, everywhere
 function _renderStarshipAgentCard(agent) {
-    var card = document.createElement('div');
-    card.className = 'crew-agent-card';
-    card.style.cursor = 'pointer';
-    card.onclick = function(e) {
-        // Don't trigger on button clicks
-        if (e.target.tagName === 'BUTTON') return;
-        openNodeAgentProfile(agent.agent_id);
-    };
-    card.setAttribute('data-station', agent.station);
-
-    var colors = agent.station_colors || [];
-    if (colors.length > 0) {
-        card.style.borderLeftColor = colors[0];
-    }
-
-    // Top row: name + badges
-    var top = document.createElement('div');
-    top.className = 'crew-agent-top';
-
-    var name = document.createElement('span');
-    name.className = 'crew-agent-name';
-    name.textContent = agent.full_name || agent.name;
-
-    var badges = document.createElement('div');
-    badges.className = 'crew-agent-badges';
-
-    // Status badge
-    var statusBadge = document.createElement('span');
-    statusBadge.className = 'crew-status-badge ' + agent.status;
-    statusBadge.textContent = agent.status.toUpperCase();
-    badges.appendChild(statusBadge);
-
-    // LLM readiness badge
-    var llmBadge = document.createElement('span');
-    if (agent.llm_status === 'loaded') {
-        llmBadge.className = 'crew-llm-badge loaded';
-        llmBadge.textContent = 'MODEL READY';
-        llmBadge.title = 'Model available on this node';
-    } else {
-        llmBadge.className = 'crew-llm-badge barracked';
-        llmBadge.textContent = 'MODEL OFFLINE';
-        llmBadge.title = 'Model not available on this node';
-    }
-    badges.appendChild(llmBadge);
-
-    // Sharing badge
-    var shareBadge = document.createElement('span');
-    shareBadge.className = 'crew-status-badge ' + (agent.allowed ? 'active' : 'idle');
-    shareBadge.textContent = agent.allowed ? 'ENABLED' : 'DISABLED';
-    badges.appendChild(shareBadge);
-
-    top.appendChild(name);
-    top.appendChild(badges);
-    card.appendChild(top);
-
-    // Callsign subtitle
-    if (agent.full_name && agent.full_name !== agent.name) {
-        var subtitle = document.createElement('div');
-        subtitle.style.cssText = 'font-size: 0.6rem; color: rgba(255,255,255,0.35); margin-top: -2px;';
-        subtitle.textContent = agent.name + (agent.title ? ' \u2014 ' + agent.title : '');
-        card.appendChild(subtitle);
-    }
+    var hubId = agent.hub_agent_id || agent.agent_id || agent.id;
+    return _renderUnifiedAgentCard(agent, function() { openAgentProfileFromBridge(hubId); });
 
     // Meta row: station + model
     var meta = document.createElement('div');
@@ -1088,13 +1029,14 @@ function pullModelToNode(modelName, btn) {
 // ============================================================================
 var _nodeProfileAgentId = null;
 
-function openHubAgentProfile(hubAgentId) {
+// Unified agent profile — always fetches from Bridge (single source of truth)
+function openAgentProfileFromBridge(hubAgentId) {
     _nodeProfileAgentId = hubAgentId;
     var modal = document.getElementById('node-agent-profile-modal');
     var body = document.getElementById('node-profile-body');
     var title = document.getElementById('node-profile-title');
     modal.classList.add('active');
-    body.innerHTML = '<span class="sc-label">Loading profile...</span>';
+    body.innerHTML = '<span class="sc-label">Loading profile...</span>';  // nosemgrep
     title.textContent = 'AGENT PROFILE';
 
     fetch('/tools/bridge/api/agents/' + parseInt(hubAgentId) + '/profile')
@@ -1110,25 +1052,29 @@ function openHubAgentProfile(hubAgentId) {
         });
 }
 
-function openNodeAgentProfile(agentId) {
-    _nodeProfileAgentId = agentId;
-    var modal = document.getElementById('node-agent-profile-modal');
-    var body = document.getElementById('node-profile-body');
-    var title = document.getElementById('node-profile-title');
-    modal.classList.add('active');
-    body.innerHTML = '<span class="sc-label">Loading profile...</span>';
-    title.textContent = 'AGENT PROFILE';
+// Hub agents tab — calls Bridge directly
+function openHubAgentProfile(hubAgentId) {
+    openAgentProfileFromBridge(hubAgentId);
+}
 
-    fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/agents/' + agentId + '/profile')
+// Node crew tab — looks up hub_agent_id first, then calls Bridge
+function openNodeAgentProfile(nodeAgentId) {
+    // Fetch hub_agent_id from the node agent, then open Bridge profile
+    fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/agents/' + nodeAgentId + '/profile')
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            if (!data.success) {
-                body.textContent = data.error || 'Failed to load profile';
-                return;
+            if (data.success && data.agent && data.agent.hub_agent_id) {
+                openAgentProfileFromBridge(data.agent.hub_agent_id);
+            } else if (data.success && data.agent && data.agent.id) {
+                // Fallback: use the agent id directly
+                openAgentProfileFromBridge(data.agent.id);
+            } else {
+                var body = document.getElementById('node-profile-body');
+                body.textContent = data.error || 'Agent not linked to hub';
             }
-            _renderNodeAgentProfile(data, body, title);
         }).catch(function(err) {
-            body.textContent = 'Failed to load profile: ' + err;
+            var body = document.getElementById('node-profile-body');
+            body.textContent = 'Failed: ' + err;
         });
 }
 
@@ -1559,125 +1505,138 @@ function renderStarbaseCrew() {
 
     grid.textContent = '';
     crew.forEach(function(a) {
-        var card = document.createElement('div');
-        card.className = 'crew-agent-card';
-        card.style.cursor = 'pointer';
-        var agentId = a.agent_id || a.id;
-        if (agentId) {
-            card.onclick = (function(id) { return function() { openHubAgentProfile(id); }; })(agentId);
-        }
-        var stColor = _stationColorMap[a.station] || '#00e5ff';
-        card.style.borderLeftColor = stColor;
-
-        // Top row: name + badges
-        var top = document.createElement('div');
-        top.className = 'crew-agent-top';
-
-        var nameEl = document.createElement('span');
-        nameEl.className = 'crew-agent-name';
-        nameEl.textContent = a.full_name || a.display_name || a.name || 'Unknown';
-        top.appendChild(nameEl);
-
-        var badges = document.createElement('div');
-        badges.className = 'crew-agent-badges';
-
-        // Status badge (working/idle/resting)
-        var statusBadge = document.createElement('span');
-        statusBadge.className = 'crew-status-badge ' + (a.status || 'idle');
-        statusBadge.textContent = (a.status || 'idle').toUpperCase();
-        badges.appendChild(statusBadge);
-
-        // Shift state badge
-        var shift = a.shift_state || 'active';
-        if (shift !== 'active' && shift !== a.status) {
-            var shiftBadge = document.createElement('span');
-            shiftBadge.className = 'crew-status-badge ' + shift;
-            shiftBadge.textContent = shift.replace('_', ' ').toUpperCase();
-            badges.appendChild(shiftBadge);
-        }
-
-        // LLM readiness badge
-        var llmBadge = document.createElement('span');
-        var llmStatus = a.llm_status || 'barracked';
-        llmBadge.className = 'crew-llm-badge ' + llmStatus;
-        var llmLabels = { loaded: 'LOADED', swap: 'SWAP', barracked: 'OFFLINE', cloud: 'CLOUD' };
-        llmBadge.textContent = llmLabels[llmStatus] || llmStatus.toUpperCase();
-        if (a.llm_size_gb) llmBadge.title = a.llm_size_gb + ' GB';
-        badges.appendChild(llmBadge);
-
-        // Hardware badge
-        if (a.hardware) {
-            var hwBadge = document.createElement('span');
-            hwBadge.className = 'crew-status-badge ' + (a.hardware === 'GPU' ? 'active' : 'idle');
-            hwBadge.textContent = a.hardware;
-            badges.appendChild(hwBadge);
-        }
-
-        top.appendChild(badges);
-        card.appendChild(top);
-
-        // Callsign subtitle
-        if (a.full_name && a.full_name !== a.name) {
-            var sub = document.createElement('div');
-            sub.style.cssText = 'font-size:0.6rem;color:rgba(255,255,255,0.35);margin-top:-2px;';
-            sub.textContent = a.name + (a.title ? ' \u2014 ' + a.title : '');
-            card.appendChild(sub);
-        }
-
-        // Meta row: station + model
-        var meta = document.createElement('div');
-        meta.className = 'crew-agent-meta';
-        var stSpan = document.createElement('span');
-        stSpan.textContent = a.station || '--';
-        stSpan.style.color = stColor;
-        meta.appendChild(stSpan);
-        var mdSpan = document.createElement('span');
-        mdSpan.textContent = (a.model || '').replace(':latest', '');
-        meta.appendChild(mdSpan);
-        // Workload risk
-        var wl = a.workload || {};
-        if (wl.risk_level) {
-            var riskSpan = document.createElement('span');
-            var riskColors = { healthy: '#4ade80', elevated: '#fbbf24', critical: '#ef4444', overloaded: '#ef4444' };
-            riskSpan.style.color = riskColors[wl.risk_level] || 'rgba(255,255,255,0.4)';
-            riskSpan.textContent = wl.risk_level.toUpperCase();
-            meta.appendChild(riskSpan);
-        }
-        card.appendChild(meta);
-
-        // Station tag
-        if (a.station) {
-            var tagRow = document.createElement('div');
-            tagRow.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;';
-            var tag = document.createElement('span');
-            tag.className = 'sc-agent-station-tag';
-            tag.textContent = a.station;
-            tag.style.borderColor = stColor + '44';
-            tag.style.color = stColor;
-            tagRow.appendChild(tag);
-            card.appendChild(tagRow);
-        }
-
-        // Active job with progress bar
-        if (a.current_job) {
-            var jobRow = document.createElement('div');
-            jobRow.className = 'crew-agent-job';
-            var jobDesc = document.createElement('span');
-            jobDesc.textContent = a.current_job.description || 'Working...';
-            jobDesc.style.cssText = 'max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-            var jobBar = document.createElement('div');
-            jobBar.className = 'crew-job-bar';
-            var jobFill = document.createElement('div');
-            jobFill.className = 'crew-job-bar-fill';
-            jobFill.style.width = Math.min(a.current_job.progress_pct || 0, 100) + '%';
-            jobBar.appendChild(jobFill);
-            jobRow.appendChild(jobDesc);
-            jobRow.appendChild(jobBar);
-            card.appendChild(jobRow);
-        }
-
+        var hubId = a.agent_id || a.id;
+        var card = _renderUnifiedAgentCard(a, function() { openAgentProfileFromBridge(hubId); });
         grid.appendChild(card);
     });
+}
+
+// ── Unified Agent Card — one renderer for hub, node, everywhere ──
+function _renderUnifiedAgentCard(a, onClickFn) {
+    var card = document.createElement('div');
+    card.className = 'crew-agent-card';
+    card.style.cursor = 'pointer';
+    card.onclick = function(e) {
+        if (e.target.tagName === 'BUTTON') return;
+        if (onClickFn) onClickFn();
+    };
+
+    // Station color
+    var stCodes = a.station_codes || [a.station || 'UNASSIGNED'];
+    var stColors = a.station_colors || [];
+    var stColor = stColors[0] || (_stationColorMap[stCodes[0]] || {}).hex || '#00e5ff';
+    card.style.borderLeftColor = stColor;
+
+    // Top row: name + badges
+    var top = document.createElement('div');
+    top.className = 'crew-agent-top';
+    var nameEl = document.createElement('span');
+    nameEl.className = 'crew-agent-name';
+    nameEl.textContent = a.full_name || a.display_name || a.name || 'Unknown';
+    top.appendChild(nameEl);
+
+    var badges = document.createElement('div');
+    badges.className = 'crew-agent-badges';
+
+    // Status badge
+    var statusBadge = document.createElement('span');
+    statusBadge.className = 'crew-status-badge ' + (a.status || 'idle');
+    statusBadge.textContent = (a.status || 'idle').toUpperCase();
+    badges.appendChild(statusBadge);
+
+    // Shift state badge (only if not active)
+    var shift = a.shift_state || 'active';
+    if (shift !== 'active' && shift !== a.status) {
+        var shiftBadge = document.createElement('span');
+        shiftBadge.className = 'crew-status-badge ' + shift;
+        shiftBadge.textContent = shift.replace('_', ' ').toUpperCase();
+        badges.appendChild(shiftBadge);
+    }
+
+    // LLM readiness badge
+    var llmBadge = document.createElement('span');
+    var llmStatus = a.llm_status || 'barracked';
+    llmBadge.className = 'crew-llm-badge ' + llmStatus;
+    var llmLabels = { loaded: 'LOADED', swap: 'SWAP', barracked: 'OFFLINE', cloud: 'CLOUD' };
+    llmBadge.textContent = llmLabels[llmStatus] || llmStatus.toUpperCase();
+    if (a.llm_size_gb) llmBadge.title = a.llm_size_gb + ' GB';
+    badges.appendChild(llmBadge);
+
+    // Hardware badge
+    if (a.hardware) {
+        var hwBadge = document.createElement('span');
+        hwBadge.className = 'crew-status-badge ' + (a.hardware === 'GPU' ? 'active' : 'idle');
+        hwBadge.textContent = a.hardware;
+        badges.appendChild(hwBadge);
+    }
+
+    top.appendChild(badges);
+    card.appendChild(top);
+
+    // Callsign subtitle
+    var displayName = a.full_name || a.display_name || '';
+    if (displayName && displayName !== a.name) {
+        var sub = document.createElement('div');
+        sub.style.cssText = 'font-size:0.6rem;color:rgba(255,255,255,0.35);margin-top:-2px;';
+        sub.textContent = a.name + (a.title ? ' \u2014 ' + a.title : '');
+        card.appendChild(sub);
+    }
+
+    // Meta row: station + model + workload risk
+    var meta = document.createElement('div');
+    meta.className = 'crew-agent-meta';
+    var stSpan = document.createElement('span');
+    stSpan.textContent = stCodes[0] || '--';
+    stSpan.style.color = stColor;
+    meta.appendChild(stSpan);
+    var mdSpan = document.createElement('span');
+    mdSpan.textContent = (a.model || '').replace(':latest', '');
+    meta.appendChild(mdSpan);
+    var wl = a.workload || {};
+    if (wl.risk_level) {
+        var riskSpan = document.createElement('span');
+        var riskColors = { healthy: '#4ade80', elevated: '#fbbf24', critical: '#ef4444', overloaded: '#ef4444' };
+        riskSpan.style.color = riskColors[wl.risk_level] || 'rgba(255,255,255,0.4)';
+        riskSpan.textContent = wl.risk_level.toUpperCase();
+        meta.appendChild(riskSpan);
+    }
+    card.appendChild(meta);
+
+    // Station tags
+    if (stCodes.length > 0 && stCodes[0] !== 'UNASSIGNED') {
+        var tagRow = document.createElement('div');
+        tagRow.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;';
+        stCodes.forEach(function(sc, i) {
+            var tag = document.createElement('span');
+            tag.className = 'sc-agent-station-tag';
+            tag.textContent = sc;
+            var c = stColors[i] || (_stationColorMap[sc] || {}).hex || stColor;
+            tag.style.borderColor = c + '44';
+            tag.style.color = c;
+            tagRow.appendChild(tag);
+        });
+        card.appendChild(tagRow);
+    }
+
+    // Active job with progress bar
+    if (a.current_job) {
+        var jobRow = document.createElement('div');
+        jobRow.className = 'crew-agent-job';
+        var jobDesc = document.createElement('span');
+        jobDesc.textContent = a.current_job.description || 'Working...';
+        jobDesc.style.cssText = 'max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+        var jobBar = document.createElement('div');
+        jobBar.className = 'crew-job-bar';
+        var jobFill = document.createElement('div');
+        jobFill.className = 'crew-job-bar-fill';
+        jobFill.style.width = Math.min(a.current_job.progress_pct || 0, 100) + '%';
+        jobBar.appendChild(jobFill);
+        jobRow.appendChild(jobDesc);
+        jobRow.appendChild(jobBar);
+        card.appendChild(jobRow);
+    }
+
+    return card;
 }
 
 function _escSb(str) {

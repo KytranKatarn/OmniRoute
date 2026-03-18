@@ -243,8 +243,8 @@ def register_crew_routes(bp, admin_required):
 
                         threading.Thread(target=_reload, daemon=True).start()
                         reloaded = True
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"[crew] Failed to start model reload thread: {e}")
 
                 return jsonify(
                     {
@@ -838,8 +838,8 @@ def register_crew_routes(bp, admin_required):
                     mdl = a.get("model", "")
                     if mdl:
                         model_agents.setdefault(mdl, []).append(a.get("full_name") or a.get("name"))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"[crew] Failed to fetch model-agent mapping from dispatcher: {e}")
 
             # GPU status
             gpu = {"available": False}
@@ -877,8 +877,8 @@ def register_crew_routes(bp, admin_required):
                             "status": "red" if vram_free < 1.0 else ("amber" if vram_free < 2.0 else "green"),
                             "occupied_by": gpu_model,
                         }
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"[crew] Failed to query GPU status via nvidia-smi: {e}")
 
             # Media generation — local services + cloud contractors
             media_contractors = []
@@ -922,8 +922,8 @@ def register_crew_routes(bp, admin_required):
                 for p in potential:
                     if p["provider_key"] not in existing_keys:
                         media_contractors.append({**p, "has_key": False, "is_active": False, "location": "cloud"})
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"[crew] Failed to load media contractors: {e}")
 
             # Stations
             stations = []
@@ -933,8 +933,8 @@ def register_crew_routes(bp, admin_required):
                         "SELECT station_code, station_name FROM bridge_stations WHERE is_active = TRUE ORDER BY station_name"
                     )
                     stations = [{"code": r["station_code"], "name": r["station_name"]} for r in cur.fetchall()]
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"[crew] Failed to fetch active stations: {e}")
 
             return jsonify(
                 {
@@ -1008,8 +1008,8 @@ def register_crew_routes(bp, admin_required):
                             "token_usage_pct": tk_pct,
                             "risk_level": risk,
                         }
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"[crew] Failed to compute agent workload metrics: {e}")
 
             # Attach workload to each crew member
             for member in manifest:
@@ -1023,8 +1023,8 @@ def register_crew_routes(bp, admin_required):
                     shift_states = {r["id"]: r["shift_state"] or "active" for r in scur.fetchall()}
                     for entry in manifest:
                         entry["shift_state"] = shift_states.get(entry.get("agent_id") or entry.get("id"), "active")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"[crew] Failed to fetch agent shift states: {e}")
 
             # Fleet overview counts
             shift_counts = {
@@ -1042,8 +1042,8 @@ def register_crew_routes(bp, admin_required):
                 with get_db_cursor(commit=False) as (rconn, rcur):
                     rcur.execute("SELECT count(*) AS cnt FROM agents WHERE status = 'inactive'")
                     shift_counts["reserves"] = rcur.fetchone()["cnt"]
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"[crew] Failed to count reserve agents: {e}")
 
             # Get fleet mode (workday/weekend)
             fleet_mode = "workday"
@@ -1053,8 +1053,8 @@ def register_crew_routes(bp, admin_required):
                     _frow = _fcur.fetchone()
                     if _frow:
                         fleet_mode = _frow["value"]
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"[crew] Failed to read fleet mode from system_config: {e}")
 
             resp = {
                 "success": True,
@@ -1248,7 +1248,8 @@ def register_crew_routes(bp, admin_required):
                         break
                 if already_loaded:
                     return jsonify({"success": True, "message": f"{model_name} already loaded"})
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[crew] Failed to check loaded models from Ollama: {e}")
                 loaded_count = 0
 
             # Load: send generate with keep_alive=-1

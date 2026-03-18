@@ -1120,8 +1120,7 @@ def register_agent_routes(bp, admin_required):
                         }
                     )
 
-                # Step 4: Check workload compliance (simplified for now)
-                # TODO: Full workload tracking for AI compliance
+                # Step 4: Check workload compliance (station assignments + active jobs)
                 cur.execute(
                     """
                     SELECT COUNT(*) as assignment_count
@@ -1140,6 +1139,27 @@ def register_agent_routes(bp, admin_required):
                         {
                             "success": False,
                             "message": f"{candidate['name']} is at workload capacity",
+                            "slot_status": "workload_limit",
+                        }
+                    )
+
+                # Check active bridge_jobs to prevent agent overloading
+                cur.execute(
+                    """
+                    SELECT COUNT(*) as active_jobs
+                    FROM bridge_jobs
+                    WHERE agent_name = %s AND status = 'in_progress'
+                """,
+                    (candidate["name"],),
+                )
+                job_workload = cur.fetchone()
+
+                if job_workload["active_jobs"] >= 3:
+                    logger.info(f"Bridge: {candidate['name']} has too many active jobs ({job_workload['active_jobs']})")
+                    return jsonify(
+                        {
+                            "success": False,
+                            "message": f"{candidate['name']} has {job_workload['active_jobs']} active jobs (max 3)",
                             "slot_status": "workload_limit",
                         }
                     )

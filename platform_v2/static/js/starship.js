@@ -1298,6 +1298,15 @@ function _populateStarbaseDetail(crew, activeJobs, cap) {
     _setLive(el('sbd-jobs'), activeJobs, true);
     _setLive(el('sbd-models'), cap.models_loaded || '--', !!cap.models_loaded);
 
+    // Station count — fetch live from Bridge
+    fetch('/tools/bridge/api/stations').then(function(r) { return r.json(); }).then(function(sdata) {
+        if (sdata.success) {
+            var active = (sdata.stations || []).filter(function(s) { return s.assigned_agents && s.assigned_agents.length > 0; }).length;
+            var total = (sdata.stations || []).length;
+            _setLive(el('sbd-stations'), active + ' / ' + total, true);
+        }
+    }).catch(function() {});
+
     // Hardware — glow if from real capacity data, static if fallback
     _setLive(el('sbd-cpu'), 'Xeon E5-2658 v2 (10c/20t)', false);
     if (cap.ram) {

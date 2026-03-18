@@ -49,7 +49,7 @@ Starship routes import dispatcher
         │           └─► Real stations from station_assignments
         │
         └─► OPERATIONS tab: OTA push, sync, installers
-              └─► Uses existing fleet_nodes/remote_nodes queries (kept as-is)
+              └─► Uses existing remote_nodes queries (kept as-is)
 ```
 
 ### Dispatcher Import Pattern
@@ -162,6 +162,7 @@ Three sections:
 | `MODULE_STATION_MAP` | ~17 | Duplicates Bridge |
 | `MODEL_SIZE_HINTS` | ~35 | Duplicates Bridge/dispatcher |
 | `get_agent_recommendations()` | ~150 | Replaced by dispatcher data |
+| `api_get_recommendations` route | ~15 | Endpoint removed (recommendations come from dispatcher now) |
 | `_add_single_agent_to_node()` fake logic | ~120 | Replaced by real node_agents queries |
 | Inline CSS/JS in template | ~1,800 | Extracted to static files |
 
@@ -176,6 +177,7 @@ Three sections:
 | Node status + settings | `node_routes.py` | ~150 |
 | `_compute_node_status()` | `helpers.py` | ~30 |
 | `_get_node_for_user()` variants | `helpers.py` | ~50 |
+| `check_fleet_model_unique` import + usage | `crew_routes.py` | ~10 |
 
 ### New Code
 

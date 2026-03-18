@@ -7,18 +7,29 @@ var nodeConnectionPoller = null;
 var _opsSelectedNodeDbId = null;
 
 // ── Hero Starbase Stats ──
+function _setLive(el, value, isLive) {
+    if (!el) return;
+    el.textContent = value;
+    el.classList.toggle('sc-live', !!isLive);
+    el.classList.toggle('sc-static', !isLive);
+}
+
 async function loadHeroStats() {
     try {
         var resp = await fetch('/tools/starship/api/starbase-stats');
         var data = await resp.json();
-        if (!data.success) return;
         var el = function(id) { return document.getElementById(id); };
-        if (el('hero-agents')) el('hero-agents').textContent = data.total_agents || 0;
-        if (el('hero-models')) el('hero-models').textContent = data.loaded_models || 0;
-        if (el('hero-jobs')) el('hero-jobs').textContent = data.active_jobs || 0;
-        if (el('hero-nodes')) el('hero-nodes').textContent = (data.online_nodes || 0) + '/' + (data.total_nodes || 0);
+        var ok = data.success;
+        _setLive(el('hero-agents'), ok ? (data.total_agents || 0) : '--', ok);
+        _setLive(el('hero-models'), ok ? (data.loaded_models || 0) : '--', ok);
+        _setLive(el('hero-jobs'), ok ? (data.active_jobs || 0) : '--', ok);
+        _setLive(el('hero-nodes'), ok ? ((data.online_nodes || 0) + '/' + (data.total_nodes || 0)) : '--', ok);
     } catch(e) {
         console.warn('Hero stats load failed:', e);
+        var el = function(id) { return document.getElementById(id); };
+        ['hero-agents','hero-models','hero-jobs','hero-nodes'].forEach(function(id) {
+            _setLive(el(id), '--', false);
+        });
     }
 }
 
@@ -1243,12 +1254,9 @@ async function loadStarbaseStats() {
         var cap = data.capacity || {};
 
         // Card stats — hardware summary (guard: old starbase card may be removed)
-        var _sbCores = document.getElementById('sb-cores');
-        if (_sbCores) _sbCores.textContent = '20';
-        var _sbRam = document.getElementById('sb-ram');
-        if (_sbRam) _sbRam.textContent = cap.ram ? cap.ram.total_gb : '128';
-        var _sbVram = document.getElementById('sb-vram');
-        if (_sbVram) _sbVram.textContent = cap.gpu ? cap.gpu.vram_total_gb : '8';
+        _setLive(document.getElementById('sb-cores'), '20', false);
+        _setLive(document.getElementById('sb-ram'), cap.ram ? cap.ram.total_gb : '128', !!cap.ram);
+        _setLive(document.getElementById('sb-vram'), cap.gpu ? cap.gpu.vram_total_gb : '8', !!cap.gpu);
 
         // Detail panel stats (if open)
         _populateStarbaseDetail(crew, activeJobs, cap);
@@ -1261,23 +1269,26 @@ function _populateStarbaseDetail(crew, activeJobs, cap) {
     var el = function(id) { return document.getElementById(id); };
     if (!el('sbd-agents')) return;
 
-    // Fleet overview
-    el('sbd-agents').textContent = crew.length;
-    el('sbd-jobs').textContent = activeJobs;
-    el('sbd-models').textContent = cap.models_loaded || '--';
+    // Fleet overview — always live from manifest
+    _setLive(el('sbd-agents'), crew.length, true);
+    _setLive(el('sbd-jobs'), activeJobs, true);
+    _setLive(el('sbd-models'), cap.models_loaded || '--', !!cap.models_loaded);
 
-    // Hardware
-    el('sbd-cpu').textContent = 'Xeon E5-2658 v2 (10c/20t)';
+    // Hardware — glow if from real capacity data, static if fallback
+    _setLive(el('sbd-cpu'), 'Xeon E5-2658 v2 (10c/20t)', false);
     if (cap.ram) {
-        el('sbd-ram').textContent = cap.ram.total_gb + ' GB';
-        el('sbd-ram-avail').textContent = (cap.ram.available_gb || '--') + ' GB';
+        _setLive(el('sbd-ram'), cap.ram.total_gb + ' GB', true);
+        _setLive(el('sbd-ram-avail'), (cap.ram.available_gb || '--') + ' GB', !!cap.ram.available_gb);
+    } else {
+        _setLive(el('sbd-ram'), '128 GB', false);
+        _setLive(el('sbd-ram-avail'), '-- GB', false);
     }
     // GPU — nvidia-smi may not be in Docker, fall back to known hardware
     var gpuName = cap.gpu ? cap.gpu.name : 'Quadro M4000';
     var gpuVram = cap.gpu ? cap.gpu.vram_total_gb : 8.0;
-    el('sbd-gpu').textContent = gpuName;
-    el('sbd-vram').textContent = gpuVram + ' GB';
-    el('sbd-models-ram').textContent = (cap.models_ram_gb || '--') + ' GB';
+    _setLive(el('sbd-gpu'), gpuName, !!cap.gpu);
+    _setLive(el('sbd-vram'), gpuVram + ' GB', !!cap.gpu);
+    _setLive(el('sbd-models-ram'), (cap.models_ram_gb || '--') + ' GB', !!cap.models_ram_gb);
 
     // RAM budget (ADR-078: 80% LLM, 20% reserve)
     var totalRam = cap.ram ? cap.ram.total_gb : 128;

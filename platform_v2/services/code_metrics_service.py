@@ -437,23 +437,56 @@ def _find_orphan_files(module_names):
     js_dir = os.path.join(PLATFORM_ROOT, "static", "js")
     css_dir = os.path.join(PLATFORM_ROOT, "static", "css")
 
-    # Shared files that are intentionally not module-specific
+    # Files claimed by APP_CORE — not orphans
     shared_files = {
+        # Core JS
+        "base.js",
+        "login.js",
+        "signup.js",
+        "dashboard.js",
+        "verify-2fa.js",
+        "directory.js",
         "archie-time.js",
         "archie-i18n.js",
         "archie-theme.js",
-        "agent-badge.js",
         "station-ops.js",
+        "glass-nav.js",
         "holo-sphere.js",
         "neural-core.js",
         "pixel-crew.js",
-        "glass-nav.js",
+        "agent-badge.js",
+        "ops-alert-bar.js",
+        "collaboration.js",
+        "competitors-i18n.js",
+        "devhq.js",
+        # Core CSS
+        "base.css",
+        "login.css",
+        "signup.css",
+        "dashboard.css",
+        "dev-hq.css",
+        "verify-2fa.css",
+        "competitors.css",
+        "directory.css",
+        "components.css",
+        "animations.css",
+        "theme.css",
+        "light-mode.css",
+        "mobile.css",
         "lcars-panels.css",
         "lcars-frames.css",
+        "category-nav.css",
         "station-ops.css",
         "glass-nav.css",
         "holo-sphere.css",
-        "category-nav.css",
+        "neural-core.css",
+        "pixel-crew.css",
+        "admin-ops.css",
+        "agent-badge.css",
+        "ops-alert-bar.css",
+        "dual-chat.css",
+        "xterm.css",
+        # Core HTML
         "base.html",
     }
 

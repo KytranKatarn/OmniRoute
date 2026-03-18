@@ -23,6 +23,39 @@
         </button>
     </div>
 
+    <!-- Hero Starbase Section -->
+    <div class="starbase-hero" id="starbase-hero" onclick="openStarbaseDetail()">
+        <div class="starbase-hero-header">
+            <div class="sc-node-dot online"></div>
+            <span class="starbase-hero-title">A.R.C.H.I.E. STARBASE</span>
+            <span class="starbase-hero-badge">HUB</span>
+        </div>
+        <div class="starbase-hero-stats">
+            <div class="starbase-hero-stat">
+                <span class="starbase-hero-stat-val" id="hero-agents">--</span>
+                <span class="starbase-hero-stat-label">AGENTS</span>
+            </div>
+            <div class="starbase-hero-stat">
+                <span class="starbase-hero-stat-val" id="hero-models">--</span>
+                <span class="starbase-hero-stat-label">MODELS LOADED</span>
+            </div>
+            <div class="starbase-hero-stat">
+                <span class="starbase-hero-stat-val" id="hero-jobs">--</span>
+                <span class="starbase-hero-stat-label">ACTIVE JOBS</span>
+            </div>
+            <div class="starbase-hero-stat">
+                <span class="starbase-hero-stat-val" id="hero-nodes">--</span>
+                <span class="starbase-hero-stat-label">NODES ONLINE</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page-Level Tabs -->
+    <div class="sc-page-tabs">
+        <button class="sc-page-tab active" onclick="switchPageTab('fleet')" data-page-tab="fleet">FLEET</button>
+        <button class="sc-page-tab" onclick="switchPageTab('operations')" data-page-tab="operations">OPERATIONS</button>
+    </div>
+
     <!-- Add Node Modal -->
     <div class="sc-modal-overlay" id="add-node-modal">
         <div class="sc-modal">
@@ -137,6 +170,8 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
         </div>
     </div>
 
+    <!-- ═══ FLEET PAGE TAB ═══ -->
+    <div class="sc-page-panel active" id="page-fleet">
     {% if nodes|length == 0 %}
     <div class="sc-empty">
         <h3>NO NODES REGISTERED</h3>
@@ -145,23 +180,8 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
     </div>
     {% else %}
 
-    <!-- Fleet Grid (Starbase first, then nodes) -->
+    <!-- Fleet Grid (node cards only — Starbase is now the hero) -->
     <div class="sc-fleet-grid" id="sc-fleet-grid">
-        <!-- STARBASE (HUB) — first card in grid -->
-        <div class="sc-node-card sc-starbase-card" id="starbase-card">
-            <div class="sc-node-header" onclick="openStarbaseDetail()">
-                <div class="sc-node-dot online"></div>
-                <span class="sc-node-name">A.R.C.H.I.E. STARBASE</span>
-                <span class="sc-node-mode">HUB</span>
-            </div>
-            <div class="sc-node-body">
-                <div class="sc-node-stats">
-                    <div class="sc-stat"><span class="sc-stat-val" id="sb-cores">--</span><span class="sc-stat-label">Cores</span></div>
-                    <div class="sc-stat"><span class="sc-stat-val" id="sb-ram">--</span><span class="sc-stat-label">RAM GB</span></div>
-                    <div class="sc-stat"><span class="sc-stat-val" id="sb-vram">--</span><span class="sc-stat-label">VRAM GB</span></div>
-                </div>
-            </div>
-        </div>
         {% for node in nodes %}
         {% if node.deployment_mode != 'starbase' %}
         <div class="sc-node-card" id="card-{{ node.node_id }}" data-node-id="{{ node.node_id }}">
@@ -190,6 +210,67 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
         {% endif %}
         {% endfor %}
     </div>
+    {% endif %}
+    </div><!-- /page-fleet -->
+
+    <!-- ═══ OPERATIONS PAGE TAB ═══ -->
+    <div class="sc-page-panel" id="page-operations">
+        <div class="sc-section">
+            <h4>TARGET NODE</h4>
+            <select class="sc-input" id="ops-node-select" style="max-width:400px;" onchange="onOpsNodeSelect(this.value)">
+                <option value="">Select a node...</option>
+                {% for node in nodes %}
+                {% if node.deployment_mode != 'starbase' %}
+                <option value="{{ node.node_id }}">{{ node.node_name }} ({{ node.deployment_mode }})</option>
+                {% endif %}
+                {% endfor %}
+            </select>
+        </div>
+
+        <div id="ops-content" style="display:none;">
+            <div class="sc-section">
+                <h4>OTA ACTIONS</h4>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+                    <button class="sc-btn" onclick="opsOtaPush('update')">PUSH UPDATE</button>
+                    <button class="sc-btn" onclick="opsOtaPush('config')">PUSH AGENT CONFIG</button>
+                </div>
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                    <select class="sc-input" id="ops-pull-model-select" style="width:250px;">
+                        <option value="">Select model...</option>
+                    </select>
+                    <button class="sc-btn" onclick="opsPullModel()">PULL MODEL</button>
+                </div>
+            </div>
+
+            <div class="sc-section">
+                <h4>SYNC STATUS</h4>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+                    <span id="ops-sync-dot" style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.2);display:inline-block;"></span>
+                    <span id="ops-sync-indicator" style="color:rgba(255,255,255,0.4);font-family:'IBM Plex Mono',monospace;font-size:0.8rem;">Select a node above</span>
+                </div>
+            </div>
+
+            <div class="sc-section">
+                <h4>SYNC LOG</h4>
+                <table style="width:100%;border-collapse:collapse;">
+                    <thead><tr>
+                        <th class="sc-label" style="text-align:left;padding:6px;">Type</th>
+                        <th class="sc-label" style="text-align:left;padding:6px;">Status</th>
+                        <th class="sc-label" style="text-align:left;padding:6px;">Time</th>
+                    </tr></thead>
+                    <tbody id="ops-sync-log-body"></tbody>
+                </table>
+            </div>
+
+            <div class="sc-section">
+                <h4>NODE SETUP</h4>
+                <p style="color:rgba(255,255,255,0.5);font-family:'IBM Plex Mono',monospace;font-size:0.8rem;">
+                    To add a new node to the fleet, click <strong style="color:var(--sc-accent);">ADD NODE</strong> in the header above.
+                    For existing nodes, use OTA push to deploy updates remotely.
+                </p>
+            </div>
+        </div>
+    </div><!-- /page-operations -->
 
     <!-- Node Detail Modal (LCARS tablet) -->
     <div class="bm-overlay" id="sc-detail-overlay" onclick="if(event.target===this)closeDetail()">
@@ -218,7 +299,6 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
             <div class="bm-body" style="padding:0;">
         <div class="sc-tabs">
             <button class="sc-tab active" onclick="switchTab('status')" data-tab="status">STATUS</button>
-            <button class="sc-tab" onclick="switchTab('ota')" data-tab="ota">OTA / SYNC</button>
             <button class="sc-tab" onclick="switchTab('stations')" data-tab="stations">STATIONS</button>
             <button class="sc-tab" onclick="switchTab('crew')" data-tab="crew">CREW</button>
         </div>
@@ -278,45 +358,6 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
                 <div class="sc-row">
                     <span class="sc-label">Priority</span>
                     <input type="number" class="sc-input" id="settings-priority" min="0" max="100" style="width:200px;" onchange="saveNodeSettings()">
-                </div>
-            </div>
-        </div>
-
-        <!-- OTA / SYNC TAB -->
-        <div class="sc-panel" id="panel-ota">
-            <div class="sc-section">
-                <h4>OTA ACTIONS</h4>
-                <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
-                    <button class="sc-btn" onclick="pushCodeUpdate()">PUSH UPDATE</button>
-                    <button class="sc-btn" onclick="pushAgentConfig()">PUSH AGENT CONFIG</button>
-                </div>
-                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-                    <select class="sc-input" id="pull-model-select" style="width:250px;">
-                        <option value="">Select model...</option>
-                    </select>
-                    <button class="sc-btn" onclick="pullModelToNode(document.getElementById('pull-model-select').value, this)">PULL MODEL</button>
-                </div>
-            </div>
-            <div class="sc-section">
-                <h4>SYNC STATUS</h4>
-                <div id="sync-status-panel" style="margin-bottom:12px;">
-                    <div style="display:flex;align-items:center;gap:8px;">
-                        <span id="sync-dot" style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.2);display:inline-block;"></span>
-                        <span id="sync-indicator" style="color: rgba(255,255,255,0.4); font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem;">Checking...</span>
-                    </div>
-                </div>
-            </div>
-            <div class="sc-section">
-                <h4>SYNC LOG</h4>
-                <div id="sync-log-container">
-                    <table style="width:100%;border-collapse:collapse;">
-                        <thead><tr>
-                            <th class="sc-label" style="text-align:left;padding:6px;">Type</th>
-                            <th class="sc-label" style="text-align:left;padding:6px;">Status</th>
-                            <th class="sc-label" style="text-align:left;padding:6px;">Time</th>
-                        </tr></thead>
-                        <tbody id="sync-log-body"></tbody>
-                    </table>
                 </div>
             </div>
         </div>
@@ -451,8 +492,6 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
         </div>
     </div>
     </div>
-
-    {% endif %}
 
     <!-- Agent Profile Modal -->
     <div class="bm-overlay" id="node-agent-profile-modal" onclick="if(event.target===this)closeNodeAgentProfile()">

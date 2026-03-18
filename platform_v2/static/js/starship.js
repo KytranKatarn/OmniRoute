@@ -4,6 +4,172 @@ var selectedNodeDbId = null;
 var nodeCache = {};
 var pendingConfig = null;
 var nodeConnectionPoller = null;
+var _opsSelectedNodeDbId = null;
+
+// ── Hero Starbase Stats ──
+async function loadHeroStats() {
+    try {
+        var resp = await fetch('/tools/starship/api/starbase-stats');
+        var data = await resp.json();
+        if (!data.success) return;
+        var el = function(id) { return document.getElementById(id); };
+        if (el('hero-agents')) el('hero-agents').textContent = data.total_agents || 0;
+        if (el('hero-models')) el('hero-models').textContent = data.loaded_models || 0;
+        if (el('hero-jobs')) el('hero-jobs').textContent = data.active_jobs || 0;
+        if (el('hero-nodes')) el('hero-nodes').textContent = (data.online_nodes || 0) + '/' + (data.total_nodes || 0);
+    } catch(e) {
+        console.warn('Hero stats load failed:', e);
+    }
+}
+
+// ── Page-Level Tab Switching ──
+function switchPageTab(tab) {
+    document.querySelectorAll('.sc-page-tab').forEach(function(t) {
+        t.classList.toggle('active', t.getAttribute('data-page-tab') === tab);
+    });
+    document.querySelectorAll('.sc-page-panel').forEach(function(p) {
+        p.classList.toggle('active', p.id === 'page-' + tab);
+    });
+    if (tab === 'operations') {
+        loadOpsModelCatalog();
+    }
+}
+
+// ── Operations Tab: Node Selector ──
+function onOpsNodeSelect(nodeId) {
+    var content = document.getElementById('ops-content');
+    if (!nodeId) {
+        content.style.display = 'none';
+        _opsSelectedNodeDbId = null;
+        return;
+    }
+    content.style.display = '';
+    // Look up the DB id for this node from the fleet
+    fetch('/tools/starship/api/nodes/' + nodeId + '/status')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success && data.node) {
+                _opsSelectedNodeDbId = data.node.id;
+                opsLoadSyncStatus();
+                opsLoadSyncLog();
+            }
+        }).catch(function() {});
+}
+
+// ── Operations Tab: OTA Push ──
+function opsOtaPush(type) {
+    if (!_opsSelectedNodeDbId) { scToast('Select a node first', 'error'); return; }
+    var endpoint = type === 'update'
+        ? '/tools/starship/api/nodes/' + _opsSelectedNodeDbId + '/push-update'
+        : '/tools/starship/api/nodes/' + _opsSelectedNodeDbId + '/push-config';
+    var body = type === 'config' ? JSON.stringify({type: 'agent_config'}) : '{}';
+    if (type === 'update' && !confirm('Push a code update to this node?')) return;
+    fetch(endpoint, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: body })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                scToast('Push successful' + (data.sync_id ? ' (ID: ' + data.sync_id + ')' : ''), 'success');
+                opsLoadSyncStatus();
+                opsLoadSyncLog();
+            } else {
+                scToast(data.error || 'Push failed', 'error');
+            }
+        }).catch(function() { scToast('Network error', 'error'); });
+}
+
+// ── Operations Tab: Pull Model ──
+function opsPullModel() {
+    if (!_opsSelectedNodeDbId) { scToast('Select a node first', 'error'); return; }
+    var sel = document.getElementById('ops-pull-model-select');
+    var model = sel.value;
+    if (!model) { scToast('Select a model', 'error'); return; }
+    fetch('/tools/starship/api/nodes/' + _opsSelectedNodeDbId + '/pull-model', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({model_name: model})
+    }).then(function(r) { return r.json(); })
+      .then(function(data) {
+          if (data.success) { scToast('Model pull queued', 'success'); }
+          else { scToast(data.error || 'Failed', 'error'); }
+      }).catch(function() { scToast('Network error', 'error'); });
+}
+
+// ── Operations Tab: Sync Status + Log ──
+function opsLoadSyncStatus() {
+    if (!_opsSelectedNodeDbId) return;
+    fetch('/tools/starship/api/nodes/' + _opsSelectedNodeDbId + '/sync-status')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            var dot = document.getElementById('ops-sync-dot');
+            var ind = document.getElementById('ops-sync-indicator');
+            if (!dot || !ind) return;
+            if (data.pending_count === 0) {
+                dot.style.background = '#00ff41';
+                ind.style.color = 'rgba(0,255,65,0.7)';
+                ind.textContent = 'All synced \u2014 v' + (data.config_version || 1);
+            } else {
+                dot.style.background = '#ffaa00';
+                ind.style.color = 'rgba(255,170,0,0.8)';
+                ind.textContent = data.pending_count + ' change' + (data.pending_count > 1 ? 's' : '') + ' pending';
+            }
+        }).catch(function() {});
+}
+
+function opsLoadSyncLog() {
+    if (!_opsSelectedNodeDbId) return;
+    fetch('/tools/starship/api/nodes/' + _opsSelectedNodeDbId + '/sync-log')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            var tbody = document.getElementById('ops-sync-log-body');
+            if (!tbody) return;
+            tbody.textContent = '';
+            var logs = data.logs || [];
+            if (logs.length === 0) {
+                var row = document.createElement('tr');
+                var td = document.createElement('td');
+                td.colSpan = 3; td.textContent = 'No sync activity yet.';
+                td.style.color = 'rgba(255,255,255,0.3)';
+                row.appendChild(td); tbody.appendChild(row);
+                return;
+            }
+            logs.forEach(function(log) {
+                var row = document.createElement('tr');
+                var typeTd = document.createElement('td');
+                typeTd.textContent = log.sync_type || '\u2014';
+                typeTd.style.cssText = 'padding:6px;color:var(--sc-accent);font-family:IBM Plex Mono,monospace;font-size:0.8rem;';
+                var statusTd = document.createElement('td');
+                statusTd.textContent = log.status || '\u2014';
+                statusTd.className = 'sync-status-' + (log.status || '');
+                statusTd.style.cssText = 'padding:6px;font-family:IBM Plex Mono,monospace;font-size:0.8rem;';
+                var timeTd = document.createElement('td');
+                timeTd.textContent = log.created_at ? new Date(log.created_at).toLocaleString() : '\u2014';
+                timeTd.style.cssText = 'padding:6px;color:rgba(255,255,255,0.5);font-family:IBM Plex Mono,monospace;font-size:0.8rem;';
+                row.appendChild(typeTd); row.appendChild(statusTd); row.appendChild(timeTd);
+                tbody.appendChild(row);
+            });
+        }).catch(function() {});
+}
+
+var _opsModelCatalogLoaded = false;
+function loadOpsModelCatalog() {
+    if (_opsModelCatalogLoaded) return;
+    _opsModelCatalogLoaded = true;
+    fetch('/tools/starship/api/model-catalog')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            var sel = document.getElementById('ops-pull-model-select');
+            if (!sel) return;
+            (data.models || []).forEach(function(m) {
+                var opt = document.createElement('option');
+                opt.value = m.name || m;
+                opt.textContent = m.name || m;
+                sel.appendChild(opt);
+            });
+        }).catch(function() {});
+}
 
 // ── Helper: render ops gauge (CPU/RAM/GPU) ──
 function renderOpsGauge(valId, barId, pct) {
@@ -667,7 +833,7 @@ function renderRecommendations(data) {
 
 async function pushAgentConfig() {
     if (!selectedNodeDbId) return;
-    var indicator = document.getElementById('sync-indicator');
+    var indicator = document.getElementById('sync-indicator') || document.getElementById('ops-sync-indicator');
     try {
         var resp = await fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/push-config', {
             method: 'POST',
@@ -1076,10 +1242,13 @@ async function loadStarbaseStats() {
         var activeJobs = crew.filter(function(a) { return a.current_job; }).length;
         var cap = data.capacity || {};
 
-        // Card stats — hardware summary
-        document.getElementById('sb-cores').textContent = '20';
-        document.getElementById('sb-ram').textContent = cap.ram ? cap.ram.total_gb : '128';
-        document.getElementById('sb-vram').textContent = cap.gpu ? cap.gpu.vram_total_gb : '8';
+        // Card stats — hardware summary (guard: old starbase card may be removed)
+        var _sbCores = document.getElementById('sb-cores');
+        if (_sbCores) _sbCores.textContent = '20';
+        var _sbRam = document.getElementById('sb-ram');
+        if (_sbRam) _sbRam.textContent = cap.ram ? cap.ram.total_gb : '128';
+        var _sbVram = document.getElementById('sb-vram');
+        if (_sbVram) _sbVram.textContent = cap.gpu ? cap.gpu.vram_total_gb : '8';
 
         // Detail panel stats (if open)
         _populateStarbaseDetail(crew, activeJobs, cap);
@@ -1156,7 +1325,8 @@ function openStarbaseDetail() {
     // Deselect node cards
     document.querySelectorAll('.sc-node-card.selected').forEach(function(c) { c.classList.remove('selected'); });
     // Select starbase card
-    document.getElementById('starbase-card').classList.add('selected');
+    var _sbCard = document.getElementById('starbase-card') || document.getElementById('starbase-hero');
+    if (_sbCard) _sbCard.classList.add('selected');
     // Show starbase modal
     document.getElementById('sc-starbase-overlay').classList.add('active');
     // Reset stations cache so next tab click re-fetches
@@ -1173,7 +1343,8 @@ function openStarbaseDetail() {
 
 function closeStarbaseDetail() {
     document.getElementById('sc-starbase-overlay').classList.remove('active');
-    document.getElementById('starbase-card').classList.remove('selected');
+    var _sbCard2 = document.getElementById('starbase-card') || document.getElementById('starbase-hero');
+    if (_sbCard2) _sbCard2.classList.remove('selected');
 }
 
 // ── Starbase tab switching ──
@@ -1436,6 +1607,10 @@ function _escSb(str) {
 // Load starbase stats on page load + interval
 loadStarbaseStats();
 setInterval(loadStarbaseStats, 30000);
+
+// Load hero stats on page load + interval
+loadHeroStats();
+setInterval(loadHeroStats, 30000);
 
 // ── Sync Status Polling ──
 var _syncPollTimer = null;

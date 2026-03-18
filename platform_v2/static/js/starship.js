@@ -625,10 +625,14 @@ async function loadNodeStations(nodeDbId) {
             terminal.className = 'stn-ops-terminal';
             terminal.id = termId;
             terminal.style.cssText = '--stn-accent:' + colors.hex + ';--stn-accent-rgb:' + colors.rgb + ';';
+            // Starship COMMAND gets a unique name and single-slot config
+            var isShipCommand = (code === 'COMMAND');
+            var stationLabel = isShipCommand ? 'STARSHIP COMMAND OPS' : (code + ' OPERATIONS');
+
             terminal.innerHTML =  // nosemgrep: static HTML structure, no user data
                 '<div class="stn-ops-header">' +
                     '<div class="stn-ops-elbow"></div>' +
-                    '<div class="stn-ops-title">' + code + ' OPERATIONS</div>' +
+                    '<div class="stn-ops-title">' + stationLabel + '</div>' +
                     '<div class="stn-ops-status" id="' + termId + '-status"><span class="stn-ops-dot"></span> OFFLINE</div>' +
                 '</div>' +
                 '<div class="stn-ops-body">' +
@@ -638,8 +642,8 @@ async function loadNodeStations(nodeDbId) {
                 '</div>';
             grid.appendChild(terminal);
 
-            // Create StationOps instance
-            _nodeStationOps[nodeDbId][code] = new StationOps({
+            // Create StationOps instance — starship COMMAND is solo (1 slot, no aux)
+            var stationConfig = {
                 stationCode: code,
                 moduleSource: 'starship',
                 agentsElId: termId + '-agents',
@@ -647,7 +651,12 @@ async function loadNodeStations(nodeDbId) {
                 commandsElId: termId + '-commands',
                 statusElId: termId + '-status',
                 commands: []
-            });
+            };
+            if (isShipCommand) {
+                stationConfig.maxPrimary = 1;
+                stationConfig.maxAux = 0;
+            }
+            _nodeStationOps[nodeDbId][code] = new StationOps(stationConfig);
         });
 
         _nodeStationsLoaded[nodeDbId] = true;

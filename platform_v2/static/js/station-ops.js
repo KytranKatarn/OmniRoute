@@ -51,6 +51,8 @@
     this.onJobComplete = config.onJobComplete;       // callback(job)
     this.onCapacityChange = config.onCapacityChange; // callback(atCapacity)
     this.dataUrl = config.dataUrl || null;           // custom data URL (overrides Bridge API)
+    this.maxPrimaryOverride = config.maxPrimary || null; // override max primary slots (e.g. 1 for starship command)
+    this.maxAuxOverride = config.maxAux;                 // override max auxiliary slots (0 to disable)
     this._activePolls = {};
     this._atCapacity = false;
     this._commandsInjected = false;
@@ -76,8 +78,8 @@
       var stations = data.stations || [];
       stations.forEach(function(s) {
         if (s.code !== self.stationCode) return;
-        maxPrimary = s.max_primary || 2;
-        maxAux = s.max_auxiliary || 1;
+        maxPrimary = self.maxPrimaryOverride || s.max_primary || 2;
+        maxAux = (self.maxAuxOverride !== undefined && self.maxAuxOverride !== null) ? self.maxAuxOverride : (s.max_auxiliary || 1);
         (s.assigned_agents || []).forEach(function(a) {
           /* Skip barracked agents — they are not available for dispatch */
           if (a.shift_state === 'barracked') return;

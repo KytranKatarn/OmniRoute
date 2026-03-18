@@ -59,12 +59,16 @@
                 <p class="subtitle" data-i18n="comp_hero_subtitle">It takes 7+ tools to match what ARCHIE does in one platform</p>
                 <div class="hero-stats">
                     <div class="stat-block">
-                        <div class="stat-number orange">25+</div>
+                        <div class="stat-number orange">35+</div>
                         <div class="stat-label" data-i18n="comp_stat_analyzed">Competitors Analyzed</div>
                     </div>
                     <div class="stat-block">
-                        <div class="stat-number cyan">21</div>
+                        <div class="stat-number cyan">24</div>
                         <div class="stat-label" data-i18n="comp_stat_unique">Unique Features No One Else Has</div>
+                    </div>
+                    <div class="stat-block">
+                        <div class="stat-number" style="color:#f59e0b;">6</div>
+                        <div class="stat-label" data-i18n="comp_stat_building">Features We're Still Building</div>
                     </div>
                 </div>
             </section>
@@ -78,27 +82,21 @@
                             <th data-i18n="comp_th_feature">Feature</th>
                             <th class="archie-col">ARCHIE</th>
                             <th>CrewAI</th>
-                            <th>AutoGen</th>
                             <th>LangGraph</th>
-                            <th>MetaGPT</th>
-                            <th>OpenAI Swarm</th>
-                            <th>Claw-Empire</th>
+                            <th>Devin</th>
+                            <th>Claude Code</th>
+                            <th>Goose</th>
+                            <th>Dify</th>
+                            <th>OpenAI Agents</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr>
-                            <td data-i18n="comp_feat_multi">Multi-agent orchestration</td>
-                            <td><span class="archie-check">&#10003;</span></td>
-                            <td><span class="check">&#10003;</span></td>
-                            <td><span class="check">&#10003;</span></td>
-                            <td><span class="check">&#10003;</span></td>
-                            <td><span class="check">&#10003;</span></td>
-                            <td><span class="check">&#10003;</span></td>
-                            <td><span class="check">&#10003;</span></td>
-                        </tr>
+                        <!-- === ARCHIE STRENGTHS === -->
+                        <tr><td colspan="9" class="matrix-group" data-i18n="comp_group_archie">ARCHIE's Unique Capabilities</td></tr>
                         <tr>
                             <td data-i18n="comp_feat_station">Station-based dispatch</td>
                             <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
@@ -115,10 +113,34 @@
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
                         </tr>
                         <tr>
                             <td data-i18n="comp_feat_welfare">Agent welfare (IAAE ethics)</td>
                             <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                        </tr>
+                        <tr>
+                            <td data-i18n="comp_feat_selfaudit">Self-auditing codebase</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                        </tr>
+                        <tr>
+                            <td data-i18n="comp_feat_codehealth">Code health metrics dashboard</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
@@ -135,20 +157,12 @@
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
                         </tr>
                         <tr>
                             <td data-i18n="comp_feat_escalation">5-step escalation chain</td>
                             <td><span class="archie-check">&#10003;</span></td>
                             <td><span class="cross">&#10007;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
-                        </tr>
-                        <tr>
-                            <td data-i18n="comp_feat_crossstation">Cross-station assists</td>
-                            <td><span class="archie-check">&#10003;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
@@ -165,10 +179,12 @@
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
                         </tr>
                         <tr>
                             <td data-i18n="comp_feat_security">Physical security (cameras, DNS, SSH)</td>
                             <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
@@ -185,9 +201,10 @@
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
                         </tr>
                         <tr>
-                            <td data-i18n="comp_feat_distributed">Distributed GPU node fleet</td>
+                            <td data-i18n="comp_feat_loopjobs">39 autonomous background jobs</td>
                             <td><span class="archie-check">&#10003;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
@@ -195,45 +212,6 @@
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
-                        </tr>
-                        <tr>
-                            <td data-i18n="comp_feat_durable">Durable execution (checkpoints)</td>
-                            <td><span class="cross">&#10007;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
-                            <td><span class="check">&#10003;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
-                        </tr>
-                        <tr>
-                            <td data-i18n="comp_feat_schemas">Structured agent schemas</td>
-                            <td><span class="archie-check">&#10003;</span></td>
-                            <td><span class="check">&#10003;</span></td>
-                            <td><span class="check">&#10003;</span></td>
-                            <td><span class="check">&#10003;</span></td>
-                            <td><span class="check">&#10003;</span></td>
-                            <td><span class="check">&#10003;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
-                        </tr>
-                        <tr>
-                            <td data-i18n="comp_feat_eventrouter">Event-driven flow router</td>
-                            <td><span class="archie-check">&#10003;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
-                            <td><span class="check">&#10003;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
-                        </tr>
-                        <tr>
-                            <td data-i18n="comp_feat_delegation">Agents-as-tools delegation</td>
-                            <td><span class="archie-check">&#10003;</span></td>
-                            <td><span class="check">&#10003;</span></td>
-                            <td><span class="check">&#10003;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
-                            <td><span class="check">&#10003;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                         </tr>
                         <tr>
@@ -245,56 +223,167 @@
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
                         </tr>
                         <tr>
-                            <td data-i18n="comp_feat_visualmap">Visual station map</td>
+                            <td data-i18n="comp_feat_translation">Live AI translation (8 languages)</td>
                             <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                        </tr>
+
+                        <!-- === SHARED CAPABILITIES === -->
+                        <tr><td colspan="9" class="matrix-group" data-i18n="comp_group_shared">Shared Capabilities</td></tr>
+                        <tr>
+                            <td data-i18n="comp_feat_multi">Multi-agent orchestration</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                        </tr>
+                        <tr>
+                            <td data-i18n="comp_feat_mcp">MCP protocol support</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                        </tr>
+                        <tr>
+                            <td data-i18n="comp_feat_selfhosted">Fully self-hosted</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                        </tr>
+                        <tr>
+                            <td data-i18n="comp_feat_schemas">Structured agent schemas</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                        </tr>
+                        <tr>
+                            <td data-i18n="comp_feat_delegation">Agents-as-tools delegation</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                        </tr>
+                        <tr>
+                            <td data-i18n="comp_feat_approval">Human approval system</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                        </tr>
+                        <tr>
+                            <td data-i18n="comp_feat_eventrouter">Event-driven flow router</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                        </tr>
+
+                        <!-- === COMPETITORS' STRENGTHS (ARCHIE GAPS) === -->
+                        <tr><td colspan="9" class="matrix-group matrix-group-gap" data-i18n="comp_group_gaps">Where Others Lead (We're Working On It)</td></tr>
+                        <tr>
+                            <td data-i18n="comp_feat_durable">Durable execution (checkpoints)</td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                        </tr>
+                        <tr>
+                            <td data-i18n="comp_feat_a2a">A2A protocol (agent-to-agent)</td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                        </tr>
+                        <tr>
+                            <td data-i18n="comp_feat_visualworkflow">Visual drag-and-drop workflow builder</td>
+                            <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="check">&#10003;</span></td>
-                        </tr>
-                        <tr>
-                            <td data-i18n="comp_feat_loopjobs">39 autonomous loop jobs</td>
-                            <td><span class="archie-check">&#10003;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                         </tr>
                         <tr>
-                            <td data-i18n="comp_feat_translation">Live AI Translation (8 languages)</td>
-                            <td><span class="archie-check">&#10003;</span></td>
+                            <td data-i18n="comp_feat_ide">IDE integration (VS Code / editor)</td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                         </tr>
                         <tr>
-                            <td data-i18n="comp_feat_approval">User Approval System</td>
-                            <td><span class="archie-check">&#10003;</span></td>
+                            <td data-i18n="comp_feat_parallel">Parallel agent execution</td>
                             <td><span class="cross">&#10007;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
                             <td><span class="cross">&#10007;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
                         </tr>
                         <tr>
-                            <td data-i18n="comp_feat_physical">Physical Security (cameras + DNS + SSH)</td>
-                            <td><span class="archie-check">&#10003;</span></td>
+                            <td data-i18n="comp_feat_cloudscale">Cloud auto-scaling</td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
+                            <td><span class="check">&#10003;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
-                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
                         </tr>
                     </tbody>
                 </table>
@@ -305,34 +394,51 @@
             <div class="category-grid">
                 <div class="cat-card">
                     <h3 class="orch" data-i18n="comp_cat_orch_title">Orchestration Frameworks</h3>
-                    <div class="competitors">CrewAI &bull; AutoGen &bull; LangGraph &bull; MetaGPT &bull; OpenAI Agents SDK</div>
-                    <p data-i18n="comp_cat_orch_desc">Libraries for building multi-agent systems. You write code, define roles, and wire agents together. Great for developers who want full control over agent behavior and workflows.</p>
+                    <div class="competitors">CrewAI &bull; AG2 (AutoGen fork) &bull; LangGraph &bull; MetaGPT &bull; OpenAI Agents SDK &bull; Microsoft Agent Framework</div>
+                    <p data-i18n="comp_cat_orch_desc">Libraries for building multi-agent systems. You write code, define roles, and wire agents together. Multi-agent is now table stakes &mdash; every major framework shipped it by early 2026.</p>
                     <div class="archie-edge"><strong>ARCHIE's edge:</strong> <span data-i18n="comp_cat_orch_edge">These are libraries you build with. ARCHIE is a running system &mdash; GPU-aware routing, warm-boot lifecycle, physical security, and 39 autonomous background jobs out of the box. No assembly required.</span></div>
+                    <div class="archie-gap"><strong>Their edge:</strong> <span data-i18n="comp_cat_orch_gap">LangGraph offers durable execution with checkpoints. Google's A2A protocol enables cross-platform agent communication &mdash; ARCHIE doesn't support either yet.</span></div>
                 </div>
                 <div class="cat-card">
                     <h3 class="work" data-i18n="comp_cat_work_title">Workflow Builders</h3>
-                    <div class="competitors">Langflow &bull; n8n &bull; Dify &bull; Flowise</div>
-                    <p data-i18n="comp_cat_work_desc">Visual drag-and-drop platforms for connecting LLMs to tools and data sources. Strong for no-code teams and rapid prototyping of AI-powered automations.</p>
+                    <div class="competitors">Langflow &bull; n8n &bull; Dify &bull; Flowise (acquired by Workday)</div>
+                    <p data-i18n="comp_cat_work_desc">Visual drag-and-drop platforms for connecting LLMs to tools and data sources. Strong for no-code teams. Dify leads with RAG and prompt orchestration.</p>
                     <div class="archie-edge"><strong>ARCHIE's edge:</strong> <span data-i18n="comp_cat_work_edge">Workflow builders connect things. ARCHIE orchestrates a fleet of 23 autonomous agents with station-based dispatch, VRAM-aware model management, and self-improvement &mdash; capabilities no visual builder offers.</span></div>
+                    <div class="archie-gap"><strong>Their edge:</strong> <span data-i18n="comp_cat_work_gap">Dify and n8n offer visual drag-and-drop workflow builders that non-developers can use. ARCHIE currently requires code or CLI to configure workflows.</span></div>
                 </div>
                 <div class="cat-card">
                     <h3 class="code" data-i18n="comp_cat_code_title">Autonomous Coding Agents</h3>
-                    <div class="competitors">Devin &bull; Cursor &bull; Windsurf &bull; Claude Code</div>
-                    <p data-i18n="comp_cat_code_desc">AI-powered coding tools that write, edit, and debug code. From full IDEs to terminal agents, they excel at software engineering tasks but focus exclusively on code.</p>
-                    <div class="archie-edge"><strong>ARCHIE's edge:</strong> <span data-i18n="comp_cat_code_edge">Coding agents write code. ARCHIE is a multi-domain operations platform &mdash; it manages physical security, monitors network devices, runs background intelligence, and self-evolves its own codebase through an automated pipeline.</span></div>
+                    <div class="competitors">Devin &bull; Cursor &bull; Windsurf &bull; Claude Code &bull; Codex CLI &bull; Cline &bull; Aider</div>
+                    <p data-i18n="comp_cat_code_desc">AI-powered coding tools that write, edit, and debug code. Claude Code now has Agent Teams (Opus 4.6). Devin dropped to $20/mo. Cline hit 5M+ installs. Cursor crossed $500M+ ARR.</p>
+                    <div class="archie-edge"><strong>ARCHIE's edge:</strong> <span data-i18n="comp_cat_code_edge">Coding agents write code. ARCHIE is a multi-domain operations platform &mdash; it manages physical security, monitors network devices, runs background intelligence, and self-audits its own codebase with tracked before/after metrics.</span></div>
+                    <div class="archie-gap"><strong>Their edge:</strong> <span data-i18n="comp_cat_code_gap">IDE integration (VS Code, terminal), parallel agent execution, and git-native workflows. ARCHIE doesn't plug into editors or run agents in parallel yet.</span></div>
                 </div>
                 <div class="cat-card">
                     <h3 class="ent" data-i18n="comp_cat_ent_title">Enterprise Platforms</h3>
-                    <div class="competitors">Semantic Kernel &bull; Haystack &bull; Relevance AI &bull; Dust.tt &bull; OpenAI Assistants</div>
-                    <p data-i18n="comp_cat_ent_desc">Production-grade platforms backed by major vendors. Cloud-first, enterprise-scale, with managed infrastructure and broad integration ecosystems.</p>
+                    <div class="competitors">Microsoft Agent Framework &bull; Haystack &bull; Relevance AI &bull; Dust.tt &bull; OpenAI Assistants</div>
+                    <p data-i18n="comp_cat_ent_desc">Production-grade platforms backed by major vendors. Cloud-first, enterprise-scale. Microsoft merged AutoGen + Semantic Kernel into a unified Agent Framework (Oct 2025).</p>
                     <div class="archie-edge"><strong>ARCHIE's edge:</strong> <span data-i18n="comp_cat_ent_edge">Enterprise platforms are cloud-dependent. ARCHIE runs entirely on local hardware (128GB RAM, Quadro M4000), with agent welfare governance, physical-digital convergence, and zero cloud lock-in.</span></div>
+                    <div class="archie-gap"><strong>Their edge:</strong> <span data-i18n="comp_cat_ent_gap">Cloud auto-scaling, managed infrastructure, and enterprise SSO/compliance. ARCHIE runs on a single server with no auto-scaling.</span></div>
+                </div>
+                <div class="cat-card">
+                    <h3 class="self" data-i18n="comp_cat_self_title">Self-Hosted &amp; Open Source</h3>
+                    <div class="competitors">Goose (Block/AAIF) &bull; LocalAGI &bull; Aider &bull; Ollama &bull; Open WebUI</div>
+                    <p data-i18n="comp_cat_self_desc">Privacy-first, local-hardware AI tools. Goose (30K+ GitHub stars) is MCP-native. LocalAGI offers OpenAI API drop-in replacement. All run on consumer hardware.</p>
+                    <div class="archie-edge"><strong>ARCHIE's edge:</strong> <span data-i18n="comp_cat_self_edge">These tools do one thing well. ARCHIE is a complete operations platform &mdash; 23 agents, 10 stations, 39 background jobs, physical security, knowledge base, and self-auditing codebase. All self-hosted, all unified.</span></div>
+                    <div class="archie-gap"><strong>Their edge:</strong> <span data-i18n="comp_cat_self_gap">Open-source community contributions, lower setup barrier, and plug-and-play simplicity. ARCHIE requires dedicated hardware and configuration.</span></div>
+                </div>
+                <div class="cat-card">
+                    <h3 class="acc" data-i18n="comp_cat_acc_title">Self-Improving &amp; Accountable</h3>
+                    <div class="competitors" data-i18n="comp_cat_acc_comp">No direct competitors</div>
+                    <p data-i18n="comp_cat_acc_desc">ARCHIE is the only platform we've found that audits its own codebase, tracks code health metrics with before/after accountability, detects orphan files, and maintains self-documenting rules that evolve as the system is audited.</p>
+                    <div class="archie-edge"><strong>ARCHIE's edge:</strong> <span data-i18n="comp_cat_acc_edge">This category doesn't exist yet. ARCHIE created it &mdash; a platform that measures, audits, and proves its own improvement with data. Not just AI that works, but AI that gets better and can show you exactly how.</span></div>
                 </div>
             </div>
 
             <!-- HOW MANY TOOLS TO MATCH -->
             <div class="section-header"><span class="dot"></span><span data-i18n="comp_section_stack">How Many Tools to Match A.R.C.H.I.E.?</span></div>
             <section class="stack-section">
-                <p class="intro" data-i18n="comp_stack_intro">One platform vs. a patchwork of seven</p>
+                <p class="intro" data-i18n="comp_stack_intro">One platform vs. a patchwork of nine</p>
                 <div class="stack-vs">
                     <div class="stack-archie">
                         <div class="name" data-i18n="comp_stack_archie">A.R.C.H.I.E.</div>
@@ -365,14 +471,66 @@
                             <span class="tool-role" data-i18n="comp_tool_grafana">Monitoring &amp; dashboards</span>
                         </div>
                         <div class="stack-tool">
+                            <span class="tool-name">SonarQube</span>
+                            <span class="tool-role" data-i18n="comp_tool_sonarqube">Code quality scanning</span>
+                        </div>
+                        <div class="stack-tool">
+                            <span class="tool-name">Claude Code</span>
+                            <span class="tool-role" data-i18n="comp_tool_claudecode">AI coding agent</span>
+                        </div>
+                        <div class="stack-tool">
                             <span class="tool-name">Custom Scripts</span>
                             <span class="tool-role" data-i18n="comp_tool_scripts">Glue code &amp; cron jobs</span>
                         </div>
                     </div>
                 </div>
                 <p style="color:#777; font-size:0.85rem; max-width:600px; margin:0 auto;">
-                    <span data-i18n="comp_stack_missing">And you'd still be missing agent welfare, warm-boot lifecycle, station-based dispatch, mission profiles, self-improvement, and Telegram escalation.</span>
+                    <span data-i18n="comp_stack_missing">And you'd still be missing agent welfare, warm-boot lifecycle, station-based dispatch, mission profiles, self-auditing codebase, Telegram escalation, and a unified knowledge base tying it all together.</span>
                 </p>
+            </section>
+
+            <!-- WHERE WE'RE STILL BUILDING -->
+            <div class="section-header"><span class="dot" style="background:#f59e0b;"></span><span data-i18n="comp_section_building">Where We're Still Building</span></div>
+            <section class="building-section">
+                <p class="building-intro" data-i18n="comp_building_intro">Transparency matters. Here's what competitors do that ARCHIE doesn't &mdash; yet. These are on our roadmap.</p>
+                <div class="building-grid">
+                    <div class="building-card">
+                        <div class="building-icon">&#9881;</div>
+                        <h4 data-i18n="comp_building_a2a_title">A2A Protocol</h4>
+                        <p data-i18n="comp_building_a2a_desc">Google's Agent-to-Agent standard lets agents from different platforms communicate. ARCHIE's agents talk internally but can't yet interop with external agent systems.</p>
+                        <div class="building-who" data-i18n="comp_building_a2a_who">Who has it: LangGraph</div>
+                    </div>
+                    <div class="building-card">
+                        <div class="building-icon">&#9654;&#9654;</div>
+                        <h4 data-i18n="comp_building_parallel_title">Parallel Agent Execution</h4>
+                        <p data-i18n="comp_building_parallel_desc">Running multiple agents simultaneously on separate tasks. ARCHIE processes jobs sequentially through the dispatcher. Parallel execution would dramatically speed up multi-step workflows.</p>
+                        <div class="building-who" data-i18n="comp_building_parallel_who">Who has it: CrewAI, LangGraph, Devin, Claude Code, Dify, OpenAI Agents</div>
+                    </div>
+                    <div class="building-card">
+                        <div class="building-icon">&#128187;</div>
+                        <h4 data-i18n="comp_building_ide_title">IDE Integration</h4>
+                        <p data-i18n="comp_building_ide_desc">Plugging into VS Code, JetBrains, or terminal editors for inline code assistance. ARCHIE operates through its web UI and MCP tools, not inside your editor.</p>
+                        <div class="building-who" data-i18n="comp_building_ide_who">Who has it: Cursor, Windsurf, Claude Code, Cline, Codex CLI, Aider, Goose</div>
+                    </div>
+                    <div class="building-card">
+                        <div class="building-icon">&#9729;</div>
+                        <h4 data-i18n="comp_building_scale_title">Cloud Auto-Scaling</h4>
+                        <p data-i18n="comp_building_scale_desc">Automatically spinning up more compute when demand spikes. ARCHIE runs on dedicated hardware (128GB RAM, Quadro M4000) &mdash; powerful but fixed capacity.</p>
+                        <div class="building-who" data-i18n="comp_building_scale_who">Who has it: Devin, Dify Cloud, OpenAI Assistants</div>
+                    </div>
+                    <div class="building-card">
+                        <div class="building-icon">&#128257;</div>
+                        <h4 data-i18n="comp_building_visual_title">Visual Workflow Builder</h4>
+                        <p data-i18n="comp_building_visual_desc">Drag-and-drop interface for non-developers to build AI workflows. ARCHIE requires code or CLI configuration. A visual builder would open the platform to broader teams.</p>
+                        <div class="building-who" data-i18n="comp_building_visual_who">Who has it: Dify, n8n, Langflow, Flowise</div>
+                    </div>
+                    <div class="building-card">
+                        <div class="building-icon">&#128274;</div>
+                        <h4 data-i18n="comp_building_durable_title">Durable Execution</h4>
+                        <p data-i18n="comp_building_durable_desc">Checkpoint-based execution that survives crashes and can resume from any point. ARCHIE's jobs restart from the beginning if interrupted.</p>
+                        <div class="building-who" data-i18n="comp_building_durable_who">Who has it: LangGraph</div>
+                    </div>
+                </div>
             </section>
 
             <!-- FOOTER -->

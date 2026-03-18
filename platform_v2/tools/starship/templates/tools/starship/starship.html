@@ -406,15 +406,9 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
             </div>
         </div>
 
-        <!-- STATIONS TAB -->
+        <!-- STATIONS TAB — StationOps terminals, populated dynamically per node -->
         <div class="sc-panel" id="panel-stations">
-            <div class="sc-section">
-                <h4>NODE STATIONS</h4>
-                <p style="color:rgba(255,255,255,0.35);font-size:0.8rem;margin-bottom:16px;font-family:'IBM Plex Mono',monospace;">
-                    Stations this node's agents are assigned to, with crew and working status.
-                </p>
-                <div id="d-node-stations-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;"></div>
-            </div>
+            <div id="d-node-stations-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;padding:12px;"></div>
         </div>
 
         <!-- CREW TAB -->

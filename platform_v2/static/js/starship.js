@@ -565,90 +565,115 @@ function renderDetail(data) {
     renderNodeManifest(selectedNodeDbId);
 }
 
-// ── Node STATIONS tab — group node agents by station ──
+// ── Node STATIONS tab — StationOps terminals per node station ──
 var _nodeStationsLoaded = {};
+var _nodeStationOps = {};
+
+// Station color map for LCARS terminals
+var _stationColorMap = {
+    'COMMAND':        {hex: '#00e5ff', rgb: '0,229,255'},
+    'ANALYTICS':      {hex: '#8b5cf6', rgb: '139,92,246'},
+    'CREATIVE':       {hex: '#f472b6', rgb: '244,114,182'},
+    'ENGINEERING':    {hex: '#fbbf24', rgb: '251,191,36'},
+    'COMMUNICATIONS': {hex: '#22d3ee', rgb: '34,211,238'},
+    'RESEARCH':       {hex: '#10b981', rgb: '16,185,129'},
+    'SECURITY':       {hex: '#ef4444', rgb: '239,68,68'},
+    'LOGISTICS':      {hex: '#f97316', rgb: '249,115,22'},
+    'DIPLOMATIC':     {hex: '#818cf8', rgb: '129,140,248'},
+    'OPERATIONS':     {hex: '#a3e635', rgb: '163,230,53'}
+};
+
 async function loadNodeStations(nodeDbId) {
     var grid = document.getElementById('d-node-stations-grid');
     if (!grid) return;
-    if (_nodeStationsLoaded[nodeDbId]) return;
-    grid.innerHTML = '<span class="sc-label">Loading stations...</span>';
+    if (_nodeStationsLoaded[nodeDbId]) {
+        // Re-render with fresh job data
+        _refreshNodeStations(nodeDbId);
+        return;
+    }
 
+    grid.textContent = '';
+
+    // Get this node's crew to find which stations it has
     try {
         var resp = await fetch('/tools/starship/api/nodes/' + nodeDbId + '/crew-manifest');
         var data = await resp.json();
-        if (!data.success) { grid.innerHTML = '<span class="sc-label">Failed to load</span>'; return; }
+        if (!data.success) { grid.innerHTML = '<span class="sc-label">Failed to load</span>'; return; }  // nosemgrep
 
         var crew = data.crew || [];
-        _nodeStationsLoaded[nodeDbId] = true;
-
-        // Group agents by station
-        var stationMap = {};
+        // Collect unique station codes from node agents
+        var stationCodes = {};
         crew.forEach(function(a) {
             var codes = a.station_codes || [a.station || 'UNASSIGNED'];
-            codes.forEach(function(code) {
-                if (!stationMap[code]) stationMap[code] = { agents: [], color: '#00e5ff' };
-                stationMap[code].agents.push(a);
-                // Use station color from the agent's station_colors if available
-                var idx = codes.indexOf(code);
-                var colors = a.station_colors || [];
-                if (colors[idx]) stationMap[code].color = colors[idx];
-            });
+            codes.forEach(function(c) { stationCodes[c] = true; });
         });
 
-        // Also fetch bridge stations for names and colors of empty stations
-        var stResp = await fetch('/tools/bridge/api/stations');
-        var stData = await stResp.json();
-        var stationNames = {};
-        if (stData.success) {
-            (stData.stations || []).forEach(function(s) {
-                stationNames[s.code] = s.name || s.code;
-                if (!stationMap[s.code]) return; // Only show stations this node has agents for
-                if (s.color) stationMap[s.code].color = s.color;
-            });
-        }
-
-        var stationCodes = Object.keys(stationMap).sort();
-        if (!stationCodes.length) {
-            grid.innerHTML = '<span class="sc-label">No stations — assign agents to stations first</span>';
+        var codes = Object.keys(stationCodes).sort();
+        if (!codes.length) {
+            grid.innerHTML = '<span class="sc-label">No stations assigned</span>';  // nosemgrep
             return;
         }
 
-        grid.innerHTML = stationCodes.map(function(code) {
-            var st = stationMap[code];
-            var color = st.color;
-            var agents = st.agents;
-            var stName = stationNames[code] || code;
+        // Create StationOps terminal HTML + instances for each station
+        _nodeStationOps[nodeDbId] = {};
+        codes.forEach(function(code) {
+            var colors = _stationColorMap[code] || {hex: '#00e5ff', rgb: '0,229,255'};
+            var termId = 'node-stn-' + nodeDbId + '-' + code;
 
-            var crewHtml = agents.map(function(a) {
-                var displayName = a.full_name || a.name;
-                var isActive = a.status === 'active';
-                var dotColor = isActive ? 'var(--sc-green)' : 'rgba(255,255,255,0.3)';
-                var llmClass = a.llm_status || 'barracked';
-                var llmLabels = { loaded: 'LOADED', swap: 'SWAP', barracked: 'OFFLINE', cloud: 'CLOUD' };
-                var llmLabel = llmLabels[llmClass] || llmClass.toUpperCase();
-                var model = (a.model || '').replace(':latest', '');
-
-                return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">' +
-                    '<span style="width:6px;height:6px;border-radius:50%;background:' + dotColor + ';flex-shrink:0;"></span>' +
-                    '<span style="color:rgba(255,255,255,0.8);font-size:0.8rem;flex:1;">' + escHtml(displayName) + '</span>' +
-                    '<span class="crew-llm-badge ' + llmClass + '" style="font-size:0.5rem;">' + llmLabel + '</span>' +
-                    '<span style="font-size:0.65rem;color:rgba(255,255,255,0.3);">' + escHtml(model) + '</span>' +
-                '</div>';
-            }).join('');
-
-            return '<div style="background:rgba(0,0,0,0.3);border:1px solid ' + color + '33;border-radius:8px;overflow:hidden;">' +
-                '<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid ' + color + '22;">' +
-                    '<span style="width:8px;height:8px;border-radius:50%;background:' + color + ';"></span>' +
-                    '<span style="font-family:Antonio,sans-serif;color:' + color + ';font-size:0.9rem;letter-spacing:2px;">' + escHtml(stName) + '</span>' +
-                    '<span style="margin-left:auto;font-size:0.7rem;color:rgba(255,255,255,0.4);">' + agents.length + ' crew</span>' +
+            // Create terminal HTML container
+            var terminal = document.createElement('div');
+            terminal.className = 'stn-ops-terminal';
+            terminal.id = termId;
+            terminal.style.cssText = '--stn-accent:' + colors.hex + ';--stn-accent-rgb:' + colors.rgb + ';';
+            terminal.innerHTML =  // nosemgrep: static HTML structure, no user data
+                '<div class="stn-ops-header">' +
+                    '<div class="stn-ops-elbow"></div>' +
+                    '<div class="stn-ops-title">' + code + ' OPERATIONS</div>' +
+                    '<div class="stn-ops-status" id="' + termId + '-status"><span class="stn-ops-dot"></span> OFFLINE</div>' +
                 '</div>' +
-                '<div style="padding:10px 14px;">' + crewHtml + '</div>' +
-            '</div>';
-        }).join('');
+                '<div class="stn-ops-body">' +
+                    '<div id="' + termId + '-agents"></div>' +
+                    '<div id="' + termId + '-jobs"></div>' +
+                    '<div class="stn-ops-commands" id="' + termId + '-commands"></div>' +
+                '</div>';
+            grid.appendChild(terminal);
+
+            // Create StationOps instance
+            _nodeStationOps[nodeDbId][code] = new StationOps({
+                stationCode: code,
+                moduleSource: 'starship',
+                agentsElId: termId + '-agents',
+                jobsElId: termId + '-jobs',
+                commandsElId: termId + '-commands',
+                statusElId: termId + '-status',
+                commands: []
+            });
+        });
+
+        _nodeStationsLoaded[nodeDbId] = true;
+        _refreshNodeStations(nodeDbId);
     } catch (e) {
-        grid.innerHTML = '<span class="sc-label">Failed to load stations</span>';
+        grid.innerHTML = '<span class="sc-label">Failed to load stations</span>';  // nosemgrep
         console.error('Node stations load failed:', e);
     }
+}
+
+function _refreshNodeStations(nodeDbId) {
+    var ops = _nodeStationOps[nodeDbId];
+    if (!ops) return;
+    fetch('/tools/bridge/api/bridge/jobs?status=running')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var allJobs = (data.success && data.jobs) ? data.jobs : [];
+            Object.keys(ops).forEach(function(code) {
+                ops[code].render(allJobs);
+            });
+        })
+        .catch(function() {
+            Object.keys(ops).forEach(function(code) {
+                ops[code].render([]);
+            });
+        });
 }
 
 async function renderNodeManifest(nodeDbId) {

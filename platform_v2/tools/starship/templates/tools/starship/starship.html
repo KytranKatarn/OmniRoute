@@ -51,11 +51,11 @@
         </div>
     </div>
 
-    <!-- Docked Fleet Strip — mini cards for each connected node -->
+    <!-- Docked Fleet Strip — visible to ALL users (public fleet overview) -->
     <div class="docked-fleet" id="docked-fleet">
         <div class="docked-fleet-connector"></div>
         <div class="docked-fleet-grid" id="docked-fleet-grid">
-            {% for node in nodes %}
+            {% for node in fleet_nodes %}
             {% if node.deployment_mode != 'starbase' %}
             <div class="docked-ship" data-node-id="{{ node.node_id }}">
                 <div class="docked-ship-connector"></div>
@@ -85,7 +85,8 @@
         </div>
     </div>
 
-    <!-- Page-Level Tabs -->
+    <!-- Page-Level Tabs — only node owners and admins can manage fleet -->
+    {% if is_owner or is_admin %}
     <div class="sc-page-tabs">
         <button class="sc-page-tab active" onclick="switchPageTab('fleet')" data-page-tab="fleet">FLEET</button>
         <button class="sc-page-tab" onclick="switchPageTab('operations')" data-page-tab="operations">OPERATIONS</button>
@@ -306,6 +307,7 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
             </div>
         </div>
     </div><!-- /page-operations -->
+    {% endif %}
 
     <!-- Node Detail Modal (LCARS tablet) -->
     <div class="bm-overlay" id="sc-detail-overlay" onclick="if(event.target===this)closeDetail()">

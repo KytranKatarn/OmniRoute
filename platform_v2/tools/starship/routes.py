@@ -27,6 +27,9 @@ starship_bp = Blueprint(
 @login_required
 def starship_dashboard():
     user_id = current_user.id
+    is_admin = getattr(current_user, "is_admin", False)
+
+    # User's own nodes (for FLEET/OPERATIONS management)
     nodes = []
     try:
         raw_nodes = _get_user_nodes(user_id)
@@ -36,11 +39,31 @@ def starship_dashboard():
             nodes.append(d)
     except Exception:
         pass
-    is_admin = getattr(current_user, "is_admin", False)
+
+    # All active nodes (public — for docked fleet strip, visible to everyone)
+    fleet_nodes = []
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT node_id, node_name, deployment_mode, status,
+                          gpu_model, gpu_vram_gb, ram_gb, last_heartbeat
+                   FROM remote_nodes
+                   WHERE is_active = true
+                   ORDER BY bridge_priority DESC, node_name"""
+            )
+            for n in cur.fetchall():
+                d = dict(n)
+                d["status"] = _compute_node_status(n)
+                fleet_nodes.append(d)
+    except Exception:
+        pass
+
     return render_template(
         "tools/starship/starship.html",
         nodes=nodes,
+        fleet_nodes=fleet_nodes,
         is_admin=is_admin,
+        is_owner=len(nodes) > 0,
     )
 
 
@@ -75,6 +98,25 @@ def api_list_nodes():
                 }
             )
         return jsonify({"success": True, "nodes": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@starship_bp.route("/api/fleet-agents")
+@login_required
+def api_fleet_agents():
+    """Public endpoint — agent counts per node for docked fleet strip."""
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT rn.node_id,
+                          (SELECT COUNT(*) FROM node_agents na
+                           WHERE na.node_id = rn.id AND na.status = 'active') as agent_count
+                   FROM remote_nodes rn
+                   WHERE rn.is_active = true AND rn.deployment_mode != 'starbase'"""
+            )
+            nodes = [{"node_id": r["node_id"], "agent_count": r["agent_count"]} for r in cur.fetchall()]
+        return jsonify({"success": True, "nodes": nodes})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 

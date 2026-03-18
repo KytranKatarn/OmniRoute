@@ -33,28 +33,36 @@ async function loadHeroStats() {
     }
 }
 
-// ── Docked Fleet — load agent counts per node ──
-async function loadDockedFleetStats() {
-    try {
-        var resp = await fetch('/tools/starship/api/nodes');
-        var data = await resp.json();
-        if (!data.success) return;
-        data.nodes.forEach(function(n) {
-            var agentEl = document.getElementById('dock-agents-' + n.node_id);
-            if (agentEl) {
-                // Fetch agent count for this node
-                fetch('/tools/starship/api/nodes/' + n.node_id + '/status')
-                    .then(function(r) { return r.json(); })
-                    .then(function(s) {
-                        if (s.success) {
-                            _setLive(agentEl, s.agent_count || 0, true);
-                        }
-                    }).catch(function() {});
-            }
+// ── Docked Fleet — mark all values as live + load agent counts ──
+function loadDockedFleetStats() {
+    // Mark GPU/RAM values from Jinja as live (they came from DB)
+    document.querySelectorAll('.docked-ship').forEach(function(ship) {
+        var nodeId = ship.getAttribute('data-node-id');
+        var gpuEl = document.getElementById('dock-gpu-' + nodeId);
+        var ramEl = document.getElementById('dock-ram-' + nodeId);
+        if (gpuEl && gpuEl.textContent !== '--') _setLive(gpuEl, gpuEl.textContent, true);
+        if (ramEl && ramEl.textContent !== '-- GB') _setLive(ramEl, ramEl.textContent, true);
+    });
+
+    // Fetch agent counts from public starbase stats API
+    fetch('/tools/starship/api/starbase-stats')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            // Get node agent counts via the fleet endpoint
+            return fetch('/tools/starship/api/fleet-agents');
+        })
+        .then(function(r) { return r ? r.json() : null; })
+        .then(function(data) {
+            if (!data || !data.success) return;
+            (data.nodes || []).forEach(function(n) {
+                var agentEl = document.getElementById('dock-agents-' + n.node_id);
+                if (agentEl) _setLive(agentEl, n.agent_count, true);
+            });
+        })
+        .catch(function(e) {
+            console.warn('Docked fleet stats failed:', e);
         });
-    } catch(e) {
-        console.warn('Docked fleet stats failed:', e);
-    }
 }
 
 // ── Page-Level Tab Switching ──

@@ -580,7 +580,7 @@ class AgentLoop:
         )
 
         self._running = True
-        logger.info("Agent loop started with 41 jobs")
+        logger.info("Agent loop started with 44 jobs")
 
     def _update_stock_prices(self):
         """Job #27: Refresh cached stock prices, check price alerts, and auto-scan watchlist every 5 minutes."""

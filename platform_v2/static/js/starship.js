@@ -33,6 +33,30 @@ async function loadHeroStats() {
     }
 }
 
+// ── Docked Fleet — load agent counts per node ──
+async function loadDockedFleetStats() {
+    try {
+        var resp = await fetch('/tools/starship/api/nodes');
+        var data = await resp.json();
+        if (!data.success) return;
+        data.nodes.forEach(function(n) {
+            var agentEl = document.getElementById('dock-agents-' + n.node_id);
+            if (agentEl) {
+                // Fetch agent count for this node
+                fetch('/tools/starship/api/nodes/' + n.node_id + '/status')
+                    .then(function(r) { return r.json(); })
+                    .then(function(s) {
+                        if (s.success) {
+                            _setLive(agentEl, s.agent_count || 0, true);
+                        }
+                    }).catch(function() {});
+            }
+        });
+    } catch(e) {
+        console.warn('Docked fleet stats failed:', e);
+    }
+}
+
 // ── Page-Level Tab Switching ──
 function switchPageTab(tab) {
     document.querySelectorAll('.sc-page-tab').forEach(function(t) {
@@ -1615,9 +1639,11 @@ function _escSb(str) {
     return d.innerHTML;
 }
 
-// Load starbase stats on page load + interval
+// Load starbase stats + docked fleet on page load + interval
 loadStarbaseStats();
+loadDockedFleetStats();
 setInterval(loadStarbaseStats, 30000);
+setInterval(loadDockedFleetStats, 30000);
 
 // Load hero stats on page load + interval
 loadHeroStats();

@@ -364,6 +364,94 @@
     border: 1px solid rgba(255,255,255,0.1);
 }
 
+/* ── Docked Fleet Strip — ships connected to Starbase ── */
+.docked-fleet {
+    position: relative;
+    margin: 0 0 16px 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.docked-fleet-connector {
+    width: 2px;
+    height: 16px;
+    background: linear-gradient(to bottom, var(--sc-accent), rgba(0,229,255,0.2));
+    box-shadow: 0 0 6px rgba(0,229,255,0.3);
+}
+.docked-fleet-grid {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+}
+.docked-ship {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1 1 220px;
+    max-width: 320px;
+}
+.docked-ship-connector {
+    width: 2px;
+    height: 10px;
+    background: linear-gradient(to bottom, rgba(0,229,255,0.3), rgba(0,229,255,0.1));
+}
+.docked-ship-body {
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(0,229,255,0.15);
+    border-radius: 6px;
+    padding: 10px 14px;
+    width: 100%;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.docked-ship-body:hover {
+    border-color: rgba(0,229,255,0.4);
+    box-shadow: 0 0 12px rgba(0,229,255,0.1);
+}
+.docked-ship-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    font-family: 'Antonio', sans-serif;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--sc-accent);
+}
+.docked-ship-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.docked-ship-stats {
+    display: flex;
+    gap: 12px;
+}
+.docked-ship-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+}
+.docked-ship-val {
+    font-family: 'Orbitron', monospace;
+    font-size: 11px;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 80px;
+}
+.docked-ship-label {
+    font-size: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: rgba(255,255,255,0.35);
+    margin-top: 2px;
+}
+
 /* Live data indicator — glowing text for real-time values */
 .sc-live {
     text-shadow: 0 0 6px currentColor, 0 0 12px rgba(0, 229, 255, 0.3);

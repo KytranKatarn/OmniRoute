@@ -98,7 +98,10 @@ def api_starbase_stats():
             node_count = cur.fetchone()["cnt"]
 
             cur.execute(
-                "SELECT COUNT(*) as cnt FROM remote_nodes WHERE is_active = true AND last_heartbeat > NOW() - INTERVAL '2 minutes'"
+                """SELECT COUNT(*) as cnt FROM remote_nodes
+                   WHERE is_active = true
+                   AND (last_heartbeat > NOW() - INTERVAL '2 minutes'
+                        OR deployment_mode = 'starbase')"""
             )
             online_count = cur.fetchone()["cnt"]
 

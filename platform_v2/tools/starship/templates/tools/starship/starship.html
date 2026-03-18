@@ -63,6 +63,9 @@
                     <div class="docked-ship-header">
                         <span class="sc-node-dot {{ node.status }}"></span>
                         <span class="docked-ship-name">{{ node.node_name }}</span>
+                        {% if node.owner_name %}
+                        <span class="docked-ship-owner">{{ node.owner_name }}</span>
+                        {% endif %}
                     </div>
                     <div class="docked-ship-stats">
                         <div class="docked-ship-stat">

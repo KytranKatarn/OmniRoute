@@ -45,11 +45,13 @@ def starship_dashboard():
     try:
         with get_db_cursor() as (conn, cur):
             cur.execute(
-                """SELECT node_id, node_name, deployment_mode, status,
-                          gpu_model, gpu_vram_gb, ram_gb, last_heartbeat
-                   FROM remote_nodes
-                   WHERE is_active = true
-                   ORDER BY bridge_priority DESC, node_name"""
+                """SELECT rn.node_id, rn.node_name, rn.deployment_mode, rn.status,
+                          rn.gpu_model, rn.gpu_vram_gb, rn.ram_gb, rn.last_heartbeat,
+                          u.username as owner_name
+                   FROM remote_nodes rn
+                   LEFT JOIN users u ON u.id = rn.registered_by
+                   WHERE rn.is_active = true
+                   ORDER BY rn.bridge_priority DESC, rn.node_name"""
             )
             for n in cur.fetchall():
                 d = dict(n)

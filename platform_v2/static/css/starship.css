@@ -425,6 +425,19 @@
     overflow: hidden;
     text-overflow: ellipsis;
 }
+.docked-ship-owner {
+    margin-left: auto;
+    font-size: 9px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: rgba(139,92,246,0.15);
+    border: 1px solid rgba(139,92,246,0.3);
+    color: #a78bfa;
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
 .docked-ship-stats {
     display: flex;
     gap: 12px;

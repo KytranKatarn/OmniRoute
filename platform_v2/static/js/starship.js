@@ -503,11 +503,11 @@ function renderDetail(data) {
     var dot = document.getElementById('detail-dot');
     dot.className = 'sc-node-dot ' + (n.status === 'online' ? 'online' : 'offline');
 
-    // Status tab
-    document.getElementById('d-status').textContent = (n.status || 'unknown').toUpperCase();
-    document.getElementById('d-mode').textContent = (n.deployment_mode || '—').toUpperCase();
-    document.getElementById('d-priority').textContent = n.bridge_priority || '—';
-    document.getElementById('d-heartbeat').textContent = n.last_heartbeat ? new Date(n.last_heartbeat).toLocaleString() : 'Never';
+    // Status tab — all live from node status API
+    _setLive(document.getElementById('d-status'), (n.status || 'unknown').toUpperCase(), !!n.status);
+    _setLive(document.getElementById('d-mode'), (n.deployment_mode || '—').toUpperCase(), true);
+    _setLive(document.getElementById('d-priority'), n.bridge_priority || '—', true);
+    _setLive(document.getElementById('d-heartbeat'), n.last_heartbeat ? new Date(n.last_heartbeat).toLocaleString() : 'Never', !!n.last_heartbeat);
 
     // Version
     var verEl = document.getElementById('d-version');
@@ -544,14 +544,14 @@ function renderDetail(data) {
     renderOpsGauge('ops-ram', 'ops-ram-bar', lm.memory_usage);
     renderOpsGauge('ops-gpu', 'ops-gpu-bar', lm.gpu_usage);
 
-    // Fleet Summary
+    // Fleet Summary — live from node status
     var ss = data.station_summary || {};
     var ms = data.model_summary || {};
     var allowedAgents = (data.agents || []).filter(function(a) { return a.allowed; }).length;
-    document.getElementById('d-active-stations').textContent = (ss.active || 0) + ' / ' + (ss.total || 0);
-    document.getElementById('d-models-avail').textContent = (ms.available || 0) + ' / ' + (ms.total || 0);
-    document.getElementById('d-models-size').textContent = (ms.total_size_gb || 0) + ' GB';
-    document.getElementById('d-agents-allowed').textContent = allowedAgents + ' / ' + (data.agents || []).length;
+    _setLive(document.getElementById('d-active-stations'), (ss.active || 0) + ' / ' + (ss.total || 0), true);
+    _setLive(document.getElementById('d-models-avail'), (ms.available || 0) + ' / ' + (ms.total || 0), !!ms.total);
+    _setLive(document.getElementById('d-models-size'), (ms.total_size_gb || 0) + ' GB', !!ms.total_size_gb);
+    _setLive(document.getElementById('d-agents-allowed'), allowedAgents + ' / ' + (data.agents || []).length, true);
 
     // Populate inline settings
     var nameEl = document.getElementById('settings-name');

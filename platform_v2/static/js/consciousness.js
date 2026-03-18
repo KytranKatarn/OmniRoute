@@ -3033,4 +3033,3 @@ document.addEventListener("click", function(e) {
   var modal = document.getElementById("chAuditModal");
   if (modal && e.target === modal) modal.style.display = "none";
 });
-}

@@ -379,7 +379,7 @@ def run_proposal(proposal_id, user_id, skip_backup=False, use_orchestrator=True,
 
                 result = run_workflow(proposal_id)
                 if result.get("success") and not result.get("test_passed", True):
-                    from test_retry_handler import handle_test_failure
+                    from retry_handler import handle_test_failure
 
                     retry_result = handle_test_failure(proposal_id, result.get("test_results", {}))
                     result["retry_info"] = retry_result

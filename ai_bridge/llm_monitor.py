@@ -19,6 +19,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from db import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -26,17 +27,6 @@ logger = logging.getLogger(__name__)
 DEFAULT_CHECK_INTERVAL = 30  # seconds
 OLLAMA_TIMEOUT = 5  # seconds for local
 API_TIMEOUT = 10  # seconds for remote APIs
-
-
-def get_db():
-    """Get database connection."""
-    return psycopg2.connect(
-        host=os.getenv("DB_HOST", "archie_database"),
-        port=os.getenv("DB_PORT", "5432"),
-        database=os.getenv("DB_NAME", "archie"),
-        user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", ""),
-    )
 
 
 class LLMMonitor:

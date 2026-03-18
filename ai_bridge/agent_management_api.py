@@ -9,17 +9,7 @@ from psycopg2.extras import RealDictCursor
 import json
 import os
 from datetime import datetime
-
-
-def get_db():
-    """Get database connection"""
-    return psycopg2.connect(
-        host=os.getenv("DB_HOST", "archie_database"),
-        port=os.getenv("DB_PORT", "5432"),
-        database=os.getenv("DB_NAME", "archie"),
-        user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", ""),
-    )
+from db import get_db
 
 
 # =============================================================================

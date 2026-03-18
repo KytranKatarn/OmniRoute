@@ -23,6 +23,7 @@ from typing import Optional
 from dataclasses import asdict
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from db import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -36,16 +37,6 @@ CARD_SUBDIRS = [
     "references",
     "daily-logs",
 ]
-
-
-def get_db():
-    """Get database connection"""
-    return psycopg2.connect(
-        host=os.getenv("DB_HOST", "archie_database"),
-        database=os.getenv("DB_NAME", "archie"),
-        user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", ""),
-    )
 
 
 def ensure_directories() -> bool:

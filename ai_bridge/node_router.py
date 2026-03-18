@@ -17,23 +17,13 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
 from typing import Optional, Dict, Any, List
+from db import get_db
 
 logger = logging.getLogger("archie.node_router")
 
 # Cache for node selections (avoid DB hits on every request)
 _node_cache = {}
 _cache_ttl = 30  # seconds
-
-
-def get_db():
-    """Get database connection"""
-    return psycopg2.connect(
-        host=os.getenv("DB_HOST", "archie_database"),
-        port=os.getenv("DB_PORT", "5432"),
-        database=os.getenv("DB_NAME", "archie"),
-        user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", ""),
-    )
 
 
 def get_fallback_host() -> str:

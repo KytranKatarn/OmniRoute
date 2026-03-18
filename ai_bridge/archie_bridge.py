@@ -16,6 +16,7 @@ from psycopg2.extras import RealDictCursor
 sys.path.insert(0, "/app")
 from consciousness.memory_manager import get_memory_context, learn_from_conversation
 from consciousness.archie_tools import read_file, edit_file, write_file
+from db import get_db
 
 # Import new learning loop modules
 sys.path.insert(0, "/app/ai_bridge")
@@ -132,17 +133,6 @@ except ImportError as e:
 
     def get_auto1111_url():
         return os.getenv("AUTO1111_URL", "http://localhost:7860"), None
-
-
-def get_db():
-    """Get database connection"""
-    return psycopg2.connect(
-        host=os.getenv("DB_HOST", "archie_database"),
-        port=os.getenv("DB_PORT", "5432"),
-        database=os.getenv("DB_NAME", "archie"),
-        user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", ""),
-    )
 
 
 def call_ollama_json(

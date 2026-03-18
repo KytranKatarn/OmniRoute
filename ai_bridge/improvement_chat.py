@@ -11,6 +11,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
 from typing import Dict, List, Optional
+from db import get_db
 
 sys.path.insert(0, "/app/ai_bridge")
 sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
@@ -139,17 +140,6 @@ try:
     from team_assignment_engine import assign_team_to_proposal
 except ImportError:
     assign_team_to_proposal = None
-
-
-def get_db():
-    """Get database connection"""
-    return psycopg2.connect(
-        host=os.getenv("DB_HOST", "archie_database"),
-        port=os.getenv("DB_PORT", "5432"),
-        database=os.getenv("DB_NAME", "archie"),
-        user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", ""),
-    )
 
 
 def extract_improvement_intent(user_message: str) -> Dict:

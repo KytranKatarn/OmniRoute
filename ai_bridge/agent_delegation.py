@@ -26,18 +26,8 @@ _agent_cache = {}
 _cache_timestamp = time.time()
 
 
-def get_db():
-    """Get database connection"""
-    return psycopg2.connect(
-        host=os.getenv("DB_HOST", "archie_database"),
-        port=os.getenv("DB_PORT", "5432"),
-        database=os.getenv("DB_NAME", "archie"),
-        user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", ""),
-    )
-
-
 from archie_bridge import archie_bridge
+from db import get_db
 
 
 def check_api_key_configured(model: str) -> dict:

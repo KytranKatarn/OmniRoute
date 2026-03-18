@@ -19,6 +19,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import requests
 import json
+from db import get_db
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -47,17 +48,6 @@ try:
 except ImportError as e:
     logger.warning(f"Improvement modules not available: {e}")
     IMPROVEMENT_AVAILABLE = False
-
-
-def get_db():
-    """Get database connection"""
-    return psycopg2.connect(
-        host=os.getenv("DB_HOST", "archie_database"),
-        port=os.getenv("DB_PORT", "5432"),
-        database=os.getenv("DB_NAME", "archie"),
-        user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", ""),
-    )
 
 
 def log_task_start(task_name: str) -> int:

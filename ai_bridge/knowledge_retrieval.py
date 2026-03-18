@@ -18,6 +18,7 @@ import os
 import re
 import sys
 from typing import List, Dict, Optional
+from db import get_db
 
 # Add platform_v2 to path for unified_knowledge_search
 platform_path = "/mnt/archie_brain/platform_v2"
@@ -35,16 +36,6 @@ try:
 except ImportError as e:
     print(f"[Knowledge Retrieval] WARNING: unified_knowledge_search not available: {e}")
     UNIFIED_SEARCH_AVAILABLE = False
-
-
-def get_db():
-    """Get database connection"""
-    return psycopg2.connect(
-        host=os.getenv("DB_HOST", "archie_database"),
-        database=os.getenv("DB_NAME", "archie"),
-        user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", ""),
-    )
 
 
 def extract_keywords(user_message: str) -> List[str]:

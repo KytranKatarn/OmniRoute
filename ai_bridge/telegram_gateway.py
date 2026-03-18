@@ -20,18 +20,9 @@ from typing import Optional
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from db import get_db
 
 logger = logging.getLogger("telegram_gateway")
-
-
-def get_db():
-    """Get database connection"""
-    return psycopg2.connect(
-        host=os.getenv("DB_HOST", "archie_database"),
-        database=os.getenv("DB_NAME", "archie"),
-        user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", ""),
-    )
 
 
 class TelegramGateway:

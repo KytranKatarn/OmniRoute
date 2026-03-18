@@ -28,6 +28,7 @@ from psycopg2.extras import RealDictCursor
 from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Optional, Any
 from enum import Enum
+from db import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -55,17 +56,6 @@ def _push_event(event_type, agent_id=None, data=None):
         push_agent_event(event_type, agent_id, data)
     except Exception as e:
         logger.debug("SSE push skipped (bridge not loaded): %s", e)
-
-
-def get_db():
-    """Get database connection"""
-    return psycopg2.connect(
-        host=os.getenv("DB_HOST", "archie_database"),
-        port=os.getenv("DB_PORT", "5432"),
-        database=os.getenv("DB_NAME", "archie"),
-        user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", ""),
-    )
 
 
 class StepType(Enum):

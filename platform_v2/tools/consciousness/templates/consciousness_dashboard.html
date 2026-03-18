@@ -2113,6 +2113,9 @@
     .ch-stats-row .cs-stat-value { font-size: 1.2rem; }
     .ch-charts-row { grid-template-columns: 1fr; }
     .ch-actions { flex-direction: column; }
+    #chModuleTable table, #chAuditTable table, #chOrphanTable table { font-size: 0.7rem; white-space: nowrap; }
+    #chModuleTable table th, #chAuditTable table th { font-size: 0.6rem; padding: 4px 6px; }
+    #chModuleTable table td, #chAuditTable table td { padding: 3px 6px; }
 }
 </style>
 
@@ -2870,19 +2873,19 @@
             <!-- Module Breakdown Table -->
             <div class="cs-card" style="margin-top:16px;">
                 <div class="cs-card-title">Module Breakdown</div>
-                <div id="chModuleTable" style="max-height:400px; overflow-y:auto;"></div>
+                <div id="chModuleTable" style="max-height:400px; overflow:auto; -webkit-overflow-scrolling:touch;"></div>
             </div>
 
             <!-- Orphan Files -->
             <div class="cs-card" style="margin-top:16px;">
                 <div class="cs-card-title">Orphan Files (unmapped to any module)</div>
-                <div id="chOrphanTable"></div>
+                <div id="chOrphanTable" style="overflow-x:auto; -webkit-overflow-scrolling:touch;"></div>
             </div>
 
             <!-- Audit Progress -->
             <div class="cs-card" style="margin-top:16px;">
                 <div class="cs-card-title">Audit Progress</div>
-                <div id="chAuditTable"></div>
+                <div id="chAuditTable" style="overflow-x:auto; -webkit-overflow-scrolling:touch;"></div>
             </div>
 
         </div>

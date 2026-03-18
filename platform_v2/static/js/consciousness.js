@@ -2948,8 +2948,8 @@ function _loadAuditLog() {
     entries.forEach(function(e) {
       var delta = (e.lines_after || 0) - (e.lines_before || 0);
       var deltaClass = delta > 0 ? "color:#22c55e" : delta < 0 ? "color:#ef4444" : "";
-      var statusClass = e.status === "completed" ? "green" : e.status === "in_progress" ? "amber" : "";
-      var rowStyle = e.status === "completed" ? "background:rgba(74,222,128,0.06);" : "";
+      var statusClass = e.status === "completed" ? "green" : e.status === "in_progress" ? "amber" : e.status === "known_issues" ? "amber" : e.status === "violations_found" ? "purple" : "";
+      var rowStyle = e.status === "completed" ? "background:rgba(74,222,128,0.06);" : e.status === "known_issues" ? "background:rgba(245,158,11,0.06);" : "";
       html += '<tr style="' + rowStyle + '">' +
         '<td style="' + (e.status === "completed" ? "color:#4ade80;font-weight:600;" : "") + '">' + escHtml(e.module_name) + '</td>' +
         '<td style="font-size:0.75rem; color:rgba(255,255,255,0.4);">' + escHtml(e.category || "") + '</td>' +

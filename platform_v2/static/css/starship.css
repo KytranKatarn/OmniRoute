@@ -470,6 +470,21 @@
     opacity: 0.6;
     transition: all 0.4s ease;
 }
+
+/* Model badges — GPU (teal) and CPU (white) */
+.sc-model-badge {
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    background: rgba(0,229,255,0.08);
+    border: 1px solid rgba(0,229,255,0.2);
+    display: inline-block;
+}
+.sc-model-badge-cpu {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.15);
+}
 .crew-llm-badge {
     font-size: 0.55rem;
     padding: 1px 5px;

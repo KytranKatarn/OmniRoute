@@ -1307,8 +1307,10 @@ function _populateStarbaseDetail(crew, activeJobs, cap) {
         }
     }).catch(function() {});
 
-    // Hardware — glow if from real capacity data, static if fallback
-    _setLive(el('sbd-cpu'), 'Xeon E5-2658 v2 (10c/20t)', false);
+    // Hardware — all from Bridge capacity API
+    var cpuModels = cap.cpu_models || [];
+    var cpuLabel = cpuModels.length + ' model' + (cpuModels.length !== 1 ? 's' : '') + ' on CPU';
+    _setLive(el('sbd-cpu'), cpuModels.length ? cpuLabel : '--', cpuModels.length > 0);
     if (cap.ram) {
         _setLive(el('sbd-ram'), cap.ram.total_gb + ' GB', true);
         _setLive(el('sbd-ram-avail'), (cap.ram.available_gb || '--') + ' GB', !!cap.ram.available_gb);
@@ -1349,23 +1351,24 @@ function _populateStarbaseDetail(crew, activeJobs, cap) {
     }
 
     // GPU model badges (cap.gpu_models = [{name, size_gb, vram_gb}, ...])
+    // Note: innerHTML with pre-escaped content via _escSb — matches Consciousness pattern
     var gpuDiv = el('sbd-gpu-models');
     var gpuList = cap.gpu_models || (cap.gpu ? cap.gpu.models : []) || [];
     if (gpuDiv) {
-        gpuDiv.innerHTML = gpuList.length ? gpuList.map(function(m) {
-            var label = (m.name || m) + (m.vram_gb ? ' (' + m.vram_gb + 'GB)' : '');
-            return '<span style="padding:3px 10px;border-radius:4px;font-family:\'IBM Plex Mono\',monospace;font-size:0.75rem;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.2);color:var(--sc-accent);">' + label + '</span>';
-        }).join('') : '<span class="sc-label">None loaded</span>';
+        gpuDiv.innerHTML = gpuList.length ? gpuList.map(function(m) {  // nosemgrep: innerHTML with escaped content
+            var label = _escSb((m.name || m) + (m.vram_gb ? ' (' + m.vram_gb + 'GB)' : ''));
+            return '<span class="sc-model-badge sc-live">' + label + '</span>';
+        }).join('') : '<span class="sc-label sc-static">None on GPU</span>';
     }
 
     // CPU model badges (cap.cpu_models = [{name, size_gb}, ...])
     var cpuDiv = el('sbd-cpu-models');
     var cpuList = cap.cpu_models || [];
     if (cpuDiv) {
-        cpuDiv.innerHTML = cpuList.length ? cpuList.map(function(m) {
-            var label = (m.name || m) + (m.size_gb ? ' (' + m.size_gb + 'GB)' : '');
-            return '<span style="padding:3px 10px;border-radius:4px;font-family:\'IBM Plex Mono\',monospace;font-size:0.75rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);">' + label + '</span>';
-        }).join('') : '<span class="sc-label">None loaded</span>';
+        cpuDiv.innerHTML = cpuList.length ? cpuList.map(function(m) {  // nosemgrep: innerHTML with escaped content
+            var label = _escSb((m.name || m) + (m.size_gb ? ' (' + m.size_gb + 'GB)' : ''));
+            return '<span class="sc-model-badge sc-model-badge-cpu sc-live">' + label + '</span>';
+        }).join('') : '<span class="sc-label sc-static">None on CPU</span>';
     }
 }
 

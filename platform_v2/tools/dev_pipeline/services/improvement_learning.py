@@ -334,9 +334,7 @@ class ImprovementLearning:
 
             # Calculate accuracy
             if estimated_hours > 0:
-                accuracy_pct = (
-                    1 - abs(actual_hours - estimated_hours) / estimated_hours
-                ) * 100
+                accuracy_pct = (1 - abs(actual_hours - estimated_hours) / estimated_hours) * 100
                 return f"{round(accuracy_pct, 1)}%"
 
         except:
@@ -384,12 +382,14 @@ class ImprovementLearning:
 
         try:
             # Check if long_term_memory table exists
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables
                     WHERE table_name = 'long_term_memory'
                 )
-            """)
+            """
+            )
 
             table_exists = cur.fetchone()[0]
 
@@ -447,12 +447,14 @@ class ImprovementLearning:
 
         try:
             # Check if long_term_memory exists
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables
                     WHERE table_name = 'long_term_memory'
                 )
-            """)
+            """
+            )
 
             table_exists = cur.fetchone()[0]
 
@@ -491,11 +493,7 @@ class ImprovementLearning:
                         "id": mem["id"],
                         "pattern_type": content.get("pattern_type"),
                         "pattern": content.get("pattern"),
-                        "created_at": (
-                            mem["created_at"].isoformat()
-                            if mem.get("created_at")
-                            else None
-                        ),
+                        "created_at": (mem["created_at"].isoformat() if mem.get("created_at") else None),
                     }
                 )
 
@@ -527,44 +525,50 @@ class ImprovementLearning:
 
         try:
             # Total completed
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT COUNT(*) as total
                 FROM improvement_proposals
                 WHERE status = 'completed'
-            """)
+            """
+            )
             total_completed = cur.fetchone()["total"]
 
             # Success rate (not rolled back)
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT COUNT(*) as successes
                 FROM improvement_proposals p
                 LEFT JOIN improvement_deployments d ON p.id = d.proposal_id
                 WHERE p.status = 'completed'
                 AND (d.id IS NULL OR d.status != 'rolled_back')
-            """)
+            """
+            )
             successes = cur.fetchone()["successes"]
 
-            success_rate = (
-                (successes / total_completed * 100) if total_completed > 0 else 0
-            )
+            success_rate = (successes / total_completed * 100) if total_completed > 0 else 0
 
             # Patterns discovered
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables
                     WHERE table_name = 'long_term_memory'
                 )
-            """)
+            """
+            )
             has_memory = cur.fetchone()[0]
 
             patterns_count = 0
             if has_memory:
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT COUNT(*) as patterns
                     FROM long_term_memory
                     WHERE memory_type = 'learning'
                     AND 'improvement_learning' = ANY(tags)
-                """)
+                """
+                )
                 patterns_count = cur.fetchone()["patterns"]
 
             cur.close()

@@ -1332,7 +1332,7 @@ class AgentLoop:
         """Check IMAP inboxes for new emails via EmailIntelligence."""
         start = time.time()
         try:
-            from email_intelligence import EmailIntelligence
+            from tools.google_work_suite.services.email_intelligence import EmailIntelligence
 
             ei = EmailIntelligence()
             result = ei.check_inbox()
@@ -1399,7 +1399,7 @@ class AgentLoop:
         cur = None
         conn = None
         try:
-            from email_intelligence import EmailIntelligence
+            from tools.google_work_suite.services.email_intelligence import EmailIntelligence
 
             ei = EmailIntelligence()
             conn = get_db()

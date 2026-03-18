@@ -98,11 +98,13 @@ class WorkflowAutomator:
 
         try:
             # Get all active proposals (not completed/rejected/failed)
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT * FROM improvement_proposals
                 WHERE status NOT IN ('completed', 'rejected', 'cancelled', 'deployment_failed')
                 ORDER BY priority DESC, created_at ASC
-            """)
+            """
+            )
 
             proposals = cur.fetchall()
 
@@ -275,10 +277,7 @@ class WorkflowAutomator:
                     engine = DeploymentDecisionEngine()
                     decision = engine.can_auto_deploy(proposal_id)
 
-                    if (
-                        decision.get("can_auto_deploy")
-                        and decision.get("risk_level") == "low"
-                    ):
+                    if decision.get("can_auto_deploy") and decision.get("risk_level") == "low":
                         return {
                             "can_progress": True,
                             "next_status": "approved",
@@ -331,9 +330,7 @@ class WorkflowAutomator:
             "reason": "No auto-progression criteria met",
         }
 
-    def _progress_proposal(
-        self, proposal_id: int, next_status: str, reason: str
-    ) -> Dict:
+    def _progress_proposal(self, proposal_id: int, next_status: str, reason: str) -> Dict:
         """
         Progress proposal to next status.
 
@@ -523,30 +520,34 @@ class WorkflowAutomator:
             total = cur.fetchone()["total"]
 
             # By status
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT status, COUNT(*) as count
                 FROM improvement_proposals
                 GROUP BY status
-            """)
+            """
+            )
             by_status = {row["status"]: row["count"] for row in cur.fetchall()}
 
             # Average completion time
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT AVG(EXTRACT(EPOCH FROM (completed_at - created_at))/86400) as avg_days
                 FROM improvement_proposals
                 WHERE status = 'completed'
-            """)
-            avg_result = cur.fetchone()
-            avg_days = (
-                avg_result["avg_days"] if avg_result and avg_result["avg_days"] else 0
+            """
             )
+            avg_result = cur.fetchone()
+            avg_days = avg_result["avg_days"] if avg_result and avg_result["avg_days"] else 0
 
             # Stuck count
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT COUNT(*) as stuck
                 FROM improvement_proposals
                 WHERE status NOT IN ('completed', 'rejected', 'cancelled')
-            """)
+            """
+            )
             stuck = cur.fetchone()["stuck"]
 
             cur.close()
@@ -601,13 +602,9 @@ def run_automation_loop(check_interval: int = 3600):
                         print(f"    - {action}: {count}")
 
                 if result["stuck_proposals"]:
-                    print(
-                        f"\n⚠️  {len(result['stuck_proposals'])} stuck proposals detected:"
-                    )
+                    print(f"\n⚠️  {len(result['stuck_proposals'])} stuck proposals detected:")
                     for stuck in result["stuck_proposals"][:5]:  # Show first 5
-                        print(
-                            f"    - #{stuck['id']}: {stuck['title']} (stuck {stuck['stuck_duration']})"
-                        )
+                        print(f"    - #{stuck['id']}: {stuck['title']} (stuck {stuck['stuck_duration']})")
             else:
                 print(f"✗ Automation failed: {result.get('error')}")
 
@@ -648,14 +645,10 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Workflow Automator")
-    parser.add_argument(
-        "--service", action="store_true", help="Run as background service"
-    )
+    parser.add_argument("--service", action="store_true", help="Run as background service")
     parser.add_argument("--once", action="store_true", help="Run once and exit")
     parser.add_argument("--stats", action="store_true", help="Show workflow statistics")
-    parser.add_argument(
-        "--interval", type=int, default=3600, help="Check interval in seconds"
-    )
+    parser.add_argument("--interval", type=int, default=3600, help="Check interval in seconds")
 
     args = parser.parse_args()
 

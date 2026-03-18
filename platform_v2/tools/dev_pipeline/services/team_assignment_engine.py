@@ -106,9 +106,7 @@ class TeamAssignmentEngine:
                 }
 
             # 5. Create team assignment records
-            self._create_team_assignments(
-                proposal_id=proposal_id, team=team, assigned_by=user_id
-            )
+            self._create_team_assignments(proposal_id=proposal_id, team=team, assigned_by=user_id)
 
             # 6. Update proposal with team info
             self._update_proposal_team_info(
@@ -120,21 +118,15 @@ class TeamAssignmentEngine:
             # 7. Send notifications to team members
             self._notify_team(proposal=proposal, team=team)
 
-            logger.info(
-                f"Successfully assigned team of {len(team)} agents to proposal #{proposal_id}"
-            )
+            logger.info(f"Successfully assigned team of {len(team)} agents to proposal #{proposal_id}")
 
             return {
                 "success": True,
                 "team": team,
                 "team_size": len(team),
                 "required_skills": required_skills,
-                "internal_count": sum(
-                    1 for agent in team if agent["worker_type"] == "internal"
-                ),
-                "contract_count": sum(
-                    1 for agent in team if agent["worker_type"] == "contract"
-                ),
+                "internal_count": sum(1 for agent in team if agent["worker_type"] == "internal"),
+                "contract_count": sum(1 for agent in team if agent["worker_type"] == "contract"),
             }
 
         except Exception as e:
@@ -258,14 +250,8 @@ class TeamAssignmentEngine:
         cur = self.conn.cursor(cursor_factory=RealDictCursor)
 
         # Build query to find agents with matching skills
-        worker_type_filter = (
-            f"AND a.worker_type = '{worker_type}'" if worker_type else ""
-        )
-        exclude_filter = (
-            f"AND a.id NOT IN ({','.join(map(str, exclude_ids))})"
-            if exclude_ids
-            else ""
-        )
+        worker_type_filter = f"AND a.worker_type = '{worker_type}'" if worker_type else ""
+        exclude_filter = f"AND a.id NOT IN ({','.join(map(str, exclude_ids))})" if exclude_ids else ""
 
         query = f"""
             SELECT
@@ -298,9 +284,7 @@ class TeamAssignmentEngine:
 
         return dict(agent) if agent else None
 
-    def _create_team_assignments(
-        self, proposal_id: int, team: List[Dict], assigned_by: Optional[int] = None
-    ):
+    def _create_team_assignments(self, proposal_id: int, team: List[Dict], assigned_by: Optional[int] = None):
         """Create team assignment records in database"""
         cur = self.conn.cursor()
 
@@ -328,9 +312,7 @@ class TeamAssignmentEngine:
         self.conn.commit()
         cur.close()
 
-    def _update_proposal_team_info(
-        self, proposal_id: int, team_size: int, required_skills: List[str]
-    ):
+    def _update_proposal_team_info(self, proposal_id: int, team_size: int, required_skills: List[str]):
         """Update proposal with team assignment metadata"""
         cur = self.conn.cursor()
         cur.execute(
@@ -409,9 +391,7 @@ class TeamAssignmentEngine:
         cur.close()
         return [dict(row) for row in team]
 
-    def reassign_agent(
-        self, assignment_id: int, new_agent_id: int, reason: str = "Manual reassignment"
-    ) -> bool:
+    def reassign_agent(self, assignment_id: int, new_agent_id: int, reason: str = "Manual reassignment") -> bool:
         """Reassign a specific team member to a different agent"""
         try:
             cur = self.conn.cursor(cursor_factory=RealDictCursor)
@@ -485,9 +465,7 @@ def get_db_connection():
     )
 
 
-def assign_team_to_proposal(
-    proposal_id: int, force_internal: bool = False, user_id: Optional[int] = None
-) -> Dict:
+def assign_team_to_proposal(proposal_id: int, force_internal: bool = False, user_id: Optional[int] = None) -> Dict:
     """
     Quick function to assign a team to a proposal.
 

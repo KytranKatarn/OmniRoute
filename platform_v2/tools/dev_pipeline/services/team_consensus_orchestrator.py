@@ -129,9 +129,7 @@ class TeamConsensusOrchestrator:
             cur.close()
             conn.close()
 
-            print(
-                f"✅ Selected {len(agent_ids)} agents for proposal #{proposal_id} evaluation"
-            )
+            print(f"✅ Selected {len(agent_ids)} agents for proposal #{proposal_id} evaluation")
             return agent_ids
 
         except Exception as e:
@@ -141,9 +139,7 @@ class TeamConsensusOrchestrator:
             traceback.print_exc()
             return []
 
-    def simulate_agent_evaluation(
-        self, agent_id: int, proposal_id: int, proposal_data: Dict
-    ) -> Dict:
+    def simulate_agent_evaluation(self, agent_id: int, proposal_id: int, proposal_data: Dict) -> Dict:
         """
         Simulate an agent's evaluation of a proposal
         (This will be replaced with real AI agent calls in the future)
@@ -255,6 +251,7 @@ class TeamConsensusOrchestrator:
         try:
             # Import dispatcher here to avoid circular imports
             from ai_bridge.bridge_dispatcher import get_dispatcher
+
             _dispatcher = get_dispatcher()
 
             conn = get_db()
@@ -276,12 +273,8 @@ class TeamConsensusOrchestrator:
             conn.close()
 
             if not agent_row:
-                logger.warning(
-                    f"Agent {agent_id} not found, falling back to simulation"
-                )
-                return self.simulate_agent_evaluation(
-                    agent_id, proposal_id, proposal_data
-                )
+                logger.warning(f"Agent {agent_id} not found, falling back to simulation")
+                return self.simulate_agent_evaluation(agent_id, proposal_id, proposal_data)
 
             (
                 agent_name,
@@ -298,11 +291,7 @@ class TeamConsensusOrchestrator:
             ) = agent_row
 
             # Build agent-specific evaluation prompt
-            skills_str = (
-                ", ".join(capabilities.get("skills", []))
-                if capabilities
-                else "general analysis"
-            )
+            skills_str = ", ".join(capabilities.get("skills", [])) if capabilities else "general analysis"
             comm_style = communication_style or "professional and analytical"
 
             # Build the system prompt for evaluation
@@ -349,9 +338,7 @@ Please evaluate this proposal from your perspective as {title} in {department}. 
 Provide your evaluation in JSON format."""
 
             # Call Bridge dispatcher with agent's assigned model
-            logger.info(
-                f"Getting real evaluation from {agent_name} (ID: {agent_id}) using model: {model}"
-            )
+            logger.info(f"Getting real evaluation from {agent_name} (ID: {agent_id}) using model: {model}")
 
             result = _dispatcher.request_work(
                 capability="code_review",
@@ -363,18 +350,12 @@ Provide your evaluation in JSON format."""
             )
 
             if not result.success:
-                logger.warning(
-                    f"Dispatcher failed for agent {agent_id}, falling back to simulation"
-                )
-                return self.simulate_agent_evaluation(
-                    agent_id, proposal_id, proposal_data
-                )
+                logger.warning(f"Dispatcher failed for agent {agent_id}, falling back to simulation")
+                return self.simulate_agent_evaluation(agent_id, proposal_id, proposal_data)
 
             # Parse the response
             response_text = result.response or ""
-            evaluation = self._parse_evaluation_response(
-                response_text, agent_id, agent_name, department, tier
-            )
+            evaluation = self._parse_evaluation_response(response_text, agent_id, agent_name, department, tier)
 
             logger.info(
                 f"Real evaluation from {agent_name}: {evaluation.get('recommendation')} (confidence: {evaluation.get('confidence_level', 0):.2f})"
@@ -431,9 +412,7 @@ Provide your evaluation in JSON format."""
                 "confidence_level": min(max(confidence, 0.0), 1.0),  # Clamp 0-1
                 "risk_assessment": parsed.get("risk_level", "medium"),
                 "estimated_effort": parsed.get("estimated_effort", "2-4h"),
-                "technical_notes": parsed.get(
-                    "technical_notes", f"[{agent_name}] Evaluation complete."
-                ),
+                "technical_notes": parsed.get("technical_notes", f"[{agent_name}] Evaluation complete."),
                 "manager_summary": parsed.get(
                     "manager_summary",
                     f"{agent_name} from {department} has reviewed this proposal.",
@@ -457,11 +436,7 @@ Provide your evaluation in JSON format."""
                 "confidence_level": base_confidence,
                 "risk_assessment": "medium",
                 "estimated_effort": "2-4h",
-                "technical_notes": (
-                    response_text[:500]
-                    if response_text
-                    else f"[{agent_name}] Evaluation pending."
-                ),
+                "technical_notes": (response_text[:500] if response_text else f"[{agent_name}] Evaluation pending."),
                 "manager_summary": f"{agent_name} from {department} has provided feedback.",
                 "concerns": ["Unable to parse structured evaluation"],
                 "benefits": ["Agent provided response"],
@@ -596,9 +571,7 @@ Provide your evaluation in JSON format."""
             }
 
             # Step 2: Select evaluation team
-            agent_ids = self.select_evaluation_team(
-                proposal_id=proposal_id, category=category, priority=priority
-            )
+            agent_ids = self.select_evaluation_team(proposal_id=proposal_id, category=category, priority=priority)
 
             if not agent_ids:
                 print("Failed to select evaluation team")
@@ -648,9 +621,7 @@ Provide your evaluation in JSON format."""
                     )
 
                     # Create formal evaluation (remove agent_name as it's not a parameter)
-                    eval_params = {
-                        k: v for k, v in evaluation.items() if k != "agent_name"
-                    }
+                    eval_params = {k: v for k, v in evaluation.items() if k != "agent_name"}
                     self.discussion_engine.create_agent_evaluation(
                         proposal_id=proposal_id,
                         discussion_id=discussion_id,
@@ -658,13 +629,9 @@ Provide your evaluation in JSON format."""
                     )
 
             # Step 5: Calculate consensus
-            consensus_score, stats = self.discussion_engine.calculate_consensus(
-                discussion_id
-            )
+            consensus_score, stats = self.discussion_engine.calculate_consensus(discussion_id)
 
-            print(
-                f"✅ Consensus calculated: {consensus_score:.2f} ({stats['final_recommendation']})"
-            )
+            print(f"✅ Consensus calculated: {consensus_score:.2f} ({stats['final_recommendation']})")
 
             # Step 6: Create team consensus record
             consensus_id = self.discussion_engine.create_team_consensus(
@@ -675,30 +642,20 @@ Provide your evaluation in JSON format."""
             )
 
             # Close discussion
-            self.discussion_engine.close_discussion(
-                discussion_id, consensus_reached=True
-            )
+            self.discussion_engine.close_discussion(discussion_id, consensus_reached=True)
 
             # Step 7: Generate reports (if requested)
             if auto_generate_report:
                 full_report = self.report_generator.generate_full_report(discussion_id)
                 if full_report:
-                    self.report_generator.save_report_to_database(
-                        discussion_id, full_report
-                    )
-                    print(
-                        f"✅ Report generated and saved for discussion #{discussion_id}"
-                    )
+                    self.report_generator.save_report_to_database(discussion_id, full_report)
+                    print(f"✅ Report generated and saved for discussion #{discussion_id}")
 
             # Step 8: Notify admin (if requested)
             if auto_notify_admin:
-                notification_data = self.report_generator.generate_notification_report(
-                    discussion_id
-                )
+                notification_data = self.report_generator.generate_notification_report(discussion_id)
                 if notification_data:
-                    self._create_admin_notification(
-                        proposal_id, discussion_id, notification_data
-                    )
+                    self._create_admin_notification(proposal_id, discussion_id, notification_data)
 
             cur.close()
             conn.close()
@@ -720,9 +677,7 @@ Provide your evaluation in JSON format."""
             traceback.print_exc()
             return None
 
-    def _create_admin_notification(
-        self, proposal_id: int, discussion_id: int, notification_data: Dict
-    ) -> bool:
+    def _create_admin_notification(self, proposal_id: int, discussion_id: int, notification_data: Dict) -> bool:
         """Create notification for admin about consensus"""
         try:
             conn = get_db()
@@ -736,9 +691,7 @@ Provide your evaluation in JSON format."""
                 "needs_revision": "info",
             }.get(recommendation, "info")
 
-            title = (
-                f"Team Consensus: {notification_data.get('proposal_title', 'Proposal')}"
-            )
+            title = f"Team Consensus: {notification_data.get('proposal_title', 'Proposal')}"
             message = notification_data.get("quick_summary", "Team evaluation complete")
 
             # Create notification
@@ -763,9 +716,7 @@ Provide your evaluation in JSON format."""
             # Get admin user ID for system notifications
             cur.execute("SELECT id FROM users WHERE role = 'admin' LIMIT 1")
             admin_user = cur.fetchone()
-            user_id = (
-                admin_user[0] if admin_user else 1
-            )  # Default to user ID 1 if no admin found
+            user_id = admin_user[0] if admin_user else 1  # Default to user ID 1 if no admin found
 
             cur.execute(
                 """

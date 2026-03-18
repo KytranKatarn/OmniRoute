@@ -178,6 +178,7 @@ class {class_name}:
     def __init__(self):
         try:
             from bridge_dispatcher import get_dispatcher
+
             model = get_dispatcher().get_model_for_capability("code")
             self.model = model or "qwen3-coder-cpu:latest"
         except Exception:
@@ -226,9 +227,7 @@ class {class_name}:
         kb_context = self._get_knowledge_context(natural_language, target_language)
 
         # Step 5: Generate code using AI
-        result = self._generate_code(
-            natural_language, intent, target_language, entities, context, kb_context
-        )
+        result = self._generate_code(natural_language, intent, target_language, entities, context, kb_context)
 
         if result.get("success"):
             result["intent"] = intent
@@ -374,28 +373,20 @@ class {class_name}:
 
         # Build prompt based on intent
         if intent == "create":
-            prompt = self._build_create_prompt(
-                natural_language, language, entities, user_context, kb_context
-            )
+            prompt = self._build_create_prompt(natural_language, language, entities, user_context, kb_context)
         elif intent == "modify":
             prompt = self._build_modify_prompt(natural_language, language, user_context)
         elif intent == "fix":
             prompt = self._build_fix_prompt(natural_language, language, user_context)
         elif intent == "explain":
-            prompt = self._build_explain_prompt(
-                natural_language, language, user_context
-            )
+            prompt = self._build_explain_prompt(natural_language, language, user_context)
         elif intent == "convert":
-            prompt = self._build_convert_prompt(
-                natural_language, language, user_context
-            )
+            prompt = self._build_convert_prompt(natural_language, language, user_context)
         else:
             prompt = self._build_generic_prompt(natural_language, language)
 
         # Call AI
-        result = archie_bridge(
-            prompt=prompt, user_id=1, enable_memory=True, force_model=self.model
-        )
+        result = archie_bridge(prompt=prompt, user_id=1, enable_memory=True, force_model=self.model)
 
         if not result.get("success"):
             return {
@@ -462,9 +453,7 @@ Explanation:
 [Brief explanation of what the code does]
 """
 
-    def _build_modify_prompt(
-        self, nl: str, language: str, context: Optional[Dict]
-    ) -> str:
+    def _build_modify_prompt(self, nl: str, language: str, context: Optional[Dict]) -> str:
         """Build prompt for code modification"""
 
         existing_code = context.get("existing_code", "") if context else ""
@@ -530,9 +519,7 @@ Fixed code:
 Explanation: [Why this fix works]
 """
 
-    def _build_explain_prompt(
-        self, nl: str, language: str, context: Optional[Dict]
-    ) -> str:
+    def _build_explain_prompt(self, nl: str, language: str, context: Optional[Dict]) -> str:
         """Build prompt for code explanation"""
 
         existing_code = context.get("existing_code", "") if context else ""
@@ -555,15 +542,11 @@ Explanation format:
 4. **Potential improvements**: Suggestions for better code
 """
 
-    def _build_convert_prompt(
-        self, nl: str, language: str, context: Optional[Dict]
-    ) -> str:
+    def _build_convert_prompt(self, nl: str, language: str, context: Optional[Dict]) -> str:
         """Build prompt for code conversion"""
 
         existing_code = context.get("existing_code", "") if context else ""
-        source_lang = (
-            context.get("source_language", "unknown") if context else "unknown"
-        )
+        source_lang = context.get("source_language", "unknown") if context else "unknown"
 
         return f"""You are A.R.C.H.I.E., an expert polyglot developer.
 
@@ -634,7 +617,8 @@ Explanation:
             conn = get_db()
             cur = conn.cursor()
 
-            cur.execute("""
+            cur.execute(
+                """
                 CREATE TABLE IF NOT EXISTS nl_code_generations (
                     id SERIAL PRIMARY KEY,
                     prompt TEXT,
@@ -645,7 +629,8 @@ Explanation:
                     confidence FLOAT,
                     created_at TIMESTAMP DEFAULT NOW()
                 )
-            """)
+            """
+            )
 
             cur.execute(
                 """
@@ -741,9 +726,7 @@ def create_python_function(
 
     params = params or []
     param_str = ", ".join(params) if params else ""
-    args_doc = (
-        "\n        ".join([f"{p}: Description" for p in params]) if params else "None"
-    )
+    args_doc = "\n        ".join([f"{p}: Description" for p in params]) if params else "None"
 
     return f'''
 def {name}({param_str}) -> {return_type}:
@@ -767,9 +750,7 @@ if __name__ == "__main__":
     print("=" * 60)
 
     # Test generation
-    result = generate_code_from_nl(
-        "Create a function that calculates the factorial of a number", language="python"
-    )
+    result = generate_code_from_nl("Create a function that calculates the factorial of a number", language="python")
 
     print(f"\nSuccess: {result.get('success')}")
     print(f"Intent: {result.get('intent')}")

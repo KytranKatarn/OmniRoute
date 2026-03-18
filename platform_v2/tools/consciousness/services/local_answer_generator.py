@@ -165,9 +165,7 @@ def can_answer_locally(query: str, knowledge_results: List[Dict]) -> Dict[str, A
 
     # Step 3: Evaluate top result quality
     top_result = knowledge_results[0]
-    weighted_score = top_result.get(
-        "weighted_score", top_result.get("importance_score", 0)
-    )
+    weighted_score = top_result.get("weighted_score", top_result.get("importance_score", 0))
     knowledge_type = top_result.get("knowledge_type", "")
 
     # HIGH CONFIDENCE: Single authoritative source
@@ -186,9 +184,7 @@ def can_answer_locally(query: str, knowledge_results: List[Dict]) -> Dict[str, A
     if len(knowledge_results) >= 2:
         # Calculate average score of top 3 results
         top_results = knowledge_results[:3]
-        avg_score = sum(
-            r.get("weighted_score", r.get("importance_score", 0)) for r in top_results
-        ) / len(top_results)
+        avg_score = sum(r.get("weighted_score", r.get("importance_score", 0)) for r in top_results) / len(top_results)
 
         # If average score is good and query is simple enough
         # Week 2: Raised to 0.75 for conservative testing
@@ -276,10 +272,7 @@ This is a documented error pattern that has been encountered before. Please revi
     # code_snippet responses
     elif knowledge_type == "code_snippet":
         # Check if content looks like code
-        is_code = any(
-            char in content[:100]
-            for char in ["{", "}", "(", ")", ";", "def ", "function", "class "]
-        )
+        is_code = any(char in content[:100] for char in ["{", "}", "(", ")", ";", "def ", "function", "class "])
 
         if is_code:
             return f"""💻 Code Example: **{title}**
@@ -324,9 +317,7 @@ This is a documented error pattern that has been encountered before. Please revi
 
     # Default format for other types
     else:
-        type_emoji = {"conversation_memory": "💭", "github_file": "📁"}.get(
-            knowledge_type, "📄"
-        )
+        type_emoji = {"conversation_memory": "💭", "github_file": "📁"}.get(knowledge_type, "📄")
 
         return f"""{type_emoji} **{title}**
 
@@ -359,8 +350,7 @@ def generate_synthesized_local_response(query: str, results: List[Dict]) -> str:
     other = [
         r
         for r in results
-        if r["knowledge_type"]
-        not in ["mistake_learned", "vault_note", "code_snippet", "improvement"]
+        if r["knowledge_type"] not in ["mistake_learned", "vault_note", "code_snippet", "improvement"]
     ]
 
     parts = []
@@ -373,9 +363,7 @@ def generate_synthesized_local_response(query: str, results: List[Dict]) -> str:
             title = m.get("title", "Untitled")
             content = m.get("content", "")[:250]  # First 250 chars
             parts.append(f"- **{title}**")
-            parts.append(
-                f"  {content}{'...' if len(m.get('content', '')) > 250 else ''}\n"
-            )
+            parts.append(f"  {content}{'...' if len(m.get('content', '')) > 250 else ''}\n")
 
     # Documentation
     if vault_notes:
@@ -384,9 +372,7 @@ def generate_synthesized_local_response(query: str, results: List[Dict]) -> str:
             title = v.get("title", "Untitled")
             content = v.get("content", "")[:300]  # First 300 chars
             parts.append(f"**{title}**")
-            parts.append(
-                f"{content}{'...' if len(v.get('content', '')) > 300 else ''}\n"
-            )
+            parts.append(f"{content}{'...' if len(v.get('content', '')) > 300 else ''}\n")
 
     # Code examples
     if code_snippets:
@@ -395,9 +381,7 @@ def generate_synthesized_local_response(query: str, results: List[Dict]) -> str:
             title = c.get("title", "Code Example")
             content = c.get("content", "")[:200]  # First 200 chars
             parts.append(f"**{title}**")
-            parts.append(
-                f"```\n{content}{'...' if len(c.get('content', '')) > 200 else ''}\n```\n"
-            )
+            parts.append(f"```\n{content}{'...' if len(c.get('content', '')) > 200 else ''}\n```\n")
 
     # Improvements
     if improvements:
@@ -578,8 +562,7 @@ def track_local_answer_usage(
         conn.close()
 
         logger.info(
-            f"[Local Answer] Tracked usage: {len(knowledge_ids)} entries, "
-            f"${savings['cost_saved']:.4f} saved"
+            f"[Local Answer] Tracked usage: {len(knowledge_ids)} entries, " f"${savings['cost_saved']:.4f} saved"
         )
 
         return True

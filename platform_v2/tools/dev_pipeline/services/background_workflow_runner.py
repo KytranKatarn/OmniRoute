@@ -76,9 +76,7 @@ class BackgroundWorkflowRunner:
     def _execute_workflow_thread(self, workflow_id: str, proposal_id: int):
         """Execute workflow in background thread"""
         try:
-            print(
-                f"🚀 Background workflow {workflow_id} starting for proposal #{proposal_id}"
-            )
+            print(f"🚀 Background workflow {workflow_id} starting for proposal #{proposal_id}")
 
             # Import here to avoid circular dependencies
             from workflow_orchestrator import execute_workflow
@@ -95,9 +93,7 @@ class BackgroundWorkflowRunner:
 
                 if workflow_id in self.active_workflows:
                     self.active_workflows[workflow_id]["status"] = "completed"
-                    self.active_workflows[workflow_id][
-                        "completed_at"
-                    ] = datetime.now().isoformat()
+                    self.active_workflows[workflow_id]["completed_at"] = datetime.now().isoformat()
 
             print(f"✅ Background workflow {workflow_id} completed successfully")
 
@@ -120,9 +116,7 @@ class BackgroundWorkflowRunner:
                 if workflow_id in self.active_workflows:
                     self.active_workflows[workflow_id]["status"] = "failed"
                     self.active_workflows[workflow_id]["error"] = error_msg
-                    self.active_workflows[workflow_id][
-                        "completed_at"
-                    ] = datetime.now().isoformat()
+                    self.active_workflows[workflow_id]["completed_at"] = datetime.now().isoformat()
 
     def get_workflow_status(self, workflow_id: str) -> Optional[Dict]:
         """
@@ -157,9 +151,7 @@ class BackgroundWorkflowRunner:
         with self.lock:
             # Find most recent workflow for this proposal
             matching_workflows = [
-                (wf_id, info)
-                for wf_id, info in self.active_workflows.items()
-                if info["proposal_id"] == proposal_id
+                (wf_id, info) for wf_id, info in self.active_workflows.items() if info["proposal_id"] == proposal_id
             ]
 
             if not matching_workflows:

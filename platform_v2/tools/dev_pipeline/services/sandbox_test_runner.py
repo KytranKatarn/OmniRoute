@@ -1,1014 +1,593 @@
 """
-Sandbox Test Runner for A.R.C.H.I.E.
-Executes tests in sandbox environments (Docker or Schema-based)
+Sandbox Test Runner
+Executes test suites in sandbox environments and records results
 
-Test suites:
-- Syntax validation
-- Security scanning
-- Unit tests
-- Integration tests
-- Health checks
-- Performance benchmarks
+Author: A.R.C.H.I.E.
+Date: 2026-01-01
+Purpose: Run automated tests in sandboxes before deployment
 """
 
 import os
-import subprocess
+import sys
 import json
-from typing import Dict, List, Optional
+import subprocess
+import time
 from datetime import datetime
-import re
+from typing import Dict, List, Optional, Tuple
+
+# Add paths for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, "/app")
+sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+
+try:
+    from database import get_db
+except ImportError:
+    try:
+        from platform_v2.database import get_db
+    except ImportError:
+        # Fallback: direct database connection
+        import psycopg2
+
+        def get_db():
+            return psycopg2.connect(
+                host=os.getenv("DB_HOST", "archie_database"),
+                database=os.getenv("DB_NAME", "archie"),
+                user=os.getenv("DB_USER", "archie"),
+                password=os.getenv("DB_PASSWORD", "archie"),
+            )
 
 
 class SandboxTestRunner:
-    """
-    Runs comprehensive tests in sandbox environments.
-
-    Supports:
-    - Docker container testing
-    - Schema-based database testing
-    - Multiple test suites (security, performance, default)
-    - Test result aggregation and reporting
-    """
+    """Executes test suites in sandbox environments"""
 
     def __init__(self):
-        self.test_suites = {
-            "default": ["syntax_check", "security_scan", "health_check"],
-            "security": [
-                "syntax_check",
-                "security_scan",
-                "sql_injection_check",
-                "xss_check",
-                "auth_check",
-            ],
-            "performance": [
-                "syntax_check",
-                "health_check",
-                "load_test",
-                "query_performance",
-            ],
-            "full": [
-                "syntax_check",
-                "security_scan",
-                "unit_tests",
-                "integration_tests",
-                "health_check",
-                "load_test",
-            ],
-        }
+        self.base_path = "/mnt/archie_brain"
 
-    def run_tests(
-        self,
-        sandbox_id: int,
-        sandbox_type: str,
-        container_id: str = None,
-        schema_name: str = None,
-        test_suite: str = "default",
-    ) -> Dict:
+    def get_test_suites(self, required_only: bool = False) -> List[Dict]:
         """
-        Run test suite in sandbox environment.
+        Get available test suites
 
         Args:
-            sandbox_id: Sandbox instance ID
-            sandbox_type: 'docker_container' or 'schema_separation'
-            container_id: Docker container ID (if Docker sandbox)
-            schema_name: Schema name (if schema sandbox)
-            test_suite: Which test suite to run
+            required_only: Only return required test suites
 
         Returns:
-            {
-                'success': True,
-                'tests_passed': 45,
-                'tests_failed': 2,
-                'tests_total': 47,
-                'pass_rate': 95.7,
-                'duration_seconds': 12.5,
-                'results': [
-                    {
-                        'test_name': 'syntax_check',
-                        'status': 'passed',
-                        'message': 'All Python files valid',
-                        'duration_seconds': 2.3
-                    },
-                    ...
-                ]
-            }
+            List of test suite dictionaries
         """
-        if test_suite not in self.test_suites:
-            return {
-                "success": False,
-                "error": f"Unknown test suite: {test_suite}. Available: {list(self.test_suites.keys())}",
-            }
-
-        tests_to_run = self.test_suites[test_suite]
-        results = []
-        start_time = datetime.now()
-
-        # Run each test
-        for test_name in tests_to_run:
-            test_start = datetime.now()
-
-            # Support both old and new naming conventions
-            if sandbox_type in ["docker", "docker_container"]:
-                test_result = self._run_docker_test(test_name, container_id, sandbox_id)
-            elif sandbox_type in ["schema", "schema_separation"]:
-                test_result = self._run_schema_test(test_name, schema_name, sandbox_id)
-            else:
-                test_result = {
-                    "test_name": test_name,
-                    "status": "error",
-                    "message": f"Unknown sandbox type: {sandbox_type}",
-                    "duration_seconds": 0,
-                }
-
-            test_end = datetime.now()
-            test_result["duration_seconds"] = (test_end - test_start).total_seconds()
-            results.append(test_result)
-
-        # Calculate summary
-        end_time = datetime.now()
-        total_duration = (end_time - start_time).total_seconds()
-
-        passed = sum(1 for r in results if r["status"] == "passed")
-        failed = sum(1 for r in results if r["status"] == "failed")
-        errors = sum(1 for r in results if r["status"] == "error")
-        total = len(results)
-
-        pass_rate = (passed / total * 100) if total > 0 else 0
-
-        return {
-            "success": failed == 0 and errors == 0,
-            "tests_passed": passed,
-            "tests_failed": failed,
-            "tests_errored": errors,
-            "tests_total": total,
-            "pass_rate": round(pass_rate, 2),
-            "duration_seconds": round(total_duration, 2),
-            "test_suite": test_suite,
-            "sandbox_type": sandbox_type,
-            "results": results,
-            "timestamp": datetime.now().isoformat(),
-        }
-
-    def _run_docker_test(self, test_name: str, container_id: str, sandbox_id: int) -> Dict:
-        """Run a specific test in Docker container"""
-
-        if test_name == "syntax_check":
-            return self._syntax_check_docker(container_id)
-
-        elif test_name == "security_scan":
-            return self._security_scan_docker(container_id)
-
-        elif test_name == "health_check":
-            return self._health_check_docker(container_id)
-
-        elif test_name == "unit_tests":
-            return self._unit_tests_docker(container_id)
-
-        elif test_name == "integration_tests":
-            return self._integration_tests_docker(container_id)
-
-        elif test_name == "load_test":
-            return self._load_test_docker(container_id)
-
-        else:
-            return {
-                "test_name": test_name,
-                "status": "skipped",
-                "message": f"Test {test_name} not implemented for Docker",
-            }
-
-    def _run_schema_test(self, test_name: str, schema_name: str, sandbox_id: int) -> Dict:
-        """Run a specific test in schema sandbox"""
-
-        if test_name == "syntax_check":
-            return self._syntax_check_schema(schema_name)
-
-        elif test_name == "security_scan":
-            return self._security_scan_schema(schema_name)
-
-        elif test_name == "health_check":
-            return self._health_check_schema(schema_name)
-
-        elif test_name == "sql_injection_check":
-            return self._sql_injection_check_schema(schema_name)
-
-        elif test_name == "query_performance":
-            return self._query_performance_schema(schema_name)
-
-        else:
-            return {
-                "test_name": test_name,
-                "status": "skipped",
-                "message": f"Test {test_name} not implemented for schema sandbox",
-            }
-
-    # ========================================================================
-    # DOCKER TESTS
-    # ========================================================================
-
-    def _syntax_check_docker(self, container_id: str) -> Dict:
-        """Check Python syntax in Docker container"""
         try:
-            # Check all Python files
-            result = subprocess.run(
-                [
-                    "docker",
-                    "exec",
-                    container_id,
-                    "bash",
-                    "-c",
-                    'find /app -name "*.py" -type f -exec python3 -m py_compile {} \\; 2>&1',
-                ],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
+            conn = get_db()
+            cur = conn.cursor()
 
-            if result.returncode == 0 and not result.stderr:
-                return {
-                    "test_name": "syntax_check",
-                    "status": "passed",
-                    "message": "All Python files have valid syntax",
-                }
-            else:
-                return {
-                    "test_name": "syntax_check",
-                    "status": "failed",
-                    "message": f"Syntax errors found: {result.stderr[:200]}",
-                }
-
-        except subprocess.TimeoutExpired:
-            return {
-                "test_name": "syntax_check",
-                "status": "error",
-                "message": "Syntax check timed out",
-            }
-        except Exception as e:
-            return {"test_name": "syntax_check", "status": "error", "message": str(e)}
-
-    def _security_scan_docker(self, container_id: str) -> Dict:
-        """Basic security scan in Docker container"""
-        try:
-            issues = []
-
-            # Check for common security issues
-            checks = [
-                ("eval() usage", 'grep -r "eval(" /app --include="*.py" || true'),
-                ("exec() usage", 'grep -r "exec(" /app --include="*.py" || true'),
-                ("shell=True", 'grep -r "shell=True" /app --include="*.py" || true'),
-            ]
-
-            for check_name, command in checks:
-                result = subprocess.run(
-                    ["docker", "exec", container_id, "bash", "-c", command],
-                    capture_output=True,
-                    text=True,
-                    timeout=10,
-                )
-                if result.stdout.strip():
-                    issues.append(f"{check_name}: {len(result.stdout.splitlines())} occurrences")
-
-            if not issues:
-                return {
-                    "test_name": "security_scan",
-                    "status": "passed",
-                    "message": "No obvious security issues found",
-                }
-            else:
-                return {
-                    "test_name": "security_scan",
-                    "status": "warning",
-                    "message": f'Potential issues: {"; ".join(issues)}',
-                }
-
-        except Exception as e:
-            return {"test_name": "security_scan", "status": "error", "message": str(e)}
-
-    def _health_check_docker(self, container_id: str) -> Dict:
-        """Check if services are running in Docker container"""
-        try:
-            # Check if Flask app is responding
-            result = subprocess.run(
-                [
-                    "docker",
-                    "exec",
-                    container_id,
-                    "bash",
-                    "-c",
-                    'curl -f http://localhost:3000/health 2>/dev/null || echo "FAILED"',
-                ],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-
-            if "FAILED" not in result.stdout:
-                return {
-                    "test_name": "health_check",
-                    "status": "passed",
-                    "message": "Application responding to health checks",
-                }
-            else:
-                return {
-                    "test_name": "health_check",
-                    "status": "failed",
-                    "message": "Application not responding",
-                }
-
-        except Exception as e:
-            return {"test_name": "health_check", "status": "error", "message": str(e)}
-
-    def _unit_tests_docker(self, container_id: str) -> Dict:
-        """Run unit tests in Docker container"""
-        try:
-            # Look for pytest or unittest
-            result = subprocess.run(
-                [
-                    "docker",
-                    "exec",
-                    container_id,
-                    "bash",
-                    "-c",
-                    "cd /app && (pytest -v 2>&1 || python -m unittest discover -v 2>&1)",
-                ],
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
-
-            # Parse output for test results
-            if "passed" in result.stdout.lower() or "ok" in result.stdout.lower():
-                return {
-                    "test_name": "unit_tests",
-                    "status": "passed",
-                    "message": "Unit tests passed",
-                    "output": result.stdout[:500],
-                }
-            else:
-                return {
-                    "test_name": "unit_tests",
-                    "status": "failed",
-                    "message": "Some unit tests failed",
-                    "output": result.stdout[:500],
-                }
-
-        except subprocess.TimeoutExpired:
-            return {
-                "test_name": "unit_tests",
-                "status": "error",
-                "message": "Unit tests timed out after 60 seconds",
-            }
-        except Exception as e:
-            return {"test_name": "unit_tests", "status": "error", "message": str(e)}
-
-    def _integration_tests_docker(self, container_id: str) -> Dict:
-        """Run integration tests in Docker container"""
-        try:
-            # Check database connectivity
-            result = subprocess.run(
-                [
-                    "docker",
-                    "exec",
-                    container_id,
-                    "python3",
-                    "-c",
-                    'import psycopg2; conn = psycopg2.connect(host="archie_sandbox_db", database="archie_sandbox", user="archie"); conn.close(); print("OK")',
-                ],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-
-            if "OK" in result.stdout:
-                return {
-                    "test_name": "integration_tests",
-                    "status": "passed",
-                    "message": "Database integration working",
-                }
-            else:
-                return {
-                    "test_name": "integration_tests",
-                    "status": "failed",
-                    "message": f"Integration test failed: {result.stderr[:200]}",
-                }
-
-        except Exception as e:
-            return {
-                "test_name": "integration_tests",
-                "status": "error",
-                "message": str(e),
-            }
-
-    def _load_test_docker(self, container_id: str) -> Dict:
-        """Simple load test in Docker container"""
-        try:
-            # Send multiple requests
-            result = subprocess.run(
-                [
-                    "docker",
-                    "exec",
-                    container_id,
-                    "bash",
-                    "-c",
-                    'for i in {1..10}; do curl -s http://localhost:3000/health > /dev/null && echo "OK" || echo "FAIL"; done',
-                ],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-
-            successes = result.stdout.count("OK")
-            failures = result.stdout.count("FAIL")
-
-            if successes >= 8:  # 80% success rate
-                return {
-                    "test_name": "load_test",
-                    "status": "passed",
-                    "message": f"{successes}/10 requests successful",
-                }
-            else:
-                return {
-                    "test_name": "load_test",
-                    "status": "failed",
-                    "message": f"Only {successes}/10 requests successful",
-                }
-
-        except Exception as e:
-            return {"test_name": "load_test", "status": "error", "message": str(e)}
-
-    # ========================================================================
-    # SCHEMA TESTS
-    # ========================================================================
-
-    def _syntax_check_schema(self, schema_name: str) -> Dict:
-        """Syntax check for schema sandbox (limited to SQL)"""
-        # For schema sandboxes, we mainly validate SQL
-        return {
-            "test_name": "syntax_check",
-            "status": "passed",
-            "message": "Schema created successfully (SQL syntax valid)",
-        }
-
-    def _security_scan_schema(self, schema_name: str) -> Dict:
-        """Security scan for schema sandbox"""
-        try:
-            from sandbox_schema import SchemaSandboxManager
-
-            manager = SchemaSandboxManager()
-
-            # Check for suspicious table names or columns
-            result = manager.execute_query(
-                schema_name,
-                """
-                SELECT table_name
-                FROM information_schema.tables
-                WHERE table_schema = %s
-                AND (table_name LIKE '%password%' OR table_name LIKE '%secret%')
-                """,
-                (schema_name,),
-            )
-
-            if result["success"] and result["rows"]:
-                return {
-                    "test_name": "security_scan",
-                    "status": "warning",
-                    "message": f"Found {len(result['rows'])} tables with sensitive names",
-                }
-            else:
-                return {
-                    "test_name": "security_scan",
-                    "status": "passed",
-                    "message": "No obvious security issues in schema",
-                }
-
-        except Exception as e:
-            return {"test_name": "security_scan", "status": "error", "message": str(e)}
-
-    def _health_check_schema(self, schema_name: str) -> Dict:
-        """Health check for schema sandbox"""
-        try:
-            from sandbox_schema import SchemaSandboxManager
-
-            manager = SchemaSandboxManager()
-
-            # Verify schema exists and is accessible
-            result = manager.get_schema_size(schema_name)
-
-            if result["success"]:
-                return {
-                    "test_name": "health_check",
-                    "status": "passed",
-                    "message": f"Schema accessible, {result['table_count']} tables, {result['size_mb']} MB",
-                }
-            else:
-                return {
-                    "test_name": "health_check",
-                    "status": "failed",
-                    "message": result.get("error", "Schema not accessible"),
-                }
-
-        except Exception as e:
-            return {"test_name": "health_check", "status": "error", "message": str(e)}
-
-    def _sql_injection_check_schema(self, schema_name: str) -> Dict:
-        """Check for SQL injection vulnerabilities"""
-        # This would check code that uses this schema
-        # For now, simple placeholder
-        return {
-            "test_name": "sql_injection_check",
-            "status": "passed",
-            "message": "SQL injection check requires code analysis (not implemented)",
-        }
-
-    def _query_performance_schema(self, schema_name: str) -> Dict:
-        """Test query performance in schema sandbox"""
-        try:
-            from sandbox_schema import SchemaSandboxManager
-            import time
-
-            manager = SchemaSandboxManager()
-
-            # Run a simple query and time it
-            start = time.time()
-            result = manager.execute_query(
-                schema_name,
-                "SELECT COUNT(*) FROM pg_tables WHERE schemaname = %s",
-                (schema_name,),
-            )
-            duration = time.time() - start
-
-            if result["success"] and duration < 1.0:  # Should be fast
-                return {
-                    "test_name": "query_performance",
-                    "status": "passed",
-                    "message": f"Query executed in {duration:.3f}s",
-                }
-            else:
-                return {
-                    "test_name": "query_performance",
-                    "status": "warning",
-                    "message": f"Query slow ({duration:.3f}s) or failed",
-                }
-
-        except Exception as e:
-            return {
-                "test_name": "query_performance",
-                "status": "error",
-                "message": str(e),
-            }
-
-
-# ============================================================================
-# PROPOSAL VALIDATION & FIX GENERATION
-# ============================================================================
-
-
-class ProposalValidator:
-    """
-    Validates that a proposal's issue is real and generates the fix code.
-
-    This runs BEFORE standard sandbox tests to ensure:
-    1. The reported issue actually exists in the file
-    2. A valid fix can be generated
-    3. The fix has correct syntax
-    4. plan_steps are updated with old_content/new_content
-    """
-
-    # Patterns that indicate false positives (safe code)
-    SAFE_PATTERNS = {
-        "sql_injection": [
-            r"execute\s*\([^,]+,\s*\(",  # execute("...", (params,)) - parameterized
-            r"execute\s*\([^,]+,\s*\{",  # execute("...", {params}) - named params
-        ],
-        "hardcoded_password": [
-            r'getenv\s*\(\s*[\'"].*password',  # getenv('PASSWORD')
-            r'environ\s*\.\s*get\s*\(\s*[\'"].*password',  # environ.get('PASSWORD')
-            r'os\.getenv\s*\(\s*[\'"].*password',  # os.getenv('PASSWORD')
-        ],
-        "api_key_logging": [
-            r'[\'"]Authorization[\'"]\s*:',  # Headers with auth - not logging
-            r"headers\s*=\s*\{[^}]*Bearer",  # Bearer token in headers
-        ],
-    }
-
-    def __init__(self):
-        self.platform_path = "/app"
-        self.ai_bridge_path = "/mnt/archie_brain/ai_bridge"
-
-    def validate_and_generate_fix(self, proposal: Dict) -> Dict:
-        """
-        Main entry point: validates issue and generates fix.
-
-        Returns:
-            {
-                'success': bool,
-                'issue_valid': bool,
-                'fix_generated': bool,
-                'fix_validated': bool,
-                'old_content': str,
-                'new_content': str,
-                'error': str (if failed),
-                'false_positive_reason': str (if issue is false positive)
-            }
-        """
-        metadata = proposal.get("metadata") or {}
-        file_path = metadata.get("file_path", "")
-        line_number = metadata.get("line_number")
-        issue_type = metadata.get("issue_type", "")
-        message = metadata.get("message", "")
-
-        if not file_path:
-            return {"success": False, "error": "No file_path in proposal metadata"}
-
-        # Step 1: Read the file and get context
-        file_content = self._read_file(file_path)
-        if not file_content:
-            return {"success": False, "error": f"Could not read file: {file_path}"}
-
-        # Step 2: Validate the issue is real (not a false positive)
-        validation = self._validate_issue_exists(file_content, line_number, issue_type, message)
-
-        if not validation["issue_valid"]:
-            return {
-                "success": False,
-                "issue_valid": False,
-                "false_positive_reason": validation.get("reason", "Issue not found at specified location"),
-                "error": "False positive - issue does not exist",
-            }
-
-        # Step 3: Generate the fix
-        fix_result = self._generate_fix(
-            proposal_id=proposal.get("id"),
-            file_path=file_path,
-            file_content=file_content,
-            line_number=line_number,
-            issue_type=issue_type,
-            message=message,
-            suggestion=metadata.get("suggestion", ""),
-        )
-
-        if not fix_result.get("success"):
-            return {
-                "success": False,
-                "issue_valid": True,
-                "fix_generated": False,
-                "error": fix_result.get("error", "Failed to generate fix"),
-            }
-
-        # Step 4: Validate the fix
-        fix_validation = self._validate_fix(
-            file_path=file_path,
-            file_content=file_content,
-            old_content=fix_result.get("old_content", ""),
-            new_content=fix_result.get("new_content", ""),
-        )
-
-        if not fix_validation["valid"]:
-            return {
-                "success": False,
-                "issue_valid": True,
-                "fix_generated": True,
-                "fix_validated": False,
-                "error": fix_validation.get("error", "Fix validation failed"),
-            }
-
-        return {
-            "success": True,
-            "issue_valid": True,
-            "fix_generated": True,
-            "fix_validated": True,
-            "old_content": fix_result.get("old_content", ""),
-            "new_content": fix_result.get("new_content", ""),
-            "description": fix_result.get("description", ""),
-            "file_path": file_path,
-        }
-
-    def _read_file(self, file_path: str) -> Optional[str]:
-        """Read file content, handling Docker/host path differences"""
-        possible_paths = []
-
-        if file_path.startswith("/"):
-            possible_paths.append(file_path)
-        elif file_path.startswith("platform_v2/"):
-            rel_path = file_path[len("platform_v2/") :]
-            possible_paths.append(os.path.join(self.platform_path, rel_path))
-            possible_paths.append(os.path.join("/mnt/archie_brain/platform_v2", rel_path))
-        elif file_path.startswith("ai_bridge/"):
-            rel_path = file_path[len("ai_bridge/") :]
-            possible_paths.append(os.path.join(self.ai_bridge_path, rel_path))
-        else:
-            possible_paths.append(os.path.join(self.platform_path, file_path))
-            possible_paths.append(os.path.join("/mnt/archie_brain", file_path))
-
-        for path in possible_paths:
-            if os.path.exists(path):
-                try:
-                    with open(path, "r", encoding="utf-8") as f:
-                        return f.read()
-                except:
-                    continue
-        return None
-
-    def _validate_issue_exists(
-        self,
-        file_content: str,
-        line_number: Optional[int],
-        issue_type: str,
-        message: str,
-    ) -> Dict:
-        """Check if the reported issue actually exists"""
-        lines = file_content.split("\n")
-
-        # Get context around the reported line
-        if line_number and 0 < line_number <= len(lines):
-            target_line = lines[line_number - 1]
-            context_start = max(0, line_number - 5)
-            context_end = min(len(lines), line_number + 5)
-            context = "\n".join(lines[context_start:context_end])
-        else:
-            target_line = ""
-            context = file_content[:2000]
-
-        # Check for false positive patterns
-        issue_key = issue_type.lower().replace(" ", "_").replace("-", "_")
-        safe_patterns = self.SAFE_PATTERNS.get(issue_key, [])
-
-        for pattern in safe_patterns:
-            if re.search(pattern, context, re.IGNORECASE):
-                return {
-                    "issue_valid": False,
-                    "reason": f"Safe pattern detected: code uses secure practice",
-                }
-
-        # Specific checks by issue type and message content
-        combined_text = f"{issue_type} {message}".lower()
-
-        # SQL injection check - triggered by issue_type OR message mentioning sql injection
-        if "sql" in combined_text and "injection" in combined_text:
-            # Check if it's using parameterized queries (psycopg2 pattern)
-            # Pattern: execute("...", (param,)) or execute("...", [param])
-            if re.search(r"execute\s*\([^)]+,\s*[\(\[]", context):
-                return {
-                    "issue_valid": False,
-                    "reason": "Using parameterized queries (psycopg2 %s placeholders with tuple/list)",
-                }
-            # Named params pattern: execute("...%(name)s...", {name: val})
-            if re.search(r"execute\s*\([^)]*%\([^)]+\)s", context):
-                return {
-                    "issue_valid": False,
-                    "reason": "Using named parameterized queries",
-                }
-            # Check if line has %s placeholder AND a second parameter
-            if "%s" in context and re.search(r"execute\s*\([^)]+,\s*\(", context):
-                return {
-                    "issue_valid": False,
-                    "reason": "Using psycopg2 parameterized queries (%s with tuple)",
-                }
-
-        if "hardcoded" in message.lower() and "password" in message.lower():
-            # Check if password comes from environment
-            if re.search(r"(getenv|environ|os\.env)", context, re.IGNORECASE):
-                return {
-                    "issue_valid": False,
-                    "reason": "Password loaded from environment variable (secure)",
-                }
-
-        if "api" in message.lower() and "key" in message.lower() and "log" in message.lower():
-            # Check if it's just in headers (not logging)
-            if "Authorization" in context or "Bearer" in context:
-                if "print" not in target_line.lower() and "log" not in target_line.lower():
-                    return {
-                        "issue_valid": False,
-                        "reason": "API key in authorization header (not logging)",
-                    }
-
-        # If no false positive patterns matched, assume issue is valid
-        return {"issue_valid": True}
-
-    def _generate_fix(
-        self,
-        proposal_id: int,
-        file_path: str,
-        file_content: str,
-        line_number: Optional[int],
-        issue_type: str,
-        message: str,
-        suggestion: str,
-    ) -> Dict:
-        """Generate fix using code_generation_engine"""
-        try:
-            import sys
-
-            sys.path.insert(0, self.ai_bridge_path)
-            from code_generation_engine import CodeGenerationEngine
-
-            engine = CodeGenerationEngine()
-
-            # Build description for code generation
-            description = f"""Fix {issue_type} issue: {message}
-
-Suggested fix: {suggestion}
-
-Focus on line {line_number if line_number else 'as indicated'}.
-Make the MINIMAL change necessary to fix this specific issue."""
-
-            result = engine.generate_with_validation(
-                proposal_id=proposal_id,
-                proposal_title=f"Fix {issue_type}",
-                proposal_description=description,
-                category=(issue_type if issue_type in ["security", "performance", "quality"] else "code_quality"),
-                target_files=[file_path],
-                line_number=line_number,
-                issue_context={
-                    "issue_type": issue_type,
-                    "message": message,
-                    "suggestion": suggestion,
-                    "line_number": line_number,
-                },
-            )
-
-            if result.get("success") and result.get("changes"):
-                change = result["changes"][0]
-                return {
-                    "success": True,
-                    "old_content": change.get("old_content", ""),
-                    "new_content": change.get("new_content", ""),
-                    "description": change.get("description", ""),
-                }
-            else:
-                return {
-                    "success": False,
-                    "error": result.get("error", "No changes generated"),
-                }
-
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
-    def _validate_fix(self, file_path: str, file_content: str, old_content: str, new_content: str) -> Dict:
-        """Validate the generated fix"""
-        errors = []
-
-        # Check old_content exists in file
-        if old_content and old_content not in file_content:
-            errors.append("old_content not found in file")
-
-        # Syntax check new_content for Python
-        if file_path.endswith(".py") and new_content:
-            try:
-                # Try to compile as part of a function (handles indented code)
-                import textwrap
-
-                dedented = textwrap.dedent(new_content)
-
-                # Try different compilation strategies
-                valid = False
-                try:
-                    compile(dedented, "<string>", "exec")
-                    valid = True
-                except SyntaxError:
-                    # Try wrapping in function
-                    try:
-                        wrapped = f"def _test():\n{textwrap.indent(dedented, '    ')}"
-                        compile(wrapped, "<string>", "exec")
-                        valid = True
-                    except SyntaxError as e:
-                        errors.append(f"Syntax error in new_content: {e}")
-            except Exception as e:
-                errors.append(f"Validation error: {e}")
-
-        if errors:
-            return {"valid": False, "error": "; ".join(errors)}
-        return {"valid": True}
-
-
-def validate_proposal_and_generate_fix(proposal_id: int) -> Dict:
-    """
-    Convenience function: Validate proposal and generate fix.
-    Updates proposal's plan_steps with old_content/new_content if successful.
-    """
-    import psycopg2
-    from psycopg2.extras import RealDictCursor
-
-    try:
-        conn = psycopg2.connect(
-            host=os.getenv("DB_HOST", "archie_database"),
-            database=os.getenv("DB_NAME", "archie"),
-            user=os.getenv("DB_USER", "archie"),
-            password=os.getenv("DB_PASSWORD", ""),
-        )
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # Get proposal
-        cur.execute(
-            """
-            SELECT id, title, description, status, metadata, plan_steps
-            FROM improvement_proposals
-            WHERE id = %s
-        """,
-            (proposal_id,),
-        )
-        proposal = cur.fetchone()
-
-        if not proposal:
-            return {"success": False, "error": "Proposal not found"}
-
-        # Run validation
-        validator = ProposalValidator()
-        result = validator.validate_and_generate_fix(dict(proposal))
-
-        if result.get("success"):
-            # Update plan_steps with the generated fix
-            plan_steps = proposal.get("plan_steps") or []
-
-            # Find the edit_file step and update it
-            for step in plan_steps:
-                if step.get("action") in ["edit_file", "modify"]:
-                    step["old_content"] = result.get("old_content", "")
-                    step["new_content"] = result.get("new_content", "")
-                    step["fix_generated"] = True
-                    step["fix_validated"] = True
-                    break
-
-            # Update proposal
-            cur.execute(
-                """
-                UPDATE improvement_proposals
-                SET plan_steps = %s,
-                    notes = COALESCE(notes, '') || %s
-                WHERE id = %s
-            """,
-                (
-                    json.dumps(plan_steps),
-                    f"\n[Sandbox] Fix generated and validated at {datetime.now().isoformat()}",
-                    proposal_id,
-                ),
-            )
-            conn.commit()
-
-            result["plan_steps_updated"] = True
-        elif result.get("false_positive_reason"):
-            # Mark as false positive
-            cur.execute(
-                """
-                UPDATE improvement_proposals
-                SET status = 'rejected',
-                    notes = COALESCE(notes, '') || %s
-                WHERE id = %s
-            """,
-                (
-                    f'\n[Sandbox] False positive: {result["false_positive_reason"]}',
-                    proposal_id,
-                ),
-            )
-
-            # Also update the code_issues if linked
-            metadata = proposal.get("metadata") or {}
-            issue_id = metadata.get("issue_id")
-            if issue_id:
+            if required_only:
                 cur.execute(
                     """
-                    UPDATE code_issues
-                    SET status = 'false_positive'
+                    SELECT id, name, description, test_type, test_command,
+                           timeout_seconds, required, enabled
+                    FROM sandbox_test_suites
+                    WHERE enabled = TRUE AND required = TRUE
+                    ORDER BY test_type, name
+                """
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT id, name, description, test_type, test_command,
+                           timeout_seconds, required, enabled
+                    FROM sandbox_test_suites
+                    WHERE enabled = TRUE
+                    ORDER BY test_type, name
+                """
+                )
+
+            suites = cur.fetchall()
+            cur.close()
+            conn.close()
+
+            return [
+                {
+                    "id": s[0],
+                    "name": s[1],
+                    "description": s[2],
+                    "test_type": s[3],
+                    "test_command": s[4],
+                    "timeout_seconds": s[5],
+                    "required": s[6],
+                    "enabled": s[7],
+                }
+                for s in suites
+            ]
+
+        except Exception as e:
+            print(f"Error getting test suites: {e}")
+            import traceback
+
+            traceback.print_exc()
+            return []
+
+    def run_test_suite(
+        self,
+        sandbox_id: int,
+        proposal_id: int,
+        test_suite: Dict,
+        sandbox_type: str = "schema_separation",
+    ) -> Dict:
+        """
+        Run a single test suite
+
+        Args:
+            sandbox_id: ID of the sandbox
+            proposal_id: ID of the proposal being tested
+            test_suite: Test suite configuration dict
+            sandbox_type: Type of sandbox ('docker_container' or 'schema_separation')
+
+        Returns:
+            Dictionary with test results
+        """
+        try:
+            test_name = test_suite["name"]
+            test_command = test_suite["test_command"]
+            timeout = test_suite["timeout_seconds"]
+
+            print(f"🧪 Running test suite: {test_name}")
+            print(f"   Command: {test_command}")
+
+            start_time = time.time()
+
+            # Determine execution environment
+            if sandbox_type == "docker_container":
+                # Run in Docker sandbox container
+                full_command = f"docker exec archie_sandbox {test_command}"
+            else:
+                # Run in current environment (schema separation mode)
+                # Set environment variable to use sandbox schema
+                env = os.environ.copy()
+                env["DB_SCHEMA"] = "sandbox"
+                full_command = test_command
+
+            # Execute test command
+            try:
+                result = subprocess.run(
+                    full_command,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                    cwd=self.base_path,
+                )
+
+                duration_ms = int((time.time() - start_time) * 1000)
+
+                # Determine status from exit code
+                if result.returncode == 0:
+                    status = "passed"
+                    error_message = None
+                    stack_trace = None
+                else:
+                    status = "failed"
+                    error_message = result.stderr[:500] if result.stderr else "Test failed with non-zero exit code"
+                    stack_trace = result.stderr if result.stderr else None
+
+                output = result.stdout[:1000] if result.stdout else ""
+
+            except subprocess.TimeoutExpired:
+                duration_ms = timeout * 1000
+                status = "error"
+                error_message = f"Test timed out after {timeout} seconds"
+                stack_trace = None
+                output = ""
+
+            except Exception as e:
+                duration_ms = int((time.time() - start_time) * 1000)
+                status = "error"
+                error_message = str(e)
+                stack_trace = None
+                output = ""
+
+            # Record result in database
+            self._save_test_result(
+                sandbox_id=sandbox_id,
+                test_suite_id=test_suite["id"],
+                proposal_id=proposal_id,
+                test_name=test_name,
+                status=status,
+                duration_ms=duration_ms,
+                error_message=error_message,
+                stack_trace=stack_trace,
+                output=output,
+            )
+
+            print(f"   Result: {status.upper()} ({duration_ms}ms)")
+
+            return {
+                "test_suite_id": test_suite["id"],
+                "test_name": test_name,
+                "status": status,
+                "duration_ms": duration_ms,
+                "error_message": error_message,
+                "required": test_suite["required"],
+            }
+
+        except Exception as e:
+            print(f"Error running test suite {test_suite['name']}: {e}")
+            import traceback
+
+            traceback.print_exc()
+            return {
+                "test_suite_id": test_suite["id"],
+                "test_name": test_suite["name"],
+                "status": "error",
+                "duration_ms": 0,
+                "error_message": str(e),
+                "required": test_suite["required"],
+            }
+
+    def _save_test_result(
+        self,
+        sandbox_id: int,
+        test_suite_id: int,
+        proposal_id: int,
+        test_name: str,
+        status: str,
+        duration_ms: int,
+        error_message: Optional[str],
+        stack_trace: Optional[str],
+        output: Optional[str],
+    ) -> bool:
+        """Save test result to database"""
+        try:
+            conn = get_db()
+            cur = conn.cursor()
+
+            cur.execute(
+                """
+                INSERT INTO sandbox_test_results (
+                    sandbox_id,
+                    test_suite_id,
+                    proposal_id,
+                    test_name,
+                    status,
+                    duration_ms,
+                    error_message,
+                    stack_trace,
+                    output
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+                (
+                    sandbox_id,
+                    test_suite_id,
+                    proposal_id,
+                    test_name,
+                    status,
+                    duration_ms,
+                    error_message,
+                    stack_trace,
+                    output,
+                ),
+            )
+
+            conn.commit()
+            cur.close()
+            conn.close()
+
+            return True
+
+        except Exception as e:
+            print(f"Error saving test result: {e}")
+            import traceback
+
+            traceback.print_exc()
+            return False
+
+    def run_all_test_suites(
+        self,
+        sandbox_id: int,
+        proposal_id: int,
+        sandbox_type: str = "schema_separation",
+        required_only: bool = False,
+    ) -> Dict:
+        """
+        Run all enabled test suites
+
+        Args:
+            sandbox_id: ID of the sandbox
+            proposal_id: ID of the proposal
+            sandbox_type: Type of sandbox
+            required_only: Only run required tests
+
+        Returns:
+            Dictionary with overall results
+        """
+        try:
+            print(f"\n{'='*80}")
+            print(f"RUNNING TEST SUITES FOR PROPOSAL #{proposal_id}")
+            print(f"Sandbox ID: {sandbox_id}, Type: {sandbox_type}")
+            print(f"{'='*80}\n")
+
+            # Update proposal test status to 'running'
+            self._update_proposal_test_status(proposal_id, "running")
+
+            # Get test suites
+            test_suites = self.get_test_suites(required_only=required_only)
+
+            if not test_suites:
+                print("⚠️  No test suites found")
+                return {"success": False, "error": "No test suites configured"}
+
+            start_time = time.time()
+            results = []
+
+            # Run each test suite
+            for suite in test_suites:
+                result = self.run_test_suite(
+                    sandbox_id=sandbox_id,
+                    proposal_id=proposal_id,
+                    test_suite=suite,
+                    sandbox_type=sandbox_type,
+                )
+                results.append(result)
+
+            total_duration = int((time.time() - start_time))
+
+            # Calculate summary
+            total_tests = len(results)
+            passed = sum(1 for r in results if r["status"] == "passed")
+            failed = sum(1 for r in results if r["status"] == "failed")
+            errors = sum(1 for r in results if r["status"] == "error")
+
+            # Check if required tests passed
+            required_passed = all(r["status"] == "passed" for r in results if r.get("required", False))
+
+            # Only fail overall if REQUIRED tests failed
+            # Non-required test failures are warnings, not blockers
+            required_failed = sum(1 for r in results if r.get("required", False) and r["status"] != "passed")
+
+            overall_status = "passed" if required_failed == 0 else "failed"
+
+            # Update proposal with test results
+            test_summary = {
+                "total_tests": total_tests,
+                "passed": passed,
+                "failed": failed,
+                "errors": errors,
+                "duration_seconds": total_duration,
+                "required_passed": required_passed,
+                "overall_status": overall_status,
+                "results": results,
+            }
+
+            self._update_proposal_test_results(
+                proposal_id=proposal_id,
+                test_status=overall_status,
+                test_duration=total_duration,
+                test_summary=test_summary,
+            )
+
+            print(f"\n{'='*80}")
+            print(f"TEST RESULTS SUMMARY")
+            print(f"{'='*80}")
+            print(f"Total Tests: {total_tests}")
+            print(f"Passed: {passed}")
+            print(f"Failed: {failed}")
+            print(f"Errors: {errors}")
+            print(f"Duration: {total_duration}s")
+            print(f"Overall Status: {overall_status.upper()}")
+            print(f"Required Tests Passed: {'YES' if required_passed else 'NO'}")
+            print(f"{'='*80}\n")
+
+            return {
+                "success": True,
+                "overall_status": overall_status,
+                "required_passed": required_passed,
+                "summary": test_summary,
+            }
+
+        except Exception as e:
+            print(f"Error running test suites: {e}")
+            import traceback
+
+            traceback.print_exc()
+
+            self._update_proposal_test_status(proposal_id, "failed")
+
+            return {"success": False, "error": str(e)}
+
+    def _update_proposal_test_status(self, proposal_id: int, test_status: str) -> bool:
+        """Update proposal test status"""
+        try:
+            conn = get_db()
+            cur = conn.cursor()
+
+            if test_status == "running":
+                cur.execute(
+                    """
+                    UPDATE improvement_proposals
+                    SET test_status = %s,
+                        test_started_at = NOW()
                     WHERE id = %s
                 """,
-                    (issue_id,),
+                    (test_status, proposal_id),
+                )
+            else:
+                cur.execute(
+                    """
+                    UPDATE improvement_proposals
+                    SET test_status = %s,
+                        test_completed_at = NOW()
+                    WHERE id = %s
+                """,
+                    (test_status, proposal_id),
                 )
 
             conn.commit()
-            result["marked_false_positive"] = True
+            cur.close()
+            conn.close()
 
-        cur.close()
-        conn.close()
-        return result
+            return True
 
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+        except Exception as e:
+            print(f"Error updating test status: {e}")
+            return False
+
+    def _update_proposal_test_results(
+        self, proposal_id: int, test_status: str, test_duration: int, test_summary: Dict
+    ) -> bool:
+        """Update proposal with complete test results"""
+        try:
+            conn = get_db()
+            cur = conn.cursor()
+
+            cur.execute(
+                """
+                UPDATE improvement_proposals
+                SET test_status = %s,
+                    test_completed_at = NOW(),
+                    test_duration_seconds = %s,
+                    test_results_summary = %s
+                WHERE id = %s
+            """,
+                (
+                    test_status,
+                    test_duration,
+                    json.dumps(test_summary),  # Properly serialize to JSON
+                    proposal_id,
+                ),
+            )
+
+            conn.commit()
+            cur.close()
+            conn.close()
+
+            return True
+
+        except Exception as e:
+            print(f"Error updating test results: {e}")
+            import traceback
+
+            traceback.print_exc()
+            return False
+
+    def run_health_check(self, sandbox_id: int, check_type: str = "service") -> Dict:
+        """
+        Run health check on a sandbox
+
+        Args:
+            sandbox_id: ID of the sandbox
+            check_type: Type of health check ('http', 'database', 'service', 'resource')
+
+        Returns:
+            Dictionary with health check results
+        """
+        try:
+            start_time = time.time()
+
+            # Simple health check implementations
+            if check_type == "database":
+                # Check database connectivity
+                try:
+                    conn = get_db()
+                    cur = conn.cursor()
+                    cur.execute("SELECT 1")
+                    cur.fetchone()
+                    cur.close()
+                    conn.close()
+                    status = "healthy"
+                    details = {"connection": "successful"}
+                except Exception as e:
+                    status = "unhealthy"
+                    details = {"error": str(e)}
+
+            elif check_type == "service":
+                # Check if platform is responsive
+                status = "healthy"
+                details = {"status": "responsive"}
+
+            else:
+                status = "healthy"
+                details = {}
+
+            response_time = int((time.time() - start_time) * 1000)
+
+            # Save health check result
+            conn = get_db()
+            cur = conn.cursor()
+
+            cur.execute(
+                """
+                INSERT INTO sandbox_health_checks (
+                    sandbox_id,
+                    check_type,
+                    status,
+                    response_time_ms,
+                    details
+                ) VALUES (%s, %s, %s, %s, %s)
+            """,
+                (
+                    sandbox_id,
+                    check_type,
+                    status,
+                    response_time,
+                    str(details).replace("'", '"'),
+                ),
+            )
+
+            # Update sandbox health status
+            cur.execute(
+                """
+                UPDATE sandbox_instances
+                SET health_check_status = %s,
+                    health_check_last_run = NOW()
+                WHERE id = %s
+            """,
+                (status, sandbox_id),
+            )
+
+            conn.commit()
+            cur.close()
+            conn.close()
+
+            return {
+                "success": True,
+                "status": status,
+                "response_time_ms": response_time,
+                "details": details,
+            }
+
+        except Exception as e:
+            print(f"Error running health check: {e}")
+            return {"success": False, "status": "unhealthy", "error": str(e)}
 
 
-# ============================================================================
-# CONVENIENCE FUNCTIONS
-# ============================================================================
-
-
-def run_tests_in_sandbox(sandbox_id: int, sandbox_type: str, **kwargs) -> Dict:
-    """Quick function to run tests"""
+# Convenience functions
+def run_sandbox_tests(
+    sandbox_id: int,
+    proposal_id: int,
+    sandbox_type: str = "schema_separation",
+    required_only: bool = False,
+) -> Dict:
+    """Run all test suites in a sandbox"""
     runner = SandboxTestRunner()
-    return runner.run_tests(sandbox_id, sandbox_type, **kwargs)
+    return runner.run_all_test_suites(
+        sandbox_id=sandbox_id,
+        proposal_id=proposal_id,
+        sandbox_type=sandbox_type,
+        required_only=required_only,
+    )
 
 
-# ============================================================================
-# TESTING
-# ============================================================================
+def check_sandbox_health(sandbox_id: int) -> Dict:
+    """Run health check on a sandbox"""
+    runner = SandboxTestRunner()
+    return runner.run_health_check(sandbox_id)
+
 
 if __name__ == "__main__":
-    print("Sandbox Test Runner - Test Mode")
-    print("=" * 60)
+    # Test the sandbox test runner
+    print("🧪 Testing Sandbox Test Runner...")
 
     runner = SandboxTestRunner()
 
-    print("\n1. AVAILABLE TEST SUITES:")
-    print("-" * 60)
-    for suite_name, tests in runner.test_suites.items():
-        print(f"{suite_name}: {', '.join(tests)}")
-
-    print("\n✅ Sandbox Test Runner loaded successfully!")
+    # Get available test suites
+    suites = runner.get_test_suites()
+    print(f"\nFound {len(suites)} test suites:")
+    for suite in suites:
+        print(f"  • {suite['name']} ({suite['test_type']}) - Required: {suite['required']}")

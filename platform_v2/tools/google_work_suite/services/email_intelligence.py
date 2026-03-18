@@ -323,9 +323,7 @@ class EmailIntelligence:
                             analyzed += 1
                             time.sleep(1)  # GPU safety between AI calls
                         except Exception as e:
-                            logger.warning(
-                                f"Auto-analysis failed for email #{email_id}: {e}"
-                            )
+                            logger.warning(f"Auto-analysis failed for email #{email_id}: {e}")
 
                 except Exception as e:
                     logger.error(f"Failed to fetch UID {uid}: {e}")
@@ -443,9 +441,7 @@ Respond with ONLY a JSON object:
             conn.close()
             return {"error": str(e)}
 
-    def generate_draft_reply(
-        self, email_id: int, instructions: str = ""
-    ) -> Optional[int]:
+    def generate_draft_reply(self, email_id: int, instructions: str = "") -> Optional[int]:
         """
         Generate an AI draft reply for an email.
 
@@ -488,9 +484,7 @@ Respond with ONLY the email body text, no JSON."""
             from bridge_dispatcher import get_dispatcher
 
             dispatcher = get_dispatcher()
-            dispatch_result = dispatcher.request_work(
-                "email_composition", prompt, "email_intelligence", timeout=120
-            )
+            dispatch_result = dispatcher.request_work("email_composition", prompt, "email_intelligence", timeout=120)
 
             if not dispatch_result.success:
                 cur.close()

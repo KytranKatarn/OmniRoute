@@ -108,11 +108,13 @@ def check_predefined_script(user_message: str, user_id: int) -> dict:
         is_admin = relationship and relationship.get("relationship_type") == "admin"
 
         # Get active scripts ordered by priority
-        cur.execute("""
+        cur.execute(
+            """
             SELECT * FROM archie_scripts
             WHERE active = TRUE
             ORDER BY priority DESC
-        """)
+        """
+        )
         scripts = cur.fetchall()
 
         message_lower = user_message.lower().strip()
@@ -129,9 +131,7 @@ def check_predefined_script(user_message: str, user_id: int) -> dict:
 
                 # Personalize response
                 if relationship and relationship.get("preferred_name"):
-                    response = response.replace(
-                        "{name}", relationship["preferred_name"]
-                    )
+                    response = response.replace("{name}", relationship["preferred_name"])
 
                 cur.close()
                 conn.close()
@@ -472,16 +472,10 @@ Instructions:
     # Add conversation history for context continuity
     if conversation_history and len(conversation_history) > 0:
         system_prompt += "\n\nRECENT CONVERSATION CONTEXT:\n"
-        system_prompt += (
-            "(Remember this context to maintain conversation continuity)\n\n"
-        )
+        system_prompt += "(Remember this context to maintain conversation continuity)\n\n"
 
         # Include last 6 messages for context (3 exchanges)
-        recent_messages = (
-            conversation_history[-6:]
-            if len(conversation_history) > 6
-            else conversation_history
-        )
+        recent_messages = conversation_history[-6:] if len(conversation_history) > 6 else conversation_history
 
         for msg in recent_messages:
             role = msg.get("role", "user")
@@ -493,7 +487,9 @@ Instructions:
                 system_prompt += f"You (A.R.C.H.I.E.): {content}\n"
 
         system_prompt += "\n(End of recent conversation - continue from here)\n"
-        system_prompt += "IMPORTANT: Reference the above conversation naturally. Don't mention names that weren't discussed.\n"
+        system_prompt += (
+            "IMPORTANT: Reference the above conversation naturally. Don't mention names that weren't discussed.\n"
+        )
 
     # Call fast local model
     result = call_ollama(
@@ -520,19 +516,13 @@ Instructions:
         ]
 
         response_lower = response_text.lower()
-        indicates_delegation = any(
-            phrase in response_lower for phrase in delegation_phrases
-        )
+        indicates_delegation = any(phrase in response_lower for phrase in delegation_phrases)
 
         if indicates_delegation:
             # A.R.C.H.I.E. recognized she should delegate
             # Figure out which department
             detected_dept = None
-            if (
-                "engineering" in response_lower
-                or "code" in response_lower
-                or "bug" in response_lower
-            ):
+            if "engineering" in response_lower or "code" in response_lower or "bug" in response_lower:
                 detected_dept = "Engineering"
             elif "operations" in response_lower or "workflow" in response_lower:
                 detected_dept = "Operations"

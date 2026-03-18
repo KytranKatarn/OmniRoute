@@ -81,9 +81,7 @@ class WorkflowOrchestrator:
             workflow_log.append(f"Step 1: Code Generation")
             workflow_log.append(f"{'='*60}")
 
-            transition_proposal_state(
-                proposal_id, "generating_code", "Starting code generation"
-            )
+            transition_proposal_state(proposal_id, "generating_code", "Starting code generation")
             states_completed.append("generating_code")
 
             code_result = generate_code_for_proposal(
@@ -95,9 +93,7 @@ class WorkflowOrchestrator:
 
             if not code_result.get("success"):
                 workflow_log.append(f"❌ Code generation failed")
-                transition_proposal_state(
-                    proposal_id, "failed", "Code generation failed"
-                )
+                transition_proposal_state(proposal_id, "failed", "Code generation failed")
                 return {
                     "success": False,
                     "error": "Code generation failed",
@@ -110,9 +106,7 @@ class WorkflowOrchestrator:
             # Store generated code in proposal
             self._store_generated_code(proposal_id, changes, code_result["metadata"])
 
-            transition_proposal_state(
-                proposal_id, "code_generated", f"Generated {len(changes)} code changes"
-            )
+            transition_proposal_state(proposal_id, "code_generated", f"Generated {len(changes)} code changes")
             states_completed.append("code_generated")
 
             # Step 2: Create Sandbox
@@ -120,18 +114,14 @@ class WorkflowOrchestrator:
             workflow_log.append(f"Step 2: Sandbox Creation")
             workflow_log.append(f"{'='*60}")
 
-            transition_proposal_state(
-                proposal_id, "creating_sandbox", "Creating sandbox environment"
-            )
+            transition_proposal_state(proposal_id, "creating_sandbox", "Creating sandbox environment")
             states_completed.append("creating_sandbox")
 
             sandbox_result = self._create_sandbox(proposal_id)
 
             if not sandbox_result.get("success"):
                 workflow_log.append(f"❌ Sandbox creation failed")
-                transition_proposal_state(
-                    proposal_id, "failed", "Sandbox creation failed"
-                )
+                transition_proposal_state(proposal_id, "failed", "Sandbox creation failed")
                 return {
                     "success": False,
                     "error": "Sandbox creation failed",
@@ -141,9 +131,7 @@ class WorkflowOrchestrator:
             sandbox_id = sandbox_result["sandbox_id"]
             workflow_log.append(f"✅ Sandbox created: #{sandbox_id}")
 
-            transition_proposal_state(
-                proposal_id, "sandbox_created", f"Sandbox #{sandbox_id} created"
-            )
+            transition_proposal_state(proposal_id, "sandbox_created", f"Sandbox #{sandbox_id} created")
             states_completed.append("sandbox_created")
 
             # Step 3: Apply Code Changes
@@ -151,9 +139,7 @@ class WorkflowOrchestrator:
             workflow_log.append(f"Step 3: Applying Code Changes")
             workflow_log.append(f"{'='*60}")
 
-            transition_proposal_state(
-                proposal_id, "applying_changes", "Applying code to sandbox"
-            )
+            transition_proposal_state(proposal_id, "applying_changes", "Applying code to sandbox")
             states_completed.append("applying_changes")
 
             apply_result = apply_code_changes(proposal_id, changes)
@@ -161,9 +147,7 @@ class WorkflowOrchestrator:
             if not apply_result.get("success"):
                 workflow_log.append(f"❌ Code application failed")
                 workflow_log.extend(apply_result.get("application_log", []))
-                transition_proposal_state(
-                    proposal_id, "failed", "Code application failed"
-                )
+                transition_proposal_state(proposal_id, "failed", "Code application failed")
                 return {
                     "success": False,
                     "error": "Code application failed",
@@ -198,15 +182,11 @@ class WorkflowOrchestrator:
                 states_completed.append("tested")
             else:
                 workflow_log.append(f"⚠️  Some tests failed")
-                transition_proposal_state(
-                    proposal_id, "tested", "Tests completed with warnings"
-                )
+                transition_proposal_state(proposal_id, "tested", "Tests completed with warnings")
                 states_completed.append("tested")
 
             # Step 5: Mark as Ready for Review
-            transition_proposal_state(
-                proposal_id, "ready_for_review", "Ready for user review and deployment"
-            )
+            transition_proposal_state(proposal_id, "ready_for_review", "Ready for user review and deployment")
             states_completed.append("ready_for_review")
 
             workflow_log.append(f"\n{'='*60}")
@@ -235,9 +215,7 @@ class WorkflowOrchestrator:
 
             workflow_log.append(f"\n❌ Workflow error: {str(e)}")
             workflow_log.append(traceback.format_exc())
-            transition_proposal_state(
-                proposal_id, "failed", f"Workflow error: {str(e)}"
-            )
+            transition_proposal_state(proposal_id, "failed", f"Workflow error: {str(e)}")
 
             return {"success": False, "error": str(e), "workflow_log": workflow_log}
 
@@ -325,9 +303,7 @@ class WorkflowOrchestrator:
             }
 
         # Create new sandbox
-        result = self.sandbox_manager.create_schema(
-            sandbox_id=proposal_id, proposal_id=proposal_id, clone_data=True
-        )
+        result = self.sandbox_manager.create_schema(sandbox_id=proposal_id, proposal_id=proposal_id, clone_data=True)
 
         if not result.get("success"):
             cur.close()
@@ -364,9 +340,7 @@ class WorkflowOrchestrator:
             "schema_name": result["schema_name"],
         }
 
-    def _store_application_results(
-        self, proposal_id: int, sandbox_id: int, apply_result: dict
-    ):
+    def _store_application_results(self, proposal_id: int, sandbox_id: int, apply_result: dict):
         """Store code application results"""
         conn = self.get_db()
         cur = conn.cursor()

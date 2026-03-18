@@ -105,9 +105,7 @@ class CursorContextGenerator:
             return formatted_results
 
         except Exception as e:
-            print(
-                f"[Cursor Context] Error fetching knowledge (falling back to empty): {e}"
-            )
+            print(f"[Cursor Context] Error fetching knowledge (falling back to empty): {e}")
             import traceback
 
             traceback.print_exc()
@@ -156,9 +154,7 @@ class CursorContextGenerator:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def _build_cursorrules_content(
-        self, proposal: Dict, knowledge: List[Dict], branch_name: str
-    ) -> str:
+    def _build_cursorrules_content(self, proposal: Dict, knowledge: List[Dict], branch_name: str) -> str:
         """Build the actual .cursorrules file content"""
 
         # Format priority and risk level
@@ -190,9 +186,7 @@ class CursorContextGenerator:
             for idx, item in enumerate(knowledge, 1):
                 entity_name = item.get("entity_name", "Unknown")
                 knowledge_type = item.get("knowledge_type", "entity")
-                relevance = (
-                    item.get("relevance_score", 0) * 100
-                )  # Convert to percentage
+                relevance = item.get("relevance_score", 0) * 100  # Convert to percentage
 
                 knowledge_section += f"### {idx}. {entity_name} ({knowledge_type}) - {relevance:.0f}% relevant\n\n"
 
@@ -219,9 +213,7 @@ class CursorContextGenerator:
                     code_snippet = item["code_snippet"][:400]
                     if len(item.get("code_snippet", "")) > 400:
                         code_snippet += "\n// ...(truncated)"
-                    knowledge_section += (
-                        f"**Example Code**:\n```python\n{code_snippet}\n```\n\n"
-                    )
+                    knowledge_section += f"**Example Code**:\n```python\n{code_snippet}\n```\n\n"
 
                 # Add documentation if available
                 if item.get("documentation"):
@@ -459,9 +451,7 @@ If you're stuck or need clarification:
 
             # Commit .cursorrules to sandbox branch
             self.git_manager._run_git_command(["git", "add", ".cursorrules"])
-            self.git_manager._run_git_command(
-                ["git", "commit", "-m", f"Add .cursorrules for proposal #{proposal_id}"]
-            )
+            self.git_manager._run_git_command(["git", "commit", "-m", f"Add .cursorrules for proposal #{proposal_id}"])
 
             # Switch back to main
             self.git_manager.switch_to_branch("main")

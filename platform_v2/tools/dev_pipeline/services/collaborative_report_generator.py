@@ -72,9 +72,7 @@ class CollaborativeReportGenerator:
             if consensus:
                 recommendation = consensus["final_recommendation"].upper()
                 score = consensus["score"] * 100
-                report.append(
-                    f"TEAM RECOMMENDATION: {recommendation} (Consensus: {score:.0f}%)"
-                )
+                report.append(f"TEAM RECOMMENDATION: {recommendation} (Consensus: {score:.0f}%)")
                 report.append("")
 
                 # Key Points
@@ -110,17 +108,11 @@ class CollaborativeReportGenerator:
             report.append("-" * 80)
             if consensus:
                 if consensus["final_recommendation"] == "approved":
-                    report.append(
-                        "BOTTOM LINE: The team recommends proceeding with this proposal."
-                    )
+                    report.append("BOTTOM LINE: The team recommends proceeding with this proposal.")
                 elif consensus["final_recommendation"] == "rejected":
-                    report.append(
-                        "BOTTOM LINE: The team recommends rejecting this proposal."
-                    )
+                    report.append("BOTTOM LINE: The team recommends rejecting this proposal.")
                 else:
-                    report.append(
-                        "BOTTOM LINE: The team recommends revisions before proceeding."
-                    )
+                    report.append("BOTTOM LINE: The team recommends revisions before proceeding.")
             report.append("=" * 80)
 
             return "\n".join(report)
@@ -174,15 +166,9 @@ class CollaborativeReportGenerator:
                 report.append("-" * 80)
                 report.append("CONSENSUS ANALYSIS")
                 report.append("-" * 80)
-                report.append(
-                    f"Final Recommendation: {consensus['final_recommendation'].upper()}"
-                )
-                report.append(
-                    f"Consensus Score: {consensus['score']:.2f} ({consensus['score']*100:.0f}%)"
-                )
-                report.append(
-                    f"Voting Results: {consensus['approvals']} approve, {consensus['rejections']} reject"
-                )
+                report.append(f"Final Recommendation: {consensus['final_recommendation'].upper()}")
+                report.append(f"Consensus Score: {consensus['score']:.2f} ({consensus['score']*100:.0f}%)")
+                report.append(f"Voting Results: {consensus['approvals']} approve, {consensus['rejections']} reject")
                 report.append("")
 
             # Technical Evaluations
@@ -194,9 +180,7 @@ class CollaborativeReportGenerator:
                 for eval_data in evaluations:
                     report.append("")
                     report.append(f"Agent: {eval_data['agent_name']}")
-                    report.append(
-                        f"Recommendation: {eval_data['recommendation'].upper()}"
-                    )
+                    report.append(f"Recommendation: {eval_data['recommendation'].upper()}")
                     report.append(f"Confidence: {eval_data['confidence']:.0%}")
                     report.append(f"Risk Assessment: {eval_data['risk'].upper()}")
                     report.append("")
@@ -229,9 +213,7 @@ class CollaborativeReportGenerator:
 
                 for msg in messages:
                     report.append("")
-                    report.append(
-                        f"[{msg['created_at']}] {msg['agent_name']} ({msg['type']})"
-                    )
+                    report.append(f"[{msg['created_at']}] {msg['agent_name']} ({msg['type']})")
                     report.append(f"Confidence: {msg['confidence']:.0%}")
                     report.append(f"Message: {msg['message']}")
                     report.append("-" * 40)
@@ -261,9 +243,7 @@ class CollaborativeReportGenerator:
             Dictionary with visualization data
         """
         try:
-            consensus_score, stats = self.discussion_engine.calculate_consensus(
-                discussion_id
-            )
+            consensus_score, stats = self.discussion_engine.calculate_consensus(discussion_id)
 
             if "error" in stats:
                 return None
@@ -343,23 +323,15 @@ class CollaborativeReportGenerator:
             if consensus:
                 notification["recommendation"] = consensus["final_recommendation"]
                 notification["consensus_score"] = consensus["score"]
-                notification["vote_summary"] = (
-                    f"{consensus['approvals']} approve, {consensus['rejections']} reject"
-                )
+                notification["vote_summary"] = f"{consensus['approvals']} approve, {consensus['rejections']} reject"
 
                 # Quick summary
                 if consensus["final_recommendation"] == "approved":
-                    notification["quick_summary"] = (
-                        f"✅ Team approved with {consensus['score']:.0%} consensus"
-                    )
+                    notification["quick_summary"] = f"✅ Team approved with {consensus['score']:.0%} consensus"
                 elif consensus["final_recommendation"] == "rejected":
-                    notification["quick_summary"] = (
-                        f"❌ Team rejected with {consensus['score']:.0%} consensus"
-                    )
+                    notification["quick_summary"] = f"❌ Team rejected with {consensus['score']:.0%} consensus"
                 else:
-                    notification["quick_summary"] = (
-                        f"⚠️ Team recommends revisions ({consensus['score']:.0%} consensus)"
-                    )
+                    notification["quick_summary"] = f"⚠️ Team recommends revisions ({consensus['score']:.0%} consensus)"
 
                 # Top concern and benefit
                 if consensus["risks"]:
@@ -408,29 +380,19 @@ class CollaborativeReportGenerator:
             }
 
             if include_executive:
-                full_report["executive_summary"] = self.generate_executive_summary(
-                    discussion_id
-                )
+                full_report["executive_summary"] = self.generate_executive_summary(discussion_id)
 
             if include_technical:
-                full_report["technical_report"] = self.generate_technical_report(
-                    discussion_id
-                )
+                full_report["technical_report"] = self.generate_technical_report(discussion_id)
 
             if include_visual:
-                full_report["visual_data"] = self.generate_consensus_visual(
-                    discussion_id
-                )
+                full_report["visual_data"] = self.generate_consensus_visual(discussion_id)
 
             if include_notification:
-                full_report["notification_data"] = self.generate_notification_report(
-                    discussion_id
-                )
+                full_report["notification_data"] = self.generate_notification_report(discussion_id)
 
             # Add raw discussion summary
-            full_report["raw_data"] = self.discussion_engine.get_discussion_summary(
-                discussion_id
-            )
+            full_report["raw_data"] = self.discussion_engine.get_discussion_summary(discussion_id)
 
             return full_report
 
@@ -469,9 +431,7 @@ class CollaborativeReportGenerator:
                 WHERE id = %s
             """,
                 (
-                    json.dumps(
-                        report_data, cls=DecimalEncoder
-                    ),  # Properly serialize with Decimal handling
+                    json.dumps(report_data, cls=DecimalEncoder),  # Properly serialize with Decimal handling
                     discussion_id,
                 ),
             )

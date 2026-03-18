@@ -353,9 +353,7 @@ if __name__ == "__main__":
     print("=" * 80)
 
     # Test transition
-    result = transition_proposal_state(
-        proposal_id=39, to_state="proposed", reason="Reset for testing"
-    )
+    result = transition_proposal_state(proposal_id=39, to_state="proposed", reason="Reset for testing")
 
     print(f"\n✅ Transition success: {result.get('success')}")
     print(f"📊 From: {result.get('from_state')} → To: {result.get('to_state')}")

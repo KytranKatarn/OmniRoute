@@ -71,6 +71,7 @@ def _get_db():
     try:
         sys.path.insert(0, "/mnt/archie_brain/platform_v2")
         from database import get_db_cursor
+
         return get_db_cursor
     except ImportError:
         return get_db
@@ -96,7 +97,8 @@ def detect_improvement_opportunities() -> List[Dict]:
     opportunities = []
 
     # 1. Detect repeated errors (low trust, negative sentiment)
-    cur.execute("""
+    cur.execute(
+        """
         SELECT
             tags,
             COUNT(*) as occurrence_count,
@@ -112,7 +114,8 @@ def detect_improvement_opportunities() -> List[Dict]:
         AND AVG((metadata->>'trust_impact')::float) < -0.1
         ORDER BY occurrence_count DESC
         LIMIT 10;
-    """)
+    """
+    )
 
     for row in cur.fetchall():
         opportunities.append(
@@ -129,7 +132,8 @@ def detect_improvement_opportunities() -> List[Dict]:
         )
 
     # 2. Detect frequently asked questions (optimization targets)
-    cur.execute("""
+    cur.execute(
+        """
         SELECT
             unnest(tags) as tag,
             COUNT(*) as question_count,
@@ -141,7 +145,8 @@ def detect_improvement_opportunities() -> List[Dict]:
         HAVING COUNT(*) >= 5
         ORDER BY question_count DESC
         LIMIT 10;
-    """)
+    """
+    )
 
     for row in cur.fetchall():
         opportunities.append(
@@ -157,7 +162,8 @@ def detect_improvement_opportunities() -> List[Dict]:
         )
 
     # 3. Detect knowledge gaps (questions with low confidence)
-    cur.execute("""
+    cur.execute(
+        """
         SELECT
             tags,
             COUNT(*) as gap_count,
@@ -171,7 +177,8 @@ def detect_improvement_opportunities() -> List[Dict]:
         HAVING COUNT(*) >= 2
         ORDER BY gap_count DESC
         LIMIT 5;
-    """)
+    """
+    )
 
     for row in cur.fetchall():
         opportunities.append(
@@ -187,7 +194,8 @@ def detect_improvement_opportunities() -> List[Dict]:
         )
 
     # 4. Detect underutilized models (agents not being used)
-    cur.execute("""
+    cur.execute(
+        """
         SELECT
             a.name,
             a.department,
@@ -201,7 +209,8 @@ def detect_improvement_opportunities() -> List[Dict]:
         AND (a.last_used IS NULL OR a.last_used < NOW() - INTERVAL '7 days')
         ORDER BY last_used ASC NULLS FIRST
         LIMIT 10;
-    """)
+    """
+    )
 
     for row in cur.fetchall():
         opportunities.append(
@@ -212,9 +221,7 @@ def detect_improvement_opportunities() -> List[Dict]:
                 "department": row["department"],
                 "model": row["model"],
                 "usage_count": row["usage_count"] or 0,
-                "last_used": (
-                    row["last_used"].isoformat() if row["last_used"] else "Never"
-                ),
+                "last_used": (row["last_used"].isoformat() if row["last_used"] else "Never"),
                 "description": f"Agent '{row['name']}' ({row['model']}) rarely used. Only {row['usage_count'] or 0} executions.",
                 "suggested_action": "Consider reassigning this agent or promoting its capabilities.",
                 "category": "resource_optimization",
@@ -359,9 +366,7 @@ def propose_improvement(
             else:
                 result["team_assigned"] = False
                 result["team_error"] = team_result.get("error")
-                print(
-                    f"⚠️  Team assignment failed for proposal {proposal_id}: {team_result.get('error')}"
-                )
+                print(f"⚠️  Team assignment failed for proposal {proposal_id}: {team_result.get('error')}")
 
         except Exception as e:
             print(f"❌ Team assignment exception for proposal {proposal_id}: {e}")
@@ -378,9 +383,7 @@ def propose_improvement(
             if steps_result:
                 result["steps_generated"] = True
                 result["total_steps"] = steps_result.get("total_steps", 0)
-                result["estimated_time"] = steps_result.get(
-                    "total_estimated_time", "Unknown"
-                )
+                result["estimated_time"] = steps_result.get("total_estimated_time", "Unknown")
                 print(
                     f"✅ Steps generated for proposal {proposal_id}: {steps_result['total_steps']} steps, ~{steps_result['total_estimated_time']}"
                 )
@@ -476,10 +479,7 @@ def generate_diff_for_proposal(proposal_id: int, code_changes: List[Dict]) -> Di
 
         # Concatenate all 'after' content for code_changes field
         all_after_code = "\n\n".join(
-            [
-                f"# File: {change.get('path', 'unknown')}\n{change.get('after', '')}"
-                for change in code_changes
-            ]
+            [f"# File: {change.get('path', 'unknown')}\n{change.get('after', '')}" for change in code_changes]
         )
 
         cur.execute(
@@ -519,7 +519,7 @@ def generate_diff_for_proposal(proposal_id: int, code_changes: List[Dict]) -> Di
 def analyze_proposal_with_agents(proposal) -> Dict:
     """Dispatch proposal to Bridge agents for real analysis."""
     perspectives = {}
-    category = proposal.get('category', 'general') if isinstance(proposal, dict) else 'general'
+    category = proposal.get("category", "general") if isinstance(proposal, dict) else "general"
 
     # Support both dict and int (proposal_id) for backwards compatibility
     if isinstance(proposal, int):
@@ -531,17 +531,17 @@ def analyze_proposal_with_agents(proposal) -> Dict:
         conn.close()
         if not proposal:
             return {"error": "Proposal not found"}
-        category = proposal.get('category', 'general')
+        category = proposal.get("category", "general")
 
     # Map categories to analysis prompts
     prompts = {
-        'quality': "Analyze this code improvement proposal for quality impact. Is it worth implementing? What are the risks?",
-        'efficiency': "Analyze this proposal for performance/efficiency impact. Will it improve or degrade system performance?",
-        'security': "Review this proposal for security implications. Are there any vulnerabilities introduced or fixed?",
-        'general': "Review this improvement proposal. Assess its value, risk, and implementation complexity.",
+        "quality": "Analyze this code improvement proposal for quality impact. Is it worth implementing? What are the risks?",
+        "efficiency": "Analyze this proposal for performance/efficiency impact. Will it improve or degrade system performance?",
+        "security": "Review this proposal for security implications. Are there any vulnerabilities introduced or fixed?",
+        "general": "Review this improvement proposal. Assess its value, risk, and implementation complexity.",
     }
 
-    prompt_text = prompts.get(category, prompts['general'])
+    prompt_text = prompts.get(category, prompts["general"])
     context = (
         f"Proposal: {proposal.get('title', '')}\n"
         f"Description: {proposal.get('description', '')}\n"
@@ -559,20 +559,25 @@ def analyze_proposal_with_agents(proposal) -> Dict:
             user_id=None,
             enable_memory=False,
         )
-        response = result.get('response', '') if isinstance(result, dict) else str(result)
+        response = result.get("response", "") if isinstance(result, dict) else str(result)
         perspectives[category] = response
     except Exception as e:
         perspectives[category] = f"Analysis failed: {e}"
 
     # Store analysis in metadata if we have a proposal id
-    proposal_id = proposal.get('id') if isinstance(proposal, dict) else None
+    proposal_id = proposal.get("id") if isinstance(proposal, dict) else None
     if proposal_id:
         try:
             conn = get_db()
             cur = conn.cursor()
             cur.execute(
                 "UPDATE improvement_proposals SET metadata = metadata || %s::jsonb WHERE id = %s",
-                (json.dumps({"agent_analysis": {"perspectives": perspectives, "analyzed_at": datetime.now().isoformat()}}), proposal_id),
+                (
+                    json.dumps(
+                        {"agent_analysis": {"perspectives": perspectives, "analyzed_at": datetime.now().isoformat()}}
+                    ),
+                    proposal_id,
+                ),
             )
             conn.commit()
             cur.close()
@@ -587,9 +592,7 @@ def analyze_proposal_with_agents(proposal) -> Dict:
     }
 
 
-def get_recent_proposals(
-    limit: int = 20, status: Optional[str] = None, category: Optional[str] = None
-) -> List[Dict]:
+def get_recent_proposals(limit: int = 20, status: Optional[str] = None, category: Optional[str] = None) -> List[Dict]:
     """
     Get recent improvement proposals
 

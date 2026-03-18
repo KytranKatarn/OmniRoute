@@ -177,9 +177,7 @@ class ContentMatcher:
 
         if file_path.startswith("platform_v2/"):
             rel_path = file_path[len("platform_v2/") :]
-            possible_paths.extend(
-                [f"/app/{rel_path}", f"/mnt/archie_brain/platform_v2/{rel_path}"]
-            )
+            possible_paths.extend([f"/app/{rel_path}", f"/mnt/archie_brain/platform_v2/{rel_path}"])
         elif file_path.startswith("ai_bridge/"):
             rel_path = file_path[len("ai_bridge/") :]
             possible_paths.append(f"/mnt/archie_brain/ai_bridge/{rel_path}")
@@ -222,9 +220,7 @@ class ContentMatcher:
         if normalized_old in normalized_file:
             # Found normalized match - now find the actual content in original file
             # We need to return the original (non-normalized) content for replacement
-            actual_content = self._find_original_content(
-                file_content, normalized_file, normalized_old
-            )
+            actual_content = self._find_original_content(file_content, normalized_file, normalized_old)
             if actual_content:
                 location = self._find_location(file_content, actual_content)
                 return {
@@ -253,9 +249,7 @@ class ContentMatcher:
 
         return result
 
-    def _find_original_content(
-        self, original_file: str, normalized_file: str, normalized_target: str
-    ) -> Optional[str]:
+    def _find_original_content(self, original_file: str, normalized_file: str, normalized_target: str) -> Optional[str]:
         """
         Find the original (non-normalized) content that matches the normalized target.
 
@@ -279,9 +273,7 @@ class ContentMatcher:
 
         return "\n".join(target_lines)
 
-    def _find_fuzzy_matches(
-        self, file_content: str, target: str, max_results: int = 5
-    ) -> List[FuzzyMatch]:
+    def _find_fuzzy_matches(self, file_content: str, target: str, max_results: int = 5) -> List[FuzzyMatch]:
         """
         Find content in file that is similar to target.
 
@@ -327,9 +319,7 @@ class ContentMatcher:
         This allows the code generation engine to correct the old_content
         before saving to plan_steps.
         """
-        result = self.verify_old_content(
-            file_path, old_content, allow_normalized=True, allow_fuzzy=False
-        )
+        result = self.verify_old_content(file_path, old_content, allow_normalized=True, allow_fuzzy=False)
 
         if result.match_found and result.match_type == "normalized":
             return result.matched_content
@@ -397,18 +387,14 @@ def goodbye():
 
     # Test normalized match (with trailing whitespace)
     print("\n2. Testing normalized match:")
-    normalized_target = (
-        'def hello():  \n    print("Hello, World!")  \n    return True  '
-    )
+    normalized_target = 'def hello():  \n    print("Hello, World!")  \n    return True  '
     result = matcher.verify_old_content(test_file, normalized_target)
     print(f"   Match found: {result.match_found}")
     print(f"   Match type: {result.match_type}")
 
     # Test fuzzy match
     print("\n3. Testing fuzzy match:")
-    fuzzy_target = (
-        'def hello():\n    print("Hello World")\n    return True'  # Missing comma
-    )
+    fuzzy_target = 'def hello():\n    print("Hello World")\n    return True'  # Missing comma
     result = matcher.verify_old_content(test_file, fuzzy_target)
     print(f"   Match found: {result.match_found}")
     print(f"   Suggestions: {result.suggestions}")

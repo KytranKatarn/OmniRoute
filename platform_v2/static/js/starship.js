@@ -1102,12 +1102,19 @@ function _renderNodeAgentProfile(data, body, title) {
     html += esc(initial);
     html += '</div>';
     html += '<div style="flex:1;">';
-    html += '<div style="font-size:1rem;font-weight:600;color:#fff;">' + esc(fullName) + '</div>';
+    html += '<div style="font-size:1rem;font-weight:600;color:#fff;">' + esc(a.display_name || fullName) + '</div>';
     html += '<div style="font-size:0.75rem;color:rgba(255,255,255,0.5);">' + esc(a.name) + (a.title ? ' — ' + esc(a.title) : '') + '</div>';
     html += '<div style="font-size:0.7rem;color:rgba(255,255,255,0.3);">';
-    html += esc(a.department || '') + ' • ' + esc(a.model || '') + ' • ' + esc(a.worker_type || '') + (a.pronouns ? ' • ' + esc(a.pronouns) : '');
+    var metaParts = [a.model || '', a.communication_style || '', a.worker_type || ''];
+    html += esc(metaParts.filter(Boolean).join(' • ')) + (a.pronouns ? ' • ' + esc(a.pronouns) : '');
     html += '</div></div>';
+    html += '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">';
     html += '<span class="crew-status-badge ' + esc(a.status) + '" style="font-size:0.7rem;">' + esc(a.status || 'active').toUpperCase() + '</span>';
+    var shift = a.shift_state || 'active';
+    if (shift !== 'active') {
+        html += '<span class="crew-status-badge ' + esc(shift) + '" style="font-size:0.65rem;">' + esc(shift.replace('_', ' ')).toUpperCase() + '</span>';
+    }
+    html += '</div>';
     html += '</div>';
 
     // Bio
@@ -1115,6 +1122,31 @@ function _renderNodeAgentProfile(data, body, title) {
         html += '<div class="profile-card"><div class="profile-card-header"><span style="border-color:' + esc(stColor) + ';">Bio</span></div>';
         html += '<div style="font-size:0.75rem;color:rgba(255,255,255,0.6);line-height:1.4;">' + esc(a.bio) + '</div></div>';
     }
+
+    // System Prompt
+    if (a.system_prompt) {
+        html += '<div class="profile-card"><div class="profile-card-header"><span style="border-color:#00e5ff;">System Prompt</span></div>';
+        html += '<div style="font-size:0.72rem;color:rgba(255,255,255,0.55);line-height:1.4;font-family:\'IBM Plex Mono\',monospace;background:rgba(0,0,0,0.3);padding:8px;border-radius:4px;max-height:120px;overflow-y:auto;">' + esc(a.system_prompt) + '</div></div>';
+    }
+
+    // Avatar Generation Prompt
+    if (a.avatar_generation_prompt) {
+        html += '<div class="profile-card"><div class="profile-card-header"><span style="border-color:#f472b6;">Portrait Prompt</span></div>';
+        html += '<div style="font-size:0.72rem;color:rgba(255,255,255,0.55);line-height:1.4;font-family:\'IBM Plex Mono\',monospace;background:rgba(0,0,0,0.3);padding:8px;border-radius:4px;max-height:80px;overflow-y:auto;">' + esc(a.avatar_generation_prompt) + '</div></div>';
+    }
+
+    // Agent Config — model details, temperature, tier
+    html += '<div class="profile-card"><div class="profile-card-header"><span style="border-color:#fbbf24;">Configuration</span></div>';
+    html += '<div class="profile-row"><span class="label">Model</span><span class="value" style="color:#00e5ff;">' + esc(a.model || '--') + '</span></div>';
+    if (a.temperature !== undefined && a.temperature !== null) {
+        html += '<div class="profile-row"><span class="label">Temperature</span><span class="value">' + a.temperature + '</span></div>';
+    }
+    html += '<div class="profile-row"><span class="label">Tier</span><span class="value">' + (a.tier || 1) + '</span></div>';
+    html += '<div class="profile-row"><span class="label">Cloneable</span><span class="value">' + (a.is_cloneable ? 'Yes' : 'No') + '</span></div>';
+    if (a.image_model) {
+        html += '<div class="profile-row"><span class="label">Image Model</span><span class="value" style="color:#f472b6;">' + esc(a.image_model) + '</span></div>';
+    }
+    html += '</div>';
 
     // Station assignment
     if (a.station_code) {

@@ -1311,9 +1311,12 @@ def register_station_routes(bp, admin_required):
                 # Agent details
                 cur.execute(
                     """
-                    SELECT a.id, a.name, a.first_name, a.last_name, a.title,
+                    SELECT a.id, a.name, a.display_name, a.first_name, a.last_name, a.title,
                            a.department, a.bio, a.model, a.status, a.avatar_url,
                            a.pronouns, a.worker_type, a.cost_tier, a.capabilities,
+                           a.system_prompt, a.avatar_generation_prompt,
+                           a.communication_style, a.temperature, a.shift_state,
+                           a.tier, a.is_cloneable, a.image_model,
                            a.created_at, a.last_used,
                            bs.station_code, bs.station_name, bs.color as station_color
                     FROM agents a

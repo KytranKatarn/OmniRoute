@@ -24,7 +24,13 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 from dataclasses import dataclass
 
-from schemas.agent_schemas import validate_schema as _validate_handoff_schema
+try:
+    from ai_bridge.schemas.agent_schemas import validate_schema as _validate_handoff_schema
+except ImportError:
+    try:
+        from schemas.agent_schemas import validate_schema as _validate_handoff_schema
+    except ImportError:
+        _validate_handoff_schema = None
 
 logger = logging.getLogger(__name__)
 

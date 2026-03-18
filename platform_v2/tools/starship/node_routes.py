@@ -156,6 +156,7 @@ def register_node_routes(bp, auth_decorator):
             return jsonify(
                 {
                     "success": True,
+                    "agent_count": len(agents),
                     "node": {
                         "db_id": node.get("id") or 0,
                         "node_id": node["node_id"],

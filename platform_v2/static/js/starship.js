@@ -1323,23 +1323,29 @@ function _populateStarbaseDetail(crew, activeJobs, cap) {
     _setLive(el('sbd-vram'), gpuVram + ' GB', !!cap.gpu);
     _setLive(el('sbd-models-ram'), (cap.models_ram_gb || '--') + ' GB', !!cap.models_ram_gb);
 
-    // RAM budget (ADR-078: 80% LLM, 20% reserve)
-    var totalRam = cap.ram ? cap.ram.total_gb : 128;
-    var llmBudget = Math.round(totalRam * 0.8);
-    var agentBudget = Math.round(llmBudget * 0.9);
-    var swapBuffer = Math.round(llmBudget * 0.1);
-    var reserve = Math.round(totalRam * 0.2);
-    el('sbd-llm-budget').textContent = llmBudget + ' GB';
-    el('sbd-agent-budget').textContent = agentBudget + ' GB';
-    el('sbd-swap-buffer').textContent = swapBuffer + ' GB';
-    el('sbd-reserve').textContent = reserve + ' GB';
-    var availGb = cap.ram ? cap.ram.available_gb : 0;
-    if (availGb > reserve) {
-        el('sbd-ram-status').textContent = 'NOMINAL';
-        el('sbd-ram-status').style.color = 'var(--sc-green)';
+    // RAM budget — pull directly from Bridge capacity (ADR-078)
+    var hasRam = !!cap.ram;
+    var llmBudget = hasRam ? cap.ram.llm_budget_gb : '--';
+    var agentBudget = hasRam ? cap.ram.agent_budget_gb : '--';
+    var swapBuffer = hasRam ? cap.ram.swap_buffer_gb : '--';
+    var reserve = hasRam ? cap.ram.reserve_gb : '--';
+    _setLive(el('sbd-llm-budget'), (hasRam ? Math.round(llmBudget) : '--') + ' GB', hasRam);
+    _setLive(el('sbd-agent-budget'), (hasRam ? Math.round(agentBudget) : '--') + ' GB', hasRam);
+    _setLive(el('sbd-swap-buffer'), (hasRam ? Math.round(swapBuffer) : '--') + ' GB', hasRam);
+    _setLive(el('sbd-reserve'), (hasRam ? Math.round(reserve) : '--') + ' GB', hasRam);
+    var availGb = hasRam ? cap.ram.available_gb : 0;
+    var ramStatus = hasRam ? cap.ram.status : 'unknown';
+    if (ramStatus === 'green') {
+        _setLive(el('sbd-ram-status'), 'NOMINAL', true);
+        if (el('sbd-ram-status')) el('sbd-ram-status').style.color = 'var(--sc-green)';
+    } else if (ramStatus === 'amber') {
+        _setLive(el('sbd-ram-status'), 'CAUTION', true);
+        if (el('sbd-ram-status')) el('sbd-ram-status').style.color = 'var(--sc-amber)';
+    } else if (ramStatus === 'red') {
+        _setLive(el('sbd-ram-status'), 'CRITICAL', true);
+        if (el('sbd-ram-status')) el('sbd-ram-status').style.color = 'var(--sc-red)';
     } else {
-        el('sbd-ram-status').textContent = 'LOW';
-        el('sbd-ram-status').style.color = 'var(--sc-amber)';
+        _setLive(el('sbd-ram-status'), '--', false);
     }
 
     // GPU model badges (cap.gpu_models = [{name, size_gb, vram_gb}, ...])

@@ -64,37 +64,113 @@ logger = logging.getLogger("archie_node_sync")
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-DEFAULT_CONFIG_FILE = "/etc/archie-node/config.json"
+CLIENT_VERSION = "2.0.0"
+
+
+def _get_config_paths():
+    """Return ordered list of config.json paths to check (platform-aware)."""
+    paths = []
+    if platform.system() == "Windows":
+        paths.append(r"C:\ProgramData\ARCHIE-Node\config.json")
+    else:
+        paths.append("/etc/archie-node/config.json")
+    paths.append(os.path.join(os.getcwd(), "config.json"))
+    return paths
+
+
+def _find_config_path():
+    """Find the first existing config.json, or return the preferred write path."""
+    env_path = os.environ.get("CONFIG_FILE")
+    if env_path and os.path.isfile(env_path):
+        return env_path
+    for p in _get_config_paths():
+        if os.path.isfile(p):
+            return p
+    if env_path:
+        return env_path
+    return _get_config_paths()[0]
+
+
+def _auto_detect_ollama():
+    """Try common Ollama endpoints and return the first that responds, or None."""
+    candidates = [
+        "http://localhost:11434",
+        "http://host.docker.internal:11434",
+    ]
+    for host in candidates:
+        try:
+            url = f"{host}/api/tags"
+            status, _ = http_get(url)
+            if status == 200:
+                logger.info("Auto-detected Ollama at %s", host)
+                return host
+        except Exception:
+            pass
+    return None
+
+
+def write_config(config, path=None):
+    """Write current config to the appropriate config.json path."""
+    if path is None:
+        path = config.get("_config_path") or _get_config_paths()[0]
+
+    serializable = {
+        "node_id": config.get("node_id", ""),
+        "hub_url": config.get("hub_url", ""),
+        "hub_api_key": config.get("hub_api_key", ""),
+        "ollama_host": config.get("ollama_host", "http://localhost:11434"),
+        "heartbeat_interval": config.get("heartbeat_interval", 30),
+        "sync_poll_interval": config.get("sync_poll_interval", 60),
+        "archie_version": config.get("archie_version", CLIENT_VERSION),
+        "client_version": CLIENT_VERSION,
+        "updated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+    }
+
+    try:
+        parent = os.path.dirname(path)
+        if parent and not os.path.isdir(parent):
+            os.makedirs(parent, mode=0o755, exist_ok=True)
+        with open(path, "w") as fh:
+            json.dump(serializable, fh, indent=2)
+        if platform.system() != "Windows":
+            os.chmod(path, 0o600)
+        logger.info("Config written to %s", path)
+    except Exception as exc:
+        logger.warning("Failed to write config to %s: %s", path, exc)
 
 
 def load_config():
     """
-    Load configuration from environment variables, optionally overridden
-    by a JSON config file.
+    Load configuration from config.json (PRIMARY) with env-var fallback.
 
-    Priority: env vars  <  config file values  (config file wins if present)
+    Search order for config.json:
+      1. $CONFIG_FILE env var (if set)
+      2. Windows: C:\\ProgramData\\ARCHIE-Node\\config.json
+         Linux:   /etc/archie-node/config.json
+      3. ./config.json (current directory)
+    Then fall back to environment variables for any missing fields.
 
     Required fields: NODE_ID, HUB_URL, HUB_API_KEY
     """
-    # Start with env-var defaults
+    config_path = _find_config_path()
+
+    # Start with env-var defaults (secondary source)
     config = {
         "node_id": os.environ.get("NODE_ID", ""),
         "hub_url": os.environ.get("HUB_URL", ""),
         "hub_api_key": os.environ.get("HUB_API_KEY", ""),
-        "ollama_host": os.environ.get("OLLAMA_HOST", "http://localhost:11434"),
+        "ollama_host": os.environ.get("OLLAMA_HOST", ""),
         "heartbeat_interval": int(os.environ.get("HEARTBEAT_INTERVAL", "30")),
         "sync_poll_interval": int(os.environ.get("SYNC_POLL_INTERVAL", "60")),
-        "archie_version": os.environ.get("ARCHIE_VERSION", "unknown"),
+        "archie_version": os.environ.get("ARCHIE_VERSION", CLIENT_VERSION),
     }
 
-    # Check for a config file
-    config_path = os.environ.get("CONFIG_FILE", DEFAULT_CONFIG_FILE)
+    # Load config.json as PRIMARY source (overrides env vars)
     if os.path.isfile(config_path):
         logger.info("Loading config from %s", config_path)
         try:
             with open(config_path, "r") as fh:
                 file_cfg = json.load(fh)
-            # Map file keys to our internal keys (support both naming styles)
             key_map = {
                 "node_id": "node_id",
                 "hub_url": "hub_url",
@@ -104,24 +180,42 @@ def load_config():
                 "ollama_host": "ollama_host",
                 "heartbeat_interval": "heartbeat_interval",
                 "sync_poll_interval": "sync_poll_interval",
+                "sync_interval": "sync_poll_interval",
                 "archie_version": "archie_version",
+                "client_version": "archie_version",
             }
             for file_key, internal_key in key_map.items():
                 if file_key in file_cfg and file_cfg[file_key]:
                     val = file_cfg[file_key]
-                    # Convert interval values to int
                     if internal_key in ("heartbeat_interval", "sync_poll_interval"):
                         val = int(val)
                     config[internal_key] = val
         except Exception as exc:
             logger.warning("Failed to load config file %s: %s", config_path, exc)
+    else:
+        logger.info("No config.json found at %s — using env vars", config_path)
+
+    # Auto-detect Ollama host if not configured
+    if not config.get("ollama_host"):
+        detected = _auto_detect_ollama()
+        if detected:
+            config["ollama_host"] = detected
+        else:
+            config["ollama_host"] = "http://localhost:11434"
+            logger.warning(
+                "Could not auto-detect Ollama; defaulting to %s",
+                config["ollama_host"],
+            )
+
+    # Store config path for later writes
+    config["_config_path"] = config_path
 
     # Validate required fields
     missing = [k for k in ("node_id", "hub_url", "hub_api_key") if not config.get(k)]
     if missing:
         logger.error(
             "Missing required config fields: %s. "
-            "Set via environment variables or config file (%s).",
+            "Set via config.json (%s) or environment variables.",
             ", ".join(missing),
             config_path,
         )
@@ -475,7 +569,8 @@ def send_heartbeat(config):
         "ollama_models": [
             {"name": m["name"], "size": int(m["size_gb"] * (1024**3))} for m in models
         ],
-        "client_version": config["archie_version"],
+        "client_version": CLIENT_VERSION,
+        "archie_version": config["archie_version"],
         "deployment_mode": os.getenv("DEPLOYMENT_MODE", "starship"),
         "ollama": get_ollama_status(),
         "details": {
@@ -819,8 +914,7 @@ def _handle_code_update(config, payload):
 
 def _handle_config_update(config, payload):
     """
-    Handle config_update sync — merge new config values into config.json
-    and reload them into the running config dict.
+    Handle config_update sync — merge new config values and write to config.json.
 
     Expected payload: dict of config fields to update, e.g.
         {"hub_url": "http://...", "heartbeat_interval": 30}
@@ -828,38 +922,9 @@ def _handle_config_update(config, payload):
     if not payload:
         return {"status": "failed", "error": "Empty config payload"}
 
-    config_path = os.environ.get("CONFIG_FILE", DEFAULT_CONFIG_FILE)
-    logger.info("[config_update] Updating config at %s with keys: %s", config_path, list(payload.keys()))
-
-    # Load existing config file (or start fresh if missing)
-    existing = {}
-    if os.path.isfile(config_path):
-        try:
-            with open(config_path, "r") as fh:
-                existing = json.load(fh)
-        except Exception as exc:
-            logger.warning("[config_update] Failed to read existing config: %s", exc)
-
-    # Merge new values (only update provided fields, keep the rest)
-    updated_keys = []
-    for key, value in payload.items():
-        old_value = existing.get(key)
-        existing[key] = value
-        updated_keys.append(key)
-        if old_value != value:
-            logger.info("[config_update] %s: %s -> %s", key, old_value, value)
-
-    # Write merged config back
-    try:
-        config_dir = os.path.dirname(config_path)
-        if config_dir and not os.path.isdir(config_dir):
-            os.makedirs(config_dir, exist_ok=True)
-        with open(config_path, "w") as fh:
-            json.dump(existing, fh, indent=2)
-        logger.info("[config_update] Config file written successfully")
-    except Exception as exc:
-        logger.error("[config_update] Failed to write config file: %s", exc)
-        return {"status": "failed", "error": f"Write failed: {exc}"}
+    logger.info(
+        "[config_update] Updating config with keys: %s", list(payload.keys())
+    )
 
     # Reload into the running config dict (in-memory update)
     key_map = {
@@ -873,25 +938,30 @@ def _handle_config_update(config, payload):
         "sync_poll_interval": "sync_poll_interval",
         "archie_version": "archie_version",
     }
-    reloaded = []
+    updated_keys = []
     for file_key, internal_key in key_map.items():
         if file_key in payload:
             val = payload[file_key]
             if internal_key in ("heartbeat_interval", "sync_poll_interval"):
                 val = int(val)
+            old_val = config.get(internal_key)
             config[internal_key] = val
-            reloaded.append(internal_key)
+            updated_keys.append(internal_key)
+            if old_val != val:
+                logger.info("[config_update] %s: %s -> %s", internal_key, old_val, val)
 
     # Strip trailing slash from hub_url if updated
     if "hub_url" in config:
         config["hub_url"] = config["hub_url"].rstrip("/")
 
-    logger.info("[config_update] Reloaded in-memory keys: %s", reloaded)
+    # Write updated config to disk using the unified write_config function
+    write_config(config)
+
+    logger.info("[config_update] Updated keys: %s", updated_keys)
 
     return {
         "status": "acknowledged",
         "updated_keys": updated_keys,
-        "reloaded_keys": reloaded,
     }
 
 
@@ -1206,9 +1276,40 @@ def _check_ollama_alive(ollama_host):
 # ---------------------------------------------------------------------------
 
 
+def _attempt_re_registration(config):
+    """
+    Attempt to re-register with the hub using our existing node_id.
+    Returns True on success.
+    """
+    url = f"{config['hub_url']}/tools/starbase/api/nodes/register"
+    payload = {
+        "node_id": config["node_id"],
+        "node_name": _get_hostname(),
+        "hostname": _get_hostname(),
+        "port": 11434,
+        "client_version": CLIENT_VERSION,
+        "re_register": True,
+    }
+    logger.info("Attempting re-registration with hub at %s", url)
+    status, resp = http_post(url, payload, _auth_headers(config))
+    if 200 <= status < 300:
+        logger.info("Re-registration successful: %s", resp)
+        # Update config with any new values from hub
+        if isinstance(resp, dict):
+            if resp.get("api_key"):
+                config["hub_api_key"] = resp["api_key"]
+            if resp.get("node_id"):
+                config["node_id"] = resp["node_id"]
+            write_config(config)
+        return True
+    else:
+        logger.warning("Re-registration failed (HTTP %d): %s", status, resp)
+        return False
+
+
 def main():
     logger.info("=" * 60)
-    logger.info("A.R.C.H.I.E. Node Sync Service starting...")
+    logger.info("A.R.C.H.I.E. Unified Node Client v%s starting...", CLIENT_VERSION)
     logger.info("=" * 60)
 
     config = load_config()
@@ -1219,6 +1320,9 @@ def main():
     logger.info("Heartbeat Interval: %ds", config["heartbeat_interval"])
     logger.info("Sync Poll Interval: %ds", config["sync_poll_interval"])
     logger.info("Version:            %s", config["archie_version"])
+    logger.info("Client Version:     %s", CLIENT_VERSION)
+    logger.info("Platform:           %s", platform.system())
+    logger.info("Config Path:        %s", config.get("_config_path", "N/A"))
     logger.info("HTTP backend:       %s", "requests" if _HAS_REQUESTS else "urllib")
 
     # Report version on startup
@@ -1227,17 +1331,48 @@ def main():
     last_heartbeat = 0.0
     last_sync_poll = 0.0
 
+    # Self-healing state
+    heartbeat_failures = 0
+    base_heartbeat_interval = config["heartbeat_interval"]
+    current_heartbeat_interval = base_heartbeat_interval
+
     logger.info("Entering main loop...")
 
     while True:
         now = time.time()
 
-        # Heartbeat check
-        if now - last_heartbeat >= config["heartbeat_interval"]:
+        # Heartbeat check (with self-healing)
+        if now - last_heartbeat >= current_heartbeat_interval:
             try:
-                send_heartbeat(config)
+                success = send_heartbeat(config)
+                if success:
+                    # Reset failure tracking on success
+                    if heartbeat_failures > 0:
+                        logger.info(
+                            "Heartbeat recovered after %d failures", heartbeat_failures
+                        )
+                    heartbeat_failures = 0
+                    current_heartbeat_interval = base_heartbeat_interval
+                else:
+                    heartbeat_failures += 1
+                    _handle_heartbeat_failure(
+                        config, heartbeat_failures,
+                        base_heartbeat_interval,
+                    )
+                    # Update current interval based on failure count
+                    if 3 <= heartbeat_failures < 10:
+                        current_heartbeat_interval = base_heartbeat_interval * 2
+                    elif heartbeat_failures >= 10:
+                        # Reset cycle — back to normal
+                        logger.info(
+                            "Heartbeat failure cycle reset after %d failures",
+                            heartbeat_failures,
+                        )
+                        heartbeat_failures = 0
+                        current_heartbeat_interval = base_heartbeat_interval
             except Exception as exc:
                 logger.error("Heartbeat error: %s", exc)
+                heartbeat_failures += 1
             last_heartbeat = now
 
         # Sync poll check
@@ -1250,6 +1385,27 @@ def main():
 
         # Sleep between checks
         time.sleep(5)
+
+
+def _handle_heartbeat_failure(config, failure_count, base_interval):
+    """Handle heartbeat failure with escalating recovery actions."""
+    if failure_count == 3:
+        logger.warning(
+            "Heartbeat failed %d consecutive times — doubling interval to %ds",
+            failure_count,
+            base_interval * 2,
+        )
+    elif failure_count == 5:
+        logger.warning(
+            "Heartbeat failed %d consecutive times — attempting re-registration",
+            failure_count,
+        )
+        _attempt_re_registration(config)
+    elif failure_count == 10:
+        logger.warning(
+            "Heartbeat failed %d consecutive times — resetting cycle",
+            failure_count,
+        )
 
 
 if __name__ == "__main__":

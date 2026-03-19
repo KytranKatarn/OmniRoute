@@ -1,21 +1,29 @@
 # =============================================================================
-# A.R.C.H.I.E. Remote Node - Windows Installation Script v1.0.0
-# Usage: iwr -useb http://192.168.1.200:3000/tools/starbase/api/nodes/install.ps1 | iex
+# A.R.C.H.I.E. Unified Node Client — Windows Installer v2.0.0
+# Usage: iwr -useb http://YOUR_HUB:3000/tools/starbase/api/nodes/install.ps1 | iex
+#   or:  .\install.ps1 -HubUrl http://192.168.1.200:3000
 # =============================================================================
 
+param(
+    [string]$HubUrl = ""
+)
+
 $ErrorActionPreference = "Stop"
-$ARCHIE_BASE_URL = "http://192.168.1.200:3000"
-$ARCHIE_DIR = "C:\ProgramData\ARCHIE-Node"
-$CLIENT_VERSION = "1.0.0"
-$OLLAMA_PORT = 11434
+$ARCHIE_DIR       = "C:\ProgramData\ARCHIE-Node"
+$CONFIG_PATH      = "$ARCHIE_DIR\config.json"
+$SYNC_SCRIPT      = "$ARCHIE_DIR\node_sync.py"
+$CLIENT_VERSION   = "2.0.0"
+$OLLAMA_PORT      = 11434
+$TASK_NAME        = "ARCHIE-Node-Sync"
+$OLD_TASK_NAME    = "ARCHIE-Node-Heartbeat"
 
 # -- Helpers ------------------------------------------------------------------
 
 function Write-Banner {
     Write-Host ""
     Write-Host "  =========================================" -ForegroundColor Cyan
-    Write-Host "   A.R.C.H.I.E. Remote Node Installer"      -ForegroundColor Cyan
-    Write-Host "   Version $CLIENT_VERSION | Windows"        -ForegroundColor DarkCyan
+    Write-Host "   A.R.C.H.I.E. Unified Node Installer"    -ForegroundColor Cyan
+    Write-Host "   Version $CLIENT_VERSION | Windows"       -ForegroundColor DarkCyan
     Write-Host "  =========================================" -ForegroundColor Cyan
     Write-Host ""
 }
@@ -45,11 +53,11 @@ function Write-Fail {
 }
 
 # =============================================================================
-# STEP 1: Require Administrator
+# STEP 1: Require Administrator + Get Hub URL
 # =============================================================================
 
 Write-Banner
-Write-Step "1/7" "Checking administrator privileges..."
+Write-Step "1/8" "Checking prerequisites..."
 
 $currentPrincipal = New-Object Security.Principal.WindowsPrincipal(
     [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -61,6 +69,36 @@ if (-not $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Adm
     exit 1
 }
 Write-Ok "Running as Administrator"
+
+# Prompt for Hub URL if not provided
+if (-not $HubUrl) {
+    $HubUrl = Read-Host "  Enter A.R.C.H.I.E. Hub URL (e.g. http://192.168.1.200:3000)"
+}
+if (-not $HubUrl) {
+    Write-Fail "Hub URL is required."
+    exit 1
+}
+$HubUrl = $HubUrl.TrimEnd("/")
+Write-Ok "Hub URL: $HubUrl"
+
+# Check Python is available
+$pythonCmd = $null
+foreach ($cmd in @("python3", "python")) {
+    try {
+        $check = Get-Command $cmd -ErrorAction SilentlyContinue
+        if ($check) {
+            $ver = & $cmd --version 2>&1
+            $pythonCmd = $cmd
+            Write-Ok "Python found: $ver"
+            break
+        }
+    } catch {}
+}
+if (-not $pythonCmd) {
+    Write-Fail "Python 3 is required but not found in PATH."
+    Write-Host "      Install from https://www.python.org/downloads/" -ForegroundColor Yellow
+    exit 1
+}
 
 # Create working directory
 if (-not (Test-Path $ARCHIE_DIR)) {
@@ -74,31 +112,25 @@ if (-not (Test-Path $ARCHIE_DIR)) {
 # STEP 2: Detect Hardware
 # =============================================================================
 
-Write-Step "2/7" "Detecting hardware capabilities..."
+Write-Step "2/8" "Detecting hardware..."
 
 try {
-    # CPU
     $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
     $cpuName = $cpu.Name.Trim()
     $cpuCores = $cpu.NumberOfCores
     Write-Ok "CPU: $cpuName ($cpuCores cores)"
 
-    # RAM
     $cs = Get-CimInstance Win32_ComputerSystem
     $ramGB = [math]::Round($cs.TotalPhysicalMemory / 1GB, 1)
     Write-Ok "RAM: ${ramGB} GB"
 
-    # GPU
     $gpus = Get-CimInstance Win32_VideoController
     $gpuAvailable = $false
     $gpuName = "None"
     $gpuVramGB = 0
-
     foreach ($gpu in $gpus) {
         if ($gpu.AdapterRAM -and $gpu.AdapterRAM -gt 0) {
             $vram = [math]::Round($gpu.AdapterRAM / 1GB, 1)
-            # AdapterRAM can overflow for large GPUs (returns 4GB max via WMI)
-            # Prefer the GPU with the largest reported VRAM
             if ($vram -gt $gpuVramGB) {
                 $gpuAvailable = $true
                 $gpuName = $gpu.Name.Trim()
@@ -112,12 +144,10 @@ try {
         Write-Info "GPU: No dedicated GPU detected (CPU inference only)"
     }
 
-    # Disk
     $disk = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'"
     $diskGB = [math]::Round($disk.Size / 1GB, 1)
     Write-Ok "Disk C: ${diskGB} GB total"
 
-    # OS
     $os = Get-CimInstance Win32_OperatingSystem
     $osInfo = "$($os.Caption) $($os.Version)"
     Write-Ok "OS: $osInfo"
@@ -127,161 +157,75 @@ try {
 }
 
 # =============================================================================
-# STEP 3: Install / Verify Ollama
+# STEP 3: Detect / Verify Ollama
 # =============================================================================
 
-Write-Step "3/7" "Setting up Ollama..."
+Write-Step "3/8" "Detecting Ollama..."
 
-$ollamaInstalled = $false
-
-# Check if ollama is already available
-try {
-    $ollamaCheck = Get-Command ollama -ErrorAction SilentlyContinue
-    if ($ollamaCheck) {
-        $ollamaInstalled = $true
-        Write-Ok "Ollama already installed at $($ollamaCheck.Source)"
-    }
-} catch {
-    $ollamaInstalled = $false
-}
-
-# Install Ollama if missing
-if (-not $ollamaInstalled) {
-    Write-Info "Ollama not found, downloading installer..."
-    $installerPath = Join-Path $env:TEMP "OllamaSetup.exe"
-
-    try {
-        Invoke-WebRequest -Uri "https://ollama.com/download/OllamaSetup.exe" `
-            -OutFile $installerPath -UseBasicParsing
-        Write-Ok "Downloaded OllamaSetup.exe"
-
-        Write-Info "Running silent install (this may take a minute)..."
-        $proc = Start-Process -FilePath $installerPath -ArgumentList "/VERYSILENT", "/NORESTART" `
-            -Wait -PassThru
-        if ($proc.ExitCode -ne 0) {
-            Write-Fail "Ollama installer exited with code $($proc.ExitCode)"
-            exit 1
-        }
-        # Refresh PATH so we can find ollama
-        $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
-                     [System.Environment]::GetEnvironmentVariable("Path", "User")
-        Write-Ok "Ollama installed successfully"
-    } catch {
-        Write-Fail "Failed to install Ollama: $_"
-        exit 1
-    } finally {
-        if (Test-Path $installerPath) { Remove-Item $installerPath -Force -ErrorAction SilentlyContinue }
-    }
-}
-
-# Set OLLAMA_HOST to allow network access
-Write-Info "Configuring OLLAMA_HOST=0.0.0.0 for network access..."
-try {
-    [System.Environment]::SetEnvironmentVariable("OLLAMA_HOST", "0.0.0.0", "Machine")
-    $env:OLLAMA_HOST = "0.0.0.0"
-    Write-Ok "OLLAMA_HOST set to 0.0.0.0 (system-wide)"
-} catch {
-    Write-Fail "Could not set OLLAMA_HOST: $_"
-}
-
-# Restart Ollama service to pick up new env
-Write-Info "Restarting Ollama service..."
-try {
-    $svc = Get-Service -Name "Ollama" -ErrorAction SilentlyContinue
-    if ($svc) {
-        Restart-Service -Name "Ollama" -Force
-        Start-Sleep -Seconds 3
-        Write-Ok "Ollama service restarted"
-    } else {
-        Write-Info "Ollama service not found (may run as user process), starting ollama serve..."
-        Start-Process -FilePath "ollama" -ArgumentList "serve" -WindowStyle Hidden
-        Start-Sleep -Seconds 3
-    }
-} catch {
-    Write-Info "Could not restart Ollama service, attempting to start manually..."
-    Start-Process -FilePath "ollama" -ArgumentList "serve" -WindowStyle Hidden
-    Start-Sleep -Seconds 3
-}
-
-# Verify Ollama is responding
-Write-Info "Verifying Ollama API..."
 $ollamaReady = $false
-for ($i = 0; $i -lt 10; $i++) {
-    try {
-        $resp = Invoke-RestMethod -Uri "http://localhost:$OLLAMA_PORT/api/tags" -Method Get -TimeoutSec 5
-        $ollamaReady = $true
-        $modelCount = 0
-        if ($resp.models) { $modelCount = $resp.models.Count }
-        Write-Ok "Ollama API responding ($modelCount models loaded)"
-        break
-    } catch {
-        Start-Sleep -Seconds 2
-    }
+try {
+    $resp = Invoke-RestMethod -Uri "http://localhost:$OLLAMA_PORT/api/tags" -Method Get -TimeoutSec 5
+    $ollamaReady = $true
+    $modelCount = 0
+    if ($resp.models) { $modelCount = $resp.models.Count }
+    Write-Ok "Ollama responding on localhost:$OLLAMA_PORT ($modelCount models)"
+} catch {
+    Write-Info "Ollama not detected on localhost:$OLLAMA_PORT"
+    Write-Info "Install Ollama from https://ollama.com/download and restart this script."
+    Write-Info "Continuing without Ollama verification..."
 }
 
-if (-not $ollamaReady) {
-    Write-Fail "Ollama API not responding on port $OLLAMA_PORT after 20 seconds"
+# =============================================================================
+# STEP 4: Download node_sync.py from Hub
+# =============================================================================
+
+Write-Step "4/8" "Downloading unified node client..."
+
+$syncUrl = "$HubUrl/tools/starbase/api/nodes/node_sync.py"
+Write-Info "Downloading from $syncUrl..."
+try {
+    Invoke-WebRequest -Uri $syncUrl -OutFile $SYNC_SCRIPT -UseBasicParsing
+    Write-Ok "Downloaded node_sync.py to $SYNC_SCRIPT"
+} catch {
+    Write-Fail "Failed to download node_sync.py: $_"
+    Write-Host "      Ensure the A.R.C.H.I.E. platform is reachable at $HubUrl" -ForegroundColor Yellow
     exit 1
 }
 
 # =============================================================================
-# STEP 4: Pull Starter Models
+# STEP 5: Register with A.R.C.H.I.E. Hub
 # =============================================================================
 
-Write-Step "4/7" "Pulling starter models (M4000-friendly)..."
+Write-Step "5/8" "Registering node with hub..."
 
-$models = @(
-    @{ Name = "qwen2.5:7b";  Desc = "~4.7 GB - primary reasoning model" },
-    @{ Name = "llama3.2:3b"; Desc = "~2 GB - fast lightweight model" }
-)
-
-foreach ($model in $models) {
-    Write-Info "Pulling $($model.Name) ($($model.Desc))..."
-    try {
-        & ollama pull $model.Name 2>&1 | Out-Null
-        Write-Ok "Pulled $($model.Name)"
-    } catch {
-        Write-Fail "Failed to pull $($model.Name): $_"
-        Write-Info "You can pull this model later with: ollama pull $($model.Name)"
-    }
-}
-
-# =============================================================================
-# STEP 5: Register with A.R.C.H.I.E.
-# =============================================================================
-
-Write-Step "5/7" "Registering node with A.R.C.H.I.E. platform..."
-
-# Determine local IP (prefer non-loopback IPv4)
 $localIP = (Get-NetIPAddress -AddressFamily IPv4 |
     Where-Object { $_.IPAddress -ne "127.0.0.1" -and $_.PrefixOrigin -ne "WellKnown" } |
     Sort-Object -Property InterfaceIndex |
     Select-Object -First 1).IPAddress
-
 if (-not $localIP) { $localIP = "127.0.0.1" }
 
 $nodeName = $env:COMPUTERNAME
-$registerUrl = "$ARCHIE_BASE_URL/tools/starbase/api/nodes/register"
+$registerUrl = "$HubUrl/tools/starbase/api/nodes/register"
 
 $payload = @{
-    node_name       = $nodeName
-    vpn_ip          = $localIP
-    hostname        = $nodeName
-    port            = $OLLAMA_PORT
-    gpu_available   = $gpuAvailable
-    gpu_model       = $gpuName
-    gpu_vram_gb     = $gpuVramGB
-    cpu_cores       = $cpuCores
-    cpu_model       = $cpuName
-    ram_gb          = $ramGB
-    disk_gb         = $diskGB
-    os_info         = $osInfo
-    ollama_available = $true
-    client_version  = $CLIENT_VERSION
-    tags            = @("windows", "gaming-rig")
+    node_name        = $nodeName
+    vpn_ip           = $localIP
+    hostname         = $localIP
+    port             = $OLLAMA_PORT
+    gpu_available    = $gpuAvailable
+    gpu_model        = $gpuName
+    gpu_vram_gb      = $gpuVramGB
+    cpu_cores        = $cpuCores
+    cpu_model        = $cpuName
+    ram_gb           = $ramGB
+    disk_gb          = $diskGB
+    os_info          = $osInfo
+    ollama_available = $ollamaReady
+    client_version   = $CLIENT_VERSION
+    tags             = @("windows")
 } | ConvertTo-Json -Depth 3
 
-Write-Info "Registering $nodeName ($localIP) ..."
+Write-Info "Registering $nodeName ($localIP)..."
 
 try {
     $response = Invoke-RestMethod -Uri $registerUrl -Method Post `
@@ -295,364 +239,132 @@ try {
         exit 1
     }
 
-    # Save config to disk
-    $config = @{
-        node_id            = $nodeId
-        api_key            = $apiKey
-        node_name          = $nodeName
-        server_url         = $ARCHIE_BASE_URL
-        ollama_port        = $OLLAMA_PORT
-        heartbeat_interval = 30
-        client_version     = $CLIENT_VERSION
-        registered_at      = (Get-Date -Format "o")
-    }
-    if ($response.config) {
-        $config["server_config"] = $response.config
-    }
-
-    $configPath = Join-Path $ARCHIE_DIR "config.json"
-    $config | ConvertTo-Json -Depth 5 | Set-Content -Path $configPath -Encoding UTF8
     Write-Ok "Registered as node $nodeId"
-    Write-Ok "Config saved to $configPath"
 } catch {
     Write-Fail "Registration failed: $_"
-    Write-Host "      Ensure the A.R.C.H.I.E. platform is reachable at $ARCHIE_BASE_URL" -ForegroundColor Yellow
+    Write-Host "      Ensure the A.R.C.H.I.E. platform is reachable at $HubUrl" -ForegroundColor Yellow
     exit 1
 }
 
 # =============================================================================
-# STEP 6: Install Heartbeat Service
+# STEP 6: Write config.json
 # =============================================================================
 
-Write-Step "6/7" "Installing heartbeat service..."
+Write-Step "6/8" "Writing configuration..."
 
-# Copy heartbeat script from same directory as this installer
-$scriptDir = $null
-if ($PSScriptRoot) {
-    $scriptDir = $PSScriptRoot
-} elseif ($MyInvocation.MyCommand.Path) {
-    $scriptDir = Split-Path $MyInvocation.MyCommand.Path -Parent
+$config = @{
+    node_id            = $nodeId
+    hub_url            = $HubUrl
+    hub_api_key        = $apiKey
+    ollama_host        = "http://localhost:$OLLAMA_PORT"
+    heartbeat_interval = 30
+    sync_poll_interval = 60
+    archie_version     = $CLIENT_VERSION
+    client_version     = $CLIENT_VERSION
+    node_name          = $nodeName
+    registered_at      = (Get-Date -Format "o")
+}
+if ($response.config) {
+    $config["server_config"] = $response.config
 }
 
-$heartbeatDst = Join-Path $ARCHIE_DIR "heartbeat.ps1"
+$config | ConvertTo-Json -Depth 5 | Set-Content -Path $CONFIG_PATH -Encoding UTF8
+Write-Ok "Config saved to $CONFIG_PATH"
 
-if ($scriptDir) {
-    $heartbeatSrc = Join-Path $scriptDir "heartbeat.ps1"
-    if (Test-Path $heartbeatSrc) {
-        Copy-Item -Path $heartbeatSrc -Destination $heartbeatDst -Force
-        Write-Ok "Copied heartbeat.ps1 to $ARCHIE_DIR"
-    } else {
-        Write-Info "heartbeat.ps1 not found at $heartbeatSrc, downloading from server..."
-        try {
-            $heartbeatUrl = "$ARCHIE_BASE_URL/tools/starbase/api/nodes/heartbeat.ps1"
-            Invoke-WebRequest -Uri $heartbeatUrl -OutFile $heartbeatDst -UseBasicParsing
-            Write-Ok "Downloaded heartbeat.ps1 from server"
-        } catch {
-            Write-Fail "Could not obtain heartbeat.ps1: $_"
-            exit 1
-        }
-    }
-} else {
-    Write-Info "Running via piped execution, downloading heartbeat.ps1..."
-    try {
-        $heartbeatUrl = "$ARCHIE_BASE_URL/tools/starbase/api/nodes/heartbeat.ps1"
-        Invoke-WebRequest -Uri $heartbeatUrl -OutFile $heartbeatDst -UseBasicParsing
-        Write-Ok "Downloaded heartbeat.ps1 from server"
-    } catch {
-        Write-Fail "Could not download heartbeat.ps1: $_"
-        exit 1
-    }
-}
+# =============================================================================
+# STEP 7: Create Scheduled Task (replaces old heartbeat task)
+# =============================================================================
 
-# Register Scheduled Task to run heartbeat every 30 seconds
-# Windows Task Scheduler minimum interval is 1 minute, so we create two triggers offset by 30s
-Write-Info "Creating scheduled task ARCHIE-Node-Heartbeat..."
+Write-Step "7/8" "Installing node sync service..."
+
+# Remove old heartbeat task if it exists
+try {
+    $oldTask = Get-ScheduledTask -TaskName $OLD_TASK_NAME -ErrorAction SilentlyContinue
+    if ($oldTask) {
+        Unregister-ScheduledTask -TaskName $OLD_TASK_NAME -Confirm:$false
+        Write-Ok "Removed old $OLD_TASK_NAME scheduled task"
+    }
+} catch {}
+
+# Remove existing sync task if present
+try {
+    $existingTask = Get-ScheduledTask -TaskName $TASK_NAME -ErrorAction SilentlyContinue
+    if ($existingTask) {
+        Unregister-ScheduledTask -TaskName $TASK_NAME -Confirm:$false
+        Write-Info "Removed previous $TASK_NAME task"
+    }
+} catch {}
 
 try {
-    # Remove existing task if present
-    $existingTask = Get-ScheduledTask -TaskName "ARCHIE-Node-Heartbeat" -ErrorAction SilentlyContinue
-    if ($existingTask) {
-        Unregister-ScheduledTask -TaskName "ARCHIE-Node-Heartbeat" -Confirm:$false
-        Write-Info "Removed previous scheduled task"
-    }
-
+    # node_sync.py is a long-running process — run it directly
     $action = New-ScheduledTaskAction `
-        -Execute "powershell.exe" `
-        -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$heartbeatDst`""
+        -Execute $pythonCmd `
+        -Argument "`"$SYNC_SCRIPT`"" `
+        -WorkingDirectory $ARCHIE_DIR
 
-    # Two triggers 30 seconds apart achieve ~30-second intervals
-    $trigger1 = New-ScheduledTaskTrigger -Once -At (Get-Date) `
-        -RepetitionInterval (New-TimeSpan -Minutes 1)
-    $trigger2 = New-ScheduledTaskTrigger -Once -At ((Get-Date).AddSeconds(30)) `
-        -RepetitionInterval (New-TimeSpan -Minutes 1)
+    $trigger = New-ScheduledTaskTrigger -AtStartup
 
     $settings = New-ScheduledTaskSettingsSet `
         -AllowStartIfOnBatteries `
         -DontStopIfGoingOnBatteries `
         -StartWhenAvailable `
-        -RestartCount 3 `
-        -RestartInterval (New-TimeSpan -Minutes 1)
+        -RestartCount 999 `
+        -RestartInterval (New-TimeSpan -Minutes 1) `
+        -ExecutionTimeLimit (New-TimeSpan -Days 365)
 
     Register-ScheduledTask `
-        -TaskName "ARCHIE-Node-Heartbeat" `
+        -TaskName $TASK_NAME `
         -Action $action `
-        -Trigger @($trigger1, $trigger2) `
+        -Trigger $trigger `
         -Settings $settings `
         -User "SYSTEM" `
         -RunLevel Highest `
-        -Description "A.R.C.H.I.E. remote node heartbeat - reports status every 30 seconds" | Out-Null
+        -Description "A.R.C.H.I.E. unified node client — heartbeats, sync, and OTA updates" | Out-Null
 
-    Start-ScheduledTask -TaskName "ARCHIE-Node-Heartbeat"
-    Write-Ok "Scheduled task registered and started (30-second interval)"
+    # Start the task immediately
+    Start-ScheduledTask -TaskName $TASK_NAME
+    Write-Ok "Scheduled task '$TASK_NAME' registered and started"
 } catch {
     Write-Fail "Failed to create scheduled task: $_"
-    Write-Info "You can manually run: powershell -File `"$heartbeatDst`""
+    Write-Info "You can manually run: $pythonCmd `"$SYNC_SCRIPT`""
 }
 
 # =============================================================================
-# STEP 7: Poll for Approval
+# STEP 8: Verify and Summary
 # =============================================================================
 
-Write-Step "7/7" "Waiting for admin approval..."
-Write-Host ""
-Write-Host "      Node registered! An admin must approve this node on the" -ForegroundColor Yellow
-Write-Host "      A.R.C.H.I.E. dashboard before it can accept work." -ForegroundColor Yellow
-Write-Host ""
+Write-Step "8/8" "Verifying..."
 
-$statusUrl = "$ARCHIE_BASE_URL/tools/starbase/api/nodes/$nodeId/status"
-$headers = @{ "X-Node-API-Key" = $apiKey }
-$approved = $false
-$pollCount = 0
+Start-Sleep -Seconds 3
 
-while (-not $approved) {
-    $pollCount++
-    try {
-        $statusResp = Invoke-RestMethod -Uri $statusUrl -Method Get `
-            -Headers $headers -TimeoutSec 10
-
-        if ($statusResp.approval_status -eq "approved") {
-            $approved = $true
-        } else {
-            $dots = "." * (($pollCount % 3) + 1)
-            Write-Host "`r      Waiting for approval$($dots.PadRight(3))   (poll #$pollCount)" `
-                -ForegroundColor DarkGray -NoNewline
-            Start-Sleep -Seconds 5
-        }
-    } catch {
-        Write-Host "`r      Polling failed, retrying...          " -ForegroundColor DarkYellow -NoNewline
-        Start-Sleep -Seconds 5
-    }
-}
-
-# =============================================================================
-# STEP 8: Deployment Mode
-# =============================================================================
-
-$fullStackDeployed = $false
-
-function Install-DockerStack {
-    Write-Step "8b" "Installing full-stack Docker deployment..."
-
-    # --- Check Docker ---
-    $dockerAvailable = $false
-    try {
-        $dockerCheck = Get-Command docker -ErrorAction SilentlyContinue
-        if ($dockerCheck) {
-            $dockerAvailable = $true
-            Write-Ok "Docker found at $($dockerCheck.Source)"
-        }
-    } catch {
-        $dockerAvailable = $false
-    }
-
-    if (-not $dockerAvailable) {
-        Write-Fail "Docker is not installed."
-        Write-Host "      Please install Docker Desktop for Windows:" -ForegroundColor Yellow
-        Write-Host "      https://docs.docker.com/desktop/install/windows-install/" -ForegroundColor Cyan
-        Write-Host ""
-        Write-Host "      After installing Docker Desktop, re-run this script and choose Full-stack." -ForegroundColor Yellow
-        return
-    }
-
-    # --- Check Docker Compose ---
-    try {
-        $composeVersion = & docker compose version 2>&1
-        Write-Ok "Docker Compose available ($composeVersion)"
-    } catch {
-        Write-Fail "docker compose not available. Please update Docker Desktop."
-        return
-    }
-
-    # --- Create deployment directory ---
-    $deployDir = "C:\ProgramData\ARCHIE-Node\docker"
-    if (-not (Test-Path $deployDir)) {
-        New-Item -ItemType Directory -Path $deployDir -Force | Out-Null
-    }
-    Write-Ok "Deployment directory: $deployDir"
-
-    # --- Download docker-compose.node.yml ---
-    $composeUrl = "$ARCHIE_BASE_URL/tools/starbase/api/nodes/docker-compose.node.yml"
-    Write-Info "Downloading docker-compose.node.yml..."
-    try {
-        Invoke-WebRequest -Uri $composeUrl -OutFile (Join-Path $deployDir "docker-compose.yml") -UseBasicParsing
-        Write-Ok "Downloaded docker-compose.yml"
-    } catch {
-        Write-Fail "Failed to download docker-compose.node.yml: $_"
-        return
-    }
-
-    # --- Download Dockerfile.node ---
-    $dockerfileUrl = "$ARCHIE_BASE_URL/tools/starbase/api/nodes/Dockerfile.node"
-    Write-Info "Downloading Dockerfile.node..."
-    try {
-        Invoke-WebRequest -Uri $dockerfileUrl -OutFile (Join-Path $deployDir "Dockerfile.node") -UseBasicParsing
-        Write-Ok "Downloaded Dockerfile.node"
-    } catch {
-        Write-Fail "Failed to download Dockerfile.node: $_"
-        return
-    }
-
-    # --- Download node_sync.py ---
-    $syncUrl = "$ARCHIE_BASE_URL/tools/starbase/api/nodes/node_sync.py"
-    Write-Info "Downloading node_sync.py..."
-    try {
-        Invoke-WebRequest -Uri $syncUrl -OutFile (Join-Path $deployDir "node_sync.py") -UseBasicParsing
-        Write-Ok "Downloaded node_sync.py"
-    } catch {
-        Write-Fail "Failed to download node_sync.py: $_"
-        return
-    }
-
-    # --- Download node_api.py ---
-    $apiUrl = "$ARCHIE_BASE_URL/tools/starbase/api/nodes/node_api.py"
-    Write-Info "Downloading node_api.py..."
-    try {
-        Invoke-WebRequest -Uri $apiUrl -OutFile (Join-Path $deployDir "node_api.py") -UseBasicParsing
-        Write-Ok "Downloaded node_api.py"
-    } catch {
-        Write-Fail "Failed to download node_api.py: $_"
-        return
-    }
-
-    # --- Download migrations ---
-    $migrationsDir = Join-Path $deployDir "migrations"
-    if (-not (Test-Path $migrationsDir)) {
-        New-Item -ItemType Directory -Path $migrationsDir -Force | Out-Null
-    }
-    $migrationUrl = "$ARCHIE_BASE_URL/tools/starbase/api/nodes/migrations/001_node_schema.sql"
-    Write-Info "Downloading migrations/001_node_schema.sql..."
-    try {
-        Invoke-WebRequest -Uri $migrationUrl -OutFile (Join-Path $migrationsDir "001_node_schema.sql") -UseBasicParsing
-        Write-Ok "Downloaded migration schema"
-    } catch {
-        Write-Fail "Failed to download migration: $_"
-        return
-    }
-
-    # --- Build node Docker image ---
-    Write-Info "Building node Docker image (this may take a minute)..."
-    try {
-        Push-Location $deployDir
-        & docker compose build --no-cache
-        Pop-Location
-        Write-Ok "Built node containers"
-    } catch {
-        Pop-Location
-        Write-Fail "Failed to build Docker image: $_"
-        return
-    }
-
-    # --- Generate credentials and detect host ---
-    $dbPassword = -join ((1..32) | ForEach-Object { [char](Get-Random -Minimum 33 -Maximum 126) })
-    $hostIP = (Get-NetIPAddress -AddressFamily IPv4 |
-        Where-Object { $_.IPAddress -ne "127.0.0.1" -and $_.PrefixOrigin -ne "WellKnown" } |
-        Sort-Object -Property InterfaceIndex |
-        Select-Object -First 1).IPAddress
-    if (-not $hostIP) { $hostIP = "127.0.0.1" }
-
-    Write-Ok "Host IP: $hostIP"
-
-    # --- Create .env file ---
-    $envContent = @"
-# A.R.C.H.I.E. Business Node Configuration
-# Generated by install.ps1 on $(Get-Date -Format "o")
-NODE_ID=$nodeId
-HUB_URL=$ARCHIE_BASE_URL
-HUB_API_KEY=$apiKey
-DB_PASSWORD=$dbPassword
-ARCHIE_VERSION=$CLIENT_VERSION
-HOST_IP=$hostIP
-DEPLOYMENT_MODE=business_node
-"@
-    $envPath = Join-Path $deployDir ".env"
-    $envContent | Set-Content -Path $envPath -Encoding UTF8
-    Write-Ok "Environment file created at $envPath"
-
-    # --- Start containers ---
-    Write-Info "Starting containers..."
-    try {
-        Push-Location $deployDir
-        & docker compose up -d
-        Write-Ok "Docker stack is running"
-        Pop-Location
-    } catch {
-        Pop-Location
-        Write-Fail "Docker deployment failed: $_"
-        return
-    }
-
-    # --- Print Docker stack info ---
-    Write-Host ""
-    Write-Host "      --- Full-Stack Deployment Active (4 containers) ---" -ForegroundColor Green
-    Write-Host "      Containers: ollama, postgres, sync, node_api" -ForegroundColor White
-    Write-Host "      Node API:   http://${hostIP}:3001"     -ForegroundColor White
-    Write-Host "      Ollama:     http://${hostIP}:$OLLAMA_PORT" -ForegroundColor White
-    Write-Host "      Compose:    $deployDir\docker-compose.yml" -ForegroundColor White
-    Write-Host "      Env File:   $envPath"                  -ForegroundColor White
-    Write-Host ""
-
-    $script:fullStackDeployed = $true
-    $script:dockerHostIP = $hostIP
-    $script:dockerDeployDir = $deployDir
-}
-
-Write-Host ""
-Write-Host "  =========================================" -ForegroundColor Cyan
-Write-Host "   DEPLOYMENT MODE"                          -ForegroundColor Cyan
-Write-Host "  =========================================" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "  1) Ollama-only (current setup - just LLM serving)" -ForegroundColor White
-Write-Host "  2) Full-stack  (complete ARCHIE business node with Docker)" -ForegroundColor White
-Write-Host ""
-
-$deployMode = Read-Host "  Choose deployment mode [1/2]"
-
-if ($deployMode -eq "2") {
-    Install-DockerStack
-}
-
-# -- Done! --------------------------------------------------------------------
-
-Write-Host ""
-Write-Host ""
-Write-Host "  =========================================" -ForegroundColor Green
-Write-Host "   Node approved! Setup complete."          -ForegroundColor Green
-Write-Host "  =========================================" -ForegroundColor Green
-Write-Host ""
-Write-Host "  Node ID:    $nodeId"                       -ForegroundColor White
-Write-Host "  Node Name:  $nodeName"                     -ForegroundColor White
-Write-Host "  Local IP:   $localIP"                      -ForegroundColor White
-Write-Host "  Ollama:     http://localhost:$OLLAMA_PORT"  -ForegroundColor White
-Write-Host "  Config:     $ARCHIE_DIR\config.json"       -ForegroundColor White
-Write-Host "  Heartbeat:  Scheduled task running"        -ForegroundColor White
-if ($fullStackDeployed) {
-    Write-Host "  Mode:       Full-stack (4 containers: ollama, postgres, sync, node_api)" -ForegroundColor White
-    Write-Host "  Node API:   http://${dockerHostIP}:3001" -ForegroundColor White
-    Write-Host "  Compose:    $dockerDeployDir\docker-compose.yml" -ForegroundColor White
+$taskStatus = (Get-ScheduledTask -TaskName $TASK_NAME -ErrorAction SilentlyContinue).State
+if ($taskStatus -eq "Running") {
+    Write-Ok "Node sync service is running"
 } else {
-    Write-Host "  Mode:       Ollama-only"               -ForegroundColor White
+    Write-Info "Task state: $taskStatus (may take a moment to start)"
 }
+
 Write-Host ""
-Write-Host "  The heartbeat service is running. This node will" -ForegroundColor Gray
-Write-Host "  automatically receive work assignments from A.R.C.H.I.E." -ForegroundColor Gray
+Write-Host ""
+Write-Host "  =========================================" -ForegroundColor Green
+Write-Host "   A.R.C.H.I.E. Node Setup Complete!"      -ForegroundColor Green
+Write-Host "  =========================================" -ForegroundColor Green
+Write-Host ""
+Write-Host "  Node ID:      $nodeId"                     -ForegroundColor White
+Write-Host "  Node Name:    $nodeName"                    -ForegroundColor White
+Write-Host "  Local IP:     $localIP"                     -ForegroundColor White
+Write-Host "  Hub URL:      $HubUrl"                      -ForegroundColor White
+Write-Host "  Ollama:       http://localhost:$OLLAMA_PORT" -ForegroundColor White
+Write-Host "  Config:       $CONFIG_PATH"                 -ForegroundColor White
+Write-Host "  Client:       $SYNC_SCRIPT"                 -ForegroundColor White
+Write-Host "  Service:      Scheduled Task '$TASK_NAME'"  -ForegroundColor White
+Write-Host ""
+Write-Host "  The node is now sending heartbeats and polling" -ForegroundColor Gray
+Write-Host "  for sync commands. An admin must approve this"  -ForegroundColor Gray
+Write-Host "  node on the A.R.C.H.I.E. dashboard."           -ForegroundColor Gray
+Write-Host ""
+Write-Host "  Management commands:" -ForegroundColor Cyan
+Write-Host "    Get-ScheduledTask -TaskName '$TASK_NAME'"      -ForegroundColor White
+Write-Host "    Stop-ScheduledTask -TaskName '$TASK_NAME'"     -ForegroundColor White
+Write-Host "    Start-ScheduledTask -TaskName '$TASK_NAME'"    -ForegroundColor White
 Write-Host ""

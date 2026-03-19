@@ -946,7 +946,10 @@ if (-not $dockerCheck) {{
 }}
 
 # -- Step 2: Create working directory --
-$InstallDir = "$env:ProgramData\\archie-node"
+$InstallDir = "$env:USERPROFILE\\archie-node"
+if ([Security.Principal.WindowsIdentity]::GetCurrent().Owner -eq 'S-1-5-32-544') {{
+    $InstallDir = "$env:ProgramData\\archie-node"
+}}
 Write-Host "[1/5] Creating install directory: $InstallDir" -ForegroundColor Yellow
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 Set-Location $InstallDir
@@ -971,11 +974,15 @@ $config = @"
 {{
     "node_id": "{node_id}",
     "node_name": "{node_name}",
-    "setup_token": "{token}",
+    "api_key": "{token}",
     "hub_url": "{hub_url}",
-    "starbase_url": "{hub_url}",
+    "server_url": "{hub_url}",
+    "ollama_host": "http://localhost:11434",
+    "ollama_port": 11434,
     "deployment_mode": "starship",
-    "heartbeat_interval": 30
+    "heartbeat_interval": 30,
+    "sync_interval": 60,
+    "client_version": "2.0.0"
 }}
 "@
 $config | Set-Content -Path "config.json" -Encoding UTF8
@@ -985,16 +992,36 @@ $tz = (Get-TimeZone).Id
 HUB_URL={hub_url}
 NODE_ID={node_id}
 HUB_API_KEY={token}
+OLLAMA_HOST=http://localhost:11434
 NODE_TIMEZONE=$tz
 "@ | Set-Content -Path ".env" -Encoding UTF8
 
-# -- Step 5: Start the node --
-Write-Host "[4/5] Checking for Docker Compose configuration..." -ForegroundColor Yellow
-if (Test-Path "docker-compose.node.yml") {{
-    Write-Host "[5/5] Starting containers with Docker Compose..." -ForegroundColor Yellow
-    docker compose -f docker-compose.node.yml up -d
+# -- Step 5: Download and start node_sync.py --
+Write-Host "[4/5] Downloading node client..." -ForegroundColor Yellow
+try {{
+    Invoke-WebRequest -Uri "{hub_url}/tools/starbase/api/nodes/node_sync.py" -OutFile "node_sync.py" -UseBasicParsing
+}} catch {{
+    Write-Host "WARNING: Could not download node_sync.py" -ForegroundColor Yellow
+}}
+
+Write-Host "[5/5] Starting node heartbeat service..." -ForegroundColor Yellow
+$pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+if (-not $pythonCmd) {{ $pythonCmd = Get-Command python3 -ErrorAction SilentlyContinue }}
+if ($pythonCmd -and (Test-Path "node_sync.py")) {{
+    # Create/update scheduled task
+    $taskName = "ARCHIE-Node-Sync"
+    $action = New-ScheduledTaskAction -Execute $pythonCmd.Source -Argument "$InstallDir\\node_sync.py" -WorkingDirectory $InstallDir
+    $trigger = New-ScheduledTaskTrigger -AtStartup
+    $settings = New-ScheduledTaskSettingsSet -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Days 365)
+    try {{
+        Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+        Unregister-ScheduledTask -TaskName "ARCHIE-Node-Heartbeat" -Confirm:$false -ErrorAction SilentlyContinue
+    }} catch {{}}
+    Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -RunLevel Highest -ErrorAction SilentlyContinue
+    Start-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+    Write-Host "  Node sync service started as scheduled task" -ForegroundColor Green
 }} else {{
-    Write-Host "[5/5] No docker-compose.node.yml found - node registered, awaiting manual start." -ForegroundColor Yellow
+    Write-Host "  Python not found - start manually: python node_sync.py" -ForegroundColor Yellow
 }}
 
 Write-Host ""

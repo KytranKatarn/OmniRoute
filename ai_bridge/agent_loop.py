@@ -4280,6 +4280,10 @@ class AgentLoop:
         )
 
         # 4. Find an active ENGINEERING agent and mark proposal as assigned
+        agent = None
+        fleet_agent_info = None
+        dispatch_source = "hub"
+
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute("""
                 SELECT a.id, a.name FROM agents a
@@ -4293,41 +4297,119 @@ class AgentLoop:
             agent = cur.fetchone()
 
             if not agent:
-                logger.warning("[Fix Processor] No active ENGINEERING agent available")
-                return
-
-            cur.execute("""
-                UPDATE improvement_proposals
-                SET status = 'agent_assigned',
-                    assigned_agent_id = %s
-                WHERE id = %s
-            """, (agent[0], proposal_id))
-
-        # 5. Dispatch to agent via Bridge
-        result = dispatcher.request_work(
-            capability="code_fix",
-            prompt=prompt,
-            module_id="dev_pipeline",
-            system_prompt=system_prompt,
-            json_mode=True,
-        )
-
-        if not result or not result.success:
-            error_msg = getattr(result, "error", "unknown") if result else "no result"
-            logger.error(f"[Fix Processor] Dispatch failed for proposal #{proposal_id}: {error_msg}")
-            with get_db_cursor(commit=True) as (conn, cur):
+                logger.info("[Fix Processor] No hub ENGINEERING agent, trying fleet agents...")
+                # Fallback: try fleet agents on remote nodes
+                fleet_agent_info = dispatcher._find_fleet_agent("ENGINEERING", "code_fix")
+                if not fleet_agent_info:
+                    logger.warning("[Fix Processor] No hub or fleet ENGINEERING agent available")
+                    return
+                dispatch_source = "fleet"
+                # Use hub_agent_id from fleet agent for DB assignment (FK to agents table)
+                assigned_id = fleet_agent_info.get("hub_agent_id")
+                if assigned_id:
+                    cur.execute("""
+                        UPDATE improvement_proposals
+                        SET status = 'agent_assigned',
+                            assigned_agent_id = %s
+                        WHERE id = %s
+                    """, (assigned_id, proposal_id))
+                else:
+                    cur.execute("""
+                        UPDATE improvement_proposals
+                        SET status = 'agent_assigned'
+                        WHERE id = %s
+                    """, (proposal_id,))
+                logger.info(
+                    f"[Fix Processor] Fleet agent {fleet_agent_info['agent_name']} "
+                    f"on node {fleet_agent_info.get('node_name', '?')} assigned to proposal #{proposal_id}"
+                )
+            else:
                 cur.execute("""
                     UPDATE improvement_proposals
-                    SET status = 'approved', assigned_agent_id = NULL,
-                        retry_count = retry_count + 1,
-                        last_retry_at = NOW()
+                    SET status = 'agent_assigned',
+                        assigned_agent_id = %s
                     WHERE id = %s
-                """, (proposal_id,))
-            return
+                """, (agent[0], proposal_id))
+
+        # 5. Dispatch to agent via Bridge (hub) or fleet node
+        response_text = None
+
+        if dispatch_source == "hub":
+            # Hub dispatch via Bridge request_work
+            result = dispatcher.request_work(
+                capability="code_fix",
+                prompt=prompt,
+                module_id="dev_pipeline",
+                system_prompt=system_prompt,
+                json_mode=True,
+            )
+
+            if not result or not result.success:
+                error_msg = getattr(result, "error", "unknown") if result else "no result"
+                logger.warning(
+                    f"[Fix Processor] Hub dispatch failed for proposal #{proposal_id}: {error_msg}, "
+                    "trying fleet fallback..."
+                )
+                # Fallback: try fleet agent when hub dispatch fails
+                fleet_agent_info = dispatcher._find_fleet_agent("ENGINEERING", "code_fix")
+                if fleet_agent_info:
+                    dispatch_source = "fleet"
+                    logger.info(
+                        f"[Fix Processor] Fleet fallback: {fleet_agent_info['agent_name']} "
+                        f"on node {fleet_agent_info.get('node_name', '?')}"
+                    )
+                else:
+                    logger.error(f"[Fix Processor] No fleet fallback available for proposal #{proposal_id}")
+                    with get_db_cursor(commit=True) as (conn, cur):
+                        cur.execute("""
+                            UPDATE improvement_proposals
+                            SET status = 'approved', assigned_agent_id = NULL,
+                                retry_count = retry_count + 1,
+                                last_retry_at = NOW()
+                            WHERE id = %s
+                        """, (proposal_id,))
+                    return
+            else:
+                response_text = result.response
+
+        if dispatch_source == "fleet" and response_text is None:
+            # Fleet dispatch via node Ollama API
+            fleet_result = dispatcher._dispatch_to_node(
+                agent_info=fleet_agent_info,
+                prompt=prompt,
+                system_prompt=system_prompt,
+                capability="code_fix",
+                module_id="dev_pipeline",
+                station_code="ENGINEERING",
+            )
+
+            if not fleet_result or not fleet_result.get("success"):
+                logger.error(
+                    f"[Fix Processor] Fleet dispatch failed for proposal #{proposal_id}"
+                )
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute("""
+                        UPDATE improvement_proposals
+                        SET status = 'approved', assigned_agent_id = NULL,
+                            retry_count = retry_count + 1,
+                            last_retry_at = NOW()
+                        WHERE id = %s
+                    """, (proposal_id,))
+                return
+            response_text = fleet_result["response"]
+            # Update assigned agent to fleet agent if we fell back mid-dispatch
+            fleet_hub_id = fleet_agent_info.get("hub_agent_id")
+            if fleet_hub_id:
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute("""
+                        UPDATE improvement_proposals
+                        SET assigned_agent_id = %s
+                        WHERE id = %s
+                    """, (fleet_hub_id, proposal_id))
 
         # 6. Parse agent response
         try:
-            fix_data = json.loads(result.response)
+            fix_data = json.loads(response_text)
         except (json.JSONDecodeError, TypeError):
             logger.error(f"[Fix Processor] Invalid JSON from agent for proposal #{proposal_id}")
             with get_db_cursor(commit=True) as (conn, cur):
@@ -4360,8 +4442,17 @@ class AgentLoop:
         except Exception as sandbox_err:
             logger.warning(f"[Fix Processor] Sandbox write failed for proposal #{proposal_id}: {sandbox_err}")
 
+        dispatch_agent_name = (
+            fleet_agent_info["agent_name"] if fleet_agent_info and dispatch_source == "fleet"
+            else (agent[1] if agent else "unknown")
+        )
+        dispatch_node = (
+            fleet_agent_info.get("node_name", "remote") if fleet_agent_info and dispatch_source == "fleet"
+            else "hub"
+        )
         logger.info(
             f"[Fix Processor] Proposal #{proposal_id} '{title}' dispatched successfully "
+            f"via {dispatch_source} agent={dispatch_agent_name} node={dispatch_node} "
             f"(confidence={fix_data.get('confidence', 'N/A')})"
         )
 

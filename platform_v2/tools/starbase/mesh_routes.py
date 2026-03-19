@@ -12,6 +12,7 @@ Date: 2026-02-04
 
 import json
 import hashlib
+from hmac import compare_digest
 import logging
 import sys
 from datetime import datetime
@@ -72,7 +73,7 @@ def _verify_node_api_key(node_id):
             return False, "Node not approved"
 
         key_hash = hashlib.sha256(api_key.encode()).hexdigest()
-        if key_hash != node["api_key_hash"]:
+        if not compare_digest(key_hash, node["api_key_hash"]):
             return False, "Invalid API key"
 
         return True, node

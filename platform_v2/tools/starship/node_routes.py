@@ -280,7 +280,7 @@ def register_node_routes(bp, auth_decorator):
         params.append(node_id)
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute(
-                f"UPDATE remote_nodes SET {', '.join(updates)} WHERE node_id = %s",
+                "UPDATE remote_nodes SET " + ", ".join(updates) + " WHERE node_id = %s",
                 params,
             )
         return jsonify({"success": True})

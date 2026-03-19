@@ -1679,22 +1679,19 @@ def register_station_routes(bp, admin_required):
 
             with get_db_cursor(commit=False) as (conn, cur):
                 # Get total count
-                cur.execute(f"SELECT COUNT(*) FROM agent_memory WHERE {where_clause}", params)
+                cur.execute("SELECT COUNT(*) FROM agent_memory WHERE " + where_clause, params)
                 total = cur.fetchone()["count"]
 
                 # Get memories
                 cur.execute(
-                    f"""
-                    SELECT id, agent_id, memory_type, content, importance_score,
-                           context, source_module, emotional_valence,
-                           is_deleted, deleted_at, deleted_by, deletion_reason,
-                           created_at, last_accessed, access_count,
-                           decay_immunity, reinforcement_count
-                    FROM agent_memory
-                    WHERE {where_clause}
-                    ORDER BY importance_score DESC NULLS LAST, created_at DESC
-                    LIMIT %s OFFSET %s
-                """,
+                    "SELECT id, agent_id, memory_type, content, importance_score,"
+                    " context, source_module, emotional_valence,"
+                    " is_deleted, deleted_at, deleted_by, deletion_reason,"
+                    " created_at, last_accessed, access_count,"
+                    " decay_immunity, reinforcement_count"
+                    " FROM agent_memory"
+                    " WHERE " + where_clause + " ORDER BY importance_score DESC NULLS LAST, created_at DESC"
+                    " LIMIT %s OFFSET %s",
                     params + [per_page, offset],
                 )
 

@@ -1,6 +1,7 @@
 """Starbase Command — Node routes (remote nodes, approval, station assignments)"""
 
 import hashlib
+from hmac import compare_digest
 import json
 import os
 import time
@@ -36,8 +37,8 @@ def register_node_routes(bp, admin_required):
         return hashlib.sha256(api_key.encode()).hexdigest()
 
     def verify_api_key(api_key, stored_hash):
-        """Verify an API key against stored hash"""
-        return hash_api_key(api_key) == stored_hash
+        """Verify an API key against stored hash (constant-time comparison)"""
+        return compare_digest(hash_api_key(api_key), stored_hash)
 
     @bp.route("/api/nodes")
     @login_required

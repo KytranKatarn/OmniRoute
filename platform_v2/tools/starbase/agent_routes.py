@@ -50,6 +50,7 @@ def register_agent_routes(bp, admin_required):
 
     @bp.route("/api/agents", methods=["POST"])
     @login_required
+    @admin_required
     def create_agent():
         """Create a new agent"""
         data = request.get_json()
@@ -116,6 +117,7 @@ def register_agent_routes(bp, admin_required):
 
     @bp.route("/api/agents/<int:agent_id>", methods=["PUT", "PATCH"])
     @login_required
+    @admin_required
     def update_agent(agent_id):
         """Update agent profile fields"""
         data = request.get_json()
@@ -170,7 +172,9 @@ def register_agent_routes(bp, admin_required):
                             return jsonify({"success": False, "error": conflict}), 409
 
                 cur.execute(
-                    f"UPDATE agents SET {', '.join(sets)} WHERE id = %s RETURNING id, name, first_name, last_name, model, status",
+                    "UPDATE agents SET "
+                    + ", ".join(sets)
+                    + " WHERE id = %s RETURNING id, name, first_name, last_name, model, status",
                     params,
                 )
                 agent = cur.fetchone()
@@ -237,6 +241,7 @@ def register_agent_routes(bp, admin_required):
 
     @bp.route("/api/agents/<int:agent_id>", methods=["DELETE"])
     @login_required
+    @admin_required
     def delete_agent(agent_id):
         """Delete an agent (clears FK references first)"""
         try:
@@ -737,6 +742,7 @@ def register_agent_routes(bp, admin_required):
 
     @bp.route("/api/stations/<station_code>/config", methods=["PUT"])
     @login_required
+    @admin_required
     def update_station_config(station_code):
         """Update station configuration"""
         data = request.get_json() or {}

@@ -465,7 +465,7 @@ def start_processing():
     """Start batch processing via Bridge job system.
 
     Creates a bridge_job and returns the job_id immediately.
-    Work runs in a background thread with progress tracked in Bridge Command.
+    Work runs in a background thread with progress tracked in Starbase Command.
     """
     try:
         from ai_bridge.bridge_dispatcher import get_dispatcher
@@ -523,7 +523,7 @@ def start_processing():
                 jsonify(
                     {
                         "success": False,
-                        "error": "An analysis job is already running — check Bridge Command for progress",
+                        "error": "An analysis job is already running — check Starbase Command for progress",
                         "duplicate": True,
                     }
                 ),
@@ -714,7 +714,7 @@ def generate_embeddings():
     """Generate embeddings for entries that don't have them.
 
     Creates a bridge_job and returns the job_id immediately.
-    Work runs in a background thread with progress tracked in Bridge Command.
+    Work runs in a background thread with progress tracked in Starbase Command.
     """
     try:
         from ai_bridge.bridge_dispatcher import get_dispatcher
@@ -767,7 +767,7 @@ def generate_embeddings():
                 jsonify(
                     {
                         "success": False,
-                        "error": "An embedding job is already running — check Bridge Command for progress",
+                        "error": "An embedding job is already running — check Starbase Command for progress",
                         "duplicate": True,
                     }
                 ),

@@ -1,4 +1,4 @@
-"""Bridge Command — Mission routes (SSE, starship command, mission profiles, flows, mesh)"""
+"""Starbase Command — Mission routes (SSE, starship command, mission profiles, flows, mesh)"""
 
 import json
 import time
@@ -343,11 +343,5 @@ def register_mission_routes(bp, admin_required):
             return jsonify({"success": False, "error": str(e)}), 500
 
     # ============================================================================
-    # MESH CLUSTER API ROUTES
+    # MESH CLUSTER API ROUTES — registered in __init__.py (ADR-045 pattern)
     # ============================================================================
-    try:
-        from tools.bridge.mesh_routes import register_mesh_routes
-
-        register_mesh_routes(bp)
-    except ImportError as e:
-        logger.warning(f"Mesh routes not loaded: {e}")

@@ -2832,7 +2832,7 @@ def init_consciousness_scheduler(flask_app):
             """Re-load agent + infrastructure models that Ollama may have evicted.
 
             Uses keep_alive=-1. GPU vs CPU determined by what's already on GPU
-            (preserves user choice from Bridge Command).
+            (preserves user choice from Starbase Command).
             """
             import requests as req
             import psutil

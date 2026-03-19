@@ -137,7 +137,7 @@
 .sc-stat-val { font-family: 'IBM Plex Mono', monospace; color: #fff; font-size: 1.1rem; display: block; }
 .sc-stat-label { font-family: 'IBM Plex Mono', monospace; color: rgba(255,255,255,0.4); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; }
 
-/* Bridge Modal (bm-) — LCARS tablet design from Bridge Command */
+/* Bridge Modal (bm-) — LCARS tablet design from Starbase Command */
 .bm-overlay { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.8); backdrop-filter:blur(8px); z-index:10000; justify-content:center; align-items:center; }
 .bm-overlay.active { display:flex; }
 .bm-shell { background:#06060c; border:none; border-radius:24px; width:90%; max-width:720px; max-height:85vh; overflow:hidden; display:flex; flex-direction:row; box-shadow:0 0 0 2px #1e1e35,0 0 0 4px rgba(0,229,255,0.12),0 24px 80px rgba(0,0,0,0.8),0 0 60px rgba(0,229,255,0.06); animation:bmTabletIn 0.3s cubic-bezier(0.22,1,0.36,1); }
@@ -308,7 +308,7 @@
     .sc-modal { width: 95%; }
 }
 
-/* Crew manifest grid — Bridge Command style cards */
+/* Crew manifest grid — Starbase Command style cards */
 .crew-manifest-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));

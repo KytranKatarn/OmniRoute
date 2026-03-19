@@ -1,4 +1,4 @@
-"""Bridge Command — Crew routes (manifest, lounge, training, wellness, IAAE)"""
+"""Starbase Command — Crew routes (manifest, lounge, training, wellness, IAAE)"""
 
 import os
 import subprocess

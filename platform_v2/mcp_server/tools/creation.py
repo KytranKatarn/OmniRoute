@@ -575,7 +575,7 @@ Language: {language}
         # Call AI Bridge for code generation
         try:
             response = requests.post(
-                f"{PLATFORM_URL}/tools/bridge/api/generate",
+                f"{PLATFORM_URL}/tools/starbase/api/generate",
                 json={
                     "prompt": full_prompt,
                     "task_type": "code_generation",

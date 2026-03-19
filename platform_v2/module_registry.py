@@ -432,24 +432,24 @@ MODULES: List[ModuleDefinition] = [
     # ============================================
     # AI COMMAND (3 modules)
     # ============================================
-    # consciousness, team_management, bridge, archie_core
+    # consciousness, team_management, starbase, archie_core
     # NOTE: blueprint (Mission Control) removed from grid 2026-02-04
     # Blueprint Flask routes still registered manually in app.py for Dev HQ API access
     ModuleDefinition(
-        id="bridge",
-        name="Bridge Command",
+        id="starbase",
+        name="Starbase Command",
         description="Central AI command center<br>Stations • LLM • IDE • Training",
         icon="monitor",
         category=ModuleCategory.AI_COMMAND,
-        route="/tools/bridge",
-        blueprint_import="tools.bridge.routes:bridge_bp",
+        route="/tools/starbase",
+        blueprint_import="tools.starbase.routes:starbase_bp",
         required_permissions=["admin:access"],
         minimum_role="ADMIN",
         enabled=True,
-        health_check=lambda: default_health_check("bridge"),
+        health_check=lambda: default_health_check("starbase"),
         priority=2,
         tags=[
-            "bridge",
+            "starbase",
             "llm",
             "monitoring",
             "command",
@@ -462,7 +462,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="team_management",
         name="Team Management",
-        description="[Retired] Absorbed into Bridge Command Crew tab",
+        description="[Retired] Absorbed into Starbase Command Crew tab",
         icon="users-round",
         category=ModuleCategory.AI_COMMAND,
         route="/tools/team-management",

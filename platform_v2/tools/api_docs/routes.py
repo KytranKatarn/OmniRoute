@@ -228,8 +228,8 @@ def categorize_endpoint(rule_str):
         return "Backup Manager"
     elif "/tools/sandbox" in rule_str:
         return "Sandbox Manager"
-    elif "/tools/bridge" in rule_str:
-        return "A.R.C.H.I.E. Bridge"
+    elif "/tools/starbase" in rule_str:
+        return "A.R.C.H.I.E. Starbase Command"
     elif "/tools/crm" in rule_str:
         return "CRM"
     elif "/tools/email" in rule_str:

@@ -1,4 +1,4 @@
-"""Bridge Command — Dispatch routes (activity, overview, jobs, cross-station analytics)"""
+"""Starbase Command — Dispatch routes (activity, overview, jobs, cross-station analytics)"""
 
 import logging
 from datetime import datetime

@@ -1,4 +1,4 @@
-/* bridge.js — Bridge Command module logic (extracted from bridge.html) */
+/* starbase.js — Starbase Command module logic (extracted from starbase.html) */
 // === IAAE Capacity Modal ===
 function showIaaeCapacityModal(level, info) {
     var modal = document.getElementById('iaae-capacity-modal');

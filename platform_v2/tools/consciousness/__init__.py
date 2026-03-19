@@ -23,7 +23,7 @@ from .routes import admin_required  # noqa: E402
 from .processing_routes import processing_bp  # noqa: E402
 from .knowledge_routes import register_knowledge_routes  # noqa: E402
 
-# team_routes removed — Team tab merged into Bridge Command Crew tab
+# team_routes removed — Team tab merged into Starbase Command Crew tab
 from .insights_routes import register_insights_routes  # noqa: E402
 from .github_routes import register_github_routes  # noqa: E402
 from .integration_routes import register_integration_routes  # noqa: E402
@@ -35,7 +35,7 @@ consciousness_bp.register_blueprint(processing_bp)
 # Register knowledge routes (KB CRUD, search, ingestion, unified API)
 register_knowledge_routes(consciousness_bp, admin_required)
 
-# Team routes removed — merged into Bridge Command Crew tab
+# Team routes removed — merged into Starbase Command Crew tab
 
 # Register insights routes (analytics, sessions, learning patterns, experiences)
 register_insights_routes(consciousness_bp, admin_required)

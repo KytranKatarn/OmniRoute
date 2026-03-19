@@ -1075,7 +1075,7 @@ class SandboxManager:
             Module ID (e.g., 'bridge', 'improvements', 'platform')
         """
         module_paths = {
-            "tools/bridge/": "bridge",
+            "tools/starbase/": "starbase",
             "tools/improvements/": "improvements",
             "tools/consciousness/": "consciousness",
             "tools/admin/": "admin",

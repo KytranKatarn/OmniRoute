@@ -50,12 +50,12 @@
                             <i data-lucide="activity"></i>
                             ADMIN OPS
                         </span>
-                        <a href="{{ url_for('bridge.bridge_dashboard') }}"
-                           class="nav-module-btn {% if request.endpoint and 'bridge' in request.endpoint %}active{% endif %}"
+                        <a href="{{ url_for('starbase.starbase_dashboard') }}"
+                           class="nav-module-btn {% if request.endpoint and 'starbase' in request.endpoint %}active{% endif %}"
                            onclick="showTransition(event, this.href)"
-                           title="Bridge Command">
+                           title="Starbase Command">
                             <i data-lucide="monitor"></i>
-                            <span>Bridge</span>
+                            <span>Starbase</span>
                         </a>
                         <a href="{{ url_for('consciousness.index') }}"
                            class="nav-module-btn {% if request.endpoint and 'consciousness' in request.endpoint %}active{% endif %}"

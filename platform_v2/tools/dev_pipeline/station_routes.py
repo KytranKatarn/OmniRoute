@@ -1,6 +1,6 @@
 """Dev Pipeline — Station integration routes.
 
-Proxies Bridge Command APIs filtered to ENGINEERING station and
+Proxies Starbase Command APIs filtered to ENGINEERING station and
 dev_pipeline module_source. Provides crew roster, job status, and
 active job polling for the station panel UI.
 """
@@ -22,17 +22,17 @@ def register_station_routes(bp, admin_required):
     @bp.route("/api/station/crew")
     @login_required
     def station_crew():
-        """Get ENGINEERING station crew from Bridge."""
+        """Get ENGINEERING station crew from Starbase."""
         try:
             import requests as req
 
-            resp = req.get("http://localhost:3000/tools/bridge/api/stations", timeout=5)
+            resp = req.get("http://localhost:3000/tools/starbase/api/stations", timeout=5)
             if resp.status_code != 200:
-                return jsonify({"success": False, "error": "Bridge unavailable"}), 502
+                return jsonify({"success": False, "error": "Starbase unavailable"}), 502
 
             data = resp.json()
             if not data.get("success"):
-                return jsonify({"success": False, "error": "Bridge returned failure"}), 502
+                return jsonify({"success": False, "error": "Starbase returned failure"}), 502
 
             # Find ENGINEERING station
             crew = []
@@ -70,13 +70,13 @@ def register_station_routes(bp, admin_required):
     @bp.route("/api/station/jobs")
     @login_required
     def station_jobs():
-        """Get active Dev Pipeline jobs from Bridge."""
+        """Get active Dev Pipeline jobs from Starbase."""
         try:
             import requests as req
 
             status_filter = request.args.get("status", "running")
             resp = req.get(
-                f"http://localhost:3000/tools/bridge/api/bridge/jobs?status={status_filter}",
+                f"http://localhost:3000/tools/starbase/api/bridge/jobs?status={status_filter}",
                 timeout=5,
             )
             if resp.status_code != 200:
@@ -105,12 +105,12 @@ def register_station_routes(bp, admin_required):
     @bp.route("/api/station/job/<int:job_id>")
     @login_required
     def station_job_detail(job_id):
-        """Get single job progress from Bridge."""
+        """Get single job progress from Starbase."""
         try:
             import requests as req
 
             resp = req.get(
-                f"http://localhost:3000/tools/bridge/api/bridge/jobs/{job_id}",
+                f"http://localhost:3000/tools/starbase/api/bridge/jobs/{job_id}",
                 timeout=5,
             )
             if resp.status_code != 200:

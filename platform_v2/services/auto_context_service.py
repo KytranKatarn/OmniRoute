@@ -14,7 +14,7 @@ MODULE_CONTEXT_MAP = {
     "content_studio": ["content writing", "writing pipeline", "seo"],
     "social_media": ["social media", "publishing", "instagram"],
     "consciousness": ["consciousness", "knowledge analytics", "embedding"],
-    "bridge": ["bridge command", "dispatcher", "agent", "station"],
+    "starbase": ["starbase command", "dispatcher", "agent", "station"],
     "fitness": ["fitness", "workout", "exercise"],
     "therapy": ["therapy", "mood", "mental health"],
     "doc": ["health", "symptoms", "medication"],

@@ -1,5 +1,5 @@
 """
-Bridge Command — Shared helpers and caches
+Starbase Command — Shared helpers and caches
 ==========================================
 Extracted from routes.py during route split refactor.
 """

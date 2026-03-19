@@ -144,7 +144,7 @@ def get_overview():
                     "desc": "Routes to Ollama, Claude, OpenAI, Grok, Gemini",
                 },
                 {
-                    "name": "Bridge Command Center",
+                    "name": "Starbase Command Center",
                     "desc": "10-station architecture with IAAE compliance",
                 },
                 {
@@ -1757,11 +1757,11 @@ def get_roadmap():
                 "icon": "🚀",
                 "phases": [
                     {
-                        "name": "Phase 26: A.R.C.H.I.E. Bridge - Core UI",
+                        "name": "Phase 26: A.R.C.H.I.E. Starbase - Core UI",
                         "status": "complete",
                         "items": [
                             {
-                                "task": "Create /tools/bridge/ route and blueprint",
+                                "task": "Create /tools/starbase/ route and blueprint",
                                 "done": True,
                             },
                             {
@@ -2149,7 +2149,7 @@ def get_roadmap():
                                 "done": True,
                             },
                             {
-                                "task": "Update Bridge branding (BRIDGE COMMAND)",
+                                "task": "Update Starbase branding (STARBASE COMMAND)",
                                 "done": True,
                             },
                             {

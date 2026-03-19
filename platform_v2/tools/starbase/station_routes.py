@@ -1,4 +1,4 @@
-"""Bridge Command — Station routes (definitions, config, actions, benchmarks)"""
+"""Starbase Command — Station routes (definitions, config, actions, benchmarks)"""
 
 import json
 import os

@@ -1,10 +1,10 @@
 ---
-globs: ["platform_v2/tools/bridge/**", "ai_bridge/bridge_dispatcher.py", "platform_v2/tools/starship/**"]
+globs: ["platform_v2/tools/starbase/**", "ai_bridge/bridge_dispatcher.py", "platform_v2/tools/starship/**"]
 ---
 
-# Bridge Command + Starship Rules (Updated 2026-03-19)
+# Starbase Command + Starship Rules (Updated 2026-03-19)
 
-## Bridge File Structure
+## Starbase File Structure
 - `routes.py` — core routes (dashboard, stats, traffic, LLM monitor)
 - `helpers.py` — shared caches (_get_cached_ollama_tags/ps/hw_capacity)
 - `node_routes.py` — nodes, approval, assignments
@@ -69,7 +69,7 @@ COMMAND (#00e5ff), ANALYTICS (#8b5cf6), CREATIVE (#f472b6), ENGINEERING (#fbbf24
 - Single status badge: ON DUTY / DEPLOYED / WORKING / BARRACKED / OFF DUTY
 - Collapsible roster: purple (hub), baby blue (node), gray (barracks)
 - `_renderUnifiedAgentCard()` — one card renderer for hub + node
-- `openAgentProfileFromBridge(hubAgentId)` — always fetch from Bridge profile endpoint
+- `openAgentProfileFromBridge(hubAgentId)` — always fetch from Starbase profile endpoint
 - Model load/unload: LCARS confirm modal (cyan load, red unload)
 - Node disconnect: LCARS red alert modal
 

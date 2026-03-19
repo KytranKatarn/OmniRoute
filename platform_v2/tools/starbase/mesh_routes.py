@@ -4,7 +4,7 @@ A.R.C.H.I.E. MESH API Routes
 Mesh cluster sync protocol endpoints for code versioning,
 learning pattern sharing, agent lending, and sync commands.
 
-These routes are registered on the bridge blueprint from routes.py.
+These routes are registered on the starbase blueprint from routes.py.
 
 Author: A.R.C.H.I.E. Platform
 Date: 2026-02-04
@@ -86,14 +86,14 @@ def _verify_node_api_key(node_id):
 # ============================================================================
 
 
-def register_mesh_routes(bridge_bp):
-    """Register all mesh cluster API routes on the bridge blueprint."""
+def register_mesh_routes(bp, admin_required=None):
+    """Register all mesh cluster API routes on the starbase blueprint."""
 
     # ========================================================================
     # VERSION REPORTING
     # ========================================================================
 
-    @bridge_bp.route("/api/mesh/version", methods=["POST"])
+    @bp.route("/api/mesh/version", methods=["POST"])
     def mesh_report_version():
         """Node reports its code version. Auth via API key."""
         data = request.get_json() or {}
@@ -155,7 +155,7 @@ def register_mesh_routes(bridge_bp):
     # LEARNING PATTERNS
     # ========================================================================
 
-    @bridge_bp.route("/api/mesh/learning", methods=["POST"])
+    @bp.route("/api/mesh/learning", methods=["POST"])
     def mesh_submit_learning():
         """Node submits anonymized learning pattern. Auth via API key."""
         data = request.get_json() or {}
@@ -216,7 +216,7 @@ def register_mesh_routes(bridge_bp):
             logger.error(f"Mesh learning submit failed: {e}")
             return jsonify({"success": False, "error": str(e)}), 500
 
-    @bridge_bp.route("/api/mesh/learning", methods=["GET"])
+    @bp.route("/api/mesh/learning", methods=["GET"])
     @login_required
     def mesh_get_learning():
         """Hub admin views learning patterns. Auth via login."""
@@ -271,7 +271,7 @@ def register_mesh_routes(bridge_bp):
     # AGENT LENDING
     # ========================================================================
 
-    @bridge_bp.route("/api/mesh/agents/lend", methods=["POST"])
+    @bp.route("/api/mesh/agents/lend", methods=["POST"])
     @login_required
     def mesh_lend_agent():
         """Hub admin lends an agent from one node to another. Auth via login."""
@@ -362,7 +362,7 @@ def register_mesh_routes(bridge_bp):
             logger.error(f"Mesh agent lend failed: {e}")
             return jsonify({"success": False, "error": str(e)}), 500
 
-    @bridge_bp.route("/api/mesh/agents/return", methods=["POST"])
+    @bp.route("/api/mesh/agents/return", methods=["POST"])
     def mesh_return_agent():
         """Node returns a borrowed agent. Auth via API key."""
         data = request.get_json() or {}
@@ -418,7 +418,7 @@ def register_mesh_routes(bridge_bp):
             logger.error(f"Mesh agent return failed: {e}")
             return jsonify({"success": False, "error": str(e)}), 500
 
-    @bridge_bp.route("/api/mesh/agents/return-admin", methods=["POST"])
+    @bp.route("/api/mesh/agents/return-admin", methods=["POST"])
     @login_required
     def mesh_return_agent_admin():
         """Hub admin returns a borrowed agent (no API key needed)."""
@@ -453,7 +453,7 @@ def register_mesh_routes(bridge_bp):
             logger.error(f"Mesh admin return agent failed: {e}")
             return jsonify({"success": False, "error": str(e)}), 500
 
-    @bridge_bp.route("/api/mesh/agents/loans", methods=["GET"])
+    @bp.route("/api/mesh/agents/loans", methods=["GET"])
     @login_required
     def mesh_get_loans():
         """Hub admin views agent loans. Auth via login."""
@@ -516,7 +516,7 @@ def register_mesh_routes(bridge_bp):
     # SYNC LOG
     # ========================================================================
 
-    @bridge_bp.route("/api/mesh/sync", methods=["POST"])
+    @bp.route("/api/mesh/sync", methods=["POST"])
     @login_required
     def mesh_push_sync():
         """Hub admin pushes a sync command to a node. Auth via login."""
@@ -557,7 +557,7 @@ def register_mesh_routes(bridge_bp):
             logger.error(f"Mesh sync push failed: {e}")
             return jsonify({"success": False, "error": str(e)}), 500
 
-    @bridge_bp.route("/api/mesh/sync/<node_id>/pending", methods=["GET"])
+    @bp.route("/api/mesh/sync/<node_id>/pending", methods=["GET"])
     def mesh_get_pending_syncs(node_id):
         """Node polls for pending sync commands. Auth via API key."""
         valid, result = _verify_node_api_key(node_id)
@@ -594,7 +594,7 @@ def register_mesh_routes(bridge_bp):
             logger.error(f"Mesh pending syncs fetch failed: {e}")
             return jsonify({"success": False, "error": str(e)}), 500
 
-    @bridge_bp.route("/api/mesh/sync/<int:sync_id>/ack", methods=["POST"])
+    @bp.route("/api/mesh/sync/<int:sync_id>/ack", methods=["POST"])
     def mesh_ack_sync(sync_id):
         """Node acknowledges a sync command. Auth via API key."""
         data = request.get_json() or {}
@@ -693,7 +693,7 @@ def register_mesh_routes(bridge_bp):
     # FLEET BROADCAST + CONFIG VERSION
     # ========================================================================
 
-    @bridge_bp.route("/api/mesh/broadcast", methods=["POST"])
+    @bp.route("/api/mesh/broadcast", methods=["POST"])
     @login_required
     def mesh_broadcast():
         """Broadcast a sync entry to all active online nodes."""
@@ -740,7 +740,7 @@ def register_mesh_routes(bridge_bp):
             logger.error(f"Mesh broadcast failed: {e}")
             return jsonify({"success": False, "error": str(e)}), 500
 
-    @bridge_bp.route("/api/mesh/version", methods=["GET"])
+    @bp.route("/api/mesh/version", methods=["GET"])
     def mesh_config_version():
         """Return current config versions for sync checks."""
         return jsonify(
@@ -756,7 +756,7 @@ def register_mesh_routes(bridge_bp):
     # CLUSTER OVERVIEW
     # ========================================================================
 
-    @bridge_bp.route("/api/mesh/cluster", methods=["GET"])
+    @bp.route("/api/mesh/cluster", methods=["GET"])
     @login_required
     def mesh_cluster_overview():
         """Hub admin gets cluster overview. Auth via login."""
@@ -785,7 +785,7 @@ def register_mesh_routes(bridge_bp):
     # AVAILABLE AGENTS (for Request Help modal)
     # ========================================================================
 
-    @bridge_bp.route("/api/mesh/agents/available", methods=["GET"])
+    @bp.route("/api/mesh/agents/available", methods=["GET"])
     @login_required
     def mesh_available_agents():
         """Hub admin views agents available for lending across the mesh."""
@@ -889,7 +889,7 @@ def register_mesh_routes(bridge_bp):
     # OTA CODE UPDATE
     # ========================================================================
 
-    @bridge_bp.route("/api/mesh/push-update", methods=["POST"])
+    @bp.route("/api/mesh/push-update", methods=["POST"])
     @login_required
     def mesh_push_code_update():
         """

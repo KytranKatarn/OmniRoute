@@ -1,4 +1,4 @@
-"""Bridge Command — Provider routes (ComfyUI, routing mode, external providers, contractors, model routing)"""
+"""Starbase Command — Provider routes (ComfyUI, routing mode, external providers, contractors, model routing)"""
 
 import json
 import os

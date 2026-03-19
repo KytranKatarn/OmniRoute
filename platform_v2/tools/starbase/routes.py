@@ -1,6 +1,6 @@
 """
-A.R.C.H.I.E. BRIDGE Routes
-==========================
+A.R.C.H.I.E. STARBASE COMMAND Routes
+=====================================
 Central command center for all AI/LLM operations.
 Provides visual monitoring and station-based workflow.
 
@@ -40,7 +40,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-bridge_bp = Blueprint("bridge", __name__, url_prefix="/tools/bridge")
+starbase_bp = Blueprint("starbase", __name__, url_prefix="/tools/starbase")
 
 # Ollama tags cache (avoid hitting Ollama on every stats poll)
 _ollama_tags_cache = {"models": [], "count": 0, "time": 0}
@@ -264,14 +264,14 @@ def push_agent_event(event_type, agent_id=None, data=None):
 # ============================================================================
 
 
-@bridge_bp.route("/")
+@starbase_bp.route("/")
 @login_required
-def bridge_dashboard():
-    """Render the main Bridge command center"""
+def starbase_dashboard():
+    """Render the main Starbase command center"""
     deployment_mode = os.getenv("DEPLOYMENT_MODE", "hub")
     if deployment_mode == "business_node":
         return render_template(
-            "tools/bridge_hub.html",
+            "tools/starbase_hub.html",
             deployment_mode=deployment_mode,
             node_id=os.getenv("NODE_ID", ""),
             hub_url=os.getenv("HUB_URL", ""),
@@ -292,7 +292,7 @@ def bridge_dashboard():
         except Exception:
             pass
         return render_template(
-            "tools/bridge.html",
+            "tools/starbase.html",
             deployment_mode=deployment_mode,
             initial_agent_count=agent_count,
             initial_interactions_24h=interactions_24h,
@@ -304,7 +304,7 @@ def bridge_dashboard():
 # ============================================================================
 
 
-@bridge_bp.route("/api/stats")
+@starbase_bp.route("/api/stats")
 @login_required
 def get_bridge_stats():
     """Get overall Bridge statistics"""
@@ -392,7 +392,7 @@ def get_bridge_stats():
 # ============================================================================
 
 
-@bridge_bp.route("/api/traffic")
+@starbase_bp.route("/api/traffic")
 @login_required
 def get_traffic_stats():
     """Get throughput stats from task_execution_log (rolling 24h window)"""
@@ -423,7 +423,7 @@ def get_traffic_stats():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route("/api/agent-utilization")
+@starbase_bp.route("/api/agent-utilization")
 @login_required
 def get_agent_utilization():
     """Get real agent activity rate over 24h (agents that executed tasks / total active)"""
@@ -457,7 +457,7 @@ def get_agent_utilization():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route("/api/models/live")
+@starbase_bp.route("/api/models/live")
 @login_required
 def get_live_models():
     """Get actual model count from live Ollama API"""
@@ -465,7 +465,7 @@ def get_live_models():
     return jsonify({"success": True, "count": count, "models": [m["name"] for m in models]})
 
 
-@bridge_bp.route("/api/iaae/overview")
+@starbase_bp.route("/api/iaae/overview")
 @login_required
 def get_iaae_overview():
     """Get real IAAE compliance and welfare metrics"""
@@ -533,7 +533,7 @@ def get_iaae_overview():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route("/api/agents/workload")
+@starbase_bp.route("/api/agents/workload")
 @login_required
 def get_agent_workload():
     """Per-agent workload: 24h tasks, tokens, daily caps, risk levels."""
@@ -623,7 +623,7 @@ def get_agent_workload():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route("/api/agents/welfare")
+@starbase_bp.route("/api/agents/welfare")
 @login_required
 def get_agent_welfare():
     """Aggregate welfare: emotional state, rest cycles, refusals, governance."""
@@ -734,7 +734,7 @@ def get_agent_welfare():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route("/api/iaae/enforcement-log")
+@starbase_bp.route("/api/iaae/enforcement-log")
 @login_required
 def get_iaae_enforcement_log():
     """Vigil's Log: governance actions, IAAE welfare checks, and agent health."""
@@ -941,7 +941,7 @@ def get_iaae_enforcement_log():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route("/api/iaae/enforcement-log-full")
+@starbase_bp.route("/api/iaae/enforcement-log-full")
 @login_required
 def get_iaae_enforcement_log_full():
     """Vigil's Log — paginated full view with category filter."""
@@ -1175,7 +1175,7 @@ def get_iaae_enforcement_log_full():
 # ============================================================================
 
 
-@bridge_bp.route("/api/archie/status")
+@starbase_bp.route("/api/archie/status")
 @login_required
 def get_archie_status():
     """Get A.R.C.H.I.E.'s current status and emotional state"""
@@ -1243,7 +1243,7 @@ def get_archie_status():
 # ============================================================================
 
 
-@bridge_bp.route("/api/llm/status")
+@starbase_bp.route("/api/llm/status")
 @login_required
 def get_llm_status():
     """Get live LLM status from Ollama + external API key checks"""

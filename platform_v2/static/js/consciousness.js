@@ -144,7 +144,7 @@ function loadTabData(tab) {
   switch (tab) {
     case "dashboard":   loadDashboard(); break;
     case "knowledge":   loadKnowledge(); break;
-    /* team tab merged into Bridge Command */
+    /* team tab merged into Starbase Command */
     case "github":      loadGitHub(); break;
     case "languages":   loadLanguages(); checkActiveJobs(); break;
     case "codehealth":  loadCodeHealth(); break;
@@ -400,7 +400,7 @@ function _startKnowledgePolling() {
 
 /* ── Agent Modal ───────────────────────────────────── */
 
-/* Agent modal removed — profiles now in Bridge Command */
+/* Agent modal removed — profiles now in Starbase Command */
 
 /* ── Header Stats ─────────────────────────────────── */
 
@@ -624,7 +624,7 @@ function _stopJobPolling() {
 }
 
 function checkActiveJobs() {
-  /* Pull from Bridge Command — single source of truth for agent/station work */
+  /* Pull from Starbase Command — single source of truth for agent/station work */
   fetch("/tools/bridge/api/bridge/jobs?status=running").then(function(resp) {
     var ct = resp.headers.get("content-type") || "";
     if (ct.indexOf("application/json") === -1) return Promise.reject("not json");
@@ -1091,9 +1091,9 @@ window.generateEmbeddings = function() {
   });
 };
 
-/* ── Team Tab — merged into Bridge Command → Crew → Manifest ── */
+/* ── Team Tab — merged into Starbase Command → Crew → Manifest ── */
 
-/* ── Team Sub-tabs — merged into Bridge Command ──── */
+/* ── Team Sub-tabs — merged into Starbase Command ──── */
 
 /* emotionalDetailChart removed — was Team sub-tab only */
 
@@ -2097,7 +2097,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   })();
 
-  /* Agent modal overlay removed — profiles now in Bridge Command */
+  /* Agent modal overlay removed — profiles now in Starbase Command */
   // Initialize Glass Nav
   var navEl = document.getElementById("csNav");
   if (navEl) {

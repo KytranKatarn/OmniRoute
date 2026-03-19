@@ -7,10 +7,10 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 {% endblock %}
 
-{% block module_name %}bridge{% endblock %}
+{% block module_name %}starbase{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="/static/css/bridge.css">
+<link rel="stylesheet" href="/static/css/starbase.css">
 
 <!-- Admin Operations Navigation -->
 {% include 'includes/admin_ops_nav.html' %}
@@ -22,9 +22,9 @@
         <div class="bridge-header-top">
             <h1 class="bridge-header-title">
                 <i data-lucide="command" style="width:28px;height:28px;"></i>
-                <span data-i18n="bridge.title">A.R.C.H.I.E. BRIDGE</span>
+                <span data-i18n="starbase.title">A.R.C.H.I.E. STARBASE</span>
             </h1>
-            <div class="bridge-header-subtitle" data-i18n="bridge.command.subtitle">Bridge Control &amp; Workload Orchestration</div>
+            <div class="bridge-header-subtitle" data-i18n="starbase.command.subtitle">Starbase Control &amp; Workload Orchestration</div>
         </div>
 
         <!-- Status Indicators Row -->
@@ -1742,7 +1742,7 @@
                 <div id="model-control-actions" style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;"></div>
             </div>
             <div class="bm-footer">
-                <span class="bm-footer-tag">BRIDGE COMMAND</span>
+                <span class="bm-footer-tag">STARBASE COMMAND</span>
                 <span class="bm-footer-dot cyan"></span>
                 <span class="bm-footer-dot gold"></span>
             </div>
@@ -1753,5 +1753,5 @@
 
 {% block extra_js %}
 <script src="/static/js/agent-profile.js"></script>
-<script src="/static/js/bridge.js"></script>
+<script src="/static/js/starbase.js"></script>
 {% endblock %}

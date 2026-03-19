@@ -1,4 +1,4 @@
-"""Bridge Command — Agent routes (CRUD, skills, station assign/unassign, support)"""
+"""Starbase Command — Agent routes (CRUD, skills, station assign/unassign, support)"""
 
 import json
 import os

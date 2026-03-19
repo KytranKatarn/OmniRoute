@@ -1,4 +1,4 @@
-"""Bridge Command — Node routes (remote nodes, approval, station assignments)"""
+"""Starbase Command — Node routes (remote nodes, approval, station assignments)"""
 
 import hashlib
 import json

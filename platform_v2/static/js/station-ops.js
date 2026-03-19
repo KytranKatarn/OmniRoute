@@ -370,9 +370,9 @@
             msg.appendChild(icon);
             msg.appendChild(document.createTextNode(" Job #" + jobId + " running \u2014 check "));
             var link = document.createElement("a");
-            link.href = "/tools/bridge";
+            link.href = "/tools/starbase";
             link.style.color = "var(--stn-accent,#8b5cf6)";
-            link.textContent = "Bridge Command";
+            link.textContent = "Starbase Command";
             msg.appendChild(link);
             msg.appendChild(document.createTextNode(" for live progress"));
             fallbackEl.appendChild(msg);

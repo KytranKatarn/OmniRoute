@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Bridge Command Module — Screenshot Capture
+ * Starbase Command Module — Screenshot Capture
  *
- * Takes screenshots of the Bridge Command module at 3 breakpoints:
+ * Takes screenshots of the Starbase Command module at 3 breakpoints:
  *   - 374px  (Galaxy Z Fold5 front screen)
  *   - 717px  (Galaxy Z Fold5 unfolded / tablet)
  *   - 1280px (Desktop)

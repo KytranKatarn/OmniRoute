@@ -835,7 +835,7 @@ def register_github_routes(bp, admin_required):
                         jsonify(
                             {
                                 "success": False,
-                                "error": "An index job for this repo is already running — check Bridge Command for progress",
+                                "error": "An index job for this repo is already running — check Starbase Command for progress",
                                 "duplicate": True,
                             }
                         ),
@@ -1019,7 +1019,7 @@ def register_github_routes(bp, admin_required):
         """Re-index all tracked repositories using the Tree API.
 
         Creates a bridge_job and returns the job_id immediately.
-        Work runs in a background thread with progress tracked in Bridge Command.
+        Work runs in a background thread with progress tracked in Starbase Command.
         Skips repos indexed within the last 7 days unless force=true.
         """
         try:
@@ -1084,7 +1084,7 @@ def register_github_routes(bp, admin_required):
                     jsonify(
                         {
                             "success": False,
-                            "error": "A reindex-all job is already running — check Bridge Command for progress",
+                            "error": "A reindex-all job is already running — check Starbase Command for progress",
                             "duplicate": True,
                         }
                     ),
@@ -1118,7 +1118,7 @@ def register_github_routes(bp, admin_required):
     def github_reindex_single(repo_id):
         """Re-index a single tracked repository using the Tree API.
 
-        Creates a bridge_job so the work is visible in Bridge Command.
+        Creates a bridge_job so the work is visible in Starbase Command.
         """
         try:
             from ai_bridge.bridge_dispatcher import get_dispatcher

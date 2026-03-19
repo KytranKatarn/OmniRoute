@@ -613,6 +613,138 @@ def register_knowledge_routes(bp, admin_required):
     # UNIFIED KNOWLEDGE API (Phase 4: Integration Layer)
     # ==================================================================
 
+    # ==================================================================
+    # RAG ENDPOINT (Task #1131)
+    # ==================================================================
+
+    @bp.route("/api/knowledge/rag", methods=["GET"])
+    @login_required
+    @admin_required
+    def rag_search():
+        """
+        RAG endpoint — return top KB entries as formatted context blocks.
+
+        GET /api/knowledge/rag?q=<query>&limit=5
+
+        Uses semantic (vector) search from ai_bridge.semantic_search for
+        embedding similarity, falling back to keyword search when embeddings
+        are unavailable.
+        """
+        query = request.args.get("q", "").strip()
+        if not query:
+            return jsonify({"success": False, "error": "Query parameter 'q' is required"}), 400
+
+        try:
+            limit = min(int(request.args.get("limit", 5)), 20)
+        except (ValueError, TypeError):
+            limit = 5
+
+        try:
+            from ai_bridge.semantic_search import search as semantic_search
+        except ImportError:
+            # Fallback: do a simple ILIKE search if semantic_search unavailable
+            return _rag_fallback_search(query, limit)
+
+        try:
+            results = semantic_search(query, limit=limit)
+
+            # Build formatted context string
+            context_parts = ["## Relevant Knowledge\n"]
+            sources = []
+            total_chars = 0
+
+            for i, r in enumerate(results, 1):
+                title = r.title or f"Entry {r.id}"
+                content = r.content or ""
+                # Truncate individual entries to keep context manageable
+                if len(content) > 1500:
+                    content = content[:1500] + "..."
+
+                context_parts.append(f"### Entry {i}: {title}\n{content}\n")
+                total_chars += len(content)
+
+                sources.append(
+                    {
+                        "id": r.id,
+                        "title": title,
+                        "type": r.source_type or "unknown",
+                        "relevance": round(r.score, 4) if r.score else 0.0,
+                    }
+                )
+
+            context_text = "\n".join(context_parts) if len(context_parts) > 1 else ""
+
+            # Rough token estimate (~4 chars per token)
+            token_estimate = total_chars // 4
+
+            return jsonify(
+                {
+                    "success": True,
+                    "query": query,
+                    "context": context_text,
+                    "sources": sources,
+                    "token_estimate": token_estimate,
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"[RAG] Search failed: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    def _rag_fallback_search(query, limit):
+        """Fallback RAG search using basic ILIKE when semantic_search is unavailable."""
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute(
+                """
+                SELECT id, title, content, knowledge_type, source_type,
+                       importance_score
+                FROM knowledge_base
+                WHERE (content ILIKE %s OR title ILIKE %s)
+                  AND embedding IS NOT NULL
+                ORDER BY importance_score DESC, created_at DESC
+                LIMIT %s
+                """,
+                (f"%{query}%", f"%{query}%", limit),
+            )
+            rows = cur.fetchall()
+
+            context_parts = ["## Relevant Knowledge\n"]
+            sources = []
+            total_chars = 0
+
+            for i, row in enumerate(rows, 1):
+                title = row["title"] or f"Entry {row['id']}"
+                content = (row["content"] or "")[:1500]
+                context_parts.append(f"### Entry {i}: {title}\n{content}\n")
+                total_chars += len(content)
+                sources.append(
+                    {
+                        "id": row["id"],
+                        "title": title,
+                        "type": row["source_type"] or "unknown",
+                        "relevance": float(row["importance_score"] or 0),
+                    }
+                )
+
+            context_text = "\n".join(context_parts) if len(context_parts) > 1 else ""
+
+            return jsonify(
+                {
+                    "success": True,
+                    "query": query,
+                    "context": context_text,
+                    "sources": sources,
+                    "token_estimate": total_chars // 4,
+                }
+            )
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            cur.close()
+            conn.close()
+
     @bp.route("/unified/search", methods=["POST"])
     @login_required
     @admin_required

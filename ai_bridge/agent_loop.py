@@ -645,8 +645,26 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Job #49 — Consciousness analysis batch (every 6h)
+        self.scheduler.add_job(
+            with_app_context(self._consciousness_analysis_batch),
+            trigger=IntervalTrigger(hours=6),
+            id="agent_consciousness_analysis",
+            name="Agent Loop: Consciousness Analysis Batch",
+            replace_existing=True,
+        )
+
+        # Job #50 — Consciousness embedding batch (every 4h)
+        self.scheduler.add_job(
+            with_app_context(self._consciousness_embedding_batch),
+            trigger=IntervalTrigger(hours=4),
+            id="agent_consciousness_embedding",
+            name="Agent Loop: Consciousness Embedding Batch",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 48 jobs")
+        logger.info("Agent loop started with 50 jobs")
 
     def _update_stock_prices(self):
         """Job #27: Refresh cached stock prices, check price alerts, and auto-scan watchlist every 5 minutes."""

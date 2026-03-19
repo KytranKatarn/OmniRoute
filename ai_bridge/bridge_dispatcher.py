@@ -1815,6 +1815,87 @@ class BridgeDispatcher:
                 metadata={"bridge_job_id": bridge_job_id},
             )
 
+    # ================================================================
+    # RAG Auto-Context Injection (Task #1130)
+    # ================================================================
+    _rag_cache: Dict[str, Any] = {}  # {cache_key: {"ts": float, "context": str}}
+    _RAG_CACHE_TTL = 300  # 5 minutes
+    _RAG_MIN_RELEVANCE = 0.7
+    _RAG_MAX_ENTRIES = 3
+
+    def _is_auto_context_enabled(self) -> bool:
+        """Check platform_settings for rag_auto_context flag."""
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT value FROM platform_settings WHERE key = 'rag_auto_context'"
+            )
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            return row[0].lower() in ("true", "1", "enabled") if row else False
+        except Exception:
+            return False
+
+    def _get_rag_context(self, prompt: str) -> Optional[str]:
+        """
+        Retrieve relevant KB context for a prompt via semantic search.
+
+        Returns a formatted context string to prepend, or None if no
+        relevant results found. Results are cached for 5 minutes keyed
+        on the first 200 chars of the prompt.
+        """
+        import hashlib
+
+        cache_key = hashlib.md5(prompt[:200].encode()).hexdigest()
+        now = time.time()
+
+        # Check cache
+        cached = self._rag_cache.get(cache_key)
+        if cached and (now - cached["ts"]) < self._RAG_CACHE_TTL:
+            return cached["context"]
+
+        try:
+            from ai_bridge.semantic_search import search as semantic_search
+
+            results = semantic_search(prompt, limit=self._RAG_MAX_ENTRIES)
+            if not results:
+                self._rag_cache[cache_key] = {"ts": now, "context": None}
+                return None
+
+            # Filter by relevance threshold
+            relevant = [r for r in results if r.score and r.score >= self._RAG_MIN_RELEVANCE]
+            if not relevant:
+                self._rag_cache[cache_key] = {"ts": now, "context": None}
+                return None
+
+            # Build context block
+            parts = ["[Auto-Context from Knowledge Base]"]
+            for r in relevant:
+                title = r.title or f"KB#{r.id}"
+                content = (r.content or "")[:800]
+                parts.append(f"--- {title} (relevance: {r.score:.2f}) ---\n{content}")
+            parts.append("[End Auto-Context]\n")
+
+            context_str = "\n".join(parts)
+            self._rag_cache[cache_key] = {"ts": now, "context": context_str}
+
+            # Evict old cache entries (keep max 100)
+            if len(self._rag_cache) > 100:
+                oldest_keys = sorted(
+                    self._rag_cache, key=lambda k: self._rag_cache[k]["ts"]
+                )[:50]
+                for k in oldest_keys:
+                    self._rag_cache.pop(k, None)
+
+            return context_str
+
+        except Exception as e:
+            logger.debug(f"[BridgeDispatcher] RAG context retrieval failed: {e}")
+            self._rag_cache[cache_key] = {"ts": now, "context": None}
+            return None
+
     def _execute_llm(
         self,
         model: str,
@@ -3957,6 +4038,23 @@ class BridgeDispatcher:
             comfyui_result.duration_ms = duration_ms
             self._log_execution(comfyui_result, module_id, user_id, job_id=job_id)
             return comfyui_result
+
+        # 4a. RAG auto-context injection (Task #1130)
+        #     Prepend relevant KB entries to the prompt when enabled.
+        #     Skips JSON mode (structured output) and image generation.
+        rag_injected = False
+        if not json_mode and self._is_auto_context_enabled():
+            try:
+                rag_context = self._get_rag_context(prompt)
+                if rag_context:
+                    prompt = f"{rag_context}\n{prompt}"
+                    rag_injected = True
+                    logger.debug(
+                        f"[BridgeDispatcher] RAG context injected "
+                        f"({len(rag_context)} chars) for {capability}"
+                    )
+            except Exception as rag_err:
+                logger.debug(f"[BridgeDispatcher] RAG injection skipped: {rag_err}")
 
         llm_result = self._execute_llm(
             model=model,

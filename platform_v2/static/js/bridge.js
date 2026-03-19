@@ -9470,10 +9470,20 @@ function _toggleAgentModel(agent, btn, nodeDbId) {
         btn.disabled = true;
         btn.textContent = isLoaded ? 'Unloading...' : 'Loading...';
 
+        // Nodes with GPU should load on GPU by default
+        var useGpu = hw === 'GPU' ? 99 : 0;
+        if (nodeDbId && action === 'load') {
+            // Check if node has a GPU from the capacity data
+            var ncaps = window._pendingNodeCapacities || [];
+            ncaps.forEach(function(nc) {
+                if (nc.gpu_model && nc.gpu_vram_gb > 0) useGpu = 99;
+            });
+        }
+
         var payload = {
             model: model,
             action: action,
-            num_gpu: hw === 'GPU' ? 99 : 0
+            num_gpu: useGpu
         };
         if (nodeDbId) payload.node_id = nodeDbId;
 

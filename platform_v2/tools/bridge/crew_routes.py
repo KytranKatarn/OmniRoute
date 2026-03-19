@@ -1085,10 +1085,10 @@ def register_crew_routes(bp, admin_required):
                             "ram_gb": ram_total,
                             "ram_used_gb": 0,
                             "ram_free_gb": ram_total,
-                            "ram_agent_budget_gb": round(ram_total * 0.70 * 0.90, 1),
-                            "ram_swap_buffer_gb": round(ram_total * 0.70 * 0.10, 1),
+                            "ram_agent_budget_gb": round(ram_total * 0.80, 1),
+                            "ram_swap_buffer_gb": round(ram_total * 0.05, 1),
                             "ram_reserve_gb": round(ram_total * 0.15, 1),
-                            "ram_security_gb": round(ram_total * 0.15, 1),
+                            "ram_security_gb": 0,  # Nodes don't need security reserve — managed from hub
                             "models_ram_gb": 0,
                             "cpu_cores": node["cpu_cores"] or 0,
                             "agent_count": node["agent_count"],

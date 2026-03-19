@@ -107,17 +107,44 @@ def api_list_nodes():
 @starship_bp.route("/api/fleet-agents")
 @login_required
 def api_fleet_agents():
-    """Public endpoint — agent counts per node for docked fleet strip."""
+    """Public endpoint — agent counts + live VRAM/RAM per node for docked fleet strip."""
     try:
+        import requests as _req
+
         with get_db_cursor() as (conn, cur):
             cur.execute(
-                """SELECT rn.node_id,
+                """SELECT rn.id, rn.node_id, rn.hostname, rn.port,
+                          rn.gpu_vram_gb, rn.ram_gb,
                           (SELECT COUNT(*) FROM node_agents na
                            WHERE na.node_id = rn.id AND na.status = 'active') as agent_count
                    FROM remote_nodes rn
                    WHERE rn.is_active = true AND rn.deployment_mode != 'starbase'"""
             )
-            nodes = [{"node_id": r["node_id"], "agent_count": r["agent_count"]} for r in cur.fetchall()]
+            nodes = []
+            for r in cur.fetchall():
+                node = {
+                    "node_id": r["node_id"],
+                    "agent_count": r["agent_count"],
+                    "vram_total": float(r["gpu_vram_gb"] or 0),
+                    "vram_used": 0,
+                    "ram_total": float(r["ram_gb"] or 0),
+                    "ram_used": 0,
+                    "models_loaded": 0,
+                }
+                # Live usage from node Ollama /api/ps
+                try:
+                    ps = _req.get(f"http://{r['hostname']}:{r['port']}/api/ps", timeout=3)
+                    if ps.status_code == 200:
+                        models = ps.json().get("models", [])
+                        node["models_loaded"] = len(models)
+                        node["vram_used"] = round(sum(m.get("size_vram", 0) for m in models) / 1e9, 1)
+                        node["ram_used"] = round(
+                            sum(m.get("size", 0) - m.get("size_vram", 0) for m in models) / 1e9,
+                            1,
+                        )
+                except Exception:
+                    pass
+                nodes.append(node)
         return jsonify({"success": True, "nodes": nodes})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

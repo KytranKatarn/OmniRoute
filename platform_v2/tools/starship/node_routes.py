@@ -741,11 +741,36 @@ def register_node_routes(bp, auth_decorator):
                 cur.fetchone()
 
             if os_type == "windows":
-                script = _generate_setup_ps1(hub_url, node_id, setup_token, node_name)
+                ps1_script = _generate_setup_ps1(hub_url, node_id, setup_token, node_name)
+                # Wrap in .bat — writes .ps1 to temp then executes it
+                # .bat files run on double-click, .ps1 files open in Notepad
+                safe_name = node_name.replace(" ", "-")
+                bat = "@echo off\r\n"
+                bat += "title A.R.C.H.I.E. Starship Node Setup\r\n"
+                bat += "echo.\r\n"
+                bat += "echo   ========================================\r\n"
+                bat += "echo   A.R.C.H.I.E. STARSHIP NODE SETUP\r\n"
+                bat += f"echo   Node: {node_name}\r\n"
+                bat += "echo   ========================================\r\n"
+                bat += "echo.\r\n"
+                bat += f'set "SCRIPT=%TEMP%\\archie-node-setup-{safe_name}.ps1"\r\n'
+                bat += f"powershell -ExecutionPolicy Bypass -Command \"Invoke-WebRequest -Uri '{hub_url}/tools/starship/api/nodes/{node_id}/setup-script?os=windows' -OutFile '%SCRIPT%'\" 2>nul\r\n"
+                bat += 'if not exist "%SCRIPT%" (\r\n'
+                bat += "    echo   ERROR: Could not download setup script.\r\n"
+                bat += f"    echo   Check that {hub_url} is reachable.\r\n"
+                bat += "    echo.\r\n"
+                bat += "    pause\r\n"
+                bat += "    exit /b 1\r\n"
+                bat += ")\r\n"
+                bat += "echo   Setup script downloaded. Launching...\r\n"
+                bat += "echo.\r\n"
+                bat += 'powershell -ExecutionPolicy Bypass -File "%SCRIPT%"\r\n'
+                bat += "echo.\r\n"
+                bat += "pause\r\n"
                 return Response(
-                    script,
+                    bat,
                     mimetype="application/octet-stream",
-                    headers={"Content-Disposition": f'attachment; filename="archie-setup-{node_id}.ps1"'},
+                    headers={"Content-Disposition": f'attachment; filename="ARCHIE-Node-Setup-{safe_name}.bat"'},
                 )
             else:
                 script = _generate_setup_sh(hub_url, node_id, setup_token, node_name)

@@ -1571,20 +1571,26 @@ function _renderUnifiedAgentCard(a, onClickFn) {
     var badges = document.createElement('div');
     badges.className = 'crew-agent-badges';
 
-    // Status badge
-    var statusBadge = document.createElement('span');
-    statusBadge.className = 'crew-status-badge ' + (a.status || 'idle');
-    statusBadge.textContent = (a.status || 'idle').toUpperCase();
-    badges.appendChild(statusBadge);
-
-    // Shift state badge (only if not active)
+    // Single status badge — show the most relevant state
     var shift = a.shift_state || 'active';
-    if (shift !== 'active' && shift !== a.status) {
-        var shiftBadge = document.createElement('span');
-        shiftBadge.className = 'crew-status-badge ' + shift;
-        shiftBadge.textContent = shift.replace('_', ' ').toUpperCase();
-        badges.appendChild(shiftBadge);
+    var statusBadge = document.createElement('span');
+    if (shift === 'barracked') {
+        statusBadge.className = 'crew-status-badge barracked';
+        statusBadge.textContent = 'BARRACKED';
+    } else if (shift === 'deployed') {
+        statusBadge.className = 'crew-status-badge deployed';
+        statusBadge.textContent = 'DEPLOYED';
+    } else if (a.status === 'working' || a.current_job) {
+        statusBadge.className = 'crew-status-badge active';
+        statusBadge.textContent = 'WORKING';
+    } else if (shift === 'off_duty') {
+        statusBadge.className = 'crew-status-badge idle';
+        statusBadge.textContent = 'OFF DUTY';
+    } else {
+        statusBadge.className = 'crew-status-badge active';
+        statusBadge.textContent = 'ON DUTY';
     }
+    badges.appendChild(statusBadge);
 
     // LLM readiness badge
     var llmBadge = document.createElement('span');

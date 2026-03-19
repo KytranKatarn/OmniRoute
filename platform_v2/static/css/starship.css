@@ -515,6 +515,17 @@
     color: #ff6b6b;
     border: 1px solid rgba(255,68,68,0.2);
 }
+/* Shift state badges */
+.crew-status-badge.deployed {
+    background: rgba(34,211,238,0.15);
+    color: #22d3ee;
+    border: 1px solid rgba(34,211,238,0.3);
+}
+.crew-status-badge.barracked {
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.4);
+    border: 1px solid rgba(255,255,255,0.1);
+}
 .crew-llm-badge.swap {
     background: rgba(251,191,36,0.12);
     color: #fbbf24;

@@ -4202,6 +4202,8 @@ body.light-mode .bridge-zone-unstaffed {
 .crew-llm-badge.swap { background: rgba(255,215,0,0.15); color: #FFD700; }
 .crew-llm-badge.cloud { background: rgba(139,92,246,0.15); color: #8b5cf6; }
 .crew-llm-badge.barracked { background: rgba(255,69,0,0.15); color: #FF6347; }
+.crew-status-badge.deployed { background: rgba(34,211,238,0.15); color: #22d3ee; border: 1px solid rgba(34,211,238,0.3); }
+.crew-status-badge.barracked { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.1); }
 .crew-llm-badge.resting { background: rgba(139,92,246,0.15); color: #a78bfa; }
 .crew-llm-badge.weekend { background: rgba(255,170,0,0.12); color: #ffaa00; }
 .crew-llm-toggle {

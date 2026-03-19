@@ -1367,3 +1367,152 @@ def register_crew_routes(bp, admin_required):
         except Exception as e:
             logger.error(f"model_control error: {e}")
             return jsonify({"success": False, "error": "Internal server error"}), 500
+
+    # ============================================================================
+    # CLUSTER MODEL INVENTORY — unified view of all Ollama models across hub+nodes
+    # ============================================================================
+
+    @bp.route("/api/cluster/models")
+    @login_required
+    def cluster_models():
+        """Return a unified inventory of all Ollama models across the cluster.
+
+        Combines hub models (from Ollama /api/tags + /api/ps) with node models
+        (from node_ollama_models table, synced via heartbeat).
+        """
+        try:
+            # --- Hub models ---
+            hub_tags, _ = _get_cached_ollama_tags()
+            hub_ps = _get_cached_ollama_ps()
+
+            # Build a map of loaded model names with VRAM info
+            loaded_map = {}
+            for pm in hub_ps:
+                key = pm.get("name", "").replace(":latest", "")
+                vram_bytes = pm.get("size_vram", 0)
+                loaded_map[key] = {
+                    "loaded": True,
+                    "vram_gb": round(vram_bytes / (1024**3), 2) if vram_bytes else 0,
+                    "size_bytes": pm.get("size", 0),
+                }
+
+            hub_models = []
+            hub_loaded_count = 0
+            hub_vram_total = 0.0
+            for tag in hub_tags:
+                name = tag.get("name", "").replace(":latest", "")
+                size = tag.get("size", 0)
+                loaded_info = loaded_map.get(name, {})
+                is_loaded = loaded_info.get("loaded", False)
+                vram_gb = loaded_info.get("vram_gb", 0)
+                if is_loaded:
+                    hub_loaded_count += 1
+                    hub_vram_total += vram_gb
+                hub_models.append(
+                    {
+                        "name": name,
+                        "size": size,
+                        "size_gb": round(size / (1024**3), 2) if size else 0,
+                        "loaded": is_loaded,
+                        "vram_gb": vram_gb,
+                    }
+                )
+
+            hub_hostname = os.getenv("HUB_HOSTNAME", "192.168.1.200")
+            hub_data = {
+                "hostname": hub_hostname,
+                "models": hub_models,
+                "model_count": len(hub_models),
+                "loaded_count": hub_loaded_count,
+                "vram_used_gb": round(hub_vram_total, 2),
+            }
+
+            # --- Node models (from DB — synced via heartbeat) ---
+            nodes_data = []
+            node_total_models = 0
+            node_loaded_count = 0
+            try:
+                with get_db_cursor(commit=False) as (conn, cur):
+                    cur.execute(
+                        """SELECT node_id, node_name, hostname, port, status
+                           FROM remote_nodes
+                           WHERE is_active = true
+                           ORDER BY node_name"""
+                    )
+                    nodes = cur.fetchall()
+
+                    for node in nodes:
+                        nid = node["node_id"]
+                        cur.execute(
+                            """SELECT model_name, model_size_gb, is_available,
+                                      parameter_size, quantization, model_family
+                               FROM node_ollama_models
+                               WHERE node_id = %s
+                               ORDER BY model_name""",
+                            (nid,),
+                        )
+                        rows = cur.fetchall()
+
+                        n_models = []
+                        for r in rows:
+                            size_gb = float(r["model_size_gb"]) if r["model_size_gb"] else 0
+                            n_models.append(
+                                {
+                                    "name": r["model_name"],
+                                    "size": int(size_gb * (1024**3)) if size_gb else 0,
+                                    "size_gb": round(size_gb, 2),
+                                    "loaded": bool(r["is_available"]),
+                                    "parameter_size": r["parameter_size"],
+                                    "quantization": r["quantization"],
+                                    "family": r["model_family"],
+                                }
+                            )
+
+                        n_loaded = sum(1 for m in n_models if m["loaded"])
+                        node_total_models += len(n_models)
+                        node_loaded_count += n_loaded
+
+                        nodes_data.append(
+                            {
+                                "node_id": nid,
+                                "node_name": node["node_name"],
+                                "hostname": node["hostname"],
+                                "port": node["port"],
+                                "status": node["status"],
+                                "models": n_models,
+                                "model_count": len(n_models),
+                                "loaded_count": n_loaded,
+                            }
+                        )
+            except Exception as e:
+                logger.warning("cluster_models: failed to fetch node models: %s", e)
+
+            # --- Cluster totals ---
+            all_model_names = set(m["name"] for m in hub_models)
+            for nd in nodes_data:
+                for m in nd["models"]:
+                    all_model_names.add(m["name"])
+
+            total_models = len(hub_models) + node_total_models
+            total_loaded = hub_loaded_count + node_loaded_count
+
+            return jsonify(
+                {
+                    "success": True,
+                    "hub": hub_data,
+                    "nodes": nodes_data,
+                    "cluster_totals": {
+                        "total_models": total_models,
+                        "unique_models": len(all_model_names),
+                        "loaded_models": total_loaded,
+                        "total_vram_used_gb": round(hub_vram_total, 2),
+                        "hub_model_count": len(hub_models),
+                        "node_model_count": node_total_models,
+                        "node_count": len(nodes_data),
+                    },
+                }
+            )
+
+        except Exception as e:
+            logger.error("cluster_models error: %s", e)
+            return jsonify({"success": False, "error": "Internal server error"}), 500

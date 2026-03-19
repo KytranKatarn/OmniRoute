@@ -133,7 +133,10 @@ def api_starbase_stats():
         dispatcher = get_dispatcher()
         manifest = dispatcher.get_crew_manifest()
 
-        active_agents = sum(1 for a in manifest if a.get("status") == "active")
+        hub_agents = [a for a in manifest if not a.get("name", "").startswith("fleet:")]
+        active_agents = sum(1 for a in hub_agents if a.get("shift_state") == "active")
+        deployed_agents = sum(1 for a in hub_agents if a.get("shift_state") == "deployed")
+        barracked_agents = sum(1 for a in hub_agents if a.get("shift_state") == "barracked")
         loaded_models = sum(1 for a in manifest if a.get("llm_status") == "loaded")
         active_jobs = sum(1 for a in manifest if a.get("current_job"))
 
@@ -152,8 +155,10 @@ def api_starbase_stats():
         return jsonify(
             {
                 "success": True,
-                "total_agents": len(manifest),
+                "total_agents": len(hub_agents),
                 "active_agents": active_agents,
+                "deployed_agents": deployed_agents,
+                "barracked_agents": barracked_agents,
                 "loaded_models": loaded_models,
                 "active_jobs": active_jobs,
                 "total_nodes": node_count,

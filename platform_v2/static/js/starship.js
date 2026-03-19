@@ -20,14 +20,16 @@ async function loadHeroStats() {
         var data = await resp.json();
         var el = function(id) { return document.getElementById(id); };
         var ok = data.success;
-        _setLive(el('hero-agents'), ok ? (data.total_agents || 0) : '--', ok);
+        _setLive(el('hero-agents'), ok ? (data.active_agents || 0) : '--', ok);
+        _setLive(el('hero-deployed'), ok ? (data.deployed_agents || 0) : '--', ok);
+        _setLive(el('hero-barracked'), ok ? (data.barracked_agents || 0) : '--', ok);
         _setLive(el('hero-models'), ok ? (data.loaded_models || 0) : '--', ok);
         _setLive(el('hero-jobs'), ok ? (data.active_jobs || 0) : '--', ok);
         _setLive(el('hero-nodes'), ok ? ((data.online_nodes || 0) + '/' + (data.total_nodes || 0)) : '--', ok);
     } catch(e) {
         console.warn('Hero stats load failed:', e);
         var el = function(id) { return document.getElementById(id); };
-        ['hero-agents','hero-models','hero-jobs','hero-nodes'].forEach(function(id) {
+        ['hero-agents','hero-deployed','hero-barracked','hero-models','hero-jobs','hero-nodes'].forEach(function(id) {
             _setLive(el(id), '--', false);
         });
     }

@@ -648,3 +648,70 @@ def register_crew_routes(bp, auth_decorator):
         except Exception as e:
             logger.exception("Failed to assign agents to node %s", node_id)
             return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/nodes/<int:node_id>/stations")
+    @auth_decorator
+    def api_node_stations(node_id):
+        """Return node stations formatted for StationOps — uses node_agents, NOT hub assignments."""
+        try:
+            with get_db_cursor() as (conn, cur):
+                # Get node agents grouped by station
+                cur.execute(
+                    """SELECT na.name, na.display_name, na.model, na.status,
+                              na.station_codes, na.first_name, na.last_name,
+                              a.shift_state, a.title
+                       FROM node_agents na
+                       LEFT JOIN agents a ON a.id = na.hub_agent_id
+                       WHERE na.node_id = %s AND na.status = 'active'
+                       ORDER BY na.name""",
+                    (node_id,),
+                )
+                agents = cur.fetchall()
+
+                # Get station metadata
+                cur.execute(
+                    "SELECT id, station_code as code, station_name as name, color, max_primary, max_auxiliary FROM bridge_stations WHERE is_active = true"
+                )
+                all_stations = {s["code"]: dict(s) for s in cur.fetchall()}
+
+                # Build station list with only this node's stations
+                station_map = {}
+                for ag in agents:
+                    codes = ag["station_codes"] or []
+                    for code in codes:
+                        if code not in station_map:
+                            st = all_stations.get(
+                                code,
+                                {"code": code, "name": code, "color": "#00e5ff", "max_primary": 2, "max_auxiliary": 1},
+                            )
+                            station_map[code] = {
+                                "id": st.get("id", 0),
+                                "code": code,
+                                "name": st.get("name", code),
+                                "color": st.get("color", "#00e5ff"),
+                                "max_primary": st.get("max_primary", 2),
+                                "max_auxiliary": st.get("max_auxiliary", 1),
+                                "assigned_agents": [],
+                            }
+                        station_map[code]["assigned_agents"].append(
+                            {
+                                "name": ag["name"],
+                                "first_name": (
+                                    ag.get("first_name") or (ag["display_name"] or "").split()[0]
+                                    if ag.get("display_name")
+                                    else ag["name"]
+                                ),
+                                "last_name": ag.get("last_name") or "",
+                                "title": ag.get("title") or "",
+                                "status": ag["status"],
+                                "shift_state": ag.get("shift_state") or "active",
+                                "assignment_type": "primary",
+                                "model": ag["model"],
+                            }
+                        )
+
+                stations = sorted(station_map.values(), key=lambda s: s["code"])
+                return jsonify({"success": True, "stations": stations})
+        except Exception as e:
+            logger.exception("Failed to get node stations for node %s", node_id)
+            return jsonify({"success": False, "error": str(e)}), 500

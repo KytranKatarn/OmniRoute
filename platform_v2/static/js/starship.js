@@ -642,7 +642,7 @@ async function loadNodeStations(nodeDbId) {
                 '</div>';
             grid.appendChild(terminal);
 
-            // Create StationOps instance — starship COMMAND is solo (1 slot, no aux)
+            // Create StationOps instance — uses NODE stations endpoint, not hub
             var stationConfig = {
                 stationCode: code,
                 moduleSource: 'starship',
@@ -650,6 +650,7 @@ async function loadNodeStations(nodeDbId) {
                 jobsElId: termId + '-jobs',
                 commandsElId: termId + '-commands',
                 statusElId: termId + '-status',
+                dataUrl: '/tools/starship/api/nodes/' + nodeDbId + '/stations',
                 commands: []
             };
             if (isShipCommand) {

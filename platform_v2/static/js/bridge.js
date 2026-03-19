@@ -8856,20 +8856,25 @@ function renderCrewManifest(crew, capacity, nodeCapacities) {
         return (statusOrder[a.status] || 9) - (statusOrder[b.status] || 9);
     });
 
-    // Group by hardware: GPU, CPU, Cloud, SWAP
-    // GPU group: agents with LLM on GPU OR agents with GPU tools (ComfyUI)
-    var gpuAgents = crew.filter(function(a) {
+    // Separate deployed + barracked FIRST — they don't belong in hub hardware groups
+    var deployedAgents = crew.filter(function(a) { return a.shift_state === 'deployed'; });
+    var deployedIds = new Set(deployedAgents.map(function(a) { return a.agent_id || a.id; }));
+    var barrackedAgents = crew.filter(function(a) { return a.shift_state === 'barracked' && !deployedIds.has(a.agent_id || a.id); });
+    var barrackedIds = new Set(barrackedAgents.map(function(a) { return a.agent_id || a.id; }));
+
+    // Hub-only crew — exclude deployed and barracked
+    var hubCrew = crew.filter(function(a) { return !deployedIds.has(a.agent_id || a.id) && !barrackedIds.has(a.agent_id || a.id); });
+
+    // Group hub crew by hardware: GPU, CPU, Cloud, SWAP
+    var gpuAgents = hubCrew.filter(function(a) {
         var isGpuHw = (a.hardware || '').toUpperCase() === 'GPU';
         var hasGpuTools = a.gpu_tools && a.gpu_tools.length > 0;
         return (isGpuHw || hasGpuTools) && a.llm_status !== 'cloud';
     });
     var gpuIds = new Set(gpuAgents.map(function(a) { return a.agent_id || a.id; }));
-    var cpuAgents = crew.filter(function(a) { return !gpuIds.has(a.agent_id || a.id) && (a.hardware || 'CPU').toUpperCase() === 'CPU' && a.llm_status === 'loaded'; });
-    var cloudAgents = crew.filter(function(a) { return a.llm_status === 'cloud'; });
-    var swapAgents = crew.filter(function(a) { return !gpuIds.has(a.agent_id || a.id) && a.llm_status === 'swap'; });
-    var deployedAgents = crew.filter(function(a) { return a.shift_state === 'deployed'; });
-    var deployedIds = new Set(deployedAgents.map(function(a) { return a.agent_id || a.id; }));
-    var barrackedAgents = crew.filter(function(a) { return a.llm_status === 'barracked' && !deployedIds.has(a.agent_id || a.id); });
+    var cpuAgents = hubCrew.filter(function(a) { return !gpuIds.has(a.agent_id || a.id) && (a.hardware || 'CPU').toUpperCase() === 'CPU' && a.llm_status === 'loaded'; });
+    var cloudAgents = hubCrew.filter(function(a) { return a.llm_status === 'cloud'; });
+    var swapAgents = hubCrew.filter(function(a) { return !gpuIds.has(a.agent_id || a.id) && a.llm_status === 'swap'; });
 
     function _addRosterDivider(icon, label, count, cssClass) {
         var div = document.createElement('div');

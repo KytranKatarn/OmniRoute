@@ -1009,6 +1009,9 @@ def _generate_setup_ps1(hub_url, node_id, token, node_name):
 #  Pure PowerShell. No Python. No Docker. No admin rights.
 # ============================================================
 
+$ErrorActionPreference = "Stop"
+try {{
+
 $ClientVersion = "3.0.0"
 $HubUrl        = "{hub_url}"
 $NodeId        = "{node_id}"
@@ -1180,6 +1183,15 @@ while ($true) {{
     }}
 
     Start-Sleep -Seconds (Get-Interval)
+}}
+
+}} catch {{
+    Write-Host ""
+    Write-Host "  ERROR: $_" -ForegroundColor Red
+    Write-Host "  $($_.ScriptStackTrace)" -ForegroundColor DarkRed
+    Write-Host ""
+    Read-Host "Press Enter to close"
+    exit 1
 }}
 """
 

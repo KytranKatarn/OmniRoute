@@ -1056,12 +1056,58 @@ def register_crew_routes(bp, admin_required):
             except Exception as e:
                 logger.warning(f"[crew] Failed to read fleet mode from system_config: {e}")
 
+            # Node fleet capacity (GPU/RAM for each online node)
+            node_capacities = []
+            try:
+                with get_db_cursor(commit=False) as (nconn, ncur):
+                    ncur.execute(
+                        """SELECT rn.id, rn.node_id, rn.node_name, rn.hostname, rn.port,
+                                  rn.gpu_model, rn.gpu_vram_gb, rn.ram_gb, rn.cpu_cores,
+                                  (SELECT COUNT(*) FROM node_agents na WHERE na.node_id = rn.id AND na.status = 'active') as agent_count
+                           FROM remote_nodes rn
+                           WHERE rn.is_active = true AND rn.deployment_mode != 'starbase'
+                             AND (rn.last_heartbeat > NOW() - INTERVAL '2 minutes')"""
+                    )
+                    for node in ncur.fetchall():
+                        node_cap = {
+                            "node_id": node["node_id"],
+                            "node_name": node["node_name"],
+                            "gpu_model": node["gpu_model"],
+                            "gpu_vram_gb": float(node["gpu_vram_gb"]) if node["gpu_vram_gb"] else 0,
+                            "ram_gb": float(node["ram_gb"]) if node["ram_gb"] else 0,
+                            "cpu_cores": node["cpu_cores"] or 0,
+                            "agent_count": node["agent_count"],
+                            "models": [],
+                        }
+                        # Fetch loaded models from node Ollama
+                        try:
+                            import requests as _req
+
+                            olresp = _req.get(
+                                f"http://{node['hostname']}:{node['port']}/api/tags",
+                                timeout=3,
+                            )
+                            if olresp.status_code == 200:
+                                for m in olresp.json().get("models", []):
+                                    node_cap["models"].append(
+                                        {
+                                            "name": m["name"],
+                                            "size_gb": round(m.get("size", 0) / 1e9, 1),
+                                        }
+                                    )
+                        except Exception:
+                            pass
+                        node_capacities.append(node_cap)
+            except Exception as nc_err:
+                logger.debug(f"Node capacity fetch failed: {nc_err}")
+
             resp = {
                 "success": True,
                 "crew": manifest,
                 "total": len(manifest),
                 "fleet_mode": fleet_mode,
                 "fleet_overview": shift_counts,
+                "node_capacities": node_capacities,
             }
             if capacity:
                 resp["capacity"] = capacity

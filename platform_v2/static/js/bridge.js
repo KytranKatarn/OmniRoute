@@ -8259,7 +8259,7 @@ async function loadCrewManifest() {
                 document.getElementById('fleet-cooldown').textContent = fo.cooldown || 0;
                 document.getElementById('fleet-reserves').textContent = fo.reserves || 0;
             }
-            renderCrewManifest(data.crew || [], data.capacity || null);
+            renderCrewManifest(data.crew || [], data.capacity || null, data.node_capacities || []);
             if (data.fleet_mode) updateFleetModeButton(data.fleet_mode);
             // Auto-refresh rotation log if expanded
             var rlBody = document.getElementById('rotation-log-body');
@@ -8380,7 +8380,7 @@ function makeStatSpan(val, label) {
     return span;
 }
 
-function renderCrewManifest(crew, capacity) {
+function renderCrewManifest(crew, capacity, nodeCapacities) {
     var grid = document.getElementById('crew-manifest-grid');
     var countEl = document.getElementById('crew-manifest-count');
     if (!grid) return;
@@ -8971,6 +8971,79 @@ function renderCrewManifest(crew, capacity) {
     if (deployedAgents.length > 0) {
         _addRosterDivider('\uD83D\uDE80', 'Deployed \u2014 On Fleet Nodes', deployedAgents.length, 'deployed');
         deployedAgents.forEach(_renderAgentCard);
+
+        // Node capacity bars — safe DOM construction, no innerHTML
+        if (nodeCapacities && nodeCapacities.length > 0) {
+            nodeCapacities.forEach(function(nc) {
+                var nodeBar = document.createElement('div');
+                nodeBar.className = 'roster-capacity-bar node-capacity';
+                nodeBar.style.cssText = 'margin:8px 0 4px;padding:8px 12px;background:rgba(34,211,238,0.05);border:1px solid rgba(34,211,238,0.15);border-radius:6px;';
+
+                // Header
+                var header = document.createElement('div');
+                header.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px;';
+                var hName = document.createElement('span');
+                hName.style.cssText = 'color:#22d3ee;font-family:Antonio,sans-serif;font-size:0.8rem;letter-spacing:1px;';
+                hName.textContent = '\uD83D\uDE80 ' + (nc.node_name || 'Node');
+                var hCount = document.createElement('span');
+                hCount.style.cssText = 'margin-left:auto;font-size:0.65rem;color:rgba(255,255,255,0.4);';
+                hCount.textContent = (nc.agent_count || 0) + ' agents';
+                header.appendChild(hName);
+                header.appendChild(hCount);
+                nodeBar.appendChild(header);
+
+                // GPU row
+                if (nc.gpu_model) {
+                    var gpuRow = document.createElement('div');
+                    gpuRow.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:0.7rem;';
+                    var gpuLabel = document.createElement('span');
+                    gpuLabel.style.cssText = 'color:rgba(255,255,255,0.5);width:50px;';
+                    gpuLabel.textContent = 'GPU';
+                    var gpuName = document.createElement('span');
+                    gpuName.style.color = '#22d3ee';
+                    gpuName.textContent = nc.gpu_model;
+                    var gpuVram = document.createElement('span');
+                    gpuVram.style.cssText = 'margin-left:auto;color:rgba(255,255,255,0.4);';
+                    gpuVram.textContent = (nc.gpu_vram_gb || 0) + ' GB VRAM';
+                    gpuRow.appendChild(gpuLabel);
+                    gpuRow.appendChild(gpuName);
+                    gpuRow.appendChild(gpuVram);
+                    nodeBar.appendChild(gpuRow);
+                }
+
+                // RAM row
+                var ramRow = document.createElement('div');
+                ramRow.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:0.7rem;';
+                var ramLabel = document.createElement('span');
+                ramLabel.style.cssText = 'color:rgba(255,255,255,0.5);width:50px;';
+                ramLabel.textContent = 'RAM';
+                var ramVal = document.createElement('span');
+                ramVal.style.color = '#4ade80';
+                ramVal.textContent = (nc.ram_gb || 0) + ' GB';
+                var cpuVal = document.createElement('span');
+                cpuVal.style.cssText = 'margin-left:auto;color:rgba(255,255,255,0.4);';
+                cpuVal.textContent = (nc.cpu_cores || 0) + ' cores';
+                ramRow.appendChild(ramLabel);
+                ramRow.appendChild(ramVal);
+                ramRow.appendChild(cpuVal);
+                nodeBar.appendChild(ramRow);
+
+                // Model badges
+                if (nc.models && nc.models.length > 0) {
+                    var modRow = document.createElement('div');
+                    modRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;';
+                    nc.models.forEach(function(m) {
+                        var badge = document.createElement('span');
+                        badge.style.cssText = 'padding:2px 6px;border-radius:3px;font-size:0.6rem;font-family:IBM Plex Mono,monospace;background:rgba(34,211,238,0.08);border:1px solid rgba(34,211,238,0.2);color:#22d3ee;';
+                        badge.textContent = (m.name || '').replace(':latest', '') + ' (' + (m.size_gb || 0) + 'GB)';
+                        modRow.appendChild(badge);
+                    });
+                    nodeBar.appendChild(modRow);
+                }
+
+                grid.appendChild(nodeBar);
+            });
+        }
     }
 
     if (barrackedAgents.length > 0) {

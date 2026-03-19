@@ -9669,7 +9669,7 @@ function openAgentProfile(agentId) {
     // Check client-side cache first
     var cached = _profileCache[agentId];
     if (cached && (Date.now() - cached.ts) < _profileCacheTTL * 1000) {
-        renderAgentProfile(cached.data, body, title, { agentId: agentId, showSkillEdit: true, onClose: 'closeAgentProfile' });
+        renderAgentProfile(cached.data, body, title, { agentId: agentId, showSkillEdit: true, onClose: 'closeAgentProfile', showEdit: true, showDelete: true, onEdit: function(id) { _profileAgentId = id; editAgentFromProfile(); }, onDelete: function(id) { _profileAgentId = id; deleteAgentFromProfile(); } });
         return;
     }
 

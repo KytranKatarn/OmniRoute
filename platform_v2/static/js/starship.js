@@ -1070,7 +1070,7 @@ function openAgentProfileFromBridge(hubAgentId) {
                 body.textContent = data.error || 'Failed to load profile';
                 return;
             }
-            renderAgentProfile(data, body, title, { onClose: 'closeNodeAgentProfile' });
+            renderAgentProfile(data, body, title, { onClose: 'closeNodeAgentProfile', showPersonnelLink: true });
         }).catch(function(err) {
             body.textContent = 'Failed to load profile: ' + err;
         });

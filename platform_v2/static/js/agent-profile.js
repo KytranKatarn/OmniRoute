@@ -84,7 +84,9 @@
      * @param {Object} data       - Response from /tools/bridge/api/agents/<id>/profile
      * @param {Element} bodyEl    - Container element for the profile body
      * @param {Element} titleEl   - Element to set the title text
-     * @param {Object} [options]  - { stationColor, agentId, onClose, showSkillEdit }
+     * @param {Object} [options]  - { stationColor, agentId, onClose, showSkillEdit,
+     *                                showEdit, showDelete, showPersonnelLink,
+     *                                onEdit, onDelete, onPersonnelFile }
      */
     function renderAgentProfile(data, bodyEl, titleEl, options) {
         options = options || {};
@@ -146,30 +148,65 @@
         headerRow.appendChild(badgeCol);
         bodyEl.appendChild(headerRow);
 
+        /* ── ACTION BUTTONS ROW ─────────────────────────────────── */
+        var actionsRow = document.createElement('div');
+        actionsRow.style.cssText = 'display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;';
+
+        // Bridge: Edit Personnel button
+        if (options.showEdit) {
+            var editBtn = document.createElement('button');
+            editBtn.className = 'bm-btn';
+            editBtn.style.cssText = 'background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);color:#a78bfa;font-size:0.65rem;padding:3px 10px;cursor:pointer;';
+            editBtn.textContent = '\u270E Edit Personnel';
+            editBtn.onclick = function() { if (options.onEdit) options.onEdit(agentId); };
+            actionsRow.appendChild(editBtn);
+        }
+
+        // Bridge: Delete Agent button
+        if (options.showDelete) {
+            var delBtn = document.createElement('button');
+            delBtn.className = 'bm-btn';
+            delBtn.style.cssText = 'background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);color:#ef4444;font-size:0.65rem;padding:3px 10px;cursor:pointer;';
+            delBtn.textContent = '\u2716 Delete';
+            delBtn.onclick = function() { if (options.onDelete) options.onDelete(agentId); };
+            actionsRow.appendChild(delBtn);
+        }
+
+        // Starship: Personnel File link → Bridge profile
+        if (options.showPersonnelLink) {
+            var persBtn = document.createElement('button');
+            persBtn.className = 'bm-btn';
+            persBtn.style.cssText = 'background:rgba(34,211,238,0.1);border:1px solid rgba(34,211,238,0.25);color:#22d3ee;font-size:0.65rem;padding:3px 10px;cursor:pointer;';
+            persBtn.textContent = '\uD83D\uDCC1 Full Personnel File';
+            persBtn.onclick = function() { window.location.href = '/tools/bridge#crew'; };
+            actionsRow.appendChild(persBtn);
+        }
+
+        // Admin toggle — hidden section for prompts/config
+        var editSection = document.createElement('div');
+        editSection.style.display = 'none';
+        editSection.className = 'profile-edit-section';
+
+        var adminToggle = document.createElement('button');
+        adminToggle.className = 'bm-btn';
+        adminToggle.style.cssText = 'background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.4);font-size:0.6rem;padding:2px 8px;cursor:pointer;margin-left:auto;';
+        adminToggle.textContent = '\u2699 Admin';
+        adminToggle.onclick = function() {
+            var isOpen = editSection.style.display !== 'none';
+            editSection.style.display = isOpen ? 'none' : 'block';
+            adminToggle.textContent = isOpen ? '\u2699 Admin' : '\u2716 Close';
+            adminToggle.style.color = isOpen ? 'rgba(255,255,255,0.4)' : '#f472b6';
+        };
+        actionsRow.appendChild(adminToggle);
+
+        bodyEl.appendChild(actionsRow);
+
         /* ── 2. Bio ──────────────────────────────────────────────── */
         if (a.bio) {
             var bioCard = makeCard('Bio', stColor);
             bioCard.appendChild(el('div', { text: a.bio, style: 'font-size:0.75rem;color:rgba(255,255,255,0.6);line-height:1.4;' }));
             bodyEl.appendChild(bioCard);
         }
-
-        /* ── EDIT SECTION (hidden by default, toggled by Edit button) ── */
-        var editSection = document.createElement('div');
-        editSection.style.display = 'none';
-        editSection.className = 'profile-edit-section';
-
-        var editToggle = document.createElement('button');
-        editToggle.className = 'bm-btn';
-        editToggle.style.cssText = 'background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.5);font-size:0.65rem;padding:3px 10px;margin-bottom:8px;cursor:pointer;';
-        editToggle.textContent = '\u2699 Edit / Admin';
-        editToggle.onclick = function() {
-            var isOpen = editSection.style.display !== 'none';
-            editSection.style.display = isOpen ? 'none' : 'block';
-            editToggle.textContent = isOpen ? '\u2699 Edit / Admin' : '\u2716 Close Admin';
-            editToggle.style.color = isOpen ? 'rgba(255,255,255,0.5)' : '#f472b6';
-            editToggle.style.borderColor = isOpen ? 'rgba(255,255,255,0.15)' : 'rgba(244,114,182,0.4)';
-        };
-        bodyEl.appendChild(editToggle);
 
         /* ── 3. System Prompt (EDIT ONLY) ───────────────────────── */
         if (a.system_prompt) {

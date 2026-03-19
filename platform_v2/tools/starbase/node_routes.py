@@ -546,6 +546,44 @@ def register_node_routes(bp, admin_required):
 
                 node = cur.fetchone()
 
+                # Alert admin — new node pending approval
+                try:
+                    node_name = node["node_name"] or node["node_id"]
+                    hostname = data.get("hostname", "unknown")
+                    cur.execute(
+                        """INSERT INTO system_notifications
+                           (type, title, message, source, related_action, visibility, created_at)
+                           VALUES ('alert', %s, %s, 'starbase', '/tools/starbase#network', 'admin', NOW())""",
+                        (
+                            f"New Node Pending: {node_name}",
+                            f"Node '{node_name}' ({hostname}) registered and awaiting approval. Review in Starbase Network tab.",
+                        ),
+                    )
+                    conn.commit()
+                except Exception as e:
+                    logger.warning("Failed to create node registration alert: %s", e)
+
+                # Telegram notification for node approval
+                try:
+                    from ai_bridge.telegram_gateway import get_gateway
+
+                    gw = get_gateway()
+                    if gw and gw.is_running:
+                        import asyncio
+
+                        msg = f"🛸 *New Node Pending Approval*\n\n*Name:* {node_name}\n*Host:* {hostname}\n*ID:* {node['node_id']}"
+                        buttons = [
+                            [
+                                {"text": "✅ Approve", "callback_data": f"node_approve_{node['id']}"},
+                                {"text": "❌ Deny", "callback_data": f"node_deny_{node['id']}"},
+                            ]
+                        ]
+                        asyncio.run_coroutine_threadsafe(
+                            gw.send_admin_message(msg, reply_markup={"inline_keyboard": buttons}), gw.loop
+                        )
+                except Exception as e:
+                    logger.warning("Failed to send Telegram node alert: %s", e)
+
                 # Calculate the actual max_concurrent that was stored
                 calculated_max = data.get("max_concurrent") or calculate_max_concurrent(
                     data.get("ram_gb", 8), data.get("cpu_cores", 4), data.get("gpu_vram_gb", 0)

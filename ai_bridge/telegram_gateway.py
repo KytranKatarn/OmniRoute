@@ -106,6 +106,9 @@ class TelegramGateway:
             app.add_handler(
                 CallbackQueryHandler(self._escalation_callback, pattern=r"^esc_")
             )
+            app.add_handler(
+                CallbackQueryHandler(self._node_callback, pattern=r"^node_")
+            )
             app.add_handler(CallbackQueryHandler(self._callback_handler))
             app.add_handler(
                 MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_message)
@@ -478,6 +481,61 @@ class TelegramGateway:
             approval_id = int(data.split("_")[1])
             self._process_approval(approval_id, user_info["user_id"], approved=False)
             await query.edit_message_text(f"Rejected #{approval_id}")
+
+    async def _node_callback(self, update, context):
+        """Handle node approve/deny buttons from Telegram."""
+        query = update.callback_query
+        await query.answer()
+
+        user_info = self._get_authorized_user(query.from_user.id)
+        if not user_info:
+            await query.edit_message_text("Unauthorized.")
+            return
+
+        data = query.data  # e.g. "node_approve_67" or "node_deny_67"
+        try:
+            parts = data.split("_")  # ["node", "approve", "67"]
+            action = parts[1]
+            node_db_id = int(parts[2])
+
+            import psycopg2
+            from psycopg2.extras import RealDictCursor
+
+            conn = psycopg2.connect(
+                host=os.getenv("DB_HOST", "192.168.1.200"),
+                port=int(os.getenv("DB_PORT", "5432")),
+                dbname=os.getenv("DB_NAME", "archie"),
+                user=os.getenv("DB_USER", "archie"),
+                password=os.getenv("DB_PASSWORD", ""),
+                cursor_factory=RealDictCursor,
+            )
+            try:
+                cur = conn.cursor()
+                if action == "approve":
+                    cur.execute(
+                        "UPDATE remote_nodes SET approval_status = 'approved', approved_by = %s, approved_at = NOW() WHERE id = %s RETURNING node_name",
+                        (user_info["user_id"], node_db_id),
+                    )
+                    row = cur.fetchone()
+                    conn.commit()
+                    name = row["node_name"] if row else f"#{node_db_id}"
+                    await query.edit_message_text(f"✅ Node '{name}' approved by {user_info.get('display_name', 'admin')}")
+                elif action == "deny":
+                    cur.execute(
+                        "UPDATE remote_nodes SET approval_status = 'rejected' WHERE id = %s RETURNING node_name",
+                        (node_db_id,),
+                    )
+                    row = cur.fetchone()
+                    conn.commit()
+                    name = row["node_name"] if row else f"#{node_db_id}"
+                    await query.edit_message_text(f"❌ Node '{name}' denied by {user_info.get('display_name', 'admin')}")
+                else:
+                    await query.edit_message_text(f"Unknown action: {action}")
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.error(f"[TelegramGateway] Node callback error: {e}")
+            await query.edit_message_text(f"Error processing node action")
 
     async def _escalation_callback(self, update, context):
         """Handle escalation buttons (advisory ack, cloud/paid escalate, approval approve/deny/defer)."""

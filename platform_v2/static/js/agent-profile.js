@@ -81,7 +81,7 @@
     /**
      * Render a full agent profile into the given DOM elements.
      *
-     * @param {Object} data       - Response from /tools/bridge/api/agents/<id>/profile
+     * @param {Object} data       - Response from /tools/starbase/api/agents/<id>/profile
      * @param {Element} bodyEl    - Container element for the profile body
      * @param {Element} titleEl   - Element to set the title text
      * @param {Object} [options]  - { stationColor, agentId, onClose, showSkillEdit,
@@ -178,7 +178,7 @@
             persBtn.className = 'bm-btn';
             persBtn.style.cssText = 'background:rgba(34,211,238,0.1);border:1px solid rgba(34,211,238,0.25);color:#22d3ee;font-size:0.65rem;padding:3px 10px;cursor:pointer;';
             persBtn.textContent = '\uD83D\uDCC1 Full Personnel File';
-            persBtn.onclick = function() { window.location.href = '/tools/bridge#crew'; };
+            persBtn.onclick = function() { window.location.href = '/tools/starbase#crew'; };
             actionsRow.appendChild(persBtn);
         }
 
@@ -236,7 +236,7 @@
                 genBtn.textContent = 'Generating...';
                 genStatus.textContent = 'Dispatching to Pixel via ComfyUI...';
 
-                fetch('/tools/bridge/api/agents/' + agentId + '/generate-portrait', {
+                fetch('/tools/starbase/api/agents/' + agentId + '/generate-portrait', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ prompt: a.avatar_generation_prompt })
@@ -567,7 +567,7 @@
         bodyEl.appendChild(whSection);
 
         /* ── Async: IAAE Welfare & Compliance ────────────────────── */
-        fetch('/tools/bridge/api/agents/workload')
+        fetch('/tools/starbase/api/agents/workload')
             .then(function (r) { return r.json(); })
             .then(function (wData) {
                 var section = document.getElementById('profile-iaae-section');
@@ -646,7 +646,7 @@
             }).catch(function () { /* silently skip */ });
 
         /* ── Async: Work History ──────────────────────────────────── */
-        fetch('/tools/bridge/api/agents/' + parseInt(agentId) + '/work-history')
+        fetch('/tools/starbase/api/agents/' + parseInt(agentId) + '/work-history')
             .then(function (r) { return r.json(); })
             .then(function (whData) {
                 var section = document.getElementById('profile-work-history-section');

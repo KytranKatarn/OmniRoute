@@ -278,7 +278,7 @@ async function run() {
   console.log('\n--- Cross-Module Links ---');
 
   // F28: Bridge has Personnel File button
-  await page.goto(`${BASE}/tools/bridge`, { waitUntil: 'networkidle', timeout: 15000 });
+  await page.goto(`${BASE}/tools/starbase`, { waitUntil: 'networkidle', timeout: 15000 });
   await dismissBoot(page);
   await page.waitForTimeout(3000);
 

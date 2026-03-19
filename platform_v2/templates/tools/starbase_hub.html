@@ -348,7 +348,7 @@ body.light-mode .node-empty { color: #999; }
             return;
         }
 
-        fetch('/tools/bridge/api/nodes?active=true', { credentials: 'same-origin' })
+        fetch('/tools/starbase/api/nodes?active=true', { credentials: 'same-origin' })
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (dot) dot.className = 'node-conn-dot online';
@@ -369,7 +369,7 @@ body.light-mode .node-empty { color: #999; }
         var list = document.getElementById('modelList');
         var chipCount = document.getElementById('chipModelCount');
 
-        fetch('/tools/bridge/api/models', { credentials: 'same-origin' })
+        fetch('/tools/starbase/api/models', { credentials: 'same-origin' })
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 var models = data.models || data.data || [];
@@ -427,7 +427,7 @@ body.light-mode .node-empty { color: #999; }
             return;
         }
 
-        fetch('/tools/bridge/api/nodes?active=true', { credentials: 'same-origin' })
+        fetch('/tools/starbase/api/nodes?active=true', { credentials: 'same-origin' })
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 var nodes = data.nodes || data.data || [];

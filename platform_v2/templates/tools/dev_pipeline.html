@@ -1541,7 +1541,7 @@ function _startFastPolling() {
         checkStationJobs();
         // Check if our scan job completed
         if (_scanJobId) {
-            fetch('/tools/bridge/api/bridge/jobs/' + _scanJobId).then(function(r) {
+            fetch('/tools/starbase/api/bridge/jobs/' + _scanJobId).then(function(r) {
                 return r.json();
             }).then(function(data) {
                 if (!data.success) return;

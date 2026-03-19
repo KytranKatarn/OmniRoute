@@ -65,7 +65,7 @@
     var agentsEl = document.getElementById(this.agentsElId);
     if (!agentsEl) return;
 
-    var stationsUrl = this.dataUrl || "/tools/bridge/api/stations";
+    var stationsUrl = this.dataUrl || "/tools/starbase/api/stations";
     fetch(stationsUrl).then(function(resp) {
       var ct = resp.headers.get("content-type") || "";
       if (ct.indexOf("application/json") === -1) return Promise.reject("not json");
@@ -307,7 +307,7 @@
 
   StationOps.prototype.checkJobs = function() {
     var self = this;
-    return fetch("/tools/bridge/api/bridge/jobs?status=running").then(function(resp) {
+    return fetch("/tools/starbase/api/bridge/jobs?status=running").then(function(resp) {
       var ct = resp.headers.get("content-type") || "";
       if (ct.indexOf("application/json") === -1) return Promise.reject("not json");
       return resp.json();
@@ -330,7 +330,7 @@
     var retries = 0;
     var maxRetries = 3;
     var poll = setInterval(function() {
-      fetch("/tools/bridge/api/bridge/jobs/" + jobId).then(function(resp) {
+      fetch("/tools/starbase/api/bridge/jobs/" + jobId).then(function(resp) {
         var ct = resp.headers.get("content-type") || "";
         if (ct.indexOf("application/json") === -1) return Promise.reject("not json");
         return resp.json();
@@ -565,7 +565,7 @@
    *   StationOps.fetchActions("dev_pipeline").then(function(actions) { ... });
    */
   StationOps.fetchActions = function(moduleSource) {
-    return fetch("/tools/bridge/api/station-actions?module_source=" + encodeURIComponent(moduleSource))
+    return fetch("/tools/starbase/api/station-actions?module_source=" + encodeURIComponent(moduleSource))
       .then(function(r) { return r.json(); })
       .then(function(data) {
         return (data.success && data.actions) ? data.actions : [];

@@ -6,7 +6,7 @@
     var moduleAgents = {};
 
     function fetchModuleAgents() {
-        fetch('/tools/bridge/api/dashboard/module-agents')
+        fetch('/tools/starbase/api/dashboard/module-agents')
             .then(function(res) { return res.json(); })
             .then(function(data) {
                 if (data.success) {

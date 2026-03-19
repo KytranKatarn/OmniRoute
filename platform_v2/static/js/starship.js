@@ -270,8 +270,8 @@ function showResyncModal() {
     var winCmd = document.getElementById('resync-cmd-win');
     var linuxCmd = document.getElementById('resync-cmd-linux');
     // Keep the copy buttons, set text before them
-    var winText = 'iwr -useb ' + serverUrl + '/tools/bridge/api/nodes/update.ps1 | iex';
-    var linuxText = 'curl -sL ' + serverUrl + '/tools/bridge/api/nodes/heartbeat.sh -o /opt/archie-node/heartbeat.sh && chmod +x /opt/archie-node/heartbeat.sh && systemctl restart archie-node';
+    var winText = 'iwr -useb ' + serverUrl + '/tools/starbase/api/nodes/update.ps1 | iex';
+    var linuxText = 'curl -sL ' + serverUrl + '/tools/starbase/api/nodes/heartbeat.sh -o /opt/archie-node/heartbeat.sh && chmod +x /opt/archie-node/heartbeat.sh && systemctl restart archie-node';
     // Clear and rebuild
     var winCopy = winCmd.querySelector('.sc-copy-btn');
     var linuxCopy = linuxCmd.querySelector('.sc-copy-btn');
@@ -694,7 +694,7 @@ async function loadNodeStations(nodeDbId) {
 function _refreshNodeStations(nodeDbId) {
     var ops = _nodeStationOps[nodeDbId];
     if (!ops) return;
-    fetch('/tools/bridge/api/bridge/jobs?status=running')
+    fetch('/tools/starbase/api/bridge/jobs?status=running')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var allJobs = (data.success && data.jobs) ? data.jobs : [];
@@ -1063,7 +1063,7 @@ function openAgentProfileFromBridge(hubAgentId) {
     body.innerHTML = '<span class="sc-label">Loading profile...</span>';  // nosemgrep
     title.textContent = 'AGENT PROFILE';
 
-    fetch('/tools/bridge/api/agents/' + parseInt(hubAgentId) + '/profile')
+    fetch('/tools/starbase/api/agents/' + parseInt(hubAgentId) + '/profile')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) {
@@ -1134,7 +1134,7 @@ var _starbaseData = null;
 
 async function loadStarbaseStats() {
     try {
-        var resp = await fetch('/tools/bridge/api/bridge/crew/manifest');
+        var resp = await fetch('/tools/starbase/api/bridge/crew/manifest');
         var data = await resp.json();
         if (!data.success) return;
         _starbaseData = data;
@@ -1165,7 +1165,7 @@ function _populateStarbaseDetail(crew, activeJobs, cap) {
     _setLive(el('sbd-models'), cap.models_loaded || '--', !!cap.models_loaded);
 
     // Station count — fetch live from Bridge
-    fetch('/tools/bridge/api/stations').then(function(r) { return r.json(); }).then(function(sdata) {
+    fetch('/tools/starbase/api/stations').then(function(r) { return r.json(); }).then(function(sdata) {
         if (sdata.success) {
             var active = (sdata.stations || []).filter(function(s) { return s.assigned_agents && s.assigned_agents.length > 0; }).length;
             var total = (sdata.stations || []).length;
@@ -1325,7 +1325,7 @@ function loadStarbaseStations() {
 }
 
 function _refreshStarbaseStations() {
-    fetch('/tools/bridge/api/bridge/jobs?status=running')
+    fetch('/tools/starbase/api/bridge/jobs?status=running')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var allJobs = (data.success && data.jobs) ? data.jobs : [];

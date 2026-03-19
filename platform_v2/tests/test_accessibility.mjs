@@ -58,7 +58,7 @@ const ALL_PAGES = [
   { name: 'system-operations',  route: '/tools/system-operations',  auth: true },
   { name: 'backup-manager',     route: '/tools/backup-manager',     auth: true },
   // AI Command
-  { name: 'bridge',             route: '/tools/bridge',             auth: true },
+  { name: 'bridge',             route: '/tools/starbase',             auth: true },
   { name: 'consciousness',      route: '/tools/consciousness',      auth: true },
   // SaaS / Additional (bonus coverage)
   { name: 'crm',                route: '/tools/crm',                auth: true },

@@ -116,7 +116,7 @@ function executeFleetModeToggle(mode) {
     btn.classList.add('transitioning');
     closeIaaeCapacityModal();
 
-    fetch('/tools/bridge/api/bridge/fleet-mode', {
+    fetch('/tools/starbase/api/bridge/fleet-mode', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({mode: mode})
@@ -150,7 +150,7 @@ function toggleBridgeControls() {
 // === Overview Tab Data ===
 function loadOverviewData() {
     // 1. AI Bridge Status card (live Ollama + external providers)
-    fetch('/tools/bridge/api/llm/status')
+    fetch('/tools/starbase/api/llm/status')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var el = document.getElementById('overviewAiStatus');
@@ -235,7 +235,7 @@ function loadOverviewData() {
         });
 
     // 2. Station Summary card
-    fetch('/tools/bridge/api/stations')
+    fetch('/tools/starbase/api/stations')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var el = document.getElementById('overviewStationSummary');
@@ -257,7 +257,7 @@ function loadOverviewData() {
         });
 
     // 2b. HUD pod: Agent Utilization (real 24h activity rate)
-    fetch('/tools/bridge/api/agent-utilization')
+    fetch('/tools/starbase/api/agent-utilization')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var utilEl = document.getElementById('hudAgentUtil');
@@ -268,8 +268,8 @@ function loadOverviewData() {
 
     // 3. IAAE Health card (real welfare + workload data)
     Promise.all([
-        fetch('/tools/bridge/api/agents/welfare').then(function(r) { return r.json(); }),
-        fetch('/tools/bridge/api/agents/workload').then(function(r) { return r.json(); })
+        fetch('/tools/starbase/api/agents/welfare').then(function(r) { return r.json(); }),
+        fetch('/tools/starbase/api/agents/workload').then(function(r) { return r.json(); })
     ]).then(function(results) {
         var welfareData = results[0];
         var workloadData = results[1];
@@ -381,7 +381,7 @@ function loadOverviewData() {
     });
 
     // 3b. Vigil's Log (enforcement events)
-    fetch('/tools/bridge/api/iaae/enforcement-log')
+    fetch('/tools/starbase/api/iaae/enforcement-log')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var el = document.getElementById('overviewVigilLog');
@@ -442,7 +442,7 @@ function loadOverviewData() {
         });
 
     // 4. Mini Activity Feed (last 5 dispatches)
-    fetch('/tools/bridge/api/dispatch/activity-history')
+    fetch('/tools/starbase/api/dispatch/activity-history')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var el = document.getElementById('overviewMiniActivity');
@@ -483,7 +483,7 @@ function loadOverviewData() {
         });
 
     // 5. HUD pod: Throughput (24h)
-    fetch('/tools/bridge/api/traffic')
+    fetch('/tools/starbase/api/traffic')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.success) {
@@ -497,7 +497,7 @@ function loadOverviewData() {
         }).catch(function() {});
 
     // 6. HUD pod: Model count (live Ollama)
-    fetch('/tools/bridge/api/models/live')
+    fetch('/tools/starbase/api/models/live')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var el = document.getElementById('hudModelCount');
@@ -548,7 +548,7 @@ function loadVigilLogPage() {
     body.textContent = '';
     body.appendChild(_vigilMakeText('div', 'Loading...', 'text-align:center;color:var(--archie-text-muted);padding:2rem;'));
 
-    var url = '/tools/bridge/api/iaae/enforcement-log-full?page=' + _vigilState.page +
+    var url = '/tools/starbase/api/iaae/enforcement-log-full?page=' + _vigilState.page +
               '&per_page=' + _vigilState.perPage +
               '&filter=' + _vigilState.filter;
     fetch(url)
@@ -684,7 +684,7 @@ function _t(key, fallback) {
 // === Routing Mode Toggle ===
 async function loadRoutingMode() {
     try {
-        const res = await fetch('/tools/bridge/api/routing-mode');
+        const res = await fetch('/tools/starbase/api/routing-mode');
         const data = await res.json();
         if (data.success) {
             document.querySelectorAll('.routing-btn').forEach(function(btn) {
@@ -698,7 +698,7 @@ document.querySelectorAll('.routing-btn').forEach(function(btn) {
     btn.addEventListener('click', async function() {
         var mode = this.dataset.mode;
         try {
-            var res = await fetch('/tools/bridge/api/routing-mode', {
+            var res = await fetch('/tools/starbase/api/routing-mode', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({routing_mode: mode}),
@@ -718,7 +718,7 @@ loadRoutingMode();
 // === Escalation Mode Toggle ===
 async function loadEscalationMode() {
     try {
-        const res = await fetch('/tools/bridge/api/escalation-mode');
+        const res = await fetch('/tools/starbase/api/escalation-mode');
         const data = await res.json();
         if (data.success) {
             document.querySelectorAll('.escalation-btn').forEach(function(btn) {
@@ -732,7 +732,7 @@ document.querySelectorAll('.escalation-btn').forEach(function(btn) {
     btn.addEventListener('click', async function() {
         var mode = this.dataset.mode;
         try {
-            var res = await fetch('/tools/bridge/api/escalation-mode', {
+            var res = await fetch('/tools/starbase/api/escalation-mode', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({escalation_mode: mode}),
@@ -939,7 +939,7 @@ function updateStatusBar() {
 }
 
 function loadStatusBarStats() {
-    fetch('/tools/bridge/api/traffic')
+    fetch('/tools/starbase/api/traffic')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.success) {
@@ -948,7 +948,7 @@ function loadStatusBarStats() {
             }
         }).catch(function() {});
 
-    fetch('/tools/bridge/api/agents')
+    fetch('/tools/starbase/api/agents')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.success !== false) {
@@ -964,7 +964,7 @@ function loadStatusBarStats() {
 // ============================================================================
 
 function loadMissionBanner() {
-    fetch('/tools/bridge/api/mission/active').then(function(r){return r.json();}).then(function(d) {
+    fetch('/tools/starbase/api/mission/active').then(function(r){return r.json();}).then(function(d) {
         if (!d.success || !d.profile) return;
         var banner = document.getElementById('mission-banner');
         var p = d.profile;
@@ -993,7 +993,7 @@ function openMissionSelector() {
     list.appendChild(loading);
     modal.classList.add('active');
 
-    fetch('/tools/bridge/api/mission/profiles').then(function(r){return r.json();}).then(function(d) {
+    fetch('/tools/starbase/api/mission/profiles').then(function(r){return r.json();}).then(function(d) {
         if (!d.success) return;
         list.textContent = '';
         d.profiles.forEach(function(p) {
@@ -1036,7 +1036,7 @@ function closeMissionModal() {
 }
 
 function activateMissionProfile(profileId, displayName) {
-    fetch('/tools/bridge/api/mission/activate/' + profileId, {method:'PUT'})
+    fetch('/tools/starbase/api/mission/activate/' + profileId, {method:'PUT'})
     .then(function(r){return r.json();}).then(function(d) {
         closeMissionModal();
         if (d.success) {
@@ -1114,8 +1114,8 @@ function updateClock() {
 async function loadStations() {
     try {
         const [stationResp, jobsResp] = await Promise.all([
-            fetch('/tools/bridge/api/stations'),
-            fetch('/tools/bridge/api/bridge/jobs?status=running')
+            fetch('/tools/starbase/api/stations'),
+            fetch('/tools/starbase/api/bridge/jobs?status=running')
         ]);
         const data = await stationResp.json();
         if (!data.success) return;
@@ -1969,7 +1969,7 @@ function renderRoutingTab() {
         btn.textContent = m.text;
         btn.addEventListener('click', async function() {
             try {
-                var res = await fetch('/tools/bridge/api/routing-mode', {
+                var res = await fetch('/tools/starbase/api/routing-mode', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({routing_mode: m.mode}),
@@ -2010,7 +2010,7 @@ function renderRoutingTab() {
         btn.textContent = m.text;
         btn.addEventListener('click', async function() {
             try {
-                var res = await fetch('/tools/bridge/api/escalation-mode', {
+                var res = await fetch('/tools/starbase/api/escalation-mode', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({escalation_mode: m.mode}),
@@ -2082,7 +2082,7 @@ function renderRoutingTab() {
     });
 
     // Also fetch current routing mode from API
-    fetch('/tools/bridge/api/routing-mode')
+    fetch('/tools/starbase/api/routing-mode')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.success) {
@@ -2119,7 +2119,7 @@ async function buildModuleRail(moduleNames, stationColor) {
     var uncached = moduleNames.filter(function(n) { return !_moduleMetadataCache[n]; });
     if (uncached.length > 0) {
         try {
-            var resp = await fetch('/tools/bridge/api/modules/metadata', {
+            var resp = await fetch('/tools/starbase/api/modules/metadata', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ modules: uncached })
@@ -2193,8 +2193,8 @@ function loadConsoleActions(stationCodes) {
 
     // Fetch actions + running jobs in parallel
     Promise.all([
-        fetch('/tools/bridge/api/station-actions?station_code=' + encodeURIComponent(codes)).then(function(r) { return r.json(); }),
-        fetch('/tools/bridge/api/bridge/jobs?status=running').then(function(r) { return r.json(); }).catch(function() { return { success: true, jobs: [] }; })
+        fetch('/tools/starbase/api/station-actions?station_code=' + encodeURIComponent(codes)).then(function(r) { return r.json(); }),
+        fetch('/tools/starbase/api/bridge/jobs?status=running').then(function(r) { return r.json(); }).catch(function() { return { success: true, jobs: [] }; })
     ]).then(function(results) {
         _renderModuleActions(panel, results[0], results[1]);
     }).catch(function(err) {
@@ -2233,7 +2233,7 @@ function _renderResourceBar(panel) {
     bar.appendChild(loadMsg);
     panel.appendChild(bar);
 
-    fetch('/tools/bridge/api/bridge/resources')
+    fetch('/tools/starbase/api/bridge/resources')
     .then(function(r) { return r.json(); })
     .then(function(d) {
         if (!d.success) { bar.textContent = 'Failed to load resources'; return; }
@@ -2384,7 +2384,7 @@ function _renderScoreHeatmap(panel) {
     section.appendChild(loadMsg);
     panel.appendChild(section);
 
-    fetch('/tools/bridge/api/benchmarks/score-matrix')
+    fetch('/tools/starbase/api/benchmarks/score-matrix')
     .then(function(r) { return r.json(); })
     .then(function(d) {
         section.textContent = '';
@@ -2550,7 +2550,7 @@ function _runOptimalPlacement(container) {
     overlay.appendChild(loadMsg);
     container.appendChild(overlay);
 
-    fetch('/tools/bridge/api/benchmarks/placement/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    fetch('/tools/starbase/api/benchmarks/placement/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
     .then(function(r) { return r.json(); })
     .then(function(d) {
         if (!d.success) {
@@ -2581,7 +2581,7 @@ function _runOptimalPlacement(container) {
         applyBtn.onclick = function() {
             applyBtn.disabled = true;
             applyBtn.textContent = 'APPLYING...';
-            fetch('/tools/bridge/api/benchmarks/placement/apply', {
+            fetch('/tools/starbase/api/benchmarks/placement/apply', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(d)
@@ -2706,9 +2706,9 @@ function _runOptimalPlacement(container) {
 
 function _loadBenchmarkOverview(panel) {
     Promise.all([
-        fetch('/tools/bridge/api/stations').then(function(r) { return r.json(); }),
-        fetch('/tools/bridge/api/station-actions').then(function(r) { return r.json(); }),
-        fetch('/tools/bridge/api/bridge/jobs?status=running').then(function(r) { return r.json(); }).catch(function() { return { success: true, jobs: [] }; })
+        fetch('/tools/starbase/api/stations').then(function(r) { return r.json(); }),
+        fetch('/tools/starbase/api/station-actions').then(function(r) { return r.json(); }),
+        fetch('/tools/starbase/api/bridge/jobs?status=running').then(function(r) { return r.json(); }).catch(function() { return { success: true, jobs: [] }; })
     ]).then(function(results) {
         var stationsData = results[0];
         var actData = results[1];
@@ -3072,7 +3072,7 @@ function _renderRecommendationsPanel(panel, VIEWSCREEN_COLORS) {
     genBtn.onclick = function() {
         genBtn.textContent = 'GENERATING...';
         genBtn.disabled = true;
-        fetch('/tools/bridge/api/benchmarks/recommendations/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+        fetch('/tools/starbase/api/benchmarks/recommendations/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
         .then(function(r) { return r.json(); })
         .then(function(d) {
             genBtn.textContent = 'GENERATE';
@@ -3106,7 +3106,7 @@ function _loadRecommendationsContent(body, VIEWSCREEN_COLORS) {
     loading.textContent = 'Loading recommendations...';
     body.appendChild(loading);
 
-    fetch('/tools/bridge/api/benchmarks/station-summary')
+    fetch('/tools/starbase/api/benchmarks/station-summary')
     .then(function(r) { return r.json(); })
     .then(function(data) {
         body.textContent = '';
@@ -3274,7 +3274,7 @@ function _loadRecommendationsContent(body, VIEWSCREEN_COLORS) {
 }
 
 function _resolveRecommendation(recId, approved, body, VIEWSCREEN_COLORS) {
-    fetch('/tools/bridge/api/benchmarks/recommendations/' + recId + '/resolve', {
+    fetch('/tools/starbase/api/benchmarks/recommendations/' + recId + '/resolve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ approved: approved })
@@ -3524,7 +3524,7 @@ function toggleActionParams(actionKey, btn) {
         });
         // Find action details from cached data
         var codes = _consoleCurrentZone ? _consoleCurrentZone.zoneInfo.stations.join(',') : '';
-        fetch('/tools/bridge/api/station-actions?station_code=' + encodeURIComponent(codes))
+        fetch('/tools/starbase/api/station-actions?station_code=' + encodeURIComponent(codes))
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 var action = (data.actions || []).find(function(a) { return a.action_key === actionKey; });
@@ -3573,7 +3573,7 @@ function executeStationAction(actionKey, endpointPath, httpMethod, createsJob, b
 // ── Benchmark functions (Project #110) ──
 
 function _checkExistingBenchmark(actionKey) {
-    fetch('/tools/bridge/api/benchmarks/latest/' + encodeURIComponent(actionKey))
+    fetch('/tools/starbase/api/benchmarks/latest/' + encodeURIComponent(actionKey))
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success && data.results && data.results.length > 0) {
@@ -3586,7 +3586,7 @@ function _checkExistingBenchmark(actionKey) {
 }
 
 function loadLatestBenchmark(actionKey) {
-    fetch('/tools/bridge/api/benchmarks/latest/' + encodeURIComponent(actionKey))
+    fetch('/tools/starbase/api/benchmarks/latest/' + encodeURIComponent(actionKey))
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success && data.results) {
@@ -3628,7 +3628,7 @@ var _activeBenchmarkRun = null;
 var _benchmarkPollActive = false;
 
 function _checkActiveBenchmark() {
-    fetch('/tools/bridge/api/benchmarks/active')
+    fetch('/tools/starbase/api/benchmarks/active')
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success && data.active) {
@@ -3677,7 +3677,7 @@ function startActionBenchmark(actionKey, btn) {
     if (localStorage.getItem('archie_bench_contractors') === 'true') {
         benchPayload.include_contractors = true;
     }
-    fetch('/tools/bridge/api/benchmarks/start', {
+    fetch('/tools/starbase/api/benchmarks/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(benchPayload)
@@ -3707,7 +3707,7 @@ function startActionBenchmark(actionKey, btn) {
 function _startBenchmarkPoll(actionKey, runId, jobId, btn, totalAgents) {
     var pollInterval = setInterval(function() {
         if (jobId) {
-            fetch('/tools/bridge/api/bridge/jobs/' + jobId)
+            fetch('/tools/starbase/api/bridge/jobs/' + jobId)
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.success && data.job) {
@@ -3723,7 +3723,7 @@ function _startBenchmarkPoll(actionKey, runId, jobId, btn, totalAgents) {
             })
             .catch(function() {});
         } else {
-            fetch('/tools/bridge/api/benchmarks/' + runId + '/status')
+            fetch('/tools/starbase/api/benchmarks/' + runId + '/status')
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.success && data.run) {
@@ -3732,7 +3732,7 @@ function _startBenchmarkPoll(actionKey, runId, jobId, btn, totalAgents) {
                     if (data.run.status !== 'running') {
                         clearInterval(pollInterval);
                         _unlockBenchmarkButtons();
-                        fetch('/tools/bridge/api/benchmarks/' + runId)
+                        fetch('/tools/starbase/api/benchmarks/' + runId)
                         .then(function(r2) { return r2.json(); })
                         .then(function(fullData) {
                             if (fullData.success) {
@@ -3757,7 +3757,7 @@ function _startBenchmarkPoll(actionKey, runId, jobId, btn, totalAgents) {
 }
 
 function _fetchBenchmarkResults(actionKey, runId, btn) {
-    fetch('/tools/bridge/api/benchmarks/' + runId)
+    fetch('/tools/starbase/api/benchmarks/' + runId)
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) {
@@ -4062,7 +4062,7 @@ function _showBenchmarkCompareModal(results, runInfo) {
     body.appendChild(skillFooter);
 
     if (runInfo && runInfo.id) {
-        fetch('/tools/bridge/api/benchmarks/' + runInfo.id + '/skill-updates')
+        fetch('/tools/starbase/api/benchmarks/' + runInfo.id + '/skill-updates')
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (!data.success || !data.updates || data.updates.length === 0) return;
@@ -4138,7 +4138,7 @@ function _showBenchmarkCompareModal(results, runInfo) {
         var r = results[currentIdx];
         pickBtn.disabled = true;
         pickBtn.textContent = '...';
-        fetch('/tools/bridge/api/benchmarks/' + runInfo.id + '/pick', {
+        fetch('/tools/starbase/api/benchmarks/' + runInfo.id + '/pick', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({agent_name: r.agent_name})
@@ -4302,7 +4302,7 @@ function _startActionJobPoll(actionKey, jobId, btn) {
     if (_actionJobPolls[actionKey]) clearInterval(_actionJobPolls[actionKey]);
 
     _actionJobPolls[actionKey] = setInterval(function() {
-        fetch('/tools/bridge/api/bridge/jobs/' + jobId)
+        fetch('/tools/starbase/api/bridge/jobs/' + jobId)
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (!data.success) return;
@@ -4800,7 +4800,7 @@ async function loadConsoleDispatch(stationCodes) {
             // Fetch for each station code and merge
             var allEvents = [];
             for (var i = 0; i < stationCodes.length; i++) {
-                var resp = await fetch('/tools/bridge/api/stations/' + encodeURIComponent(stationCodes[i]) + '/dispatch');
+                var resp = await fetch('/tools/starbase/api/stations/' + encodeURIComponent(stationCodes[i]) + '/dispatch');
                 var events = await resp.json();
                 if (Array.isArray(events)) allEvents = allEvents.concat(events);
             }
@@ -4870,7 +4870,7 @@ async function loadConsoleDispatch(stationCodes) {
     // Real-time updates via SSE
     try {
         if (_consoleEventSource) _consoleEventSource.close();
-        _consoleEventSource = new EventSource('/tools/bridge/api/dispatch/stream');
+        _consoleEventSource = new EventSource('/tools/starbase/api/dispatch/stream');
         _consoleEventSource.onmessage = function(e) {
             try {
                 var evt = JSON.parse(e.data);
@@ -4897,7 +4897,7 @@ async function loadConsoleDispatch(stationCodes) {
 
 async function loadSkillGaps(parentPanel) {
     try {
-        var resp = await fetch('/tools/bridge/api/dispatch/agent-gaps');
+        var resp = await fetch('/tools/starbase/api/dispatch/agent-gaps');
         var data = await resp.json();
         var gaps = (data.gaps || []).filter(function(g) { return g.status === 'pending'; });
 
@@ -4957,7 +4957,7 @@ async function loadSkillGaps(parentPanel) {
                 var gapId = parseInt(gapBtn.dataset.gapId);
                 gapBtn.disabled = true;
                 gapBtn.textContent = 'Creating...';
-                fetch('/tools/bridge/api/agents/create-from-gap', {
+                fetch('/tools/starbase/api/agents/create-from-gap', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({approval_id: gapId})
@@ -5022,7 +5022,7 @@ async function loadConsoleNodes(zd, stationColor) {
     panel.appendChild(loadingEl);
 
     try {
-        var resp = await fetch('/tools/bridge/api/stations/batch-nodes', {
+        var resp = await fetch('/tools/starbase/api/stations/batch-nodes', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ station_ids: stationIds })
@@ -5125,7 +5125,7 @@ async function loadConsoleMetrics(stationCodes) {
 
     for (var i = 0; i < stationCodes.length; i++) {
         try {
-            var resp = await fetch('/tools/bridge/api/stations/' + encodeURIComponent(stationCodes[i]) + '/metrics');
+            var resp = await fetch('/tools/starbase/api/stations/' + encodeURIComponent(stationCodes[i]) + '/metrics');
             var data = await resp.json();
             if (data.success && data.metrics) {
                 totals.requests_24h += data.metrics.requests_24h;
@@ -5223,7 +5223,7 @@ async function loadConsoleMemory() {
     for (var i = 0; i < agents.length; i++) {
         var agent = agents[i];
         try {
-            var resp = await fetch('/tools/bridge/api/agents/' + encodeURIComponent(agent.id) + '/memory?per_page=50');
+            var resp = await fetch('/tools/starbase/api/agents/' + encodeURIComponent(agent.id) + '/memory?per_page=50');
             var json = await resp.json();
             if (json.success && json.data) {
                 for (var j = 0; j < json.data.length; j++) {
@@ -5540,7 +5540,7 @@ async function submitNewMemory() {
     }
 
     try {
-        var resp = await fetch('/tools/bridge/api/agents/' + encodeURIComponent(agentId) + '/memory', {
+        var resp = await fetch('/tools/starbase/api/agents/' + encodeURIComponent(agentId) + '/memory', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content: content, memory_type: memoryType, importance_score: importance })
@@ -5562,7 +5562,7 @@ async function submitNewMemory() {
 async function editMemory(memoryId, agentId) {
     // Fetch current memory
     try {
-        var resp = await fetch('/tools/bridge/api/agents/' + encodeURIComponent(agentId) + '/memory/' + encodeURIComponent(memoryId));
+        var resp = await fetch('/tools/starbase/api/agents/' + encodeURIComponent(agentId) + '/memory/' + encodeURIComponent(memoryId));
         var json = await resp.json();
         if (!json.success || !json.data) {
             showToast('Could not load memory', 'error');
@@ -5692,7 +5692,7 @@ async function submitEditMemory(memoryId, agentId) {
     }
 
     try {
-        var resp = await fetch('/tools/bridge/api/agents/' + encodeURIComponent(agentId) + '/memory/' + encodeURIComponent(memoryId), {
+        var resp = await fetch('/tools/starbase/api/agents/' + encodeURIComponent(agentId) + '/memory/' + encodeURIComponent(memoryId), {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content: content, memory_type: memoryType, importance_score: importance })
@@ -5718,7 +5718,7 @@ async function deleteMemory(memoryId, agentId) {
     if (reason === null) return; // user cancelled
 
     try {
-        var resp = await fetch('/tools/bridge/api/agents/' + encodeURIComponent(agentId) + '/memory/' + encodeURIComponent(memoryId), {
+        var resp = await fetch('/tools/starbase/api/agents/' + encodeURIComponent(agentId) + '/memory/' + encodeURIComponent(memoryId), {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ reason: reason || 'Manual deletion from Bridge console' })
@@ -5789,7 +5789,7 @@ async function showModulePreview(mod) {
     if (_consoleCurrentZone && mod.id) {
         try {
             var stationCode = _consoleCurrentZone.zoneInfo.stations[0];
-            var resp = await fetch('/tools/bridge/api/stations/' + encodeURIComponent(stationCode) + '/module-preview/' + encodeURIComponent(mod.id));
+            var resp = await fetch('/tools/starbase/api/stations/' + encodeURIComponent(stationCode) + '/module-preview/' + encodeURIComponent(mod.id));
             var data = await resp.json();
             if (data.success && data.module && data.module.stats) {
                 var statsKeys = Object.keys(data.module.stats);
@@ -5988,8 +5988,8 @@ function renderViewscreen(events, trafficData) {
 async function loadViewscreenData() {
     try {
         const [activityResp, trafficResp] = await Promise.all([
-            fetch('/tools/bridge/api/dispatch/activity-history'),
-            fetch('/tools/bridge/api/traffic')
+            fetch('/tools/starbase/api/dispatch/activity-history'),
+            fetch('/tools/starbase/api/traffic')
         ]);
 
         const activityData = await activityResp.json();
@@ -6124,7 +6124,7 @@ window.addEventListener('resize', function() {
 
 async function loadIAAEStatus() {
     try {
-        const response = await fetch('/tools/bridge/api/agents/welfare');
+        const response = await fetch('/tools/starbase/api/agents/welfare');
         const data = await response.json();
 
         if (data.success) {
@@ -6156,7 +6156,7 @@ async function loadIAAEStatus() {
 
 async function loadStaffingStatus() {
     try {
-        const response = await fetch('/tools/bridge/api/agents/workload');
+        const response = await fetch('/tools/starbase/api/agents/workload');
         const data = await response.json();
 
         if (data.success) {
@@ -6187,7 +6187,7 @@ async function loadStaffingStatus() {
 
 async function loadNodes() {
     try {
-        const response = await fetch('/tools/bridge/api/nodes');
+        const response = await fetch('/tools/starbase/api/nodes');
         const data = await response.json();
 
         if (data.success) {
@@ -6314,7 +6314,7 @@ function renderNodeCard(node) {
 
 async function approveNode(nodeId) {
     try {
-        const response = await fetch(`/tools/bridge/api/nodes/${nodeId}/approve`, { method: 'POST' });
+        const response = await fetch(`/tools/starbase/api/nodes/${nodeId}/approve`, { method: 'POST' });
         const data = await response.json();
 
         if (data.success) {
@@ -6333,7 +6333,7 @@ async function rejectNode(nodeId) {
     const reason = prompt('Reason for rejection (optional):');
 
     try {
-        const response = await fetch(`/tools/bridge/api/nodes/${nodeId}/reject`, {
+        const response = await fetch(`/tools/starbase/api/nodes/${nodeId}/reject`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ reason: reason || 'Rejected by admin' })
@@ -6358,7 +6358,7 @@ async function testNode(event, nodeId) {
     btn.disabled = true;
 
     try {
-        const response = await fetch(`/tools/bridge/api/nodes/${nodeId}/test`, { method: 'POST' });
+        const response = await fetch(`/tools/starbase/api/nodes/${nodeId}/test`, { method: 'POST' });
         const data = await response.json();
 
         if (data.reachable) {
@@ -6378,7 +6378,7 @@ async function testNode(event, nodeId) {
 async function removeNode(nodeId, nodeName) {
     if (!confirm('Remove node "' + nodeName + '"? This will delete the node and all its model registrations.')) return;
     try {
-        var response = await fetch('/tools/bridge/api/nodes/' + nodeId, { method: 'DELETE' });
+        var response = await fetch('/tools/starbase/api/nodes/' + nodeId, { method: 'DELETE' });
         var data = await response.json();
         if (data.success) {
             showToast('Node removed: ' + escapeHtml(nodeName), 'success');
@@ -6407,9 +6407,9 @@ async function showNodeDetail(nodeId) {
     try {
         // Fetch node details, models, and stations in parallel
         const [nodeResp, stationsResp, modelsResp] = await Promise.all([
-            fetch(`/tools/bridge/api/nodes/${nodeId}`),
-            fetch(`/tools/bridge/api/nodes/${nodeId}/stations`),
-            fetch(`/tools/bridge/api/nodes/${nodeId}/models`)
+            fetch(`/tools/starbase/api/nodes/${nodeId}`),
+            fetch(`/tools/starbase/api/nodes/${nodeId}/stations`),
+            fetch(`/tools/starbase/api/nodes/${nodeId}/models`)
         ]);
 
         const nodeData = await nodeResp.json();
@@ -6530,7 +6530,7 @@ async function renderNodeStations(assignedStations) {
     // Fetch all stations if not cached
     if (allStationsForNode.length === 0) {
         try {
-            const resp = await fetch('/tools/bridge/api/stations');
+            const resp = await fetch('/tools/starbase/api/stations');
             const data = await resp.json();
             if (data.success) {
                 allStationsForNode = data.stations;
@@ -6583,7 +6583,7 @@ async function toggleNodeStation(stationId, enabled) {
         // Assign node to station
         const role = document.getElementById(`role-${stationId}`).value || 'worker';
         try {
-            const response = await fetch(`/tools/bridge/api/nodes/${currentNodeId}/stations`, {
+            const response = await fetch(`/tools/starbase/api/nodes/${currentNodeId}/stations`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -6613,7 +6613,7 @@ async function toggleNodeStation(stationId, enabled) {
     } else {
         // Remove node from station
         try {
-            const response = await fetch(`/tools/bridge/api/nodes/${currentNodeId}/stations/${stationId}`, {
+            const response = await fetch(`/tools/starbase/api/nodes/${currentNodeId}/stations/${stationId}`, {
                 method: 'DELETE'
             });
             const data = await response.json();
@@ -6638,7 +6638,7 @@ async function toggleNodeStation(stationId, enabled) {
 
 async function updateNodeStationRole(stationId, newRole) {
     try {
-        const response = await fetch(`/tools/bridge/api/nodes/${currentNodeId}/stations/${stationId}`, {
+        const response = await fetch(`/tools/starbase/api/nodes/${currentNodeId}/stations/${stationId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ role: newRole })
@@ -6887,7 +6887,7 @@ function renderNodeHealth(heartbeats) {
 
 async function loadStationsForAssignment() {
     try {
-        const response = await fetch('/tools/bridge/api/stations');
+        const response = await fetch('/tools/starbase/api/stations');
         const data = await response.json();
 
         if (data.success) {
@@ -6915,7 +6915,7 @@ async function assignNodeToStationFromDetail() {
     const priority = document.getElementById('nd-priority-input').value;
 
     try {
-        const response = await fetch(`/tools/bridge/api/nodes/${currentNodeId}/stations`, {
+        const response = await fetch(`/tools/starbase/api/nodes/${currentNodeId}/stations`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -6947,7 +6947,7 @@ async function removeNodeFromStation(stationId) {
     if (!confirm('Remove this node from the station?')) return;
 
     try {
-        const response = await fetch(`/tools/bridge/api/nodes/${currentNodeId}/stations/${stationId}`, {
+        const response = await fetch(`/tools/starbase/api/nodes/${currentNodeId}/stations/${stationId}`, {
             method: 'DELETE'
         });
 
@@ -6972,7 +6972,7 @@ async function syncNodeModels(event) {
     btn.innerHTML = '<i data-lucide="loader"></i> Syncing...';
 
     try {
-        const response = await fetch(`/tools/bridge/api/nodes/${currentNodeId}/models/sync`, {
+        const response = await fetch(`/tools/starbase/api/nodes/${currentNodeId}/models/sync`, {
             method: 'POST'
         });
 
@@ -7006,7 +7006,7 @@ async function saveNodeConfig() {
     };
 
     try {
-        const response = await fetch(`/tools/bridge/api/nodes/${currentNodeId}`, {
+        const response = await fetch(`/tools/starbase/api/nodes/${currentNodeId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(config)
@@ -7041,7 +7041,7 @@ async function confirmDeleteNode() {
     }
 
     try {
-        const response = await fetch(`/tools/bridge/api/nodes/${currentNodeId}`, {
+        const response = await fetch(`/tools/starbase/api/nodes/${currentNodeId}`, {
             method: 'DELETE'
         });
 
@@ -7064,7 +7064,7 @@ async function confirmDeleteNode() {
 // Toggle Bridge LLM sharing for a node (Phase 72)
 async function toggleBridgeSharing(nodeId, enabled) {
     try {
-        const response = await fetch(`/tools/bridge/api/nodes/${nodeId}/bridge-sharing`, {
+        const response = await fetch(`/tools/starbase/api/nodes/${nodeId}/bridge-sharing`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ enabled: enabled, priority: 50 })
@@ -7097,7 +7097,7 @@ async function toggleBridgeSharing(nodeId, enabled) {
 // Load and display available models across bridge-enabled nodes (Phase 72)
 async function loadModelAvailability() {
     try {
-        var response = await fetch('/tools/bridge/api/bridge/models');
+        var response = await fetch('/tools/starbase/api/bridge/models');
         var data = await response.json();
 
         if (data.success) {
@@ -7172,7 +7172,7 @@ function renderRemoteModels(allModels, summary) {
 
 async function toggleModelAvailability(nodeId, modelId, enabled) {
     try {
-        var response = await fetch('/tools/bridge/api/nodes/' + nodeId + '/models/' + modelId + '/toggle', {
+        var response = await fetch('/tools/starbase/api/nodes/' + nodeId + '/models/' + modelId + '/toggle', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ enabled: enabled })
@@ -7204,7 +7204,7 @@ function showAddNodeModal() {
                 <p style="font-size: 0.8rem; color: var(--archie-text-muted); margin-bottom: 0.5rem;">
                     Run this command on the target machine:
                 </p>
-                <code style="font-size: 0.7rem;">curl -sSL http://192.168.1.200:3000/tools/bridge/api/nodes/install.sh | sudo bash</code>
+                <code style="font-size: 0.7rem;">curl -sSL http://192.168.1.200:3000/tools/starbase/api/nodes/install.sh | sudo bash</code>
             </div>
 
             <div style="margin-bottom: 1.5rem;">
@@ -7214,7 +7214,7 @@ function showAddNodeModal() {
                 <p style="font-size: 0.8rem; color: var(--archie-text-muted); margin-bottom: 0.5rem;">
                     Run in PowerShell as Administrator:
                 </p>
-                <code style="font-size: 0.7rem;">iwr -useb http://192.168.1.200:3000/tools/bridge/api/nodes/install.ps1 | iex</code>
+                <code style="font-size: 0.7rem;">iwr -useb http://192.168.1.200:3000/tools/starbase/api/nodes/install.ps1 | iex</code>
             </div>
 
             <p style="color: var(--archie-text-muted); font-size: 0.75rem; margin-top: 1rem; padding: 0.75rem; background: rgba(0,255,255,0.05); border-radius: 4px;">
@@ -7292,7 +7292,7 @@ async function showStationDetail(stationId, stationName) {
     currentStationId = stationId;
 
     try {
-        const response = await fetch(`/tools/bridge/api/stations/${stationId}/nodes`);
+        const response = await fetch(`/tools/starbase/api/stations/${stationId}/nodes`);
         const data = await response.json();
 
         if (data.success) {
@@ -7379,7 +7379,7 @@ async function openAssignModal(stationId, stationName = null) {
 
     // Load available nodes
     try {
-        const response = await fetch('/tools/bridge/api/nodes');
+        const response = await fetch('/tools/starbase/api/nodes');
         const data = await response.json();
 
         if (data.success) {
@@ -7415,7 +7415,7 @@ async function editAssignment(nodeId, stationId) {
 
     // Get node's current assignments
     try {
-        const response = await fetch(`/tools/bridge/api/nodes/${nodeId}/stations`);
+        const response = await fetch(`/tools/starbase/api/nodes/${nodeId}/stations`);
         const data = await response.json();
 
         if (data.success) {
@@ -7475,8 +7475,8 @@ async function submitAssignment() {
 
     const isEdit = currentAssignmentId !== null;
     const url = isEdit
-        ? `/tools/bridge/api/nodes/${nodeId}/stations/${stationId}`
-        : `/tools/bridge/api/nodes/${nodeId}/stations`;
+        ? `/tools/starbase/api/nodes/${nodeId}/stations/${stationId}`
+        : `/tools/starbase/api/nodes/${nodeId}/stations`;
 
     try {
         const response = await fetch(url, {
@@ -7512,7 +7512,7 @@ async function deleteAssignment() {
     if (!confirm('Remove this node from the station?')) return;
 
     try {
-        const response = await fetch(`/tools/bridge/api/nodes/${nodeId}/stations/${stationId}`, {
+        const response = await fetch(`/tools/starbase/api/nodes/${nodeId}/stations/${stationId}`, {
             method: 'DELETE'
         });
 
@@ -7535,7 +7535,7 @@ async function removeAssignment(nodeId, stationId) {
     if (!confirm('Remove this node from the station?')) return;
 
     try {
-        const response = await fetch(`/tools/bridge/api/nodes/${nodeId}/stations/${stationId}`, {
+        const response = await fetch(`/tools/starbase/api/nodes/${nodeId}/stations/${stationId}`, {
             method: 'DELETE'
         });
 
@@ -7579,7 +7579,7 @@ function formatMeshAge(isoStr) {
 
 async function loadMeshLoans() {
     try {
-        const response = await fetch('/tools/bridge/api/mesh/agents/loans');
+        const response = await fetch('/tools/starbase/api/mesh/agents/loans');
         const data = await response.json();
         if (data.success) renderMeshLoans(data.loans || []);
     } catch (error) { console.error('Error loading mesh loans:', error); }
@@ -7587,7 +7587,7 @@ async function loadMeshLoans() {
 
 async function loadMeshLearning() {
     try {
-        const response = await fetch('/tools/bridge/api/mesh/learning');
+        const response = await fetch('/tools/starbase/api/mesh/learning');
         const data = await response.json();
         if (data.success) renderMeshLearning(data.patterns || []);
     } catch (error) { console.error('Error loading mesh learning:', error); }
@@ -7595,7 +7595,7 @@ async function loadMeshLearning() {
 
 async function loadMeshAvailableAgents() {
     try {
-        const response = await fetch('/tools/bridge/api/mesh/agents/available');
+        const response = await fetch('/tools/starbase/api/mesh/agents/available');
         const data = await response.json();
         if (data.success) {
             window._meshAvailableAgents = data.available_agents || [];
@@ -7659,7 +7659,7 @@ function renderMeshLoans(loans) {
 async function returnMeshAgent(loanId) {
     if (!confirm('Return this agent to their home node?')) return;
     try {
-        const response = await fetch('/tools/bridge/api/mesh/agents/return-admin', {
+        const response = await fetch('/tools/starbase/api/mesh/agents/return-admin', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ loan_id: loanId })
@@ -7813,7 +7813,7 @@ async function submitHelpRequest(targetNodeId) {
 
     for (const cb of checkboxes) {
         try {
-            const response = await fetch('/tools/bridge/api/mesh/agents/lend', {
+            const response = await fetch('/tools/starbase/api/mesh/agents/lend', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -7873,7 +7873,7 @@ var _dispatchRefreshTimer = null;
 
 async function loadDispatchActivity() {
     try {
-        const resp = await fetch('/tools/bridge/api/bridge/dispatch-overview?limit=20&jobs_limit=10');
+        const resp = await fetch('/tools/starbase/api/bridge/dispatch-overview?limit=20&jobs_limit=10');
         if (!resp.ok) return;
         const data = await resp.json();
         if (!data.success) return;
@@ -8160,7 +8160,7 @@ async function loadLeaderboard() {
     container.appendChild(loading);
 
     try {
-        var resp = await fetch('/tools/bridge/api/agents/performance/leaderboard?limit=10');
+        var resp = await fetch('/tools/starbase/api/agents/performance/leaderboard?limit=10');
         var data = await resp.json();
         container.textContent = '';
 
@@ -8239,7 +8239,7 @@ var _crewRefreshTimer = null;
 
 async function loadCrewManifest() {
     try {
-        const crewResp = await fetch('/tools/bridge/api/bridge/crew/manifest');
+        const crewResp = await fetch('/tools/starbase/api/bridge/crew/manifest');
         if (!crewResp.ok) return;
         const data = await crewResp.json();
         // Build workload lookup from merged response
@@ -8284,7 +8284,7 @@ function toggleRotationLog() {
 }
 
 function loadRotationLog() {
-    fetch('/tools/bridge/api/bridge/rotation-log?limit=20')
+    fetch('/tools/starbase/api/bridge/rotation-log?limit=20')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) return;
@@ -9487,7 +9487,7 @@ function _toggleAgentModel(agent, btn, nodeDbId) {
         };
         if (nodeDbId) payload.node_id = nodeDbId;
 
-        fetch('/tools/bridge/api/bridge/model-control', {
+        fetch('/tools/starbase/api/bridge/model-control', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -9515,7 +9515,7 @@ function _loadComfyCheckpoints() {
     var body = document.getElementById('comfyui-checkpoint-body');
     if (!body) return;
 
-    fetch('/tools/bridge/api/bridge/comfyui/models')
+    fetch('/tools/starbase/api/bridge/comfyui/models')
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (!data.success && data.error) {
@@ -9578,7 +9578,7 @@ function _comfyControl(model, action, btn) {
     btn.disabled = true;
     btn.textContent = action === 'load' ? 'Loading...' : 'Unloading...';
 
-    fetch('/tools/bridge/api/bridge/comfyui/control', {
+    fetch('/tools/starbase/api/bridge/comfyui/control', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: model, action: action })
@@ -9676,7 +9676,7 @@ function openAgentProfile(agentId) {
     // Show instant preview from manifest while fetching
     _renderProfilePreview(agentId, body, title);
 
-    fetch('/tools/bridge/api/agents/' + parseInt(agentId) + '/profile')
+    fetch('/tools/starbase/api/agents/' + parseInt(agentId) + '/profile')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             // Cache the response
@@ -9707,7 +9707,7 @@ function editAgentFromProfile() {
     if (!_profileAgentId) return;
     closeAgentProfile();
     // Fetch current data and populate form
-    fetch('/tools/bridge/api/agents/' + parseInt(_profileAgentId) + '/profile')
+    fetch('/tools/starbase/api/agents/' + parseInt(_profileAgentId) + '/profile')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) return;
@@ -9725,7 +9725,7 @@ function editAgentFromProfile() {
             document.getElementById('agent-form-modal').classList.add('active');
             // Set model and load context
             document.getElementById('agent-form-model').value = a.model || '';
-            fetch('/tools/bridge/api/bridge/agent-form-context')
+            fetch('/tools/starbase/api/bridge/agent-form-context')
                 .then(function(r) { return r.json(); })
                 .then(function(ctxData) {
                     if (!ctxData.success) return;
@@ -9749,7 +9749,7 @@ function editAgentFromProfile() {
 function deleteAgentFromProfile() {
     if (!_profileAgentId) return;
     if (!confirm('Delete this agent permanently?')) return;
-    fetch('/tools/bridge/api/agents/' + parseInt(_profileAgentId), { method: 'DELETE' })
+    fetch('/tools/starbase/api/agents/' + parseInt(_profileAgentId), { method: 'DELETE' })
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.success) {
@@ -9761,7 +9761,7 @@ function deleteAgentFromProfile() {
 
 function toggleAgentFromProfile() {
     if (!_profileAgentId) return;
-    fetch('/tools/bridge/api/agents/' + parseInt(_profileAgentId) + '/toggle', { method: 'POST' })
+    fetch('/tools/starbase/api/agents/' + parseInt(_profileAgentId) + '/toggle', { method: 'POST' })
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.success) {
@@ -9807,14 +9807,14 @@ function openAgentFormModal(agentId) {
 
     // Fetch model catalog for descriptions (non-blocking, best-effort)
     if (!window._modelCatalog) {
-        fetch('/tools/bridge/api/model-catalog')
+        fetch('/tools/starbase/api/model-catalog')
             .then(function(r) { return r.json(); })
             .then(function(d) { if (d.success) window._modelCatalog = d.catalog || {}; })
             .catch(function() { window._modelCatalog = {}; });
     }
 
     // Fetch context
-    fetch('/tools/bridge/api/bridge/agent-form-context')
+    fetch('/tools/starbase/api/bridge/agent-form-context')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) return;
@@ -10424,7 +10424,7 @@ function saveAgent() {
     var prompt = document.getElementById('agent-form-prompt').value;
     if (prompt) payload.system_prompt = prompt;
 
-    var url = id ? '/tools/bridge/api/agents/' + parseInt(id) : '/tools/bridge/api/agents';
+    var url = id ? '/tools/starbase/api/agents/' + parseInt(id) : '/tools/starbase/api/agents';
     var method = id ? 'PUT' : 'POST';
 
     // Disable save button during request (model load can take a while)
@@ -10463,7 +10463,7 @@ function addSkill(agentId) {
     var nameEl = document.getElementById('add-skill-name');
     var levelEl = document.getElementById('add-skill-level');
     if (!nameEl || !nameEl.value.trim()) return;
-    fetch('/tools/bridge/api/agents/' + parseInt(agentId) + '/skills', {
+    fetch('/tools/starbase/api/agents/' + parseInt(agentId) + '/skills', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ skill_name: nameEl.value.trim(), proficiency_level: parseInt(levelEl.value) })
@@ -10474,7 +10474,7 @@ function addSkill(agentId) {
 }
 
 function removeSkill(agentId, skillId) {
-    fetch('/tools/bridge/api/agents/' + parseInt(agentId) + '/skills/' + skillId, { method: 'DELETE' })
+    fetch('/tools/starbase/api/agents/' + parseInt(agentId) + '/skills/' + skillId, { method: 'DELETE' })
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.success) openAgentProfile(agentId);
@@ -10515,7 +10515,7 @@ function sendToLounge() {
     if (!sel || !sel.value) return;
     var reasonEl = document.getElementById('lounge-reason-input');
     var reason = (reasonEl && reasonEl.value.trim()) ? reasonEl.value.trim() : 'rest';
-    fetch('/tools/bridge/api/agents/' + parseInt(sel.value) + '/send-to-lounge', {
+    fetch('/tools/starbase/api/agents/' + parseInt(sel.value) + '/send-to-lounge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: reason, rest_type: 'voluntary' })
@@ -10531,7 +10531,7 @@ function sendToLounge() {
 }
 
 function sendToLoungeById(agentId) {
-    fetch('/tools/bridge/api/agents/' + parseInt(agentId) + '/send-to-lounge', {
+    fetch('/tools/starbase/api/agents/' + parseInt(agentId) + '/send-to-lounge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: 'rest', rest_type: 'voluntary' })
@@ -10543,7 +10543,7 @@ function sendToLoungeById(agentId) {
 }
 
 function returnFromLounge(agentId) {
-    fetch('/tools/bridge/api/agents/' + parseInt(agentId) + '/return-from-lounge', {
+    fetch('/tools/starbase/api/agents/' + parseInt(agentId) + '/return-from-lounge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
@@ -10579,7 +10579,7 @@ async function populateTrainingAgentSelect() {
     var hiddenInput = document.getElementById('training-agent-select');
     if (!container || !hiddenInput) return;
     try {
-        var resp = await fetch('/tools/bridge/api/bridge/crew/manifest');
+        var resp = await fetch('/tools/starbase/api/bridge/crew/manifest');
         var data = await resp.json();
         if (!data.success) return;
         container.textContent = '';
@@ -10662,7 +10662,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 skillContainer.textContent = '';
                 skillInput.value = '';
                 _resetTrainingLevelPills();
-                var resp = await fetch('/tools/bridge/api/agents/' + parseInt(agentId) + '/profile');
+                var resp = await fetch('/tools/starbase/api/agents/' + parseInt(agentId) + '/profile');
                 var data = await resp.json();
                 var skills = (data.profile && data.profile.skills) || data.skills || [];
                 if (!data.success || skills.length === 0) {
@@ -10783,7 +10783,7 @@ async function assignTraining() {
     if (!targetSel || !targetSel.value) return;
 
     try {
-        var resp = await fetch('/tools/bridge/api/training/assign', {
+        var resp = await fetch('/tools/starbase/api/training/assign', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -10819,7 +10819,7 @@ async function loadActiveTraining() {
     if (!container) return;
 
     try {
-        var resp = await fetch('/tools/bridge/api/training/active');
+        var resp = await fetch('/tools/starbase/api/training/active');
         var data = await resp.json();
         var training = data.training || [];
 
@@ -10884,7 +10884,7 @@ async function loadActiveTraining() {
 
 async function cancelTraining(id) {
     try {
-        var resp = await fetch('/tools/bridge/api/training/' + parseInt(id) + '/cancel', {
+        var resp = await fetch('/tools/starbase/api/training/' + parseInt(id) + '/cancel', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         });
@@ -10904,8 +10904,8 @@ async function loadTrainingRecommendations() {
 
     try {
         var [resp, crewResp] = await Promise.all([
-            fetch('/tools/bridge/api/training/recommendations'),
-            fetch('/tools/bridge/api/bridge/crew/manifest')
+            fetch('/tools/starbase/api/training/recommendations'),
+            fetch('/tools/starbase/api/bridge/crew/manifest')
         ]);
         var data = await resp.json();
         var recs = data.recommendations || [];
@@ -10946,7 +10946,7 @@ async function loadTrainingRecommendations() {
 
 async function quickAssignTraining(agentId, skill, target) {
     try {
-        var resp = await fetch('/tools/bridge/api/training/assign', {
+        var resp = await fetch('/tools/starbase/api/training/assign', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -10984,7 +10984,7 @@ async function loadTrainingHistory() {
     if (!container) return;
 
     try {
-        var resp = await fetch('/tools/bridge/api/training/history');
+        var resp = await fetch('/tools/starbase/api/training/history');
         var data = await resp.json();
         var history = data.history || [];
         _trainingHistoryLoaded = true;
@@ -11036,7 +11036,7 @@ async function populateLoungeAgentSelect() {
     var hiddenInput = document.getElementById('lounge-agent-select');
     if (!container || !hiddenInput) return;
     try {
-        var resp = await fetch('/tools/bridge/api/bridge/crew/manifest');
+        var resp = await fetch('/tools/starbase/api/bridge/crew/manifest');
         var data = await resp.json();
         if (!data.success) return;
         container.textContent = '';
@@ -11102,8 +11102,8 @@ async function loadWellnessSummary() {
     var alertsEl = document.getElementById('burnout-alerts');
     try {
         var [resp, crewResp] = await Promise.all([
-            fetch('/tools/bridge/api/lounge/wellness'),
-            fetch('/tools/bridge/api/bridge/crew/manifest')
+            fetch('/tools/starbase/api/lounge/wellness'),
+            fetch('/tools/starbase/api/bridge/crew/manifest')
         ]);
         var data = await resp.json();
         var nameMap = {}, codeNameMap = {};
@@ -11164,7 +11164,7 @@ async function loadLoungeAgents() {
     var container = document.getElementById('lounge-agents-list');
     if (!container) return;
     try {
-        var resp = await fetch('/tools/bridge/api/lounge');
+        var resp = await fetch('/tools/starbase/api/lounge');
         var data = await resp.json();
         if (!data.success) {
             container.innerHTML = '<span class="briefing-muted" style="font-size:0.75rem;">Error loading lounge</span>';
@@ -11221,7 +11221,7 @@ async function loadRestHistory() {
     _restHistoryLoaded = true;
     container.innerHTML = '<span class="briefing-muted" style="font-size:0.75rem;">Loading history...</span>';
     try {
-        var resp = await fetch('/tools/bridge/api/lounge/history');
+        var resp = await fetch('/tools/starbase/api/lounge/history');
         var data = await resp.json();
         if (!data.success) {
             container.innerHTML = '<span class="briefing-muted" style="font-size:0.75rem;">Error loading history</span>';
@@ -11280,8 +11280,8 @@ async function loadRestHistory() {
 async function loadContractors() {
     try {
         var [provResp, modeResp] = await Promise.all([
-            fetch('/tools/bridge/api/external-providers'),
-            fetch('/tools/bridge/api/routing-mode')
+            fetch('/tools/starbase/api/external-providers'),
+            fetch('/tools/starbase/api/routing-mode')
         ]);
         if (!provResp.ok) throw new Error('Failed to load providers');
         var data = await provResp.json();
@@ -11490,7 +11490,7 @@ function renderContractors(providers, routingMode, iaaeData) {
 }
 
 function toggleProvider(provider) {
-    fetch('/tools/bridge/api/external-providers/' + encodeURIComponent(provider) + '/toggle', {
+    fetch('/tools/starbase/api/external-providers/' + encodeURIComponent(provider) + '/toggle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
@@ -11506,7 +11506,7 @@ function toggleProvider(provider) {
 }
 
 function toggleContractorModel(provider, model, enabled) {
-    fetch('/tools/bridge/api/external-providers/' + encodeURIComponent(provider) + '/models/' + encodeURIComponent(model) + '/toggle', {
+    fetch('/tools/starbase/api/external-providers/' + encodeURIComponent(provider) + '/models/' + encodeURIComponent(model) + '/toggle', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: enabled })
@@ -11528,8 +11528,8 @@ function openAddProviderModal(editProviderName) {
 
     // Fetch both contractor-providers definitions AND current key data in parallel
     Promise.all([
-        fetch('/tools/bridge/api/contractor-providers').then(function(r) { return r.json(); }),
-        fetch('/tools/bridge/api/external-providers').then(function(r) { return r.json(); })
+        fetch('/tools/starbase/api/contractor-providers').then(function(r) { return r.json(); }),
+        fetch('/tools/starbase/api/external-providers').then(function(r) { return r.json(); })
     ]).then(function(results) {
         var cpData = results[0];
         var epData = results[1];
@@ -11744,7 +11744,7 @@ function saveProvider() {
         payload.api_key = keyEl.value;
     }
 
-    fetch('/tools/bridge/api/external-providers', {
+    fetch('/tools/starbase/api/external-providers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

@@ -346,7 +346,7 @@ function _fallbackToHoloSphere(container, nodes) {
 
 function _loadAgentsIntoCore() {
   if (!_neuralCore && !_pixelCrew) return;
-  fetch("/tools/bridge/api/bridge/crew/manifest").then(function(r) { return r.json(); }).then(function(data) {
+  fetch("/tools/starbase/api/bridge/crew/manifest").then(function(r) { return r.json(); }).then(function(data) {
     if (!data.success) return;
     var crew = data.crew || [];
     crew.forEach(function(agent) {
@@ -625,7 +625,7 @@ function _stopJobPolling() {
 
 function checkActiveJobs() {
   /* Pull from Starbase Command — single source of truth for agent/station work */
-  fetch("/tools/bridge/api/bridge/jobs?status=running").then(function(resp) {
+  fetch("/tools/starbase/api/bridge/jobs?status=running").then(function(resp) {
     var ct = resp.headers.get("content-type") || "";
     if (ct.indexOf("application/json") === -1) return Promise.reject("not json");
     return resp.json();

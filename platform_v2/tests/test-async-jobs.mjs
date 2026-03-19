@@ -89,7 +89,7 @@ test('Buttons accessible', reindexEnabled || embedEnabled, `reindex=${reindexEna
 // 5. Check Bridge jobs endpoint shows job tracked
 if (embedResp.data.job_id) {
   const jobDetail = await p.evaluate(async (jid) => {
-    const r = await fetch('/tools/bridge/api/bridge/jobs/' + jid);
+    const r = await fetch('/tools/starbase/api/bridge/jobs/' + jid);
     return await r.json();
   }, embedResp.data.job_id);
   test('Bridge tracks embedding job', jobDetail.success === true,

@@ -3229,7 +3229,7 @@ body.font-large .messages-container{font-size:1.05rem}
             </div>
             <div class="status-right">
                 <button class="sidebar-hamburger" onclick="toggleSidebar()" title="Menu">&#9776;</button>
-                <span class="chat-activity-badge" id="chat-activity-badge" onclick="window.open('/tools/bridge#mission','_blank')" title="Agent activity">
+                <span class="chat-activity-badge" id="chat-activity-badge" onclick="window.open('/tools/starbase#mission','_blank')" title="Agent activity">
                     <span class="cab-dot" id="cab-dot"></span>
                     <span id="cab-count">0</span> agents
                 </span>
@@ -4673,7 +4673,7 @@ document.getElementById('messageInput').focus();
 // Activity badge polling
 (function(){
     function updateActivityBadge(){
-        fetch('/tools/bridge/api/dispatch/fleet-metrics')
+        fetch('/tools/starbase/api/dispatch/fleet-metrics')
             .then(function(r){ return r.json(); })
             .then(function(m){
                 var dot = document.getElementById('cab-dot');

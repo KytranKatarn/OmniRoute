@@ -71,7 +71,7 @@ const ROUTES = [
   { name: 'system-operations', route: '/tools/system-operations', auth: true },
   { name: 'saas-manager',      route: '/tools/saas-manager',      auth: true },
   // AI Command
-  { name: 'bridge',            route: '/tools/bridge',            auth: true },
+  { name: 'bridge',            route: '/tools/starbase',            auth: true },
   { name: 'team-management',   route: '/tools/team-management',   auth: true },
   { name: 'consciousness',     route: '/tools/consciousness',     auth: true },
   { name: 'autonomy',          route: '/tools/autonomy',          auth: true },

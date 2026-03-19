@@ -47,8 +47,8 @@ async function main() {
   console.log('[bridge-screenshots] Login successful, on dashboard.');
 
   // ---- Navigate to Bridge ----
-  console.log('[bridge-screenshots] Navigating to /tools/bridge...');
-  await page.goto(`${BASE_URL}/tools/bridge`, { waitUntil: 'networkidle', timeout: 20000 });
+  console.log('[bridge-screenshots] Navigating to /tools/starbase...');
+  await page.goto(`${BASE_URL}/tools/starbase`, { waitUntil: 'networkidle', timeout: 20000 });
 
   // Extra wait for async content to settle (charts, stats, etc.)
   await page.waitForTimeout(3000);

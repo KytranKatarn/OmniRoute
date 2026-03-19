@@ -5730,6 +5730,34 @@ class BridgeDispatcher:
             except Exception:
                 pass
 
+            # Node loaded models — query each node's /api/ps for deployed agents
+            node_loaded_models = {}  # agent_id → set of loaded model names
+            _checked_nodes = {}
+            for aid, ninfo in deployed_node_map.items():
+                nid = ninfo["node_db_id"]
+                if nid not in _checked_nodes:
+                    try:
+                        import requests as _nreq
+                        dn2_conn = self._get_db()
+                        dn2_cur = dn2_conn.cursor(cursor_factory=RealDictCursor)
+                        dn2_cur.execute("SELECT hostname, port FROM remote_nodes WHERE id = %s", (nid,))
+                        nr = dn2_cur.fetchone()
+                        dn2_cur.close()
+                        dn2_conn.close()
+                        if nr:
+                            ps = _nreq.get(f"http://{nr['hostname']}:{nr['port']}/api/ps", timeout=3)
+                            if ps.status_code == 200:
+                                _checked_nodes[nid] = {
+                                    m["name"] for m in ps.json().get("models", [])
+                                }
+                            else:
+                                _checked_nodes[nid] = set()
+                        else:
+                            _checked_nodes[nid] = set()
+                    except Exception:
+                        _checked_nodes[nid] = set()
+                node_loaded_models[aid] = _checked_nodes[nid]
+
             # Build manifest — hub agents only, skip fleet: prefixed node copies
             manifest = []
             for name, info in self._agent_cache.items():
@@ -5756,11 +5784,17 @@ class BridgeDispatcher:
                 else:
                     hw = self.MODEL_HARDWARE.get(model, "CPU")
 
-                # LLM readiness status: loaded > swap > barracked
+                # LLM readiness: check node Ollama for deployed agents, hub for others
+                _is_deployed = info.get("shift_state") == "deployed"
+                _agent_loaded = node_loaded_models.get(agent_id, set()) if _is_deployed else set()
+
                 if model and model.endswith(":cloud"):
                     llm_status = "cloud"
                     llm_size_gb = 0
-                elif model and model in loaded_models:
+                elif _is_deployed and model and (model in _agent_loaded or model.replace(":latest", "") in {m.replace(":latest", "") for m in _agent_loaded}):
+                    llm_status = "loaded"
+                    llm_size_gb = model_disk_gb.get(model, 0)
+                elif not _is_deployed and model and model in loaded_models:
                     llm_status = "loaded"
                     llm_size_gb = loaded_models[model]
                 else:

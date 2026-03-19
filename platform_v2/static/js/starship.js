@@ -575,6 +575,17 @@ function renderDetail(data) {
 
     // Crew tab — manifest-style cards (fetched separately)
     renderNodeManifest(selectedNodeDbId);
+
+    // Disconnect button (only for non-starbase nodes)
+    var disconnectArea = document.getElementById('d-disconnect-area');
+    if (disconnectArea && n.deployment_mode !== 'starbase') {
+        disconnectArea.textContent = '';
+        var disconnectBtn = document.createElement('button');
+        disconnectBtn.style.cssText = 'background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);color:#ef4444;padding:6px 16px;border-radius:4px;cursor:pointer;font-size:0.75rem;font-family:Antonio,sans-serif;letter-spacing:1px;text-transform:uppercase;';
+        disconnectBtn.textContent = '\u26A0 DISCONNECT NODE';
+        disconnectBtn.onclick = function() { showDisconnectModal(selectedNodeId, n.node_name); };
+        disconnectArea.appendChild(disconnectBtn);
+    }
 }
 
 // ── Node STATIONS tab — StationOps terminals per node station ──
@@ -1706,6 +1717,74 @@ setInterval(loadDockedFleetStats, 30000);
 // Load hero stats on page load + interval
 loadHeroStats();
 setInterval(loadHeroStats, 30000);
+
+// ── Node Disconnect ──
+var _disconnectNodeId = null;
+
+function showDisconnectModal(nodeId, nodeName) {
+    _disconnectNodeId = nodeId;
+    var modal = document.getElementById('disconnect-node-modal');
+    var body = document.getElementById('disconnect-node-body');
+    var actions = document.getElementById('disconnect-node-actions');
+
+    body.textContent = '';
+    var warn = document.createElement('div');
+    warn.style.cssText = 'margin-bottom:12px;padding:10px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:4px;';
+
+    var title = document.createElement('div');
+    title.style.cssText = 'font-size:1rem;font-weight:600;color:#ef4444;margin-bottom:6px;';
+    title.textContent = '\u26A0 DISCONNECT ' + (nodeName || 'NODE').toUpperCase();
+    warn.appendChild(title);
+
+    var msg = document.createElement('div');
+    msg.style.cssText = 'font-size:0.8rem;color:rgba(255,255,255,0.6);line-height:1.5;';
+    msg.textContent = 'This will permanently remove the node from the fleet. All deployed agents will return to barracks. The node must be re-registered to reconnect.';
+    warn.appendChild(msg);
+    body.appendChild(warn);
+
+    actions.textContent = '';
+    var cancelBtn = document.createElement('button');
+    cancelBtn.className = 'bm-btn';
+    cancelBtn.style.cssText = 'background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6);';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.onclick = closeDisconnectModal;
+    actions.appendChild(cancelBtn);
+
+    var confirmBtn = document.createElement('button');
+    confirmBtn.className = 'bm-btn';
+    confirmBtn.style.cssText = 'background:rgba(239,68,68,0.2);border:1px solid rgba(239,68,68,0.5);color:#ef4444;font-weight:600;';
+    confirmBtn.textContent = 'DISCONNECT NODE';
+    confirmBtn.onclick = function() {
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Disconnecting...';
+        fetch('/tools/starship/api/nodes/' + encodeURIComponent(_disconnectNodeId) + '/disconnect', {
+            method: 'DELETE',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            closeDisconnectModal();
+            if (data.success) {
+                scToast(data.message || 'Node disconnected', 'success');
+                setTimeout(function() { location.reload(); }, 1500);
+            } else {
+                scToast('Failed: ' + (data.error || 'Unknown error'), 'error');
+            }
+        })
+        .catch(function() {
+            closeDisconnectModal();
+            scToast('Request failed', 'error');
+        });
+    };
+    actions.appendChild(confirmBtn);
+
+    modal.classList.add('active');
+}
+
+function closeDisconnectModal() {
+    document.getElementById('disconnect-node-modal').classList.remove('active');
+    _disconnectNodeId = null;
+}
 
 // ── Sync Status Polling ──
 var _syncPollTimer = null;

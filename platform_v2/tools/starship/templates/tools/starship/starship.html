@@ -416,6 +416,9 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
                     <input type="number" class="sc-input" id="settings-priority" min="0" max="100" style="width:200px;" onchange="saveNodeSettings()">
                 </div>
             </div>
+            <div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(239,68,68,0.15);">
+                <div id="d-disconnect-area"></div>
+            </div>
         </div>
 
         <!-- STATIONS TAB — StationOps terminals, populated dynamically per node -->
@@ -713,6 +716,40 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
     </div>
     </div>
 
+</div>
+
+<!-- Node Disconnect Confirm Modal (LCARS red alert) -->
+<div class="bm-overlay" id="disconnect-node-modal" style="--bm-accent:#ef4444;--bm-accent-rgb:239,68,68;">
+    <div class="bm-shell" style="max-width:440px;">
+        <div class="bm-frame">
+            <div class="bm-frame-elbow-top"></div>
+            <div class="bm-frame-seg"></div>
+            <div class="bm-frame-seg dim"></div>
+            <div class="bm-frame-light on" style="background:#ef4444;"></div>
+            <div class="bm-frame-light amber"></div>
+            <div class="bm-frame-seg" style="background:#ef4444;"></div>
+            <div class="bm-frame-fill"></div>
+            <div class="bm-frame-elbow-bottom"></div>
+        </div>
+        <div class="bm-content">
+            <div class="bm-header">
+                <span class="bm-header-title" style="color:#ef4444;">RED ALERT — DISCONNECT NODE</span>
+                <div class="bm-header-strip">
+                    <span class="bm-header-pip w1"></span>
+                    <button class="bm-close" onclick="closeDisconnectModal()">&times;</button>
+                </div>
+            </div>
+            <div class="bm-body">
+                <div id="disconnect-node-body" style="font-size:0.8rem;line-height:1.6;color:var(--archie-text-secondary,rgba(255,255,255,0.7));"></div>
+                <div id="disconnect-node-actions" style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;"></div>
+            </div>
+            <div class="bm-footer">
+                <span class="bm-footer-tag" style="color:#ef4444;">WARNING</span>
+                <span class="bm-footer-dot" style="background:#ef4444;"></span>
+                <span class="bm-footer-dot amber"></span>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 

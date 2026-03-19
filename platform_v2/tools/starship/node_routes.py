@@ -544,6 +544,67 @@ def register_node_routes(bp, auth_decorator):
             }
         )
 
+    @bp.route("/api/nodes/<node_id>/disconnect", methods=["DELETE"])
+    @auth_decorator
+    def api_disconnect_node(node_id):
+        """Disconnect a node from the fleet. Returns deployed agents to barracks."""
+        user_id = current_user.id
+        node = _get_node_for_user(node_id, user_id)
+        if not node:
+            return jsonify({"success": False, "error": "Node not found"}), 404
+
+        if node["deployment_mode"] == "starbase":
+            return jsonify({"success": False, "error": "Cannot disconnect the Starbase"}), 400
+
+        try:
+            node_db_id = node["id"]
+            with get_db_cursor(commit=True) as (conn, cur):
+                # Return deployed agents to barracks
+                cur.execute(
+                    """UPDATE agents SET shift_state = 'barracked'
+                       WHERE id IN (
+                           SELECT hub_agent_id FROM node_agents
+                           WHERE node_id = %s AND hub_agent_id IS NOT NULL
+                       ) AND shift_state = 'deployed'""",
+                    (node_db_id,),
+                )
+                returned = cur.rowcount
+
+                # Delete node agents
+                cur.execute("DELETE FROM node_agents WHERE node_id = %s", (node_db_id,))
+
+                # Delete station assignments
+                cur.execute(
+                    "DELETE FROM node_station_assignments WHERE node_id = %s",
+                    (node_db_id,),
+                )
+
+                # Delete heartbeat history
+                cur.execute("DELETE FROM node_heartbeats WHERE node_id = %s", (node_db_id,))
+
+                # Delete the node itself
+                cur.execute("DELETE FROM remote_nodes WHERE id = %s", (node_db_id,))
+
+                # Log notification
+                cur.execute(
+                    """INSERT INTO system_notifications (type, title, message, created_at)
+                       VALUES ('warning', 'Node Disconnected',
+                               %s, NOW())""",
+                    (f"Node {node['node_name']} disconnected from fleet. {returned} agents returned to barracks.",),
+                )
+
+            logger.info(f"Node {node['node_name']} disconnected — {returned} agents returned to barracks")
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f"Node disconnected. {returned} agents returned to barracks.",
+                    "agents_returned": returned,
+                }
+            )
+        except Exception as e:
+            logger.error(f"Failed to disconnect node {node_id}: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
 
 # ============================================================================
 # PRIVATE HELPERS (installer generators)

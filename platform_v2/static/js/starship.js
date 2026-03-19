@@ -6,6 +6,136 @@ var pendingConfig = null;
 var nodeConnectionPoller = null;
 var _opsSelectedNodeDbId = null;
 
+// ══════════════════════════════════════════════════════════════
+// BROWSER NODE CLIENT — no install, the browser IS the node
+// ══════════════════════════════════════════════════════════════
+var _browserNode = { active: false, nodeId: null, apiKey: null, interval: null, ollamaUrl: 'http://localhost:11434' };
+
+function browserNodeConnect() {
+    var statusEl = document.getElementById('browser-node-status');
+    var btnEl = document.getElementById('browser-node-btn');
+    if (_browserNode.active) { browserNodeDisconnect(); return; }
+
+    if (statusEl) statusEl.textContent = 'Detecting Ollama...';
+    if (btnEl) btnEl.disabled = true;
+
+    // Step 1: Check if Ollama is running locally
+    fetch(_browserNode.ollamaUrl + '/api/tags', { signal: AbortSignal.timeout(3000) })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        var modelCount = (data.models || []).length;
+        if (statusEl) statusEl.textContent = 'Ollama found (' + modelCount + ' models). Registering...';
+
+        // Step 2: Register with hub
+        return fetch('/tools/starbase/api/nodes/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                node_name: 'Browser-' + navigator.userAgent.split(/[()]/)[1].split(';')[0].trim().replace(/\s+/g, '-'),
+                deployment_mode: 'starship',
+                ram_gb: navigator.deviceMemory || 8,
+                cpu_cores: navigator.hardwareConcurrency || 4,
+                ollama_models: data.models || []
+            })
+        });
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(reg) {
+        if (!reg.success && !reg.node_id) { throw new Error(reg.error || 'Registration failed'); }
+        _browserNode.nodeId = reg.node_id;
+        _browserNode.apiKey = reg.api_key;
+        _browserNode.active = true;
+
+        // Save to localStorage so it survives page refresh
+        localStorage.setItem('archie_browser_node', JSON.stringify({ nodeId: reg.node_id, apiKey: reg.api_key }));
+
+        if (statusEl) statusEl.textContent = 'ONLINE — ' + reg.node_id;
+        if (statusEl) statusEl.style.color = '#22c55e';
+        if (btnEl) { btnEl.textContent = 'DISCONNECT'; btnEl.disabled = false; btnEl.style.background = '#ef4444'; }
+
+        // Step 3: Start heartbeat loop
+        _browserNodeHeartbeat();
+        _browserNode.interval = setInterval(_browserNodeHeartbeat, 30000);
+    })
+    .catch(function(err) {
+        if (statusEl) { statusEl.textContent = 'Failed: ' + err.message; statusEl.style.color = '#ef4444'; }
+        if (btnEl) { btnEl.disabled = false; }
+        if (err.message && err.message.indexOf('Ollama') === -1 && err.message.indexOf('fetch') === -1) return;
+        if (statusEl) statusEl.textContent = 'Ollama not found at localhost:11434. Is it running?';
+    });
+}
+
+function _browserNodeHeartbeat() {
+    if (!_browserNode.active || !_browserNode.nodeId) return;
+    var ollamaUrl = _browserNode.ollamaUrl;
+
+    // Collect metrics
+    Promise.all([
+        fetch(ollamaUrl + '/api/tags', { signal: AbortSignal.timeout(3000) }).then(function(r) { return r.json(); }).catch(function() { return { models: [] }; }),
+        fetch(ollamaUrl + '/api/ps', { signal: AbortSignal.timeout(3000) }).then(function(r) { return r.json(); }).catch(function() { return { models: [] }; })
+    ]).then(function(results) {
+        var tags = results[0];
+        var ps = results[1];
+        return fetch('/tools/starbase/api/nodes/' + _browserNode.nodeId + '/heartbeat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Node-API-Key': _browserNode.apiKey || '' },
+            body: JSON.stringify({
+                status: 'online',
+                client_version: 'browser-1.0',
+                ollama_online: true,
+                ollama_models: tags.models || [],
+                ram_gb: navigator.deviceMemory || 8,
+                cpu_cores: navigator.hardwareConcurrency || 4,
+                cpu_usage: 0,
+                memory_usage: 0,
+                gpu_usage: 0,
+                details: { hostname: location.hostname, userAgent: navigator.userAgent, type: 'browser_node' }
+            })
+        });
+    }).then(function(r) { return r.json(); }).then(function(resp) {
+        var el = document.getElementById('browser-node-status');
+        if (el && _browserNode.active) {
+            el.textContent = 'ONLINE — heartbeat OK';
+            el.style.color = '#22c55e';
+        }
+    }).catch(function() {
+        var el = document.getElementById('browser-node-status');
+        if (el) { el.textContent = 'Heartbeat failed — retrying...'; el.style.color = '#f59e0b'; }
+    });
+}
+
+function browserNodeDisconnect() {
+    _browserNode.active = false;
+    if (_browserNode.interval) clearInterval(_browserNode.interval);
+    _browserNode.interval = null;
+    localStorage.removeItem('archie_browser_node');
+    var statusEl = document.getElementById('browser-node-status');
+    var btnEl = document.getElementById('browser-node-btn');
+    if (statusEl) { statusEl.textContent = 'Disconnected'; statusEl.style.color = '#888'; }
+    if (btnEl) { btnEl.textContent = 'CONNECT THIS MACHINE'; btnEl.style.background = ''; btnEl.disabled = false; }
+}
+
+// Auto-resume browser node on page load
+(function() {
+    var saved = localStorage.getItem('archie_browser_node');
+    if (saved) {
+        try {
+            var data = JSON.parse(saved);
+            _browserNode.nodeId = data.nodeId;
+            _browserNode.apiKey = data.apiKey;
+            _browserNode.active = true;
+            _browserNodeHeartbeat();
+            _browserNode.interval = setInterval(_browserNodeHeartbeat, 30000);
+            setTimeout(function() {
+                var el = document.getElementById('browser-node-status');
+                var btn = document.getElementById('browser-node-btn');
+                if (el) { el.textContent = 'ONLINE — resumed'; el.style.color = '#22c55e'; }
+                if (btn) { btn.textContent = 'DISCONNECT'; btn.style.background = '#ef4444'; }
+            }, 500);
+        } catch(e) { localStorage.removeItem('archie_browser_node'); }
+    }
+})();
+
 // ── Hero Starbase Stats ──
 function _setLive(el, value, isLive) {
     if (!el) return;

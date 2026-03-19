@@ -2718,9 +2718,10 @@ function loadCodeHealth() {
       if (m.display_name) moduleDisplayNames[m.module_name] = m.display_name;
     });
 
+    window._chDisplayNames = moduleDisplayNames;
     _renderCodeHealthSummaryBar(statusData.summary || {});
     _renderCodeHealthStats(d);
-    _renderModuleChart(d.modules || {});
+    _renderModuleChart(d.modules || {}, moduleDisplayNames);
     _renderModuleTable(d.modules || {}, auditedModules, moduleStatusMap, moduleDisplayNames);
     _renderOrphanTable(d.orphans || {});
     _renderAuditTable(entries);
@@ -2800,9 +2801,10 @@ function _renderCodeHealthStats(d) {
   setHtml("chJsonLines", fmt(d.json ? d.json.lines : 0));
 }
 
-function _renderModuleChart(modules) {
+function _renderModuleChart(modules, displayNames) {
   var canvas = document.getElementById("chModuleChart");
   if (!canvas) return;
+  displayNames = displayNames || {};
 
   // Responsive: show fewer modules on mobile
   var maxBars = window.innerWidth < 480 ? 12 : window.innerWidth < 768 ? 18 : 25;
@@ -2828,7 +2830,7 @@ function _renderModuleChart(modules) {
   _chModuleChart = new Chart(canvas, {
     type: "bar",
     data: {
-      labels: names,
+      labels: names.map(function(n) { return displayNames[n] || n; }),
       datasets: [
         { label: "Python", data: pyData, backgroundColor: "rgba(139, 92, 246, 0.7)", borderWidth: 0 },
         { label: "HTML", data: htmlData, backgroundColor: "rgba(245, 158, 11, 0.7)", borderWidth: 0 },
@@ -2953,7 +2955,7 @@ window.chRunScan = function() {
   api("/api/code-health/scan", "POST").then(function(d) {
     if (d.success) {
       _renderCodeHealthStats(d.metrics);
-      _renderModuleChart(d.metrics.modules || {});
+      _renderModuleChart(d.metrics.modules || {}, {});
       // Re-fetch module status after scan to get fresh badges
       api("/api/code-health/module-status").then(function(statusData) {
         var moduleStatusMap = {};
@@ -3068,7 +3070,7 @@ function _renderAuditTable(entries) {
     var statusClass = e.status === "completed" ? "green" : e.status === "in_progress" ? "amber" : e.status === "known_issues" ? "amber" : e.status === "violations_found" ? "purple" : "";
     var rowStyle = e.status === "completed" ? "background:rgba(74,222,128,0.06);" : e.status === "known_issues" ? "background:rgba(245,158,11,0.06);" : "";
     html += '<tr style="touch-action:manipulation;' + rowStyle + '" data-audit-id="' + e.id + '">' +
-      '<td style="' + (e.status === "completed" ? "color:#4ade80;font-weight:600;" : "") + '">' + escHtml(e.module_name) + '</td>' +
+      '<td style="' + (e.status === "completed" ? "color:#4ade80;font-weight:600;" : "") + '">' + escHtml(window._chDisplayNames && window._chDisplayNames[e.module_name] || e.module_name) + '</td>' +
       '<td style="font-size:0.75rem; color:rgba(255,255,255,0.4);">' + escHtml(e.category || "") + '</td>' +
       '<td class="center">' + (e.files_reviewed || 0) + '</td>' +
       '<td class="center">' + (e.lines_before || 0).toLocaleString() + '</td>' +
@@ -3094,12 +3096,7 @@ function _renderAuditTable(entries) {
       showAuditDetail(parseInt(btn.getAttribute("data-audit-btn")));
       return;
     }
-    // Fall back to row click
-    var row = evt.target.closest("tr[data-audit-id]");
-    if (row) {
-      evt.preventDefault();
-      showAuditDetail(parseInt(row.getAttribute("data-audit-id")));
-    }
+    // Row click disabled — only badge button opens audit detail
   }
   el.addEventListener("click", _auditRowHandler);
   el.addEventListener("touchend", _auditRowHandler);
@@ -3118,7 +3115,8 @@ window.showAuditDetail = function(id) {
   var statusColor = entry.status === "completed" ? "#4ade80" : entry.status === "known_issues" ? "#f59e0b" : "#a78bfa";
   var delta = (entry.lines_after || 0) - (entry.lines_before || 0);
 
-  title.textContent = entry.module_name + " — AUDIT REPORT";
+  var displayName = window._chDisplayNames && window._chDisplayNames[entry.module_name] || entry.module_name;
+  title.textContent = displayName + " — AUDIT REPORT";
 
   var h = '<div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">';
   h += '<div style="background:rgba(139,92,246,0.08); padding:10px; border-radius:6px; border-left:3px solid #8b5cf6;">';

@@ -512,6 +512,99 @@
         color: rgba(255, 255, 255, 0.25);
     }
 
+    /* ── Connected Services ─────────────────────────────── */
+    .conn-account-card {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 14px 16px;
+        background: rgba(59, 130, 246, 0.04);
+        border: 1px solid rgba(59, 130, 246, 0.1);
+        border-left: 3px solid rgba(59, 130, 246, 0.3);
+        border-radius: 0 8px 8px 0;
+        margin-bottom: 10px;
+    }
+
+    .conn-account-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 1.1rem;
+    }
+
+    .conn-account-icon.google { background: rgba(66, 133, 244, 0.15); color: #4285f4; }
+    .conn-account-icon.telegram { background: rgba(0, 136, 204, 0.15); color: #0088cc; }
+
+    .conn-account-details { flex: 1; min-width: 0; }
+
+    .conn-account-email {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.85rem;
+        color: rgba(255, 255, 255, 0.85);
+    }
+
+    .conn-account-meta {
+        font-family: 'Antonio', sans-serif;
+        font-size: 0.62rem;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.3);
+        margin-top: 2px;
+    }
+
+    .conn-service-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 10px;
+        border-radius: 10px;
+        font-family: 'Antonio', sans-serif;
+        font-size: 0.68rem;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }
+
+    .conn-service-badge.connected {
+        background: rgba(0, 255, 65, 0.08);
+        color: #00ff41;
+        border: 1px solid rgba(0, 255, 65, 0.2);
+    }
+
+    .conn-service-badge.disconnected {
+        background: rgba(255, 255, 255, 0.03);
+        color: rgba(255, 255, 255, 0.25);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .conn-manage-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 12px;
+        font-family: 'Antonio', sans-serif;
+        font-size: 0.72rem;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: rgba(59, 130, 246, 0.7);
+        text-decoration: none;
+        transition: color 0.2s;
+    }
+
+    .conn-manage-link:hover { color: #3b82f6; }
+
+    .conn-not-connected {
+        padding: 16px;
+        text-align: center;
+        color: rgba(255, 255, 255, 0.3);
+        font-family: 'Antonio', sans-serif;
+        font-size: 0.78rem;
+        letter-spacing: 1px;
+    }
+
     /* ── Section Dividers ────────────────────────────────── */
     .profile-section {
         margin-bottom: 28px;
@@ -578,6 +671,32 @@
             font-size: 1rem;
         }
     }
+
+    /* ── Preferences Toggle ─────────────────────────────── */
+    .prefs-form { display: flex; flex-direction: column; gap: 10px; max-width: 440px; }
+    .pref-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: rgba(59,130,246,0.04); border: 1px solid rgba(59,130,246,0.1); border-left: 3px solid rgba(59,130,246,0.3); border-radius: 0 8px 8px 0; }
+    .pref-label { font-family: 'Antonio', sans-serif; font-size: 0.78rem; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.7); }
+    .pref-toggle { position: relative; width: 40px; height: 22px; cursor: pointer; }
+    .pref-toggle input { opacity: 0; width: 0; height: 0; }
+    .pref-slider { position: absolute; inset: 0; background: rgba(255,255,255,0.1); border-radius: 11px; transition: background 0.2s; }
+    .pref-slider::before { content: ''; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: rgba(255,255,255,0.5); transition: transform 0.2s, background 0.2s; }
+    .pref-toggle input:checked + .pref-slider { background: rgba(59,130,246,0.4); }
+    .pref-toggle input:checked + .pref-slider::before { transform: translateX(18px); background: #3b82f6; }
+    .pref-lang-btn { padding: 6px 14px; border: 1px solid rgba(59,130,246,0.2); background: rgba(59,130,246,0.04); border-radius: 6px; color: rgba(255,255,255,0.5); font-family: 'Antonio', sans-serif; font-size: 0.72rem; letter-spacing: 1px; cursor: pointer; transition: all 0.2s; }
+    .pref-lang-btn:hover { background: rgba(59,130,246,0.1); color: rgba(255,255,255,0.8); }
+    .pref-lang-btn.active { background: rgba(59,130,246,0.15); border-color: rgba(59,130,246,0.5); color: #3b82f6; }
+
+    /* ── Activity Log ────────────────────────────────────── */
+    .act-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(59,130,246,0.06); }
+    .act-item:last-child { border-bottom: none; }
+    .act-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .act-icon.session { background: rgba(59,130,246,0.1); color: #3b82f6; }
+    .act-icon.failed { background: rgba(239,68,68,0.1); color: #ef4444; }
+    .act-icon svg, .act-icon i { width: 16px; height: 16px; }
+    .act-details { flex: 1; min-width: 0; }
+    .act-primary { font-family: 'Antonio', sans-serif; font-size: 0.78rem; letter-spacing: 0.8px; color: rgba(255,255,255,0.85); }
+    .act-secondary { font-size: 0.7rem; color: rgba(255,255,255,0.35); margin-top: 2px; }
+    .act-time { font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem; color: rgba(255,255,255,0.25); white-space: nowrap; flex-shrink: 0; }
 </style>
 {% endblock %}
 
@@ -649,8 +768,17 @@
                     <button class="profile-nav-btn" data-tab="modules" onclick="switchProfileTab('modules')">
                         <i data-lucide="grid-3x3" style="width:14px;height:14px"></i> Modules
                     </button>
+                    <button class="profile-nav-btn" data-tab="connections" onclick="switchProfileTab('connections')">
+                        <i data-lucide="link" style="width:14px;height:14px"></i> Connected Services
+                    </button>
                     <button class="profile-nav-btn" data-tab="notifications" onclick="switchProfileTab('notifications')">
                         <i data-lucide="bell" style="width:14px;height:14px"></i> Notifications
+                    </button>
+                    <button class="profile-nav-btn" data-tab="preferences" onclick="switchProfileTab('preferences')">
+                        <i data-lucide="sliders-horizontal" style="width:14px;height:14px"></i> Preferences
+                    </button>
+                    <button class="profile-nav-btn" data-tab="activity" onclick="switchProfileTab('activity')">
+                        <i data-lucide="history" style="width:14px;height:14px"></i> Activity
                     </button>
                 </div>
 
@@ -810,12 +938,78 @@
                     </div>
                 </div>
 
+                <!-- ═══ TAB: Connected Services ═══ -->
+                <div class="profile-tab" id="tab-connections">
+                    <div class="profile-section">
+                        <div class="profile-section-title">Google Account</div>
+                        <div id="googleAccountSection">
+                            <div class="notif-empty">Loading...</div>
+                        </div>
+                    </div>
+                    <div class="profile-section">
+                        <div class="profile-section-title">Connected Services</div>
+                        <div class="profile-info-grid" id="servicesGrid">
+                            <div class="notif-empty" style="grid-column:1/-1;">Loading...</div>
+                        </div>
+                    </div>
+                    <div class="profile-section">
+                        <div class="profile-section-title">Telegram</div>
+                        <div id="telegramSection">
+                            <div class="notif-empty">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- ═══ TAB: Notifications ═══ -->
                 <div class="profile-tab" id="tab-notifications">
                     <div class="profile-section">
                         <div class="profile-section-title">Recent Notifications <span id="notifCount" style="color: rgba(255,255,255,0.3); font-size: 0.65rem; letter-spacing: 0.5px;"></span></div>
                         <div id="notifList">
                             <div class="notif-empty">Loading notifications...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ TAB: Preferences ═══ -->
+                <div class="profile-tab" id="tab-preferences">
+                    <div class="profile-section">
+                        <div class="profile-section-title">Notification Preferences</div>
+                        <div id="prefsForm" class="prefs-form">
+                            <div class="notif-empty">Loading preferences...</div>
+                        </div>
+                    </div>
+                    <div class="profile-section">
+                        <div class="profile-section-title">Language</div>
+                        <div id="prefsLang" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+                    </div>
+                    <div id="prefsMsg" class="form-msg" style="margin-top:12px;"></div>
+                </div>
+
+                <!-- ═══ TAB: Activity ═══ -->
+                <div class="profile-tab" id="tab-activity">
+                    <div class="profile-section">
+                        <div class="profile-section-title">Last Login</div>
+                        <div class="profile-info-grid" id="activityLastLogin">
+                            <div class="profile-info-card">
+                                <div class="profile-info-label">Time</div>
+                                <div class="profile-info-value" id="actLastLoginTime">---</div>
+                            </div>
+                            <div class="profile-info-card">
+                                <div class="profile-info-label">IP Address</div>
+                                <div class="profile-info-value" id="actLastLoginIp">---</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="profile-section">
+                        <div class="profile-section-title">Active Sessions</div>
+                        <div id="actSessionsList">
+                            <div class="notif-empty">Loading sessions...</div>
+                        </div>
+                    </div>
+                    <div class="profile-section">
+                        <div class="profile-section-title">Failed Login Attempts</div>
+                        <div id="actFailedList">
+                            <div class="notif-empty">Loading...</div>
                         </div>
                     </div>
                 </div>
@@ -1214,9 +1408,145 @@
         });
     };
 
+    // ── Connected Services ────────────────────────────
+    function loadConnectedServices() {
+        fetch('/tools/my-profile/api/profile/connected-services')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                renderGoogleAccount(data.google_accounts || []);
+                renderServices(data.google_accounts || []);
+                renderTelegram(data.telegram || {});
+            })
+            .catch(function(e) {
+                console.error('[Profile] Connected services failed:', e);
+            });
+    }
+
+    function renderGoogleAccount(accounts) {
+        var section = document.getElementById('googleAccountSection');
+        section.textContent = '';
+
+        if (!accounts.length) {
+            var wrap = el('div', 'conn-not-connected', 'No Google account connected');
+            section.appendChild(wrap);
+            var link = document.createElement('a');
+            link.className = 'conn-manage-link';
+            link.href = '/tools/google-work-suite/';
+            link.style.cssText = 'display:block; text-align:center; margin-top:8px;';
+            var linkIcon = document.createElement('i');
+            linkIcon.setAttribute('data-lucide', 'plus-circle');
+            linkIcon.style.cssText = 'width:14px;height:14px;';
+            link.appendChild(linkIcon);
+            link.appendChild(document.createTextNode(' Connect Google Account'));
+            section.appendChild(link);
+            if (window.lucide) lucide.createIcons();
+            return;
+        }
+
+        accounts.forEach(function(acct) {
+            var card = el('div', 'conn-account-card');
+
+            var icon = el('div', 'conn-account-icon google');
+            var iconI = document.createElement('i');
+            iconI.setAttribute('data-lucide', 'mail');
+            iconI.style.cssText = 'width:18px;height:18px;';
+            icon.appendChild(iconI);
+            card.appendChild(icon);
+
+            var details = el('div', 'conn-account-details');
+            details.appendChild(el('div', 'conn-account-email', acct.email));
+            details.appendChild(el('div', 'conn-account-meta', 'Connected ' + formatDate(acct.connected_at) + (acct.last_sync ? ' \u2022 Last sync ' + formatDate(acct.last_sync) : '')));
+            card.appendChild(details);
+
+            section.appendChild(card);
+        });
+
+        var manageLink = document.createElement('a');
+        manageLink.className = 'conn-manage-link';
+        manageLink.href = '/tools/google-work-suite/';
+        var mIcon = document.createElement('i');
+        mIcon.setAttribute('data-lucide', 'settings');
+        mIcon.style.cssText = 'width:14px;height:14px;';
+        manageLink.appendChild(mIcon);
+        manageLink.appendChild(document.createTextNode(' Manage in Google Work Suite'));
+        section.appendChild(manageLink);
+
+        if (window.lucide) lucide.createIcons();
+    }
+
+    function renderServices(accounts) {
+        var grid = document.getElementById('servicesGrid');
+        grid.textContent = '';
+
+        var hasAny = accounts.length > 0;
+        var hasGmail = hasAny && accounts.some(function(a) { return a.has_gmail; });
+        var hasCal = hasAny && accounts.some(function(a) { return a.has_calendar; });
+        var hasDrive = hasAny && accounts.some(function(a) { return a.has_drive; });
+
+        var services = [
+            { name: 'Gmail', icon: 'mail', connected: hasGmail },
+            { name: 'Calendar', icon: 'calendar', connected: hasCal },
+            { name: 'Drive', icon: 'hard-drive', connected: hasDrive }
+        ];
+
+        services.forEach(function(svc) {
+            var card = el('div', 'profile-info-card');
+            card.style.display = 'flex';
+            card.style.alignItems = 'center';
+            card.style.justifyContent = 'space-between';
+
+            var left = el('div');
+            left.style.cssText = 'display:flex;align-items:center;gap:10px;';
+            var svcIcon = document.createElement('i');
+            svcIcon.setAttribute('data-lucide', svc.icon);
+            svcIcon.style.cssText = 'width:16px;height:16px;color:rgba(59,130,246,0.6);';
+            left.appendChild(svcIcon);
+            left.appendChild(el('span', 'profile-info-value', svc.name));
+            card.appendChild(left);
+
+            var badge = el('span', 'conn-service-badge ' + (svc.connected ? 'connected' : 'disconnected'), svc.connected ? 'Connected' : 'Not Connected');
+            card.appendChild(badge);
+
+            grid.appendChild(card);
+        });
+
+        if (window.lucide) lucide.createIcons();
+    }
+
+    function renderTelegram(tg) {
+        var section = document.getElementById('telegramSection');
+        section.textContent = '';
+
+        if (tg.connected) {
+            var card = el('div', 'conn-account-card');
+
+            var icon = el('div', 'conn-account-icon telegram');
+            var iconI = document.createElement('i');
+            iconI.setAttribute('data-lucide', 'send');
+            iconI.style.cssText = 'width:18px;height:18px;';
+            icon.appendChild(iconI);
+            card.appendChild(icon);
+
+            var details = el('div', 'conn-account-details');
+            details.appendChild(el('div', 'conn-account-email', '@' + (tg.username || 'connected')));
+            details.appendChild(el('div', 'conn-account-meta', 'Authorized'));
+            card.appendChild(details);
+
+            var badge = el('span', 'conn-service-badge connected', 'Connected');
+            card.appendChild(badge);
+
+            section.appendChild(card);
+        } else {
+            section.appendChild(el('div', 'conn-not-connected', 'No Telegram account linked'));
+        }
+
+        if (window.lucide) lucide.createIcons();
+    }
+
     // ── Init ──────────────────────────────────────────
     loadProfile();
     loadNotifications();
+    loadConnectedServices();
     loadActiveTheme();
 })();
 </script>

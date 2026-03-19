@@ -250,6 +250,74 @@ VALID_THEMES = [
 ]
 
 
+# ============================================================================
+# CONNECTED SERVICES API
+# ============================================================================
+
+
+@user_profile_bp.route("/api/profile/connected-services")
+@login_required
+def get_connected_services():
+    """Return connected Google accounts and Telegram status for current user."""
+    user_id = current_user.id
+    result = {
+        "google_accounts": [],
+        "telegram": {"connected": False, "username": None},
+        "total_connected": 0,
+    }
+
+    with get_db_connection(cursor_factory=RealDictCursor) as conn:
+        with conn.cursor() as cur:
+            # Google accounts
+            cur.execute(
+                """SELECT id, email, scopes, created_at, last_sync_at
+                   FROM google_accounts
+                   WHERE owner_type = 'user' AND owner_id = %s
+                   ORDER BY created_at DESC""",
+                (user_id,),
+            )
+            for row in cur.fetchall():
+                scopes = row.get("scopes") or []
+                if isinstance(scopes, str):
+                    scopes = [s.strip() for s in scopes.split(",") if s.strip()]
+                result["google_accounts"].append(
+                    {
+                        "email": row["email"],
+                        "connected_at": row["created_at"].isoformat() if row["created_at"] else None,
+                        "last_sync": row["last_sync_at"].isoformat() if row.get("last_sync_at") else None,
+                        "scopes": scopes,
+                        "has_gmail": any("gmail" in s or "mail" in s for s in scopes),
+                        "has_calendar": any("calendar" in s for s in scopes),
+                        "has_drive": any("drive" in s for s in scopes),
+                    }
+                )
+
+            # Telegram
+            cur.execute(
+                """SELECT telegram_username, first_name, is_authorized
+                   FROM telegram_users
+                   WHERE user_id = %s
+                   LIMIT 1""",
+                (user_id,),
+            )
+            tg_row = cur.fetchone()
+            if tg_row and tg_row.get("is_authorized"):
+                result["telegram"] = {
+                    "connected": True,
+                    "username": tg_row.get("telegram_username") or tg_row.get("first_name"),
+                }
+
+    # Count total connected services
+    total = 0
+    if result["google_accounts"]:
+        total += 1  # Google counts as one service
+    if result["telegram"]["connected"]:
+        total += 1
+    result["total_connected"] = total
+
+    return jsonify(result)
+
+
 @user_profile_bp.route("/api/user/theme")
 @login_required
 def get_user_theme():
@@ -310,3 +378,204 @@ def set_user_theme():
     current_user.theme_preference = theme
 
     return jsonify({"success": True, "theme": theme})
+
+
+# ============================================================================
+# PREFERENCES API (Task #880)
+# ============================================================================
+
+
+@user_profile_bp.route("/api/preferences")
+@login_required
+def get_preferences():
+    """Get user notification preferences and language preference."""
+    prefs = {
+        "email_enabled": True,
+        "security_alerts": True,
+        "system_updates": True,
+        "user_approvals": True,
+        "failed_logins": True,
+        "language": "en",
+    }
+
+    try:
+        with get_db_connection(cursor_factory=RealDictCursor) as conn:
+            with conn.cursor() as cur:
+                # Notification preferences
+                cur.execute(
+                    "SELECT email_enabled, security_alerts, system_updates, user_approvals, failed_logins FROM notification_preferences WHERE user_id = %s",
+                    (current_user.id,),
+                )
+                row = cur.fetchone()
+                if row:
+                    prefs.update(row)
+
+                # Language preference
+                cur.execute(
+                    "SELECT language_code FROM user_language_preferences WHERE user_id = %s",
+                    (current_user.id,),
+                )
+                lang_row = cur.fetchone()
+                if lang_row:
+                    prefs["language"] = lang_row["language_code"]
+    except Exception:
+        pass
+
+    return jsonify({"success": True, "preferences": prefs})
+
+
+@user_profile_bp.route("/api/preferences", methods=["PUT"])
+@login_required
+def update_preferences():
+    """Update user notification preferences and/or language."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "error": "No data provided"}), 400
+
+    try:
+        with get_db_connection(cursor_factory=RealDictCursor) as conn:
+            with conn.cursor() as cur:
+                # Notification preferences — upsert
+                notif_fields = [
+                    "email_enabled",
+                    "security_alerts",
+                    "system_updates",
+                    "user_approvals",
+                    "failed_logins",
+                ]
+                notif_data = {k: bool(v) for k, v in data.items() if k in notif_fields}
+                if notif_data:
+                    cur.execute(
+                        "SELECT id FROM notification_preferences WHERE user_id = %s",
+                        (current_user.id,),
+                    )
+                    if cur.fetchone():
+                        sets = ", ".join(f"{k} = %s" for k in notif_data.keys())
+                        cur.execute(
+                            f"UPDATE notification_preferences SET {sets} WHERE user_id = %s",
+                            list(notif_data.values()) + [current_user.id],
+                        )
+                    else:
+                        cols = ", ".join(["user_id"] + list(notif_data.keys()))
+                        placeholders = ", ".join(["%s"] * (len(notif_data) + 1))
+                        cur.execute(
+                            f"INSERT INTO notification_preferences ({cols}) VALUES ({placeholders})",
+                            [current_user.id] + list(notif_data.values()),
+                        )
+
+                # Language preference — upsert
+                if "language" in data:
+                    lang = data["language"]
+                    cur.execute(
+                        """INSERT INTO user_language_preferences (user_id, language_code)
+                           VALUES (%s, %s)
+                           ON CONFLICT (user_id) DO UPDATE SET language_code = EXCLUDED.language_code""",
+                        (current_user.id, lang),
+                    )
+
+                conn.commit()
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+    return jsonify({"success": True, "message": "Preferences updated"})
+
+
+# ============================================================================
+# ACTIVITY LOG API (Task #881)
+# ============================================================================
+
+
+@user_profile_bp.route("/api/activity")
+@login_required
+def get_activity():
+    """Get recent login sessions and failed login attempts for the current user."""
+    activity = {
+        "last_login": None,
+        "last_login_ip": None,
+        "active_sessions": [],
+        "failed_logins": [],
+    }
+
+    try:
+        with get_db_connection(cursor_factory=RealDictCursor) as conn:
+            with conn.cursor() as cur:
+                # Last login info from users table
+                cur.execute(
+                    "SELECT last_login, last_login_ip FROM users WHERE id = %s",
+                    (current_user.id,),
+                )
+                user_row = cur.fetchone()
+                if user_row:
+                    activity["last_login"] = user_row["last_login"].isoformat() if user_row["last_login"] else None
+                    activity["last_login_ip"] = user_row["last_login_ip"]
+
+                # Active sessions
+                cur.execute(
+                    """SELECT ip_address, user_agent, created_at, last_activity
+                       FROM active_sessions
+                       WHERE user_id = %s
+                       ORDER BY last_activity DESC
+                       LIMIT 20""",
+                    (current_user.id,),
+                )
+                for row in cur.fetchall():
+                    activity["active_sessions"].append(
+                        {
+                            "ip_address": row["ip_address"],
+                            "user_agent": _shorten_ua(row["user_agent"]),
+                            "created_at": (row["created_at"].isoformat() if row["created_at"] else None),
+                            "last_activity": (row["last_activity"].isoformat() if row["last_activity"] else None),
+                        }
+                    )
+
+                # Recent failed logins (match by username)
+                username = current_user.username
+                cur.execute(
+                    """SELECT ip_address, user_agent, attempted_at, reason
+                       FROM failed_logins
+                       WHERE LOWER(username) = LOWER(%s)
+                       ORDER BY attempted_at DESC
+                       LIMIT 10""",
+                    (username,),
+                )
+                for row in cur.fetchall():
+                    activity["failed_logins"].append(
+                        {
+                            "ip_address": row["ip_address"],
+                            "user_agent": _shorten_ua(row["user_agent"]),
+                            "attempted_at": (row["attempted_at"].isoformat() if row["attempted_at"] else None),
+                            "reason": row["reason"],
+                        }
+                    )
+    except Exception:
+        pass
+
+    return jsonify({"success": True, "activity": activity})
+
+
+def _shorten_ua(ua):
+    """Extract a short browser/OS label from a user-agent string."""
+    if not ua:
+        return "Unknown"
+    ua_lower = ua.lower()
+    browser = "Browser"
+    if "firefox" in ua_lower:
+        browser = "Firefox"
+    elif "edg" in ua_lower:
+        browser = "Edge"
+    elif "chrome" in ua_lower:
+        browser = "Chrome"
+    elif "safari" in ua_lower:
+        browser = "Safari"
+    os_name = "OS"
+    if "windows" in ua_lower:
+        os_name = "Windows"
+    elif "mac" in ua_lower:
+        os_name = "macOS"
+    elif "linux" in ua_lower:
+        os_name = "Linux"
+    elif "android" in ua_lower:
+        os_name = "Android"
+    elif "iphone" in ua_lower or "ipad" in ua_lower:
+        os_name = "iOS"
+    return f"{browser} / {os_name}"

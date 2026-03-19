@@ -160,10 +160,62 @@
             bodyEl.appendChild(spCard);
         }
 
-        /* ── 4. Portrait Prompt ──────────────────────────────────── */
+        /* ── 4. Portrait Prompt + Generate Button ──────────────── */
         if (a.avatar_generation_prompt) {
             var ppCard = makeCard('Portrait Prompt', '#f472b6');
             ppCard.appendChild(el('div', { text: a.avatar_generation_prompt, style: "font-size:0.72rem;color:rgba(255,255,255,0.55);line-height:1.4;font-family:'IBM Plex Mono',monospace;background:rgba(0,0,0,0.3);padding:8px;border-radius:4px;max-height:80px;overflow-y:auto;" }));
+
+            // Generate Portrait button
+            var genRow = document.createElement('div');
+            genRow.style.cssText = 'display:flex;gap:8px;margin-top:8px;align-items:center;';
+
+            var genBtn = document.createElement('button');
+            genBtn.className = 'bm-btn';
+            genBtn.style.cssText = 'background:rgba(244,114,182,0.15);border:1px solid rgba(244,114,182,0.4);color:#f472b6;font-size:0.7rem;padding:4px 12px;cursor:pointer;';
+            genBtn.textContent = '\uD83C\uDFA8 Generate Portrait';
+            var genStatus = document.createElement('span');
+            genStatus.style.cssText = 'font-size:0.65rem;color:rgba(255,255,255,0.4);';
+
+            genBtn.onclick = function() {
+                genBtn.disabled = true;
+                genBtn.textContent = 'Generating...';
+                genStatus.textContent = 'Dispatching to Pixel via ComfyUI...';
+
+                fetch('/tools/media-studio/api/portraits/' + agentId + '/generate-canonical', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: a.avatar_generation_prompt })
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(result) {
+                    if (result.error) {
+                        genStatus.textContent = 'Failed: ' + result.error;
+                        genStatus.style.color = '#ef4444';
+                    } else {
+                        genStatus.textContent = 'Portrait generated! Refresh to see.';
+                        genStatus.style.color = '#4ade80';
+                        // Update the portrait image if visible
+                        if (result.image_path) {
+                            var img = bodyEl.querySelector('.crew-profile-portrait');
+                            if (img) { img.src = result.image_path; img.style.display = ''; }
+                            var fb = bodyEl.querySelector('.crew-profile-portrait-fallback');
+                            if (fb) fb.style.display = 'none';
+                        }
+                    }
+                    genBtn.disabled = false;
+                    genBtn.textContent = '\uD83C\uDFA8 Generate Portrait';
+                })
+                .catch(function(err) {
+                    genStatus.textContent = 'Error: ' + err;
+                    genStatus.style.color = '#ef4444';
+                    genBtn.disabled = false;
+                    genBtn.textContent = '\uD83C\uDFA8 Generate Portrait';
+                });
+            };
+
+            genRow.appendChild(genBtn);
+            genRow.appendChild(genStatus);
+            ppCard.appendChild(genRow);
             bodyEl.appendChild(ppCard);
         }
 

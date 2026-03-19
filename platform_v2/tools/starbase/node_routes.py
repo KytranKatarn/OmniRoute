@@ -294,6 +294,7 @@ def register_node_routes(bp, admin_required):
         return jsonify({"success": False, "error": "Sync service script not found"}), 404
 
     @bp.route("/api/nodes/Dockerfile.node", methods=["GET"])
+    @login_required
     def get_node_dockerfile():
         """Serve the node Dockerfile"""
         script_path = "/mnt/archie_brain/node_client/Dockerfile.node"
@@ -310,6 +311,7 @@ def register_node_routes(bp, admin_required):
         return jsonify({"success": False, "error": "Dockerfile.node not found"}), 404
 
     @bp.route("/api/nodes/node_api.py", methods=["GET"])
+    @login_required
     def get_node_api_service():
         """Serve the node API service script"""
         script_path = "/mnt/archie_brain/node_client/node_api.py"
@@ -326,6 +328,7 @@ def register_node_routes(bp, admin_required):
         return jsonify({"success": False, "error": "node_api.py not found"}), 404
 
     @bp.route("/api/nodes/migrations/<filename>", methods=["GET"])
+    @login_required
     def get_node_migration(filename):
         """Serve node migration SQL files"""
         import re

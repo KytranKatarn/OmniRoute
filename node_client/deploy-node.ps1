@@ -164,7 +164,7 @@ if ($envContent -match 'HUB_URL=(.+)') {
 else {
     $DownloadBase = $HubUrl
 }
-$ApiBase = "$DownloadBase/tools/bridge/api/nodes"
+$ApiBase = "$DownloadBase/tools/starbase/api/nodes"
 
 Write-Host ""
 Write-Host "Downloading files from $DownloadBase ..." -ForegroundColor Cyan

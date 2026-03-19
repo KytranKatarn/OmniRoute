@@ -1,6 +1,6 @@
 # =============================================================================
 # A.R.C.H.I.E. Node Client - Windows Update Script
-# Usage: iwr -useb http://192.168.1.200:3000/tools/bridge/api/nodes/update.ps1 | iex
+# Usage: iwr -useb http://192.168.1.200:3000/tools/starbase/api/nodes/update.ps1 | iex
 # =============================================================================
 
 & {
@@ -43,7 +43,7 @@ if (-not $isAdmin) {
 if (-not (Test-Path "$ARCHIE_DIR\config.json")) {
     Write-Fail "No existing install found at $ARCHIE_DIR\config.json"
     Write-Host "  Run the full installer instead:" -ForegroundColor Yellow
-    Write-Host "  iwr -useb $ARCHIE_BASE_URL/tools/bridge/api/nodes/install.ps1 | iex" -ForegroundColor Yellow
+    Write-Host "  iwr -useb $ARCHIE_BASE_URL/tools/starbase/api/nodes/install.ps1 | iex" -ForegroundColor Yellow
     return
 }
 
@@ -60,7 +60,7 @@ Write-Step "Current version: v$currentVer"
 Write-Step "Downloading latest heartbeat.ps1..."
 $newPath = "$env:TEMP\heartbeat-update.ps1"
 try {
-    Invoke-WebRequest -Uri "$ARCHIE_BASE_URL/tools/bridge/api/nodes/heartbeat.ps1" `
+    Invoke-WebRequest -Uri "$ARCHIE_BASE_URL/tools/starbase/api/nodes/heartbeat.ps1" `
         -OutFile $newPath -UseBasicParsing -TimeoutSec 30
 } catch {
     Write-Fail "Download failed: $_"

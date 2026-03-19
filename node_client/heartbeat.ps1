@@ -165,7 +165,7 @@ $script:LastHeartbeatResponse = $null
 function Send-Heartbeat {
     param($Config, $Metrics)
 
-    $url = "$($Config.server_url)/tools/bridge/api/nodes/$($Config.node_id)/heartbeat"
+    $url = "$($Config.server_url)/tools/starbase/api/nodes/$($Config.node_id)/heartbeat"
     $headers = @{
         "X-Node-API-Key" = $Config.api_key
         "Content-Type"   = "application/json"
@@ -203,7 +203,7 @@ function Invoke-SelfUpdate {
 
     try {
         # Download the heartbeat script directly
-        $scriptUrl = "$($Config.server_url)/tools/bridge/api/nodes/heartbeat.ps1"
+        $scriptUrl = "$($Config.server_url)/tools/starbase/api/nodes/heartbeat.ps1"
         $newScript = "$updateDir\heartbeat.ps1"
         Invoke-WebRequest -Uri $scriptUrl -OutFile $newScript -TimeoutSec 60 -ErrorAction Stop
 

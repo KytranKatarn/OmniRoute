@@ -453,7 +453,7 @@ def _get_agent_welfare():
 def send_heartbeat(config):
     """
     POST heartbeat with metrics to the Hub.
-    Endpoint: /tools/bridge/api/nodes/{node_id}/heartbeat
+    Endpoint: /tools/starbase/api/nodes/{node_id}/heartbeat
     """
     cpu = get_cpu_usage()
     mem = get_memory_usage()
@@ -510,7 +510,7 @@ def send_heartbeat(config):
     if agent_welfare:
         payload["agent_welfare"] = agent_welfare
 
-    url = f"{config['hub_url']}/tools/bridge/api/nodes/{config['node_id']}/heartbeat"
+    url = f"{config['hub_url']}/tools/starbase/api/nodes/{config['node_id']}/heartbeat"
     status, resp = http_post(url, payload, _auth_headers(config))
 
     if 200 <= status < 300:
@@ -531,13 +531,13 @@ def send_heartbeat(config):
 def report_version(config):
     """
     POST code version to the Hub on startup.
-    Endpoint: /tools/bridge/api/mesh/version
+    Endpoint: /tools/starbase/api/mesh/version
     """
     payload = {
         "node_id": config["node_id"],
         "version": config["archie_version"],
     }
-    url = f"{config['hub_url']}/tools/bridge/api/mesh/version"
+    url = f"{config['hub_url']}/tools/starbase/api/mesh/version"
     status, resp = http_post(url, payload, _auth_headers(config))
 
     if 200 <= status < 300:
@@ -551,9 +551,9 @@ def report_version(config):
 def poll_syncs(config):
     """
     GET pending sync commands from the Hub and process each one.
-    Endpoint: /tools/bridge/api/mesh/sync/{node_id}/pending
+    Endpoint: /tools/starbase/api/mesh/sync/{node_id}/pending
     """
-    url = f"{config['hub_url']}/tools/bridge/api/mesh/sync/{config['node_id']}/pending"
+    url = f"{config['hub_url']}/tools/starbase/api/mesh/sync/{config['node_id']}/pending"
     status, resp = http_get(url, _auth_headers(config))
 
     if status != 200:
@@ -586,7 +586,7 @@ def poll_syncs(config):
             error_message = str(exc)
 
         # Acknowledge the sync (include handler output for job results)
-        ack_url = f"{config['hub_url']}/tools/bridge/api/mesh/sync/{sync_id}/ack"
+        ack_url = f"{config['hub_url']}/tools/starbase/api/mesh/sync/{sync_id}/ack"
         ack_payload = {
             "node_id": config["node_id"],
             "status": ack_status,
@@ -710,7 +710,7 @@ def _handle_code_update(config, payload):
 
     # --- Download updated Python files ---
     for fname in files:
-        url = f"{hub_url}/tools/bridge/api/nodes/{fname}"
+        url = f"{hub_url}/tools/starbase/api/nodes/{fname}"
         logger.info("[code_update] Downloading %s", fname)
         status, resp = http_get(url, headers)
         if status == 200:
@@ -734,7 +734,7 @@ def _handle_code_update(config, payload):
 
     # --- Download and apply migrations ---
     for mig_name in migrations:
-        url = f"{hub_url}/tools/bridge/api/nodes/migrations/{mig_name}"
+        url = f"{hub_url}/tools/starbase/api/nodes/migrations/{mig_name}"
         logger.info("[code_update] Downloading migration %s", mig_name)
         status, resp = http_get(url, headers)
         if status == 200:

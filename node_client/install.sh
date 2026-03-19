@@ -7,8 +7,8 @@ set -e
 # =============================================================================
 
 ARCHIE_BASE_URL="http://192.168.1.200:3000"
-REGISTER_ENDPOINT="/tools/bridge/api/nodes/register"
-STATUS_ENDPOINT="/tools/bridge/api/nodes"
+REGISTER_ENDPOINT="/tools/starbase/api/nodes/register"
+STATUS_ENDPOINT="/tools/starbase/api/nodes"
 CLIENT_VERSION="1.0.0"
 STARTER_MODELS=("qwen2.5:7b" "llama3.2:3b")
 
@@ -280,7 +280,7 @@ NODE_ID=$(grep -o '"node_id"[[:space:]]*:[[:space:]]*"[^"]*"' "$CONFIG_FILE" | h
 API_KEY=$(grep -o '"api_key"[[:space:]]*:[[:space:]]*"[^"]*"' "$CONFIG_FILE" | head -1 | cut -d'"' -f4)
 BASE_URL="http://192.168.1.200:3000"
 while true; do
-    curl -s -X POST "${BASE_URL}/tools/bridge/api/nodes/${NODE_ID}/heartbeat" \
+    curl -s -X POST "${BASE_URL}/tools/starbase/api/nodes/${NODE_ID}/heartbeat" \
         -H "Content-Type: application/json" \
         -H "X-Node-API-Key: ${API_KEY}" \
         -d '{"status":"online"}' > /dev/null 2>&1
@@ -414,37 +414,37 @@ install_docker_stack() {
     info "Deployment directory: ${DEPLOY_DIR}"
 
     # --- Download docker-compose.node.yml ---
-    COMPOSE_URL="${ARCHIE_BASE_URL}/tools/bridge/api/nodes/docker-compose.node.yml"
+    COMPOSE_URL="${ARCHIE_BASE_URL}/tools/starbase/api/nodes/docker-compose.node.yml"
     info "Downloading docker-compose.node.yml from ${COMPOSE_URL}..."
     curl -fsSL "${COMPOSE_URL}" -o "${DEPLOY_DIR}/docker-compose.yml"
     success "Downloaded docker-compose.yml"
 
     # --- Download Dockerfile.node ---
-    DOCKERFILE_URL="${ARCHIE_BASE_URL}/tools/bridge/api/nodes/Dockerfile.node"
+    DOCKERFILE_URL="${ARCHIE_BASE_URL}/tools/starbase/api/nodes/Dockerfile.node"
     info "Downloading Dockerfile.node from ${DOCKERFILE_URL}..."
     curl -fsSL "${DOCKERFILE_URL}" -o "${DEPLOY_DIR}/Dockerfile.node"
     success "Downloaded Dockerfile.node"
 
     # --- Download node_sync.py ---
-    SYNC_URL="${ARCHIE_BASE_URL}/tools/bridge/api/nodes/node_sync.py"
+    SYNC_URL="${ARCHIE_BASE_URL}/tools/starbase/api/nodes/node_sync.py"
     info "Downloading node_sync.py from ${SYNC_URL}..."
     curl -fsSL "${SYNC_URL}" -o "${DEPLOY_DIR}/node_sync.py"
     success "Downloaded node_sync.py"
 
     # --- Download node_api.py ---
-    API_URL="${ARCHIE_BASE_URL}/tools/bridge/api/nodes/node_api.py"
+    API_URL="${ARCHIE_BASE_URL}/tools/starbase/api/nodes/node_api.py"
     info "Downloading node_api.py from ${API_URL}..."
     curl -fsSL "${API_URL}" -o "${DEPLOY_DIR}/node_api.py"
     success "Downloaded node_api.py"
 
     # --- Download migrations ---
     mkdir -p "${DEPLOY_DIR}/migrations"
-    MIGRATION_URL="${ARCHIE_BASE_URL}/tools/bridge/api/nodes/migrations/001_node_schema.sql"
+    MIGRATION_URL="${ARCHIE_BASE_URL}/tools/starbase/api/nodes/migrations/001_node_schema.sql"
     info "Downloading migrations/001_node_schema.sql..."
     curl -fsSL "${MIGRATION_URL}" -o "${DEPLOY_DIR}/migrations/001_node_schema.sql"
     success "Downloaded migration 001"
 
-    MIGRATION2_URL="${ARCHIE_BASE_URL}/tools/bridge/api/nodes/migrations/002_knowledge_projects.sql"
+    MIGRATION2_URL="${ARCHIE_BASE_URL}/tools/starbase/api/nodes/migrations/002_knowledge_projects.sql"
     info "Downloading migrations/002_knowledge_projects.sql..."
     curl -fsSL "${MIGRATION2_URL}" -o "${DEPLOY_DIR}/migrations/002_knowledge_projects.sql"
     success "Downloaded migration 002"

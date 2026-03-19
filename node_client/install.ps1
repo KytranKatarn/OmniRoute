@@ -1,6 +1,6 @@
 # =============================================================================
 # A.R.C.H.I.E. Remote Node - Windows Installation Script v1.0.0
-# Usage: iwr -useb http://192.168.1.200:3000/tools/bridge/api/nodes/install.ps1 | iex
+# Usage: iwr -useb http://192.168.1.200:3000/tools/starbase/api/nodes/install.ps1 | iex
 # =============================================================================
 
 $ErrorActionPreference = "Stop"
@@ -261,7 +261,7 @@ $localIP = (Get-NetIPAddress -AddressFamily IPv4 |
 if (-not $localIP) { $localIP = "127.0.0.1" }
 
 $nodeName = $env:COMPUTERNAME
-$registerUrl = "$ARCHIE_BASE_URL/tools/bridge/api/nodes/register"
+$registerUrl = "$ARCHIE_BASE_URL/tools/starbase/api/nodes/register"
 
 $payload = @{
     node_name       = $nodeName
@@ -344,7 +344,7 @@ if ($scriptDir) {
     } else {
         Write-Info "heartbeat.ps1 not found at $heartbeatSrc, downloading from server..."
         try {
-            $heartbeatUrl = "$ARCHIE_BASE_URL/tools/bridge/api/nodes/heartbeat.ps1"
+            $heartbeatUrl = "$ARCHIE_BASE_URL/tools/starbase/api/nodes/heartbeat.ps1"
             Invoke-WebRequest -Uri $heartbeatUrl -OutFile $heartbeatDst -UseBasicParsing
             Write-Ok "Downloaded heartbeat.ps1 from server"
         } catch {
@@ -355,7 +355,7 @@ if ($scriptDir) {
 } else {
     Write-Info "Running via piped execution, downloading heartbeat.ps1..."
     try {
-        $heartbeatUrl = "$ARCHIE_BASE_URL/tools/bridge/api/nodes/heartbeat.ps1"
+        $heartbeatUrl = "$ARCHIE_BASE_URL/tools/starbase/api/nodes/heartbeat.ps1"
         Invoke-WebRequest -Uri $heartbeatUrl -OutFile $heartbeatDst -UseBasicParsing
         Write-Ok "Downloaded heartbeat.ps1 from server"
     } catch {
@@ -419,7 +419,7 @@ Write-Host "      Node registered! An admin must approve this node on the" -Fore
 Write-Host "      A.R.C.H.I.E. dashboard before it can accept work." -ForegroundColor Yellow
 Write-Host ""
 
-$statusUrl = "$ARCHIE_BASE_URL/tools/bridge/api/nodes/$nodeId/status"
+$statusUrl = "$ARCHIE_BASE_URL/tools/starbase/api/nodes/$nodeId/status"
 $headers = @{ "X-Node-API-Key" = $apiKey }
 $approved = $false
 $pollCount = 0
@@ -491,7 +491,7 @@ function Install-DockerStack {
     Write-Ok "Deployment directory: $deployDir"
 
     # --- Download docker-compose.node.yml ---
-    $composeUrl = "$ARCHIE_BASE_URL/tools/bridge/api/nodes/docker-compose.node.yml"
+    $composeUrl = "$ARCHIE_BASE_URL/tools/starbase/api/nodes/docker-compose.node.yml"
     Write-Info "Downloading docker-compose.node.yml..."
     try {
         Invoke-WebRequest -Uri $composeUrl -OutFile (Join-Path $deployDir "docker-compose.yml") -UseBasicParsing
@@ -502,7 +502,7 @@ function Install-DockerStack {
     }
 
     # --- Download Dockerfile.node ---
-    $dockerfileUrl = "$ARCHIE_BASE_URL/tools/bridge/api/nodes/Dockerfile.node"
+    $dockerfileUrl = "$ARCHIE_BASE_URL/tools/starbase/api/nodes/Dockerfile.node"
     Write-Info "Downloading Dockerfile.node..."
     try {
         Invoke-WebRequest -Uri $dockerfileUrl -OutFile (Join-Path $deployDir "Dockerfile.node") -UseBasicParsing
@@ -513,7 +513,7 @@ function Install-DockerStack {
     }
 
     # --- Download node_sync.py ---
-    $syncUrl = "$ARCHIE_BASE_URL/tools/bridge/api/nodes/node_sync.py"
+    $syncUrl = "$ARCHIE_BASE_URL/tools/starbase/api/nodes/node_sync.py"
     Write-Info "Downloading node_sync.py..."
     try {
         Invoke-WebRequest -Uri $syncUrl -OutFile (Join-Path $deployDir "node_sync.py") -UseBasicParsing
@@ -524,7 +524,7 @@ function Install-DockerStack {
     }
 
     # --- Download node_api.py ---
-    $apiUrl = "$ARCHIE_BASE_URL/tools/bridge/api/nodes/node_api.py"
+    $apiUrl = "$ARCHIE_BASE_URL/tools/starbase/api/nodes/node_api.py"
     Write-Info "Downloading node_api.py..."
     try {
         Invoke-WebRequest -Uri $apiUrl -OutFile (Join-Path $deployDir "node_api.py") -UseBasicParsing
@@ -539,7 +539,7 @@ function Install-DockerStack {
     if (-not (Test-Path $migrationsDir)) {
         New-Item -ItemType Directory -Path $migrationsDir -Force | Out-Null
     }
-    $migrationUrl = "$ARCHIE_BASE_URL/tools/bridge/api/nodes/migrations/001_node_schema.sql"
+    $migrationUrl = "$ARCHIE_BASE_URL/tools/starbase/api/nodes/migrations/001_node_schema.sql"
     Write-Info "Downloading migrations/001_node_schema.sql..."
     try {
         Invoke-WebRequest -Uri $migrationUrl -OutFile (Join-Path $migrationsDir "001_node_schema.sql") -UseBasicParsing

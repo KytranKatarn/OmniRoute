@@ -264,14 +264,14 @@ function closeAddNodeModal() {
     if (nodeConnectionPoller) { clearInterval(nodeConnectionPoller); nodeConnectionPoller = null; }
 }
 
-// Resync modal
+// Resync modal (manual commands for offline resync)
 function showResyncModal() {
     var serverUrl = window.location.origin;
     var winCmd = document.getElementById('resync-cmd-win');
     var linuxCmd = document.getElementById('resync-cmd-linux');
     // Keep the copy buttons, set text before them
-    var winText = 'iwr -useb ' + serverUrl + '/tools/starbase/api/nodes/update.ps1 | iex';
-    var linuxText = 'curl -sL ' + serverUrl + '/tools/starbase/api/nodes/heartbeat.sh -o /opt/archie-node/heartbeat.sh && chmod +x /opt/archie-node/heartbeat.sh && systemctl restart archie-node';
+    var winText = 'iwr -useb ' + serverUrl + '/tools/starship/api/nodes/update.ps1 | iex';
+    var linuxText = 'curl -sL ' + serverUrl + '/tools/starship/api/nodes/heartbeat.sh -o /opt/archie-node/heartbeat.sh && chmod +x /opt/archie-node/heartbeat.sh && systemctl restart archie-node';
     // Clear and rebuild
     var winCopy = winCmd.querySelector('.sc-copy-btn');
     var linuxCopy = linuxCmd.querySelector('.sc-copy-btn');
@@ -283,6 +283,61 @@ function showResyncModal() {
 }
 function closeResyncModal() {
     document.getElementById('resync-modal').classList.remove('active');
+}
+
+// API-driven resync: push config_update + code_update to node via OTA
+async function resyncNode() {
+    if (!selectedNodeDbId) { scToast('No node selected', 'error'); return; }
+    var btn = document.getElementById('d-resync-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'RESYNCING...'; }
+    try {
+        var resp = await fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/resync', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        var data = await resp.json();
+        if (data.success) {
+            var count = (data.sync_ids || []).length;
+            scToast('Resync pushed \u2014 ' + count + ' sync command' + (count !== 1 ? 's' : '') + ' queued', 'success');
+            // Refresh sync displays
+            if (selectedNodeDbId) {
+                pollSyncStatus();
+                loadSyncLog(selectedNodeDbId);
+                opsLoadSyncStatus();
+                opsLoadSyncLog();
+            }
+        } else {
+            scToast(data.error || 'Resync failed', 'error');
+        }
+    } catch (e) {
+        scToast('Network error during resync', 'error');
+    }
+    if (btn) { btn.disabled = false; btn.textContent = 'RESYNC NODE'; }
+}
+
+// Operations tab resync (uses the ops-selected node)
+async function opsResyncNode() {
+    if (!_opsSelectedNodeDbId) { scToast('Select a node first', 'error'); return; }
+    var btn = document.getElementById('ops-resync-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'RESYNCING...'; }
+    try {
+        var resp = await fetch('/tools/starship/api/nodes/' + _opsSelectedNodeDbId + '/resync', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        var data = await resp.json();
+        if (data.success) {
+            var count = (data.sync_ids || []).length;
+            scToast('Resync pushed \u2014 ' + count + ' sync command' + (count !== 1 ? 's' : '') + ' queued', 'success');
+            opsLoadSyncStatus();
+            opsLoadSyncLog();
+        } else {
+            scToast(data.error || 'Resync failed', 'error');
+        }
+    } catch (e) {
+        scToast('Network error during resync', 'error');
+    }
+    if (btn) { btn.disabled = false; btn.textContent = 'RESYNC'; }
 }
 function copyResyncCmd(os) {
     var el = document.getElementById('resync-cmd-' + (os === 'win' ? 'win' : 'linux'));

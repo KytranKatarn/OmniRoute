@@ -1553,6 +1553,17 @@ class BridgeDispatcher:
                 f"[BridgeDispatcher] Failed to create fleet bridge_job: {job_err}"
             )
 
+        # Auto warm-boot: ensure model loaded on node before calling
+        try:
+            readiness = self.ensure_model_ready(
+                agent_name, model,
+                target_host={"hostname": hostname, "port": port, "node_db_id": node_id}
+            )
+            if readiness and not readiness.get("ready"):
+                logger.warning(f"[BridgeDispatcher] Node model {model} not ready on {node_name}")
+        except Exception as wb_err:
+            logger.debug(f"[BridgeDispatcher] Node warm boot check failed: {wb_err}")
+
         # Call the node's Ollama API
         try:
             payload = {
@@ -1887,6 +1898,14 @@ class BridgeDispatcher:
                 return call_ollama_cloud(
                     prompt, model=model, system_prompt=system_prompt
                 )
+
+            # Auto warm-boot: ensure model is loaded before calling Ollama
+            try:
+                readiness = self.ensure_model_ready("_dispatch", model)
+                if readiness and not readiness.get("ready"):
+                    logger.warning(f"[BridgeDispatcher] Model {model} not ready: {readiness}")
+            except Exception as wb_err:
+                logger.debug(f"[BridgeDispatcher] Warm boot check failed: {wb_err}")
 
             # JSON mode
             if json_mode:

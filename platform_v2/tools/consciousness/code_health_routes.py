@@ -50,9 +50,9 @@ def register_code_health_routes(bp, admin_required):
         summary = {"green": 0, "yellow": 0, "red": 0, "total": 0}
 
         # Map folder names to proper display names
-        from module_registry import MODULE_DEFINITIONS
+        from module_registry import MODULES
 
-        display_names = {m.id: m.name for m in MODULE_DEFINITIONS}
+        display_names = {m.id: m.name for m in MODULES}
         display_names.update(
             {
                 "[AI_BRIDGE]": "AI Bridge",

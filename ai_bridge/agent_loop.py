@@ -663,8 +663,26 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Job #51 — Daily Code Health Digest via Telegram (8:00 AM)
+        self.scheduler.add_job(
+            with_app_context(self._daily_code_health_digest),
+            trigger=CronTrigger(hour=8, minute=0),
+            id="agent_code_health_digest",
+            name="Agent Loop: Daily Code Health Digest",
+            replace_existing=True,
+        )
+
+        # Job #52 — Competitor landscape auto-scan (every 2 weeks)
+        self.scheduler.add_job(
+            with_app_context(self._competitor_landscape_scan),
+            trigger=IntervalTrigger(days=14),
+            id="agent_competitor_scan",
+            name="Agent Loop: Competitor Landscape Scan",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 50 jobs")
+        logger.info("Agent loop started with 52 jobs")
 
     def _update_stock_prices(self):
         """Job #27: Refresh cached stock prices, check price alerts, and auto-scan watchlist every 5 minutes."""
@@ -975,6 +993,8 @@ class AgentLoop:
             "session_indexer",
             "module_docs_updater",
             "git_change_tracker",
+            "agent_code_health_digest",
+            "agent_competitor_scan",
         ]:
             try:
                 self.scheduler.remove_job(job_id)
@@ -4124,6 +4144,183 @@ class AgentLoop:
                 logger.info("Pattern compliance: clean — no violations found")
         except Exception as e:
             logger.warning(f"Failed: {e}")
+
+    def _daily_code_health_digest(self):
+        """Job #51: Send a morning Telegram summary of code health status at 8:00 AM."""
+        start = time.time()
+        try:
+            import asyncio
+            from database import get_db_cursor
+
+            gateway = self.flask_app.config.get("TELEGRAM_GATEWAY")
+            if not gateway or not gateway.is_running:
+                logger.debug("Code health digest: Telegram gateway not available, skipping")
+                return
+
+            with get_db_cursor() as (conn, cur):
+                # Get latest code metrics snapshot
+                cur.execute("""
+                    SELECT id, total_files, total_lines, snapshot_data, created_at
+                    FROM code_metrics_snapshots
+                    ORDER BY created_at DESC LIMIT 1
+                """)
+                snapshot = cur.fetchone()
+
+                # Get audit log summary — green (recent), stale (>30d), unaudited
+                cur.execute("""
+                    SELECT module_name, status, audited_at
+                    FROM code_audit_log
+                    WHERE id IN (
+                        SELECT MAX(id) FROM code_audit_log GROUP BY module_name
+                    )
+                """)
+                audits = cur.fetchall()
+
+                green = 0
+                stale = 0
+                violations = 0
+                stale_modules = []
+                violation_modules = []
+
+                for audit in audits:
+                    status = audit.get("status", "")
+                    module = audit.get("module_name", "unknown")
+                    audited_at = audit.get("audited_at")
+                    if status == "violations_found":
+                        violations += 1
+                        violation_modules.append(module)
+                    elif audited_at:
+                        from datetime import timedelta
+                        age = datetime.now() - audited_at.replace(tzinfo=None) if audited_at.tzinfo else datetime.now() - audited_at
+                        if age > timedelta(days=30):
+                            stale += 1
+                            stale_modules.append(module)
+                        else:
+                            green += 1
+                    else:
+                        stale += 1
+                        stale_modules.append(module)
+
+                # Get modules changed since last digest (commits in last 24h)
+                cur.execute("""
+                    SELECT DISTINCT module_name FROM code_audit_log
+                    WHERE audited_at > NOW() - INTERVAL '24 hours'
+                    ORDER BY module_name
+                """)
+                changed = [r["module_name"] for r in cur.fetchall()]
+
+                # Count total agent loop jobs
+                job_count = len(self.scheduler.get_jobs()) if self.scheduler else 51
+
+                # Build message
+                total_files = snapshot["total_files"] if snapshot else 0
+                total_lines = snapshot["total_lines"] if snapshot else 0
+
+                lines = [
+                    "\U0001f4ca *Daily Code Health Digest*\n",
+                    f"\u2705 Green: {green}  \u23f3 Stale: {stale}  \u26a0\ufe0f Violations: {violations}",
+                    f"\U0001f4c1 {total_files} files, {total_lines:,} lines",
+                ]
+
+                if changed:
+                    lines.append(f"\n\U0001f504 Changed (24h): {', '.join(changed[:10])}")
+                if violation_modules:
+                    lines.append(f"\n\u274c Violations in: {', '.join(violation_modules[:10])}")
+                if stale_modules:
+                    lines.append(f"\n\u23f0 Stale: {', '.join(stale_modules[:5])}")
+
+                lines.append(f"\n\U0001f916 Job count: {job_count}")
+
+                text = "\n".join(lines)
+
+                # Send to first authorized admin
+                cur.execute("""
+                    SELECT telegram_id FROM telegram_users
+                    WHERE is_authorized = TRUE AND telegram_id IS NOT NULL LIMIT 1
+                """)
+                tg_user = cur.fetchone()
+                if tg_user:
+                    loop = gateway._loop
+                    asyncio.run_coroutine_threadsafe(
+                        gateway._application.bot.send_message(
+                            chat_id=tg_user["telegram_id"],
+                            text=text, parse_mode="Markdown",
+                        ),
+                        loop,
+                    )
+                    logger.info(
+                        "Code health digest sent: %d green, %d stale, %d violations",
+                        green, stale, violations,
+                    )
+
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("code_health_digest", 1, 0, duration_ms)
+
+        except Exception as e:
+            logger.warning(f"Code health digest failed: {e}")
+            self._log_cycle("code_health_digest", 0, 1, int((time.time() - start) * 1000),
+                            error_message=str(e))
+
+    def _competitor_landscape_scan(self):
+        """Job #52: Scan AI competitor landscape every 2 weeks, update knowledge_base, notify via Telegram."""
+        start = time.time()
+        try:
+            import asyncio
+            from services.competitor_scan_service import run_competitor_scan
+
+            result = run_competitor_scan()
+            created = result["created"]
+            updated = result["updated"]
+            total = result["total"]
+
+            if created == 0 and updated == 0:
+                logger.info(f"[Competitors] All {total} competitors up to date, nothing to do")
+                self._log_cycle("competitor_scan", 1, 0, int((time.time() - start) * 1000))
+                return
+
+            # Build Telegram summary
+            lines = [
+                "\U0001f50d *AI Competitor Landscape Scan*\n",
+                f"\U0001f4ca Tracked: {total} competitors across {len(result.get('summary_lines', []))} changes",
+                f"\U0001f195 New: {created}  \U0001f504 Updated: {updated}",
+            ]
+            if result.get("summary_lines"):
+                lines.append("\n*Changes:*")
+                lines.extend(result["summary_lines"][:15])
+
+            text = "\n".join(lines)
+
+            # Send Telegram notification
+            gateway = self.flask_app.config.get("TELEGRAM_GATEWAY")
+            if gateway and gateway.is_running:
+                from database import get_db_cursor
+
+                with get_db_cursor() as (conn, cur):
+                    cur.execute("""
+                        SELECT telegram_id FROM telegram_users
+                        WHERE is_authorized = TRUE AND telegram_id IS NOT NULL LIMIT 1
+                    """)
+                    tg_user = cur.fetchone()
+                    if tg_user:
+                        loop = gateway._loop
+                        asyncio.run_coroutine_threadsafe(
+                            gateway._application.bot.send_message(
+                                chat_id=tg_user["telegram_id"],
+                                text=text, parse_mode="Markdown",
+                            ),
+                            loop,
+                        )
+
+            logger.info(
+                "[Competitors] Scan complete: %d new, %d updated out of %d tracked",
+                created, updated, total,
+            )
+            self._log_cycle("competitor_scan", 1, 0, int((time.time() - start) * 1000))
+
+        except Exception as e:
+            logger.warning(f"[Competitors] Landscape scan failed: {e}")
+            self._log_cycle("competitor_scan", 0, 1, int((time.time() - start) * 1000),
+                            error_message=str(e))
 
     def _check_fleet_health(self):
         """Job #45: Monitor fleet node heartbeats — return agents to barracks if offline."""

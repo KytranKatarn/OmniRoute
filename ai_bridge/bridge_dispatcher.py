@@ -6480,6 +6480,44 @@ class BridgeDispatcher:
 
         return freed_gb >= needed_gb
 
+    def unload_model(self, model, target_host=None):
+        """Unload a model from Ollama (set keep_alive=0).
+
+        Args:
+            model: Ollama model tag (e.g. "llama3.2:3b").
+            target_host: Dict with {"hostname": str, "port": int} for remote
+                         node, or None for hub.
+
+        Returns:
+            {"success": bool, "message": str}
+        """
+        if target_host:
+            hostname = target_host.get("hostname", "unknown")
+            port = target_host.get("port", 11434)
+            ollama_url = f"http://{hostname}:{port}"
+        else:
+            hostname = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
+            port = int(os.getenv("OLLAMA_LOCAL_PORT", "11434"))
+            ollama_url = f"http://{hostname}:{port}"
+
+        host_label = f"{hostname}:{port}"
+        try:
+            resp = requests.post(
+                f"{ollama_url}/api/generate",
+                json={"model": model, "keep_alive": 0},
+                timeout=30,
+            )
+            if resp.status_code == 200:
+                logger.info(f"[ModelOrch] Unloaded {model} on {host_label}")
+                return {"success": True, "message": f"{model} unloaded"}
+            return {
+                "success": False,
+                "message": f"Ollama returned {resp.status_code}",
+            }
+        except Exception as e:
+            logger.warning(f"[ModelOrch] Failed to unload {model} on {host_label}: {e}")
+            return {"success": False, "message": str(e)}
+
 
 # ============================================================================
 # SINGLETON INSTANCE

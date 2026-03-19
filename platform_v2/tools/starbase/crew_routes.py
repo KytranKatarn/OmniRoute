@@ -64,7 +64,7 @@ def register_crew_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error loading lounge agents: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/agents/<int:agent_id>/send-to-lounge", methods=["POST"])
     @login_required
@@ -127,13 +127,14 @@ def register_crew_routes(bp, admin_required):
                     )
                     if cur.fetchone()["cnt"] == 0:
                         try:
-                            requests.post(
-                                f"{OLLAMA_LOCAL_URL}/api/generate",
-                                json={"model": model_name, "keep_alive": 0},
-                                timeout=30,
-                            )
-                            unloaded = True
-                            logger.info(f"[Lounge] Unloaded {model_name} for agent {agent_id} rest")
+                            from ai_bridge.bridge_dispatcher import get_dispatcher
+
+                            result = get_dispatcher().unload_model(model_name)
+                            unloaded = result.get("success", False)
+                            if unloaded:
+                                logger.info(f"[Lounge] Unloaded {model_name} for agent {agent_id} rest")
+                            else:
+                                logger.warning(f"[Lounge] Failed to unload {model_name}: {result.get('message')}")
                         except Exception as ue:
                             logger.warning(f"[Lounge] Failed to unload {model_name}: {ue}")
 
@@ -148,7 +149,7 @@ def register_crew_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error sending agent to lounge: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/agents/<int:agent_id>/return-from-lounge", methods=["POST"])
     @login_required
@@ -204,9 +205,10 @@ def register_crew_routes(bp, admin_required):
                 )
 
                 # Reload agent's LLM if fleet is in workday mode
-                cur.execute("SELECT model FROM agents WHERE id = %s", (agent_id,))
+                cur.execute("SELECT name, model FROM agents WHERE id = %s", (agent_id,))
                 agent_row = cur.fetchone()
                 model_name = agent_row["model"] if agent_row else None
+                agent_name = agent_row["name"] if agent_row else "unknown"
                 reloaded = False
 
                 fleet_mode = "workday"
@@ -219,24 +221,22 @@ def register_crew_routes(bp, admin_required):
                     try:
                         import threading
 
-                        ollama_url = OLLAMA_LOCAL_URL
+                        from ai_bridge.bridge_dispatcher import get_dispatcher
+
+                        _dispatcher = get_dispatcher()
+                        _agent_name = agent_name
+                        _model_name = model_name
+                        _agent_id = agent_id
 
                         def _reload():
                             try:
-                                requests.post(
-                                    f"{ollama_url}/api/generate",
-                                    json={
-                                        "model": model_name,
-                                        "prompt": "warmup",
-                                        "stream": False,
-                                        "options": {"num_predict": 1, "num_gpu": 0},
-                                        "keep_alive": -1,
-                                    },
-                                    timeout=300,
-                                )
-                                logger.info(f"[Lounge] Reloaded {model_name} for agent {agent_id}")
+                                result = _dispatcher.ensure_model_ready(_agent_name, _model_name)
+                                if result.get("ready"):
+                                    logger.info(f"[Lounge] Reloaded {_model_name} for agent {_agent_id}")
+                                else:
+                                    logger.warning(f"[Lounge] Failed to reload {_model_name}: model not ready")
                             except Exception as re:
-                                logger.warning(f"[Lounge] Failed to reload {model_name}: {re}")
+                                logger.warning(f"[Lounge] Failed to reload {_model_name}: {re}")
 
                         threading.Thread(target=_reload, daemon=True).start()
                         reloaded = True
@@ -253,7 +253,7 @@ def register_crew_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error returning agent from lounge: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ============================================================================
     # TRAINING API - Crew Training Management
@@ -273,7 +273,7 @@ def register_crew_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error loading active training: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/training/assign", methods=["POST"])
     @login_required
@@ -366,7 +366,7 @@ def register_crew_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error assigning training: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/training/<int:training_id>/cancel", methods=["POST"])
     @login_required
@@ -396,7 +396,7 @@ def register_crew_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error cancelling training: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/training/history")
     @login_required
@@ -437,7 +437,7 @@ def register_crew_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error loading training history: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/training/recommendations")
     @login_required
@@ -481,7 +481,7 @@ def register_crew_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error loading training recommendations: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/training/templates")
     @login_required
@@ -499,7 +499,7 @@ def register_crew_routes(bp, admin_required):
                 return jsonify({"success": True, "templates": templates})
         except Exception as e:
             logger.error(f"Error listing training templates: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/training/templates", methods=["POST"])
     @login_required
@@ -536,7 +536,7 @@ def register_crew_routes(bp, admin_required):
                 return jsonify({"success": True, "template": dict(result)})
         except Exception as e:
             logger.error(f"Error upserting training template: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ============================================================================
     # LOUNGE WELLNESS & HISTORY API
@@ -641,7 +641,7 @@ def register_crew_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error loading lounge wellness: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/lounge/history")
     @login_required
@@ -684,7 +684,7 @@ def register_crew_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error loading lounge history: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ============================================================================
     # IAAE COMPLIANCE CHECK API - Phase 39
@@ -946,7 +946,7 @@ def register_crew_routes(bp, admin_required):
             )
         except Exception as e:
             logger.error(f"Error getting agent form context: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/bridge/crew/manifest")
     @login_required
@@ -1156,7 +1156,7 @@ def register_crew_routes(bp, admin_required):
             return jsonify(resp)
         except Exception as e:
             logger.error(f"Error getting crew manifest: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/bridge/rotation-log")
     @login_required
@@ -1196,7 +1196,7 @@ def register_crew_routes(bp, admin_required):
             return jsonify({"success": True, "events": events})
         except Exception as e:
             logger.error(f"Error getting rotation log: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/bridge/fleet-mode", methods=["POST"])
     @login_required
@@ -1231,16 +1231,20 @@ def register_crew_routes(bp, admin_required):
                 # Unload all Ollama models + free ComfyUI VRAM
                 def _unload_all():
                     try:
+                        from ai_bridge.bridge_dispatcher import get_dispatcher
+
+                        _dispatcher = get_dispatcher()
                         ps_resp = requests.get(f"{ollama_url}/api/ps", timeout=10)
                         if ps_resp.status_code == 200:
                             for m in ps_resp.json().get("models", []):
                                 mname = m.get("name", "")
-                                requests.post(
-                                    f"{ollama_url}/api/generate",
-                                    json={"model": mname, "keep_alive": 0},
-                                    timeout=30,
-                                )
-                                logger.info(f"[FleetMode] Weekend: unloaded {mname}")
+                                result = _dispatcher.unload_model(mname)
+                                if result.get("success"):
+                                    logger.info(f"[FleetMode] Weekend: unloaded {mname}")
+                                else:
+                                    logger.warning(
+                                        f"[FleetMode] Weekend: failed to unload {mname}: {result.get('message')}"
+                                    )
                     except Exception as e:
                         logger.error(f"[FleetMode] Weekend Ollama unload error: {e}")
 
@@ -1284,7 +1288,7 @@ def register_crew_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error toggling fleet mode: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/bridge/model-control", methods=["POST"])
     @login_required
@@ -1308,6 +1312,12 @@ def register_crew_routes(bp, admin_required):
                 return jsonify({"success": False, "error": "model and action (load|unload) required"}), 400
 
             # Determine Ollama target — hub or node
+            from ai_bridge.bridge_dispatcher import get_dispatcher
+
+            dispatcher = get_dispatcher()
+            target_host = None
+            target_name = "hub"
+
             if node_db_id:
                 with get_db_cursor() as (conn, cur):
                     cur.execute(
@@ -1317,62 +1327,43 @@ def register_crew_routes(bp, admin_required):
                     node = cur.fetchone()
                     if not node:
                         return jsonify({"success": False, "error": "Node not found"}), 404
-                    ollama_url = f"http://{node['hostname']}:{node['port']}"
+                    target_host = {"hostname": node["hostname"], "port": node["port"], "node_db_id": int(node_db_id)}
                     target_name = f"node {node_db_id}"
-            else:
-                ollama_url = OLLAMA_LOCAL_URL
-                target_name = "hub"
 
             if action == "unload":
-                # Unload: send generate with keep_alive=0
-                resp = requests.post(
-                    f"{ollama_url}/api/generate",
-                    json={"model": model_name, "keep_alive": 0},
-                    timeout=10,
-                )
-                if resp.status_code == 200:
+                # Unload via Bridge dispatcher
+                result = dispatcher.unload_model(model_name, target_host=target_host)
+                if result.get("success"):
                     return jsonify({"success": True, "message": f"{model_name} unloaded"})
-                return jsonify({"success": False, "error": f"Ollama returned {resp.status_code}"}), 502
+                return jsonify({"success": False, "error": result.get("message", "Unload failed")}), 502
 
             # action == "load"
-            # Check swap limit: count models currently loaded
+            # Check if already loaded (GET /api/ps is acceptable per ADR-013)
+            ollama_url = f"http://{target_host['hostname']}:{target_host['port']}" if target_host else OLLAMA_LOCAL_URL
             try:
                 ps_resp = requests.get(f"{ollama_url}/api/ps", timeout=5)
-                loaded_count = len(ps_resp.json().get("models", [])) if ps_resp.status_code == 200 else 0
-                already_loaded = False
-                for m in ps_resp.json().get("models", []) if ps_resp.status_code == 200 else []:
-                    if m.get("name", "") == model_name or m.get("name", "").replace(
-                        ":latest", ""
-                    ) == model_name.replace(":latest", ""):
-                        already_loaded = True
-                        break
-                if already_loaded:
-                    return jsonify({"success": True, "message": f"{model_name} already loaded"})
+                if ps_resp.status_code == 200:
+                    for m in ps_resp.json().get("models", []):
+                        if m.get("name", "") == model_name or m.get("name", "").replace(
+                            ":latest", ""
+                        ) == model_name.replace(":latest", ""):
+                            return jsonify({"success": True, "message": f"{model_name} already loaded"})
             except Exception as e:
                 logger.warning(f"[crew] Failed to check loaded models from Ollama: {e}")
-                loaded_count = 0
 
-            # Load: send generate with keep_alive=-1
-            resp = requests.post(
-                f"{ollama_url}/api/generate",
-                json={
-                    "model": model_name,
-                    "prompt": "hi",
-                    "options": {"num_gpu": num_gpu, "num_predict": 1},
-                    "keep_alive": -1,
-                    "stream": False,
-                },
-                timeout=300,
-            )
-            if resp.status_code == 200:
-                result = resp.json()
-                if result.get("error"):
-                    return jsonify({"success": False, "error": result["error"][:300]}), 502
-                return jsonify({"success": True, "message": f"{model_name} loaded"})
-            return jsonify({"success": False, "error": f"Ollama returned {resp.status_code}: {resp.text[:200]}"}), 502
+            # Load via Bridge dispatcher ensure_model_ready
+            result = dispatcher.ensure_model_ready("model_control", model_name, target_host=target_host)
+            if result.get("ready"):
+                return jsonify(
+                    {
+                        "success": True,
+                        "message": f"{model_name} loaded on {target_name} (tier: {result.get('tier', 'unknown')})",
+                    }
+                )
+            return jsonify({"success": False, "error": f"Failed to load {model_name} on {target_name}"}), 502
 
         except requests.Timeout:
             return jsonify({"success": False, "error": "Model load timed out (300s) — try a smaller model"}), 504
         except Exception as e:
             logger.error(f"model_control error: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500

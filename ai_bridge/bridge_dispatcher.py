@@ -20,6 +20,7 @@ import json
 import logging
 import time
 import os
+import requests
 from datetime import datetime
 from typing import Optional, Dict, Any
 from dataclasses import dataclass
@@ -1369,6 +1370,291 @@ class BridgeDispatcher:
         )
 
         return best_info
+
+    # ====================================================================
+    # FLEET NODE DISPATCH — Cross-node agent fallback (ADR-xxx)
+    # ====================================================================
+
+    def _find_fleet_agent(
+        self,
+        station_code: str,
+        capability: str,
+        model_preference: Optional[str] = None,
+    ) -> Optional[Dict]:
+        """Find an available agent on a fleet node for cross-node dispatch.
+
+        Checks remote_nodes for online fleet nodes, then looks for agents
+        assigned to the requested station whose model is available on
+        that node.  Returns agent info dict or None.
+        """
+        try:
+            from psycopg2.extras import RealDictCursor
+
+            conn = self._get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Find node agents on matching stations with online nodes
+            cur.execute(
+                """
+                SELECT na.name AS agent_name,
+                       na.model,
+                       na.station_codes,
+                       na.hub_agent_id,
+                       rn.id AS node_id,
+                       rn.node_name,
+                       rn.hostname AS node_hostname,
+                       rn.port AS node_port
+                FROM node_agents na
+                JOIN remote_nodes rn ON rn.id = na.node_id
+                WHERE rn.is_active = true
+                  AND (
+                      rn.last_heartbeat > NOW() - INTERVAL '2 minutes'
+                      OR rn.deployment_mode = 'starbase'
+                  )
+                  AND %s = ANY(na.station_codes)
+                ORDER BY rn.last_heartbeat DESC NULLS LAST
+                """,
+                (station_code,),
+            )
+            candidates = cur.fetchall()
+            cur.close()
+            conn.close()
+
+            if not candidates:
+                logger.debug(
+                    f"[BridgeDispatcher] No fleet agents for station={station_code}"
+                )
+                return None
+
+            # Check each candidate — verify model is reachable on the node
+            for candidate in candidates:
+                agent_name = candidate["agent_name"]
+                model = candidate["model"]
+                hostname = candidate["node_hostname"]
+                port = candidate["node_port"] or 11434
+
+                # If caller wants a specific model, skip non-matching agents
+                if model_preference and model != model_preference:
+                    continue
+
+                # Verify model is available on the node's Ollama
+                try:
+                    tags_resp = requests.get(
+                        f"http://{hostname}:{port}/api/tags",
+                        timeout=5,
+                    )
+                    if tags_resp.status_code == 200:
+                        available_models = [
+                            m.get("name", "")
+                            for m in tags_resp.json().get("models", [])
+                        ]
+                        # Match model name (with or without :latest tag)
+                        model_found = any(
+                            m == model or m.startswith(f"{model}:")
+                            or model.startswith(f"{m.split(':')[0]}:")
+                            for m in available_models
+                        )
+                        if not model_found:
+                            logger.debug(
+                                f"[BridgeDispatcher] Fleet agent {agent_name} "
+                                f"model '{model}' not on node {hostname}"
+                            )
+                            continue
+                except Exception as tag_err:
+                    logger.debug(
+                        f"[BridgeDispatcher] Cannot reach node {hostname}:{port} "
+                        f"Ollama: {tag_err}"
+                    )
+                    continue
+
+                logger.info(
+                    f"[BridgeDispatcher] Fleet agent found: {agent_name} "
+                    f"(model={model}) on node {candidate['node_name']} "
+                    f"({hostname}:{port}) for station={station_code}"
+                )
+                return {
+                    "agent_name": agent_name,
+                    "model": model,
+                    "node_hostname": hostname,
+                    "node_port": port,
+                    "node_id": candidate["node_id"],
+                    "node_name": candidate["node_name"],
+                }
+
+            logger.debug(
+                f"[BridgeDispatcher] No reachable fleet agents for "
+                f"station={station_code} capability={capability}"
+            )
+            return None
+
+        except Exception as e:
+            logger.warning(
+                f"[BridgeDispatcher] Fleet agent lookup failed: {e}"
+            )
+            return None
+
+    def _dispatch_to_node(
+        self,
+        agent_info: Dict,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        options: Optional[Dict] = None,
+        capability: str = "unknown",
+        module_id: str = "unknown",
+        station_code: str = "UNKNOWN",
+        user_id: Optional[int] = None,
+        job_id: Optional[int] = None,
+    ) -> Optional[Dict]:
+        """Dispatch a job to a fleet node's Ollama API.
+
+        Creates a bridge_job for tracking, calls the remote Ollama,
+        returns dict with response text and metadata, or None on failure.
+        """
+        hostname = agent_info["node_hostname"]
+        port = agent_info["node_port"] or 11434
+        model = agent_info["model"]
+        agent_name = agent_info["agent_name"]
+        node_id = agent_info["node_id"]
+        node_name = agent_info.get("node_name", "unknown")
+
+        # Create bridge_job for tracking
+        bridge_job_id = None
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO bridge_jobs (job_type, module_source, description,
+                    total_steps, status, agent_name, station_code, metadata)
+                VALUES (%s, %s, %s, 1, 'running', %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    capability,
+                    module_id,
+                    f"Fleet dispatch to {node_name}: {prompt[:80]}",
+                    agent_name,
+                    station_code,
+                    json.dumps({
+                        "node_id": node_id,
+                        "node_name": node_name,
+                        "node_hostname": hostname,
+                        "is_remote": True,
+                        "capability": capability,
+                    }),
+                ),
+            )
+            bridge_job_id = cur.fetchone()[0]
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as job_err:
+            logger.warning(
+                f"[BridgeDispatcher] Failed to create fleet bridge_job: {job_err}"
+            )
+
+        # Call the node's Ollama API
+        try:
+            payload = {
+                "model": model,
+                "prompt": prompt,
+                "stream": False,
+            }
+            if system_prompt:
+                payload["system"] = system_prompt
+            if options:
+                payload["options"] = options
+
+            logger.info(
+                f"[BridgeDispatcher] Dispatching to fleet node {node_name} "
+                f"({hostname}:{port}) agent={agent_name} model={model}"
+            )
+
+            resp = requests.post(
+                f"http://{hostname}:{port}/api/generate",
+                json=payload,
+                timeout=120,
+            )
+
+            if resp.status_code == 200:
+                data = resp.json()
+                response_text = data.get("response", "")
+
+                # Mark bridge_job complete
+                if bridge_job_id:
+                    try:
+                        conn = self._get_db()
+                        cur = conn.cursor()
+                        cur.execute(
+                            """
+                            UPDATE bridge_jobs
+                            SET status = 'completed',
+                                completed_steps = 1,
+                                completed_at = NOW()
+                            WHERE id = %s
+                            """,
+                            (bridge_job_id,),
+                        )
+                        conn.commit()
+                        cur.close()
+                        conn.close()
+                    except Exception:
+                        pass
+
+                logger.info(
+                    f"[BridgeDispatcher] Fleet dispatch success: "
+                    f"{agent_name}@{node_name} returned "
+                    f"{len(response_text)} chars"
+                )
+
+                return {
+                    "success": True,
+                    "response": response_text,
+                    "agent_name": agent_name,
+                    "model": model,
+                    "node_id": node_id,
+                    "node_name": node_name,
+                    "bridge_job_id": bridge_job_id,
+                    "prompt_tokens": data.get("prompt_eval_count", 0),
+                    "completion_tokens": data.get("eval_count", 0),
+                }
+            else:
+                logger.warning(
+                    f"[BridgeDispatcher] Fleet node {hostname}:{port} "
+                    f"returned HTTP {resp.status_code}"
+                )
+
+        except requests.exceptions.Timeout:
+            logger.warning(
+                f"[BridgeDispatcher] Fleet dispatch timeout (120s) to "
+                f"{hostname}:{port} model={model}"
+            )
+        except Exception as e:
+            logger.warning(
+                f"[BridgeDispatcher] Fleet dispatch failed: {e}"
+            )
+
+        # Mark bridge_job failed
+        if bridge_job_id:
+            try:
+                conn = self._get_db()
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    UPDATE bridge_jobs
+                    SET status = 'failed',
+                        completed_at = NOW()
+                    WHERE id = %s
+                    """,
+                    (bridge_job_id,),
+                )
+                conn.commit()
+                cur.close()
+                conn.close()
+            except Exception:
+                pass
+
+        return None
 
     def _execute_comfyui(
         self,
@@ -3191,10 +3477,105 @@ class BridgeDispatcher:
                     if agent:
                         break
 
+        # 2b. Fleet node fallback — check remote nodes for available agents
+        if not agent and station_exhausted:
+            blocked_station = home_station or capability_station
+            fleet_agent = self._find_fleet_agent(
+                blocked_station, capability
+            )
+            if fleet_agent:
+                logger.info(
+                    f"[BridgeDispatcher] Fleet fallback: hub exhausted → "
+                    f"dispatching to {fleet_agent['agent_name']}@"
+                    f"{fleet_agent['node_name']} for '{capability}'"
+                )
+                fleet_result = self._dispatch_to_node(
+                    agent_info=fleet_agent,
+                    prompt=prompt,
+                    system_prompt=system_prompt,
+                    options={"temperature": 0.7},
+                    capability=capability,
+                    module_id=module_id,
+                    station_code=blocked_station,
+                    user_id=user_id,
+                    job_id=job_id,
+                )
+                if fleet_result and fleet_result.get("success"):
+                    duration_ms = int((time.time() - start) * 1000)
+
+                    self._telegram_dispatch_advisory(
+                        advisory_type="cross_station",
+                        module_id=module_id,
+                        home_station=blocked_station,
+                        dispatch_station=f"FLEET→{fleet_agent['node_name']}",
+                        capability=capability,
+                        agent_name=fleet_agent["agent_name"],
+                        reason=(
+                            f"Hub agents busy at {blocked_station}. "
+                            f"Dispatched to fleet node "
+                            f"{fleet_agent['node_name']}."
+                        ),
+                    )
+
+                    # Log capacity event for fleet dispatch
+                    self._log_capacity_event(
+                        station_code=blocked_station,
+                        event_type="fleet_dispatch",
+                        agent_name=fleet_agent["agent_name"],
+                        capability=capability,
+                        reason=(
+                            f"Fleet dispatch to {fleet_agent['node_name']} "
+                            f"({fleet_agent['node_hostname']})"
+                        ),
+                        metadata={
+                            "node_id": fleet_agent["node_id"],
+                            "node_name": fleet_agent["node_name"],
+                            "model": fleet_agent["model"],
+                            "is_remote": True,
+                        },
+                    )
+
+                    result = DispatchResult(
+                        success=True,
+                        response=fleet_result.get("response", ""),
+                        agent_name=fleet_agent["agent_name"],
+                        agent_id=None,
+                        model_used=fleet_agent["model"],
+                        station_code=blocked_station,
+                        capability=capability,
+                        duration_ms=duration_ms,
+                        prompt_tokens=fleet_result.get("prompt_tokens", 0),
+                        completion_tokens=fleet_result.get(
+                            "completion_tokens", 0
+                        ),
+                        provider="fleet_node",
+                        metadata={
+                            "escalation": "fleet_dispatch",
+                            "blocked_station": blocked_station,
+                            "home_station": home_station,
+                            "dispatch_station": f"FLEET→{fleet_agent['node_name']}",
+                            "is_cross_station": True,
+                            "is_remote": True,
+                            "node_id": fleet_agent["node_id"],
+                            "node_name": fleet_agent["node_name"],
+                            "node_hostname": fleet_agent["node_hostname"],
+                            "capability_station": capability_station,
+                        },
+                    )
+                    self._log_execution(
+                        result, module_id, user_id, job_id=job_id
+                    )
+                    return result
+                else:
+                    logger.info(
+                        f"[BridgeDispatcher] Fleet dispatch failed for "
+                        f"'{capability}' — falling through to cloud"
+                    )
+
         if not agent and station_exhausted:
             blocked_station = home_station or capability_station
 
-            # 2b. All 3 station slots (Primary + Secondary + Auxiliary) are
+            # 2c. All 3 station slots (Primary + Secondary + Auxiliary) are
             #     full.  Cloud is the 4th slot — requires Telegram approval.
             routing_mode = "local_only" if local_only else self._get_routing_mode()
             if routing_mode != "local_only":
@@ -3257,7 +3638,7 @@ class BridgeDispatcher:
                     ),
                 )
 
-            # 2c. Try free cloud contractors (only if escalation_mode is auto)
+            # 2d. Try free cloud contractors (only if escalation_mode is auto)
             escalation_mode = self._get_escalation_mode()
             if routing_mode != "local_only" and escalation_mode == "auto":
                 for cloud_model in self.FREE_CLOUD_MODELS:
@@ -3329,7 +3710,7 @@ class BridgeDispatcher:
                     else:
                         self._complete_cloud_job(cloud_job_id, success=False)
 
-            # 2d. Free cloud failed — request paid cloud via Telegram approval
+            # 2e. Free cloud failed — request paid cloud via Telegram approval
             if routing_mode not in ("local_only", "local_cloud"):
                 try:
                     from agent_loop import request_approval
@@ -3419,7 +3800,7 @@ class BridgeDispatcher:
             station_code = "COMMAND"
             dispatch_station = "COMMAND"
 
-        # 2d. Fleet: if selected agent is on a remote node, dispatch via mesh
+        # 2f. Fleet: if selected agent is on a remote node, dispatch via mesh
         if agent and agent.get("is_remote"):
             return self._dispatch_to_remote_node(
                 agent, capability, prompt, module_id, system_prompt,

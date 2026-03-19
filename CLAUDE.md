@@ -69,6 +69,54 @@ ai_bridge/knowledge_analyzer.py   - Knowledge extraction (Ollama qwen2.5:7b)
 ai_bridge/embedding_service.py    - Vector embeddings (nomic-embed-text)
 ```
 
+## Pattern Reference
+
+### Station Operations Pattern
+- Use `StationOps` class from `station-ops.js` + `station-ops.css`
+- Constructor: `new StationOps({stationCode, moduleSource, agentsElId, jobsElId, commandsElId, statusElId, commands, dataUrl})`
+- 10 canonical stations: COMMAND, ANALYTICS, CREATIVE, ENGINEERING, COMMUNICATIONS, RESEARCH, SECURITY, LOGISTICS, DIPLOMATIC, OPERATIONS
+- Each station: 2 primary agents max + 1 auxiliary
+- Consciousness module is the gold standard implementation
+
+### Agent Roster Rules
+- `agents` table is single source of truth for all roster data
+- 1 agent = 1 station (DB constraint `idx_station_assignments_one_per_agent`)
+- Shift states: active (hub), deployed (on node), barracked (reserve), off_duty, winding_down, cooldown
+- ARCHIE + Vigil always on COMMAND (ARCHIE primary, Vigil secondary)
+- Deployed agents show only in their node's section, not hub groups
+- Advisory notification when barracked ≤ 5 (no auto-creation — Decision #229)
+
+### Bridge Dispatch Pattern
+- ALL inference through Bridge dispatcher — `dispatch()` or `dispatch_json()` (ADR-013)
+- `get_dispatcher()` singleton — never instantiate `BridgeDispatcher()` directly
+- `get_crew_manifest()` for roster data
+- `ensure_model_ready()` auto warm-boots before dispatch
+- Escalation: home station → capability → cross-station → fleet node → cloud
+- Fleet dispatch: `_find_fleet_agent()` + `_dispatch_to_node()`
+
+### Node Fleet Pattern
+- Nodes register in `remote_nodes`, agents in `node_agents` (FK `hub_agent_id` → `agents.id`)
+- Node Ollama queried directly: `http://{hostname}:{port}/api/*`
+- `check_fleet_health()` monitors heartbeats every 30s
+- Node offline: agents return to barracks. Online: agents restored or new assigned
+- `model_load_state` table persists loaded models for restart recovery
+- Node heartbeat sends: cpu_model, gpu_model, gpu_vram_gb, ram_gb, ollama_models
+
+### UI Patterns
+- LCARS tablet modals: `bm-overlay` + `bm-shell` + `bm-frame` + `bm-content`
+- Live data glow: `sc-live` (pulsing teal) vs `sc-static` (dim) CSS classes
+- Single status badge per agent: ON DUTY / DEPLOYED / WORKING / BARRACKED / OFF DUTY
+- Collapsible roster sections with color-coded borders
+- `_renderUnifiedAgentCard()` for all agent card rendering
+- Agent profile always from Bridge: `openAgentProfileFromBridge(hubAgentId)`
+
+### Model Management
+- 3 tiers: GPU (VRAM) > CPU (RAM) > Cold (disk)
+- `model-control` endpoint handles load/unload for hub + nodes (accepts `node_id`)
+- ComfyUI VRAM swap: `_vram_swap_for_comfyui()` / `_vram_restore_after_comfyui()`
+- Nodes no security reserve (managed from hub)
+- `_save_model_state()` / `_restore_model_state()` for restart recovery
+
 ## Common Errors
 
 | Error | Fix |

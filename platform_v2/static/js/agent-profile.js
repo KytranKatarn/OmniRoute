@@ -153,14 +153,32 @@
             bodyEl.appendChild(bioCard);
         }
 
-        /* ── 3. System Prompt ────────────────────────────────────── */
+        /* ── EDIT SECTION (hidden by default, toggled by Edit button) ── */
+        var editSection = document.createElement('div');
+        editSection.style.display = 'none';
+        editSection.className = 'profile-edit-section';
+
+        var editToggle = document.createElement('button');
+        editToggle.className = 'bm-btn';
+        editToggle.style.cssText = 'background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.5);font-size:0.65rem;padding:3px 10px;margin-bottom:8px;cursor:pointer;';
+        editToggle.textContent = '\u2699 Edit / Admin';
+        editToggle.onclick = function() {
+            var isOpen = editSection.style.display !== 'none';
+            editSection.style.display = isOpen ? 'none' : 'block';
+            editToggle.textContent = isOpen ? '\u2699 Edit / Admin' : '\u2716 Close Admin';
+            editToggle.style.color = isOpen ? 'rgba(255,255,255,0.5)' : '#f472b6';
+            editToggle.style.borderColor = isOpen ? 'rgba(255,255,255,0.15)' : 'rgba(244,114,182,0.4)';
+        };
+        bodyEl.appendChild(editToggle);
+
+        /* ── 3. System Prompt (EDIT ONLY) ───────────────────────── */
         if (a.system_prompt) {
             var spCard = makeCard('System Prompt', '#00e5ff');
             spCard.appendChild(el('div', { text: a.system_prompt, style: "font-size:0.72rem;color:rgba(255,255,255,0.55);line-height:1.4;font-family:'IBM Plex Mono',monospace;background:rgba(0,0,0,0.3);padding:8px;border-radius:4px;max-height:120px;overflow-y:auto;" }));
-            bodyEl.appendChild(spCard);
+            editSection.appendChild(spCard);
         }
 
-        /* ── 4. Portrait Prompt + Generate Button ──────────────── */
+        /* ── 4. Portrait Prompt + Generate Button (EDIT ONLY) ──── */
         if (a.avatar_generation_prompt) {
             var ppCard = makeCard('Portrait Prompt', '#f472b6');
             ppCard.appendChild(el('div', { text: a.avatar_generation_prompt, style: "font-size:0.72rem;color:rgba(255,255,255,0.55);line-height:1.4;font-family:'IBM Plex Mono',monospace;background:rgba(0,0,0,0.3);padding:8px;border-radius:4px;max-height:80px;overflow-y:auto;" }));
@@ -216,10 +234,10 @@
             genRow.appendChild(genBtn);
             genRow.appendChild(genStatus);
             ppCard.appendChild(genRow);
-            bodyEl.appendChild(ppCard);
+            editSection.appendChild(ppCard);
         }
 
-        /* ── 5. Configuration ────────────────────────────────────── */
+        /* ── 5. Configuration (EDIT ONLY) ────────────────────────── */
         var cfgCard = makeCard('Configuration', '#fbbf24');
         cfgCard.appendChild(makeRow('Model', a.model || '--', 'color:#00e5ff;'));
         if (a.temperature !== undefined && a.temperature !== null) {
@@ -233,7 +251,8 @@
         if (a.hardware) {
             cfgCard.appendChild(makeRow('Hardware', a.hardware));
         }
-        bodyEl.appendChild(cfgCard);
+        editSection.appendChild(cfgCard);
+        bodyEl.appendChild(editSection);
 
         /* ── 6. Station ──────────────────────────────────────────── */
         if (a.station_code) {

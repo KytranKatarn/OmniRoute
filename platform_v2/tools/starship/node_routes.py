@@ -742,9 +742,9 @@ def register_node_routes(bp, auth_decorator):
 
             if os_type == "windows":
                 ps1_script = _generate_setup_ps1(hub_url, node_id, setup_token, node_name)
-                # Wrap in .bat — writes .ps1 to temp then executes it
-                # .bat files run on double-click, .ps1 files open in Notepad
+                # Write .ps1 into .bat via echo — no download, no auth needed
                 safe_name = node_name.replace(" ", "-")
+                ps1_path = f"%TEMP%\\archie-node-{safe_name}.ps1"
                 bat = "@echo off\r\n"
                 bat += "title A.R.C.H.I.E. Starship Node Setup\r\n"
                 bat += "echo.\r\n"
@@ -753,18 +753,14 @@ def register_node_routes(bp, auth_decorator):
                 bat += f"echo   Node: {node_name}\r\n"
                 bat += "echo   ========================================\r\n"
                 bat += "echo.\r\n"
-                bat += f'set "SCRIPT=%TEMP%\\archie-node-setup-{safe_name}.ps1"\r\n'
-                bat += f"powershell -ExecutionPolicy Bypass -Command \"Invoke-WebRequest -Uri '{hub_url}/tools/starship/api/nodes/{node_id}/setup-script?os=windows' -OutFile '%SCRIPT%'\" 2>nul\r\n"
-                bat += 'if not exist "%SCRIPT%" (\r\n'
-                bat += "    echo   ERROR: Could not download setup script.\r\n"
-                bat += f"    echo   Check that {hub_url} is reachable.\r\n"
-                bat += "    echo.\r\n"
-                bat += "    pause\r\n"
-                bat += "    exit /b 1\r\n"
-                bat += ")\r\n"
-                bat += "echo   Setup script downloaded. Launching...\r\n"
-                bat += "echo.\r\n"
-                bat += 'powershell -ExecutionPolicy Bypass -File "%SCRIPT%"\r\n'
+                bat += "echo   Writing setup script...\r\n"
+                # Write ps1 to temp file using powershell to avoid bat escaping hell
+                # Base64 encode the ps1 script so no special chars cause issues
+                import base64
+
+                ps1_bytes = ps1_script.encode("utf-16-le")
+                ps1_b64 = base64.b64encode(ps1_bytes).decode("ascii")
+                bat += f"powershell -ExecutionPolicy Bypass -EncodedCommand {ps1_b64}\r\n"
                 bat += "echo.\r\n"
                 bat += "pause\r\n"
                 return Response(

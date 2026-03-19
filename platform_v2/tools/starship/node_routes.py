@@ -1008,20 +1008,44 @@ Write-Host "[5/5] Starting node heartbeat service..." -ForegroundColor Yellow
 $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
 if (-not $pythonCmd) {{ $pythonCmd = Get-Command python3 -ErrorAction SilentlyContinue }}
 if ($pythonCmd -and (Test-Path "node_sync.py")) {{
-    # Create/update scheduled task
-    $taskName = "ARCHIE-Node-Sync"
-    $action = New-ScheduledTaskAction -Execute $pythonCmd.Source -Argument "$InstallDir\\node_sync.py" -WorkingDirectory $InstallDir
-    $trigger = New-ScheduledTaskTrigger -AtStartup
-    $settings = New-ScheduledTaskSettingsSet -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Days 365)
+    # Try scheduled task first (needs admin), fall back to background process
+    $taskCreated = $false
     try {{
+        $taskName = "ARCHIE-Node-Sync"
+        $action = New-ScheduledTaskAction -Execute $pythonCmd.Source -Argument "$InstallDir\\node_sync.py" -WorkingDirectory $InstallDir
+        $trigger = New-ScheduledTaskTrigger -AtStartup
+        $settings = New-ScheduledTaskSettingsSet -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Days 365)
         Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
         Unregister-ScheduledTask -TaskName "ARCHIE-Node-Heartbeat" -Confirm:$false -ErrorAction SilentlyContinue
-    }} catch {{}}
-    Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -RunLevel Highest -ErrorAction SilentlyContinue
-    Start-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-    Write-Host "  Node sync service started as scheduled task" -ForegroundColor Green
+        Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -ErrorAction Stop
+        Start-ScheduledTask -TaskName $taskName -ErrorAction Stop
+        $taskCreated = $true
+        Write-Host "  Node service started (scheduled task)" -ForegroundColor Green
+    }} catch {{
+        Write-Host "  Scheduled task needs admin - starting as background process..." -ForegroundColor Yellow
+    }}
+    if (-not $taskCreated) {{
+        # Launch as background process - works without admin
+        $proc = Start-Process -FilePath $pythonCmd.Source -ArgumentList "$InstallDir\\node_sync.py" -WorkingDirectory $InstallDir -WindowStyle Hidden -PassThru
+        Write-Host "  Node service started (PID: $($proc.Id))" -ForegroundColor Green
+        # Create a startup shortcut so it survives reboot
+        $startupDir = [System.IO.Path]::Combine($env:APPDATA, "Microsoft\\Windows\\Start Menu\\Programs\\Startup")
+        $shortcutPath = "$startupDir\\ARCHIE-Node.lnk"
+        try {{
+            $shell = New-Object -ComObject WScript.Shell
+            $shortcut = $shell.CreateShortcut($shortcutPath)
+            $shortcut.TargetPath = $pythonCmd.Source
+            $shortcut.Arguments = "$InstallDir\\node_sync.py"
+            $shortcut.WorkingDirectory = $InstallDir
+            $shortcut.WindowStyle = 7
+            $shortcut.Save()
+            Write-Host "  Auto-start on login enabled" -ForegroundColor Green
+        }} catch {{
+            Write-Host "  Note: re-run as admin for auto-start on boot" -ForegroundColor Yellow
+        }}
+    }}
 }} else {{
-    Write-Host "  Python not found - start manually: python node_sync.py" -ForegroundColor Yellow
+    Write-Host "  Python not found - install Python 3 from python.org" -ForegroundColor Red
 }}
 
 Write-Host ""

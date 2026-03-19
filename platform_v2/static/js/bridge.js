@@ -8886,6 +8886,44 @@ function renderCrewManifest(crew, capacity, nodeCapacities) {
         grid.appendChild(div);
     }
 
+    // Collapsible section — wraps agents in a color-coded frame
+    function _createCollapsibleSection(title, count, borderColor, startOpen) {
+        var section = document.createElement('div');
+        section.style.cssText = 'grid-column:1/-1;border-left:3px solid ' + borderColor + ';margin:6px 0;border-radius:2px;';
+
+        var header = document.createElement('div');
+        header.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.05);user-select:none;';
+        header.onclick = function() {
+            var isOpen = body.style.display !== 'none';
+            body.style.display = isOpen ? 'none' : '';
+            arrow.textContent = isOpen ? '\u25B8' : '\u25BE';
+        };
+
+        var arrow = document.createElement('span');
+        arrow.style.cssText = 'font-size:0.7rem;color:' + borderColor + ';width:10px;';
+        arrow.textContent = startOpen ? '\u25BE' : '\u25B8';
+        header.appendChild(arrow);
+
+        var titleEl = document.createElement('span');
+        titleEl.style.cssText = 'font-family:Antonio,sans-serif;font-size:0.8rem;letter-spacing:1px;color:' + borderColor + ';';
+        titleEl.textContent = title;
+        header.appendChild(titleEl);
+
+        var countBadge = document.createElement('span');
+        countBadge.style.cssText = 'margin-left:auto;font-size:0.65rem;color:rgba(255,255,255,0.4);';
+        countBadge.textContent = count + ' agents';
+        header.appendChild(countBadge);
+
+        section.appendChild(header);
+
+        var body = document.createElement('div');
+        body.style.cssText = 'display:' + (startOpen ? '' : 'none') + ';padding:8px;';
+        body.className = 'roster-section-body';
+        section.appendChild(body);
+
+        return { section: section, body: body };
+    }
+
     function _renderAgentCard(agent) {
         var card = document.createElement('div');
         card.className = 'crew-agent-card';
@@ -9146,39 +9184,77 @@ function renderCrewManifest(crew, capacity, nodeCapacities) {
         grid.appendChild(card);
     }
 
-    // Render all hardware groups
+    // Return card element without appending (for collapsible sections)
+    function _renderAgentCardEl(agent) {
+        var card = document.createElement('div');
+        card.className = 'crew-agent-card';
+        card.setAttribute('data-station', agent.station);
+        card.style.cursor = 'pointer';
+        card.onclick = (function(id) { return function() { openAgentProfile(id); }; })(agent.agent_id);
+        // Clone the rendering from _renderAgentCard but return instead of append
+        // Use a temp container trick
+        var tempGrid = grid;
+        var fakeGrid = document.createElement('div');
+        grid = fakeGrid;
+        _renderAgentCard(agent);
+        grid = tempGrid;
+        return fakeGrid.firstChild;
+    }
+
+    // === HUB SECTION — purple border, collapsible ===
+    var hubAgentCount = gpuAgents.length + cpuAgents.length + cloudAgents.length + swapAgents.length;
+    var hubSec = _createCollapsibleSection('\u2B50 ARCHIE STARBASE', hubAgentCount, '#8b5cf6', true);
+    var hubBody = hubSec.body;
+    hubBody.style.cssText += 'display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;';
+
+    function _addDividerTo(container, icon, label, count, cssClass) {
+        var div = document.createElement('div');
+        div.className = 'roster-hw-divider ' + cssClass;
+        div.style.gridColumn = '1/-1';
+        var iconEl = document.createElement('span');
+        iconEl.className = 'rhd-icon';
+        iconEl.textContent = icon;
+        div.appendChild(iconEl);
+        div.appendChild(document.createTextNode(label));
+        var countEl = document.createElement('span');
+        countEl.className = 'rhd-count';
+        countEl.textContent = '(' + count + ')';
+        div.appendChild(countEl);
+        container.appendChild(div);
+    }
+
     if (gpuAgents.length > 0) {
-        _addRosterDivider('\u26A1', 'GPU Agents', gpuAgents.length, 'gpu');
-        gpuAgents.forEach(_renderAgentCard);
+        _addDividerTo(hubBody, '\u26A1', 'GPU Agents', gpuAgents.length, 'gpu');
+        gpuAgents.forEach(function(a) { hubBody.appendChild(_renderAgentCardEl(a)); });
     }
-
     if (cpuAgents.length > 0) {
-        _addRosterDivider('\uD83D\uDCBB', 'CPU Agents', cpuAgents.length, 'cpu');
-        cpuAgents.forEach(_renderAgentCard);
+        _addDividerTo(hubBody, '\uD83D\uDCBB', 'CPU Agents', cpuAgents.length, 'cpu');
+        cpuAgents.forEach(function(a) { hubBody.appendChild(_renderAgentCardEl(a)); });
     }
-
     if (cloudAgents.length > 0) {
-        _addRosterDivider('\u2601', 'Cloud Agents', cloudAgents.length, 'cloud');
-        cloudAgents.forEach(_renderAgentCard);
+        _addDividerTo(hubBody, '\u2601', 'Cloud Agents', cloudAgents.length, 'cloud');
+        cloudAgents.forEach(function(a) { hubBody.appendChild(_renderAgentCardEl(a)); });
     }
-
     if (swapAgents.length > 0) {
         var _swapTotal = (capacity && capacity.ram) ? capacity.ram.swap_buffer_gb : 0;
         var _swapUsed = Math.max(0, (capacity ? capacity.models_ram_gb || 0 : 0) - ((capacity && capacity.ram) ? capacity.ram.agent_budget_gb || 0 : 0));
         _swapUsed = Math.round(_swapUsed * 10) / 10;
         var _swapFree = Math.max(0, Math.round((_swapTotal - _swapUsed) * 10) / 10);
-        _addRosterDivider('\u23F3', 'Swap \u2014 On-Demand (' + _swapFree + '/' + _swapTotal + 'GB free)', swapAgents.length, 'swap');
-        swapAgents.forEach(_renderAgentCard);
+        _addDividerTo(hubBody, '\u23F3', 'Swap \u2014 On-Demand (' + _swapFree + '/' + _swapTotal + 'GB free)', swapAgents.length, 'swap');
+        swapAgents.forEach(function(a) { hubBody.appendChild(_renderAgentCardEl(a)); });
     }
+    grid.appendChild(hubSec.section);
 
-    // --- Node capacity + deployed agents (baby blue section) ---
+    // === NODE SECTION — baby blue border, collapsible ===
     var _nodeCapArr = window._pendingNodeCapacities || [];
     if (_nodeCapArr.length > 0 || deployedAgents.length > 0) {
-        // Node capacity bars — rendered in the grid, same layout as hub bars above
         _nodeCapArr.forEach(function(nc) {
+            var nodeSec = _createCollapsibleSection('\uD83D\uDE80 ' + (nc.node_name || 'Fleet Node'), nc.agent_count || deployedAgents.length, '#22d3ee', true);
+            var nodeBody = nodeSec.body;
+
+            // Node capacity bars inside the collapsible body
             var nodeCapDiv = document.createElement('div');
-            nodeCapDiv.className = 'roster-node-capacity';
-            nodeCapDiv.style.cssText = 'grid-column:1/-1;margin:4px 0;padding:8px 12px;background:rgba(34,211,238,0.04);border:1px solid rgba(34,211,238,0.15);border-left:3px solid #22d3ee;border-radius:4px;';
+            nodeCapDiv.style.cssText = 'margin-bottom:8px;padding:8px;background:rgba(34,211,238,0.03);border-radius:4px;';
 
             // Header
             var ncHeader = document.createElement('div');
@@ -9278,20 +9354,36 @@ function renderCrewManifest(crew, capacity, nodeCapacities) {
             var l5 = document.createElement('span'); l5.className = 'leg-reserve'; l5.textContent = nRes+'GB host'; rLeg.appendChild(l5);
             nodeCapDiv.appendChild(rLeg);
 
-            grid.appendChild(nodeCapDiv);
+            nodeBody.appendChild(nodeCapDiv);
+
+            // Deployed agents grid inside node section
+            var nodeAgentGrid = document.createElement('div');
+            nodeAgentGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;';
+            deployedAgents.forEach(function(a) { nodeAgentGrid.appendChild(_renderAgentCardEl(a)); });
+            nodeBody.appendChild(nodeAgentGrid);
+
+            grid.appendChild(nodeSec.section);
         });
 
-        // Deployed agents under the node bars
-        if (deployedAgents.length > 0) {
-            _addRosterDivider('\uD83D\uDE80', 'Deployed \u2014 On Fleet Nodes', deployedAgents.length, 'deployed');
-            deployedAgents.forEach(_renderAgentCard);
+        // If deployed agents but no node capacity data, still show them
+        if (_nodeCapArr.length === 0 && deployedAgents.length > 0) {
+            var depSec = _createCollapsibleSection('\uD83D\uDE80 Deployed Agents', deployedAgents.length, '#22d3ee', true);
+            var depGrid = document.createElement('div');
+            depGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;';
+            deployedAgents.forEach(function(a) { depGrid.appendChild(_renderAgentCardEl(a)); });
+            depSec.body.appendChild(depGrid);
+            grid.appendChild(depSec.section);
         }
     }
 
-    // Barracked — reserve pool at bottom
+    // === BARRACKED SECTION — gray border, collapsed by default ===
     if (barrackedAgents.length > 0) {
-        _addRosterDivider('\uD83C\uDFDA', 'Barracked \u2014 Reserve Pool', barrackedAgents.length, 'barracked');
-        barrackedAgents.forEach(_renderAgentCard);
+        var brkSec = _createCollapsibleSection('\uD83C\uDFDA BARRACKED \u2014 Reserve Pool', barrackedAgents.length, 'rgba(255,255,255,0.3)', false);
+        var brkGrid = document.createElement('div');
+        brkGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;';
+        barrackedAgents.forEach(function(a) { brkGrid.appendChild(_renderAgentCardEl(a)); });
+        brkSec.body.appendChild(brkGrid);
+        grid.appendChild(brkSec.section);
     }
 }
 

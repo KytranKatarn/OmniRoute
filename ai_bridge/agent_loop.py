@@ -636,8 +636,17 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Job #48 — Auto-execute approved dev pipeline proposals
+        self.scheduler.add_job(
+            with_app_context(self._auto_execute_proposals),
+            trigger=IntervalTrigger(minutes=30),
+            id="agent_auto_execute_proposals",
+            name="Agent Loop: Auto-Execute Dev Proposals",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 47 jobs")
+        logger.info("Agent loop started with 48 jobs")
 
     def _update_stock_prices(self):
         """Job #27: Refresh cached stock prices, check price alerts, and auto-scan watchlist every 5 minutes."""
@@ -4144,3 +4153,269 @@ class AgentLoop:
             )
         except Exception as e:
             logger.warning(f"Uncommitted change monitor failed: {e}")
+
+    # ------------------------------------------------------------------
+    # Job #48: Auto-Execute Approved Dev Pipeline Proposals
+    # ------------------------------------------------------------------
+
+    def _auto_execute_proposals(self):
+        """Job #48: Process approved improvement proposals by dispatching to coding agents."""
+        try:
+            from database import get_db_cursor
+            from ai_bridge.bridge_dispatcher import get_dispatcher
+
+            dispatcher = get_dispatcher()
+            if not dispatcher:
+                logger.warning("[Fix Processor] Bridge dispatcher not available")
+                return
+
+            with get_db_cursor() as (conn, cur):
+                cur.execute("""
+                    SELECT id, title, description, category, priority,
+                           code_changes, file_path, plan_steps,
+                           retry_count, required_skills
+                    FROM improvement_proposals
+                    WHERE status = 'approved'
+                      AND assigned_agent_id IS NULL
+                      AND retry_count < 3
+                    ORDER BY
+                        CASE priority
+                            WHEN 'critical' THEN 1
+                            WHEN 'high' THEN 2
+                            WHEN 'medium' THEN 3
+                            WHEN 'low' THEN 4
+                            ELSE 5
+                        END,
+                        proposed_at ASC
+                    LIMIT 3
+                """)
+                proposals = cur.fetchall()
+
+            if not proposals:
+                logger.debug("[Fix Processor] No approved proposals to process")
+                return
+
+            succeeded = 0
+            failed = 0
+
+            for proposal in proposals:
+                try:
+                    self._dispatch_fix_to_agent(proposal, dispatcher)
+                    succeeded += 1
+                except Exception as e:
+                    failed += 1
+                    logger.error(f"[Fix Processor] Failed proposal #{proposal[0]}: {e}")
+                    try:
+                        from database import get_db_cursor as _gdc
+
+                        with _gdc(commit=True) as (conn2, cur2):
+                            cur2.execute("""
+                                UPDATE improvement_proposals
+                                SET retry_count = retry_count + 1,
+                                    last_retry_at = NOW(),
+                                    status = CASE
+                                        WHEN retry_count >= 2 THEN 'needs_claude'
+                                        ELSE 'approved'
+                                    END,
+                                    escalation_status = CASE
+                                        WHEN retry_count >= 2 THEN 'human_only'
+                                        ELSE escalation_status
+                                    END
+                                WHERE id = %s
+                            """, (proposal[0],))
+                    except Exception as db_err:
+                        logger.error(f"[Fix Processor] DB update failed for proposal #{proposal[0]}: {db_err}")
+
+            logger.info(
+                f"[Fix Processor] Processed {succeeded + failed} proposals, "
+                f"{succeeded} succeeded, {failed} failed"
+            )
+
+        except Exception as e:
+            logger.error(f"[Fix Processor] Job failed: {e}")
+
+    def _dispatch_fix_to_agent(self, proposal, dispatcher):
+        """Dispatch a single fix proposal to a coding agent via Bridge."""
+        from database import get_db_cursor
+        from psycopg2.extras import Json
+
+        proposal_id = proposal[0]  # id
+        title = proposal[1]  # title
+        description = proposal[2]  # description
+        category = proposal[3]  # category
+        priority = proposal[4]  # priority
+        file_path = proposal[6] or proposal[5] or ""  # file_path or code_changes
+
+        # 1. Read the target file
+        full_path = f"/mnt/archie_brain/{file_path}" if file_path else None
+        file_content = ""
+        if full_path:
+            try:
+                with open(full_path, "r") as f:
+                    file_content = f.read()
+            except FileNotFoundError:
+                logger.warning(f"[Fix Processor] File not found: {file_path}")
+            except Exception as read_err:
+                logger.warning(f"[Fix Processor] Cannot read {file_path}: {read_err}")
+
+        # 2. Find matching fix pattern from knowledge_base
+        fix_pattern = self._find_fix_pattern(category)
+
+        # 3. Build the prompt
+        prompt = self._build_fix_prompt(
+            title=title,
+            description=description,
+            category=category,
+            priority=priority,
+            file_path=file_path,
+            file_content=file_content,
+            fix_pattern=fix_pattern,
+        )
+
+        system_prompt = (
+            "You are an ENGINEERING station agent on A.R.C.H.I.E. "
+            "Fix the code issue described. Return ONLY valid JSON with keys: "
+            "modified_code, explanation, confidence (0-1), files_changed (array), "
+            "lines_modified (array of line numbers), breaking_changes (bool)."
+        )
+
+        # 4. Find an active ENGINEERING agent and mark proposal as assigned
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute("""
+                SELECT a.id, a.name FROM agents a
+                JOIN station_assignments sa ON a.id = sa.agent_id
+                WHERE sa.station_code = 'ENGINEERING'
+                  AND a.shift_state = 'active'
+                  AND sa.is_active = true
+                ORDER BY a.name
+                LIMIT 1
+            """)
+            agent = cur.fetchone()
+
+            if not agent:
+                logger.warning("[Fix Processor] No active ENGINEERING agent available")
+                return
+
+            cur.execute("""
+                UPDATE improvement_proposals
+                SET status = 'agent_assigned',
+                    assigned_agent_id = %s
+                WHERE id = %s
+            """, (agent[0], proposal_id))
+
+        # 5. Dispatch to agent via Bridge
+        result = dispatcher.request_work(
+            capability="code_fix",
+            prompt=prompt,
+            module_id="dev_pipeline",
+            system_prompt=system_prompt,
+            json_mode=True,
+        )
+
+        if not result or not result.success:
+            error_msg = getattr(result, "error", "unknown") if result else "no result"
+            logger.error(f"[Fix Processor] Dispatch failed for proposal #{proposal_id}: {error_msg}")
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute("""
+                    UPDATE improvement_proposals
+                    SET status = 'approved', assigned_agent_id = NULL,
+                        retry_count = retry_count + 1,
+                        last_retry_at = NOW()
+                    WHERE id = %s
+                """, (proposal_id,))
+            return
+
+        # 6. Parse agent response
+        try:
+            fix_data = json.loads(result.response)
+        except (json.JSONDecodeError, TypeError):
+            logger.error(f"[Fix Processor] Invalid JSON from agent for proposal #{proposal_id}")
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute("""
+                    UPDATE improvement_proposals
+                    SET status = 'approved', assigned_agent_id = NULL,
+                        retry_count = retry_count + 1
+                    WHERE id = %s
+                """, (proposal_id,))
+            return
+
+        # 7. Store agent's fix in proposal
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute("""
+                UPDATE improvement_proposals
+                SET contractor_proposal = %s,
+                    status = 'in_progress'
+                WHERE id = %s
+            """, (Json(fix_data), proposal_id))
+
+        # 8. Write to sandbox if available (v1: just log, no sandbox tests yet)
+        try:
+            from sandbox_manager import SandboxManager
+
+            sm = SandboxManager()
+            sandbox_path = sm.write_proposal_file(proposal_id, file_path, fix_data.get("modified_code", ""))
+            logger.info(f"[Fix Processor] Proposal #{proposal_id} sandbox file written: {sandbox_path}")
+        except ImportError:
+            logger.debug("[Fix Processor] SandboxManager not available, skipping sandbox write")
+        except Exception as sandbox_err:
+            logger.warning(f"[Fix Processor] Sandbox write failed for proposal #{proposal_id}: {sandbox_err}")
+
+        logger.info(
+            f"[Fix Processor] Proposal #{proposal_id} '{title}' dispatched successfully "
+            f"(confidence={fix_data.get('confidence', 'N/A')})"
+        )
+
+    def _find_fix_pattern(self, category):
+        """Look up a fix pattern from knowledge_base matching the proposal category."""
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor() as (conn, cur):
+                cur.execute("""
+                    SELECT content FROM knowledge_base
+                    WHERE category = 'code_health'
+                      AND knowledge_type = 'fix_pattern'
+                      AND (tags::text ILIKE %s OR content ILIKE %s)
+                    ORDER BY updated_at DESC
+                    LIMIT 1
+                """, (f"%{category}%", f"%{category}%"))
+                row = cur.fetchone()
+                if row:
+                    return row[0]
+        except Exception as e:
+            logger.debug(f"[Fix Processor] Fix pattern lookup failed for '{category}': {e}")
+        return ""
+
+    def _build_fix_prompt(self, title, description, category, priority, file_path, file_content, fix_pattern):
+        """Construct the prompt for a code fix agent."""
+        parts = [
+            "FIX REQUEST",
+            "===========",
+            f"Issue Type: {category}",
+            f"Priority: {priority}",
+            f"File: {file_path}",
+            f"Title: {title}",
+            f"Description: {description}",
+        ]
+
+        if file_content:
+            # Truncate very large files to avoid blowing context
+            content = file_content[:15000]
+            if len(file_content) > 15000:
+                content += f"\n\n... (truncated, full file is {len(file_content)} chars)"
+            parts.append(f"\nCURRENT CODE:\n```\n{content}\n```")
+
+        if fix_pattern:
+            parts.append(f"\nFIX PATTERN:\n{fix_pattern}")
+
+        parts.append(
+            "\nRespond with JSON:\n"
+            '{"modified_code": "...full file content with fix applied...", '
+            '"explanation": "...what was changed and why...", '
+            '"confidence": 0.0, '
+            '"files_changed": ["path/to/file.py"], '
+            '"lines_modified": [45, 46], '
+            '"breaking_changes": false}'
+        )
+
+        return "\n".join(parts)

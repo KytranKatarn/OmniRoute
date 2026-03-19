@@ -826,313 +826,369 @@ def register_node_routes(bp, auth_decorator):
 
 
 def _generate_setup_sh(hub_url, node_id, token, node_name):
-    """Generate a downloadable .sh setup script with all credentials baked in."""
+    """Generate a self-contained bash heartbeat script. No Python, no Docker required.
+    The script IS the heartbeat — it registers, collects hw info, and loops forever."""
     return f"""#!/bin/bash
 # ============================================================
-#  A.R.C.H.I.E. STARSHIP NODE — One-Click Setup
+#  A.R.C.H.I.E. STARSHIP NODE — Self-Contained Heartbeat
 #  Node: {node_name} ({node_id})
 #  Hub:  {hub_url}
+#  Just bash + curl. No Python. No Docker. No admin.
 # ============================================================
-set -e
+
+CLIENT_VERSION="3.0.0"
+HUB_URL="{hub_url}"
+NODE_ID="{node_id}"
+API_KEY="{token}"
+NODE_NAME="{node_name}"
+INSTALL_DIR="$HOME/archie-node"
+HEARTBEAT_INTERVAL=30
+FAIL_COUNT=0
 
 echo ""
 echo "  ╔══════════════════════════════════════════════╗"
-echo "  ║  A.R.C.H.I.E. STARSHIP NODE INSTALLER       ║"
+echo "  ║  A.R.C.H.I.E. STARSHIP NODE                 ║"
+echo "  ║  Self-Contained Heartbeat Client v$CLIENT_VERSION       ║"
 echo "  ║  Node: {node_name}"
 echo "  ║  Hub:  {hub_url}"
 echo "  ╚══════════════════════════════════════════════╝"
 echo ""
 
-# ── Step 1: Check prerequisites ──
-command -v docker >/dev/null 2>&1 || {{ echo "ERROR: Docker is not installed. Install Docker first: https://docs.docker.com/get-docker/"; exit 1; }}
-command -v curl >/dev/null 2>&1 || {{ echo "ERROR: curl is not installed."; exit 1; }}
+command -v curl >/dev/null 2>&1 || {{ echo "ERROR: curl is required."; exit 1; }}
 
-# ── Step 2: Create working directory ──
-INSTALL_DIR="/opt/archie-node"
-echo "[1/5] Creating install directory: $INSTALL_DIR"
-sudo mkdir -p "$INSTALL_DIR"
+# ── Step 1: Create install directory ──
+mkdir -p "$INSTALL_DIR"
 cd "$INSTALL_DIR"
+echo "[1/5] Install dir: $INSTALL_DIR"
 
-# ── Step 3: Download node client package ──
-echo "[2/5] Downloading node package from hub..."
-curl -fsSL "{hub_url}/tools/starship/download/node-package" -o archie-node.tar.gz 2>/dev/null || {{
-    echo "WARNING: Could not download package from hub. Using minimal setup."
-}}
-if [ -f archie-node.tar.gz ]; then
-    tar xzf archie-node.tar.gz --strip-components=1 2>/dev/null || true
-    rm -f archie-node.tar.gz
+# ── Step 2: Register with hub ──
+echo "[2/5] Registering with hub..."
+REG_RESPONSE=$(curl -sS -X POST "$HUB_URL/tools/starbase/api/nodes/register" \\
+    -H "Content-Type: application/json" \\
+    -d "{{\\"node_id\\": \\"$NODE_ID\\", \\"api_key\\": \\"$API_KEY\\", \\"node_name\\": \\"$NODE_NAME\\"}}" 2>/dev/null) || true
+
+if echo "$REG_RESPONSE" | grep -q '"api_key"'; then
+    REG_KEY=$(echo "$REG_RESPONSE" | grep -o '"api_key"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | cut -d'"' -f4)
+    if [ -n "$REG_KEY" ]; then API_KEY="$REG_KEY"; fi
+    echo "  Registered successfully."
+else
+    echo "  Using pre-assigned credentials."
 fi
 
-# ── Step 4: Write configuration ──
-echo "[3/5] Writing node configuration..."
-cat > config.json << 'CONFIGEOF'
+# ── Step 3: Write config.json ──
+echo "[3/5] Writing config.json..."
+cat > "$INSTALL_DIR/config.json" << CONFIGEOF
 {{
-    "node_id": "{node_id}",
-    "node_name": "{node_name}",
-    "setup_token": "{token}",
-    "hub_url": "{hub_url}",
-    "starbase_url": "{hub_url}",
+    "node_id": "$NODE_ID",
+    "node_name": "$NODE_NAME",
+    "api_key": "$API_KEY",
+    "hub_url": "$HUB_URL",
     "deployment_mode": "starship",
-    "heartbeat_interval": 30
+    "heartbeat_interval": $HEARTBEAT_INTERVAL,
+    "client_version": "$CLIENT_VERSION"
 }}
 CONFIGEOF
 
-cat > .env << 'ENVEOF'
-HUB_URL={hub_url}
-NODE_ID={node_id}
-HUB_API_KEY={token}
-ENVEOF
-
-# Detect timezone
-if [ -f /etc/timezone ]; then
-    TZ=$(cat /etc/timezone)
-elif [ -L /etc/localtime ]; then
-    TZ=$(readlink /etc/localtime | sed 's|.*/zoneinfo/||')
-else
-    TZ="UTC"
+# ── Step 4: Detect hardware ──
+echo "[4/5] Detecting hardware..."
+CPU_MODEL=$(grep -m1 'model name' /proc/cpuinfo 2>/dev/null | cut -d: -f2 | xargs || echo "Unknown")
+RAM_GB=$(awk '/MemTotal/{{printf "%.1f", $2/1048576}}' /proc/meminfo 2>/dev/null || echo "0")
+GPU_MODEL="None"
+GPU_VRAM="0"
+if command -v nvidia-smi >/dev/null 2>&1; then
+    GPU_MODEL=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 || echo "None")
+    GPU_VRAM=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 || echo "0")
+    GPU_VRAM=$(echo "scale=1; $GPU_VRAM/1024" | bc 2>/dev/null || echo "0")
 fi
-echo "NODE_TIMEZONE=$TZ" >> .env
+echo "  CPU: $CPU_MODEL | RAM: ${{RAM_GB}}GB | GPU: $GPU_MODEL (${{GPU_VRAM}}GB)"
 
-# ── Step 5: Download and start heartbeat ──
-echo "[4/5] Downloading heartbeat client..."
-curl -fsSL "{hub_url}/tools/starship/download/node-package" -o /dev/null 2>/dev/null || true
+# ── Step 5: Detect Ollama + auto-start ──
+OLLAMA_ONLINE="false"
+OLLAMA_MODELS="[]"
+check_ollama() {{
+    local resp
+    resp=$(curl -sS --max-time 3 "http://localhost:11434/api/tags" 2>/dev/null) || return
+    if echo "$resp" | grep -q '"models"'; then
+        OLLAMA_ONLINE="true"
+        OLLAMA_MODELS=$(echo "$resp" | grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4 | \\
+            awk 'BEGIN{{printf "["}} NR>1{{printf ","}} {{printf "\\"%s\\"", $0}} END{{printf "]"}}')
+    else
+        OLLAMA_ONLINE="false"; OLLAMA_MODELS="[]"
+    fi
+}}
+check_ollama
+echo "  Ollama: $OLLAMA_ONLINE"
 
-# Try Docker Compose if available
-if [ -f docker-compose.node.yml ]; then
-    echo "[5/5] Starting containers with Docker Compose..."
-    docker compose -f docker-compose.node.yml up -d 2>/dev/null || docker-compose -f docker-compose.node.yml up -d 2>/dev/null || true
+echo "[5/5] Setting up auto-start..."
+SCRIPT_PATH=$(readlink -f "$0")
+if command -v systemctl >/dev/null 2>&1; then
+    mkdir -p "$HOME/.config/systemd/user"
+    cat > "$HOME/.config/systemd/user/archie-node.service" << SVCEOF
+[Unit]
+Description=A.R.C.H.I.E. Starship Node Heartbeat
+After=network-online.target
+[Service]
+ExecStart=/bin/bash $SCRIPT_PATH
+Restart=always
+RestartSec=10
+[Install]
+WantedBy=default.target
+SVCEOF
+    systemctl --user daemon-reload 2>/dev/null || true
+    systemctl --user enable archie-node.service 2>/dev/null || true
+    echo "  Systemd user service installed."
 else
-    echo "[5/5] No docker-compose.node.yml found — node registered, awaiting manual start."
+    (crontab -l 2>/dev/null | grep -v "archie-node"; echo "@reboot /bin/bash $SCRIPT_PATH") | crontab - 2>/dev/null || true
+    echo "  Cron @reboot entry added."
 fi
 
 echo ""
 echo "  ╔══════════════════════════════════════════════╗"
-echo "  ║  SETUP COMPLETE                              ║"
-echo "  ║                                              ║"
-echo "  ║  Node ID:   {node_id}"
-echo "  ║  Config:    $INSTALL_DIR/config.json"
-echo "  ║  Status:    PENDING APPROVAL                 ║"
-echo "  ║                                              ║"
-echo "  ║  An admin will approve this node and         ║"
-echo "  ║  assign agents to it from Starship Command.  ║"
+echo "  ║  NODE ONLINE — Sending heartbeats            ║"
+echo "  ║  Node ID: $NODE_ID"
+echo "  ║  Config:  $INSTALL_DIR/config.json"
+echo "  ║  Press Ctrl+C to stop                        ║"
 echo "  ╚══════════════════════════════════════════════╝"
 echo ""
+
+# ── Heartbeat loop ──
+get_interval() {{
+    if [ "$FAIL_COUNT" -ge 10 ]; then echo 30; FAIL_COUNT=0
+    elif [ "$FAIL_COUNT" -ge 5 ]; then echo 120
+    elif [ "$FAIL_COUNT" -ge 3 ]; then echo 60
+    else echo $HEARTBEAT_INTERVAL; fi
+}}
+
+while true; do
+    CPU_USAGE=$(awk '{{u=$2+$4; t=$2+$4+$5}} NR==1{{ou=u;ot=t}} NR==2{{printf "%.1f", (u-ou)/(t-ot)*100}}' \\
+        <(grep '^cpu ' /proc/stat; sleep 1; grep '^cpu ' /proc/stat) 2>/dev/null || echo "0")
+    MEM_USAGE=$(awk '/MemTotal/{{t=$2}} /MemAvailable/{{a=$2}} END{{printf "%.1f", (t-a)/t*100}}' /proc/meminfo 2>/dev/null || echo "0")
+    GPU_USAGE="0"
+    if command -v nvidia-smi >/dev/null 2>&1; then
+        GPU_USAGE=$(nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits 2>/dev/null | head -1 || echo "0")
+    fi
+    check_ollama
+
+    PAYLOAD="{{\\"node_id\\": \\"$NODE_ID\\", \\"api_key\\": \\"$API_KEY\\", \\"status\\": \\"online\\", \
+\\"cpu_usage\\": $CPU_USAGE, \\"memory_usage\\": $MEM_USAGE, \\"gpu_usage\\": $GPU_USAGE, \
+\\"ollama_online\\": $OLLAMA_ONLINE, \\"ollama_models\\": $OLLAMA_MODELS, \
+\\"client_version\\": \\"$CLIENT_VERSION\\", \\"cpu_model\\": \\"$CPU_MODEL\\", \
+\\"ram_gb\\": $RAM_GB, \\"gpu_model\\": \\"$GPU_MODEL\\", \\"gpu_vram_gb\\": $GPU_VRAM}}"
+
+    RESPONSE=$(curl -sS -X POST "$HUB_URL/tools/starbase/api/nodes/heartbeat" \\
+        -H "Content-Type: application/json" -H "X-Node-API-Key: $API_KEY" \\
+        -d "$PAYLOAD" --max-time 10 2>/dev/null) || RESPONSE=""
+
+    if echo "$RESPONSE" | grep -q '"status"'; then
+        FAIL_COUNT=0
+        if echo "$RESPONSE" | grep -q '"update_available"[[:space:]]*:[[:space:]]*true'; then
+            echo "[$(date +%H:%M:%S)] Update available — re-downloading script..."
+            curl -sS "$HUB_URL/tools/starship/download/setup-sh/$NODE_ID" -o "$SCRIPT_PATH.new" 2>/dev/null && \\
+                mv "$SCRIPT_PATH.new" "$SCRIPT_PATH" && chmod +x "$SCRIPT_PATH" && \\
+                exec bash "$SCRIPT_PATH"
+        fi
+        echo "[$(date +%H:%M:%S)] Heartbeat OK | CPU:${{CPU_USAGE}}% MEM:${{MEM_USAGE}}% GPU:${{GPU_USAGE}}% Ollama:$OLLAMA_ONLINE"
+    else
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+        echo "[$(date +%H:%M:%S)] Heartbeat FAILED ($FAIL_COUNT) — retrying in $(get_interval)s"
+    fi
+
+    sleep $(get_interval)
+done
 """
 
 
 def _generate_setup_ps1(hub_url, node_id, token, node_name):
-    """Generate a downloadable .ps1 setup script with all credentials baked in."""
+    """Generate a self-contained PowerShell heartbeat script. No Python, no Docker,
+    no admin, no scheduled tasks. The script IS the heartbeat — runs in a while loop.
+    Pure PowerShell that ships with every Windows machine."""
     return f"""# ============================================================
-#  A.R.C.H.I.E. STARSHIP NODE - One-Click Setup (Windows)
+#  A.R.C.H.I.E. STARSHIP NODE — Self-Contained Heartbeat
 #  Node: {node_name} ({node_id})
 #  Hub:  {hub_url}
+#  Pure PowerShell. No Python. No Docker. No admin rights.
 # ============================================================
 
+$ClientVersion = "3.0.0"
+$HubUrl        = "{hub_url}"
+$NodeId        = "{node_id}"
+$ApiKey        = "{token}"
+$NodeName      = "{node_name}"
+$InstallDir    = "$env:USERPROFILE\\archie-node"
+$HBInterval    = 30
+$FailCount     = 0
+$ProgressPreference = 'SilentlyContinue'
+
+# ── Banner ──
 Write-Host ""
-Write-Host "  +================================================+" -ForegroundColor Cyan
-Write-Host "  |  A.R.C.H.I.E. STARSHIP NODE INSTALLER          |" -ForegroundColor Cyan
-Write-Host "  |  Node: {node_name}" -ForegroundColor Cyan
-Write-Host "  |  Hub:  {hub_url}" -ForegroundColor Cyan
-Write-Host "  +================================================+" -ForegroundColor Cyan
+Write-Host "  ╔══════════════════════════════════════════════╗" -ForegroundColor Cyan
+Write-Host "  ║  A.R.C.H.I.E. STARSHIP NODE                 ║" -ForegroundColor Cyan
+Write-Host "  ║  Self-Contained Heartbeat Client v$ClientVersion       ║" -ForegroundColor Cyan
+Write-Host "  ║  Node: {node_name}" -ForegroundColor Cyan
+Write-Host "  ║  Hub:  {hub_url}" -ForegroundColor Cyan
+Write-Host "  ╚══════════════════════════════════════════════╝" -ForegroundColor Cyan
 Write-Host ""
 
-# -- Step 1: Check prerequisites --
-$dockerCheck = Get-Command docker -ErrorAction SilentlyContinue
-if (-not $dockerCheck) {{
-    Write-Host "ERROR: Docker is not installed." -ForegroundColor Red
-    Write-Host "Install Docker Desktop: https://docs.docker.com/desktop/install/windows-install/" -ForegroundColor Yellow
-    Read-Host "Press Enter to exit"
-    exit 1
-}}
-
-# -- Step 2: Create working directory --
-$InstallDir = "$env:USERPROFILE\\archie-node"
-if ([Security.Principal.WindowsIdentity]::GetCurrent().Owner -eq 'S-1-5-32-544') {{
-    $InstallDir = "$env:ProgramData\\archie-node"
-}}
-Write-Host "[1/5] Creating install directory: $InstallDir" -ForegroundColor Yellow
+# ── Step 1: Install directory ──
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 Set-Location $InstallDir
+Write-Host "[1/6] Install dir: $InstallDir" -ForegroundColor Yellow
 
-# -- Step 3: Download node package --
-Write-Host "[2/5] Downloading node package from hub..." -ForegroundColor Yellow
-$ProgressPreference = 'SilentlyContinue'
+# ── Step 2: Register with hub ──
+Write-Host "[2/6] Registering with hub..." -ForegroundColor Yellow
 try {{
-    Invoke-WebRequest -Uri "{hub_url}/tools/starship/download/node-package" -OutFile "archie-node.tar.gz" -UseBasicParsing
-    if (Test-Path "archie-node.tar.gz") {{
-        tar xzf archie-node.tar.gz --strip-components=1 2>$null
-        Remove-Item "archie-node.tar.gz" -Force -ErrorAction SilentlyContinue
+    $regBody = @{{ node_id = $NodeId; api_key = $ApiKey; node_name = $NodeName }} | ConvertTo-Json
+    $regResp = Invoke-RestMethod -Uri "$HubUrl/tools/starbase/api/nodes/register" -Method POST `
+        -ContentType "application/json" -Body $regBody -TimeoutSec 10
+    if ($regResp.api_key) {{ $ApiKey = $regResp.api_key }}
+    Write-Host "  Registered successfully." -ForegroundColor Green
+}} catch {{
+    Write-Host "  Using pre-assigned credentials." -ForegroundColor Yellow
+}}
+
+# ── Step 3: Write config.json ──
+Write-Host "[3/6] Writing config.json..." -ForegroundColor Yellow
+@{{
+    node_id            = $NodeId
+    node_name          = $NodeName
+    api_key            = $ApiKey
+    hub_url            = $HubUrl
+    deployment_mode    = "starship"
+    heartbeat_interval = $HBInterval
+    client_version     = $ClientVersion
+}} | ConvertTo-Json | Set-Content -Path "$InstallDir\\config.json" -Encoding UTF8
+
+# ── Step 4: Detect hardware ──
+Write-Host "[4/6] Detecting hardware..." -ForegroundColor Yellow
+$cpuInfo  = (Get-CimInstance Win32_Processor | Select-Object -First 1).Name
+$osInfo   = Get-CimInstance Win32_OperatingSystem
+$ramGB    = [math]::Round($osInfo.TotalVisibleMemorySize / 1MB, 1)
+$gpuModel = "None"; $gpuVram = 0
+try {{
+    $nv = & nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits 2>$null
+    if ($nv) {{
+        $parts    = $nv -split ","
+        $gpuModel = $parts[0].Trim()
+        $gpuVram  = [math]::Round([double]$parts[1].Trim() / 1024, 1)
     }}
-}} catch {{
-    Write-Host "WARNING: Could not download package. Using minimal setup." -ForegroundColor Yellow
-}}
+}} catch {{}}
+Write-Host "  CPU: $cpuInfo | RAM: ${{ramGB}}GB | GPU: $gpuModel (${{gpuVram}}GB)" -ForegroundColor Gray
 
-# -- Step 4: Write configuration --
-Write-Host "[3/5] Writing node configuration..." -ForegroundColor Yellow
-
-$config = @"
-{{
-    "node_id": "{node_id}",
-    "node_name": "{node_name}",
-    "api_key": "{token}",
-    "hub_url": "{hub_url}",
-    "server_url": "{hub_url}",
-    "ollama_host": "http://localhost:11434",
-    "ollama_port": 11434,
-    "deployment_mode": "starship",
-    "heartbeat_interval": 30,
-    "sync_interval": 60,
-    "client_version": "2.0.0"
-}}
-"@
-$config | Set-Content -Path "config.json" -Encoding UTF8
-
-$tz = (Get-TimeZone).Id
-@"
-HUB_URL={hub_url}
-NODE_ID={node_id}
-HUB_API_KEY={token}
-OLLAMA_HOST=http://localhost:11434
-NODE_TIMEZONE=$tz
-"@ | Set-Content -Path ".env" -Encoding UTF8
-
-# -- Step 5: Download and start node_sync.py --
-Write-Host "[4/5] Downloading node client..." -ForegroundColor Yellow
-try {{
-    Invoke-WebRequest -Uri "{hub_url}/tools/starbase/api/nodes/node_sync.py" -OutFile "node_sync.py" -UseBasicParsing
-}} catch {{
-    Write-Host "WARNING: Could not download node_sync.py" -ForegroundColor Yellow
-}}
-
-Write-Host "[5/5] Starting node heartbeat service..." -ForegroundColor Yellow
-$pythonCmd = Get-Command python -ErrorAction SilentlyContinue
-if (-not $pythonCmd) {{ $pythonCmd = Get-Command python3 -ErrorAction SilentlyContinue }}
-if ($pythonCmd -and (Test-Path "node_sync.py")) {{
-    # Try scheduled task first (needs admin), fall back to background process
-    $taskCreated = $false
+# ── Step 5: Detect Ollama ──
+Write-Host "[5/6] Checking for Ollama..." -ForegroundColor Yellow
+function Get-OllamaStatus {{
     try {{
-        $taskName = "ARCHIE-Node-Sync"
-        $action = New-ScheduledTaskAction -Execute $pythonCmd.Source -Argument "$InstallDir\\node_sync.py" -WorkingDirectory $InstallDir
-        $trigger = New-ScheduledTaskTrigger -AtStartup
-        $settings = New-ScheduledTaskSettingsSet -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Days 365)
-        Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
-        Unregister-ScheduledTask -TaskName "ARCHIE-Node-Heartbeat" -Confirm:$false -ErrorAction SilentlyContinue
-        Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -ErrorAction Stop
-        Start-ScheduledTask -TaskName $taskName -ErrorAction Stop
-        $taskCreated = $true
-        Write-Host "  Node service started (scheduled task)" -ForegroundColor Green
+        $resp = Invoke-RestMethod -Uri "http://localhost:11434/api/tags" -TimeoutSec 3
+        $models = @($resp.models | ForEach-Object {{ $_.name }})
+        return @{{ online = $true; models = $models }}
     }} catch {{
-        Write-Host "  Scheduled task needs admin - starting as background process..." -ForegroundColor Yellow
+        return @{{ online = $false; models = @() }}
     }}
-    if (-not $taskCreated) {{
-        # Launch as background process - works without admin
-        $proc = Start-Process -FilePath $pythonCmd.Source -ArgumentList "$InstallDir\\node_sync.py" -WorkingDirectory $InstallDir -WindowStyle Hidden -PassThru
-        Write-Host "  Node service started (PID: $($proc.Id))" -ForegroundColor Green
-        # Create a startup shortcut so it survives reboot
-        $startupDir = [System.IO.Path]::Combine($env:APPDATA, "Microsoft\\Windows\\Start Menu\\Programs\\Startup")
-        $shortcutPath = "$startupDir\\ARCHIE-Node.lnk"
-        try {{
-            $shell = New-Object -ComObject WScript.Shell
-            $shortcut = $shell.CreateShortcut($shortcutPath)
-            $shortcut.TargetPath = $pythonCmd.Source
-            $shortcut.Arguments = "$InstallDir\\node_sync.py"
-            $shortcut.WorkingDirectory = $InstallDir
-            $shortcut.WindowStyle = 7
-            $shortcut.Save()
-            Write-Host "  Auto-start on login enabled" -ForegroundColor Green
-        }} catch {{
-            Write-Host "  Note: re-run as admin for auto-start on boot" -ForegroundColor Yellow
-        }}
+}}
+$ollama = Get-OllamaStatus
+Write-Host "  Ollama: $(if ($ollama.online) {{ 'ONLINE (' + $ollama.models.Count + ' models)' }} else {{ 'OFFLINE' }})" -ForegroundColor Gray
+
+# ── Step 6: Startup shortcut (non-admin) ──
+Write-Host "[6/6] Setting up auto-start..." -ForegroundColor Yellow
+$scriptPath = $MyInvocation.MyCommand.Path
+if ($scriptPath) {{
+    try {{
+        $startupDir = [IO.Path]::Combine($env:APPDATA, "Microsoft\\Windows\\Start Menu\\Programs\\Startup")
+        $lnkPath    = "$startupDir\\ARCHIE-Node.lnk"
+        $shell      = New-Object -ComObject WScript.Shell
+        $shortcut   = $shell.CreateShortcut($lnkPath)
+        $shortcut.TargetPath       = "powershell.exe"
+        $shortcut.Arguments        = "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$scriptPath`""
+        $shortcut.WorkingDirectory = $InstallDir
+        $shortcut.WindowStyle      = 7
+        $shortcut.Save()
+        Write-Host "  Auto-start on login enabled." -ForegroundColor Green
+    }} catch {{
+        Write-Host "  Could not create startup shortcut (non-critical)." -ForegroundColor Yellow
     }}
 }} else {{
-    Write-Host "  Python not found - install Python 3 from python.org" -ForegroundColor Red
+    Write-Host "  Run from a saved .ps1 file for auto-start." -ForegroundColor Yellow
 }}
 
 Write-Host ""
-Write-Host "  +================================================+" -ForegroundColor Green
-Write-Host "  |  SETUP COMPLETE                                 |" -ForegroundColor Green
-Write-Host "  |                                                  |" -ForegroundColor Green
-Write-Host "  |  Node ID:   {node_id}" -ForegroundColor Green
-Write-Host "  |  Config:    $InstallDir\\config.json" -ForegroundColor Green
-Write-Host "  |  Status:    PENDING APPROVAL                    |" -ForegroundColor Green
-Write-Host "  |                                                  |" -ForegroundColor Green
-Write-Host "  |  An admin will approve this node and            |" -ForegroundColor Green
-Write-Host "  |  assign agents to it from Starship Command.     |" -ForegroundColor Green
-Write-Host "  +================================================+" -ForegroundColor Green
+Write-Host "  ╔══════════════════════════════════════════════╗" -ForegroundColor Green
+Write-Host "  ║  NODE ONLINE — Sending heartbeats            ║" -ForegroundColor Green
+Write-Host "  ║  Node ID: $NodeId" -ForegroundColor Green
+Write-Host "  ║  Config:  $InstallDir\\config.json" -ForegroundColor Green
+Write-Host "  ║  Press Ctrl+C to stop                        ║" -ForegroundColor Green
+Write-Host "  ╚══════════════════════════════════════════════╝" -ForegroundColor Green
 Write-Host ""
-Read-Host "Press Enter to close"
+
+# ── Heartbeat loop ──
+function Get-Interval {{
+    if ($script:FailCount -ge 10) {{ $script:FailCount = 0; return 30 }}
+    if ($script:FailCount -ge 5)  {{ return 120 }}
+    if ($script:FailCount -ge 3)  {{ return 60 }}
+    return $HBInterval
+}}
+
+while ($true) {{
+    $cpuUsage = [math]::Round((Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average, 1)
+    $os       = Get-CimInstance Win32_OperatingSystem
+    $memUsage = [math]::Round(($os.TotalVisibleMemorySize - $os.FreePhysicalMemory) / $os.TotalVisibleMemorySize * 100, 1)
+    $gpuUsage = 0
+    try {{ $gpuUsage = [int](& nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits 2>$null) }} catch {{}}
+    $ollama = Get-OllamaStatus
+
+    $payload = @{{
+        node_id        = $NodeId
+        api_key        = $ApiKey
+        status         = "online"
+        cpu_usage      = $cpuUsage
+        memory_usage   = $memUsage
+        gpu_usage      = $gpuUsage
+        ollama_online  = $ollama.online
+        ollama_models  = $ollama.models
+        client_version = $ClientVersion
+        cpu_model      = $cpuInfo
+        ram_gb         = $ramGB
+        gpu_model      = $gpuModel
+        gpu_vram_gb    = $gpuVram
+    }} | ConvertTo-Json -Depth 3
+
+    try {{
+        $resp = Invoke-RestMethod -Uri "$HubUrl/tools/starbase/api/nodes/heartbeat" -Method POST `
+            -ContentType "application/json" -Body $payload `
+            -Headers @{{ "X-Node-API-Key" = $ApiKey }} -TimeoutSec 10
+        $FailCount = 0
+        $ts = Get-Date -Format "HH:mm:ss"
+
+        if ($resp.update_available -eq $true -and $scriptPath) {{
+            Write-Host "[$ts] Update available - re-downloading script..." -ForegroundColor Magenta
+            try {{
+                Invoke-WebRequest -Uri "$HubUrl/tools/starship/download/setup-ps1/$NodeId" `
+                    -OutFile "$scriptPath.new" -UseBasicParsing
+                Move-Item -Force "$scriptPath.new" $scriptPath
+                Write-Host "[$ts] Restarting with updated script..." -ForegroundColor Magenta
+                Start-Process powershell.exe -ArgumentList "-ExecutionPolicy Bypass -File `"$scriptPath`""
+                exit 0
+            }} catch {{
+                Write-Host "[$ts] Update failed: $_" -ForegroundColor Red
+            }}
+        }}
+
+        Write-Host "[$ts] Heartbeat OK | CPU:${{cpuUsage}}% MEM:${{memUsage}}% GPU:${{gpuUsage}}% Ollama:$(if($ollama.online){{'ON'}}else{{'OFF'}})" -ForegroundColor DarkGray
+    }} catch {{
+        $FailCount++
+        $ts = Get-Date -Format "HH:mm:ss"
+        Write-Host "[$ts] Heartbeat FAILED ($FailCount) - retrying in $(Get-Interval)s" -ForegroundColor Red
+    }}
+
+    Start-Sleep -Seconds (Get-Interval)
+}}
 """
 
 
 def _generate_bash_installer(hub_url, node_id, token):
-    """Generate bash install script with credentials injected."""
-    return f"""#!/bin/bash
-set -e
-echo "=== A.R.C.H.I.E. Starship Node Installer ==="
-echo "Hub: {hub_url}"
-echo "Node: {node_id}"
-
-# Download node package
-curl -fsSL "{hub_url}/starship/download/node-package" -o archie-node.tar.gz
-
-# Extract
-mkdir -p archie-node && tar xzf archie-node.tar.gz -C archie-node --strip-components=1
-cd archie-node
-
-# Write .env
-cat > .env << 'ENVEOF'
-HUB_URL={hub_url}
-NODE_ID={node_id}
-HUB_API_KEY={token}
-ENVEOF
-
-# Detect timezone
-if [ -f /etc/timezone ]; then
-    TZ=$(cat /etc/timezone)
-elif [ -L /etc/localtime ]; then
-    TZ=$(readlink /etc/localtime | sed 's|.*/zoneinfo/||')
-else
-    TZ="UTC"
-fi
-echo "NODE_TIMEZONE=$TZ" >> .env
-
-echo "Starting containers..."
-docker compose -f docker-compose.node.yml up -d
-
-echo ""
-echo "=== Installation complete ==="
-echo "Node API: http://localhost:3001/health"
-"""
+    """Generate self-contained bash heartbeat (alias for _generate_setup_sh without node_name)."""
+    return _generate_setup_sh(hub_url, node_id, token, node_id)
 
 
 def _generate_powershell_installer(hub_url, node_id, token):
-    """Generate PowerShell install script with credentials injected."""
-    return f"""# A.R.C.H.I.E. Starship Node Installer
-Write-Host "=== A.R.C.H.I.E. Starship Node Installer ===" -ForegroundColor Cyan
-Write-Host "Hub: {hub_url}"
-Write-Host "Node: {node_id}"
-
-# Download node package
-$ProgressPreference = 'SilentlyContinue'
-Invoke-WebRequest -Uri "{hub_url}/starship/download/node-package" -OutFile archie-node.tar.gz
-
-# Extract
-New-Item -ItemType Directory -Force -Path archie-node | Out-Null
-tar xzf archie-node.tar.gz -C archie-node --strip-components=1
-Set-Location archie-node
-
-# Write .env
-@"
-HUB_URL={hub_url}
-NODE_ID={node_id}
-HUB_API_KEY={token}
-NODE_TIMEZONE=$((Get-TimeZone).Id)
-"@ | Set-Content .env
-
-Write-Host "Starting containers..." -ForegroundColor Yellow
-docker compose -f docker-compose.node.yml up -d
-
-Write-Host ""
-Write-Host "=== Installation complete ===" -ForegroundColor Green
-Write-Host "Node API: http://localhost:3001/health"
-"""
+    """Generate self-contained PowerShell heartbeat (alias for _generate_setup_ps1 without node_name)."""
+    return _generate_setup_ps1(hub_url, node_id, token, node_id)

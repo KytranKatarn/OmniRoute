@@ -250,6 +250,8 @@ class BridgeDispatcher:
         self._dynamic_spec_cache = {}  # (station, capability) → agent_name
         self._dynamic_spec_ts = 0
         self._dynamic_spec_ttl = 600
+        # Fleet health tracking — node_db_id → {"online": bool, "last_check": timestamp}
+        self._fleet_health_cache = {}
 
     def _get_db(self):
         """Get database connection."""
@@ -6550,6 +6552,439 @@ class BridgeDispatcher:
                 logger.info(f"[BridgeDispatcher] VRAM swap: reloaded {mname} on {target}")
         except Exception as e:
             logger.warning(f"[BridgeDispatcher] VRAM restore failed: {e}")
+
+
+    # ========================================================================
+    # FLEET HEALTH — Node offline/online protocol
+    # ========================================================================
+
+    def check_fleet_health(self):
+        """Monitor node heartbeats and handle offline/online transitions.
+
+        Called periodically (e.g., every 30s by agent loop).
+        - Nodes with stale heartbeats (>2 min) → return agents to barracks
+        - Nodes that come back online → restore previously deployed agents
+        - Starbase nodes are always considered online (skip heartbeat check)
+        - Idempotent: duplicate calls for same state produce no extra notifications
+        """
+        from psycopg2.extras import RealDictCursor
+
+        conn = self._get_db()
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Get all active, non-starbase nodes
+            cur.execute(
+                """
+                SELECT id, node_name, deployment_mode, last_heartbeat,
+                       (last_heartbeat > NOW() - INTERVAL '2 minutes') AS heartbeat_fresh
+                FROM remote_nodes
+                WHERE is_active = true
+                  AND deployment_mode != 'starbase'
+                ORDER BY id
+                """
+            )
+            nodes = cur.fetchall()
+
+            for node in nodes:
+                node_id = node["id"]
+                node_name = node["node_name"] or f"Node-{node_id}"
+                is_online = bool(node["heartbeat_fresh"])
+                prev = self._fleet_health_cache.get(node_id)
+                was_online = prev["online"] if prev else True  # assume online if first check
+
+                # Update cache
+                self._fleet_health_cache[node_id] = {
+                    "online": is_online,
+                    "last_check": datetime.utcnow().isoformat(),
+                }
+
+                # --- TRANSITION: online → offline ---
+                if was_online and not is_online:
+                    self._handle_node_offline(cur, conn, node_id, node_name)
+
+                # --- TRANSITION: offline → online ---
+                elif not was_online and is_online:
+                    self._handle_node_online(cur, conn, node_id, node_name)
+
+            cur.close()
+        except Exception as e:
+            logger.error("[BridgeDispatcher] check_fleet_health error: %s", e)
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    def _handle_node_offline(self, cur, conn, node_id, node_name):
+        """Return all agents on this node to barracks and log notification."""
+        # 1. Find agents deployed to this node
+        cur.execute(
+            """
+            SELECT na.hub_agent_id, na.name
+            FROM node_agents na
+            WHERE na.node_id = %s AND na.status = 'active' AND na.hub_agent_id IS NOT NULL
+            """,
+            (node_id,),
+        )
+        deployed = cur.fetchall()
+
+        if not deployed:
+            logger.info(
+                "[BridgeDispatcher] Node %s offline but had no active agents", node_name
+            )
+            # Still log notification for visibility
+            cur.execute(
+                """
+                INSERT INTO system_notifications (type, message, created_at)
+                VALUES ('warning', %s, NOW())
+                """,
+                (f"Node {node_name} went offline — 0 agents affected",),
+            )
+            conn.commit()
+            return
+
+        agent_ids = [r["hub_agent_id"] for r in deployed]
+        agent_names = [r["name"] for r in deployed]
+
+        # 2. Return agents to barracks
+        cur.execute(
+            """
+            UPDATE agents SET shift_state = 'barracked'
+            WHERE id = ANY(%s) AND shift_state = 'deployed'
+            """,
+            (agent_ids,),
+        )
+
+        # 3. Mark node_agents inactive
+        cur.execute(
+            """
+            UPDATE node_agents SET status = 'inactive'
+            WHERE node_id = %s AND status = 'active'
+            """,
+            (node_id,),
+        )
+
+        # 4. Log notification
+        msg = (
+            f"Node {node_name} went offline — "
+            f"{len(agent_ids)} agents returned to barracks: {', '.join(agent_names)}"
+        )
+        cur.execute(
+            """
+            INSERT INTO system_notifications (type, message, created_at)
+            VALUES ('warning', %s, NOW())
+            """,
+            (msg,),
+        )
+        conn.commit()
+        logger.warning("[BridgeDispatcher] %s", msg)
+
+    def _handle_node_online(self, cur, conn, node_id, node_name):
+        """Restore previously deployed agents when a node comes back online."""
+        # 1. Find agents that were on this node before it went offline
+        cur.execute(
+            """
+            SELECT na.hub_agent_id, na.name
+            FROM node_agents na
+            WHERE na.node_id = %s AND na.status = 'inactive' AND na.hub_agent_id IS NOT NULL
+            """,
+            (node_id,),
+        )
+        previous = cur.fetchall()
+
+        restored = []
+        skipped = []
+
+        for agent_row in previous:
+            agent_id = agent_row["hub_agent_id"]
+            agent_name = agent_row["name"]
+
+            # Check if agent is still in barracks (not reassigned elsewhere)
+            cur.execute(
+                """
+                SELECT shift_state FROM agents WHERE id = %s
+                """,
+                (agent_id,),
+            )
+            agent = cur.fetchone()
+            if not agent:
+                skipped.append(agent_name)
+                continue
+
+            if agent["shift_state"] == "barracked":
+                # Reactivate
+                cur.execute(
+                    "UPDATE node_agents SET status = 'active' WHERE node_id = %s AND hub_agent_id = %s",
+                    (node_id, agent_id),
+                )
+                cur.execute(
+                    "UPDATE agents SET shift_state = 'deployed' WHERE id = %s",
+                    (agent_id,),
+                )
+                restored.append(agent_name)
+            else:
+                # Already reassigned elsewhere
+                skipped.append(agent_name)
+
+        # 2. If not enough agents restored, fill from barracks
+        new_assigned = []
+        expected = len(previous) if previous else 0
+        if len(restored) < expected:
+            shortfall = expected - len(restored)
+            try:
+                new_names = self.assign_agents_to_node(node_id, max_agents=shortfall)
+                new_assigned = new_names
+            except Exception as e:
+                logger.warning(
+                    "[BridgeDispatcher] Could not fill node %s from barracks: %s",
+                    node_name,
+                    e,
+                )
+
+        # 3. Log notification
+        parts = [f"Node {node_name} back online"]
+        if restored:
+            parts.append(f"{len(restored)} agents restored: {', '.join(restored)}")
+        if new_assigned:
+            parts.append(f"{len(new_assigned)} new assigned: {', '.join(new_assigned)}")
+        if skipped:
+            parts.append(f"{len(skipped)} already reassigned: {', '.join(skipped)}")
+
+        msg = " — ".join(parts)
+        cur.execute(
+            """
+            INSERT INTO system_notifications (type, message, created_at)
+            VALUES ('info', %s, NOW())
+            """,
+            (msg,),
+        )
+        conn.commit()
+        logger.info("[BridgeDispatcher] %s", msg)
+
+    # ========================================================================
+    # MODEL STATE PERSISTENCE — Save/restore loaded models across restarts
+    # ========================================================================
+
+    def _save_model_state(self, node_db_id=None):
+        """Save currently loaded models to model_load_state table.
+
+        Args:
+            node_db_id: If None, saves hub state. If int, saves node state.
+        """
+        from psycopg2.extras import RealDictCursor
+
+        host_type = "node" if node_db_id else "hub"
+        ollama_url = None
+
+        conn = self._get_db()
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Ensure table exists
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS model_load_state (
+                    id SERIAL PRIMARY KEY,
+                    host_type VARCHAR(20) NOT NULL,
+                    node_db_id INTEGER,
+                    model_name VARCHAR(200) NOT NULL,
+                    tier VARCHAR(10) NOT NULL,
+                    size_gb NUMERIC(6,1),
+                    saved_at TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(host_type, node_db_id, model_name)
+                )
+                """
+            )
+            conn.commit()
+
+            # Determine Ollama URL
+            if node_db_id:
+                cur.execute(
+                    "SELECT hostname, port FROM remote_nodes WHERE id = %s",
+                    (node_db_id,),
+                )
+                node = cur.fetchone()
+                if not node:
+                    logger.warning("[BridgeDispatcher] _save_model_state: node %s not found", node_db_id)
+                    return
+                ollama_url = f"http://{node['hostname']}:{node['port'] or 11434}"
+            else:
+                ollama_url = os.getenv("OLLAMA_HOST", "http://192.168.1.200:11434")
+                if not ollama_url.startswith("http"):
+                    ollama_url = f"http://{ollama_url}"
+
+            # Get loaded models via /api/ps
+            try:
+                resp = requests.get(f"{ollama_url}/api/ps", timeout=10)
+                resp.raise_for_status()
+                models = resp.json().get("models", [])
+            except Exception as e:
+                logger.warning("[BridgeDispatcher] _save_model_state: cannot reach %s: %s", ollama_url, e)
+                return
+
+            # Clear old state for this host
+            if node_db_id:
+                cur.execute(
+                    "DELETE FROM model_load_state WHERE host_type = 'node' AND node_db_id = %s",
+                    (node_db_id,),
+                )
+            else:
+                cur.execute(
+                    "DELETE FROM model_load_state WHERE host_type = 'hub' AND node_db_id IS NULL"
+                )
+
+            # Insert current state
+            for m in models:
+                model_name = m.get("name", m.get("model", ""))
+                size_bytes = m.get("size", 0)
+                size_gb = round(size_bytes / (1024**3), 1) if size_bytes else 0
+
+                # Determine tier from GPU offload
+                details = m.get("details", {})
+                gpu_layers = m.get("size_vram", 0)
+                tier = "gpu" if gpu_layers and gpu_layers > 0 else "cpu"
+
+                cur.execute(
+                    """
+                    INSERT INTO model_load_state (host_type, node_db_id, model_name, tier, size_gb, saved_at)
+                    VALUES (%s, %s, %s, %s, %s, NOW())
+                    ON CONFLICT (host_type, node_db_id, model_name)
+                    DO UPDATE SET tier = EXCLUDED.tier, size_gb = EXCLUDED.size_gb, saved_at = NOW()
+                    """,
+                    (host_type, node_db_id, model_name, tier, size_gb),
+                )
+
+            conn.commit()
+            logger.info(
+                "[BridgeDispatcher] Saved %d model states for %s%s",
+                len(models),
+                host_type,
+                f" (node {node_db_id})" if node_db_id else "",
+            )
+
+        except Exception as e:
+            logger.error("[BridgeDispatcher] _save_model_state error: %s", e)
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    def _restore_model_state(self, node_db_id=None):
+        """Restore previously loaded models from model_load_state table.
+
+        Issues warm-boot requests (keep_alive generate) for each saved model.
+
+        Args:
+            node_db_id: If None, restores hub state. If int, restores node state.
+        """
+        from psycopg2.extras import RealDictCursor
+
+        host_type = "node" if node_db_id else "hub"
+
+        conn = self._get_db()
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Check table exists
+            cur.execute(
+                """
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.tables
+                    WHERE table_name = 'model_load_state'
+                )
+                """
+            )
+            if not cur.fetchone()["exists"]:
+                logger.info("[BridgeDispatcher] model_load_state table does not exist, skipping restore")
+                return
+
+            # Get saved models
+            if node_db_id:
+                cur.execute(
+                    """
+                    SELECT model_name, tier, size_gb
+                    FROM model_load_state
+                    WHERE host_type = 'node' AND node_db_id = %s
+                    ORDER BY tier DESC, size_gb DESC
+                    """,
+                    (node_db_id,),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT model_name, tier, size_gb
+                    FROM model_load_state
+                    WHERE host_type = 'hub' AND node_db_id IS NULL
+                    ORDER BY tier DESC, size_gb DESC
+                    """
+                )
+            saved = cur.fetchall()
+            cur.close()
+
+            if not saved:
+                logger.info("[BridgeDispatcher] No saved model state for %s%s",
+                            host_type, f" (node {node_db_id})" if node_db_id else "")
+                return
+
+            # Determine Ollama URL
+            if node_db_id:
+                cur2 = conn.cursor(cursor_factory=RealDictCursor)
+                cur2.execute(
+                    "SELECT hostname, port FROM remote_nodes WHERE id = %s",
+                    (node_db_id,),
+                )
+                node = cur2.fetchone()
+                cur2.close()
+                if not node:
+                    return
+                ollama_url = f"http://{node['hostname']}:{node['port'] or 11434}"
+            else:
+                ollama_url = os.getenv("OLLAMA_HOST", "http://192.168.1.200:11434")
+                if not ollama_url.startswith("http"):
+                    ollama_url = f"http://{ollama_url}"
+
+            # Warm-boot each model
+            loaded = 0
+            failed = 0
+            for row in saved:
+                model_name = row["model_name"]
+                try:
+                    resp = requests.post(
+                        f"{ollama_url}/api/generate",
+                        json={"model": model_name, "prompt": "", "keep_alive": "24h"},
+                        timeout=120,
+                    )
+                    if resp.status_code == 200:
+                        loaded += 1
+                        logger.info("[BridgeDispatcher] Restored model %s on %s", model_name, host_type)
+                    else:
+                        failed += 1
+                        logger.warning(
+                            "[BridgeDispatcher] Failed to restore %s: HTTP %s",
+                            model_name,
+                            resp.status_code,
+                        )
+                except Exception as e:
+                    failed += 1
+                    logger.warning("[BridgeDispatcher] Failed to restore %s: %s", model_name, e)
+
+            logger.info(
+                "[BridgeDispatcher] Model restore complete for %s%s: %d loaded, %d failed",
+                host_type,
+                f" (node {node_db_id})" if node_db_id else "",
+                loaded,
+                failed,
+            )
+
+        except Exception as e:
+            logger.error("[BridgeDispatcher] _restore_model_state error: %s", e)
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 _dispatcher = None

@@ -37,8 +37,8 @@ def starship_dashboard():
             d = dict(n)
             d["status"] = _compute_node_status(n)
             nodes.append(d)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to load user nodes: {e}")
 
     # All active nodes (public — for docked fleet strip, visible to everyone)
     fleet_nodes = []
@@ -57,8 +57,8 @@ def starship_dashboard():
                 d = dict(n)
                 d["status"] = _compute_node_status(n)
                 fleet_nodes.append(d)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to load fleet nodes: {e}")
 
     return render_template(
         "tools/starship/starship.html",

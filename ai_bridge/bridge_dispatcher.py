@@ -1611,7 +1611,7 @@ class BridgeDispatcher:
                         conn.commit()
                         cur.close()
                         conn.close()
-                    except Exception:
+                    except Exception as _exc:
                         pass
 
                 logger.info(
@@ -1664,7 +1664,7 @@ class BridgeDispatcher:
                 conn.commit()
                 cur.close()
                 conn.close()
-            except Exception:
+            except Exception as _exc:
                 pass
 
         return None
@@ -2130,7 +2130,7 @@ class BridgeDispatcher:
             cur.close()
             conn.close()
             return int(row[0]) if row else 3
-        except Exception:
+        except Exception as _exc:
             return 3
 
     def _agent_display(self, agent_name: str) -> str:
@@ -2163,7 +2163,7 @@ class BridgeDispatcher:
             cur.close()
             conn.close()
             return row[0] if row else "full"
-        except Exception:
+        except Exception as _exc:
             return "full"
 
     def _get_escalation_mode(self) -> str:
@@ -2184,7 +2184,7 @@ class BridgeDispatcher:
             cur.close()
             conn.close()
             return row[0] if row else "auto"
-        except Exception:
+        except Exception as _exc:
             return "auto"
 
     # Cloud contractor models (free via OLLAMA_API_KEY)
@@ -3183,7 +3183,7 @@ class BridgeDispatcher:
                 conn.rollback()
                 cur.close()
                 conn.close()
-            except Exception:
+            except Exception as _exc:
                 pass
             return None
 
@@ -4879,7 +4879,7 @@ class BridgeDispatcher:
             if conn:
                 try:
                     conn.close()
-                except Exception:
+                except Exception as _exc:
                     pass
 
     def update_job_progress(
@@ -4940,7 +4940,7 @@ class BridgeDispatcher:
             if conn:
                 try:
                     conn.close()
-                except Exception:
+                except Exception as _exc:
                     pass
 
     def complete_job(self, job_id: int, status: str = "auto") -> bool:
@@ -5107,7 +5107,7 @@ class BridgeDispatcher:
             if conn:
                 try:
                     conn.close()
-                except Exception:
+                except Exception as _exc:
                     pass
 
     # ========================================================================
@@ -5149,7 +5149,7 @@ class BridgeDispatcher:
                 )
                 row = cur.fetchone()
                 return row[0] if row and row[0] else None
-        except Exception:
+        except Exception as _exc:
             return None
 
     def resume_job(self, job_id):
@@ -5507,7 +5507,7 @@ class BridgeDispatcher:
             )
             return assigned
 
-        except Exception:
+        except Exception as _exc:
             conn.rollback()
             logger.exception(
                 "assign_agents_to_node failed for node %s", node_db_id
@@ -5636,7 +5636,7 @@ class BridgeDispatcher:
                             gpu_models_live.add(mname)
                             if mname.endswith(":latest"):
                                 gpu_models_live.add(mname.replace(":latest", ""))
-            except Exception:
+            except Exception as _exc:
                 pass  # Ollama unavailable — all agents show as "swap"
 
             # Get disk sizes for all models (to estimate swap eligibility)
@@ -5652,7 +5652,7 @@ class BridgeDispatcher:
                         model_disk_gb[mname] = disk_gb
                         if mname.endswith(":latest"):
                             model_disk_gb[mname.replace(":latest", "")] = disk_gb
-            except Exception:
+            except Exception as _exc:
                 pass
 
             # RAM budget for swap eligibility
@@ -5662,7 +5662,7 @@ class BridgeDispatcher:
 
                 _total_ram = _ps.virtual_memory().total / (1024**3)
                 _swap_buffer_gb = round(_total_ram * 0.80 * 0.10, 1)
-            except Exception:
+            except Exception as _exc:
                 pass
 
             # Station codes per agent (array from station_assignments)
@@ -5706,7 +5706,8 @@ class BridgeDispatcher:
                     }
                 dn_cur.close()
                 dn_conn.close()
-            except Exception:
+            except Exception as e:
+                logger.debug(f"[BridgeDispatcher] station_codes query failed: {e}")
                 pass
 
             # Node loaded models — query each node's /api/ps for deployed agents
@@ -5733,7 +5734,7 @@ class BridgeDispatcher:
                                 _checked_nodes[nid] = set()
                         else:
                             _checked_nodes[nid] = set()
-                    except Exception:
+                    except Exception as _exc:
                         _checked_nodes[nid] = set()
                 node_loaded_models[aid] = _checked_nodes[nid]
 
@@ -5964,7 +5965,7 @@ class BridgeDispatcher:
                                 parent_job_id,
                             ),
                         )
-                except Exception:
+                except Exception as _exc:
                     pass
 
                 return {
@@ -6087,7 +6088,7 @@ class BridgeDispatcher:
                         result["gpu_vram_free"] = round(
                             max(0, gpu_vram_total - result["gpu_vram_used"]), 2
                         )
-        except Exception:
+        except Exception as _exc:
             pass  # ComfyUI may not be running
 
         return result
@@ -6208,7 +6209,7 @@ class BridgeDispatcher:
                                 max(0, gpu_vram_total - result["gpu_vram_used"]),
                                 2,
                             )
-            except Exception:
+            except Exception as _exc:
                 pass
 
         return result
@@ -6411,7 +6412,7 @@ class BridgeDispatcher:
                 for key, val in model_info.items():
                     if "parameter" in key.lower() and isinstance(val, (int, float)):
                         return round(val / 1e9 * 0.6, 1)
-        except Exception:
+        except Exception as _exc:
             pass
 
         # Name-based heuristic
@@ -6613,7 +6614,7 @@ class BridgeDispatcher:
         finally:
             try:
                 conn.close()
-            except Exception:
+            except Exception as _exc:
                 pass
 
     def _handle_node_offline(self, cur, conn, node_id, node_name):
@@ -6868,7 +6869,7 @@ class BridgeDispatcher:
         finally:
             try:
                 conn.close()
-            except Exception:
+            except Exception as _exc:
                 pass
 
     def _restore_model_state(self, node_db_id=None):
@@ -6983,7 +6984,7 @@ class BridgeDispatcher:
         finally:
             try:
                 conn.close()
-            except Exception:
+            except Exception as _exc:
                 pass
 
 
@@ -7005,7 +7006,7 @@ def get_dispatcher() -> BridgeDispatcher:
             )
             if reaped:
                 logger.info(f"[BridgeDispatcher] Startup reaper cleaned {reaped} stale jobs")
-        except Exception:
+        except Exception as _exc:
             pass
     return _dispatcher
 

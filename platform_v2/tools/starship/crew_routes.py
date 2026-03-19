@@ -709,7 +709,7 @@ def register_crew_routes(bp, auth_decorator):
                                 "last_name": ag.get("last_name") or "",
                                 "title": ag.get("title") or "",
                                 "status": ag["status"],
-                                "shift_state": ag.get("shift_state") or "active",
+                                "shift_state": "active",  # Node agents are always active ON the node
                                 "assignment_type": "primary",
                                 "model": ag["model"],
                             }

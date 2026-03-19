@@ -11,12 +11,9 @@ import subprocess
 import sys
 import time
 import logging
-from collections import deque
 from datetime import datetime
-from typing import Dict, List
-from flask import Blueprint, render_template, jsonify, request, Response, stream_with_context
-from flask_login import login_required, current_user
-from rbac import require_permission, Permission
+from flask import jsonify, request
+from flask_login import current_user
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from database import get_db_cursor, check_fleet_model_unique

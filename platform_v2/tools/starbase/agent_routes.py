@@ -10,7 +10,7 @@ from flask_login import login_required, current_user
 from database import get_db_cursor, check_fleet_model_unique
 import requests
 
-from .helpers import OLLAMA_LOCAL_URL
+from .helpers import OLLAMA_LOCAL_URL, _get_cached_ollama_ps
 
 logger = logging.getLogger(__name__)
 

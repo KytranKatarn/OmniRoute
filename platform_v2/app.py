@@ -1267,6 +1267,11 @@ from tools.iaae.routes import iaae_public_bp  # noqa: E402
 
 app.register_blueprint(iaae_public_bp)
 
+# Public API — unauthenticated, read-only endpoints for kytranempowerment.com
+from public_api import public_api_bp  # noqa: E402
+
+app.register_blueprint(public_api_bp)
+
 # HR Management Module (Phase 51) - Registered via module_registry
 
 # API Documentation (OpenAPI/Swagger)

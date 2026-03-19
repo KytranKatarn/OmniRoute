@@ -221,6 +221,69 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
         </div>
     </div>
 
+    <!-- ═══ ONE-CLICK NODE SETUP PANEL ═══ -->
+    <div class="node-setup-panel" id="node-setup-panel">
+        <div class="node-setup-header">
+            <div class="node-setup-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+            </div>
+            <div>
+                <h3 class="node-setup-title">CONNECT A MACHINE AS A NODE</h3>
+                <p class="node-setup-subtitle">Add any computer to the A.R.C.H.I.E. fleet in one step</p>
+            </div>
+            <button class="node-setup-toggle" id="node-setup-toggle" onclick="toggleSetupPanel()" title="Toggle setup panel">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+        </div>
+        <div class="node-setup-body" id="node-setup-body">
+            <!-- Method 1: Download Script (Easiest) -->
+            <div class="node-setup-method node-setup-primary">
+                <div class="node-setup-method-label">EASIEST: DOWNLOAD AND RUN</div>
+                <p class="node-setup-method-desc">Download a setup script, then double-click it on the target machine. Everything is pre-configured.</p>
+                <div class="node-setup-buttons">
+                    <button class="node-setup-btn node-setup-btn-win" onclick="downloadNewNodeScript('windows')">
+                        <span class="node-setup-btn-icon">&#x1FA9F;</span>
+                        <span class="node-setup-btn-text">
+                            <strong>WINDOWS SETUP</strong>
+                            <small>Download .ps1 script</small>
+                        </span>
+                    </button>
+                    <button class="node-setup-btn node-setup-btn-linux" onclick="downloadNewNodeScript('linux')">
+                        <span class="node-setup-btn-icon">&#x1F427;</span>
+                        <span class="node-setup-btn-text">
+                            <strong>LINUX / MAC SETUP</strong>
+                            <small>Download .sh script</small>
+                        </span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Method 2: One-Line Command -->
+            <div class="node-setup-method node-setup-advanced">
+                <div class="node-setup-method-label">ADVANCED: ONE-LINE COMMAND</div>
+                <p class="node-setup-method-desc">Copy and paste into a terminal on the target machine. Requires network access to this hub.</p>
+                <div class="node-setup-cmd-tabs">
+                    <button class="node-setup-cmd-tab active" onclick="switchSetupCmdTab('win')" id="setup-cmd-tab-win">WINDOWS</button>
+                    <button class="node-setup-cmd-tab" onclick="switchSetupCmdTab('linux')" id="setup-cmd-tab-linux">LINUX / MAC</button>
+                </div>
+                <div class="node-setup-cmd-panel" id="setup-cmd-panel-win">
+                    <div class="node-setup-cmd-label">Open PowerShell as Administrator and paste:</div>
+                    <div class="sc-code-block" id="setup-oneliner-win" style="font-size:0.72rem;">
+                        <span class="setup-cmd-text">Loading...</span>
+                        <button class="sc-copy-btn" onclick="copySetupOneliner('win')">COPY</button>
+                    </div>
+                </div>
+                <div class="node-setup-cmd-panel" id="setup-cmd-panel-linux" style="display:none;">
+                    <div class="node-setup-cmd-label">Open Terminal and paste:</div>
+                    <div class="sc-code-block" id="setup-oneliner-linux" style="font-size:0.72rem;">
+                        <span class="setup-cmd-text">Loading...</span>
+                        <button class="sc-copy-btn" onclick="copySetupOneliner('linux')">COPY</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- ═══ FLEET PAGE TAB ═══ -->
     <div class="sc-page-panel active" id="page-fleet">
     {% if nodes|length == 0 %}
@@ -391,6 +454,30 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
                 <div class="sc-row"><span class="sc-label">Version</span><span class="sc-value" id="d-version">—</span></div>
                 <div class="sc-row"><span class="sc-label">Resync</span><span class="sc-value" style="display:flex;gap:6px;align-items:center;"><button class="sc-btn-small" id="d-resync-btn" onclick="resyncNode()">RESYNC NODE</button><button class="sc-btn-small" onclick="showResyncModal()" title="Manual resync commands for offline nodes" style="opacity:0.6;font-size:0.6rem;">MANUAL</button></span></div>
             </div>
+            <!-- Offline Update Section (shown dynamically when node is offline) -->
+            <div class="sc-section" id="d-offline-update" style="display:none;">
+                <h4 style="color: var(--sc-amber);">NODE OFFLINE — UPDATE AVAILABLE</h4>
+                <p style="color:rgba(255,255,255,0.5);font-family:'IBM Plex Mono',monospace;font-size:0.8rem;margin-bottom:12px;">
+                    Download and run a setup script on the node machine to reconnect it.
+                </p>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <button class="node-setup-btn node-setup-btn-win" style="flex:1;min-width:180px;" onclick="downloadExistingNodeScript('windows')">
+                        <span class="node-setup-btn-icon">&#x1FA9F;</span>
+                        <span class="node-setup-btn-text">
+                            <strong>WINDOWS UPDATE</strong>
+                            <small>Download .ps1</small>
+                        </span>
+                    </button>
+                    <button class="node-setup-btn node-setup-btn-linux" style="flex:1;min-width:180px;" onclick="downloadExistingNodeScript('linux')">
+                        <span class="node-setup-btn-icon">&#x1F427;</span>
+                        <span class="node-setup-btn-text">
+                            <strong>LINUX / MAC UPDATE</strong>
+                            <small>Download .sh</small>
+                        </span>
+                    </button>
+                </div>
+            </div>
+
             <div class="sc-section">
                 <h4>FLEET SUMMARY</h4>
                 <div class="sc-row"><span class="sc-label">Active Stations</span><span class="sc-value" id="d-active-stations">—</span></div>

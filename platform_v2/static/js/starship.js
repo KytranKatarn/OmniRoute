@@ -628,6 +628,12 @@ function renderDetail(data) {
     var prioEl = document.getElementById('settings-priority');
     if (prioEl) prioEl.value = n.bridge_priority || 0;
 
+    // Show/hide offline update section
+    var offlinePanel = document.getElementById('d-offline-update');
+    if (offlinePanel) {
+        offlinePanel.style.display = (n.status === 'offline') ? '' : 'none';
+    }
+
     // Crew tab — manifest-style cards (fetched separately)
     renderNodeManifest(selectedNodeDbId);
 
@@ -1692,4 +1698,101 @@ function startSyncPolling() {
     if (_syncPollTimer) clearInterval(_syncPollTimer);
     pollSyncStatus();
     _syncPollTimer = setInterval(pollSyncStatus, 30000);
+}
+
+// ============================================================================
+// ONE-CLICK NODE SETUP
+// ============================================================================
+
+// Toggle the setup panel open/closed
+function toggleSetupPanel() {
+    var body = document.getElementById('node-setup-body');
+    var toggle = document.getElementById('node-setup-toggle');
+    if (body.classList.contains('collapsed')) {
+        body.classList.remove('collapsed');
+        toggle.classList.remove('collapsed');
+        localStorage.setItem('archie-setup-panel', 'open');
+    } else {
+        body.classList.add('collapsed');
+        toggle.classList.add('collapsed');
+        localStorage.setItem('archie-setup-panel', 'closed');
+    }
+}
+
+// Restore panel state from localStorage
+(function initSetupPanel() {
+    var state = localStorage.getItem('archie-setup-panel');
+    if (state === 'closed') {
+        var body = document.getElementById('node-setup-body');
+        var toggle = document.getElementById('node-setup-toggle');
+        if (body) { body.classList.add('collapsed'); }
+        if (toggle) { toggle.classList.add('collapsed'); }
+    }
+    // Populate one-liner commands
+    var hubUrl = window.location.origin;
+    var winEl = document.getElementById('setup-oneliner-win');
+    var linuxEl = document.getElementById('setup-oneliner-linux');
+    if (winEl) {
+        var winText = winEl.querySelector('.setup-cmd-text');
+        if (winText) winText.textContent = 'powershell -ExecutionPolicy Bypass -Command "iwr -useb \'' + hubUrl + '/tools/starship/api/nodes/new-setup-script?os=windows\' -OutFile archie-setup.ps1; .\\archie-setup.ps1"';
+    }
+    if (linuxEl) {
+        var linuxText = linuxEl.querySelector('.setup-cmd-text');
+        if (linuxText) linuxText.textContent = 'curl -fsSL "' + hubUrl + '/tools/starship/api/nodes/new-setup-script?os=linux" -o archie-setup.sh && sudo bash archie-setup.sh';
+    }
+})();
+
+// Download a new node setup script (registers a new node first)
+function downloadNewNodeScript(os) {
+    var hubUrl = window.location.origin;
+    var url = hubUrl + '/tools/starship/api/nodes/new-setup-script?os=' + encodeURIComponent(os);
+    // Trigger download via hidden link
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = '';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    scToast('Downloading setup script... A new node has been registered.', 'success');
+}
+
+// Download a setup/update script for an existing node (from detail modal)
+function downloadExistingNodeScript(os) {
+    if (!selectedNodeId) { scToast('No node selected', 'error'); return; }
+    var hubUrl = window.location.origin;
+    var url = hubUrl + '/tools/starship/api/nodes/' + encodeURIComponent(selectedNodeId) + '/setup-script?os=' + encodeURIComponent(os);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = '';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    scToast('Downloading update script for this node...', 'success');
+}
+
+// Switch between Windows/Linux one-liner tabs
+function switchSetupCmdTab(os) {
+    document.getElementById('setup-cmd-tab-win').classList.toggle('active', os === 'win');
+    document.getElementById('setup-cmd-tab-linux').classList.toggle('active', os === 'linux');
+    document.getElementById('setup-cmd-panel-win').style.display = os === 'win' ? '' : 'none';
+    document.getElementById('setup-cmd-panel-linux').style.display = os === 'linux' ? '' : 'none';
+}
+
+// Copy one-liner to clipboard
+function copySetupOneliner(os) {
+    var el = document.getElementById('setup-oneliner-' + os);
+    var textEl = el.querySelector('.setup-cmd-text');
+    var text = textEl ? textEl.textContent : el.textContent.replace('COPY', '').replace('COPIED', '').trim();
+    // Fallback copy for HTTP (navigator.clipboard requires HTTPS)
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    var btn = el.querySelector('.sc-copy-btn');
+    if (btn) { btn.textContent = 'COPIED'; setTimeout(function() { btn.textContent = 'COPY'; }, 2000); }
+    scToast('Copied to clipboard', 'success');
 }

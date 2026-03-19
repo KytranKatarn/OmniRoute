@@ -664,6 +664,100 @@ def register_node_routes(bp, auth_decorator):
             logger.error(f"Fleet stats error: {e}")
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
+    # ========================================================================
+    # ONE-CLICK SETUP SCRIPT DOWNLOADS
+    # ========================================================================
+
+    @bp.route("/api/nodes/<node_id>/setup-script")
+    @auth_decorator
+    def api_node_setup_script(node_id):
+        """Download a customized setup/update script for an existing node."""
+        user_id = current_user.id
+        node = _get_node_for_user(node_id, user_id)
+        if not node:
+            return jsonify({"success": False, "error": "Node not found"}), 404
+
+        os_type = request.args.get("os", "linux").lower()
+        hub_url = os.environ.get("STARSHIP_HUB_URL", "https://archie.kytranempowerment.com")
+        token = node.get("setup_token", "")
+        node_name = node.get("node_name", "Starship Node")
+
+        if os_type == "windows":
+            script = _generate_setup_ps1(hub_url, node_id, token, node_name)
+            return Response(
+                script,
+                mimetype="application/octet-stream",
+                headers={"Content-Disposition": f'attachment; filename="archie-setup-{node_id}.ps1"'},
+            )
+        else:
+            script = _generate_setup_sh(hub_url, node_id, token, node_name)
+            return Response(
+                script,
+                mimetype="application/octet-stream",
+                headers={"Content-Disposition": f'attachment; filename="archie-setup-{node_id}.sh"'},
+            )
+
+    @bp.route("/api/nodes/new-setup-script")
+    @auth_decorator
+    def api_new_node_setup_script():
+        """Auto-register a NEW node and return a downloadable setup script.
+
+        For the one-line curl/powershell flow: registers a pending node,
+        then returns the install script with credentials baked in.
+        """
+        import psycopg2
+
+        user_id = current_user.id
+        os_type = request.args.get("os", "linux").lower()
+        node_name = request.args.get("name", "").strip()
+
+        # Generate unique node ID and setup token
+        node_id = f"starship_{secrets.token_hex(8)}"
+        setup_token = secrets.token_urlsafe(32)
+        if not node_name:
+            node_name = f"Starship-{secrets.token_hex(3).upper()}"
+
+        hub_url = os.environ.get("STARSHIP_HUB_URL", "https://archie.kytranempowerment.com")
+
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    INSERT INTO remote_nodes (
+                        node_id, node_name, deployment_mode, status,
+                        is_active, bridge_enabled, bridge_priority,
+                        approval_status, user_id, setup_token,
+                        privacy_settings
+                    ) VALUES (
+                        %s, %s, 'starship', 'pending',
+                        false, false, 50,
+                        'pending', %s, %s,
+                        '{}'::jsonb
+                    )
+                    RETURNING id, node_id, node_name
+                    """,
+                    (node_id, node_name, user_id, setup_token),
+                )
+                cur.fetchone()
+
+            if os_type == "windows":
+                script = _generate_setup_ps1(hub_url, node_id, setup_token, node_name)
+                return Response(
+                    script,
+                    mimetype="application/octet-stream",
+                    headers={"Content-Disposition": f'attachment; filename="archie-setup-{node_id}.ps1"'},
+                )
+            else:
+                script = _generate_setup_sh(hub_url, node_id, setup_token, node_name)
+                return Response(
+                    script,
+                    mimetype="application/octet-stream",
+                    headers={"Content-Disposition": f'attachment; filename="archie-setup-{node_id}.sh"'},
+                )
+        except Exception as e:
+            logger.exception("Failed to create new node setup script")
+            return jsonify({"success": False, "error": "Internal server error"}), 500
+
     @bp.route("/api/nodes/<node_id>/disconnect", methods=["DELETE"])
     @auth_decorator
     def api_disconnect_node(node_id):
@@ -729,6 +823,194 @@ def register_node_routes(bp, auth_decorator):
 # ============================================================================
 # PRIVATE HELPERS (installer generators)
 # ============================================================================
+
+
+def _generate_setup_sh(hub_url, node_id, token, node_name):
+    """Generate a downloadable .sh setup script with all credentials baked in."""
+    return f"""#!/bin/bash
+# ============================================================
+#  A.R.C.H.I.E. STARSHIP NODE — One-Click Setup
+#  Node: {node_name} ({node_id})
+#  Hub:  {hub_url}
+# ============================================================
+set -e
+
+echo ""
+echo "  ╔══════════════════════════════════════════════╗"
+echo "  ║  A.R.C.H.I.E. STARSHIP NODE INSTALLER       ║"
+echo "  ║  Node: {node_name}"
+echo "  ║  Hub:  {hub_url}"
+echo "  ╚══════════════════════════════════════════════╝"
+echo ""
+
+# ── Step 1: Check prerequisites ──
+command -v docker >/dev/null 2>&1 || {{ echo "ERROR: Docker is not installed. Install Docker first: https://docs.docker.com/get-docker/"; exit 1; }}
+command -v curl >/dev/null 2>&1 || {{ echo "ERROR: curl is not installed."; exit 1; }}
+
+# ── Step 2: Create working directory ──
+INSTALL_DIR="/opt/archie-node"
+echo "[1/5] Creating install directory: $INSTALL_DIR"
+sudo mkdir -p "$INSTALL_DIR"
+cd "$INSTALL_DIR"
+
+# ── Step 3: Download node client package ──
+echo "[2/5] Downloading node package from hub..."
+curl -fsSL "{hub_url}/tools/starship/download/node-package" -o archie-node.tar.gz 2>/dev/null || {{
+    echo "WARNING: Could not download package from hub. Using minimal setup."
+}}
+if [ -f archie-node.tar.gz ]; then
+    tar xzf archie-node.tar.gz --strip-components=1 2>/dev/null || true
+    rm -f archie-node.tar.gz
+fi
+
+# ── Step 4: Write configuration ──
+echo "[3/5] Writing node configuration..."
+cat > config.json << 'CONFIGEOF'
+{{
+    "node_id": "{node_id}",
+    "node_name": "{node_name}",
+    "setup_token": "{token}",
+    "hub_url": "{hub_url}",
+    "starbase_url": "{hub_url}",
+    "deployment_mode": "starship",
+    "heartbeat_interval": 30
+}}
+CONFIGEOF
+
+cat > .env << 'ENVEOF'
+HUB_URL={hub_url}
+NODE_ID={node_id}
+HUB_API_KEY={token}
+ENVEOF
+
+# Detect timezone
+if [ -f /etc/timezone ]; then
+    TZ=$(cat /etc/timezone)
+elif [ -L /etc/localtime ]; then
+    TZ=$(readlink /etc/localtime | sed 's|.*/zoneinfo/||')
+else
+    TZ="UTC"
+fi
+echo "NODE_TIMEZONE=$TZ" >> .env
+
+# ── Step 5: Download and start heartbeat ──
+echo "[4/5] Downloading heartbeat client..."
+curl -fsSL "{hub_url}/tools/starship/download/node-package" -o /dev/null 2>/dev/null || true
+
+# Try Docker Compose if available
+if [ -f docker-compose.node.yml ]; then
+    echo "[5/5] Starting containers with Docker Compose..."
+    docker compose -f docker-compose.node.yml up -d 2>/dev/null || docker-compose -f docker-compose.node.yml up -d 2>/dev/null || true
+else
+    echo "[5/5] No docker-compose.node.yml found — node registered, awaiting manual start."
+fi
+
+echo ""
+echo "  ╔══════════════════════════════════════════════╗"
+echo "  ║  SETUP COMPLETE                              ║"
+echo "  ║                                              ║"
+echo "  ║  Node ID:   {node_id}"
+echo "  ║  Config:    $INSTALL_DIR/config.json"
+echo "  ║  Status:    PENDING APPROVAL                 ║"
+echo "  ║                                              ║"
+echo "  ║  An admin will approve this node and         ║"
+echo "  ║  assign agents to it from Starship Command.  ║"
+echo "  ╚══════════════════════════════════════════════╝"
+echo ""
+"""
+
+
+def _generate_setup_ps1(hub_url, node_id, token, node_name):
+    """Generate a downloadable .ps1 setup script with all credentials baked in."""
+    return f"""# ============================================================
+#  A.R.C.H.I.E. STARSHIP NODE - One-Click Setup (Windows)
+#  Node: {node_name} ({node_id})
+#  Hub:  {hub_url}
+# ============================================================
+
+Write-Host ""
+Write-Host "  +================================================+" -ForegroundColor Cyan
+Write-Host "  |  A.R.C.H.I.E. STARSHIP NODE INSTALLER          |" -ForegroundColor Cyan
+Write-Host "  |  Node: {node_name}" -ForegroundColor Cyan
+Write-Host "  |  Hub:  {hub_url}" -ForegroundColor Cyan
+Write-Host "  +================================================+" -ForegroundColor Cyan
+Write-Host ""
+
+# -- Step 1: Check prerequisites --
+$dockerCheck = Get-Command docker -ErrorAction SilentlyContinue
+if (-not $dockerCheck) {{
+    Write-Host "ERROR: Docker is not installed." -ForegroundColor Red
+    Write-Host "Install Docker Desktop: https://docs.docker.com/desktop/install/windows-install/" -ForegroundColor Yellow
+    Read-Host "Press Enter to exit"
+    exit 1
+}}
+
+# -- Step 2: Create working directory --
+$InstallDir = "$env:ProgramData\\archie-node"
+Write-Host "[1/5] Creating install directory: $InstallDir" -ForegroundColor Yellow
+New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
+Set-Location $InstallDir
+
+# -- Step 3: Download node package --
+Write-Host "[2/5] Downloading node package from hub..." -ForegroundColor Yellow
+$ProgressPreference = 'SilentlyContinue'
+try {{
+    Invoke-WebRequest -Uri "{hub_url}/tools/starship/download/node-package" -OutFile "archie-node.tar.gz" -UseBasicParsing
+    if (Test-Path "archie-node.tar.gz") {{
+        tar xzf archie-node.tar.gz --strip-components=1 2>$null
+        Remove-Item "archie-node.tar.gz" -Force -ErrorAction SilentlyContinue
+    }}
+}} catch {{
+    Write-Host "WARNING: Could not download package. Using minimal setup." -ForegroundColor Yellow
+}}
+
+# -- Step 4: Write configuration --
+Write-Host "[3/5] Writing node configuration..." -ForegroundColor Yellow
+
+$config = @"
+{{
+    "node_id": "{node_id}",
+    "node_name": "{node_name}",
+    "setup_token": "{token}",
+    "hub_url": "{hub_url}",
+    "starbase_url": "{hub_url}",
+    "deployment_mode": "starship",
+    "heartbeat_interval": 30
+}}
+"@
+$config | Set-Content -Path "config.json" -Encoding UTF8
+
+$tz = (Get-TimeZone).Id
+@"
+HUB_URL={hub_url}
+NODE_ID={node_id}
+HUB_API_KEY={token}
+NODE_TIMEZONE=$tz
+"@ | Set-Content -Path ".env" -Encoding UTF8
+
+# -- Step 5: Start the node --
+Write-Host "[4/5] Checking for Docker Compose configuration..." -ForegroundColor Yellow
+if (Test-Path "docker-compose.node.yml") {{
+    Write-Host "[5/5] Starting containers with Docker Compose..." -ForegroundColor Yellow
+    docker compose -f docker-compose.node.yml up -d
+}} else {{
+    Write-Host "[5/5] No docker-compose.node.yml found - node registered, awaiting manual start." -ForegroundColor Yellow
+}}
+
+Write-Host ""
+Write-Host "  +================================================+" -ForegroundColor Green
+Write-Host "  |  SETUP COMPLETE                                 |" -ForegroundColor Green
+Write-Host "  |                                                  |" -ForegroundColor Green
+Write-Host "  |  Node ID:   {node_id}" -ForegroundColor Green
+Write-Host "  |  Config:    $InstallDir\\config.json" -ForegroundColor Green
+Write-Host "  |  Status:    PENDING APPROVAL                    |" -ForegroundColor Green
+Write-Host "  |                                                  |" -ForegroundColor Green
+Write-Host "  |  An admin will approve this node and            |" -ForegroundColor Green
+Write-Host "  |  assign agents to it from Starship Command.     |" -ForegroundColor Green
+Write-Host "  +================================================+" -ForegroundColor Green
+Write-Host ""
+Read-Host "Press Enter to close"
+"""
 
 
 def _generate_bash_installer(hub_url, node_id, token):

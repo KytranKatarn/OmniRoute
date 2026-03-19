@@ -424,14 +424,119 @@ window.switchKnowledgeSubtab = function(sub) {
     b.classList.toggle("active", txt === sub ||
       (sub === "browser" && txt === "browser") ||
       (sub === "categories" && txt === "categories") ||
-      (sub === "embeddings" && txt === "embeddings"));
+      (sub === "embeddings" && txt === "embeddings") ||
+      (sub === "graph" && txt === "graph"));
   });
   document.querySelectorAll("#panel-knowledge .cs-subpanel").forEach(function(p) {
     p.classList.toggle("active", p.id === "kb-" + sub);
   });
   if (sub === "categories") loadCategories();
   if (sub === "embeddings") loadEmbeddingStatus();
+  if (sub === "graph") loadKnowledgeGraph();
 };
+
+/* ── Knowledge Graph (D3 force-directed) ──────────── */
+var _graphLoaded = false;
+
+function loadKnowledgeGraph() {
+  if (_graphLoaded) return;
+  var container = document.getElementById("knowledgeGraphContainer");
+  var svg = d3.select("#knowledgeGraphSvg");
+  if (!svg.node()) return;
+
+  var width = container.clientWidth || 800;
+  var height = container.clientHeight || 500;
+
+  api("/api/knowledge/graph?limit=100").then(function(data) {
+    if (!data.success || !data.nodes || !data.nodes.length) {
+      setHtml("graphLoading", '<span style="color:rgba(255,255,255,0.4);">No graph data available. Add knowledge relationships to see connections.</span>');
+      return;
+    }
+    document.getElementById("graphLoading").style.display = "none";
+    setHtml("graphNodeCount", data.node_count);
+    setHtml("graphEdgeCount", data.edge_count);
+    _graphLoaded = true;
+
+    // Color by knowledge_type
+    var typeColors = {
+      vault_note: "#8b5cf6", conversation_memory: "#3b82f6", github_file: "#22d3ee",
+      code_snippet: "#f97316", api_endpoint: "#10b981", mistake_learned: "#ef4444",
+      improvement: "#a3e635", knowledge_card_concept: "#f472b6", upgrade_suggestion: "#fbbf24"
+    };
+    function nodeColor(d) { return typeColors[d.type] || "#6b7280"; }
+
+    svg.selectAll("*").remove();
+    svg.attr("viewBox", [0, 0, width, height]);
+
+    var g = svg.append("g");
+
+    // Zoom
+    svg.call(d3.zoom().scaleExtent([0.2, 4]).on("zoom", function(e) {
+      g.attr("transform", e.transform);
+    }));
+
+    // Build simulation
+    var nodes = data.nodes.map(function(n) { return Object.assign({}, n); });
+    var edges = data.edges.filter(function(e) {
+      return nodes.find(function(n) { return n.id === e.source; }) &&
+             nodes.find(function(n) { return n.id === e.target; });
+    });
+
+    var simulation = d3.forceSimulation(nodes)
+      .force("link", d3.forceLink(edges).id(function(d) { return d.id; }).distance(80).strength(function(d) { return d.strength || 0.3; }))
+      .force("charge", d3.forceManyBody().strength(-120))
+      .force("center", d3.forceCenter(width / 2, height / 2))
+      .force("collision", d3.forceCollide().radius(function(d) { return 6 + d.importance * 14; }));
+
+    // Edges
+    var link = g.append("g").attr("class", "graph-links")
+      .selectAll("line").data(edges).join("line")
+      .attr("stroke", "rgba(139,92,246,0.25)")
+      .attr("stroke-width", function(d) { return 1 + (d.strength || 0.5) * 3; });
+
+    // Nodes
+    var node = g.append("g").attr("class", "graph-nodes")
+      .selectAll("circle").data(nodes).join("circle")
+      .attr("r", function(d) { return 4 + d.importance * 12; })
+      .attr("fill", nodeColor)
+      .attr("stroke", "#000").attr("stroke-width", 0.5)
+      .style("cursor", "pointer")
+      .call(d3.drag()
+        .on("start", function(e, d) { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+        .on("drag", function(e, d) { d.fx = e.x; d.fy = e.y; })
+        .on("end", function(e, d) { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
+      );
+
+    // Tooltips
+    node.append("title").text(function(d) { return d.title; });
+
+    // Click to show details
+    node.on("click", function(e, d) {
+      var detail = document.getElementById("graphNodeDetail");
+      detail.style.display = "block";
+      setHtml("graphNodeTitle", escHtml(d.title));
+      setHtml("graphNodeMeta", "Type: " + escHtml(d.type) + " | Category: " + escHtml(d.category) + " | Importance: " + d.importance.toFixed(2));
+    });
+
+    // Labels for high-importance nodes
+    g.append("g").attr("class", "graph-labels")
+      .selectAll("text").data(nodes.filter(function(d) { return d.importance >= 0.8; })).join("text")
+      .text(function(d) { return d.title.length > 25 ? d.title.substring(0, 22) + "..." : d.title; })
+      .attr("font-size", "9px").attr("fill", "rgba(255,255,255,0.6)")
+      .attr("font-family", "'IBM Plex Mono', monospace")
+      .attr("dx", 12).attr("dy", 4)
+      .each(function(d) { d._label = this; });
+
+    simulation.on("tick", function() {
+      link.attr("x1", function(d) { return d.source.x; }).attr("y1", function(d) { return d.source.y; })
+          .attr("x2", function(d) { return d.target.x; }).attr("y2", function(d) { return d.target.y; });
+      node.attr("cx", function(d) { return d.x; }).attr("cy", function(d) { return d.y; });
+      g.selectAll(".graph-labels text").attr("x", function(d) { return d.x; }).attr("y", function(d) { return d.y; });
+    });
+  }).catch(function(err) {
+    setHtml("graphLoading", '<span style="color:#ef4444;">Failed to load graph: ' + err + '</span>');
+  });
+}
 
 var _kbPage = 1;
 var _kbPageSize = 25;

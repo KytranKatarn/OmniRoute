@@ -4554,3 +4554,57 @@ class AgentLoop:
         )
 
         return "\n".join(parts)
+
+    def _consciousness_analysis_batch(self):
+        """Job #49: Trigger consciousness analysis batch every 6 hours.
+
+        Only runs if the analysis server loop is enabled in system_config.
+        Uses _trigger_loop_op() from processing_routes which handles
+        item selection, job creation, and background threading.
+        """
+        try:
+            from tools.consciousness.processing_routes import (
+                get_server_loops,
+                _trigger_loop_op,
+            )
+
+            loops = get_server_loops()
+            if not loops.get("analysis"):
+                logger.debug(
+                    "[Consciousness Batch] Analysis loop disabled — skipping"
+                )
+                return
+
+            logger.info(
+                "[Consciousness Batch] Triggering scheduled analysis batch"
+            )
+            _trigger_loop_op("analysis")
+        except Exception as e:
+            logger.warning(f"[Consciousness Batch] Analysis batch failed: {e}")
+
+    def _consciousness_embedding_batch(self):
+        """Job #50: Trigger consciousness embedding batch every 4 hours.
+
+        Only runs if the embedding server loop is enabled in system_config.
+        Uses _trigger_loop_op() from processing_routes which handles
+        item selection, job creation, and background threading.
+        """
+        try:
+            from tools.consciousness.processing_routes import (
+                get_server_loops,
+                _trigger_loop_op,
+            )
+
+            loops = get_server_loops()
+            if not loops.get("embedding"):
+                logger.debug(
+                    "[Consciousness Batch] Embedding loop disabled — skipping"
+                )
+                return
+
+            logger.info(
+                "[Consciousness Batch] Triggering scheduled embedding batch"
+            )
+            _trigger_loop_op("embedding")
+        except Exception as e:
+            logger.warning(f"[Consciousness Batch] Embedding batch failed: {e}")

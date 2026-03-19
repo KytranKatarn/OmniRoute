@@ -745,6 +745,101 @@ def register_knowledge_routes(bp, admin_required):
             cur.close()
             conn.close()
 
+    # ==================================================================
+    # KNOWLEDGE GRAPH (Task #1133)
+    # ==================================================================
+
+    @bp.route("/api/knowledge/graph", methods=["GET"])
+    @login_required
+    @admin_required
+    def knowledge_graph():
+        """
+        Return knowledge graph data for D3.js force-directed visualization.
+
+        GET /api/knowledge/graph?limit=100
+
+        Returns { nodes: [...], edges: [...] } where:
+        - nodes = top KB entries by importance (id, title, type, importance)
+        - edges = relationships between those nodes (source, target, type, strength)
+        """
+        try:
+            limit = min(int(request.args.get("limit", 100)), 500)
+        except (ValueError, TypeError):
+            limit = 100
+
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        try:
+            # Get top entries by importance
+            cur.execute(
+                """
+                SELECT id, title, knowledge_type, category, importance_score,
+                       (embedding IS NOT NULL) as has_embedding
+                FROM knowledge_base
+                WHERE title IS NOT NULL AND title != ''
+                ORDER BY importance_score DESC, updated_at DESC NULLS LAST
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            entries = cur.fetchall()
+            node_ids = [e["id"] for e in entries]
+
+            if not node_ids:
+                return jsonify({"success": True, "nodes": [], "edges": []})
+
+            # Get relationships between these entries
+            cur.execute(
+                """
+                SELECT from_id, to_id, relationship_type, strength
+                FROM knowledge_relationships
+                WHERE from_id = ANY(%s) AND to_id = ANY(%s)
+                ORDER BY strength DESC
+                """,
+                (node_ids, node_ids),
+            )
+            rels = cur.fetchall()
+
+            # Build response
+            nodes = [
+                {
+                    "id": e["id"],
+                    "title": e["title"][:80] if e["title"] else f"Entry {e['id']}",
+                    "type": e["knowledge_type"] or "unknown",
+                    "category": e["category"] or "uncategorized",
+                    "importance": float(e["importance_score"] or 0),
+                    "hasEmbedding": bool(e["has_embedding"]),
+                }
+                for e in entries
+            ]
+
+            edges = [
+                {
+                    "source": r["from_id"],
+                    "target": r["to_id"],
+                    "type": r["relationship_type"],
+                    "strength": float(r["strength"] or 0.5),
+                }
+                for r in rels
+            ]
+
+            return jsonify(
+                {
+                    "success": True,
+                    "nodes": nodes,
+                    "edges": edges,
+                    "node_count": len(nodes),
+                    "edge_count": len(edges),
+                }
+            )
+        except Exception as e:
+            logger.error(f"[GRAPH] Failed: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            cur.close()
+            conn.close()
+
     @bp.route("/unified/search", methods=["POST"])
     @login_required
     @admin_required

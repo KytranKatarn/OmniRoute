@@ -8594,6 +8594,163 @@ function renderCrewManifest(crew, capacity, nodeCapacities) {
         cpuBar.appendChild(legend);
 
         capWrap.appendChild(cpuBar);
+
+        // --- Fleet node capacity bars (same layout as hub) ---
+        if (nodeCapacities && nodeCapacities.length > 0) {
+            nodeCapacities.forEach(function(nc) {
+                var nodeWrap = document.createElement('div');
+                nodeWrap.style.cssText = 'margin-bottom:6px;';
+
+                // --- Node GPU VRAM section ---
+                var nGpuBar = document.createElement('div');
+                nGpuBar.className = 'roster-capacity-bar';
+                nGpuBar.style.flexWrap = 'wrap';
+                nGpuBar.style.borderLeft = '3px solid #22d3ee';
+
+                // Header label: rocket + node name + agent count
+                var nGpuLbl = document.createElement('span');
+                nGpuLbl.className = 'roster-capacity-label';
+                nGpuLbl.style.fontWeight = '600';
+                nGpuLbl.style.width = '100%';
+                nGpuLbl.style.marginBottom = '4px';
+                var nIcon = document.createElement('span');
+                nIcon.textContent = '\uD83D\uDE80 ';
+                nGpuLbl.appendChild(nIcon);
+                var nNameSpan = document.createElement('span');
+                nNameSpan.style.color = '#22d3ee';
+                nNameSpan.textContent = (nc.node_name || 'Node');
+                nGpuLbl.appendChild(nNameSpan);
+                var nCountSpan = document.createElement('span');
+                nCountSpan.style.cssText = 'margin-left:auto;font-size:0.65rem;color:rgba(255,255,255,0.4);float:right;';
+                nCountSpan.textContent = (nc.agent_count || 0) + ' agents';
+                nGpuLbl.appendChild(nCountSpan);
+                nGpuBar.appendChild(nGpuLbl);
+
+                // GPU label
+                var nGpuIcon = document.createElement('span');
+                nGpuIcon.className = 'roster-capacity-label';
+                nGpuIcon.style.fontWeight = '600';
+                nGpuIcon.textContent = '\u26A1 GPU';
+                nGpuBar.appendChild(nGpuIcon);
+
+                // GPU segmented track
+                var nVramTotal = nc.gpu_vram_gb || 8;
+                var nVramUsed = nc.gpu_vram_used_gb || 0;
+                var nVramFree = Math.max(0, nVramTotal - nVramUsed);
+
+                // Separate GPU models from CPU-only models
+                var nGpuModels = [];
+                var nCpuModels = [];
+                (nc.models_loaded || []).forEach(function(m) {
+                    if ((m.vram_gb || 0) > 0) {
+                        nGpuModels.push(m);
+                    } else {
+                        nCpuModels.push(m);
+                    }
+                });
+
+                var nGpuTrack = document.createElement('div');
+                nGpuTrack.className = 'roster-capacity-track';
+
+                // Segment for GPU model VRAM usage (green)
+                if (nVramUsed > 0) {
+                    var nGSeg = document.createElement('div');
+                    nGSeg.className = 'roster-capacity-seg models';
+                    nGSeg.style.width = ((nVramUsed / nVramTotal) * 100).toFixed(1) + '%';
+                    nGSeg.title = 'GPU models: ' + nVramUsed.toFixed(1) + 'GB';
+                    nGpuTrack.appendChild(nGSeg);
+                }
+                nGpuBar.appendChild(nGpuTrack);
+
+                // Compact size label
+                var nGpuPctLbl = document.createElement('span');
+                nGpuPctLbl.className = 'roster-capacity-label';
+                nGpuPctLbl.textContent = nVramUsed.toFixed(1) + '/' + nVramTotal + 'GB';
+                nGpuBar.appendChild(nGpuPctLbl);
+
+                // GPU legend with model badges
+                var nGpuLegend = document.createElement('div');
+                nGpuLegend.className = 'roster-capacity-legend';
+                nGpuModels.forEach(function(m) {
+                    var badge = document.createElement('span');
+                    badge.className = 'leg-models';
+                    badge.textContent = (m.name || '').replace(':latest', '') + ' ' + (m.vram_gb || 0).toFixed(1) + 'GB';
+                    nGpuLegend.appendChild(badge);
+                });
+                var nGpuFreeSpan = document.createElement('span');
+                nGpuFreeSpan.style.color = 'var(--archie-text-muted)';
+                nGpuFreeSpan.textContent = nVramFree.toFixed(1) + 'GB free';
+                nGpuLegend.appendChild(nGpuFreeSpan);
+                nGpuBar.appendChild(nGpuLegend);
+
+                nodeWrap.appendChild(nGpuBar);
+
+                // --- Node RAM section ---
+                var nRamBar = document.createElement('div');
+                nRamBar.className = 'roster-capacity-bar';
+                nRamBar.style.flexWrap = 'wrap';
+                nRamBar.style.borderLeft = '3px solid #22d3ee';
+
+                var nRamIcon = document.createElement('span');
+                nRamIcon.className = 'roster-capacity-label';
+                nRamIcon.style.fontWeight = '600';
+                nRamIcon.textContent = '\uD83D\uDCBB RAM';
+                nRamBar.appendChild(nRamIcon);
+
+                var nRamTotal = nc.ram_gb || 1;
+                var nRamUsed = nc.ram_used_gb || 0;
+                var nRamFree = Math.max(0, nRamTotal - nRamUsed);
+
+                var nRamTrack = document.createElement('div');
+                nRamTrack.className = 'roster-capacity-track';
+
+                // Segment for RAM usage (green)
+                if (nRamUsed > 0) {
+                    var nRSeg = document.createElement('div');
+                    nRSeg.className = 'roster-capacity-seg models';
+                    nRSeg.style.width = ((nRamUsed / nRamTotal) * 100).toFixed(1) + '%';
+                    nRSeg.title = 'RAM used: ' + nRamUsed.toFixed(1) + 'GB';
+                    nRamTrack.appendChild(nRSeg);
+                }
+                nRamBar.appendChild(nRamTrack);
+
+                // Compact size label
+                var nRamPctLbl = document.createElement('span');
+                nRamPctLbl.className = 'roster-capacity-label';
+                nRamPctLbl.textContent = nRamUsed.toFixed(1) + '/' + nRamTotal.toFixed(0) + 'GB';
+                nRamBar.appendChild(nRamPctLbl);
+
+                // RAM legend with CPU model badges
+                var nRamLegend = document.createElement('div');
+                nRamLegend.className = 'roster-capacity-legend';
+                nCpuModels.forEach(function(m) {
+                    var badge = document.createElement('span');
+                    badge.className = 'leg-models';
+                    badge.textContent = (m.name || '').replace(':latest', '') + ' ' + (m.ram_gb || m.size_gb || 0).toFixed(1) + 'GB';
+                    nRamLegend.appendChild(badge);
+                });
+                // Also show installed-but-not-loaded as dim badges
+                var nLoadedNames = {};
+                (nc.models_loaded || []).forEach(function(m) { nLoadedNames[m.name] = true; });
+                (nc.models_installed || []).forEach(function(m) {
+                    if (!nLoadedNames[m.name]) {
+                        var dimBadge = document.createElement('span');
+                        dimBadge.style.cssText = 'color:rgba(255,255,255,0.35);font-size:0.6rem;';
+                        dimBadge.textContent = (m.name || '').replace(':latest', '') + ' ' + (m.size_gb || 0) + 'GB';
+                        nRamLegend.appendChild(dimBadge);
+                    }
+                });
+                var nRamFreeSpan = document.createElement('span');
+                nRamFreeSpan.style.color = 'var(--archie-text-muted)';
+                nRamFreeSpan.textContent = nRamFree.toFixed(1) + 'GB free';
+                nRamLegend.appendChild(nRamFreeSpan);
+                nRamBar.appendChild(nRamLegend);
+
+                nodeWrap.appendChild(nRamBar);
+                capWrap.appendChild(nodeWrap);
+            });
+        }
+
         grid.parentNode.insertBefore(capWrap, grid);
 
         // Gate the Add Agent button based on RAM budget + IAAE policy
@@ -8971,107 +9128,6 @@ function renderCrewManifest(crew, capacity, nodeCapacities) {
     if (deployedAgents.length > 0) {
         _addRosterDivider('\uD83D\uDE80', 'Deployed \u2014 On Fleet Nodes', deployedAgents.length, 'deployed');
         deployedAgents.forEach(_renderAgentCard);
-
-        // Node capacity bars — safe DOM construction, no innerHTML
-        if (nodeCapacities && nodeCapacities.length > 0) {
-            nodeCapacities.forEach(function(nc) {
-                var nodeBar = document.createElement('div');
-                nodeBar.className = 'roster-capacity-bar node-capacity';
-                nodeBar.style.cssText = 'margin:8px 0 4px;padding:8px 12px;background:rgba(34,211,238,0.05);border:1px solid rgba(34,211,238,0.15);border-radius:6px;';
-
-                // Header
-                var header = document.createElement('div');
-                header.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px;';
-                var hName = document.createElement('span');
-                hName.style.cssText = 'color:#22d3ee;font-family:Antonio,sans-serif;font-size:0.8rem;letter-spacing:1px;';
-                hName.textContent = '\uD83D\uDE80 ' + (nc.node_name || 'Node');
-                var hCount = document.createElement('span');
-                hCount.style.cssText = 'margin-left:auto;font-size:0.65rem;color:rgba(255,255,255,0.4);';
-                hCount.textContent = (nc.agent_count || 0) + ' agents';
-                header.appendChild(hName);
-                header.appendChild(hCount);
-                nodeBar.appendChild(header);
-
-                // GPU VRAM bar
-                if (nc.gpu_model) {
-                    var gpuRow = document.createElement('div');
-                    gpuRow.style.cssText = 'margin-bottom:6px;';
-                    var gpuHeader = document.createElement('div');
-                    gpuHeader.style.cssText = 'display:flex;justify-content:space-between;font-size:0.65rem;margin-bottom:2px;';
-                    var gpuLbl = document.createElement('span');
-                    gpuLbl.style.color = 'rgba(255,255,255,0.5)';
-                    gpuLbl.textContent = 'GPU VRAM \u2014 ' + nc.gpu_model;
-                    var gpuStats = document.createElement('span');
-                    gpuStats.style.color = '#22d3ee';
-                    gpuStats.textContent = (nc.gpu_vram_used_gb || 0) + ' / ' + (nc.gpu_vram_gb || 0) + ' GB';
-                    gpuHeader.appendChild(gpuLbl);
-                    gpuHeader.appendChild(gpuStats);
-                    gpuRow.appendChild(gpuHeader);
-                    var gpuTrack = document.createElement('div');
-                    gpuTrack.style.cssText = 'height:6px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;';
-                    var gpuFill = document.createElement('div');
-                    var gpuPct = nc.gpu_vram_gb > 0 ? Math.round((nc.gpu_vram_used_gb / nc.gpu_vram_gb) * 100) : 0;
-                    gpuFill.style.cssText = 'height:100%;border-radius:3px;background:linear-gradient(90deg,#22d3ee,#06b6d4);width:' + gpuPct + '%;transition:width 0.5s;';
-                    gpuTrack.appendChild(gpuFill);
-                    gpuRow.appendChild(gpuTrack);
-                    nodeBar.appendChild(gpuRow);
-                }
-
-                // RAM bar
-                var ramRow = document.createElement('div');
-                ramRow.style.cssText = 'margin-bottom:6px;';
-                var ramHeader = document.createElement('div');
-                ramHeader.style.cssText = 'display:flex;justify-content:space-between;font-size:0.65rem;margin-bottom:2px;';
-                var ramLbl = document.createElement('span');
-                ramLbl.style.color = 'rgba(255,255,255,0.5)';
-                ramLbl.textContent = 'RAM \u2014 ' + (nc.cpu_cores || 0) + ' cores';
-                var ramStats = document.createElement('span');
-                ramStats.style.color = '#4ade80';
-                ramStats.textContent = (nc.ram_used_gb || 0) + ' / ' + (nc.ram_gb || 0) + ' GB';
-                ramHeader.appendChild(ramLbl);
-                ramHeader.appendChild(ramStats);
-                ramRow.appendChild(ramHeader);
-                var ramTrack = document.createElement('div');
-                ramTrack.style.cssText = 'height:6px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;';
-                var ramFill = document.createElement('div');
-                var ramPct = nc.ram_gb > 0 ? Math.round((nc.ram_used_gb / nc.ram_gb) * 100) : 0;
-                ramFill.style.cssText = 'height:100%;border-radius:3px;background:linear-gradient(90deg,#4ade80,#22c55e);width:' + ramPct + '%;transition:width 0.5s;';
-                ramTrack.appendChild(ramFill);
-                ramRow.appendChild(ramTrack);
-                nodeBar.appendChild(ramRow);
-
-                // Loaded vs installed models
-                var modHeader = document.createElement('div');
-                modHeader.style.cssText = 'display:flex;justify-content:space-between;font-size:0.65rem;margin-bottom:4px;';
-                var modLbl = document.createElement('span');
-                modLbl.style.color = 'rgba(255,255,255,0.5)';
-                modLbl.textContent = 'Models: ' + (nc.models_loaded_count || 0) + ' loaded / ' + (nc.models_installed_count || 0) + ' installed';
-                modHeader.appendChild(modLbl);
-                nodeBar.appendChild(modHeader);
-
-                // Model badges — loaded glow, installed dim
-                var loadedNames = {};
-                (nc.models_loaded || []).forEach(function(m) { loadedNames[m.name] = m; });
-                if (nc.models_installed && nc.models_installed.length > 0) {
-                    var modRow = document.createElement('div');
-                    modRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;';
-                    nc.models_installed.forEach(function(m) {
-                        var isLoaded = !!loadedNames[m.name];
-                        var badge = document.createElement('span');
-                        badge.style.cssText = 'padding:2px 6px;border-radius:3px;font-size:0.6rem;font-family:IBM Plex Mono,monospace;' +
-                            (isLoaded
-                                ? 'background:rgba(34,211,238,0.15);border:1px solid rgba(34,211,238,0.4);color:#22d3ee;text-shadow:0 0 6px rgba(34,211,238,0.3);'
-                                : 'background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);color:rgba(255,255,255,0.35);');
-                        badge.textContent = (m.name || '').replace(':latest', '') + ' (' + (m.size_gb || 0) + 'GB)';
-                        badge.title = isLoaded ? 'LOADED in memory' : 'Installed, not loaded';
-                        modRow.appendChild(badge);
-                    });
-                    nodeBar.appendChild(modRow);
-                }
-
-                grid.appendChild(nodeBar);
-            });
-        }
     }
 
     if (barrackedAgents.length > 0) {

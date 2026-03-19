@@ -1606,6 +1606,11 @@
                     <div class="stat-value" id="domains-proxy-count">--</div>
                     <div class="stat-subtitle">NPM managed</div>
                 </div>
+                <div class="stat-card">
+                    <div class="stat-label">SSL Certificates</div>
+                    <div class="stat-value" id="domains-cert-count">--</div>
+                    <div class="stat-subtitle">Let's Encrypt</div>
+                </div>
             </div>
 
             <h3 style="margin:20px 0 10px;color:#fff">Subdomain Map</h3>
@@ -3863,6 +3868,9 @@ async function loadDomainsOverview() {
         document.getElementById('domains-dns-count').textContent = Array.isArray(d.dns_records) ? d.dns_records.length : '--';
         document.getElementById('domains-proxy-count').textContent = Array.isArray(d.proxy_hosts) ? d.proxy_hosts.length : '--';
 
+        /* Certificate count from overview response */
+        document.getElementById('domains-cert-count').textContent = Array.isArray(d.certificates) ? d.certificates.length : '--';
+
         // Build unified subdomain map
         const dnsRecords = Array.isArray(d.dns_records) ? d.dns_records : [];
         const proxyHosts = Array.isArray(d.proxy_hosts) ? d.proxy_hosts : [];
@@ -4121,6 +4129,98 @@ async function deleteProxyHost(id) {
             showToast('error', d.error || 'Failed to delete');
         }
     } catch (e) { showToast('error', e.message); }
+}
+
+function _certsTbodyLoading(tbody) {
+    while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 5;
+    td.className = 'loading-state';
+    const sp = document.createElement('span');
+    sp.className = 'spinner';
+    td.appendChild(sp);
+    td.appendChild(document.createTextNode(' Loading...'));
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+}
+
+function _certsTbodyMsg(tbody, msg) {
+    while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 5;
+    td.textContent = msg;
+    td.style.color = 'var(--archie-text-muted)';
+    td.style.textAlign = 'center';
+    td.style.padding = '24px';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+}
+
+async function loadDomainCertificates() {
+    const tbody = document.getElementById('domains-certs-body');
+    _certsTbodyLoading(tbody);
+    try {
+        const r = await fetch(API + '/domains/certificates');
+        const d = await r.json();
+        if (!d.success) { _certsTbodyMsg(tbody, 'Failed to load certificates'); return; }
+        const certs = Array.isArray(d.certificates) ? d.certificates : [];
+        while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+        if (!certs.length) {
+            _certsTbodyMsg(tbody, 'No SSL certificates found');
+            return;
+        }
+        certs.forEach(function(c) {
+            const tr = document.createElement('tr');
+
+            const tdDomain = document.createElement('td');
+            tdDomain.className = 'mono';
+            tdDomain.textContent = Array.isArray(c.domain_names) ? c.domain_names.join(', ') : '--';
+            tr.appendChild(tdDomain);
+
+            const tdProvider = document.createElement('td');
+            tdProvider.textContent = c.provider || 'custom';
+            tr.appendChild(tdProvider);
+
+            const tdFrom = document.createElement('td');
+            if (c.expires_on) {
+                const created = c.created_on ? new Date(c.created_on).toLocaleDateString() : '--';
+                tdFrom.textContent = created;
+            } else { tdFrom.textContent = '--'; }
+            tr.appendChild(tdFrom);
+
+            const tdExpires = document.createElement('td');
+            if (c.expires_on) {
+                const exp = new Date(c.expires_on);
+                const now = new Date();
+                const daysLeft = Math.ceil((exp - now) / 86400000);
+                tdExpires.textContent = exp.toLocaleDateString();
+                if (daysLeft <= 7) { tdExpires.style.color = '#ef4444'; }
+                else if (daysLeft <= 30) { tdExpires.style.color = '#f59e0b'; }
+                else { tdExpires.style.color = '#22c55e'; }
+            } else { tdExpires.textContent = '--'; }
+            tr.appendChild(tdExpires);
+
+            const tdStatus = document.createElement('td');
+            const statusSpan = document.createElement('span');
+            if (c.expires_on) {
+                const exp = new Date(c.expires_on);
+                const daysLeft = Math.ceil((exp - new Date()) / 86400000);
+                if (daysLeft <= 0) { statusSpan.style.color = '#ef4444'; statusSpan.textContent = '\u25CF Expired'; }
+                else if (daysLeft <= 7) { statusSpan.style.color = '#ef4444'; statusSpan.textContent = '\u25CF Expiring (' + daysLeft + 'd)'; }
+                else if (daysLeft <= 30) { statusSpan.style.color = '#f59e0b'; statusSpan.textContent = '\u25CF Renew Soon (' + daysLeft + 'd)'; }
+                else { statusSpan.style.color = '#22c55e'; statusSpan.textContent = '\u25CF Valid (' + daysLeft + 'd)'; }
+            } else { statusSpan.style.color = '#6b7280'; statusSpan.textContent = '\u25CF Unknown'; }
+            tdStatus.appendChild(statusSpan);
+            tr.appendChild(tdStatus);
+
+            tbody.appendChild(tr);
+        });
+    } catch (e) {
+        showToast('error', 'Failed to load certificates: ' + e.message);
+        _certsTbodyMsg(tbody, 'Error loading certificates');
+    }
 }
 
 async function quickSetupDomain() {

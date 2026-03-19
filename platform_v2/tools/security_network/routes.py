@@ -3215,8 +3215,8 @@ def api_domains_certificates_list():
 @login_required
 @admin_required
 def api_domains_overview():
-    """Combined domain overview: DNS records + NPM proxy hosts + public IP"""
-    result = {"dns_records": [], "proxy_hosts": [], "public_ip": None}
+    """Combined domain overview: DNS records + NPM proxy hosts + SSL certs + public IP"""
+    result = {"dns_records": [], "proxy_hosts": [], "certificates": [], "public_ip": None}
 
     # Get public IP via Hostinger service
     if HOSTINGER_SERVICE_AVAILABLE and hostinger_service:
@@ -3242,6 +3242,15 @@ def api_domains_overview():
                 result["proxy_hosts"] = hosts
         except Exception as e:
             logger.debug("Failed to get NPM proxy hosts for domain overview: %s", e)
+
+    # Get SSL certificates
+    if NPM_SERVICE_AVAILABLE and npm_service:
+        try:
+            certs = npm_service.list_certificates()
+            if isinstance(certs, list):
+                result["certificates"] = certs
+        except Exception as e:
+            logger.debug("Failed to get NPM certificates for domain overview: %s", e)
 
     return jsonify({"success": True, **result})
 

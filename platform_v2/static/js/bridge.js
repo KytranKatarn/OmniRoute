@@ -8697,53 +8697,96 @@ function renderCrewManifest(crew, capacity, nodeCapacities) {
                 nRamIcon.textContent = '\uD83D\uDCBB RAM';
                 nRamBar.appendChild(nRamIcon);
 
+                // RAM budget calculations — same as hub (ADR-078)
                 var nRamTotal = nc.ram_gb || 1;
-                var nRamUsed = nc.ram_used_gb || 0;
-                var nRamFree = Math.max(0, nRamTotal - nRamUsed);
+                var nModelsGB = nc.models_ram_gb || 0;
+                var nAgentBudget = nc.ram_agent_budget_gb || round(nRamTotal * 0.63);
+                var nSwapTotal = nc.ram_swap_buffer_gb || round(nRamTotal * 0.07);
+                var nModelsSeg = Math.min(nModelsGB, nAgentBudget);
+                var nSwapUsed = Math.max(0, Math.round((nModelsGB - nAgentBudget) * 10) / 10);
+                var nSwapFree = Math.max(0, Math.round((nSwapTotal - nSwapUsed) * 10) / 10);
+                var nReserveGB = nc.ram_reserve_gb || round(nRamTotal * 0.15);
+                var nSecurityGB = nc.ram_security_gb || round(nRamTotal * 0.15);
+
+                function round(v) { return Math.round(v * 10) / 10; }
 
                 var nRamTrack = document.createElement('div');
                 nRamTrack.className = 'roster-capacity-track';
 
-                // Segment for RAM usage (green)
-                if (nRamUsed > 0) {
-                    var nRSeg = document.createElement('div');
-                    nRSeg.className = 'roster-capacity-seg models';
-                    nRSeg.style.width = ((nRamUsed / nRamTotal) * 100).toFixed(1) + '%';
-                    nRSeg.title = 'RAM used: ' + nRamUsed.toFixed(1) + 'GB';
-                    nRamTrack.appendChild(nRSeg);
+                // Seg 1: Loaded models (green)
+                if (nModelsSeg > 0) {
+                    var nRSeg1 = document.createElement('div');
+                    nRSeg1.className = 'roster-capacity-seg models';
+                    nRSeg1.style.width = ((nModelsSeg / nRamTotal) * 100).toFixed(1) + '%';
+                    nRSeg1.title = 'Loaded models: ' + nModelsSeg.toFixed(0) + 'GB';
+                    nRamTrack.appendChild(nRSeg1);
+                }
+                // Seg 2: Swap used (yellow)
+                if (nSwapUsed > 0) {
+                    var nRSeg2 = document.createElement('div');
+                    nRSeg2.className = 'roster-capacity-seg swap-used';
+                    nRSeg2.style.width = ((nSwapUsed / nRamTotal) * 100).toFixed(1) + '%';
+                    nRSeg2.title = 'Swap used: ' + nSwapUsed.toFixed(1) + 'GB';
+                    nRamTrack.appendChild(nRSeg2);
+                }
+                // Seg 3: Swap free (dashed yellow)
+                if (nSwapFree > 0) {
+                    var nRSeg3 = document.createElement('div');
+                    nRSeg3.className = 'roster-capacity-seg swap-free';
+                    nRSeg3.style.width = ((nSwapFree / nRamTotal) * 100).toFixed(1) + '%';
+                    nRSeg3.title = 'Swap available: ' + nSwapFree.toFixed(1) + 'GB';
+                    nRamTrack.appendChild(nRSeg3);
+                }
+                // Seg 4: Security (cyan)
+                if (nSecurityGB > 0) {
+                    var nRSeg4 = document.createElement('div');
+                    nRSeg4.className = 'roster-capacity-seg';
+                    nRSeg4.style.background = 'rgba(0,212,255,0.3)';
+                    nRSeg4.style.borderTop = '1px solid rgba(0,212,255,0.5)';
+                    nRSeg4.style.borderBottom = '1px solid rgba(0,212,255,0.5)';
+                    nRSeg4.style.width = ((nSecurityGB / nRamTotal) * 100).toFixed(1) + '%';
+                    nRSeg4.title = 'Security services: ' + nSecurityGB + 'GB';
+                    nRamTrack.appendChild(nRSeg4);
+                }
+                // Seg 5: Host reserve (dashed red)
+                if (nReserveGB > 0) {
+                    var nRSeg5 = document.createElement('div');
+                    nRSeg5.className = 'roster-capacity-seg host-reserve';
+                    nRSeg5.style.width = ((nReserveGB / nRamTotal) * 100).toFixed(1) + '%';
+                    nRSeg5.title = 'Host reserve: ' + nReserveGB + 'GB';
+                    nRamTrack.appendChild(nRSeg5);
                 }
                 nRamBar.appendChild(nRamTrack);
 
                 // Compact size label
                 var nRamPctLbl = document.createElement('span');
                 nRamPctLbl.className = 'roster-capacity-label';
-                nRamPctLbl.textContent = nRamUsed.toFixed(1) + '/' + nRamTotal.toFixed(0) + 'GB';
+                nRamPctLbl.textContent = nModelsGB.toFixed(0) + '/' + nRamTotal.toFixed(0) + 'GB';
                 nRamBar.appendChild(nRamPctLbl);
 
-                // RAM legend with CPU model badges
+                // Legend — exact same format as hub
                 var nRamLegend = document.createElement('div');
                 nRamLegend.className = 'roster-capacity-legend';
-                nCpuModels.forEach(function(m) {
-                    var badge = document.createElement('span');
-                    badge.className = 'leg-models';
-                    badge.textContent = (m.name || '').replace(':latest', '') + ' ' + (m.ram_gb || m.size_gb || 0).toFixed(1) + 'GB';
-                    nRamLegend.appendChild(badge);
-                });
-                // Also show installed-but-not-loaded as dim badges
-                var nLoadedNames = {};
-                (nc.models_loaded || []).forEach(function(m) { nLoadedNames[m.name] = true; });
-                (nc.models_installed || []).forEach(function(m) {
-                    if (!nLoadedNames[m.name]) {
-                        var dimBadge = document.createElement('span');
-                        dimBadge.style.cssText = 'color:rgba(255,255,255,0.35);font-size:0.6rem;';
-                        dimBadge.textContent = (m.name || '').replace(':latest', '') + ' ' + (m.size_gb || 0) + 'GB';
-                        nRamLegend.appendChild(dimBadge);
-                    }
-                });
-                var nRamFreeSpan = document.createElement('span');
-                nRamFreeSpan.style.color = 'var(--archie-text-muted)';
-                nRamFreeSpan.textContent = nRamFree.toFixed(1) + 'GB free';
-                nRamLegend.appendChild(nRamFreeSpan);
+                var nLeg1 = document.createElement('span');
+                nLeg1.className = 'leg-models';
+                nLeg1.textContent = nModelsSeg.toFixed(0) + 'GB agents';
+                nRamLegend.appendChild(nLeg1);
+                var nLeg2 = document.createElement('span');
+                nLeg2.className = 'leg-swap-used';
+                nLeg2.textContent = nSwapUsed.toFixed(1) + 'GB swap';
+                nRamLegend.appendChild(nLeg2);
+                var nLeg3 = document.createElement('span');
+                nLeg3.className = 'leg-swap-free';
+                nLeg3.textContent = nSwapFree.toFixed(1) + 'GB swap free';
+                nRamLegend.appendChild(nLeg3);
+                var nLeg4 = document.createElement('span');
+                nLeg4.style.color = '#00d4ff';
+                nLeg4.textContent = '\u25CF ' + nSecurityGB + 'GB security';
+                nRamLegend.appendChild(nLeg4);
+                var nLeg5 = document.createElement('span');
+                nLeg5.className = 'leg-reserve';
+                nLeg5.textContent = nReserveGB + 'GB host';
+                nRamLegend.appendChild(nLeg5);
                 nRamBar.appendChild(nRamLegend);
 
                 nodeWrap.appendChild(nRamBar);

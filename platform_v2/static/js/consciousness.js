@@ -2691,13 +2691,15 @@ var _chModuleChart = null;
 var _chHistoryChart = null;
 
 function loadCodeHealth() {
-  // Load audit log first so module table can highlight completed modules
+  // Load audit log + module status so table can show colored badges
   Promise.all([
     api("/api/code-health/current"),
-    api("/api/code-health/audit-log")
+    api("/api/code-health/audit-log"),
+    api("/api/code-health/module-status")
   ]).then(function(results) {
     var d = results[0];
     var auditData = results[1];
+    var statusData = results[2];
     var entries = auditData.entries || [];
     window._chAuditEntries = entries;
 
@@ -2707,9 +2709,16 @@ function loadCodeHealth() {
       auditedModules[e.module_name] = e.status;
     });
 
+    // Build module status lookup from module-status endpoint
+    var moduleStatusMap = {};
+    (statusData.modules || []).forEach(function(m) {
+      moduleStatusMap[m.module_name] = m.status;
+    });
+
+    _renderCodeHealthSummaryBar(statusData.summary || {});
     _renderCodeHealthStats(d);
     _renderModuleChart(d.modules || {});
-    _renderModuleTable(d.modules || {}, auditedModules);
+    _renderModuleTable(d.modules || {}, auditedModules, moduleStatusMap);
     _renderOrphanTable(d.orphans || {});
     _renderAuditTable(entries);
   }).catch(function(err) {
@@ -2717,6 +2726,62 @@ function loadCodeHealth() {
   });
 
   chLoadHistory();
+}
+
+function _renderCodeHealthSummaryBar(summary) {
+  var el = document.getElementById("chStatusSummary");
+  if (!el) {
+    // Insert summary bar before the stats grid if container doesn't exist yet
+    var statsEl = document.getElementById("chTotalFiles");
+    if (statsEl) {
+      var parent = statsEl.closest(".cs-grid, .cs-stats-grid");
+      if (parent && parent.parentNode) {
+        el = document.createElement("div");
+        el.id = "chStatusSummary";
+        parent.parentNode.insertBefore(el, parent);
+      }
+    }
+  }
+  if (!el) return;
+
+  var g = summary.green || 0;
+  var y = summary.yellow || 0;
+  var r = summary.red || 0;
+  var total = g + y + r;
+
+  // Build summary bar using safe DOM methods
+  el.style.cssText = "display:flex;gap:1rem;align-items:center;padding:0.6rem 1rem;margin-bottom:1rem;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;";
+  while (el.firstChild) el.removeChild(el.firstChild);
+
+  var label = document.createElement("span");
+  label.style.cssText = "font-size:0.8rem;color:rgba(255,255,255,0.5);margin-right:0.5rem;";
+  label.textContent = "Module Health";
+  el.appendChild(label);
+
+  var items = [
+    {color: "#22c55e", count: g, text: "clean"},
+    {color: "#f59e0b", count: y, text: "stale"},
+    {color: "#ef4444", count: r, text: "unaudited"}
+  ];
+  items.forEach(function(item) {
+    var wrap = document.createElement("span");
+    wrap.style.cssText = "display:inline-flex;align-items:center;gap:0.3rem;";
+    var dot = document.createElement("span");
+    dot.style.cssText = "width:8px;height:8px;border-radius:50%;display:inline-block;background:" + item.color + ";";
+    var txt = document.createElement("span");
+    txt.style.cssText = "color:" + item.color + ";font-weight:600;font-size:0.85rem;";
+    txt.textContent = item.count + " " + item.text;
+    wrap.appendChild(dot);
+    wrap.appendChild(txt);
+    el.appendChild(wrap);
+  });
+
+  if (total) {
+    var totalSpan = document.createElement("span");
+    totalSpan.style.cssText = "font-size:0.7rem;color:rgba(255,255,255,0.3);margin-left:auto;";
+    totalSpan.textContent = total + " modules";
+    el.appendChild(totalSpan);
+  }
 }
 
 function _renderCodeHealthStats(d) {
@@ -2795,17 +2860,18 @@ function _renderModuleChart(modules) {
   });
 }
 
-function _renderModuleTable(modules, auditedModules) {
+function _renderModuleTable(modules, auditedModules, moduleStatusMap) {
   var el = document.getElementById("chModuleTable");
   if (!el) return;
   auditedModules = auditedModules || {};
+  moduleStatusMap = moduleStatusMap || {};
 
   var sorted = Object.keys(modules).sort(function(a, b) {
     return (modules[b].lines || 0) - (modules[a].lines || 0);
   });
 
   var html = '<table class="cs-table"><thead><tr>' +
-    '<th>Module</th><th class="center">Files</th><th class="center">Lines</th>' +
+    '<th>Module</th><th class="center">Status</th><th class="center">Files</th><th class="center">Lines</th>' +
     '<th class="center">Python</th><th class="center">JS</th><th class="center">HTML</th><th class="center">CSS</th><th class="center">SQL</th><th class="center">Shell</th><th class="center">JSON</th>' +
     '</tr></thead><tbody>';
 
@@ -2817,8 +2883,24 @@ function _renderModuleTable(modules, auditedModules) {
     var isAudited = !!status;
     var rowStyle = isCompleted ? "background:rgba(74,222,128,0.06);" : isAudited ? "background:rgba(245,158,11,0.04);" : "";
     var nameStyle = isCompleted ? "color:#4ade80; font-weight:600;" : isAudited ? "color:#f59e0b;" : "";
+
+    // Status badge from module-status endpoint
+    var healthStatus = moduleStatusMap[name] || "red";
+    var badgeDot, badgeLabel, badgeColor;
+    if (healthStatus === "green") {
+      badgeDot = "#22c55e"; badgeLabel = "CLEAN"; badgeColor = "#22c55e";
+    } else if (healthStatus === "yellow") {
+      badgeDot = "#f59e0b"; badgeLabel = "STALE"; badgeColor = "#f59e0b";
+    } else {
+      badgeDot = "#ef4444"; badgeLabel = "UNAUDITED"; badgeColor = "#ef4444";
+    }
+    var badgeHtml = '<span style="display:inline-flex;align-items:center;gap:0.3rem;font-size:0.7rem;font-weight:600;letter-spacing:0.03em;">' +
+      '<span style="width:6px;height:6px;border-radius:50%;background:' + badgeDot + ';display:inline-block;' + (healthStatus === "green" ? 'box-shadow:0 0 4px ' + badgeDot + ';' : '') + '"></span>' +
+      '<span style="color:' + badgeColor + ';">' + badgeLabel + '</span></span>';
+
     html += '<tr style="' + rowStyle + '">' +
       '<td style="' + nameStyle + '">' + escHtml(name) + (isCompleted ? ' <span style="font-size:0.6rem; opacity:0.6;">&#x2713;</span>' : '') + '</td>' +
+      '<td class="center">' + badgeHtml + '</td>' +
       '<td class="center">' + (m.files || 0) + '</td>' +
       '<td class="center"><strong>' + (m.lines || 0).toLocaleString() + '</strong></td>' +
       '<td class="center">' + (bt.python ? bt.python.lines : 0).toLocaleString() + '</td>' +
@@ -2868,7 +2950,17 @@ window.chRunScan = function() {
     if (d.success) {
       _renderCodeHealthStats(d.metrics);
       _renderModuleChart(d.metrics.modules || {});
-      _renderModuleTable(d.metrics.modules || {});
+      // Re-fetch module status after scan to get fresh badges
+      api("/api/code-health/module-status").then(function(statusData) {
+        var moduleStatusMap = {};
+        (statusData.modules || []).forEach(function(m) {
+          moduleStatusMap[m.module_name] = m.status;
+        });
+        _renderCodeHealthSummaryBar(statusData.summary || {});
+        _renderModuleTable(d.metrics.modules || {}, {}, moduleStatusMap);
+      }).catch(function() {
+        _renderModuleTable(d.metrics.modules || {});
+      });
       chLoadHistory();
     }
   }).catch(function(err) {

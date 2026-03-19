@@ -13,20 +13,10 @@ import subprocess
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, List
 
-import psycopg2
-from psycopg2.extras import RealDictCursor, Json
+from psycopg2.extras import Json
+from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
-
-
-def get_db():
-    return psycopg2.connect(
-        host=os.getenv("DB_HOST", "archie_database"),
-        port=os.getenv("DB_PORT", "5432"),
-        database=os.getenv("DB_NAME", "archie"),
-        user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", ""),
-    )
 
 
 DEFAULT_CONFIG = {

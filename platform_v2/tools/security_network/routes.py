@@ -7,11 +7,10 @@ Dashboard for security monitoring, network health, and system status.
 from flask import render_template, jsonify, request, redirect, url_for, flash, Response
 from flask_login import login_required, current_user
 from functools import wraps
-import psycopg2
-from psycopg2.extras import RealDictCursor, Json
 import os
 import logging
 from datetime import datetime
+from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
 
@@ -32,17 +31,6 @@ def admin_required(f):
         return f(*args, **kwargs)
 
     return decorated_function
-
-
-def get_db():
-    """Get database connection"""
-    return psycopg2.connect(
-        host=os.getenv("DB_HOST", "archie_database"),
-        port=os.getenv("DB_PORT", "5432"),
-        database=os.getenv("DB_NAME", "archie"),
-        user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", ""),
-    )
 
 
 def get_system_health():
@@ -70,40 +58,31 @@ def index():
     active_sessions = 0
 
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # Get failed logins in last 24 hours
-        cur.execute(
+        with get_db_cursor() as (conn, cur):
+            # Get failed logins in last 24 hours
+            cur.execute(
+                """
+                SELECT COUNT(*) as count FROM audit_log
+                WHERE action = 'login_failed'
+                AND created_at > NOW() - INTERVAL '24 hours'
             """
-            SELECT COUNT(*) as count FROM audit_log
-            WHERE action = 'login_failed'
-            AND created_at > NOW() - INTERVAL '24 hours'
-        """
-        )
-        result = cur.fetchone()
-        failed_logins_24h = result["count"] if result else 0
+            )
+            result = cur.fetchone()
+            failed_logins_24h = result["count"] if result else 0
 
-        # Get active sessions (users logged in within last hour)
-        cur.execute(
+            # Get active sessions (users logged in within last hour)
+            cur.execute(
+                """
+                SELECT COUNT(DISTINCT user_id) as count FROM audit_log
+                WHERE action = 'login_success'
+                AND created_at > NOW() - INTERVAL '1 hour'
             """
-            SELECT COUNT(DISTINCT user_id) as count FROM audit_log
-            WHERE action = 'login_success'
-            AND created_at > NOW() - INTERVAL '1 hour'
-        """
-        )
-        result = cur.fetchone()
-        active_sessions = result["count"] if result else 0
+            )
+            result = cur.fetchone()
+            active_sessions = result["count"] if result else 0
 
     except Exception as e:
         logger.warning("Error getting security stats: %s", e)
-
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
     return render_template(
         "tools/security_network.html",
         failed_logins_24h=failed_logins_24h,
@@ -118,48 +97,40 @@ def index():
 def api_stats():
     """API endpoint for security statistics"""
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # Failed logins (24h)
-        cur.execute(
+        with get_db_cursor() as (conn, cur):
+            # Failed logins (24h)
+            cur.execute(
+                """
+                SELECT COUNT(*) as count FROM audit_log
+                WHERE action = 'login_failed'
+                AND created_at > NOW() - INTERVAL '24 hours'
             """
-            SELECT COUNT(*) as count FROM audit_log
-            WHERE action = 'login_failed'
-            AND created_at > NOW() - INTERVAL '24 hours'
-        """
-        )
-        failed_logins = cur.fetchone()["count"]
+            )
+            failed_logins = cur.fetchone()["count"]
 
-        # Recent failed login attempts
-        cur.execute(
+            # Recent failed login attempts
+            cur.execute(
+                """
+                SELECT details, created_at
+                FROM audit_log
+                WHERE action = 'login_failed'
+                ORDER BY created_at DESC
+                LIMIT 20
             """
-            SELECT details, created_at
-            FROM audit_log
-            WHERE action = 'login_failed'
-            ORDER BY created_at DESC
-            LIMIT 20
-        """
-        )
-        recent_failures = cur.fetchall()
+            )
+            recent_failures = cur.fetchall()
 
-        return jsonify(
-            {
-                "success": True,
-                "failed_logins_24h": failed_logins,
-                "recent_failures": [dict(r) for r in recent_failures],
-                "system_health": get_system_health(),
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "failed_logins_24h": failed_logins,
+                    "recent_failures": [dict(r) for r in recent_failures],
+                    "system_health": get_system_health(),
+                }
+            )
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/auto-block", methods=["POST"])
@@ -177,36 +148,28 @@ def auto_block():
 def audit_log():
     """Get audit log entries"""
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor() as (conn, cur):
+            limit = request.args.get("limit", 50, type=int)
+            offset = request.args.get("offset", 0, type=int)
+            action_filter = request.args.get("action", "")
 
-        limit = request.args.get("limit", 50, type=int)
-        offset = request.args.get("offset", 0, type=int)
-        action_filter = request.args.get("action", "")
+            query = "SELECT * FROM audit_log"
+            params = []
 
-        query = "SELECT * FROM audit_log"
-        params = []
+            if action_filter:
+                query += " WHERE action = %s"
+                params.append(action_filter)
 
-        if action_filter:
-            query += " WHERE action = %s"
-            params.append(action_filter)
+            query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
+            params.extend([limit, offset])
 
-        query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
-        params.extend([limit, offset])
+            cur.execute(query, params)
+            entries = cur.fetchall()
 
-        cur.execute(query, params)
-        entries = cur.fetchall()
-
-        return jsonify({"success": True, "entries": [dict(e) for e in entries]})
+            return jsonify({"success": True, "entries": [dict(e) for e in entries]})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 # ============================================================================
@@ -361,7 +324,7 @@ def network_overview():
         return jsonify({"success": True, "data": overview})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/security/threats", methods=["GET"])
@@ -380,7 +343,7 @@ def security_threats():
         return jsonify({"success": True, "threats": threats})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/security/auto-block", methods=["POST"])
@@ -399,7 +362,7 @@ def security_auto_block():
         return jsonify({"success": True, "blocked": blocked})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 # ============================================================================
@@ -539,7 +502,7 @@ def docker_security():
         return jsonify({"success": False, "error": "Docker SDK not available"}), 503
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 # ============================================================================
@@ -591,7 +554,7 @@ def external_tools_status():
 
             return jsonify({"success": True, "tools": tools, "stacks": stacks})
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # Fallback to socket-based check for legacy setup
     import socket
@@ -622,7 +585,7 @@ def external_tools_status():
                 "online": False,
                 "host": config["host"],
                 "port": config["port"],
-                "error": str(e),
+                "error": "Connection failed",
             }
 
     return jsonify({"success": True, "tools": results})
@@ -717,19 +680,15 @@ def run_nmap_scan():
 
         # Log the scan
         try:
-            conn = get_db()
-            cur = conn.cursor()
-            cur.execute(
-                """INSERT INTO audit_log (action, user_id, details)
-                   VALUES ('security_scan', %s, %s)""",
-                (
-                    current_user.id,
-                    {"type": "nmap", "target": target, "scan_type": scan_type},
-                ),
-            )
-            conn.commit()
-            cur.close()
-            conn.close()
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """INSERT INTO audit_log (action, user_id, details)
+                       VALUES ('security_scan', %s, %s)""",
+                    (
+                        current_user.id,
+                        {"type": "nmap", "target": target, "scan_type": scan_type},
+                    ),
+                )
         except Exception as e:
             logger.debug("Failed to log security scan to audit_log: %s", e)
 
@@ -745,13 +704,7 @@ def run_nmap_scan():
         return jsonify(result)
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/scanner/nikto", methods=["POST"])
@@ -783,7 +736,7 @@ def run_nikto_scan():
         return jsonify(result)
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/scanner/nuclei", methods=["POST"])
@@ -806,7 +759,7 @@ def run_nuclei_scan():
         return jsonify(result)
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/scanner/ssl", methods=["POST"])
@@ -828,7 +781,7 @@ def run_ssl_scan():
         return jsonify(result)
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/scanner/zap", methods=["POST"])
@@ -851,7 +804,7 @@ def run_zap_scan():
         return jsonify(result)
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/scanner/status")
@@ -875,7 +828,7 @@ def scanner_status():
         )
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 # ============================================================================
@@ -928,7 +881,7 @@ def list_scans():
         return jsonify({"success": True, "scans": scans[:50]})  # Limit to 50
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/scans/<filename>")
@@ -965,7 +918,7 @@ def get_scan_result(filename):
         return jsonify({"success": True, "filename": filename, "content": content})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 # ============================================================================
@@ -988,7 +941,7 @@ def adguard_stats():
         return jsonify({"success": False, "error": "Could not connect to AdGuard"}), 503
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/adguard/block", methods=["POST"])
@@ -1012,7 +965,7 @@ def adguard_block_domain():
         return jsonify({"success": False, "error": "Failed to block domain"}), 500
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 # ============================================================================
@@ -1036,7 +989,7 @@ def api_firewall_status():
         return jsonify({"success": True, "firewall": status})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/connections/active")
@@ -1055,7 +1008,7 @@ def api_active_connections():
         return jsonify({"success": True, "connections": connections})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 # ============================================================================
@@ -1080,7 +1033,7 @@ def api_ip_access_list():
         return jsonify({"success": True, "blocked": blocked, "whitelisted": whitelisted})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/ip-access/block", methods=["POST"])
@@ -1114,7 +1067,7 @@ def api_block_ip():
         return jsonify(result)
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/ip-access/unblock", methods=["POST"])
@@ -1139,7 +1092,7 @@ def api_unblock_ip():
         return jsonify(result)
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 # ============================================================================
@@ -1163,7 +1116,7 @@ def api_auto_block_settings():
         return jsonify({"success": True, "settings": settings})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/auto-block/settings", methods=["POST"])
@@ -1186,7 +1139,7 @@ def api_update_auto_block_settings():
         return jsonify({"success": False, "error": "Failed to update settings"}), 500
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/auto-block/analyze")
@@ -1207,7 +1160,7 @@ def api_analyze_threats():
         return jsonify({"success": True, "analysis": analysis})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/auto-block/execute", methods=["POST"])
@@ -1235,7 +1188,7 @@ def api_execute_auto_block():
         return jsonify(result)
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 # ============================================================================
@@ -1264,7 +1217,7 @@ def api_security_events():
         return jsonify({"success": True, "events": events})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/events/<int:event_id>/resolve", methods=["POST"])
@@ -1286,7 +1239,7 @@ def api_resolve_event(event_id):
         return jsonify(result)
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 # ============================================================================
@@ -1317,7 +1270,7 @@ def api_check_ssl():
         return jsonify(result)
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/ssl/monitors")
@@ -1336,7 +1289,7 @@ def api_ssl_monitors():
         return jsonify({"success": True, "monitors": monitors})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/ssl/monitors", methods=["POST"])
@@ -1362,7 +1315,7 @@ def api_add_ssl_monitor():
         return jsonify(result)
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/ssl/refresh", methods=["POST"])
@@ -1381,7 +1334,7 @@ def api_refresh_ssl_monitors():
         return jsonify(result)
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 # ============================================================================
@@ -1434,7 +1387,7 @@ def api_list_reports():
         return jsonify({"success": True, "reports": db_reports, "file_reports": file_reports})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/reports/generate", methods=["POST"])
@@ -1484,7 +1437,7 @@ def api_generate_report():
         return jsonify({"success": True, "id": report_id, "title": title})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/reports/<int:report_id>")
@@ -1523,7 +1476,7 @@ def api_view_report(report_id):
             )
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/reports/scan/<filename>", methods=["POST"])
@@ -1539,7 +1492,7 @@ def api_generate_scan_report(filename):
         return jsonify(result)
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/reports/assessment", methods=["POST"])
@@ -1563,7 +1516,7 @@ def api_generate_assessment_report():
         return jsonify(result)
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/reports/export/<filename>")
@@ -1591,7 +1544,7 @@ def api_export_vulnerabilities(filename):
         return jsonify(result)
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/reports/download/<filename>")
@@ -1619,7 +1572,7 @@ def api_download_report(filename):
         return send_file(filepath, as_attachment=True)
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 # ============================================================================
@@ -2101,7 +2054,7 @@ def api_dns_adguard_stats():
         )
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/dns/adguard/querylog")
@@ -2124,7 +2077,7 @@ def api_dns_adguard_querylog():
         return jsonify({"success": True, "data": result})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/dns/adguard/filters")
@@ -2149,7 +2102,7 @@ def api_dns_adguard_filters_get():
         )
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/dns/adguard/filters", methods=["POST"])
@@ -2175,7 +2128,7 @@ def api_dns_adguard_filters_add():
         return jsonify({"success": True, "data": result})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/dns/adguard/filters/<path:url>", methods=["PUT"])
@@ -2196,7 +2149,7 @@ def api_dns_adguard_filters_toggle(url):
         return jsonify({"success": True, "data": result})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/dns/adguard/filters/<path:url>", methods=["DELETE"])
@@ -2214,7 +2167,7 @@ def api_dns_adguard_filters_remove(url):
         return jsonify({"success": True, "data": result})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/dns/adguard/filters/refresh", methods=["POST"])
@@ -2232,7 +2185,7 @@ def api_dns_adguard_filters_refresh():
         return jsonify({"success": True, "data": result})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/dns/adguard/rewrites")
@@ -2250,7 +2203,7 @@ def api_dns_adguard_rewrites_get():
         return jsonify({"success": True, "rewrites": result})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/dns/adguard/rewrites", methods=["POST"])
@@ -2275,7 +2228,7 @@ def api_dns_adguard_rewrites_add():
         return jsonify({"success": True, "data": result})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/dns/adguard/rewrites", methods=["DELETE"])
@@ -2300,7 +2253,7 @@ def api_dns_adguard_rewrites_delete():
         return jsonify({"success": True, "data": result})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/dns/adguard/clients")
@@ -2318,7 +2271,7 @@ def api_dns_adguard_clients():
         return jsonify({"success": True, "clients": result})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/dns/adguard/rules")
@@ -2341,7 +2294,7 @@ def api_dns_adguard_rules_get():
         return jsonify({"success": True, "rules": rules_text})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/dns/adguard/rules", methods=["POST"])
@@ -2369,7 +2322,7 @@ def api_dns_adguard_rules_set():
         return jsonify({"success": True, "data": result})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/dns/adguard/block", methods=["POST"])
@@ -2406,7 +2359,7 @@ def api_dns_adguard_block():
         return jsonify({"success": False, "error": "Failed to block domain"}), 500
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/dns/adguard/unblock", methods=["POST"])
@@ -2430,7 +2383,7 @@ def api_dns_adguard_unblock():
         return jsonify({"success": False, "error": "Failed to unblock domain"}), 500
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/dns/adguard/protection", methods=["POST"])
@@ -2451,7 +2404,7 @@ def api_dns_adguard_protection():
         return jsonify({"success": True, "protection_enabled": enabled})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 # ============================================================================
@@ -2478,7 +2431,7 @@ def api_dns_hostinger_records_get():
         return jsonify({"success": True, "records": result})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/dns/hostinger/records", methods=["POST"])
@@ -2514,22 +2467,20 @@ def api_dns_hostinger_records_add():
         )
 
         try:
-            conn = get_db()
-            cur = conn.cursor()
-            cur.execute(
-                "INSERT INTO security_dns_changes (source, action, domain, details, changed_by, created_at) VALUES ('hostinger', 'add', %s, %s, 'user', NOW())",
-                (domain or name, Json({"record_type": record_type, "name": name, "content": content, "ttl": ttl})),
-            )
-            conn.commit()
-            cur.close()
-            conn.close()
+            from psycopg2.extras import Json
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "INSERT INTO security_dns_changes (source, action, domain, details, changed_by, created_at) VALUES ('hostinger', 'add', %s, %s, 'user', NOW())",
+                    (domain or name, Json({"record_type": record_type, "name": name, "content": content, "ttl": ttl})),
+                )
         except Exception as e:
             logger.debug("Failed to log DNS add change: %s", e)
 
         return jsonify({"success": True, "data": result})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/dns/hostinger/records/<record_id>", methods=["PUT"])
@@ -2566,33 +2517,31 @@ def api_dns_hostinger_records_update(record_id):
         )
 
         try:
-            conn = get_db()
-            cur = conn.cursor()
-            cur.execute(
-                "INSERT INTO security_dns_changes (source, action, domain, details, changed_by, created_at) VALUES ('hostinger', 'update', %s, %s, 'user', NOW())",
-                (
-                    domain or name,
-                    Json(
-                        {
-                            "record_id": record_id,
-                            "record_type": record_type,
-                            "name": name,
-                            "content": content,
-                            "ttl": ttl,
-                        }
+            from psycopg2.extras import Json
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "INSERT INTO security_dns_changes (source, action, domain, details, changed_by, created_at) VALUES ('hostinger', 'update', %s, %s, 'user', NOW())",
+                    (
+                        domain or name,
+                        Json(
+                            {
+                                "record_id": record_id,
+                                "record_type": record_type,
+                                "name": name,
+                                "content": content,
+                                "ttl": ttl,
+                            }
+                        ),
                     ),
-                ),
-            )
-            conn.commit()
-            cur.close()
-            conn.close()
+                )
         except Exception as e:
             logger.debug("Failed to log DNS update change: %s", e)
 
         return jsonify({"success": True, "data": result})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/dns/hostinger/records/<record_id>", methods=["DELETE"])
@@ -2616,22 +2565,23 @@ def api_dns_hostinger_records_delete(record_id):
             return jsonify({"success": False, "error": result["error"]}), 500
 
         try:
-            conn = get_db()
-            cur = conn.cursor()
-            cur.execute(
-                "INSERT INTO security_dns_changes (source, action, domain, details, changed_by, created_at) VALUES ('hostinger', 'delete', %s, %s, 'user', NOW())",
-                (domain or name or "unknown", Json({"record_id": record_id, "record_type": record_type, "name": name})),
-            )
-            conn.commit()
-            cur.close()
-            conn.close()
+            from psycopg2.extras import Json
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "INSERT INTO security_dns_changes (source, action, domain, details, changed_by, created_at) VALUES ('hostinger', 'delete', %s, %s, 'user', NOW())",
+                    (
+                        domain or name or "unknown",
+                        Json({"record_id": record_id, "record_type": record_type, "name": name}),
+                    ),
+                )
         except Exception as e:
             logger.debug("Failed to log DNS delete change: %s", e)
 
         return jsonify({"success": True, "data": result})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/dns/hostinger/domains")
@@ -2651,7 +2601,7 @@ def api_dns_hostinger_domains():
         return jsonify({"success": True, "domains": result})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 # ============================================================================
@@ -2682,7 +2632,7 @@ def api_surveillance_cameras():
         )
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/surveillance/camera/<path:entity_id>/snapshot")
@@ -2710,7 +2660,7 @@ def api_surveillance_snapshot(entity_id):
         )
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/surveillance/camera/<path:entity_id>/stream")
@@ -2734,7 +2684,7 @@ def api_surveillance_stream(entity_id):
         return jsonify({"success": True, "stream_url": stream_url})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/surveillance/camera/<path:entity_id>/stream-proxy")
@@ -2799,7 +2749,7 @@ def api_surveillance_status():
         return jsonify({"success": True, "status": health})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/surveillance/system/arm", methods=["POST"])
@@ -2823,7 +2773,7 @@ def api_surveillance_arm():
         )
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/surveillance/system/disarm", methods=["POST"])
@@ -2847,7 +2797,7 @@ def api_surveillance_disarm():
         )
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/surveillance/events")
@@ -2868,7 +2818,7 @@ def api_surveillance_events():
         return jsonify({"success": True, "events": events})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 # ============================================================================
@@ -2895,7 +2845,7 @@ def api_recon_modules():
         )
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/recon/scan", methods=["POST"])
@@ -2922,7 +2872,7 @@ def api_recon_start_scan():
         return jsonify({"success": True, "scan_id": scan_id, "message": "Scan started"})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/recon/scan/<int:scan_id>")
@@ -2940,7 +2890,7 @@ def api_recon_scan_status(scan_id):
         return jsonify({"success": True, "scan": scan})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/recon/history")
@@ -2958,7 +2908,7 @@ def api_recon_history():
         return jsonify({"success": True, "history": history})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/recon/scan/<int:scan_id>", methods=["DELETE"])
@@ -2970,24 +2920,16 @@ def api_recon_delete_scan(scan_id):
         return jsonify({"success": False, "error": "Argus service not available"}), 503
 
     try:
-        conn = get_db()
-        cur = conn.cursor()
-        cur.execute("DELETE FROM security_recon_scans WHERE id = %s", (scan_id,))
-        affected = cur.rowcount
-        conn.commit()
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute("DELETE FROM security_recon_scans WHERE id = %s", (scan_id,))
+            affected = cur.rowcount
 
-        if affected == 0:
-            return jsonify({"success": False, "error": "Scan not found"}), 404
-        return jsonify({"success": True, "message": f"Scan {scan_id} deleted"})
+            if affected == 0:
+                return jsonify({"success": False, "error": "Scan not found"}), 404
+            return jsonify({"success": True, "message": f"Scan {scan_id} deleted"})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 # ============================================================================
@@ -3008,7 +2950,7 @@ def api_agent_config_get():
         return jsonify({"success": True, "config": config})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/agent/config", methods=["PUT"])
@@ -3041,7 +2983,7 @@ def api_agent_config_update():
         return jsonify({"success": False, "error": "Failed to save configuration"}), 500
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/agent/suggestions")
@@ -3060,7 +3002,7 @@ def api_agent_suggestions():
         return jsonify({"success": True, "suggestions": suggestions})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/agent/suggestions/<int:suggestion_id>/approve", methods=["POST"])
@@ -3078,7 +3020,7 @@ def api_agent_approve_suggestion(suggestion_id):
         return jsonify({"success": False, "error": "Suggestion not found or already processed"}), 404
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/agent/suggestions/<int:suggestion_id>/dismiss", methods=["POST"])
@@ -3099,7 +3041,7 @@ def api_agent_dismiss_suggestion(suggestion_id):
         return jsonify({"success": False, "error": "Suggestion not found or already processed"}), 404
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/agent/actions")
@@ -3117,7 +3059,7 @@ def api_agent_action_history():
         return jsonify({"success": True, "actions": actions})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/agent/pause", methods=["POST"])
@@ -3135,7 +3077,7 @@ def api_agent_pause():
         return jsonify({"success": False, "error": "Failed to pause automation"}), 500
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/agent/resume", methods=["POST"])
@@ -3153,7 +3095,7 @@ def api_agent_resume():
         return jsonify({"success": False, "error": "Failed to resume automation"}), 500
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 # ============================================================================
@@ -3174,7 +3116,7 @@ def api_domains_proxy_hosts_list():
         return jsonify({"success": True, "proxy_hosts": hosts})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/domains/proxy-hosts", methods=["POST"])
@@ -3206,7 +3148,7 @@ def api_domains_proxy_hosts_create():
         return jsonify({"success": True, "proxy_host": result})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/domains/proxy-hosts/<int:host_id>", methods=["DELETE"])
@@ -3224,7 +3166,7 @@ def api_domains_proxy_hosts_delete(host_id):
         return jsonify({"success": True, "message": f"Proxy host {host_id} deleted"})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/domains/proxy-hosts/<int:host_id>", methods=["PUT"])
@@ -3250,7 +3192,7 @@ def api_domains_proxy_hosts_update(host_id):
         return jsonify({"success": True, "message": f"Proxy host {host_id} updated"})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/domains/overview")
@@ -3328,8 +3270,8 @@ def api_domains_quick_setup():
             return jsonify({"success": False, "error": f"DNS failed: {dns_result['error']}", "steps": steps}), 500
         steps["dns"] = {"success": True, "record": f"{subdomain} A {public_ip}"}
     except Exception as e:
-        steps["dns"] = {"success": False, "error": str(e)}
-        return jsonify({"success": False, "error": f"DNS failed: {e}", "steps": steps}), 500
+        steps["dns"] = {"success": False, "error": "DNS operation failed"}
+        return jsonify({"success": False, "error": "DNS failed", "steps": steps}), 500
 
     # Step 3: Create NPM proxy host (with SSL)
     try:
@@ -3345,8 +3287,8 @@ def api_domains_quick_setup():
         steps["proxy"] = {"success": True, "proxy_host_id": proxy_result.get("id")}
         steps["ssl"] = {"success": True}
     except Exception as e:
-        steps["proxy"] = {"success": False, "error": str(e)}
-        return jsonify({"success": False, "error": f"Proxy failed: {e}", "steps": steps}), 500
+        steps["proxy"] = {"success": False, "error": "Proxy operation failed"}
+        return jsonify({"success": False, "error": "Proxy failed", "steps": steps}), 500
 
     return jsonify(
         {
@@ -3388,7 +3330,7 @@ def api_devices_list():
         return jsonify({"success": True, "devices": devices})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/devices/stats")
@@ -3403,7 +3345,7 @@ def api_devices_stats():
         return jsonify({"success": True, "stats": stats})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/devices/unregistered")
@@ -3418,7 +3360,7 @@ def api_devices_unregistered():
         return jsonify({"success": True, "devices": unregistered})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/devices/<int:device_id>")
@@ -3435,7 +3377,7 @@ def api_devices_get(device_id):
         return jsonify({"success": True, "device": device})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/devices/register", methods=["POST"])
@@ -3458,7 +3400,7 @@ def api_devices_register():
         return jsonify({"success": True, "device": result})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/devices/<int:device_id>", methods=["PUT"])
@@ -3476,7 +3418,7 @@ def api_devices_update(device_id):
         return jsonify({"success": True, "device": result})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/devices/<int:device_id>", methods=["DELETE"])
@@ -3493,7 +3435,7 @@ def api_devices_delete(device_id):
         return jsonify({"success": True, "message": f"Device {device_id} deleted"})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/devices/sync", methods=["POST"])
@@ -3508,7 +3450,7 @@ def api_devices_sync():
         return jsonify({"success": True, "sync": result})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/devices/<int:device_id>/dns-report")
@@ -3538,7 +3480,7 @@ def api_device_dns_report(device_id):
         )
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 # ============================================================================
@@ -3558,7 +3500,7 @@ def api_get_alert_config():
         return jsonify({"success": True, "config": config})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @security_network_bp.route("/api/security/alert-config", methods=["POST"])
@@ -3617,4 +3559,4 @@ def api_update_alert_config():
         return jsonify({"success": True, "config": config})
     except Exception as e:
         logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500

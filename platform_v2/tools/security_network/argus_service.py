@@ -14,18 +14,8 @@ import threading
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 import requests
-import psycopg2
-from psycopg2.extras import RealDictCursor, Json
-
-
-def get_db():
-    return psycopg2.connect(
-        host=os.getenv("DB_HOST", "archie_database"),
-        port=os.getenv("DB_PORT", "5432"),
-        database=os.getenv("DB_NAME", "archie"),
-        user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", ""),
-    )
+from psycopg2.extras import Json
+from database import get_db_cursor
 
 
 CURATED_MODULES = {

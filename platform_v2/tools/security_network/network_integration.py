@@ -7,40 +7,22 @@ import os
 import requests
 import json
 from datetime import datetime
-import psycopg2
-from psycopg2.extras import RealDictCursor
-
-
-def get_db():
-    """Get database connection"""
-    return psycopg2.connect(
-        host=os.getenv("DB_HOST", "archie_database"),
-        port=os.getenv("DB_PORT", "5432"),
-        database=os.getenv("DB_NAME", "archie"),
-        user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", ""),
-    )
+from database import get_db_cursor
 
 
 def get_api_config(service_name):
     """Get API configuration for a service"""
-    conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT api_key, api_secret, additional_config
+            FROM api_keys_config
+            WHERE service_name = %s AND is_active = TRUE
+        """,
+            (service_name,),
+        )
 
-    cur.execute(
-        """
-        SELECT api_key, api_secret, additional_config
-        FROM api_keys_config
-        WHERE service_name = %s AND is_active = TRUE
-    """,
-        (service_name,),
-    )
-
-    config = cur.fetchone()
-    cur.close()
-    conn.close()
-
-    return config
+        return cur.fetchone()
 
 
 # ============================================================================
@@ -78,23 +60,16 @@ class AdGuardAPI:
     def block_ip(self, ip_address, reason="Blocked by A.R.C.H.I.E."):
         """Add IP to blacklist"""
         try:
-            # Add to database
-            conn = get_db()
-            cur = conn.cursor()
-
-            cur.execute(
-                """
-                INSERT INTO ip_access_control (ip_address, type, reason, is_active)
-                VALUES (%s, 'blacklist', %s, TRUE)
-                ON CONFLICT (ip_address) DO UPDATE
-                SET type = 'blacklist', reason = EXCLUDED.reason, is_active = TRUE
-            """,
-                (ip_address, reason),
-            )
-
-            conn.commit()
-            cur.close()
-            conn.close()
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    INSERT INTO ip_access_control (ip_address, type, reason, is_active)
+                    VALUES (%s, 'blacklist', %s, TRUE)
+                    ON CONFLICT (ip_address) DO UPDATE
+                    SET type = 'blacklist', reason = EXCLUDED.reason, is_active = TRUE
+                """,
+                    (ip_address, reason),
+                )
 
             # TODO: Add to AdGuard via API when endpoint available
             return True
@@ -105,21 +80,15 @@ class AdGuardAPI:
     def unblock_ip(self, ip_address):
         """Remove IP from blacklist"""
         try:
-            conn = get_db()
-            cur = conn.cursor()
-
-            cur.execute(
-                """
-                UPDATE ip_access_control
-                SET is_active = FALSE
-                WHERE ip_address = %s AND type = 'blacklist'
-            """,
-                (ip_address,),
-            )
-
-            conn.commit()
-            cur.close()
-            conn.close()
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    UPDATE ip_access_control
+                    SET is_active = FALSE
+                    WHERE ip_address = %s AND type = 'blacklist'
+                """,
+                    (ip_address,),
+                )
 
             return True
         except Exception as e:
@@ -128,22 +97,16 @@ class AdGuardAPI:
 
     def get_blocked_ips(self):
         """Get list of blocked IPs"""
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        cur.execute(
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT * FROM ip_access_control
+                WHERE type = 'blacklist' AND is_active = TRUE
+                ORDER BY created_at DESC
             """
-            SELECT * FROM ip_access_control
-            WHERE type = 'blacklist' AND is_active = TRUE
-            ORDER BY created_at DESC
-        """
-        )
+            )
 
-        blocked_ips = cur.fetchall()
-        cur.close()
-        conn.close()
-
-        return blocked_ips
+            return cur.fetchall()
 
 
 # ============================================================================
@@ -322,38 +285,30 @@ def check_security_threats():
     threats = []
 
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # Check failed logins in last hour
-        cur.execute(
+        with get_db_cursor() as (conn, cur):
+            # Check failed logins in last hour
+            cur.execute(
+                """
+                SELECT ip_address, COUNT(*) as attempts
+                FROM failed_logins
+                WHERE attempted_at >= NOW() - INTERVAL '1 hour'
+                GROUP BY ip_address
+                HAVING COUNT(*) >= 5
             """
-            SELECT ip_address, COUNT(*) as attempts
-            FROM failed_logins
-            WHERE attempted_at >= NOW() - INTERVAL '1 hour'
-            GROUP BY ip_address
-            HAVING COUNT(*) >= 5
-        """
-        )
-
-        suspicious_ips = cur.fetchall()
-
-        for ip in suspicious_ips:
-            threats.append(
-                {
-                    "type": "brute_force",
-                    "severity": "high",
-                    "ip_address": ip["ip_address"],
-                    "attempts": ip["attempts"],
-                    "message": f"IP {ip['ip_address']} has {ip['attempts']} failed login attempts in the last hour",
-                }
             )
 
-        # Check for unusual traffic patterns (placeholder)
-        # This would integrate with ntopng API
+            suspicious_ips = cur.fetchall()
 
-        cur.close()
-        conn.close()
+            for ip in suspicious_ips:
+                threats.append(
+                    {
+                        "type": "brute_force",
+                        "severity": "high",
+                        "ip_address": ip["ip_address"],
+                        "attempts": ip["attempts"],
+                        "message": f"IP {ip['ip_address']} has {ip['attempts']} failed login attempts in the last hour",
+                    }
+                )
 
         return threats
     except Exception as e:
@@ -375,19 +330,15 @@ def auto_block_threats():
 
                 # Create notification
                 try:
-                    conn = get_db()
-                    cur = conn.cursor()
-                    cur.execute(
-                        """
-                        INSERT INTO system_notifications (type, title, message, source, visibility)
-                        VALUES ('warning', 'IP Auto-Blocked', %s, 'security_monitor', 'admin')
-                    """,
-                        (threat["message"],),
-                    )
-                    conn.commit()
-                    cur.close()
-                    conn.close()
-                except:
+                    with get_db_cursor(commit=True) as (conn, cur):
+                        cur.execute(
+                            """
+                            INSERT INTO system_notifications (type, title, message, source, visibility)
+                            VALUES ('warning', 'IP Auto-Blocked', %s, 'security_monitor', 'admin')
+                        """,
+                            (threat["message"],),
+                        )
+                except Exception:
                     pass
 
     return blocked_count

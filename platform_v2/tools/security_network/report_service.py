@@ -9,18 +9,7 @@ import json
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import Dict, Any, List
-import psycopg2
-
-
-def get_db():
-    """Get database connection"""
-    return psycopg2.connect(
-        host=os.getenv("DB_HOST", "archie_database"),
-        port=os.getenv("DB_PORT", "5432"),
-        database=os.getenv("DB_NAME", "archie"),
-        user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", ""),
-    )
+from database import get_db_cursor
 
 
 SCANS_DIR = "/mnt/archie_brain/security_scans"

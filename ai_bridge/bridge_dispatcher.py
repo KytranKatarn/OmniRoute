@@ -1727,31 +1727,11 @@ class BridgeDispatcher:
             logger.error(f"[BridgeDispatcher] Failed to create bridge_job: {e}")
 
         # --- VRAM swap: unload Ollama GPU models if SDXL needs full GPU ---
+        # Works for hub (default) or any node with ComfyUI
         ollama_models_unloaded = []
         is_xl = "xl" in image_model.lower()
         if is_xl:
-            try:
-                import requests as _req
-                _ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
-                _ollama_port = os.getenv("OLLAMA_LOCAL_PORT", "11434")
-                ollama_url = f"http://{_ollama_host}:{_ollama_port}"
-                ps_resp = _req.get(f"{ollama_url}/api/ps", timeout=5)
-                if ps_resp.status_code == 200:
-                    for m in ps_resp.json().get("models", []):
-                        vram = m.get("size_vram", 0)
-                        if vram > 0:
-                            mname = m.get("name", "")
-                            _req.post(
-                                f"{ollama_url}/api/generate",
-                                json={"model": mname, "keep_alive": 0},
-                                timeout=10,
-                            )
-                            ollama_models_unloaded.append(mname)
-                            logger.info(
-                                f"[BridgeDispatcher] VRAM swap: unloaded {mname} for SDXL"
-                            )
-            except Exception as e:
-                logger.warning(f"[BridgeDispatcher] VRAM swap failed: {e}")
+            ollama_models_unloaded = self._vram_swap_for_comfyui()
 
         # --- Determine resolution ---
         width, height = (1024, 1024) if is_xl else (512, 512)
@@ -1777,29 +1757,7 @@ class BridgeDispatcher:
 
         # --- Reload Ollama GPU models after SDXL ---
         if ollama_models_unloaded:
-            try:
-                import requests as _req
-                # Free ComfyUI VRAM first
-                comfyui_host = os.getenv("COMFYUI_HOST", "http://host.docker.internal:8188")
-                _req.post(
-                    f"{comfyui_host}/free",
-                    json={"unload_models": True},
-                    timeout=10,
-                )
-                logger.info("[BridgeDispatcher] Freed ComfyUI VRAM after SDXL")
-                # Reload Ollama models
-                _ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
-                _ollama_port = os.getenv("OLLAMA_LOCAL_PORT", "11434")
-                ollama_url = f"http://{_ollama_host}:{_ollama_port}"
-                for mname in ollama_models_unloaded:
-                    _req.post(
-                        f"{ollama_url}/api/generate",
-                        json={"model": mname, "prompt": "", "keep_alive": "24h"},
-                        timeout=30,
-                    )
-                    logger.info(f"[BridgeDispatcher] VRAM swap: reloaded {mname}")
-            except Exception as e:
-                logger.warning(f"[BridgeDispatcher] VRAM reload failed: {e}")
+            self._vram_restore_after_comfyui(ollama_models_unloaded)
 
         # --- Complete bridge_job ---
         if bridge_job_id:
@@ -6523,6 +6481,76 @@ class BridgeDispatcher:
 # ============================================================================
 # SINGLETON INSTANCE
 # ============================================================================
+
+    def _vram_swap_for_comfyui(self, node_db_id=None):
+        """Unload GPU models from Ollama to free VRAM for ComfyUI SDXL.
+
+        Works on hub (default) or any fleet node.
+        Returns list of unloaded model names for later restore.
+        """
+        unloaded = []
+        try:
+            import requests as _req
+
+            if node_db_id:
+                cap = self._get_node_capacity(node_db_id)
+            else:
+                cap = self._get_hub_capacity()
+            ollama_url = f"http://{cap['hostname']}:{cap['port']}"
+
+            for m in cap.get("loaded_models", []):
+                if m.get("vram_gb", 0) > 0:
+                    mname = m["name"]
+                    _req.post(
+                        f"{ollama_url}/api/generate",
+                        json={"model": mname, "keep_alive": 0},
+                        timeout=10,
+                    )
+                    unloaded.append(mname)
+                    logger.info(
+                        f"[BridgeDispatcher] VRAM swap: unloaded {mname} "
+                        f"on {'node ' + str(node_db_id) if node_db_id else 'hub'}"
+                    )
+        except Exception as e:
+            logger.warning(f"[BridgeDispatcher] VRAM swap failed: {e}")
+        return unloaded
+
+    def _vram_restore_after_comfyui(self, model_names, node_db_id=None):
+        """Reload GPU models after ComfyUI finishes, freeing ComfyUI VRAM first.
+
+        Works on hub (default) or any fleet node.
+        """
+        try:
+            import requests as _req
+
+            # Free ComfyUI VRAM
+            if node_db_id:
+                cap = self._get_node_capacity(node_db_id)
+                comfyui_host = f"http://{cap['hostname']}:8188"
+            else:
+                comfyui_host = os.getenv("COMFYUI_HOST", "http://host.docker.internal:8188")
+                cap = self._get_hub_capacity()
+            ollama_url = f"http://{cap['hostname']}:{cap['port']}"
+
+            _req.post(
+                f"{comfyui_host}/free",
+                json={"unload_models": True},
+                timeout=10,
+            )
+            target = "node " + str(node_db_id) if node_db_id else "hub"
+            logger.info(f"[BridgeDispatcher] Freed ComfyUI VRAM on {target}")
+
+            # Reload models on GPU
+            for mname in model_names:
+                _req.post(
+                    f"{ollama_url}/api/generate",
+                    json={"model": mname, "prompt": "", "keep_alive": "24h"},
+                    timeout=30,
+                )
+                logger.info(f"[BridgeDispatcher] VRAM swap: reloaded {mname} on {target}")
+        except Exception as e:
+            logger.warning(f"[BridgeDispatcher] VRAM restore failed: {e}")
+
 
 _dispatcher = None
 

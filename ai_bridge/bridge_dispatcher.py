@@ -5328,9 +5328,11 @@ class BridgeDispatcher:
             except Exception as sc_err:
                 logger.debug(f"[BridgeDispatcher] station_codes query failed: {sc_err}")
 
-            # Build manifest
+            # Build manifest — hub agents only, skip fleet: prefixed node copies
             manifest = []
             for name, info in self._agent_cache.items():
+                if name.startswith("fleet:"):
+                    continue
                 agent_id = info["id"]
                 model = info.get("model", "")
 

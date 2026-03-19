@@ -8595,9 +8595,12 @@ function renderCrewManifest(crew, capacity, nodeCapacities) {
 
         capWrap.appendChild(cpuBar);
 
-        // --- Fleet node capacity bars (same layout as hub) ---
-        if (nodeCapacities && nodeCapacities.length > 0) {
-            nodeCapacities.forEach(function(nc) {
+        // Node capacities stored for rendering in the agent grid section
+        window._pendingNodeCapacities = nodeCapacities || [];
+
+        if (false) { // DEAD CODE — node bars now render in grid below hub agents
+            var _unused = [];
+            _unused.forEach(function(nc) {
                 var nodeWrap = document.createElement('div');
                 nodeWrap.style.cssText = 'margin-bottom:6px;';
 
@@ -9168,11 +9171,124 @@ function renderCrewManifest(crew, capacity, nodeCapacities) {
         swapAgents.forEach(_renderAgentCard);
     }
 
-    if (deployedAgents.length > 0) {
-        _addRosterDivider('\uD83D\uDE80', 'Deployed \u2014 On Fleet Nodes', deployedAgents.length, 'deployed');
-        deployedAgents.forEach(_renderAgentCard);
+    // --- Node capacity + deployed agents (baby blue section) ---
+    var _nodeCapArr = window._pendingNodeCapacities || [];
+    if (_nodeCapArr.length > 0 || deployedAgents.length > 0) {
+        // Node capacity bars — rendered in the grid, same layout as hub bars above
+        _nodeCapArr.forEach(function(nc) {
+            var nodeCapDiv = document.createElement('div');
+            nodeCapDiv.className = 'roster-node-capacity';
+            nodeCapDiv.style.cssText = 'grid-column:1/-1;margin:4px 0;padding:8px 12px;background:rgba(34,211,238,0.04);border:1px solid rgba(34,211,238,0.15);border-left:3px solid #22d3ee;border-radius:4px;';
+
+            // Header
+            var ncHeader = document.createElement('div');
+            ncHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;';
+            var ncTitle = document.createElement('span');
+            ncTitle.style.cssText = 'color:#22d3ee;font-family:Antonio,sans-serif;font-size:0.8rem;letter-spacing:1px;';
+            ncTitle.textContent = '\uD83D\uDE80 ' + (nc.node_name || 'Node');
+            var ncCount = document.createElement('span');
+            ncCount.style.cssText = 'font-size:0.65rem;color:rgba(255,255,255,0.4);';
+            ncCount.textContent = (nc.agent_count || 0) + ' agents \u2022 ' + (nc.models_loaded_count || 0) + '/' + (nc.models_installed_count || 0) + ' models';
+            ncHeader.appendChild(ncTitle);
+            ncHeader.appendChild(ncCount);
+            nodeCapDiv.appendChild(ncHeader);
+
+            // GPU VRAM — same as hub
+            if (nc.gpu_model) {
+                var gLabel = document.createElement('div');
+                gLabel.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:0.7rem;margin-bottom:2px;';
+                var gIcon = document.createElement('span');
+                gIcon.style.fontWeight = '600';
+                gIcon.textContent = '\u26A1 GPU';
+                var gInfo = document.createElement('span');
+                gInfo.style.cssText = 'margin-left:auto;color:rgba(255,255,255,0.5);';
+                gInfo.textContent = (nc.gpu_vram_used_gb || 0) + '/' + (nc.gpu_vram_gb || 0) + 'GB \u2014 ' + nc.gpu_model;
+                gLabel.appendChild(gIcon);
+                gLabel.appendChild(gInfo);
+                nodeCapDiv.appendChild(gLabel);
+
+                var gTrack = document.createElement('div');
+                gTrack.className = 'roster-capacity-track';
+                gTrack.style.marginBottom = '4px';
+                var gPct = nc.gpu_vram_gb > 0 ? (nc.gpu_vram_used_gb / nc.gpu_vram_gb) * 100 : 0;
+                if (gPct > 0) {
+                    var gFill = document.createElement('div');
+                    gFill.className = 'roster-capacity-seg models';
+                    gFill.style.width = gPct.toFixed(1) + '%';
+                    gTrack.appendChild(gFill);
+                }
+                nodeCapDiv.appendChild(gTrack);
+
+                var gLeg = document.createElement('div');
+                gLeg.className = 'roster-capacity-legend';
+                (nc.models_loaded || []).forEach(function(m) {
+                    if ((m.vram_gb || 0) > 0) {
+                        var b = document.createElement('span');
+                        b.className = 'leg-models';
+                        b.textContent = (m.name || '').replace(':latest', '') + ' ' + m.vram_gb + 'GB';
+                        gLeg.appendChild(b);
+                    }
+                });
+                var gFreeSpan = document.createElement('span');
+                gFreeSpan.style.color = 'var(--archie-text-muted)';
+                gFreeSpan.textContent = (nc.gpu_vram_free_gb || nc.gpu_vram_gb || 0) + 'GB free';
+                gLeg.appendChild(gFreeSpan);
+                nodeCapDiv.appendChild(gLeg);
+            }
+
+            // RAM — same segments as hub: agents, swap, swap free, security, host
+            var rLabel = document.createElement('div');
+            rLabel.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:0.7rem;margin:4px 0 2px;';
+            var rIcon = document.createElement('span');
+            rIcon.style.fontWeight = '600';
+            rIcon.textContent = '\uD83D\uDCBB RAM';
+            var rInfo = document.createElement('span');
+            rInfo.style.cssText = 'margin-left:auto;color:rgba(255,255,255,0.5);';
+            rInfo.textContent = (nc.models_ram_gb || 0) + '/' + (nc.ram_gb || 0).toFixed(0) + 'GB';
+            rLabel.appendChild(rIcon);
+            rLabel.appendChild(rInfo);
+            nodeCapDiv.appendChild(rLabel);
+
+            var nRT = nc.ram_gb || 1;
+            var nMod = nc.models_ram_gb || 0;
+            var nAB = nc.ram_agent_budget_gb || 0;
+            var nST = nc.ram_swap_buffer_gb || 0;
+            var nMS = Math.min(nMod, nAB);
+            var nSU = Math.max(0, Math.round((nMod - nAB) * 10) / 10);
+            var nSF = Math.max(0, Math.round((nST - nSU) * 10) / 10);
+            var nSec = nc.ram_security_gb || 0;
+            var nRes = nc.ram_reserve_gb || 0;
+
+            var rTrack = document.createElement('div');
+            rTrack.className = 'roster-capacity-track';
+            rTrack.style.marginBottom = '4px';
+            if (nMS > 0) { var s1 = document.createElement('div'); s1.className = 'roster-capacity-seg models'; s1.style.width = ((nMS/nRT)*100).toFixed(1)+'%'; rTrack.appendChild(s1); }
+            if (nSU > 0) { var s2 = document.createElement('div'); s2.className = 'roster-capacity-seg swap-used'; s2.style.width = ((nSU/nRT)*100).toFixed(1)+'%'; rTrack.appendChild(s2); }
+            if (nSF > 0) { var s3 = document.createElement('div'); s3.className = 'roster-capacity-seg swap-free'; s3.style.width = ((nSF/nRT)*100).toFixed(1)+'%'; rTrack.appendChild(s3); }
+            if (nSec > 0) { var s4 = document.createElement('div'); s4.className = 'roster-capacity-seg'; s4.style.cssText = 'background:rgba(0,212,255,0.3);border-top:1px solid rgba(0,212,255,0.5);border-bottom:1px solid rgba(0,212,255,0.5);width:'+((nSec/nRT)*100).toFixed(1)+'%'; rTrack.appendChild(s4); }
+            if (nRes > 0) { var s5 = document.createElement('div'); s5.className = 'roster-capacity-seg host-reserve'; s5.style.width = ((nRes/nRT)*100).toFixed(1)+'%'; rTrack.appendChild(s5); }
+            nodeCapDiv.appendChild(rTrack);
+
+            var rLeg = document.createElement('div');
+            rLeg.className = 'roster-capacity-legend';
+            var l1 = document.createElement('span'); l1.className = 'leg-models'; l1.textContent = nMS.toFixed(0)+'GB agents'; rLeg.appendChild(l1);
+            var l2 = document.createElement('span'); l2.className = 'leg-swap-used'; l2.textContent = nSU.toFixed(1)+'GB swap'; rLeg.appendChild(l2);
+            var l3 = document.createElement('span'); l3.className = 'leg-swap-free'; l3.textContent = nSF.toFixed(1)+'GB swap free'; rLeg.appendChild(l3);
+            var l4 = document.createElement('span'); l4.style.color = '#00d4ff'; l4.textContent = '\u25CF '+nSec+'GB security'; rLeg.appendChild(l4);
+            var l5 = document.createElement('span'); l5.className = 'leg-reserve'; l5.textContent = nRes+'GB host'; rLeg.appendChild(l5);
+            nodeCapDiv.appendChild(rLeg);
+
+            grid.appendChild(nodeCapDiv);
+        });
+
+        // Deployed agents under the node bars
+        if (deployedAgents.length > 0) {
+            _addRosterDivider('\uD83D\uDE80', 'Deployed \u2014 On Fleet Nodes', deployedAgents.length, 'deployed');
+            deployedAgents.forEach(_renderAgentCard);
+        }
     }
 
+    // Barracked — reserve pool at bottom
     if (barrackedAgents.length > 0) {
         _addRosterDivider('\uD83C\uDFDA', 'Barracked \u2014 Reserve Pool', barrackedAgents.length, 'barracked');
         barrackedAgents.forEach(_renderAgentCard);

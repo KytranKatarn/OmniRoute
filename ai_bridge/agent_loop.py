@@ -612,8 +612,24 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        self.scheduler.add_job(
+            with_app_context(self._check_fleet_health),
+            trigger=IntervalTrigger(seconds=30),
+            id="agent_fleet_health",
+            name="Agent Loop: Fleet Health Monitor",
+            replace_existing=True,
+        )
+
+        self.scheduler.add_job(
+            with_app_context(self._save_model_state),
+            trigger=IntervalTrigger(minutes=5),
+            id="agent_model_state_save",
+            name="Agent Loop: Model State Persistence",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 44 jobs")
+        logger.info("Agent loop started with 46 jobs")
 
     def _update_stock_prices(self):
         """Job #27: Refresh cached stock prices, check price alerts, and auto-scan watchlist every 5 minutes."""
@@ -4047,3 +4063,37 @@ class AgentLoop:
                 logger.info("Pattern compliance: clean — no violations found")
         except Exception as e:
             logger.warning(f"Failed: {e}")
+
+    def _check_fleet_health(self):
+        """Job #45: Monitor fleet node heartbeats — return agents to barracks if offline."""
+        try:
+            from ai_bridge.bridge_dispatcher import get_dispatcher
+
+            dispatcher = get_dispatcher()
+            dispatcher.check_fleet_health()
+        except Exception as e:
+            logger.warning(f"Fleet health check failed: {e}")
+
+    def _save_model_state(self):
+        """Job #46: Save current loaded models to DB for restart recovery."""
+        try:
+            from ai_bridge.bridge_dispatcher import get_dispatcher
+
+            dispatcher = get_dispatcher()
+            dispatcher._save_model_state()  # Hub
+            # Also save state for each online node
+            from database import get_db_cursor
+
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT id FROM remote_nodes
+                       WHERE is_active = true AND deployment_mode != 'starbase'
+                       AND last_heartbeat > NOW() - INTERVAL '2 minutes'"""
+                )
+                for row in cur.fetchall():
+                    try:
+                        dispatcher._save_model_state(node_db_id=row["id"])
+                    except Exception:
+                        pass
+        except Exception as e:
+            logger.warning(f"Model state save failed: {e}")

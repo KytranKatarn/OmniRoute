@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}[MODULE_NAME] — A.R.C.H.I.E.{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/station-ops.css') }}">
+<style>
+/* ── Module-specific styles ── */
+.scaffold-container { padding: 1.5rem; }
+
+/* LCARS tab bar */
+.scaffold-tabs {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 2px solid rgba(255,255,255,0.08);
+    padding-bottom: 0.25rem;
+}
+.scaffold-tabs .tab-btn {
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.5);
+    border: none;
+    padding: 0.6rem 1.4rem;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    border-radius: 6px 6px 0 0;
+    transition: all 0.2s ease;
+}
+.scaffold-tabs .tab-btn:hover {
+    background: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.8);
+}
+.scaffold-tabs .tab-btn.active {
+    background: rgba(0,229,255,0.15);
+    color: #00e5ff;
+    border-bottom: 2px solid #00e5ff;
+}
+
+/* Tab panels */
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* Data card */
+.scaffold-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    padding: 1.2rem;
+    margin-bottom: 1rem;
+}
+.scaffold-card h3 {
+    color: #00e5ff;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.85rem;
+    margin-bottom: 0.8rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="scaffold-container">
+
+    <!-- ── Tab Bar ── -->
+    <div class="scaffold-tabs">
+        <button class="tab-btn active" onclick="switchTab('dashboard')">Dashboard</button>
+        <button class="tab-btn" onclick="switchTab('data')">Data</button>
+        <button class="tab-btn" onclick="switchTab('station')">Station</button>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- TAB 1: Dashboard                                          -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div id="tab-dashboard" class="tab-panel active">
+        <div class="scaffold-card">
+            <h3>Module Status</h3>
+            <p id="status-msg" style="color: rgba(255,255,255,0.6);">Loading...</p>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- TAB 2: Data                                               -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div id="tab-data" class="tab-panel">
+        <div class="scaffold-card">
+            <h3>Data View</h3>
+            <div id="data-container">
+                <p style="color: rgba(255,255,255,0.4);">No data loaded yet.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- TAB 3: Station (StationOps integration)                   -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div id="tab-station" class="tab-panel">
+        <div class="scaffold-card">
+            <h3>Station Panel</h3>
+            <!-- StationOps mounts here -->
+            <div id="so-agents"></div>
+            <div id="so-jobs"></div>
+            <div id="so-commands"></div>
+            <div id="so-status"></div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/archie-time.js') }}"></script>
+<script src="{{ url_for('static', filename='js/station-ops.js') }}"></script>
+<script>
+// ── Tab Switching ──
+function switchTab(name) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    const panel = document.getElementById('tab-' + name);
+    if (panel) panel.classList.add('active');
+    // Find the button that matches
+    document.querySelectorAll('.tab-btn').forEach(b => {
+        if (b.textContent.trim().toLowerCase() === name.toLowerCase()) {
+            b.classList.add('active');
+        }
+    });
+}
+
+// ── Status Check ──
+async function loadStatus() {
+    try {
+        const res = await fetch('/tools/scaffold/api/status');
+        const data = await res.json();
+        document.getElementById('status-msg').textContent =
+            data.ok ? 'Operational' : 'Error: ' + (data.error || 'Unknown');
+        document.getElementById('status-msg').style.color =
+            data.ok ? '#10b981' : '#ef4444';
+    } catch (err) {
+        document.getElementById('status-msg').textContent = 'Connection failed';
+        document.getElementById('status-msg').style.color = '#ef4444';
+    }
+}
+
+// ── StationOps Integration (uncomment and configure) ──
+// Replace STATION_CODE with one of: COMMAND, ANALYTICS, CREATIVE,
+// ENGINEERING, COMMUNICATIONS, RESEARCH, SECURITY, LOGISTICS,
+// DIPLOMATIC, OPERATIONS
+//
+// const stationOps = new StationOps({
+//     stationCode: 'ENGINEERING',
+//     moduleSource: 'scaffold',
+//     agentsElId: 'so-agents',
+//     jobsElId: 'so-jobs',
+//     commandsElId: 'so-commands',
+//     statusElId: 'so-status',
+//     commands: [
+//         { label: 'REFRESH', icon: 'sync', action: () => loadStatus() },
+//     ],
+// });
+
+// ── Init ──
+document.addEventListener('DOMContentLoaded', () => {
+    loadStatus();
+});
+</script>
+{% endblock %}

@@ -170,6 +170,237 @@ def platform_features():
     return response
 
 
+def _fetch_competitors():
+    """Build the competitor comparison payload from the competitors page data."""
+    competitors = ["ARCHIE", "CrewAI", "LangGraph", "Devin", "Claude Code", "Goose", "Dify", "OpenAI Agents"]
+
+    def _row(feature, *vals):
+        """Helper: map bool values to competitor dict."""
+        return {
+            "feature": feature,
+            "support": {c: v for c, v in zip(competitors, vals)},
+        }
+
+    # --- Feature Matrix ---
+    feature_matrix = {
+        "archie_unique": [
+            _row("Station-based dispatch", True, False, False, False, False, False, False, False),
+            _row("GPU/VRAM-aware routing", True, False, False, False, False, False, False, False),
+            _row("Agent welfare (IAAE ethics)", True, False, False, False, False, False, False, False),
+            _row("Self-auditing codebase", True, False, False, False, False, False, False, False),
+            _row("Code health metrics dashboard", True, False, False, False, False, False, False, False),
+            _row("Warm-boot model lifecycle", True, False, False, False, False, False, False, False),
+            _row("5-step escalation chain", True, False, False, False, False, False, False, False),
+            _row("Mission profiles", True, False, False, False, False, False, False, False),
+            _row("Physical security (cameras, DNS, SSH)", True, False, False, False, False, False, False, False),
+            _row("Self-improvement pipeline", True, False, False, False, False, False, False, False),
+            _row("39 autonomous background jobs", True, False, False, False, False, False, False, False),
+            _row("Telegram human-in-the-loop", True, False, False, False, False, False, False, False),
+            _row("Live AI translation (8 languages)", True, False, False, False, False, False, False, False),
+        ],
+        "shared_capabilities": [
+            _row("Multi-agent orchestration", True, True, True, True, True, True, True, True),
+            _row("MCP protocol support", True, False, False, False, True, True, False, False),
+            _row("Fully self-hosted", True, True, True, False, True, True, True, False),
+            _row("Structured agent schemas", True, True, True, False, True, False, True, True),
+            _row("Agents-as-tools delegation", True, True, False, True, True, False, False, True),
+            _row("Human approval system", True, False, False, True, True, False, False, False),
+            _row("Event-driven flow router", True, False, True, False, False, False, True, False),
+        ],
+        "competitor_strengths": [
+            _row("Durable execution (checkpoints)", False, False, True, False, False, False, False, False),
+            _row("A2A protocol (agent-to-agent)", False, False, True, False, False, False, False, False),
+            _row("Visual drag-and-drop workflow builder", False, False, False, False, False, False, True, False),
+            _row("IDE integration (VS Code / editor)", False, False, False, True, True, True, False, False),
+            _row("Parallel agent execution", False, True, True, True, True, False, True, True),
+            _row("Cloud auto-scaling", False, False, False, True, False, False, True, True),
+        ],
+    }
+
+    # --- Category Comparison ---
+    categories = [
+        {
+            "id": "orchestration",
+            "title": "Orchestration Frameworks",
+            "competitors": [
+                "CrewAI",
+                "AG2 (AutoGen fork)",
+                "LangGraph",
+                "MetaGPT",
+                "OpenAI Agents SDK",
+                "Microsoft Agent Framework",
+            ],
+            "description": "Libraries for building multi-agent systems. You write code, define roles, and wire agents together. Multi-agent is now table stakes.",
+            "archie_edge": "These are libraries you build with. ARCHIE is a running system — GPU-aware routing, warm-boot lifecycle, physical security, and 39 autonomous background jobs out of the box.",
+            "their_edge": "LangGraph offers durable execution with checkpoints. Google's A2A protocol enables cross-platform agent communication.",
+        },
+        {
+            "id": "workflow_builders",
+            "title": "Workflow Builders",
+            "competitors": ["Langflow", "n8n", "Dify", "Flowise (acquired by Workday)"],
+            "description": "Visual drag-and-drop platforms for connecting LLMs to tools and data sources. Strong for no-code teams.",
+            "archie_edge": "Workflow builders connect things. ARCHIE orchestrates a fleet of 23 autonomous agents with station-based dispatch, VRAM-aware model management, and self-improvement.",
+            "their_edge": "Dify and n8n offer visual drag-and-drop workflow builders that non-developers can use.",
+        },
+        {
+            "id": "coding_agents",
+            "title": "Autonomous Coding Agents",
+            "competitors": ["Devin", "Cursor", "Windsurf", "Claude Code", "Codex CLI", "Cline", "Aider"],
+            "description": "AI-powered coding tools that write, edit, and debug code. Claude Code now has Agent Teams (Opus 4.6). Devin dropped to $20/mo.",
+            "archie_edge": "Coding agents write code. ARCHIE is a multi-domain operations platform — it manages physical security, monitors network devices, runs background intelligence, and self-audits its own codebase.",
+            "their_edge": "IDE integration (VS Code, terminal), parallel agent execution, and git-native workflows.",
+        },
+        {
+            "id": "enterprise",
+            "title": "Enterprise Platforms",
+            "competitors": ["Microsoft Agent Framework", "Haystack", "Relevance AI", "Dust.tt", "OpenAI Assistants"],
+            "description": "Production-grade platforms backed by major vendors. Cloud-first, enterprise-scale.",
+            "archie_edge": "Enterprise platforms are cloud-dependent. ARCHIE runs entirely on local hardware (128GB RAM, Quadro M4000), with agent welfare governance and zero cloud lock-in.",
+            "their_edge": "Cloud auto-scaling, managed infrastructure, and enterprise SSO/compliance.",
+        },
+        {
+            "id": "self_hosted",
+            "title": "Self-Hosted & Open Source",
+            "competitors": ["Goose (Block/AAIF)", "LocalAGI", "Aider", "Ollama", "Open WebUI"],
+            "description": "Privacy-first, local-hardware AI tools. Goose (30K+ GitHub stars) is MCP-native. All run on consumer hardware.",
+            "archie_edge": "These tools do one thing well. ARCHIE is a complete operations platform — 23 agents, 10 stations, 39 background jobs, physical security, knowledge base, and self-auditing codebase.",
+            "their_edge": "Open-source community contributions, lower setup barrier, and plug-and-play simplicity.",
+        },
+        {
+            "id": "self_improving",
+            "title": "Self-Improving & Accountable",
+            "competitors": [],
+            "description": "ARCHIE is the only platform that audits its own codebase, tracks code health metrics with before/after accountability, and maintains self-documenting rules.",
+            "archie_edge": "This category doesn't exist yet. ARCHIE created it — a platform that measures, audits, and proves its own improvement with data.",
+            "their_edge": None,
+        },
+    ]
+
+    # --- Trending / Sensor Scan ---
+    trending = [
+        {
+            "name": "OpenClaw",
+            "badge": "247K stars",
+            "badge_type": "viral",
+            "meta": "Personal AI assistant — Chat apps — Single agent",
+            "description": "The one that started the 'claw' craze. A personal AI assistant that lives in your messaging apps. Simple, elegant, one agent doing one thing well.",
+            "comparison": {"them": "1 agent", "archie": "23 agents, 10 stations, 39 jobs"},
+            "verdict": "Brilliant personal assistant. Not an operations platform. Like comparing a Swiss Army knife to a command center.",
+        },
+        {
+            "name": "PicoClaw",
+            "badge": "10MB RAM",
+            "badge_type": "tiny",
+            "meta": "Ultra-lightweight AI — $10 hardware — Edge computing",
+            "description": "OpenClaw's little sibling. Runs on a $10 microcontroller with just 10MB of RAM. Perfect for IoT and embedded systems.",
+            "comparison": {"them": "10 MB", "archie": "128 GB, GPU, 13 models loaded"},
+            "verdict": "Cool tech, opposite universe. PicoClaw fits in your pocket. ARCHIE runs your entire operation.",
+        },
+        {
+            "name": "Claw Empire",
+            "badge": "Dev Toy",
+            "badge_type": "fun",
+            "meta": "Gamified coding — Pixel art UI — Wraps existing tools",
+            "description": "A pixel-art game layer on top of Claude Code and Codex CLI. Fun, viral on TikTok, but it's a skin — the actual AI is someone else's.",
+            "comparison": {"them": "Wrapper UI", "archie": "Full platform, own AI, own infrastructure"},
+            "verdict": "Great marketing, zero original AI. When the game ends, you're still using Claude Code. ARCHIE IS the platform.",
+        },
+        {
+            "name": "NemoClaw",
+            "badge": "Watch",
+            "badge_type": "watch",
+            "meta": "Nvidia — Enterprise OpenClaw — Guardrails — Alpha",
+            "description": "Nvidia's enterprise version of OpenClaw, announced at GTC March 2026. Adds AI guardrails, governance, and safety — features that overlap with ARCHIE's IAAE ethics system. Still alpha.",
+            "comparison": {
+                "them": "Guardrails, Governance, Alpha",
+                "archie": "IAAE live, Agent welfare, Self-auditing, Production",
+            },
+            "verdict": "The only one worth watching. Nvidia + governance is serious. But ARCHIE's IAAE is already live and production-tested.",
+        },
+    ]
+
+    # --- Stack comparison (tools needed to match ARCHIE) ---
+    stack_equivalent = [
+        {"tool": "CrewAI", "role": "Agent orchestration"},
+        {"tool": "Ollama", "role": "Local model serving"},
+        {"tool": "n8n", "role": "Workflow automation"},
+        {"tool": "Frigate NVR", "role": "Camera security"},
+        {"tool": "AdGuard Home", "role": "DNS protection"},
+        {"tool": "Grafana", "role": "Monitoring & dashboards"},
+        {"tool": "SonarQube", "role": "Code quality scanning"},
+        {"tool": "Claude Code", "role": "AI coding agent"},
+        {"tool": "Custom Scripts", "role": "Glue code & cron jobs"},
+    ]
+
+    # --- Roadmap gaps (honesty section) ---
+    building = [
+        {
+            "feature": "A2A Protocol",
+            "description": "Google's Agent-to-Agent standard for cross-platform agent communication.",
+            "who_has_it": ["LangGraph"],
+        },
+        {
+            "feature": "Parallel Agent Execution",
+            "description": "Running multiple agents simultaneously on separate tasks.",
+            "who_has_it": ["CrewAI", "LangGraph", "Devin", "Claude Code", "Dify", "OpenAI Agents"],
+        },
+        {
+            "feature": "IDE Integration",
+            "description": "Plugging into VS Code, JetBrains, or terminal editors for inline code assistance.",
+            "who_has_it": ["Cursor", "Windsurf", "Claude Code", "Cline", "Codex CLI", "Aider", "Goose"],
+        },
+        {
+            "feature": "Cloud Auto-Scaling",
+            "description": "Automatically spinning up more compute when demand spikes.",
+            "who_has_it": ["Devin", "Dify Cloud", "OpenAI Assistants"],
+        },
+        {
+            "feature": "Visual Workflow Builder",
+            "description": "Drag-and-drop interface for non-developers to build AI workflows.",
+            "who_has_it": ["Dify", "n8n", "Langflow", "Flowise"],
+        },
+        {
+            "feature": "Durable Execution",
+            "description": "Checkpoint-based execution that survives crashes and can resume from any point.",
+            "who_has_it": ["LangGraph"],
+        },
+    ]
+
+    # --- Hero stats ---
+    hero_stats = {
+        "competitors_analyzed": 35,
+        "unique_features": 24,
+        "features_building": 6,
+    }
+
+    return {
+        "competitors": competitors,
+        "hero_stats": hero_stats,
+        "feature_matrix": feature_matrix,
+        "categories": categories,
+        "trending": trending,
+        "stack_equivalent": stack_equivalent,
+        "building": building,
+        "last_scanned": "2026-03-18",
+    }
+
+
+@public_api_bp.route("/competitors")
+def competitors():
+    """Public, read-only endpoint returning competitor comparison data.
+
+    Used by kytranempowerment.com to render dynamic comparison charts.
+    Cached for 5 minutes.
+    """
+    data = _get_cached("competitors", _fetch_competitors)
+    if isinstance(data, tuple):
+        return jsonify(data[0]), data[1]
+
+    response = jsonify(data)
+    response.headers["Cache-Control"] = "public, max-age=300"
+    return response
+
+
 @public_api_bp.after_request
 def add_cors_headers(response):
     """Ensure CORS headers on all public API responses."""

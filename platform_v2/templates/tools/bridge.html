@@ -1717,6 +1717,41 @@
         </div>
     </div>
 </div>
+
+<!-- Model Load/Unload Confirm Modal (LCARS tablet) -->
+<div class="bm-overlay" id="model-control-modal" style="--bm-accent:#22d3ee;--bm-accent-rgb:34,211,238;">
+    <div class="bm-shell" style="max-width:440px;">
+        <div class="bm-frame">
+            <div class="bm-frame-elbow-top"></div>
+            <div class="bm-frame-seg"></div>
+            <div class="bm-frame-seg dim"></div>
+            <div class="bm-frame-light cyan"></div>
+            <div class="bm-frame-light on"></div>
+            <div class="bm-frame-seg"></div>
+            <div class="bm-frame-fill"></div>
+            <div class="bm-frame-elbow-bottom"></div>
+        </div>
+        <div class="bm-content">
+            <div class="bm-header">
+                <span class="bm-header-title" id="model-control-title">MODEL CONTROL</span>
+                <div class="bm-header-strip">
+                    <span class="bm-header-pip w1"></span>
+                    <span class="bm-header-pip w2"></span>
+                    <button class="bm-close" onclick="closeModelControlModal()">&times;</button>
+                </div>
+            </div>
+            <div class="bm-body">
+                <div id="model-control-body" style="font-size:0.8rem;line-height:1.6;color:var(--archie-text-secondary);"></div>
+                <div id="model-control-actions" style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;"></div>
+            </div>
+            <div class="bm-footer">
+                <span class="bm-footer-tag">BRIDGE COMMAND</span>
+                <span class="bm-footer-dot cyan"></span>
+                <span class="bm-footer-dot gold"></span>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}

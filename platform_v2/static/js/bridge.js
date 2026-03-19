@@ -9393,39 +9393,94 @@ function renderCrewManifest(crew, capacity, nodeCapacities) {
 }
 
 // === Model Load/Unload Control ===
+function closeModelControlModal() {
+    document.getElementById('model-control-modal').classList.remove('active');
+}
+
+function _showModelControlModal(agent, action, nodeDbId, onConfirm) {
+    var modal = document.getElementById('model-control-modal');
+    var title = document.getElementById('model-control-title');
+    var body = document.getElementById('model-control-body');
+    var actions = document.getElementById('model-control-actions');
+    var model = (agent.model || '').replace(':latest', '');
+    var target = nodeDbId ? (agent.node_name || 'Fleet Node') : 'ARCHIE Starbase';
+    var isLoad = action === 'load';
+
+    title.textContent = isLoad ? 'LOAD MODEL' : 'UNLOAD MODEL';
+
+    body.textContent = '';
+    var info = document.createElement('div');
+    info.style.cssText = 'margin-bottom:12px;';
+
+    var agentLine = document.createElement('div');
+    agentLine.style.cssText = 'font-size:0.9rem;font-weight:600;color:#fff;margin-bottom:4px;';
+    agentLine.textContent = agent.full_name || agent.display_name || agent.name;
+    info.appendChild(agentLine);
+
+    var modelLine = document.createElement('div');
+    modelLine.style.cssText = 'font-size:0.75rem;color:#22d3ee;margin-bottom:4px;font-family:IBM Plex Mono,monospace;';
+    modelLine.textContent = model + (agent.llm_size_gb ? ' (~' + agent.llm_size_gb + 'GB)' : '');
+    info.appendChild(modelLine);
+
+    var targetLine = document.createElement('div');
+    targetLine.style.cssText = 'font-size:0.75rem;color:rgba(255,255,255,0.5);';
+    targetLine.textContent = 'Target: ' + target;
+    info.appendChild(targetLine);
+
+    if (!isLoad && agent.status === 'working') {
+        var warn = document.createElement('div');
+        warn.style.cssText = 'margin-top:8px;padding:6px 10px;background:rgba(255,68,68,0.1);border:1px solid rgba(255,68,68,0.3);border-radius:4px;color:#ff6b6b;font-size:0.75rem;';
+        warn.textContent = '\u26A0 Agent is currently working. Unloading will interrupt active dispatch.';
+        info.appendChild(warn);
+    }
+
+    body.appendChild(info);
+
+    actions.textContent = '';
+    var cancelBtn = document.createElement('button');
+    cancelBtn.className = 'bm-btn';
+    cancelBtn.style.cssText = 'background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6);';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.onclick = closeModelControlModal;
+    actions.appendChild(cancelBtn);
+
+    var confirmBtn = document.createElement('button');
+    confirmBtn.className = 'bm-btn';
+    confirmBtn.style.cssText = isLoad
+        ? 'background:rgba(34,211,238,0.15);border:1px solid rgba(34,211,238,0.3);color:#22d3ee;'
+        : 'background:rgba(255,68,68,0.15);border:1px solid rgba(255,68,68,0.3);color:#ff6b6b;';
+    confirmBtn.textContent = isLoad ? 'Load Model' : 'Unload Model';
+    confirmBtn.onclick = function() {
+        closeModelControlModal();
+        onConfirm();
+    };
+    actions.appendChild(confirmBtn);
+
+    modal.classList.add('active');
+}
+
 // Works for both hub (node_id=null) and fleet nodes (node_id=DB id)
 function _toggleAgentModel(agent, btn, nodeDbId) {
     var model = agent.model || '';
     var isLoaded = agent.llm_status === 'loaded';
     var action = isLoaded ? 'unload' : 'load';
     var hw = (agent.hardware || 'CPU').toUpperCase();
-    var target = nodeDbId ? 'node' : 'hub';
 
-    // Confirm unload if agent is working
-    if (isLoaded && agent.status === 'working') {
-        if (!confirm('Warning: ' + (agent.full_name || agent.name) + ' is currently working on ' + target + '.\n\nUnloading their model will interrupt any active dispatch.\n\nContinue?')) return;
-    }
+    _showModelControlModal(agent, action, nodeDbId, function() {
+        btn.disabled = true;
+        btn.textContent = isLoaded ? 'Unloading...' : 'Loading...';
 
-    // Confirm load — show estimated impact
-    if (!isLoaded) {
-        var sizeNote = agent.llm_size_gb ? ' (~' + agent.llm_size_gb + 'GB)' : '';
-        if (!confirm('Load ' + model.replace(':latest', '') + sizeNote + ' on ' + target + '?\n\nThis may take a moment for cold-load models.')) return;
-    }
+        var payload = {
+            model: model,
+            action: action,
+            num_gpu: hw === 'GPU' ? 99 : 0
+        };
+        if (nodeDbId) payload.node_id = nodeDbId;
 
-    btn.disabled = true;
-    btn.textContent = isLoaded ? 'Unloading...' : 'Loading...';
-
-    var payload = {
-        model: model,
-        action: action,
-        num_gpu: hw === 'GPU' ? 99 : 0
-    };
-    if (nodeDbId) payload.node_id = nodeDbId;
-
-    fetch('/tools/bridge/api/bridge/model-control', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        fetch('/tools/bridge/api/bridge/model-control', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
@@ -9442,6 +9497,7 @@ function _toggleAgentModel(agent, btn, nodeDbId) {
         btn.disabled = false;
         btn.textContent = isLoaded ? 'Unload' : 'Load';
     });
+    }); // end _showModelControlModal callback
 }
 
 // === ComfyUI Checkpoint Control ===

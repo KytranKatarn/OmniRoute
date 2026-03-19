@@ -14,8 +14,8 @@ import threading
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 import requests
-from psycopg2.extras import Json
-from database import get_db_cursor
+from psycopg2.extras import RealDictCursor, Json
+from database import get_db
 
 
 CURATED_MODULES = {

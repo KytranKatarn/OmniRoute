@@ -13,8 +13,8 @@ import subprocess
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, List
 
-from psycopg2.extras import Json
-from database import get_db_cursor
+from psycopg2.extras import RealDictCursor, Json
+from database import get_db
 
 logger = logging.getLogger(__name__)
 

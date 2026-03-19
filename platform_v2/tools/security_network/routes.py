@@ -3539,22 +3539,18 @@ def api_update_alert_config():
             config[alert_type]["telegram"] = bool(settings["telegram"])
 
     try:
-        conn = get_db()
-        cur = conn.cursor()
-        cur.execute(
-            """
-            INSERT INTO security_auto_block_settings (setting_key, setting_value, description, updated_by, updated_at)
-            VALUES ('alert_config', %s, 'Security alert Telegram/notification config', %s, NOW())
-            ON CONFLICT (setting_key) DO UPDATE
-            SET setting_value = EXCLUDED.setting_value,
-                updated_by = EXCLUDED.updated_by,
-                updated_at = NOW()
-            """,
-            (json_lib.dumps(config), current_user.id),
-        )
-        conn.commit()
-        cur.close()
-        conn.close()
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO security_auto_block_settings (setting_key, setting_value, description, updated_by, updated_at)
+                VALUES ('alert_config', %s, 'Security alert Telegram/notification config', %s, NOW())
+                ON CONFLICT (setting_key) DO UPDATE
+                SET setting_value = EXCLUDED.setting_value,
+                    updated_by = EXCLUDED.updated_by,
+                    updated_at = NOW()
+                """,
+                (json_lib.dumps(config), current_user.id),
+            )
 
         return jsonify({"success": True, "config": config})
     except Exception as e:

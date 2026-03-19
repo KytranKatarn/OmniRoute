@@ -11,8 +11,8 @@ import socket
 import ssl
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
-from psycopg2.extras import Json
-from database import get_db_cursor
+from psycopg2.extras import RealDictCursor, Json
+from database import get_db
 
 
 # ============================================================================

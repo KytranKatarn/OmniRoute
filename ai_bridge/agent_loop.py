@@ -1056,19 +1056,33 @@ class AgentLoop:
                 conn.close()
                 return
 
-            # Get SMTP settings
-            cur.execute(
-                "SELECT * FROM email_settings WHERE is_default = true AND is_active = true"
-            )
-            smtp_settings = cur.fetchone()
-
-            if not smtp_settings:
-                logger.warning(
-                    "Agent loop: No active SMTP settings, skipping email queue"
+            # Try Google Work Suite first, fall back to SMTP
+            gws_account_id = None
+            try:
+                cur.execute(
+                    "SELECT id FROM google_accounts WHERE owner_type = 'agent' AND permission_level = 'full' ORDER BY created_at LIMIT 1"
                 )
-                cur.close()
-                conn.close()
-                return
+                gws_row = cur.fetchone()
+                if gws_row:
+                    gws_account_id = gws_row["id"]
+                    logger.debug("Email queue: using GWS account %s", gws_account_id)
+            except Exception as e:
+                logger.debug("Email queue: GWS account lookup failed: %s", e)
+
+            smtp_settings = None
+            if not gws_account_id:
+                cur.execute(
+                    "SELECT * FROM email_settings WHERE is_default = true AND is_active = true"
+                )
+                smtp_settings = cur.fetchone()
+
+                if not smtp_settings:
+                    logger.warning(
+                        "Agent loop: No GWS account or SMTP settings, skipping email queue"
+                    )
+                    cur.close()
+                    conn.close()
+                    return
 
             for email in emails:
                 try:
@@ -1108,10 +1122,22 @@ class AgentLoop:
                                 else body_html
                             )
 
-                    # Send via SMTP
-                    self._send_smtp(
-                        smtp_settings, email["recipient"], subject, body_html
-                    )
+                    # Send via GWS Gmail API (preferred) or SMTP fallback
+                    if gws_account_id:
+                        from tools.google_work_suite.services.gmail_service import (
+                            send_email as gws_send_email,
+                        )
+
+                        gws_send_email(
+                            gws_account_id,
+                            email["recipient"],
+                            subject or "(no subject)",
+                            body_html or "",
+                        )
+                    else:
+                        self._send_smtp(
+                            smtp_settings, email["recipient"], subject, body_html
+                        )
 
                     # Log success
                     cur.execute(

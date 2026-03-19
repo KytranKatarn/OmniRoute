@@ -5694,7 +5694,8 @@ class BridgeDispatcher:
                 dn_conn = self._get_db()
                 dn_cur = dn_conn.cursor(cursor_factory=RealDictCursor)
                 dn_cur.execute("""
-                    SELECT na.hub_agent_id, rn.id as node_db_id, rn.node_name
+                    SELECT na.hub_agent_id, rn.id as node_db_id,
+                           rn.node_name, rn.hostname as node_hostname
                     FROM node_agents na
                     JOIN remote_nodes rn ON rn.id = na.node_id
                     WHERE na.hub_agent_id IS NOT NULL AND na.status = 'active'
@@ -5703,6 +5704,7 @@ class BridgeDispatcher:
                     deployed_node_map[r["hub_agent_id"]] = {
                         "node_db_id": r["node_db_id"],
                         "node_name": r["node_name"],
+                        "node_hostname": r["node_hostname"],
                     }
                 dn_cur.close()
                 dn_conn.close()
@@ -5746,6 +5748,13 @@ class BridgeDispatcher:
                 agent_id = info["id"]
                 model = info.get("model", "")
 
+                # Reconcile stale deployed state — if agent claims
+                # deployed but no active node_agents record exists, treat
+                # as returned to hub (node went offline).
+                _shift = info.get("shift_state", "active")
+                if _shift == "deployed" and agent_id not in deployed_node_map:
+                    _shift = "barracked"
+
                 # Determine status
                 if agent_id in resting_ids:
                     status = "resting"
@@ -5765,7 +5774,7 @@ class BridgeDispatcher:
                     hw = self.MODEL_HARDWARE.get(model, "CPU")
 
                 # LLM readiness: check node Ollama for deployed agents, hub for others
-                _is_deployed = info.get("shift_state") == "deployed"
+                _is_deployed = _shift == "deployed"
                 _agent_loaded = node_loaded_models.get(agent_id, set()) if _is_deployed else set()
 
                 if model and model.endswith(":cloud"):
@@ -5815,7 +5824,7 @@ class BridgeDispatcher:
                         "agent_id": agent_id,
                         "station": info.get("station_code", "COMMAND"),
                         "station_codes": station_codes_map.get(agent_id, []),
-                        "shift_state": info.get("shift_state", "active"),
+                        "shift_state": _shift,
                         "model": model,
                         "image_model": image_model,
                         "hardware": hw,
@@ -5843,6 +5852,12 @@ class BridgeDispatcher:
                         "learning_count": learning_map.get(name, 0),
                         "node_db_id": deployed_node_map.get(agent_id, {}).get("node_db_id"),
                         "node_name": deployed_node_map.get(agent_id, {}).get("node_name"),
+                        "node_hostname": deployed_node_map.get(agent_id, {}).get("node_hostname"),
+                        "location": (
+                            f"node:{deployed_node_map[agent_id]['node_name']}"
+                            if agent_id in deployed_node_map
+                            else "hub"
+                        ),
                     }
                 )
 

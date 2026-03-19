@@ -5,6 +5,7 @@ Scans the platform codebase and produces file/line/folder metrics.
 Stores snapshots for historical tracking.
 """
 
+import json
 import os
 import logging
 import subprocess
@@ -664,12 +665,211 @@ def log_audit(
         return cur.fetchone()["id"]
 
 
+def detect_changes_since_last_snapshot(repo_path="/mnt/archie_brain"):
+    """
+    Compare current commit against the previous snapshot's commit_hash.
+    Returns {module_name: [list_of_changed_files]} for modules with changes.
+    """
+    try:
+        current_hash = _get_commit_hash(repo_path)
+        if not current_hash:
+            logger.warning("detect_changes: could not get current commit hash")
+            return {}
+
+        # Get the previous snapshot's commit_hash (skip the most recent one)
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT commit_hash FROM code_metrics_snapshots
+                   WHERE commit_hash IS NOT NULL
+                   ORDER BY scanned_at DESC LIMIT 1 OFFSET 1"""
+            )
+            row = cur.fetchone()
+
+        if not row or not row["commit_hash"]:
+            logger.info("detect_changes: no previous snapshot with commit_hash (first run)")
+            return {}
+
+        previous_hash = row["commit_hash"]
+
+        if previous_hash == current_hash:
+            logger.info("detect_changes: no commits since last snapshot")
+            return {}
+
+        # Get changed files between the two commits
+        result = subprocess.run(
+            ["git", "diff", "--name-only", previous_hash, current_hash],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            logger.warning("detect_changes: git diff failed: %s", result.stderr.strip())
+            return {}
+
+        changed_files = [f.strip() for f in result.stdout.splitlines() if f.strip()]
+        if not changed_files:
+            return {}
+
+        # Map files to modules based on directory paths
+        module_changes = defaultdict(list)
+        for fpath in changed_files:
+            module = _map_file_to_module(fpath)
+            if module:
+                module_changes[module].append(fpath)
+
+        logger.info(
+            "detect_changes: %d files changed across %d modules (%s..%s)",
+            len(changed_files),
+            len(module_changes),
+            previous_hash[:8],
+            current_hash[:8],
+        )
+        return dict(module_changes)
+
+    except Exception as e:
+        logger.error("detect_changes_since_last_snapshot failed: %s", e)
+        return {}
+
+
+def _map_file_to_module(filepath):
+    """Map a git-relative file path to a module name."""
+    # platform_v2/tools/<module_name>/... -> module_name
+    if filepath.startswith("platform_v2/tools/"):
+        parts = filepath.split("/")
+        if len(parts) >= 3:
+            return parts[2]
+
+    # platform_v2/templates/tools/<module_name>.html -> module_name
+    if filepath.startswith("platform_v2/templates/tools/"):
+        parts = filepath.split("/")
+        if len(parts) >= 4:
+            basename = os.path.splitext(parts[3])[0]
+            return basename.replace("-", "_")
+
+    # platform_v2/static/js/<module>.js or css/<module>.css
+    if filepath.startswith("platform_v2/static/js/") or filepath.startswith("platform_v2/static/css/"):
+        parts = filepath.split("/")
+        if len(parts) >= 4:
+            basename = os.path.splitext(parts[3])[0]
+            return basename.replace("-", "_")
+
+    # ai_bridge/... -> [AI_BRIDGE]
+    if filepath.startswith("ai_bridge/"):
+        return "[AI_BRIDGE]"
+
+    # platform_v2/services/... or platform_v2/app.py etc -> [APP_CORE]
+    if filepath.startswith("platform_v2/") and not filepath.startswith("platform_v2/tools/"):
+        return "[APP_CORE]"
+
+    # database/migrations/... -> [MIGRATIONS]
+    if filepath.startswith("database/migrations/"):
+        return "[MIGRATIONS]"
+
+    return None
+
+
+def mark_stale_audits(changed_modules):
+    """
+    Mark existing audit entries as stale for modules that have changed.
+    Only marks non-stale audits as stale.
+    Returns count of audits marked stale.
+    """
+    if not changed_modules:
+        return 0
+
+    total_marked = 0
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            for module_name in changed_modules:
+                cur.execute(
+                    """UPDATE code_audit_log
+                       SET stale = TRUE
+                       WHERE module_name = %s AND stale = FALSE""",
+                    (module_name,),
+                )
+                count = cur.rowcount
+                if count > 0:
+                    total_marked += count
+                    logger.info(
+                        "Marked %d audit(s) stale for module '%s'",
+                        count,
+                        module_name,
+                    )
+
+        if total_marked > 0:
+            logger.info(
+                "mark_stale_audits: %d total audits marked stale across %d modules",
+                total_marked,
+                len(changed_modules),
+            )
+    except Exception as e:
+        logger.error("mark_stale_audits failed: %s", e)
+
+    return total_marked
+
+
+def scan_and_detect_changes(repo_path="/mnt/archie_brain"):
+    """
+    Wrapper that runs the full scan pipeline:
+    1. Scan codebase metrics
+    2. Save snapshot
+    3. Detect file changes since last snapshot
+    4. Mark stale audits for changed modules
+    5. Store change info in the snapshot's per_module JSONB
+    Returns (metrics, snapshot_id, changed_modules).
+    """
+    # Step 1: Scan
+    metrics = scan_codebase()
+
+    # Step 2: Save snapshot
+    snapshot_id = save_snapshot(metrics)
+
+    # Step 3: Detect changes
+    changed_modules = detect_changes_since_last_snapshot(repo_path)
+
+    # Step 4: Mark stale audits
+    if changed_modules:
+        mark_stale_audits(changed_modules)
+
+        # Step 5: Update the snapshot's per_module with change info
+        if snapshot_id:
+            try:
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        "SELECT per_module FROM code_metrics_snapshots WHERE id = %s",
+                        (snapshot_id,),
+                    )
+                    row = cur.fetchone()
+                    if row and row["per_module"]:
+                        per_module = (
+                            row["per_module"] if isinstance(row["per_module"], dict) else json.loads(row["per_module"])
+                        )
+                    else:
+                        per_module = {}
+
+                    per_module["changes_since_last"] = {mod: files for mod, files in changed_modules.items()}
+
+                    cur.execute(
+                        "UPDATE code_metrics_snapshots SET per_module = %s WHERE id = %s",
+                        (json.dumps(per_module), snapshot_id),
+                    )
+                    logger.info(
+                        "Updated snapshot #%d with changes_since_last for %d modules",
+                        snapshot_id,
+                        len(changed_modules),
+                    )
+            except Exception as e:
+                logger.error("Failed to update snapshot with change info: %s", e)
+
+    return metrics, snapshot_id, changed_modules
+
+
 def backfill_git_history(repo_path="/mnt/archie_brain"):
     """
     Walk full git history and create daily snapshots.
     Tracks both line changes (--numstat) and file changes (--diff-filter).
     """
-    import json
 
     try:
         subprocess.run(

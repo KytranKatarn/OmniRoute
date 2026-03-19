@@ -4004,17 +4004,17 @@ class AgentLoop:
             logger.warning(f"Failed: {e}")
 
     def _daily_code_metrics_scan(self):
-        """Job #40: Daily codebase metrics snapshot at 3:00 AM."""
+        """Job #40: Daily codebase metrics snapshot at 3:00 AM with stale audit detection."""
         try:
-            from services.code_metrics_service import scan_codebase, save_snapshot
+            from services.code_metrics_service import scan_and_detect_changes
 
-            metrics = scan_codebase()
-            snapshot_id = save_snapshot(metrics)
+            metrics, snapshot_id, changed_modules = scan_and_detect_changes()
             logger.info(
-                "Daily code metrics: %d files, %d lines (snapshot #%s)",
+                "Daily code metrics: %d files, %d lines (snapshot #%s, %d modules changed)",
                 metrics["total_files"],
                 metrics["total_lines"],
                 snapshot_id,
+                len(changed_modules),
             )
         except Exception as e:
             logger.warning(f"Failed: {e}")

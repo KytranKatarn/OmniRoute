@@ -8662,7 +8662,9 @@ function renderCrewManifest(crew, capacity) {
     var cpuAgents = crew.filter(function(a) { return !gpuIds.has(a.agent_id || a.id) && (a.hardware || 'CPU').toUpperCase() === 'CPU' && a.llm_status === 'loaded'; });
     var cloudAgents = crew.filter(function(a) { return a.llm_status === 'cloud'; });
     var swapAgents = crew.filter(function(a) { return !gpuIds.has(a.agent_id || a.id) && a.llm_status === 'swap'; });
-    var barrackedAgents = crew.filter(function(a) { return a.llm_status === 'barracked'; });
+    var deployedAgents = crew.filter(function(a) { return a.shift_state === 'deployed'; });
+    var deployedIds = new Set(deployedAgents.map(function(a) { return a.agent_id || a.id; }));
+    var barrackedAgents = crew.filter(function(a) { return a.llm_status === 'barracked' && !deployedIds.has(a.agent_id || a.id); });
 
     function _addRosterDivider(icon, label, count, cssClass) {
         var div = document.createElement('div');
@@ -8964,8 +8966,13 @@ function renderCrewManifest(crew, capacity) {
         swapAgents.forEach(_renderAgentCard);
     }
 
+    if (deployedAgents.length > 0) {
+        _addRosterDivider('\uD83D\uDE80', 'Deployed \u2014 On Fleet Nodes', deployedAgents.length, 'deployed');
+        deployedAgents.forEach(_renderAgentCard);
+    }
+
     if (barrackedAgents.length > 0) {
-        _addRosterDivider('\uD83C\uDFDA', 'Barracked \u2014 Too Large for Swap', barrackedAgents.length, 'barracked');
+        _addRosterDivider('\uD83C\uDFDA', 'Barracked \u2014 Reserve Pool', barrackedAgents.length, 'barracked');
         barrackedAgents.forEach(_renderAgentCard);
     }
 }

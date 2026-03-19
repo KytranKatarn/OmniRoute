@@ -4045,6 +4045,8 @@ body.light-mode .bridge-zone-unstaffed {
 .roster-hw-divider.cpu { color: #3b82f6; }
 .roster-hw-divider.cloud { color: #a78bfa; }
 .roster-hw-divider.swap { color: #FFD700; }
+.roster-hw-divider.deployed { color: #22d3ee; }
+.roster-hw-divider.barracked { color: rgba(255,255,255,0.4); }
 
 .crew-agent-card {
     background: var(--archie-bg-tertiary);

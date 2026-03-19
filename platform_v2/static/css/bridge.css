@@ -4244,6 +4244,7 @@ body.light-mode .bridge-zone-unstaffed {
 }
 .fleet-stat { cursor: pointer; padding: 0.25rem 0.5rem; border-radius: 3px; transition: background 0.2s; }
 .fleet-stat.active strong { color: #32CD32; }
+.fleet-stat.deployed strong { color: #22d3ee; }
 .fleet-stat.winding-down strong { color: #FFD700; }
 .fleet-stat.cooldown strong { color: #FF6347; }
 .fleet-stat.reserves strong { color: #888; }

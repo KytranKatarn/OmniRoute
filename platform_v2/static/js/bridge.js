@@ -8253,6 +8253,8 @@ async function loadCrewManifest() {
             if (data.fleet_overview) {
                 var fo = data.fleet_overview;
                 document.getElementById('fleet-active').textContent = fo.active || 0;
+                var deployedEl = document.getElementById('fleet-deployed');
+                if (deployedEl) deployedEl.textContent = fo.deployed || 0;
                 document.getElementById('fleet-winding').textContent = fo.winding_down || 0;
                 document.getElementById('fleet-cooldown').textContent = fo.cooldown || 0;
                 document.getElementById('fleet-reserves').textContent = fo.reserves || 0;

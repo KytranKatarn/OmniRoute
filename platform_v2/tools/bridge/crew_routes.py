@@ -1029,21 +1029,21 @@ def register_crew_routes(bp, admin_required):
             # Fleet overview counts
             shift_counts = {
                 "active": 0,
+                "deployed": 0,
+                "barracked": 0,
                 "winding_down": 0,
                 "cooldown": 0,
                 "off_duty": 0,
                 "reserves": 0,
             }
             for entry in manifest:
+                # Skip fleet: prefixed agents (node copies)
+                if entry.get("name", "").startswith("fleet:"):
+                    continue
                 state = entry.get("shift_state", "active")
                 if state in shift_counts:
                     shift_counts[state] += 1
-            try:
-                with get_db_cursor(commit=False) as (rconn, rcur):
-                    rcur.execute("SELECT count(*) AS cnt FROM agents WHERE status = 'inactive'")
-                    shift_counts["reserves"] = rcur.fetchone()["cnt"]
-            except Exception as e:
-                logger.warning(f"[crew] Failed to count reserve agents: {e}")
+            shift_counts["reserves"] = shift_counts["barracked"]
 
             # Get fleet mode (workday/weekend)
             fleet_mode = "workday"

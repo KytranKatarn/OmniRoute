@@ -558,9 +558,10 @@
                         <div class="briefing-card-body">
                             <div class="fleet-overview-bar" id="fleet-overview-bar">
                                 <span class="fleet-stat active" onclick="filterCrewByState('active')">ON DUTY: <strong id="fleet-active">0</strong></span>
-                                <span class="fleet-stat winding-down" onclick="filterCrewByState('winding_down')">WINDING DOWN: <strong id="fleet-winding">0</strong></span>
+                                <span class="fleet-stat deployed" onclick="filterCrewByState('deployed')">DEPLOYED: <strong id="fleet-deployed">0</strong></span>
+                                <span class="fleet-stat reserves" onclick="filterCrewByState('reserves')">BARRACKED: <strong id="fleet-reserves">0</strong></span>
+                                <span class="fleet-stat winding-down" onclick="filterCrewByState('winding_down')">WINDING: <strong id="fleet-winding">0</strong></span>
                                 <span class="fleet-stat cooldown" onclick="filterCrewByState('cooldown')">RESTING: <strong id="fleet-cooldown">0</strong></span>
-                                <span class="fleet-stat reserves" onclick="filterCrewByState('reserves')">RESERVES: <strong id="fleet-reserves">0</strong></span>
                             </div>
                             <div class="rotation-log-panel" id="rotation-log-panel">
                                 <div class="rotation-log-header" onclick="toggleRotationLog()">

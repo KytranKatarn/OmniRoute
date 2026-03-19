@@ -1,0 +1,14 @@
+# A.R.C.H.I.E. Node Client - Python Dependencies
+# Install: pip install -r requirements.txt
+#
+# Note: node_sync.py works with stdlib only (urllib fallback).
+# These are optional but recommended for full-stack mode.
+
+# HTTP client (optional — node_sync.py falls back to urllib)
+requests>=2.28.0
+
+# PostgreSQL driver (required for full-stack mode with local DB)
+psycopg2-binary>=2.9.0
+
+# Flask web framework (required for node_api.py)
+Flask>=2.3.0

@@ -1,9 +1,10 @@
 {
-  "node_id": "starship_xxxxxxxxxxxxxxxx",
-  "api_key": "your-api-key-from-registration",
+  "node_id": "starship_REPLACE_WITH_YOUR_NODE_ID",
+  "api_key": "REPLACE_WITH_YOUR_API_KEY",
   "server_url": "http://192.168.1.200:3000",
   "heartbeat_interval": 30,
+  "sync_interval": 60,
   "deployment_mode": "starship",
-  "log_level": "INFO",
-  "ollama_port": 11434
+  "ollama_port": 11434,
+  "log_level": "INFO"
 }

@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """
-A.R.C.H.I.E. Starship Sync Service
-=====================================
-Long-lived service that runs on starship nodes to keep them in sync with the Starbase.
+A.R.C.H.I.E. Unified Node Client
+===================================
+Single long-lived service that runs on any node (Windows/Linux) to keep it
+in sync with the Starbase hub.
 
 Responsibilities:
-  - Sends periodic heartbeats with system metrics
+  - Sends periodic heartbeats with system metrics + self-healing on failure
   - Reports code version on startup
-  - Polls for pending sync commands and processes them
+  - Polls for pending sync commands and processes them (OTA, model pull, etc.)
+  - Loads config from config.json (primary) with env-var fallback
+  - Auto-detects Ollama host if not configured
+  - Writes/updates config.json after registration or OTA config updates
 
 Standard library only (no pip install needed).
 Optional: `requests` library for HTTP if available; falls back to urllib.
@@ -16,6 +20,7 @@ Optional: `requests` library for HTTP if available; falls back to urllib.
 import json
 import logging
 import os
+import platform
 import subprocess
 import sys
 import time
@@ -609,6 +614,7 @@ def handle_sync(config, sync_type, payload):
     """
     handlers = {
         "code_update": _handle_code_update,
+        "config_update": _handle_config_update,
         "container_restart": _handle_container_restart,
         "iaae_policy": _handle_iaae_policy,
         "model_recommend": _handle_model_recommend,
@@ -809,6 +815,84 @@ def _handle_code_update(config, payload):
             threading.Thread(target=_delayed_exit, daemon=True).start()
 
     return result
+
+
+def _handle_config_update(config, payload):
+    """
+    Handle config_update sync — merge new config values into config.json
+    and reload them into the running config dict.
+
+    Expected payload: dict of config fields to update, e.g.
+        {"hub_url": "http://...", "heartbeat_interval": 30}
+    """
+    if not payload:
+        return {"status": "failed", "error": "Empty config payload"}
+
+    config_path = os.environ.get("CONFIG_FILE", DEFAULT_CONFIG_FILE)
+    logger.info("[config_update] Updating config at %s with keys: %s", config_path, list(payload.keys()))
+
+    # Load existing config file (or start fresh if missing)
+    existing = {}
+    if os.path.isfile(config_path):
+        try:
+            with open(config_path, "r") as fh:
+                existing = json.load(fh)
+        except Exception as exc:
+            logger.warning("[config_update] Failed to read existing config: %s", exc)
+
+    # Merge new values (only update provided fields, keep the rest)
+    updated_keys = []
+    for key, value in payload.items():
+        old_value = existing.get(key)
+        existing[key] = value
+        updated_keys.append(key)
+        if old_value != value:
+            logger.info("[config_update] %s: %s -> %s", key, old_value, value)
+
+    # Write merged config back
+    try:
+        config_dir = os.path.dirname(config_path)
+        if config_dir and not os.path.isdir(config_dir):
+            os.makedirs(config_dir, exist_ok=True)
+        with open(config_path, "w") as fh:
+            json.dump(existing, fh, indent=2)
+        logger.info("[config_update] Config file written successfully")
+    except Exception as exc:
+        logger.error("[config_update] Failed to write config file: %s", exc)
+        return {"status": "failed", "error": f"Write failed: {exc}"}
+
+    # Reload into the running config dict (in-memory update)
+    key_map = {
+        "node_id": "node_id",
+        "hub_url": "hub_url",
+        "server_url": "hub_url",
+        "hub_api_key": "hub_api_key",
+        "api_key": "hub_api_key",
+        "ollama_host": "ollama_host",
+        "heartbeat_interval": "heartbeat_interval",
+        "sync_poll_interval": "sync_poll_interval",
+        "archie_version": "archie_version",
+    }
+    reloaded = []
+    for file_key, internal_key in key_map.items():
+        if file_key in payload:
+            val = payload[file_key]
+            if internal_key in ("heartbeat_interval", "sync_poll_interval"):
+                val = int(val)
+            config[internal_key] = val
+            reloaded.append(internal_key)
+
+    # Strip trailing slash from hub_url if updated
+    if "hub_url" in config:
+        config["hub_url"] = config["hub_url"].rstrip("/")
+
+    logger.info("[config_update] Reloaded in-memory keys: %s", reloaded)
+
+    return {
+        "status": "acknowledged",
+        "updated_keys": updated_keys,
+        "reloaded_keys": reloaded,
+    }
 
 
 def _handle_iaae_policy(config, payload):

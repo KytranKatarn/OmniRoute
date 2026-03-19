@@ -172,6 +172,115 @@ def register_ota_routes(bp, auth_decorator):
             logger.exception("Failed to push update to node %s", node_id)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
+    @bp.route("/api/nodes/<int:node_id>/push-config-update", methods=["POST"])
+    @auth_decorator
+    def api_push_config_update(node_id):
+        """Push config changes to a node via mesh_sync_log (config_update)."""
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "error": "JSON body required"}), 400
+
+        # Allowed config fields that can be pushed to nodes
+        ALLOWED_FIELDS = {
+            "hub_url",
+            "hub_api_key",
+            "ollama_host",
+            "heartbeat_interval",
+            "sync_poll_interval",
+            "archie_version",
+        }
+        config_payload = {k: v for k, v in data.items() if k in ALLOWED_FIELDS}
+        if not config_payload:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"No valid config fields provided. Allowed: {sorted(ALLOWED_FIELDS)}",
+                    }
+                ),
+                400,
+            )
+
+        node = _get_node_for_user_by_int_id(node_id, current_user.id)
+        if not node:
+            return jsonify({"success": False, "error": "Node not found"}), 404
+        node_id_str = node["node_id"]
+
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    INSERT INTO mesh_sync_log
+                        (node_id, sync_type, payload, status, sent_at)
+                    VALUES (%s, 'config_update', %s, 'sent', NOW())
+                    RETURNING id
+                    """,
+                    (node_id_str, json.dumps(config_payload)),
+                )
+                sync_row = cur.fetchone()
+
+            return jsonify(
+                {
+                    "success": True,
+                    "sync_id": sync_row["id"],
+                    "fields_updated": list(config_payload.keys()),
+                }
+            )
+        except Exception as e:
+            logger.exception("Failed to push config update to node %s", node_id)
+            return jsonify({"success": False, "error": "Internal server error"}), 500
+
+    @bp.route("/api/nodes/<int:node_id>/resync", methods=["POST"])
+    @auth_decorator
+    def api_resync_node(node_id):
+        """Full resync: push fresh config_update + code_update to a node."""
+        node = _get_node_for_user_by_int_id(node_id, current_user.id)
+        if not node:
+            return jsonify({"success": False, "error": "Node not found"}), 404
+        node_id_str = node["node_id"]
+
+        try:
+            sync_ids = []
+            with get_db_cursor(commit=True) as (conn, cur):
+                # 1) Push fresh config_update with current hub settings
+                config_payload = {
+                    "hub_url": request.host_url.rstrip("/"),
+                    "heartbeat_interval": 30,
+                    "sync_poll_interval": 60,
+                }
+                cur.execute(
+                    """
+                    INSERT INTO mesh_sync_log
+                        (node_id, sync_type, payload, status, sent_at)
+                    VALUES (%s, 'config_update', %s, 'sent', NOW())
+                    RETURNING id
+                    """,
+                    (node_id_str, json.dumps(config_payload)),
+                )
+                sync_ids.append({"sync_type": "config_update", "sync_id": cur.fetchone()["id"]})
+
+                # 2) Push code_update with latest node_sync.py
+                code_payload = {
+                    "version": LATEST_NODE_VERSION,
+                    "files": ["node_sync.py", "node_api.py"],
+                    "migrations": [],
+                }
+                cur.execute(
+                    """
+                    INSERT INTO mesh_sync_log
+                        (node_id, sync_type, payload, status, sent_at)
+                    VALUES (%s, 'code_update', %s, 'sent', NOW())
+                    RETURNING id
+                    """,
+                    (node_id_str, json.dumps(code_payload)),
+                )
+                sync_ids.append({"sync_type": "code_update", "sync_id": cur.fetchone()["id"]})
+
+            return jsonify({"success": True, "sync_ids": sync_ids})
+        except Exception as e:
+            logger.exception("Failed to resync node %s", node_id)
+            return jsonify({"success": False, "error": "Internal server error"}), 500
+
     @bp.route("/api/nodes/<int:node_id>/sync-log")
     @auth_decorator
     def api_get_sync_log(node_id):

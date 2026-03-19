@@ -352,6 +352,7 @@ def _run_analysis_job(items_data, category, batch_id, job_id):
     dispatcher = get_dispatcher()
     analyzer = get_knowledge_analyzer()
     mapper = get_relationship_mapper()
+    enforce_local = get_local_only_mode()
 
     processed = 0
     errors = 0
@@ -377,15 +378,16 @@ def _run_analysis_job(items_data, category, batch_id, job_id):
                 # Use analyzer directly — it picks the right model
                 # (dolphin3-8k GPU for chat, avoids format:json constraint
                 # that produces empty responses with qwen3 thinking models)
+                # local_only controlled by consciousness_local_only system_config
                 if category == "conversations":
-                    result = analyzer.analyze_conversation(content, metadata, job_id=job_id, local_only=True)
+                    result = analyzer.analyze_conversation(content, metadata, job_id=job_id, local_only=enforce_local)
                 else:
                     result = analyzer.analyze_code_file(
                         content,
                         filename=title or "unknown",
                         language=metadata.get("language"),
                         job_id=job_id,
-                        local_only=True,
+                        local_only=enforce_local,
                     )
 
                 if not result.success:
@@ -1037,7 +1039,12 @@ def get_processing_history():
 
 VALID_LOOP_OPS = ("analysis", "embedding", "translate")
 _LOOP_CONFIG_KEY = "consciousness_server_loops"
+_RETRY_CONFIG_KEY = "consciousness_loop_retries"
+_LOCAL_ONLY_CONFIG_KEY = "consciousness_local_only"
 _loop_failures = {}  # { op: count } — reset on success, stop after 3
+
+# Exponential backoff schedule (seconds): 30s, 2m, 10m, 30m, 30m cap
+_BACKOFF_DELAYS = [30, 120, 600, 1800, 1800]
 
 
 def _parse_loops(raw):
@@ -1069,6 +1076,74 @@ def get_server_loops():
             conn.close()
 
 
+def _get_retry_state():
+    """Read retry state from DB. Returns dict like {"analysis": {"count": 2, "last_failure": "...", ...}}"""
+    conn = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT value FROM system_config WHERE key = %s", (_RETRY_CONFIG_KEY,))
+        row = cur.fetchone()
+        cur.close()
+        return _parse_loops(row[0]) if row else {}
+    except Exception:
+        return {}
+    finally:
+        if conn:
+            conn.close()
+
+
+def _set_retry_state(state):
+    """Persist retry state to system_config."""
+    conn = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        payload = json.dumps(state)
+        cur.execute(
+            """
+            INSERT INTO system_config (key, value) VALUES (%s, %s::jsonb)
+            ON CONFLICT (key) DO UPDATE SET value = %s::jsonb
+            """,
+            (_RETRY_CONFIG_KEY, payload, payload),
+        )
+        conn.commit()
+        cur.close()
+    finally:
+        if conn:
+            conn.close()
+
+
+def _record_retry_failure(op, error_msg=""):
+    """Increment retry count for an op and record failure timestamp."""
+    state = _get_retry_state()
+    op_state = state.get(op, {"count": 0})
+    op_state["count"] = op_state.get("count", 0) + 1
+    op_state["last_failure"] = datetime.utcnow().isoformat() + "Z"
+    op_state["last_error"] = str(error_msg)[:200] if error_msg else ""
+    state[op] = op_state
+    _set_retry_state(state)
+    return op_state["count"]
+
+
+def _record_retry_success(op):
+    """Reset retry count on success and record success timestamp."""
+    state = _get_retry_state()
+    op_state = state.get(op, {})
+    op_state["count"] = 0
+    op_state["last_success"] = datetime.utcnow().isoformat() + "Z"
+    state[op] = op_state
+    _set_retry_state(state)
+
+
+def _get_backoff_delay(retry_count):
+    """Return backoff delay in seconds for a given retry count (0-indexed)."""
+    if retry_count <= 0:
+        return 3  # No failures — normal cooldown
+    idx = min(retry_count - 1, len(_BACKOFF_DELAYS) - 1)
+    return _BACKOFF_DELAYS[idx]
+
+
 def set_server_loop(op, enabled):
     """Toggle a single loop op in the DB."""
     conn = None
@@ -1096,10 +1171,85 @@ def set_server_loop(op, enabled):
             conn.close()
 
 
+def get_local_only_mode():
+    """Read consciousness_local_only flag from system_config. Default True."""
+    conn = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT value FROM system_config WHERE key = %s",
+            (_LOCAL_ONLY_CONFIG_KEY,),
+        )
+        row = cur.fetchone()
+        cur.close()
+        if row:
+            val = row[0]
+            if isinstance(val, bool):
+                return val
+            if isinstance(val, dict):
+                return val.get("enabled", True)
+            try:
+                parsed = json.loads(val) if isinstance(val, str) else val
+                if isinstance(parsed, dict):
+                    return parsed.get("enabled", True)
+                return bool(parsed)
+            except (json.JSONDecodeError, TypeError):
+                return True
+        return True
+    except Exception:
+        return True
+    finally:
+        if conn:
+            conn.close()
+
+
+def set_local_only_mode(enabled):
+    """Toggle consciousness_local_only flag in system_config."""
+    conn = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        payload = json.dumps({"enabled": bool(enabled)})
+        cur.execute(
+            """
+            INSERT INTO system_config (key, value) VALUES (%s, %s::jsonb)
+            ON CONFLICT (key) DO UPDATE SET value = %s::jsonb
+            """,
+            (_LOCAL_ONLY_CONFIG_KEY, payload, payload),
+        )
+        conn.commit()
+        cur.close()
+        return bool(enabled)
+    finally:
+        if conn:
+            conn.close()
+
+
+@processing_bp.route("/local-only-mode", methods=["GET"])
+def get_local_only_endpoint():
+    """GET the current local-only enforcement mode."""
+    return jsonify({"success": True, "local_only": get_local_only_mode()})
+
+
+@processing_bp.route("/local-only-mode", methods=["PUT"])
+def set_local_only_endpoint():
+    """PUT to toggle local-only enforcement mode."""
+    data = request.get_json(silent=True) or {}
+    enabled = data.get("enabled")
+    if enabled is None:
+        return jsonify({"error": "Missing 'enabled' field"}), 400
+    result = set_local_only_mode(enabled)
+    logger.info(f"[Consciousness] local_only mode set to {result}")
+    return jsonify({"success": True, "local_only": result})
+
+
 def server_loop_retrigger(job_type, module_source, final_status):
     """Called by bridge_dispatcher.complete_job() to auto-retrigger the next batch.
 
-    Runs in a background thread after a 10s cooldown to avoid hammering.
+    Uses exponential backoff on failure: 30s -> 2m -> 10m -> 30m (cap).
+    Auto-disables after 5 consecutive failures.
+    On success: resets retry count and delay to 0.
     """
     if module_source != "consciousness":
         return
@@ -1117,16 +1267,37 @@ def server_loop_retrigger(job_type, module_source, final_status):
     if not loops.get(op):
         return
 
-    # Only retrigger on success
+    # Handle failure — exponential backoff
     if final_status != "completed":
-        _loop_failures[op] = _loop_failures.get(op, 0) + 1
-        if _loop_failures.get(op, 0) >= 10:
-            logger.warning(f"[ServerLoop] {op} failed 10 times — auto-disabling")
+        error_msg = f"Job {job_type} ended with status: {final_status}"
+        retry_count = _record_retry_failure(op, error_msg)
+        _loop_failures[op] = retry_count
+
+        if retry_count >= 5:
+            logger.warning(f"[ServerLoop] {op} failed {retry_count} times — auto-disabling")
             set_server_loop(op, False)
             _loop_failures.pop(op, None)
+            return
+
+        delay = _get_backoff_delay(retry_count)
+        logger.warning(f"[ServerLoop] {op} failed (attempt {retry_count}/5) — " f"retrying in {delay}s (backoff)")
+
+        def _backoff_trigger():
+            import time
+
+            time.sleep(delay)
+            try:
+                _trigger_loop_op(op)
+            except Exception as e:
+                logger.error(f"[ServerLoop] Backoff retrigger {op} failed: {e}")
+
+        t = threading.Thread(target=_backoff_trigger, daemon=True)
+        t.start()
         return
 
+    # Success — reset retry state and retrigger quickly
     _loop_failures.pop(op, None)
+    _record_retry_success(op)
 
     def _delayed_trigger():
         import time
@@ -1139,7 +1310,7 @@ def server_loop_retrigger(job_type, module_source, final_status):
 
     t = threading.Thread(target=_delayed_trigger, daemon=True)
     t.start()
-    logger.info(f"[ServerLoop] {op} completed — retriggering in 10s")
+    logger.info(f"[ServerLoop] {op} completed — retriggering in 3s")
 
 
 def _trigger_loop_op(op):
@@ -1434,9 +1605,66 @@ def startup_resume_loops():
 
 @processing_bp.route("/server-loop/status", methods=["GET"])
 def server_loop_status():
-    """Get current server-side loop states."""
+    """Get current server-side loop states with retry info and processing rate."""
     loops = get_server_loops()
-    return jsonify({"success": True, "loops": loops, "failures": dict(_loop_failures)})
+    retry_state = _get_retry_state()
+
+    # Build per-operation detail
+    ops_detail = {}
+    for op in VALID_LOOP_OPS:
+        rs = retry_state.get(op, {})
+        retry_count = rs.get("count", 0)
+        ops_detail[op] = {
+            "active": bool(loops.get(op)),
+            "retry_count": retry_count,
+            "next_delay": _get_backoff_delay(retry_count) if retry_count > 0 else 0,
+            "last_success": rs.get("last_success"),
+            "last_failure": rs.get("last_failure"),
+            "last_error": rs.get("last_error", ""),
+        }
+
+    # Processing rate: completed consciousness jobs in the last hour
+    rate = {}
+    conn = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT job_type, COUNT(*) FROM bridge_jobs
+            WHERE module_source = 'consciousness'
+              AND status = 'completed'
+              AND completed_at >= NOW() - INTERVAL '1 hour'
+            GROUP BY job_type
+            """
+        )
+        for row in cur.fetchall():
+            # Map job_type back to op key
+            jt_map = {
+                "batch_analysis": "analysis",
+                "batch_embedding": "embedding",
+                "translate_batch": "translate",
+            }
+            op_key = jt_map.get(row[0], row[0])
+            rate[op_key] = row[1]
+        cur.close()
+    except Exception as e:
+        logger.error(f"[ServerLoop] Rate query failed: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+    for op in VALID_LOOP_OPS:
+        ops_detail[op]["jobs_per_hour"] = rate.get(op, 0)
+
+    return jsonify(
+        {
+            "success": True,
+            "loops": loops,
+            "failures": dict(_loop_failures),
+            "ops_detail": ops_detail,
+        }
+    )
 
 
 @processing_bp.route("/server-loop/toggle", methods=["POST"])

@@ -232,6 +232,125 @@ def register_scan_routes(bp, admin_required):
             return jsonify(result), 500
         return jsonify(result)
 
+    @bp.route("/api/scan/issues-to-proposals", methods=["POST"])
+    @login_required
+    @admin_required
+    def scan_issues_to_proposals():
+        """Convert scan issues into grouped improvement proposals.
+
+        Groups issues by file_path + category, creates one proposal per group.
+        Optional JSON body: scan_id (int), min_severity (str, default 'medium').
+        """
+        import json
+        import os
+
+        import psycopg2
+        from psycopg2.extras import RealDictCursor
+
+        data = request.get_json(force=True, silent=True) or {}
+        scan_id = data.get("scan_id")
+        min_severity = data.get("min_severity", "medium")
+
+        severity_rank = {"critical": 4, "high": 3, "medium": 2, "low": 1, "info": 0}
+        min_rank = severity_rank.get(min_severity, 2)
+
+        # Map severity to proposal priority (integer)
+        severity_to_priority = {"critical": 5, "high": 4, "medium": 3, "low": 2, "info": 1}
+
+        try:
+            conn = psycopg2.connect(
+                host=os.getenv("DB_HOST", "archie_database"),
+                port=os.getenv("DB_PORT", "5432"),
+                database=os.getenv("DB_NAME", "archie"),
+                user=os.getenv("DB_USER", "archie"),
+                password=os.getenv("DB_PASSWORD", ""),
+            )
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Fetch open issues, optionally filtered by scan_id
+            sql = """SELECT id, file_path, category, severity, message, line_number, suggestion
+                     FROM code_issues
+                     WHERE status = 'open' AND proposal_id IS NULL"""
+            params = []
+            if scan_id:
+                sql += " AND scan_id = %s"
+                params.append(scan_id)
+            sql += " ORDER BY file_path, category, severity DESC"
+            cur.execute(sql, params)
+            issues = cur.fetchall()
+
+            # Filter by min severity
+            filtered = [i for i in issues if severity_rank.get(i.get("severity", "info"), 0) >= min_rank]
+
+            # Group by (file_path, category)
+            groups = {}
+            for issue in filtered:
+                key = (issue["file_path"] or "unknown", issue.get("category") or "general")
+                if key not in groups:
+                    groups[key] = []
+                groups[key].append(issue)
+
+            created = 0
+            for (file_path, category), group_issues in groups.items():
+                count = len(group_issues)
+                max_sev = max(group_issues, key=lambda i: severity_rank.get(i.get("severity", "info"), 0))
+                priority = severity_to_priority.get(max_sev.get("severity", "medium"), 3)
+
+                title = f"{count} {category} issue{'s' if count != 1 else ''} in {file_path}"
+                description_parts = []
+                for i in group_issues:
+                    line_info = f" (line {i['line_number']})" if i.get("line_number") else ""
+                    msg = i.get("message", "No description")
+                    sug = i.get("suggestion", "")
+                    part = f"- [{i.get('severity', 'medium').upper()}]{line_info} {msg}"
+                    if sug:
+                        part += f"\n  Suggestion: {sug}"
+                    description_parts.append(part)
+                description = "\n".join(description_parts)
+
+                metadata = json.dumps(
+                    {
+                        "file_path": file_path,
+                        "issue_count": count,
+                        "issue_ids": [i["id"] for i in group_issues],
+                        "max_severity": max_sev.get("severity", "medium"),
+                        "source": "scan_issues_to_proposals",
+                    }
+                )
+
+                cur.execute(
+                    """INSERT INTO improvement_proposals
+                       (title, description, file_path, category, priority, status, proposed_at, proposed_by, metadata)
+                       VALUES (%s, %s, %s, %s, %s, 'proposed', NOW(), 'scan_bridge', %s::jsonb)
+                       RETURNING id""",
+                    (title, description, file_path, category, priority, metadata),
+                )
+                proposal_id = cur.fetchone()["id"]
+
+                # Link issues back to the proposal
+                issue_ids = [i["id"] for i in group_issues]
+                cur.execute(
+                    "UPDATE code_issues SET proposal_id = %s WHERE id = ANY(%s)",
+                    (proposal_id, issue_ids),
+                )
+                created += 1
+
+            conn.commit()
+            cur.close()
+            conn.close()
+
+            return jsonify(
+                {
+                    "success": True,
+                    "proposals_created": created,
+                    "issues_processed": len(filtered),
+                    "issues_skipped": len(issues) - len(filtered),
+                }
+            )
+        except Exception as e:
+            logger.error(f"issues_to_proposals: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
     @bp.route("/api/scan/multi-agent/nodes")
     @login_required
     @admin_required

@@ -824,9 +824,9 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="stockbot",
         name="StockBot",
-        description="AI stock market scanner<br>Technical indicators • Buy/sell alerts • Dividend tracker",
+        description="AI Trading Platform<br>Market Data \u2022 Paper Trading \u2022 Analysis",
         icon="trending-up",
-        category=ModuleCategory.APPLICATIONS,
+        category=ModuleCategory.SAAS_SERVICES,
         route="/tools/stockbot",
         blueprint_import="tools.stockbot.routes:stockbot_bp",
         required_permissions=[],
@@ -835,14 +835,7 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: check_service_health("stockbot", "/tools/stockbot/api/status"),
         priority=4,
-        tags=[
-            "stocks",
-            "finance",
-            "trading",
-            "ai",
-            "standalone",
-            "android",
-        ],
+        tags=["stockbot", "trading", "finance", "ai"],
     ),
     ModuleDefinition(
         id="game_studio",

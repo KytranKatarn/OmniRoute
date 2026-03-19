@@ -117,6 +117,12 @@ window.switchConsciousnessTab = function (tab) {
   if (tab === "knowledge" || tab === "github") {
     checkActiveJobs();
   }
+  /* Loop monitor — active on dashboard tab */
+  if (tab === "dashboard") {
+    _startLoopMonitor();
+  } else {
+    _stopLoopMonitor();
+  }
 };
 
 var _headerLoaded = false;
@@ -1023,6 +1029,83 @@ function _loopRetry(opKey) {
   console.log("[Loop] " + opKey + " failed, retrying (" + _loopFailures[opKey] + "/" + LOOP_MAX_RETRIES + ")");
   var op = _loopOps[opKey];
   if (op) setTimeout(op.start, 5000); /* 5s pause before retry */
+}
+
+/* ── Loop Status Monitor ──────────────────────────────────── */
+var _loopMonitorInterval = null;
+
+function _renderLoopMonitor(data) {
+  var grid = document.getElementById("loopMonitorGrid");
+  if (!grid) return;
+  var ops = data.ops_detail || {};
+  var html = "";
+  var opLabels = { analysis: "ANALYSIS", embedding: "EMBEDDING", translate: "TRANSLATE" };
+  Object.keys(opLabels).forEach(function(op) {
+    var d = ops[op] || {};
+    var active = d.active;
+    var badge = active
+      ? '<span style="background:#10b981;color:#000;padding:1px 6px;border-radius:3px;font-size:0.7rem;font-weight:700;">ACTIVE</span>'
+      : '<span style="background:#555;color:#aaa;padding:1px 6px;border-radius:3px;font-size:0.7rem;">INACTIVE</span>';
+    var retryCount = d.retry_count || 0;
+    var retryBadge = "";
+    if (retryCount > 0) {
+      retryBadge = ' <span style="background:#ef4444;color:#fff;padding:1px 5px;border-radius:3px;font-size:0.65rem;">RETRY ' + retryCount + '/5</span>';
+      if (d.next_delay) {
+        var delayLabel = d.next_delay >= 60 ? Math.round(d.next_delay / 60) + "m" : d.next_delay + "s";
+        retryBadge += ' <span style="color:#f97316;font-size:0.65rem;">next in ' + delayLabel + '</span>';
+      }
+    }
+    var lastSuccess = d.last_success ? _formatLoopTime(d.last_success) : "—";
+    var lastFailure = d.last_failure ? _formatLoopTime(d.last_failure) : "—";
+    var lastError = d.last_error ? '<div style="color:#ef4444;font-size:0.65rem;margin-top:2px;word-break:break-all;">' + escHtml(d.last_error).substring(0, 80) + '</div>' : '';
+    var rate = d.jobs_per_hour || 0;
+
+    html += '<div style="background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.25);border-radius:6px;padding:8px 10px;">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
+    html += '<span style="font-family:Orbitron,sans-serif;font-size:0.75rem;color:#8b5cf6;">' + opLabels[op] + '</span>';
+    html += badge + retryBadge;
+    html += '</div>';
+    html += '<div style="font-size:0.7rem;color:rgba(255,255,255,0.6);line-height:1.6;">';
+    html += '<div>\u2713 Last success: <span style="color:#10b981;">' + lastSuccess + '</span></div>';
+    html += '<div>\u2717 Last failure: <span style="color:#ef4444;">' + lastFailure + '</span></div>';
+    html += '<div>\u26A1 Rate: <span style="color:#00e5ff;">' + rate + ' jobs/hr</span></div>';
+    html += '</div>';
+    html += lastError;
+    html += '</div>';
+  });
+  grid.innerHTML = html;
+}
+
+function _formatLoopTime(iso) {
+  if (!iso) return "—";
+  try {
+    var d = new Date(iso);
+    var now = new Date();
+    var diffMs = now - d;
+    if (diffMs < 60000) return Math.round(diffMs / 1000) + "s ago";
+    if (diffMs < 3600000) return Math.round(diffMs / 60000) + "m ago";
+    if (diffMs < 86400000) return Math.round(diffMs / 3600000) + "h ago";
+    return d.toLocaleDateString();
+  } catch (e) { return iso; }
+}
+
+function _refreshLoopMonitor() {
+  api("/api/processing/server-loop/status").then(function(data) {
+    if (data.success) _renderLoopMonitor(data);
+  }).catch(function() {});
+}
+
+function _startLoopMonitor() {
+  if (_loopMonitorInterval) return;
+  _refreshLoopMonitor();
+  _loopMonitorInterval = setInterval(_refreshLoopMonitor, 10000); /* refresh every 10s */
+}
+
+function _stopLoopMonitor() {
+  if (_loopMonitorInterval) {
+    clearInterval(_loopMonitorInterval);
+    _loopMonitorInterval = null;
+  }
 }
 
 window.startAnalysis = function() {

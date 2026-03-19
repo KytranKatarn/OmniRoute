@@ -1294,9 +1294,10 @@ def register_crew_routes(bp, admin_required):
     @bp.route("/api/bridge/model-control", methods=["POST"])
     @login_required
     def model_control():
-        """Load or unload an Ollama model (admin only).
+        """Load or unload an Ollama model on hub or fleet node.
 
-        Body: { "model": "phi3.5:latest", "action": "load"|"unload", "num_gpu": 0 }
+        Body: { "model": "phi3.5:latest", "action": "load"|"unload", "num_gpu": 0, "node_id": null }
+        node_id: if provided, routes to that node's Ollama. If null/absent, uses hub Ollama.
         """
         try:
             if not current_user.is_admin:
@@ -1306,13 +1307,28 @@ def register_crew_routes(bp, admin_required):
             model_name = (data or {}).get("model", "").strip()
             action = (data or {}).get("action", "").strip()
             num_gpu = int((data or {}).get("num_gpu", 0))
+            node_db_id = (data or {}).get("node_id")
 
             if not model_name or action not in ("load", "unload"):
                 return jsonify({"success": False, "error": "model and action (load|unload) required"}), 400
 
-            _ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
-            _ollama_port = os.getenv("OLLAMA_LOCAL_PORT", "11434")
-            ollama_url = f"http://{_ollama_host}:{_ollama_port}"
+            # Determine Ollama target — hub or node
+            if node_db_id:
+                with get_db_cursor() as (conn, cur):
+                    cur.execute(
+                        "SELECT hostname, port FROM remote_nodes WHERE id = %s AND is_active = true",
+                        (int(node_db_id),),
+                    )
+                    node = cur.fetchone()
+                    if not node:
+                        return jsonify({"success": False, "error": "Node not found"}), 404
+                    ollama_url = f"http://{node['hostname']}:{node['port']}"
+                    target_name = f"node {node_db_id}"
+            else:
+                _ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
+                _ollama_port = os.getenv("OLLAMA_LOCAL_PORT", "11434")
+                ollama_url = f"http://{_ollama_host}:{_ollama_port}"
+                target_name = "hub"
 
             if action == "unload":
                 # Unload: send generate with keep_alive=0

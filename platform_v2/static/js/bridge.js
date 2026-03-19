@@ -9010,7 +9010,7 @@ function renderCrewManifest(crew, capacity, nodeCapacities) {
             toggleBtn.onclick = (function(ag, btn) {
                 return function(e) {
                     e.stopPropagation();
-                    _toggleAgentModel(ag, btn);
+                    _toggleAgentModel(ag, btn, ag.node_db_id || null);
                 };
             })(agent, toggleBtn);
             badges.appendChild(toggleBtn);
@@ -9388,34 +9388,39 @@ function renderCrewManifest(crew, capacity, nodeCapacities) {
 }
 
 // === Model Load/Unload Control ===
-function _toggleAgentModel(agent, btn) {
+// Works for both hub (node_id=null) and fleet nodes (node_id=DB id)
+function _toggleAgentModel(agent, btn, nodeDbId) {
     var model = agent.model || '';
     var isLoaded = agent.llm_status === 'loaded';
     var action = isLoaded ? 'unload' : 'load';
     var hw = (agent.hardware || 'CPU').toUpperCase();
+    var target = nodeDbId ? 'node' : 'hub';
 
     // Confirm unload if agent is working
     if (isLoaded && agent.status === 'working') {
-        if (!confirm('Warning: ' + (agent.full_name || agent.name) + ' is currently working.\n\nUnloading their model will interrupt any active dispatch.\n\nContinue?')) return;
+        if (!confirm('Warning: ' + (agent.full_name || agent.name) + ' is currently working on ' + target + '.\n\nUnloading their model will interrupt any active dispatch.\n\nContinue?')) return;
     }
 
     // Confirm load — show estimated impact
     if (!isLoaded) {
         var sizeNote = agent.llm_size_gb ? ' (~' + agent.llm_size_gb + 'GB)' : '';
-        if (!confirm('Load ' + model.replace(':latest', '') + sizeNote + ' into memory?\n\nThis may take a moment for cold-load models.')) return;
+        if (!confirm('Load ' + model.replace(':latest', '') + sizeNote + ' on ' + target + '?\n\nThis may take a moment for cold-load models.')) return;
     }
 
     btn.disabled = true;
     btn.textContent = isLoaded ? 'Unloading...' : 'Loading...';
 
+    var payload = {
+        model: model,
+        action: action,
+        num_gpu: hw === 'GPU' ? 99 : 0
+    };
+    if (nodeDbId) payload.node_id = nodeDbId;
+
     fetch('/tools/bridge/api/bridge/model-control', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            model: model,
-            action: action,
-            num_gpu: hw === 'GPU' ? 99 : 0
-        })
+        body: JSON.stringify(payload)
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {

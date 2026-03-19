@@ -5709,6 +5709,27 @@ class BridgeDispatcher:
             except Exception as sc_err:
                 logger.debug(f"[BridgeDispatcher] station_codes query failed: {sc_err}")
 
+            # Deployed agents → node lookup (agent_id → {node_db_id, node_name})
+            deployed_node_map = {}
+            try:
+                dn_conn = self._get_db()
+                dn_cur = dn_conn.cursor(cursor_factory=RealDictCursor)
+                dn_cur.execute("""
+                    SELECT na.hub_agent_id, rn.id as node_db_id, rn.node_name
+                    FROM node_agents na
+                    JOIN remote_nodes rn ON rn.id = na.node_id
+                    WHERE na.hub_agent_id IS NOT NULL AND na.status = 'active'
+                """)
+                for r in dn_cur.fetchall():
+                    deployed_node_map[r["hub_agent_id"]] = {
+                        "node_db_id": r["node_db_id"],
+                        "node_name": r["node_name"],
+                    }
+                dn_cur.close()
+                dn_conn.close()
+            except Exception:
+                pass
+
             # Build manifest — hub agents only, skip fleet: prefixed node copies
             manifest = []
             for name, info in self._agent_cache.items():
@@ -5806,6 +5827,8 @@ class BridgeDispatcher:
                             },
                         ),
                         "learning_count": learning_map.get(name, 0),
+                        "node_db_id": deployed_node_map.get(agent_id, {}).get("node_db_id"),
+                        "node_name": deployed_node_map.get(agent_id, {}).get("node_name"),
                     }
                 )
 

@@ -197,6 +197,10 @@ def register_node_routes(bp, admin_required):
             with open(script_path, "r") as f:
                 script_content = f.read()
 
+            # Replace placeholder URL with actual server URL
+            server_url = request.host_url.rstrip("/")
+            script_content = script_content.replace("http://192.168.1.200:3000", server_url)
+
             return (
                 script_content,
                 200,
@@ -256,6 +260,11 @@ def register_node_routes(bp, admin_required):
         if os.path.exists(script_path):
             with open(script_path, "r") as f:
                 content = f.read()
+
+            # Replace placeholder URL with actual server URL
+            server_url = request.host_url.rstrip("/")
+            content = content.replace("http://192.168.1.200:3000", server_url)
+
             from flask import Response
 
             return Response(

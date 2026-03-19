@@ -658,8 +658,8 @@ def register_station_routes(bp, admin_required):
             if conn:
                 try:
                     conn.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("Failed to close DB connection: %s", e)
 
     @bp.route("/api/benchmarks/<int:run_id>")
     @login_required
@@ -1025,8 +1025,8 @@ def register_station_routes(bp, admin_required):
                                 ollama_config["num_cpu"] = int(val)
                                 total = psutil.cpu_count()
                                 ollama_config["cpu_pct"] = round(int(val) / total * 100) if total else 70
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to parse Ollama service config: %s", e)
 
             # ── Capacity analysis ──
             local_unloaded = [m for m in ollama_available if not m["loaded"] and not m["cloud"] and m["size_gb"] > 0]

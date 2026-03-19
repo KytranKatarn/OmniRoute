@@ -57,8 +57,8 @@ def _get_cached_ollama_tags():
             _ollama_tags_cache["count"] = len(models)
             _ollama_tags_cache["time"] = now
             return models, len(models)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Ollama tags cache miss: %s", e)
     return _ollama_tags_cache["models"], _ollama_tags_cache["count"]
 
 
@@ -81,8 +81,8 @@ def _get_cached_ollama_ps():
             _ollama_ps_cache["models"] = models
             _ollama_ps_cache["time"] = now
             return models
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Ollama ps cache miss: %s", e)
     return _ollama_ps_cache["models"]
 
 
@@ -149,8 +149,8 @@ def _get_cached_hw_capacity():
                     "status": "red" if vram_free < 1.0 else ("amber" if vram_free < 2.0 else "green"),
                     "models": gpu_models,
                 }
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("nvidia-smi query failed (expected in Docker without GPU passthrough): %s", e)
 
     # Fallback: build GPU info from Ollama VRAM data if nvidia-smi unavailable
     if gpu_info is None and gpu_models:
@@ -178,8 +178,8 @@ def _get_cached_hw_capacity():
                     torch_vram = dev.get("torch_vram_total", 0)
                     comfyui_vram_gb = round(torch_vram / (1024**3), 1)
                     comfyui_status = "loaded" if torch_vram > 0 else "idle"
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("ComfyUI system_stats fetch failed: %s", e)
     # Estimate reserved VRAM for the configured checkpoint (SDXL ~6.5GB)
     if comfyui_status == "idle":
         try:

@@ -180,8 +180,8 @@ def register_agent_routes(bp, admin_required):
                     from ai_bridge.bridge_dispatcher import get_dispatcher
 
                     get_dispatcher()._cache_time = 0
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("Failed to invalidate dispatcher cache: %s", e)
                 _profile_cache.pop(agent_id, None)
 
                 # Model transition: auto-load new model, auto-unload orphaned old model
@@ -265,8 +265,8 @@ def register_agent_routes(bp, admin_required):
                     from ai_bridge.bridge_dispatcher import get_dispatcher
 
                     get_dispatcher()._cache_time = 0
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("Failed to invalidate dispatcher cache after delete: %s", e)
 
                 return jsonify({"success": True, "message": f"Agent '{agent['name']}' deleted"})
         except Exception as e:
@@ -296,8 +296,8 @@ def register_agent_routes(bp, admin_required):
                     from ai_bridge.bridge_dispatcher import get_dispatcher
 
                     get_dispatcher()._cache_time = 0
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("Failed to invalidate dispatcher cache after toggle: %s", e)
 
                 return jsonify({"success": True, "status": result[0]})
         except Exception as e:

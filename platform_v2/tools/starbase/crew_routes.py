@@ -1110,8 +1110,8 @@ def register_crew_routes(bp, admin_required):
                                         }
                                     )
                                 node_cap["models_installed_count"] = len(node_cap["models_installed"])
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.warning("Failed to fetch node installed models: %s", e)
 
                         # Fetch loaded models (/api/ps) — live VRAM/RAM usage
                         try:
@@ -1139,8 +1139,8 @@ def register_crew_routes(bp, admin_required):
                                 node_cap["ram_free_gb"] = round(max(0, ram_total - ram_used / 1e9), 1)
                                 node_cap["models_ram_gb"] = round((vram_used + ram_used) / 1e9, 1)
                                 node_cap["models_loaded_count"] = len(node_cap["models_loaded"])
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.warning("Failed to fetch node loaded models: %s", e)
 
                         node_capacities.append(node_cap)
             except Exception as nc_err:

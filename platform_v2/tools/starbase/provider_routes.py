@@ -966,7 +966,7 @@ def register_provider_routes(bp, admin_required):
 
                     invalidate_provider_cache()
                 except ImportError:
-                    pass
+                    logger.warning("external_providers module not available for cache invalidation")
 
                 return jsonify({"success": True, "provider": dict(row)})
         except Exception as e:
@@ -1130,7 +1130,7 @@ def register_provider_routes(bp, admin_required):
 
                     invalidate_provider_cache()
                 except ImportError:
-                    pass
+                    logger.warning("external_providers module not available for cache invalidation")
 
                 return jsonify({"success": True, "provider": dict(row)})
         except Exception as e:

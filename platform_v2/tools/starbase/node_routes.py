@@ -576,7 +576,7 @@ def register_node_routes(bp, admin_required):
                 cur.execute(
                     """
                     SELECT id, api_key_hash, min_required_version
-                    FROM remote_nodes WHERE node_id = %s AND is_active = TRUE
+                    FROM remote_nodes WHERE node_id = %s AND is_active = TRUE AND approval_status = 'approved'
                 """,
                     (node_id,),
                 )

@@ -41,6 +41,65 @@ def register_code_health_routes(bp, admin_required):
         entries = get_audit_log()
         return jsonify({"entries": entries})
 
+    @bp.route("/api/code-health/module-status")
+    @admin_required
+    def code_health_module_status():
+        from database import get_db_cursor
+
+        modules = []
+        summary = {"green": 0, "yellow": 0, "red": 0, "total": 0}
+
+        with get_db_cursor() as (conn, cur):
+            # Get module list from latest code_metrics_snapshot per_module JSONB
+            cur.execute(
+                """SELECT per_module FROM code_metrics_snapshots
+                   ORDER BY created_at DESC LIMIT 1"""
+            )
+            row = cur.fetchone()
+            module_names = list(row[0].keys()) if row and row[0] else []
+
+            # Get latest audit per module
+            cur.execute(
+                """SELECT DISTINCT ON (module_name)
+                      module_name, audited_at, status, stale
+                   FROM code_audit_log
+                   ORDER BY module_name, audited_at DESC"""
+            )
+            audits = {r[0]: {"audited_at": r[1], "status": r[2], "stale": r[3]} for r in cur.fetchall()}
+
+            # Get latest scan date
+            cur.execute("SELECT created_at FROM code_metrics_snapshots ORDER BY created_at DESC LIMIT 1")
+            scan_row = cur.fetchone()
+            last_scan_date = scan_row[0].isoformat() if scan_row else None
+
+            for name in sorted(module_names):
+                audit = audits.get(name)
+                if not audit:
+                    status = "red"
+                elif audit["status"] == "violations_found":
+                    status = "red"
+                elif audit.get("stale"):
+                    status = "yellow"
+                else:
+                    status = "green"
+
+                summary[status] += 1
+                summary["total"] += 1
+
+                modules.append(
+                    {
+                        "module_name": name,
+                        "status": status,
+                        "last_audit_date": audit["audited_at"].isoformat() if audit else None,
+                        "last_audit_status": audit["status"] if audit else None,
+                        "stale": audit.get("stale", False) if audit else False,
+                        "files_changed_since_audit": 0,
+                        "last_scan_date": last_scan_date,
+                    }
+                )
+
+        return jsonify({"success": True, "modules": modules, "summary": summary})
+
     @bp.route("/api/code-health/backfill-git", methods=["POST"])
     @admin_required
     def code_health_backfill_git():

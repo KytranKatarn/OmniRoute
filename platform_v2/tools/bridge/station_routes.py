@@ -1541,6 +1541,108 @@ def register_station_routes(bp, admin_required):
             logger.error("agent_profile error: %s", e)
             return jsonify({"success": False, "error": str(e)}), 500
 
+    # --- Agent Portrait Generation ---
+
+    @bp.route("/api/agents/<int:agent_id>/generate-portrait", methods=["POST"])
+    @login_required
+    def generate_agent_portrait(agent_id):
+        """Generate portrait via ComfyUI, save to consistent path, update avatar_url."""
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "SELECT name, avatar_generation_prompt FROM agents WHERE id = %s",
+                    (agent_id,),
+                )
+                agent = cur.fetchone()
+                if not agent:
+                    return jsonify({"success": False, "error": "Agent not found"}), 404
+
+                prompt = (request.get_json() or {}).get("prompt") or agent["avatar_generation_prompt"]
+                if not prompt:
+                    return jsonify({"success": False, "error": "No avatar prompt"}), 400
+
+                agent_name = agent["name"].lower()
+
+                # Consistent path — always overwrites
+                import os
+
+                portraits_dir = os.path.join(
+                    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                    "static",
+                    "media",
+                    "portraits",
+                )
+                os.makedirs(portraits_dir, exist_ok=True)
+                portrait_path = f"/static/media/portraits/{agent_name}.png"
+                full_path = os.path.join(portraits_dir, f"{agent_name}.png")
+
+                # Dispatch to ComfyUI via Bridge
+                from ai_bridge.bridge_dispatcher import get_dispatcher
+
+                dispatcher = get_dispatcher()
+                result = dispatcher._execute_comfyui(
+                    prompt=prompt,
+                    agent_name="Pixel",
+                    image_model="sd_xl_base_1.0.safetensors",
+                    context={"width": 512, "height": 512, "steps": 25},
+                )
+
+                if result and result.success and result.metadata:
+                    # Copy generated image to persistent location
+                    import shutil
+
+                    src = result.metadata.get("output_path") or result.metadata.get("image_path")
+                    if src:
+                        abs_src = (
+                            os.path.join(
+                                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                                src.lstrip("/"),
+                            )
+                            if not os.path.isabs(src)
+                            else src
+                        )
+                        if os.path.exists(abs_src):
+                            shutil.copy2(abs_src, full_path)
+
+                    # Update agents table
+                    cur.execute(
+                        "UPDATE agents SET avatar_url = %s WHERE id = %s",
+                        (portrait_path, agent_id),
+                    )
+
+                    # Update agent_portraits table
+                    cur.execute(
+                        """INSERT INTO agent_portraits (agent_id, canonical_image_path, identity_prompt)
+                           VALUES (%s, %s, %s)
+                           ON CONFLICT (agent_id) DO UPDATE SET
+                               canonical_image_path = EXCLUDED.canonical_image_path,
+                               identity_prompt = EXCLUDED.identity_prompt,
+                               updated_at = NOW()""",
+                        (agent_id, portrait_path, prompt),
+                    )
+
+                    return (
+                        jsonify(
+                            {
+                                "success": True,
+                                "image_path": portrait_path,
+                                "message": f"Portrait generated for {agent['name']}",
+                            }
+                        ),
+                        201,
+                    )
+                else:
+                    error = (
+                        result.metadata.get("error", "Generation failed")
+                        if result and result.metadata
+                        else "Generation failed"
+                    )
+                    return jsonify({"success": False, "error": str(error)[:300]}), 500
+
+        except Exception as e:
+            logger.error("generate_portrait error for agent %s: %s", agent_id, e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
     # --- Agent Memory CRUD ---
 
     @bp.route("/api/agents/<int:agent_id>/memory", methods=["GET"])

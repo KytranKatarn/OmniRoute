@@ -236,23 +236,24 @@
                 genBtn.textContent = 'Generating...';
                 genStatus.textContent = 'Dispatching to Pixel via ComfyUI...';
 
-                fetch('/tools/media-studio/api/portraits/' + agentId + '/generate-canonical', {
+                fetch('/tools/bridge/api/agents/' + agentId + '/generate-portrait', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ prompt: a.avatar_generation_prompt })
                 })
                 .then(function(r) { return r.json(); })
                 .then(function(result) {
-                    if (result.error) {
-                        genStatus.textContent = 'Failed: ' + result.error;
+                    if (!result.success) {
+                        genStatus.textContent = 'Failed: ' + (result.error || 'Unknown error');
                         genStatus.style.color = '#ef4444';
                     } else {
-                        genStatus.textContent = 'Portrait generated! Refresh to see.';
+                        genStatus.textContent = result.message || 'Portrait generated!';
                         genStatus.style.color = '#4ade80';
-                        // Update the portrait image if visible
+                        // Update the portrait image with cache-bust
                         if (result.image_path) {
+                            var cacheBust = '?t=' + Date.now();
                             var img = bodyEl.querySelector('.crew-profile-portrait');
-                            if (img) { img.src = result.image_path; img.style.display = ''; }
+                            if (img) { img.src = result.image_path + cacheBust; img.style.display = ''; }
                             var fb = bodyEl.querySelector('.crew-profile-portrait-fallback');
                             if (fb) fb.style.display = 'none';
                         }

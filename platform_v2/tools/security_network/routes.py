@@ -3195,6 +3195,22 @@ def api_domains_proxy_hosts_update(host_id):
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
+@security_network_bp.route("/api/domains/certificates")
+@login_required
+@admin_required
+def api_domains_certificates_list():
+    """List all NPM SSL certificates"""
+    if not NPM_SERVICE_AVAILABLE or not npm_service:
+        return jsonify({"success": False, "error": "NPM service not available"}), 503
+
+    try:
+        certs = npm_service.list_certificates()
+        return jsonify({"success": True, "certificates": certs})
+    except Exception as e:
+        logger.exception("Route error: %s", e)
+        return jsonify({"success": False, "error": "Internal server error"}), 500
+
+
 @security_network_bp.route("/api/domains/overview")
 @login_required
 @admin_required
@@ -3553,6 +3569,95 @@ def api_update_alert_config():
             )
 
         return jsonify({"success": True, "config": config})
+    except Exception as e:
+        logger.exception("Route error: %s", e)
+        return jsonify({"success": False, "error": "Internal server error"}), 500
+
+
+# ============================================================================
+# NGINX CONFIGURATION MANAGEMENT (via host_command_client)
+# ============================================================================
+
+
+def _nginx_cmd(command_type, params=None, timeout=30):
+    """Submit an nginx command via host_command_client and return the result."""
+    from tools.system_operations.host_command_client import (
+        submit_and_wait,
+        HostCommandError,
+    )
+
+    try:
+        result = submit_and_wait(
+            command_type,
+            params or {},
+            timeout=timeout,
+            submitted_by=getattr(current_user, "username", "admin"),
+            user_id=getattr(current_user, "id", None),
+        )
+        return result.get("result", result)
+    except HostCommandError as e:
+        return {"success": False, "error": str(e)}
+
+
+@security_network_bp.route("/api/nginx/configs")
+@login_required
+@admin_required
+def api_nginx_list_configs():
+    """List available Nginx configuration files."""
+    try:
+        result = _nginx_cmd("nginx_list_configs")
+        if not result.get("success"):
+            return jsonify(result), 502
+        return jsonify(result)
+    except Exception as e:
+        logger.exception("Route error: %s", e)
+        return jsonify({"success": False, "error": "Internal server error"}), 500
+
+
+@security_network_bp.route("/api/nginx/configs/<name>")
+@login_required
+@admin_required
+def api_nginx_get_config(name):
+    """Get the content of a specific Nginx config file."""
+    import re
+
+    if not re.match(r"^[a-zA-Z0-9_.\-]+$", name):
+        return jsonify({"success": False, "error": "Invalid config name"}), 400
+    try:
+        result = _nginx_cmd("nginx_get_config", {"name": name})
+        if not result.get("success"):
+            return jsonify(result), 404 if "not found" in result.get("error", "") else 502
+        return jsonify(result)
+    except Exception as e:
+        logger.exception("Route error: %s", e)
+        return jsonify({"success": False, "error": "Internal server error"}), 500
+
+
+@security_network_bp.route("/api/nginx/test", methods=["POST"])
+@login_required
+@admin_required
+def api_nginx_test():
+    """Run nginx -t to validate configuration."""
+    try:
+        result = _nginx_cmd("nginx_test")
+        if not result.get("success"):
+            return jsonify(result), 400
+        return jsonify(result)
+    except Exception as e:
+        logger.exception("Route error: %s", e)
+        return jsonify({"success": False, "error": "Internal server error"}), 500
+
+
+@security_network_bp.route("/api/nginx/reload", methods=["POST"])
+@login_required
+@admin_required
+def api_nginx_reload():
+    """Reload Nginx (tests config first, aborts if invalid)."""
+    try:
+        result = _nginx_cmd("nginx_reload")
+        if not result.get("success"):
+            return jsonify(result), 400
+        return jsonify(result)
     except Exception as e:
         logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": "Internal server error"}), 500

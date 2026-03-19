@@ -2735,6 +2735,27 @@ COMMAND_REGISTRY = {
         "handler": "handle_arp_scan",
         "params": {},
     },
+    # -------------------------------------------------------------------------
+    # NGINX COMMANDS
+    # -------------------------------------------------------------------------
+    "nginx_list_configs": {
+        "handler": "handle_nginx_list_configs",
+        "params": {},
+    },
+    "nginx_get_config": {
+        "handler": "handle_nginx_get_config",
+        "params": {
+            "name": {"required": True, "regex": r"^[a-zA-Z0-9_.\-]+$"},
+        },
+    },
+    "nginx_test": {
+        "handler": "handle_nginx_test",
+        "params": {},
+    },
+    "nginx_reload": {
+        "handler": "handle_nginx_reload",
+        "params": {},
+    },
 }
 
 
@@ -5274,6 +5295,89 @@ def handle_firewall_update(params):
     }
 
 
+# =========================================================================
+# NGINX HANDLERS
+# =========================================================================
+
+
+NGINX_SITES_DIRS = [
+    "/etc/nginx/sites-enabled",
+    "/etc/nginx/sites-available",
+    "/etc/nginx/conf.d",
+]
+
+
+def handle_nginx_list_configs(params):
+    """List available Nginx configuration files."""
+    configs = []
+    for sites_dir in NGINX_SITES_DIRS:
+        if not os.path.isdir(sites_dir):
+            continue
+        for fname in sorted(os.listdir(sites_dir)):
+            fpath = os.path.join(sites_dir, fname)
+            if os.path.isfile(fpath) or os.path.islink(fpath):
+                is_link = os.path.islink(fpath)
+                link_target = os.readlink(fpath) if is_link else None
+                try:
+                    size = os.path.getsize(fpath)
+                except OSError:
+                    size = 0
+                configs.append({
+                    "name": fname,
+                    "directory": sites_dir,
+                    "path": fpath,
+                    "is_symlink": is_link,
+                    "link_target": link_target,
+                    "size_bytes": size,
+                })
+    return {"success": True, "configs": configs}
+
+
+def handle_nginx_get_config(params):
+    """Read content of a specific Nginx config file."""
+    name = params["name"]
+    # Search in known directories
+    for sites_dir in NGINX_SITES_DIRS:
+        fpath = os.path.join(sites_dir, name)
+        if os.path.isfile(fpath):
+            try:
+                with open(fpath, "r") as f:
+                    content = f.read()
+                return {"success": True, "name": name, "path": fpath, "content": content}
+            except OSError as e:
+                return {"success": False, "error": f"Failed to read {fpath}: {e}"}
+    return {"success": False, "error": f"Config '{name}' not found in nginx directories"}
+
+
+def handle_nginx_test(params):
+    """Run nginx -t to test configuration validity."""
+    result = run_command_full(["sudo", "-n", "nginx", "-t"], timeout=15)
+    # nginx -t writes to stderr even on success
+    output = result["stderr"] or result["stdout"]
+    success = result["returncode"] == 0
+    return {"success": success, "output": output}
+
+
+def handle_nginx_reload(params):
+    """Reload Nginx to apply configuration changes."""
+    # Test first
+    test_result = run_command_full(["sudo", "-n", "nginx", "-t"], timeout=15)
+    if test_result["returncode"] != 0:
+        return {
+            "success": False,
+            "error": "Config test failed — not reloading",
+            "test_output": test_result["stderr"] or test_result["stdout"],
+        }
+    # Reload
+    result = run_command_full(["sudo", "-n", "systemctl", "reload", "nginx"], timeout=15)
+    if result["returncode"] != 0:
+        return {
+            "success": False,
+            "error": result["stderr"] or "Failed to reload nginx",
+        }
+    return {"success": True, "message": "Nginx reloaded successfully"}
+
+
 # Handler dispatch table
 _HANDLER_MAP = {
     "handle_service_control": handle_service_control,
@@ -5307,6 +5411,11 @@ _HANDLER_MAP = {
     "handle_firewall_update": handle_firewall_update,
     # Network discovery
     "handle_arp_scan": handle_arp_scan,
+    # Nginx handlers
+    "handle_nginx_list_configs": handle_nginx_list_configs,
+    "handle_nginx_get_config": handle_nginx_get_config,
+    "handle_nginx_test": handle_nginx_test,
+    "handle_nginx_reload": handle_nginx_reload,
 }
 
 

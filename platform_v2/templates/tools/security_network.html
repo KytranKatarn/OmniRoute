@@ -1579,6 +1579,7 @@
             <button class="subtab-btn active" data-subtab="domains-overview">Overview</button>
             <button class="subtab-btn" data-subtab="domains-dns">DNS Records</button>
             <button class="subtab-btn" data-subtab="domains-proxy">Proxy Hosts</button>
+            <button class="subtab-btn" data-subtab="domains-certs">SSL Certificates</button>
             <button class="subtab-btn" data-subtab="domains-setup">Quick Setup</button>
         </div>
 
@@ -1700,6 +1701,32 @@
                         </tr>
                     </thead>
                     <tbody id="domains-proxy-body">
+                        <tr><td colspan="5" class="loading-state"><span class="spinner"></span> Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Subtab: SSL Certificates -->
+        <div id="subtab-domains-certs" class="subtab-content">
+            <div style="display:flex;gap:8px;margin-bottom:16px">
+                <button class="btn" onclick="loadDomainCertificates()">
+                    <i data-lucide="refresh-cw" style="width:14px;height:14px"></i> Refresh
+                </button>
+            </div>
+
+            <div style="overflow-x:auto">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Domain(s)</th>
+                            <th>Provider</th>
+                            <th>Valid From</th>
+                            <th>Expires</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="domains-certs-body">
                         <tr><td colspan="5" class="loading-state"><span class="spinner"></span> Loading...</td></tr>
                     </tbody>
                 </table>
@@ -2186,6 +2213,7 @@ function initSubtabs() {
             if (st === 'domains-overview') loadDomainsOverview();
             if (st === 'domains-dns') loadDomainDnsRecords();
             if (st === 'domains-proxy') loadDomainProxyHosts();
+            if (st === 'domains-certs') loadDomainCertificates();
             lucide.createIcons();
         });
     });

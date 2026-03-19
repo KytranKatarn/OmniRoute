@@ -13,6 +13,8 @@ import psycopg2
 from database import get_db_cursor
 import requests
 
+from .helpers import DEFAULT_NODE_PORT, DEFAULT_CLIENT_VERSION, LATEST_CLIENT_VERSION
+
 logger = logging.getLogger(__name__)
 
 
@@ -483,9 +485,9 @@ def register_node_routes(bp, admin_required):
                         data.get("description"),
                         data.get("vpn_ip"),
                         data.get("hostname"),
-                        data.get("port", 11434),
+                        data.get("port", DEFAULT_NODE_PORT),
                         api_key_hash,
-                        data.get("client_version", "1.0.0"),
+                        data.get("client_version", DEFAULT_CLIENT_VERSION),
                         data.get("gpu_available", False),
                         data.get("gpu_model"),
                         data.get("gpu_vram_gb"),
@@ -587,7 +589,7 @@ def register_node_routes(bp, admin_required):
                     return jsonify({"success": False, "error": "Invalid API key"}), 401
 
                 # Version check
-                client_version = data.get("client_version", "1.0.0")
+                client_version = data.get("client_version", DEFAULT_CLIENT_VERSION)
                 # Simple version comparison (could be more sophisticated)
 
                 # Determine status
@@ -787,7 +789,7 @@ def register_node_routes(bp, admin_required):
                 if update_requested:
                     response["update_available"] = True
                     response["update_url"] = f"/tools/starship/download/node-package"
-                    response["latest_version"] = "1.1.2"
+                    response["latest_version"] = LATEST_CLIENT_VERSION
                     # Clear the flag so we only signal once
                     cur.execute(
                         "UPDATE remote_nodes SET update_requested = false WHERE id = %s",
@@ -1361,7 +1363,7 @@ def register_node_routes(bp, admin_required):
 
                 # Build endpoint URL
                 host = node["vpn_ip"] or node["hostname"]
-                port = node["port"] or 11434
+                port = node["port"] or DEFAULT_NODE_PORT
                 url = f"http://{host}:{port}/api/tags"
 
                 # Test connection with timing
@@ -1527,7 +1529,7 @@ def register_node_routes(bp, admin_required):
                 return jsonify({"success": False, "error": "Node not found or inactive"}), 404
 
             host = node["vpn_ip"] or node["hostname"]
-            port = node["port"] or 11434
+            port = node["port"] or DEFAULT_NODE_PORT
             ollama_url = f"http://{host}:{port}"
             start = _time.time()
             resp = requests.get(f"{ollama_url}/api/tags", timeout=10)

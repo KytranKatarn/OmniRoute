@@ -15,6 +15,7 @@ from .helpers import (
     _get_cached_ollama_tags,
     _get_cached_ollama_ps,
     _get_cached_hw_capacity,
+    OLLAMA_LOCAL_URL,
 )
 
 logger = logging.getLogger(__name__)
@@ -126,10 +127,8 @@ def register_crew_routes(bp, admin_required):
                     )
                     if cur.fetchone()["cnt"] == 0:
                         try:
-                            _oh = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
-                            _op = os.getenv("OLLAMA_LOCAL_PORT", "11434")
                             requests.post(
-                                f"http://{_oh}:{_op}/api/generate",
+                                f"{OLLAMA_LOCAL_URL}/api/generate",
                                 json={"model": model_name, "keep_alive": 0},
                                 timeout=30,
                             )
@@ -220,9 +219,7 @@ def register_crew_routes(bp, admin_required):
                     try:
                         import threading
 
-                        _oh = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
-                        _op = os.getenv("OLLAMA_LOCAL_PORT", "11434")
-                        ollama_url = f"http://{_oh}:{_op}"
+                        ollama_url = OLLAMA_LOCAL_URL
 
                         def _reload():
                             try:
@@ -1226,9 +1223,7 @@ def register_crew_routes(bp, admin_required):
                     (mode, mode),
                 )
 
-            _ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
-            _ollama_port = os.getenv("OLLAMA_LOCAL_PORT", "11434")
-            ollama_url = f"http://{_ollama_host}:{_ollama_port}"
+            ollama_url = OLLAMA_LOCAL_URL
 
             import threading
 
@@ -1325,9 +1320,7 @@ def register_crew_routes(bp, admin_required):
                     ollama_url = f"http://{node['hostname']}:{node['port']}"
                     target_name = f"node {node_db_id}"
             else:
-                _ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
-                _ollama_port = os.getenv("OLLAMA_LOCAL_PORT", "11434")
-                ollama_url = f"http://{_ollama_host}:{_ollama_port}"
+                ollama_url = OLLAMA_LOCAL_URL
                 target_name = "hub"
 
             if action == "unload":

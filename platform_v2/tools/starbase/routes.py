@@ -26,6 +26,8 @@ from psycopg2.extras import RealDictCursor
 from database import get_db_cursor, check_fleet_model_unique
 import requests
 
+from .helpers import OLLAMA_LOCAL_URL, OLLAMA_LOCAL_HOST, OLLAMA_DEFAULT_PORT
+
 try:
     from ai_bridge.agent_performance_tracker import (
         get_agent_performance,
@@ -53,7 +55,7 @@ def _get_cached_ollama_tags():
     if _ollama_tags_cache["time"] and (now - _ollama_tags_cache["time"]) < _OLLAMA_CACHE_TTL:
         return _ollama_tags_cache["models"], _ollama_tags_cache["count"]
     try:
-        host = os.getenv("OLLAMA_HOST", "http://archie_ollama:11434")
+        host = os.getenv("OLLAMA_HOST", OLLAMA_LOCAL_URL)
         if not host.startswith("http"):
             host = f"http://{host}"
         resp = requests.get(f"{host}/api/tags", timeout=3)
@@ -78,7 +80,7 @@ def _get_cached_ollama_ps():
     if _ollama_ps_cache["time"] and (now - _ollama_ps_cache["time"]) < _OLLAMA_CACHE_TTL:
         return _ollama_ps_cache["models"]
     try:
-        host = os.getenv("OLLAMA_HOST", "http://archie_ollama:11434")
+        host = os.getenv("OLLAMA_HOST", OLLAMA_LOCAL_URL)
         if not host.startswith("http"):
             host = f"http://{host}"
         resp = requests.get(f"{host}/api/ps", timeout=3)
@@ -1248,8 +1250,8 @@ def get_archie_status():
 def get_llm_status():
     """Get live LLM status from Ollama + external API key checks"""
     try:
-        ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
-        ollama_port = int(os.getenv("OLLAMA_LOCAL_PORT", "11434"))
+        ollama_host = OLLAMA_LOCAL_HOST
+        ollama_port = int(OLLAMA_DEFAULT_PORT)
 
         # 1. Check Ollama health
         status, latency = check_ollama_status(ollama_host, ollama_port)

@@ -10,6 +10,8 @@ from flask_login import login_required, current_user
 from database import get_db_cursor, check_fleet_model_unique
 import requests
 
+from .helpers import OLLAMA_LOCAL_URL
+
 logger = logging.getLogger(__name__)
 
 
@@ -187,9 +189,7 @@ def register_agent_routes(bp, admin_required):
                 # Model transition: auto-load new model, auto-unload orphaned old model
                 model_ops = []
                 if new_model and old_model and new_model != old_model:
-                    _ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
-                    _ollama_port = os.getenv("OLLAMA_LOCAL_PORT", "11434")
-                    ollama_url = f"http://{_ollama_host}:{_ollama_port}"
+                    ollama_url = OLLAMA_LOCAL_URL
 
                     # Check if old model is orphaned (no other agent uses it)
                     cur.execute(

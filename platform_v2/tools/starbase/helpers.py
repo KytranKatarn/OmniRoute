@@ -36,6 +36,16 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Centralised defaults — import these instead of repeating os.getenv() calls
+# ---------------------------------------------------------------------------
+OLLAMA_LOCAL_HOST = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
+OLLAMA_DEFAULT_PORT = os.getenv("OLLAMA_LOCAL_PORT", "11434")
+OLLAMA_LOCAL_URL = f"http://{OLLAMA_LOCAL_HOST}:{OLLAMA_DEFAULT_PORT}"
+DEFAULT_NODE_PORT = 11434  # integer fallback for remote-node DB rows
+DEFAULT_CLIENT_VERSION = "1.0.0"
+LATEST_CLIENT_VERSION = "1.1.2"
+
 # Ollama tags cache (avoid hitting Ollama on every stats poll)
 _ollama_tags_cache = {"models": [], "count": 0, "time": 0}
 _OLLAMA_CACHE_TTL = 30  # seconds — matches stats poll interval
@@ -47,7 +57,7 @@ def _get_cached_ollama_tags():
     if _ollama_tags_cache["time"] and (now - _ollama_tags_cache["time"]) < _OLLAMA_CACHE_TTL:
         return _ollama_tags_cache["models"], _ollama_tags_cache["count"]
     try:
-        host = os.getenv("OLLAMA_HOST", "http://archie_ollama:11434")
+        host = os.getenv("OLLAMA_HOST", OLLAMA_LOCAL_URL)
         if not host.startswith("http"):
             host = f"http://{host}"
         resp = requests.get(f"{host}/api/tags", timeout=3)
@@ -72,7 +82,7 @@ def _get_cached_ollama_ps():
     if _ollama_ps_cache["time"] and (now - _ollama_ps_cache["time"]) < _OLLAMA_CACHE_TTL:
         return _ollama_ps_cache["models"]
     try:
-        host = os.getenv("OLLAMA_HOST", "http://archie_ollama:11434")
+        host = os.getenv("OLLAMA_HOST", OLLAMA_LOCAL_URL)
         if not host.startswith("http"):
             host = f"http://{host}"
         resp = requests.get(f"{host}/api/ps", timeout=3)

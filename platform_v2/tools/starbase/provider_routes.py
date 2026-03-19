@@ -13,6 +13,8 @@ from database import get_db_cursor
 import psycopg2
 import requests
 
+from .helpers import OLLAMA_LOCAL_URL, DEFAULT_NODE_PORT
+
 logger = logging.getLogger(__name__)
 
 
@@ -121,7 +123,7 @@ def register_provider_routes(bp, admin_required):
                 # Get local Ollama models (this host)
                 local_models = []
                 try:
-                    _oh = os.environ.get("OLLAMA_HOST", "archie_ollama:11434")
+                    _oh = os.environ.get("OLLAMA_HOST", OLLAMA_LOCAL_URL)
                     if not _oh.startswith("http"):
                         _oh = f"http://{_oh}"
                     resp = requests.get(f"{_oh}/api/tags", timeout=5)
@@ -228,7 +230,7 @@ def register_provider_routes(bp, admin_required):
                 # Fetch models from node's Ollama
                 import requests as req
 
-                ollama_url = f"http://{node['vpn_ip']}:{node.get('port', 11434)}/api/tags"
+                ollama_url = f"http://{node['vpn_ip']}:{node.get('port', DEFAULT_NODE_PORT)}/api/tags"
 
                 try:
                     resp = req.get(ollama_url, timeout=10)

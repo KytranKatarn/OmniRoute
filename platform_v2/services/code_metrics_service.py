@@ -7,6 +7,7 @@ Stores snapshots for historical tracking.
 
 import os
 import logging
+import subprocess
 from collections import defaultdict
 
 from database import get_db_cursor
@@ -522,10 +523,29 @@ def _find_orphan_files(module_names):
     return orphans
 
 
+def _get_commit_hash(repo_path="/mnt/archie_brain"):
+    """Get current git commit hash."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return None
+
+
 def save_snapshot(metrics=None):
     """Scan codebase and save a snapshot to the database."""
     if metrics is None:
         metrics = scan_codebase()
+
+    commit_hash = _get_commit_hash()
 
     try:
         with get_db_cursor(commit=True) as (conn, cur):
@@ -534,8 +554,8 @@ def save_snapshot(metrics=None):
                        (total_files, total_lines, total_folders,
                         python_files, python_lines, js_files, js_lines,
                         css_files, css_lines, html_files, html_lines,
-                        sql_files, sql_lines, per_module)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        sql_files, sql_lines, per_module, commit_hash)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                    RETURNING id""",
                 (
                     metrics["total_files"],
@@ -552,14 +572,16 @@ def save_snapshot(metrics=None):
                     metrics["sql"]["files"],
                     metrics["sql"]["lines"],
                     __import__("json").dumps(metrics["modules"]),
+                    commit_hash,
                 ),
             )
             snapshot_id = cur.fetchone()["id"]
             logger.info(
-                "Saved code metrics snapshot #%d: %d files, %d lines",
+                "Saved code metrics snapshot #%d: %d files, %d lines (commit %s)",
                 snapshot_id,
                 metrics["total_files"],
                 metrics["total_lines"],
+                commit_hash[:8] if commit_hash else "unknown",
             )
             return snapshot_id
     except Exception as e:
@@ -647,7 +669,6 @@ def backfill_git_history(repo_path="/mnt/archie_brain"):
     Walk full git history and create daily snapshots.
     Tracks both line changes (--numstat) and file changes (--diff-filter).
     """
-    import subprocess
     import json
 
     try:

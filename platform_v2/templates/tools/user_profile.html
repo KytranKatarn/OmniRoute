@@ -1543,11 +1543,169 @@
         if (window.lucide) lucide.createIcons();
     }
 
+    // ── Load Preferences (Task #880) ────────────────────
+    var PREF_FIELDS = [
+        { key: 'email_enabled', label: 'Email Notifications' },
+        { key: 'security_alerts', label: 'Security Alerts' },
+        { key: 'system_updates', label: 'System Updates' },
+        { key: 'user_approvals', label: 'User Approvals' },
+        { key: 'failed_logins', label: 'Failed Login Alerts' }
+    ];
+    var LANGUAGES = [
+        { code: 'en', label: 'English' },
+        { code: 'fr', label: 'Francais' },
+        { code: 'es', label: 'Espanol' },
+        { code: 'pt', label: 'Portugues' },
+        { code: 'de', label: 'Deutsch' },
+        { code: 'zh', label: 'Chinese' },
+        { code: 'ar', label: 'Arabic' },
+        { code: 'he', label: 'Hebrew' }
+    ];
+
+    function loadPreferences() {
+        fetch('/tools/my-profile/api/preferences')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) return;
+                var p = data.preferences;
+                var form = document.getElementById('prefsForm');
+                form.textContent = '';
+
+                PREF_FIELDS.forEach(function(f) {
+                    var row = el('div', 'pref-row');
+                    row.appendChild(el('span', 'pref-label', f.label));
+                    var toggle = document.createElement('label');
+                    toggle.className = 'pref-toggle';
+                    var input = document.createElement('input');
+                    input.type = 'checkbox';
+                    input.checked = p[f.key] !== false;
+                    input.dataset.key = f.key;
+                    input.addEventListener('change', savePref);
+                    toggle.appendChild(input);
+                    toggle.appendChild(el('span', 'pref-slider'));
+                    row.appendChild(toggle);
+                    form.appendChild(row);
+                });
+
+                // Language buttons
+                var langDiv = document.getElementById('prefsLang');
+                langDiv.textContent = '';
+                LANGUAGES.forEach(function(lang) {
+                    var btn = el('button', 'pref-lang-btn' + (p.language === lang.code ? ' active' : ''), lang.label);
+                    btn.dataset.lang = lang.code;
+                    btn.addEventListener('click', function() {
+                        document.querySelectorAll('.pref-lang-btn').forEach(function(b) { b.classList.remove('active'); });
+                        btn.classList.add('active');
+                        savePrefData({ language: lang.code });
+                    });
+                    langDiv.appendChild(btn);
+                });
+            })
+            .catch(function() {
+                var form = document.getElementById('prefsForm');
+                form.textContent = '';
+                form.appendChild(el('div', 'notif-empty', 'Failed to load preferences'));
+            });
+    }
+
+    function savePref(e) {
+        var obj = {};
+        obj[e.target.dataset.key] = e.target.checked;
+        savePrefData(obj);
+    }
+
+    function savePrefData(obj) {
+        var msg = document.getElementById('prefsMsg');
+        fetch('/tools/my-profile/api/preferences', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(obj)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            msg.className = 'form-msg ' + (data.success ? 'success' : 'error');
+            msg.textContent = data.message || data.error || 'Saved';
+            msg.style.display = 'block';
+            setTimeout(function() { msg.className = 'form-msg'; msg.style.display = 'none'; }, 2000);
+        })
+        .catch(function() {
+            msg.className = 'form-msg error';
+            msg.textContent = 'Network error';
+            msg.style.display = 'block';
+        });
+    }
+
+    // ── Load Activity (Task #881) ─────────────────────────
+    function loadActivity() {
+        fetch('/tools/my-profile/api/activity')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) return;
+                var a = data.activity;
+
+                document.getElementById('actLastLoginTime').textContent = a.last_login ? formatDate(a.last_login) + ' (' + timeAgo(a.last_login) + ')' : 'Never';
+                document.getElementById('actLastLoginIp').textContent = a.last_login_ip || 'N/A';
+
+                // Active sessions
+                var sList = document.getElementById('actSessionsList');
+                sList.textContent = '';
+                if (!a.active_sessions.length) {
+                    sList.appendChild(el('div', 'notif-empty', 'No active sessions'));
+                } else {
+                    a.active_sessions.forEach(function(s) {
+                        var row = el('div', 'act-item');
+                        var icon = el('div', 'act-icon session');
+                        var iconI = document.createElement('i');
+                        iconI.setAttribute('data-lucide', 'monitor');
+                        icon.appendChild(iconI);
+                        row.appendChild(icon);
+                        var details = el('div', 'act-details');
+                        details.appendChild(el('div', 'act-primary', s.ip_address || 'Unknown IP'));
+                        details.appendChild(el('div', 'act-secondary', s.user_agent || 'Unknown device'));
+                        row.appendChild(details);
+                        row.appendChild(el('div', 'act-time', timeAgo(s.last_activity)));
+                        sList.appendChild(row);
+                    });
+                }
+
+                // Failed logins
+                var fList = document.getElementById('actFailedList');
+                fList.textContent = '';
+                if (!a.failed_logins.length) {
+                    fList.appendChild(el('div', 'notif-empty', 'No failed login attempts'));
+                } else {
+                    a.failed_logins.forEach(function(f) {
+                        var row = el('div', 'act-item');
+                        var icon = el('div', 'act-icon failed');
+                        var iconI = document.createElement('i');
+                        iconI.setAttribute('data-lucide', 'shield-alert');
+                        icon.appendChild(iconI);
+                        row.appendChild(icon);
+                        var details = el('div', 'act-details');
+                        details.appendChild(el('div', 'act-primary', (f.ip_address || 'Unknown') + ' — ' + (f.reason || 'Bad credentials')));
+                        details.appendChild(el('div', 'act-secondary', f.user_agent || ''));
+                        row.appendChild(details);
+                        row.appendChild(el('div', 'act-time', timeAgo(f.attempted_at)));
+                        fList.appendChild(row);
+                    });
+                }
+
+                if (window.lucide) lucide.createIcons();
+            })
+            .catch(function() {
+                var sList = document.getElementById('actSessionsList');
+                sList.textContent = '';
+                sList.appendChild(el('div', 'notif-empty', 'Failed to load activity'));
+            });
+    }
+
     // ── Init ──────────────────────────────────────────
     loadProfile();
     loadNotifications();
     loadConnectedServices();
     loadActiveTheme();
+    loadPreferences();
+    loadActivity();
 })();
 </script>
 {% endblock %}

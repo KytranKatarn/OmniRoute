@@ -1516,3 +1516,137 @@ def register_crew_routes(bp, admin_required):
         except Exception as e:
             logger.error("cluster_models error: %s", e)
             return jsonify({"success": False, "error": "Internal server error"}), 500
+
+    # ========================================================================
+    # UNIFIED CLUSTER AGENTS — Task #1116
+    # ========================================================================
+
+    @bp.route("/api/cluster/agents")
+    @login_required
+    def cluster_agents():
+        """Return ALL agents across hub + fleet with location and status.
+
+        Combines the hub ``agents`` table with ``node_agents`` /
+        ``remote_nodes`` to give a single cluster-wide view.  Also checks
+        ``bridge_jobs`` for any currently-running job per agent.
+        """
+        try:
+            with get_db_cursor(commit=False) as (conn, cur):
+                # -- Loaded models on the hub (to flag model_loaded) --
+                hub_ps = _get_cached_ollama_ps()
+                loaded_models = set()
+                for pm in hub_ps:
+                    name = pm.get("name", "").replace(":latest", "")
+                    loaded_models.add(name)
+
+                # -- All hub agents with station + node deployment info --
+                cur.execute(
+                    """
+                    SELECT
+                        a.id,
+                        a.name,
+                        a.display_name,
+                        a.title,
+                        a.model,
+                        a.shift_state,
+                        a.status        AS agent_status,
+                        a.avatar_url,
+                        bs.station_code,
+                        sa.assignment_type,
+                        -- Node deployment info (NULL when on hub)
+                        na.id           AS node_agent_id,
+                        na.status       AS node_agent_status,
+                        rn.node_name,
+                        rn.status       AS node_status,
+                        -- Current active job (most recent running/in_progress)
+                        (
+                            SELECT bj.description
+                            FROM bridge_jobs bj
+                            WHERE bj.agent_name = a.name
+                              AND bj.status IN ('running', 'in_progress', 'pending')
+                            ORDER BY bj.created_at DESC
+                            LIMIT 1
+                        ) AS current_job
+                    FROM agents a
+                    LEFT JOIN station_assignments sa
+                        ON sa.agent_id = a.id AND sa.is_active = true
+                    LEFT JOIN bridge_stations bs
+                        ON bs.id = sa.station_id
+                    LEFT JOIN node_agents na
+                        ON na.hub_agent_id = a.id AND na.status = 'active'
+                    LEFT JOIN remote_nodes rn
+                        ON rn.id = na.node_id AND rn.is_active = true
+                    WHERE a.status = 'active'
+                    ORDER BY a.shift_state, a.name
+                    """
+                )
+                rows = cur.fetchall()
+
+                agents_list = []
+                summary = {
+                    "total": 0,
+                    "hub_active": 0,
+                    "hub_barracked": 0,
+                    "deployed": 0,
+                    "off_duty": 0,
+                }
+
+                for row in rows:
+                    shift = row["shift_state"] or "active"
+                    is_deployed = row["node_agent_id"] is not None
+                    model_name = (row["model"] or "").replace(":latest", "")
+
+                    location = "hub"
+                    node_name = None
+                    if is_deployed and row["node_name"]:
+                        location = row["node_name"]
+                        node_name = row["node_name"]
+
+                    # Model loaded check: hub models from Ollama ps,
+                    # deployed agents assumed loaded if node is online
+                    model_loaded = False
+                    if is_deployed:
+                        model_loaded = row["node_status"] == "online"
+                    else:
+                        model_loaded = model_name in loaded_models
+
+                    agents_list.append(
+                        {
+                            "id": row["id"],
+                            "name": row["name"],
+                            "display_name": row["display_name"] or row["name"],
+                            "location": location,
+                            "node_name": node_name,
+                            "shift_state": shift,
+                            "station_code": row["station_code"],
+                            "model": row["model"],
+                            "model_loaded": model_loaded,
+                            "current_job": row["current_job"],
+                            "title": row["title"],
+                            "avatar_url": row["avatar_url"],
+                            "assignment_type": row["assignment_type"],
+                        }
+                    )
+
+                    # Summary counts
+                    summary["total"] += 1
+                    if shift == "deployed" or is_deployed:
+                        summary["deployed"] += 1
+                    elif shift == "barracked":
+                        summary["hub_barracked"] += 1
+                    elif shift in ("off_duty", "winding_down", "cooldown"):
+                        summary["off_duty"] += 1
+                    else:
+                        summary["hub_active"] += 1
+
+                return jsonify(
+                    {
+                        "success": True,
+                        "agents": agents_list,
+                        "summary": summary,
+                    }
+                )
+
+        except Exception as e:
+            logger.error("cluster_agents error: %s", e)
+            return jsonify({"success": False, "error": "Internal server error"}), 500

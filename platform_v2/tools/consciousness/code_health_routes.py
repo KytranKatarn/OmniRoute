@@ -49,6 +49,19 @@ def register_code_health_routes(bp, admin_required):
         modules = []
         summary = {"green": 0, "yellow": 0, "red": 0, "total": 0}
 
+        # Map folder names to proper display names
+        from module_registry import MODULE_DEFINITIONS
+
+        display_names = {m.id: m.name for m in MODULE_DEFINITIONS}
+        display_names.update(
+            {
+                "[AI_BRIDGE]": "AI Bridge",
+                "[APP_CORE]": "App Core",
+                "[MIGRATIONS]": "Migrations",
+                "[SHARED]": "Shared Assets",
+            }
+        )
+
         with get_db_cursor() as (conn, cur):
             # Get module list from latest code_metrics_snapshot per_module JSONB
             cur.execute(
@@ -93,6 +106,7 @@ def register_code_health_routes(bp, admin_required):
                 modules.append(
                     {
                         "module_name": name,
+                        "display_name": display_names.get(name, name.replace("_", " ").title()),
                         "status": status,
                         "last_audit_date": audit["audited_at"].isoformat() if audit else None,
                         "last_audit_status": audit["status"] if audit else None,

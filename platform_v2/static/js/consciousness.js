@@ -2710,16 +2710,18 @@ function loadCodeHealth() {
       auditedModules[e.module_name] = e.status;
     });
 
-    // Build module status lookup from module-status endpoint
+    // Build module status + display name lookups from module-status endpoint
     var moduleStatusMap = {};
+    var moduleDisplayNames = {};
     (statusData.modules || []).forEach(function(m) {
       moduleStatusMap[m.module_name] = m.status;
+      if (m.display_name) moduleDisplayNames[m.module_name] = m.display_name;
     });
 
     _renderCodeHealthSummaryBar(statusData.summary || {});
     _renderCodeHealthStats(d);
     _renderModuleChart(d.modules || {});
-    _renderModuleTable(d.modules || {}, auditedModules, moduleStatusMap);
+    _renderModuleTable(d.modules || {}, auditedModules, moduleStatusMap, moduleDisplayNames);
     _renderOrphanTable(d.orphans || {});
     _renderAuditTable(entries);
   }).catch(function(err) {
@@ -2861,11 +2863,12 @@ function _renderModuleChart(modules) {
   });
 }
 
-function _renderModuleTable(modules, auditedModules, moduleStatusMap) {
+function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisplayNames) {
   var el = document.getElementById("chModuleTable");
   if (!el) return;
   auditedModules = auditedModules || {};
   moduleStatusMap = moduleStatusMap || {};
+  moduleDisplayNames = moduleDisplayNames || {};
 
   var sorted = Object.keys(modules).sort(function(a, b) {
     return (modules[b].lines || 0) - (modules[a].lines || 0);
@@ -2900,7 +2903,7 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap) {
       '<span style="color:' + badgeColor + ';">' + badgeLabel + '</span></span>';
 
     html += '<tr style="' + rowStyle + '">' +
-      '<td style="' + nameStyle + '">' + escHtml(name) + (isCompleted ? ' <span style="font-size:0.6rem; opacity:0.6;">&#x2713;</span>' : '') + '</td>' +
+      '<td style="' + nameStyle + '">' + escHtml(moduleDisplayNames[name] || name) + (isCompleted ? ' <span style="font-size:0.6rem; opacity:0.6;">&#x2713;</span>' : '') + '</td>' +
       '<td class="center">' + badgeHtml + '</td>' +
       '<td class="center">' + (m.files || 0) + '</td>' +
       '<td class="center"><strong>' + (m.lines || 0).toLocaleString() + '</strong></td>' +
@@ -2954,11 +2957,13 @@ window.chRunScan = function() {
       // Re-fetch module status after scan to get fresh badges
       api("/api/code-health/module-status").then(function(statusData) {
         var moduleStatusMap = {};
+        var moduleDisplayNames = {};
         (statusData.modules || []).forEach(function(m) {
           moduleStatusMap[m.module_name] = m.status;
+          if (m.display_name) moduleDisplayNames[m.module_name] = m.display_name;
         });
         _renderCodeHealthSummaryBar(statusData.summary || {});
-        _renderModuleTable(d.metrics.modules || {}, {}, moduleStatusMap);
+        _renderModuleTable(d.metrics.modules || {}, {}, moduleStatusMap, moduleDisplayNames);
       }).catch(function() {
         _renderModuleTable(d.metrics.modules || {});
       });

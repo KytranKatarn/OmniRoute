@@ -595,8 +595,11 @@ def register_node_routes(bp, admin_required):
                         current_load = %s,
                         client_version = %s,
                         cpu_cores = COALESCE(%s, cpu_cores),
+                        cpu_model = COALESCE(%s, cpu_model),
                         ram_gb = COALESCE(%s, ram_gb),
                         gpu_available = COALESCE(%s, gpu_available),
+                        gpu_model = COALESCE(%s, gpu_model),
+                        gpu_vram_gb = COALESCE(%s, gpu_vram_gb),
                         -- AI Service availability (Phase 72)
                         ollama_available = COALESCE(%s, ollama_available),
                         foocus_available = COALESCE(%s, foocus_available),
@@ -614,8 +617,11 @@ def register_node_routes(bp, admin_required):
                         data.get("current_load", 0),
                         client_version,
                         data.get("cpu_cores"),
+                        data.get("cpu_model"),
                         data.get("ram_gb"),
                         data.get("gpu_available"),
+                        data.get("gpu_model"),
+                        data.get("gpu_vram_gb"),
                         # AI Services
                         data.get("ollama_online"),
                         data.get("foocus_available"),

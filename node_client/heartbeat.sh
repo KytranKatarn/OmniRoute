@@ -113,6 +113,53 @@ get_gpu_usage() {
 }
 
 # -----------------------------------------------------------------------------
+# Hardware Detection (sent once, updated via COALESCE on hub)
+# -----------------------------------------------------------------------------
+get_cpu_model() {
+    if [ -f /proc/cpuinfo ]; then
+        grep -m1 "model name" /proc/cpuinfo 2>/dev/null | cut -d: -f2 | sed 's/^ //' || echo "null"
+    else
+        echo "null"
+    fi
+}
+
+get_cpu_core_count() {
+    nproc 2>/dev/null || echo "null"
+}
+
+get_ram_total_gb() {
+    if [ -f /proc/meminfo ]; then
+        local kb
+        kb=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}')
+        if [ -n "$kb" ]; then
+            echo "scale=1; $kb / 1048576" | bc 2>/dev/null || echo "null"
+            return
+        fi
+    fi
+    echo "null"
+}
+
+get_gpu_model_name() {
+    if command -v nvidia-smi &>/dev/null; then
+        nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | tr -d '\n' || echo "null"
+    else
+        echo "null"
+    fi
+}
+
+get_gpu_vram_gb() {
+    if command -v nvidia-smi &>/dev/null; then
+        local mb
+        mb=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d '[:space:]')
+        if [ -n "$mb" ]; then
+            echo "scale=1; $mb / 1024" | bc 2>/dev/null || echo "null"
+            return
+        fi
+    fi
+    echo "null"
+}
+
+# -----------------------------------------------------------------------------
 # Check Ollama Status and Models
 # -----------------------------------------------------------------------------
 get_ollama_status() {
@@ -256,6 +303,13 @@ while true; do
     uptime_secs=$(get_uptime_seconds)
     host_name=$(hostname)
 
+    # Hardware specs (auto-detected)
+    hw_cpu_model=$(get_cpu_model)
+    hw_cpu_cores=$(get_cpu_core_count)
+    hw_ram_gb=$(get_ram_total_gb)
+    hw_gpu_model=$(get_gpu_model_name)
+    hw_gpu_vram_gb=$(get_gpu_vram_gb)
+
     # Build JSON payload
     payload=$(jq -n \
         --arg status "online" \
@@ -267,6 +321,11 @@ while true; do
         --arg ver "$CLIENT_VERSION" \
         --argjson uptime "$uptime_secs" \
         --arg hname "$host_name" \
+        --arg hw_cpu_model "$hw_cpu_model" \
+        --arg hw_cpu_cores "$hw_cpu_cores" \
+        --arg hw_ram_gb "$hw_ram_gb" \
+        --arg hw_gpu_model "$hw_gpu_model" \
+        --arg hw_gpu_vram_gb "$hw_gpu_vram_gb" \
         '{
             status: $status,
             current_load: ($cpu | tonumber),
@@ -276,6 +335,11 @@ while true; do
             ollama_online: $ollama_on,
             ollama_models: $ollama_m,
             client_version: $ver,
+            cpu_model: (if $hw_cpu_model == "null" then null else $hw_cpu_model end),
+            cpu_cores: (if $hw_cpu_cores == "null" then null else ($hw_cpu_cores | tonumber) end),
+            ram_gb: (if $hw_ram_gb == "null" then null else ($hw_ram_gb | tonumber) end),
+            gpu_model: (if $hw_gpu_model == "null" then null else $hw_gpu_model end),
+            gpu_vram_gb: (if $hw_gpu_vram_gb == "null" then null else ($hw_gpu_vram_gb | tonumber) end),
             details: {
                 uptime: $uptime,
                 hostname: $hname

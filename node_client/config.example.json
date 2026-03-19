@@ -1,7 +1,7 @@
 {
   "node_id": "starship_REPLACE_WITH_YOUR_NODE_ID",
   "api_key": "REPLACE_WITH_YOUR_API_KEY",
-  "server_url": "http://192.168.1.200:3000",
+  "server_url": "https://archie.kytranempowerment.com",
   "heartbeat_interval": 30,
   "sync_interval": 60,
   "deployment_mode": "starship",

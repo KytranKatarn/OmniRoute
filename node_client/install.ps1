@@ -1,7 +1,7 @@
 # =============================================================================
 # A.R.C.H.I.E. Unified Node Client — Windows Installer v2.0.0
 # Usage: iwr -useb http://YOUR_HUB:3000/tools/starbase/api/nodes/install.ps1 | iex
-#   or:  .\install.ps1 -HubUrl http://192.168.1.200:3000
+#   or:  .\install.ps1 -HubUrl https://archie.kytranempowerment.com
 # =============================================================================
 
 param(
@@ -72,7 +72,7 @@ Write-Ok "Running as Administrator"
 
 # Prompt for Hub URL if not provided
 if (-not $HubUrl) {
-    $HubUrl = Read-Host "  Enter A.R.C.H.I.E. Hub URL (e.g. http://192.168.1.200:3000)"
+    $HubUrl = Read-Host "  Enter A.R.C.H.I.E. Hub URL (e.g. https://archie.kytranempowerment.com)"
 }
 if (-not $HubUrl) {
     Write-Fail "Hub URL is required."

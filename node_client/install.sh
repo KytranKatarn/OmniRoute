@@ -4,7 +4,7 @@ set -e
 # =============================================================================
 # A.R.C.H.I.E. Unified Node Client — Linux Installer v2.0.0
 # Usage: curl -fsSL http://YOUR_HUB:3000/tools/starbase/api/nodes/install.sh | sudo bash
-#   or:  sudo bash install.sh http://192.168.1.200:3000
+#   or:  sudo bash install.sh https://archie.kytranempowerment.com
 # =============================================================================
 
 CLIENT_VERSION="2.0.0"
@@ -52,7 +52,7 @@ main() {
     # -- Get Hub URL --
     HUB_URL="${1:-}"
     if [ -z "$HUB_URL" ]; then
-        read -p "  Enter A.R.C.H.I.E. Hub URL (e.g. http://192.168.1.200:3000): " HUB_URL
+        read -p "  Enter A.R.C.H.I.E. Hub URL (e.g. https://archie.kytranempowerment.com): " HUB_URL
     fi
     if [ -z "$HUB_URL" ]; then
         error "Hub URL is required."

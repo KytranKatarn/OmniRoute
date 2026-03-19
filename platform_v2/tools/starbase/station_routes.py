@@ -1580,18 +1580,29 @@ def register_station_routes(bp, admin_required):
                 from ai_bridge.bridge_dispatcher import get_dispatcher
 
                 dispatcher = get_dispatcher()
+
+                # Look up Pixel agent from DB for the agent dict
+                cur.execute("SELECT id, name, display_name FROM agents WHERE name = 'Pixel' LIMIT 1")
+                pixel_agent = cur.fetchone()
+                pixel_dict = dict(pixel_agent) if pixel_agent else {"id": None, "name": "Pixel"}
+
                 result = dispatcher._execute_comfyui(
-                    prompt=prompt,
                     agent_name="Pixel",
+                    agent=pixel_dict,
                     image_model="sd_xl_base_1.0.safetensors",
+                    prompt=prompt,
                     context={"width": 512, "height": 512, "steps": 25},
+                    station_code="CREATIVE",
+                    capability="image_generation",
+                    module_id="starbase",
+                    user_id=current_user.id if current_user.is_authenticated else None,
                 )
 
                 if result and result.success and result.metadata:
                     # Copy generated image to persistent location
                     import shutil
 
-                    src = result.metadata.get("output_path") or result.metadata.get("image_path")
+                    src = result.metadata.get("file_path") or result.metadata.get("output_path")
                     if src:
                         abs_src = (
                             os.path.join(

@@ -1,12 +1,12 @@
 # =============================================================================
 # A.R.C.H.I.E. Node Client - Windows Update Script
-# Usage: iwr -useb http://192.168.1.200:3000/tools/starbase/api/nodes/update.ps1 | iex
+# Usage: iwr -useb https://archie.kytranempowerment.com/tools/starbase/api/nodes/update.ps1 | iex
 # =============================================================================
 
 & {
 $ErrorActionPreference = "Stop"
 $ARCHIE_DIR = "C:\ProgramData\ARCHIE-Node"
-$ARCHIE_BASE_URL = "http://192.168.1.200:3000"
+$ARCHIE_BASE_URL = "https://archie.kytranempowerment.com"
 
 function Write-Step {
     param([string]$Text)

@@ -741,8 +741,19 @@ def register_node_routes(bp, auth_decorator):
                 cur.fetchone()
 
             if os_type == "windows":
+                # Prefer the pre-built GUI installer .exe if available
+                exe_path = os.path.join(NODE_CLIENT_DIR, "installer", "dist", "ARCHIE-Node-Setup.exe")
+                if os.path.isfile(exe_path):
+                    logger.info("Serving pre-built ARCHIE-Node-Setup.exe installer")
+                    return send_file(
+                        exe_path,
+                        mimetype="application/octet-stream",
+                        as_attachment=True,
+                        download_name="ARCHIE-Node-Setup.exe",
+                    )
+
+                # Fallback: generate a .bat wrapper with embedded PowerShell
                 ps1_script = _generate_setup_ps1(hub_url, node_id, setup_token, node_name)
-                # Write .ps1 into .bat via echo — no download, no auth needed
                 safe_name = node_name.replace(" ", "-")
                 ps1_path = f"%TEMP%\\archie-node-{safe_name}.ps1"
                 bat = "@echo off\r\n"
@@ -754,8 +765,6 @@ def register_node_routes(bp, auth_decorator):
                 bat += "echo   ========================================\r\n"
                 bat += "echo.\r\n"
                 bat += "echo   Writing setup script...\r\n"
-                # Write ps1 to temp file using powershell to avoid bat escaping hell
-                # Base64 encode the ps1 script so no special chars cause issues
                 import base64
 
                 ps1_bytes = ps1_script.encode("utf-16-le")

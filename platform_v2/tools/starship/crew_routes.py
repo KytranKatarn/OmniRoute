@@ -298,7 +298,8 @@ def register_crew_routes(bp, auth_decorator):
                     }
                 )
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            logger.exception("Failed to get agent profile")
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<int:node_id>/agent-form-context")
     @auth_decorator
@@ -328,7 +329,8 @@ def register_crew_routes(bp, auth_decorator):
                     }
                 )
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            logger.exception("Failed to get agent form context for node %s", node_id)
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<int:node_id>/agents/<int:agent_id>", methods=["PUT"])
     @auth_decorator
@@ -462,7 +464,8 @@ def register_crew_routes(bp, auth_decorator):
                     }
                 )
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            logger.exception("Failed to update node agent %s on node %s", agent_id, node_id)
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<int:node_id>/agents/add", methods=["POST"])
     @auth_decorator
@@ -590,7 +593,8 @@ def register_crew_routes(bp, auth_decorator):
                     }
                 )
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            logger.exception("Failed to add agent to node %s", node_id)
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<int:node_id>/agents/<int:agent_id>", methods=["DELETE"])
     @auth_decorator
@@ -619,7 +623,8 @@ def register_crew_routes(bp, auth_decorator):
                     )
             return jsonify({"success": True, "message": "Agent removed"})
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            logger.exception("Failed to remove agent %s from node %s", agent_id, node_id)
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<int:node_id>/assign-agents", methods=["POST"])
     @auth_decorator
@@ -652,7 +657,7 @@ def register_crew_routes(bp, auth_decorator):
             )
         except Exception as e:
             logger.exception("Failed to assign agents to node %s", node_id)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<int:node_id>/stations")
     @auth_decorator
@@ -719,4 +724,4 @@ def register_crew_routes(bp, auth_decorator):
                 return jsonify({"success": True, "stations": stations})
         except Exception as e:
             logger.exception("Failed to get node stations for node %s", node_id)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500

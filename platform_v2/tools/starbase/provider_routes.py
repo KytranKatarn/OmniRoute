@@ -74,7 +74,7 @@ def register_provider_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Toggle bridge sharing error: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/bridge/models")
     @login_required
@@ -153,7 +153,7 @@ def register_provider_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Get bridge models error: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<node_id>/models")
     @login_required
@@ -200,7 +200,7 @@ def register_provider_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Get node models error: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<node_id>/models/sync", methods=["POST"])
     @login_required
@@ -273,7 +273,7 @@ def register_provider_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Manual model sync error: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<node_id>/models/<int:model_id>/toggle", methods=["PUT"])
     @login_required
@@ -309,7 +309,7 @@ def register_provider_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Toggle model availability error: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/bridge/select-node", methods=["POST"])
     @login_required
@@ -354,7 +354,7 @@ def register_provider_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Select node for model error: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ============================================================================
     # COMFYUI MODEL CONTROL
@@ -411,7 +411,7 @@ def register_provider_routes(bp, admin_required):
             )
         except Exception as e:
             logger.error(f"comfyui_models error: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/bridge/comfyui/control", methods=["POST"])
     @login_required
@@ -461,7 +461,7 @@ def register_provider_routes(bp, admin_required):
             return jsonify({"success": False, "error": "ComfyUI warmup timed out"}), 504
         except Exception as e:
             logger.error(f"comfyui_control error: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/bridge/reassign", methods=["POST"])
     @login_required
@@ -524,7 +524,7 @@ def register_provider_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error reassigning agent: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ============================================================================
     # ROUTING MODE & ESCALATION LOG API
@@ -540,7 +540,7 @@ def register_provider_routes(bp, admin_required):
                 row = cur.fetchone()
                 return jsonify({"success": True, "routing_mode": row["value"] if row else "full"})
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/routing-mode", methods=["POST"])
     @login_required
@@ -564,7 +564,7 @@ def register_provider_routes(bp, admin_required):
                 logger.info(f"[Bridge] Routing mode changed to: {mode}")
                 return jsonify({"success": True, "routing_mode": mode})
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/escalation-mode", methods=["GET"])
     @login_required
@@ -576,7 +576,7 @@ def register_provider_routes(bp, admin_required):
                 row = cur.fetchone()
                 return jsonify({"success": True, "escalation_mode": row["value"] if row else "auto"})
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/escalation-mode", methods=["POST"])
     @login_required
@@ -600,7 +600,7 @@ def register_provider_routes(bp, admin_required):
                 logger.info(f"[Bridge] Escalation mode changed to: {mode}")
                 return jsonify({"success": True, "escalation_mode": mode})
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/escalation-log", methods=["GET"])
     @login_required
@@ -630,7 +630,7 @@ def register_provider_routes(bp, admin_required):
                     result.append(d)
                 return jsonify({"success": True, "escalations": result})
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ============================================================================
     # EXTERNAL PROVIDER KEY MANAGEMENT
@@ -898,7 +898,7 @@ def register_provider_routes(bp, admin_required):
                     }
                 )
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/external-providers", methods=["POST"])
     @login_required
@@ -972,7 +972,7 @@ def register_provider_routes(bp, admin_required):
 
                 return jsonify({"success": True, "provider": dict(row)})
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/external-providers/<provider>/toggle", methods=["POST"])
     @login_required
@@ -987,7 +987,7 @@ def register_provider_routes(bp, admin_required):
                 )
                 return jsonify({"success": True})
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route(
         "/api/external-providers/<provider>/models/<path:model_name>/toggle",
@@ -1031,7 +1031,7 @@ def register_provider_routes(bp, admin_required):
                 )
                 return jsonify({"success": True, "model": model_name, "enabled": enabled})
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ============================================================================
     # CONTRACTOR PROVIDER DEFINITIONS API (dynamic provider management)
@@ -1061,7 +1061,7 @@ def register_provider_routes(bp, admin_required):
                     providers.append(d)
                 return jsonify({"success": True, "providers": providers})
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/contractor-providers", methods=["POST"])
     @login_required
@@ -1136,4 +1136,4 @@ def register_provider_routes(bp, admin_required):
 
                 return jsonify({"success": True, "provider": dict(row)})
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500

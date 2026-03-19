@@ -2692,10 +2692,11 @@ var _chHistoryChart = null;
 
 function loadCodeHealth() {
   // Load audit log + module status so table can show colored badges
+  // module-status is optional — don't let it break the whole tab
   Promise.all([
     api("/api/code-health/current"),
     api("/api/code-health/audit-log"),
-    api("/api/code-health/module-status")
+    api("/api/code-health/module-status").catch(function() { return {modules: [], summary: {}}; })
   ]).then(function(results) {
     var d = results[0];
     var auditData = results[1];

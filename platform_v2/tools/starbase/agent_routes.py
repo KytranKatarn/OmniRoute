@@ -46,7 +46,7 @@ def register_agent_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error getting agents: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/agents", methods=["POST"])
     @login_required
@@ -73,6 +73,22 @@ def register_agent_routes(bp, admin_required):
         )
         temperature = data.get("temperature", 0.7)
         max_tokens = data.get("max_tokens", 4096)
+
+        # Validate temperature and max_tokens
+        try:
+            temperature = float(temperature)
+        except (TypeError, ValueError):
+            return jsonify({"success": False, "error": "temperature must be a number"}), 400
+        if not (0 <= temperature <= 2):
+            return jsonify({"success": False, "error": "temperature must be between 0 and 2"}), 400
+
+        try:
+            max_tokens = int(max_tokens)
+        except (TypeError, ValueError):
+            return jsonify({"success": False, "error": "max_tokens must be an integer"}), 400
+        if not (100 <= max_tokens <= 32000):
+            return jsonify({"success": False, "error": "max_tokens must be between 100 and 32000"}), 400
+
         capabilities = data.get("capabilities")
         if isinstance(capabilities, list):
             capabilities = json.dumps(capabilities)
@@ -113,7 +129,7 @@ def register_agent_routes(bp, admin_required):
                 return jsonify({"success": True, "agent": dict(agent)})
         except Exception as e:
             logger.error("create_agent error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/agents/<int:agent_id>", methods=["PUT", "PATCH"])
     @login_required
@@ -147,6 +163,23 @@ def register_agent_routes(bp, admin_required):
 
         if not sets:
             return jsonify({"success": False, "error": "No valid fields"}), 400
+
+        # Validate temperature and max_tokens if provided
+        if "temperature" in data:
+            try:
+                t = float(data["temperature"])
+            except (TypeError, ValueError):
+                return jsonify({"success": False, "error": "temperature must be a number"}), 400
+            if not (0 <= t <= 2):
+                return jsonify({"success": False, "error": "temperature must be between 0 and 2"}), 400
+
+        if "max_tokens" in data:
+            try:
+                mt = int(data["max_tokens"])
+            except (TypeError, ValueError):
+                return jsonify({"success": False, "error": "max_tokens must be an integer"}), 400
+            if not (100 <= mt <= 32000):
+                return jsonify({"success": False, "error": "max_tokens must be between 100 and 32000"}), 400
 
         sets.append("updated_at = NOW()")
         params.append(agent_id)
@@ -210,7 +243,8 @@ def register_agent_routes(bp, admin_required):
                                 timeout=10,
                             )
                             model_ops.append(f"unloaded {old_model} (orphaned)")
-                        except Exception:
+                        except Exception as e:
+                            logger.warning("Failed to unload model %s: %s", old_model, e)
                             model_ops.append(f"failed to unload {old_model}")
 
                     # Load new model
@@ -228,7 +262,8 @@ def register_agent_routes(bp, admin_required):
                         )
                         hw_label = "GPU" if num_gpu > 0 else "CPU"
                         model_ops.append(f"loaded {new_model} on {hw_label}")
-                    except Exception:
+                    except Exception as e:
+                        logger.warning("Failed to load model %s: %s", new_model, e)
                         model_ops.append(f"failed to load {new_model}")
 
                 result = {"success": True, "agent": dict(agent)}
@@ -237,7 +272,7 @@ def register_agent_routes(bp, admin_required):
                 return jsonify(result)
         except Exception as e:
             logger.error("update_agent error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/agents/<int:agent_id>", methods=["DELETE"])
     @login_required
@@ -276,7 +311,7 @@ def register_agent_routes(bp, admin_required):
                 return jsonify({"success": True, "message": f"Agent '{agent['name']}' deleted"})
         except Exception as e:
             logger.error("delete_agent error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/agents/<int:agent_id>/toggle", methods=["POST"])
     @login_required
@@ -307,7 +342,7 @@ def register_agent_routes(bp, admin_required):
                 return jsonify({"success": True, "status": result[0]})
         except Exception as e:
             logger.error("toggle_agent error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/agents/<int:agent_id>/skills", methods=["GET"])
     @login_required
@@ -332,7 +367,7 @@ def register_agent_routes(bp, admin_required):
                 return jsonify({"success": True, "skills": skills})
         except Exception as e:
             logger.error("get_agent_skills error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/agents/<int:agent_id>/skills", methods=["POST"])
     @login_required
@@ -369,7 +404,7 @@ def register_agent_routes(bp, admin_required):
                 return jsonify({"success": True, "skill": dict(skill)})
         except Exception as e:
             logger.error("add_agent_skill error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/agents/<int:agent_id>/skills/<skill_id>", methods=["DELETE"])
     @login_required
@@ -387,7 +422,7 @@ def register_agent_routes(bp, admin_required):
                 return jsonify({"success": True, "message": f"Skill '{result[0]}' removed"})
         except Exception as e:
             logger.error("delete_agent_skill error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/agents/<int:agent_id>/assign-station", methods=["POST"])
     @login_required
@@ -563,7 +598,7 @@ def register_agent_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error assigning agent: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/agents/<int:agent_id>/unassign-station", methods=["POST"])
     @login_required
@@ -611,7 +646,7 @@ def register_agent_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error unassigning agent: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ============================================================================
     # STATION ASSIGNMENTS API (Phase 28)
@@ -677,7 +712,7 @@ def register_agent_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error getting assignments: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/stations/unassigned-agents")
     @login_required
@@ -705,7 +740,7 @@ def register_agent_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error getting unassigned agents: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/stations/<station_code>/config", methods=["GET"])
     @login_required
@@ -738,7 +773,7 @@ def register_agent_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error getting station config: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/stations/<station_code>/config", methods=["PUT"])
     @login_required
@@ -798,7 +833,7 @@ def register_agent_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error updating station: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/stations/reorder", methods=["POST"])
     @login_required
@@ -831,7 +866,7 @@ def register_agent_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error reordering stations: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/assignments/<int:assignment_id>", methods=["DELETE"])
     @login_required
@@ -856,7 +891,7 @@ def register_agent_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error deleting assignment: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/assignments/<int:assignment_id>", methods=["PUT"])
     @login_required
@@ -902,7 +937,7 @@ def register_agent_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error updating assignment: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ============================================================================
     # ADDITIONAL SUPPORT REQUEST API
@@ -1205,7 +1240,7 @@ def register_agent_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Bridge: Error processing support request: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/stations/<station_code>/release-support", methods=["POST"])
     @login_required
@@ -1269,7 +1304,7 @@ def register_agent_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Bridge: Error releasing support: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ============================================================================
     # SKILL GAP / AGENT CREATION ENDPOINTS
@@ -1311,7 +1346,7 @@ def register_agent_routes(bp, admin_required):
                 return jsonify({"gaps": gaps})
         except Exception as e:
             logger.error(f"Error getting agent gaps: {e}")
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": "Internal server error"}), 500
 
     @bp.route("/api/agents/create-from-gap", methods=["POST"])
     @login_required
@@ -1372,7 +1407,7 @@ def register_agent_routes(bp, admin_required):
                     return jsonify({"error": "Agent creation returned None"}), 500
         except Exception as e:
             logger.error(f"Error creating agent from gap: {e}")
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": "Internal server error"}), 500
 
     @bp.route("/api/dispatch/multi-agent-sessions")
     @login_required
@@ -1456,7 +1491,7 @@ def register_agent_routes(bp, admin_required):
                 return jsonify({"session": session, "steps": steps})
         except Exception as e:
             logger.error("multi_agent_session_detail error: %s", e)
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": "Internal server error"}), 500
 
     @bp.route("/api/dispatch/fleet-metrics")
     @login_required

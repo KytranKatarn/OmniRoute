@@ -53,10 +53,11 @@ def register_code_health_routes(bp, admin_required):
             # Get module list from latest code_metrics_snapshot per_module JSONB
             cur.execute(
                 """SELECT per_module FROM code_metrics_snapshots
-                   ORDER BY created_at DESC LIMIT 1"""
+                   ORDER BY scanned_at DESC LIMIT 1"""
             )
             row = cur.fetchone()
-            module_names = list(row[0].keys()) if row and row[0] else []
+            per_module = row["per_module"] if row and row.get("per_module") else {}
+            module_names = list(per_module.keys())
 
             # Get latest audit per module
             cur.execute(
@@ -65,12 +66,15 @@ def register_code_health_routes(bp, admin_required):
                    FROM code_audit_log
                    ORDER BY module_name, audited_at DESC"""
             )
-            audits = {r[0]: {"audited_at": r[1], "status": r[2], "stale": r[3]} for r in cur.fetchall()}
+            audits = {
+                r["module_name"]: {"audited_at": r["audited_at"], "status": r["status"], "stale": r["stale"]}
+                for r in cur.fetchall()
+            }
 
             # Get latest scan date
-            cur.execute("SELECT created_at FROM code_metrics_snapshots ORDER BY created_at DESC LIMIT 1")
+            cur.execute("SELECT scanned_at FROM code_metrics_snapshots ORDER BY scanned_at DESC LIMIT 1")
             scan_row = cur.fetchone()
-            last_scan_date = scan_row[0].isoformat() if scan_row else None
+            last_scan_date = scan_row["scanned_at"].isoformat() if scan_row else None
 
             for name in sorted(module_names):
                 audit = audits.get(name)

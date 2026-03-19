@@ -194,7 +194,7 @@ def get_bridge_stats():
 
     except Exception as e:
         logger.error(f"Error getting bridge stats: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 # ============================================================================
@@ -230,7 +230,7 @@ def get_traffic_stats():
 
     except Exception as e:
         logger.error(f"Error getting traffic stats: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @starbase_bp.route("/api/agent-utilization")
@@ -264,7 +264,7 @@ def get_agent_utilization():
 
     except Exception as e:
         logger.error(f"Error getting agent utilization: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @starbase_bp.route("/api/models/live")
@@ -340,7 +340,7 @@ def get_iaae_overview():
 
     except Exception as e:
         logger.error(f"Error getting IAAE overview: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @starbase_bp.route("/api/agents/workload")
@@ -430,7 +430,7 @@ def get_agent_workload():
             )
     except Exception as e:
         logger.error("get_agent_workload error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @starbase_bp.route("/api/agents/welfare")
@@ -541,7 +541,7 @@ def get_agent_welfare():
             )
     except Exception as e:
         logger.error("get_agent_welfare error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @starbase_bp.route("/api/iaae/enforcement-log")
@@ -748,7 +748,7 @@ def get_iaae_enforcement_log():
         return jsonify({"success": True, "events": events, "total": len(events)})
     except Exception as e:
         logger.error("get_iaae_enforcement_log error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @starbase_bp.route("/api/iaae/enforcement-log-full")
@@ -977,7 +977,7 @@ def get_iaae_enforcement_log_full():
         )
     except Exception as e:
         logger.error("get_iaae_enforcement_log_full error: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 # ============================================================================
@@ -1045,7 +1045,7 @@ def get_archie_status():
 
     except Exception as e:
         logger.error(f"Error getting ARCHIE status: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 # ============================================================================
@@ -1181,4 +1181,4 @@ def get_llm_status():
 
     except Exception as e:
         logger.error(f"LLM status error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500

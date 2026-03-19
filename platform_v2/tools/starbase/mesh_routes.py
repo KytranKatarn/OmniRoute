@@ -79,7 +79,7 @@ def _verify_node_api_key(node_id):
         return True, node
     except Exception as e:
         logger.error(f"Error verifying node API key: {e}")
-        return False, f"Auth error: {str(e)}"
+        return False, "Auth error"
 
 
 # ============================================================================
@@ -150,7 +150,7 @@ def register_mesh_routes(bp, admin_required=None):
             )
         except Exception as e:
             logger.error(f"Mesh version report failed: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ========================================================================
     # LEARNING PATTERNS
@@ -215,7 +215,7 @@ def register_mesh_routes(bp, admin_required=None):
             )
         except Exception as e:
             logger.error(f"Mesh learning submit failed: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/mesh/learning", methods=["GET"])
     @login_required
@@ -266,7 +266,7 @@ def register_mesh_routes(bp, admin_required=None):
             return jsonify({"success": True, "patterns": patterns, "count": len(patterns)})
         except Exception as e:
             logger.error(f"Mesh learning fetch failed: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ========================================================================
     # AGENT LENDING
@@ -361,7 +361,7 @@ def register_mesh_routes(bp, admin_required=None):
             )
         except Exception as e:
             logger.error(f"Mesh agent lend failed: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/mesh/agents/return", methods=["POST"])
     def mesh_return_agent():
@@ -417,7 +417,7 @@ def register_mesh_routes(bp, admin_required=None):
             )
         except Exception as e:
             logger.error(f"Mesh agent return failed: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/mesh/agents/return-admin", methods=["POST"])
     @login_required
@@ -452,7 +452,7 @@ def register_mesh_routes(bp, admin_required=None):
             return jsonify({"success": True, "message": "Agent returned successfully"})
         except Exception as e:
             logger.error(f"Mesh admin return agent failed: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/mesh/agents/loans", methods=["GET"])
     @login_required
@@ -511,7 +511,7 @@ def register_mesh_routes(bp, admin_required=None):
             return jsonify({"success": True, "loans": loans, "count": len(loans)})
         except Exception as e:
             logger.error(f"Mesh loans fetch failed: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ========================================================================
     # SYNC LOG
@@ -556,7 +556,7 @@ def register_mesh_routes(bp, admin_required=None):
             )
         except Exception as e:
             logger.error(f"Mesh sync push failed: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/mesh/sync/<node_id>/pending", methods=["GET"])
     def mesh_get_pending_syncs(node_id):
@@ -593,7 +593,7 @@ def register_mesh_routes(bp, admin_required=None):
             return jsonify({"success": True, "syncs": syncs, "count": len(syncs)})
         except Exception as e:
             logger.error(f"Mesh pending syncs fetch failed: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/mesh/sync/<int:sync_id>/ack", methods=["POST"])
     def mesh_ack_sync(sync_id):
@@ -688,7 +688,7 @@ def register_mesh_routes(bp, admin_required=None):
             )
         except Exception as e:
             logger.error(f"Mesh sync ack failed: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ========================================================================
     # FLEET BROADCAST + CONFIG VERSION
@@ -739,7 +739,7 @@ def register_mesh_routes(bp, admin_required=None):
             )
         except Exception as e:
             logger.error(f"Mesh broadcast failed: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/mesh/version", methods=["GET"])
     def mesh_config_version():
@@ -780,7 +780,7 @@ def register_mesh_routes(bp, admin_required=None):
             return jsonify({"success": True, "nodes": nodes, "count": len(nodes)})
         except Exception as e:
             logger.error(f"Mesh cluster overview failed: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ========================================================================
     # AVAILABLE AGENTS (for Request Help modal)
@@ -884,7 +884,7 @@ def register_mesh_routes(bp, admin_required=None):
             )
         except Exception as e:
             logger.error(f"Mesh available agents fetch failed: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ========================================================================
     # OTA CODE UPDATE
@@ -950,6 +950,6 @@ def register_mesh_routes(bp, admin_required=None):
             )
         except Exception as e:
             logger.error(f"Mesh push-update failed: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     logger.info("Mesh API routes registered on bridge blueprint")

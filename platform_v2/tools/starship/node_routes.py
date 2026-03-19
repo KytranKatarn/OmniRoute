@@ -238,7 +238,8 @@ def register_node_routes(bp, auth_decorator):
                 }
             )
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            logger.exception("Failed to get node status for node %s", node_id)
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<node_id>/settings", methods=["PUT"])
     @auth_decorator
@@ -372,7 +373,8 @@ def register_node_routes(bp, auth_decorator):
                 }
             )
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            logger.exception("Failed to request new node")
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/setup-instructions/<node_id>")
     @auth_decorator
@@ -660,7 +662,7 @@ def register_node_routes(bp, auth_decorator):
             )
         except Exception as e:
             logger.error(f"Fleet stats error: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<node_id>/disconnect", methods=["DELETE"])
     @auth_decorator
@@ -721,7 +723,7 @@ def register_node_routes(bp, auth_decorator):
             )
         except Exception as e:
             logger.error(f"Failed to disconnect node {node_id}: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 # ============================================================================

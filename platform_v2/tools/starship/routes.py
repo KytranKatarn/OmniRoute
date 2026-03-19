@@ -101,7 +101,8 @@ def api_list_nodes():
             )
         return jsonify({"success": True, "nodes": result})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        logger.exception("Failed to list nodes")
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @starship_bp.route("/api/fleet-agents")
@@ -147,7 +148,8 @@ def api_fleet_agents():
                 nodes.append(node)
         return jsonify({"success": True, "nodes": nodes})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        logger.exception("Failed to get fleet agents")
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 @starship_bp.route("/api/starbase-stats")
@@ -194,4 +196,4 @@ def api_starbase_stats():
         )
     except Exception as e:
         logger.error(f"Starbase stats error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500

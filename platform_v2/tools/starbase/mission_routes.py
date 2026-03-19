@@ -164,7 +164,7 @@ def register_mission_routes(bp, admin_required):
             return jsonify({"success": True, "profile": profile})
         except Exception as e:
             logger.exception("Failed to get active mission profile")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/mission/profiles")
     @login_required
@@ -178,7 +178,7 @@ def register_mission_routes(bp, admin_required):
             return jsonify({"success": True, "profiles": profiles})
         except Exception as e:
             logger.exception("Failed to list mission profiles")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/mission/activate/<int:profile_id>", methods=["PUT"])
     @login_required
@@ -194,7 +194,7 @@ def register_mission_routes(bp, admin_required):
             return jsonify({"success": False, "error": "Profile not found"}), 404
         except Exception as e:
             logger.exception("Failed to activate mission profile")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/mission/schedule", methods=["GET"])
     @login_required
@@ -215,7 +215,7 @@ def register_mission_routes(bp, admin_required):
             return jsonify({"success": True, "schedules": schedules})
         except Exception as e:
             logger.exception("Failed to list mission schedules")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/mission/schedule", methods=["POST"])
     @login_required
@@ -245,7 +245,7 @@ def register_mission_routes(bp, admin_required):
             return jsonify({"success": True, "id": new_id})
         except Exception as e:
             logger.exception("Failed to add mission schedule")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/mission/schedule/<int:schedule_id>", methods=["DELETE"])
     @login_required
@@ -257,7 +257,7 @@ def register_mission_routes(bp, admin_required):
             return jsonify({"success": True})
         except Exception as e:
             logger.exception("Failed to delete mission schedule")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ============================================================================
     # FLOW ROUTER API ROUTES (Task #957)
@@ -285,7 +285,7 @@ def register_mission_routes(bp, admin_required):
             return jsonify({"success": True, "flows": flows})
         except Exception as e:
             logger.exception("Failed to list flows")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/flows/<flow_name>/start", methods=["POST"])
     @login_required
@@ -315,7 +315,7 @@ def register_mission_routes(bp, admin_required):
             return jsonify({"success": True, **result})
         except Exception as e:
             logger.exception("Failed to start flow")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/flows/advance/<int:job_id>", methods=["POST"])
     @login_required
@@ -340,7 +340,7 @@ def register_mission_routes(bp, admin_required):
             return jsonify({"success": True, **result})
         except Exception as e:
             logger.exception("Failed to advance flow")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ============================================================================
     # MESH CLUSTER API ROUTES — registered in __init__.py (ADR-045 pattern)

@@ -151,7 +151,7 @@ def register_dispatch_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error getting dispatch status: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/bridge/dispatch-history")
     @login_required
@@ -216,7 +216,7 @@ def register_dispatch_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error getting dispatch history: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ============================================================================
     # DISPATCH OVERVIEW — Merged stats + history + jobs in one call
@@ -391,7 +391,7 @@ def register_dispatch_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error getting dispatch overview: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ============================================================================
     # BRIDGE JOBS — Workload tracking for multi-step operations
@@ -502,7 +502,7 @@ def register_dispatch_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error getting bridge jobs: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/bridge/jobs/<int:job_id>")
     @login_required
@@ -597,7 +597,7 @@ def register_dispatch_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error getting bridge job detail: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ============================================================================
     # DURABLE EXECUTION — Resume failed jobs from checkpoint (Task #955)
@@ -617,7 +617,7 @@ def register_dispatch_routes(bp, admin_required):
             return jsonify({"success": False, "error": "No checkpoint found or job not failed"}), 404
         except Exception as e:
             logger.error(f"Error resuming job {job_id}: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/bridge/jobs/<int:job_id>/delegate", methods=["POST"])
     @login_required
@@ -639,7 +639,7 @@ def register_dispatch_routes(bp, admin_required):
             return jsonify(result)
         except Exception as e:
             logger.error(f"Error delegating subtask for job {job_id}: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ============================================================================
     # CROSS-STATION DISPATCH ANALYTICS
@@ -659,7 +659,7 @@ def register_dispatch_routes(bp, admin_required):
             return jsonify(success=True, cross_dispatches=cross_dispatches, borrowing=borrowing)
         except Exception as e:
             logger.error(f"cross_station_analytics error: {e}")
-            return jsonify(success=False, error=str(e)), 500
+            return jsonify(success=False, error="Internal server error"), 500
 
     @bp.route("/api/dispatch/reassignment-recommendations")
     @login_required
@@ -706,4 +706,4 @@ def register_dispatch_routes(bp, admin_required):
             return jsonify(success=True, recommendations=recommendations)
         except Exception as e:
             logger.error(f"reassignment_recommendations error: {e}")
-            return jsonify(success=False, error=str(e)), 500
+            return jsonify(success=False, error="Internal server error"), 500

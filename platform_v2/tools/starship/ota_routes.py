@@ -75,7 +75,8 @@ def register_ota_routes(bp, auth_decorator):
                 }
             )
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            logger.exception("Failed to push agent config to node %s", node_id)
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<int:node_id>/pull-model", methods=["POST"])
     @auth_decorator
@@ -106,7 +107,8 @@ def register_ota_routes(bp, auth_decorator):
 
             return jsonify({"success": True, "sync_id": sync_row["id"], "model": model_name})
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            logger.exception("Failed to pull model for node %s", node_id)
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<int:node_id>/push-update", methods=["POST"])
     @auth_decorator
@@ -167,7 +169,8 @@ def register_ota_routes(bp, auth_decorator):
                 }
             )
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            logger.exception("Failed to push update to node %s", node_id)
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<int:node_id>/sync-log")
     @auth_decorator
@@ -213,7 +216,8 @@ def register_ota_routes(bp, auth_decorator):
 
             return jsonify({"success": True, "logs": logs})
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            logger.exception("Failed to get sync log for node %s", node_id)
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<int:node_id>/sync-status")
     @auth_decorator
@@ -271,4 +275,5 @@ def register_ota_routes(bp, auth_decorator):
                     }
                 )
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            logger.exception("Failed to get sync status for node %s", node_id)
+            return jsonify({"success": False, "error": "Internal server error"}), 500

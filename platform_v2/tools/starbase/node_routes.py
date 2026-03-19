@@ -113,7 +113,7 @@ def register_node_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error getting nodes: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/install.sh", methods=["GET"])
     def get_node_install_script():
@@ -421,7 +421,7 @@ def register_node_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error creating client package: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     def calculate_max_concurrent(ram_gb: float, cpu_cores: int, gpu_vram_gb: float = 0) -> int:
         """
@@ -453,6 +453,23 @@ def register_node_routes(bp, admin_required):
         for field in required:
             if not data.get(field):
                 return jsonify({"success": False, "error": f"{field} is required"}), 400
+
+        # Validate hardware fields if provided
+        if "ram_gb" in data and data["ram_gb"] is not None:
+            try:
+                ram = float(data["ram_gb"])
+            except (TypeError, ValueError):
+                return jsonify({"success": False, "error": "ram_gb must be a number"}), 400
+            if ram <= 0:
+                return jsonify({"success": False, "error": "ram_gb must be positive"}), 400
+
+        if "cpu_cores" in data and data["cpu_cores"] is not None:
+            try:
+                cores = int(data["cpu_cores"])
+            except (TypeError, ValueError):
+                return jsonify({"success": False, "error": "cpu_cores must be an integer"}), 400
+            if cores <= 0:
+                return jsonify({"success": False, "error": "cpu_cores must be positive"}), 400
 
         try:
             with get_db_cursor() as (conn, cur):
@@ -559,7 +576,7 @@ def register_node_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error registering node: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<node_id>/heartbeat", methods=["POST"])
     def node_heartbeat(node_id):
@@ -801,7 +818,7 @@ def register_node_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Heartbeat error: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<node_id>")
     @login_required
@@ -871,7 +888,7 @@ def register_node_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error getting node: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<node_id>", methods=["PUT"])
     @login_required
@@ -923,7 +940,7 @@ def register_node_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error updating node: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<node_id>", methods=["DELETE"])
     @login_required
@@ -949,7 +966,7 @@ def register_node_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error deleting node: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<node_id>/capabilities", methods=["POST"])
     def update_node_capabilities(node_id):
@@ -1003,7 +1020,7 @@ def register_node_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error updating capabilities: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/select", methods=["POST"])
     @login_required
@@ -1078,7 +1095,7 @@ def register_node_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error selecting node: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<node_id>/request-complete", methods=["POST"])
     def node_request_complete(node_id):
@@ -1133,7 +1150,7 @@ def register_node_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error completing request: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/stats")
     @login_required
@@ -1199,7 +1216,7 @@ def register_node_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error getting stats: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ============================================================================
     # NODE APPROVAL & MANAGEMENT - Phase 29+ Enhancement
@@ -1242,7 +1259,7 @@ def register_node_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error getting node status: {e}")
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<node_id>/approve", methods=["POST"])
     @login_required
@@ -1287,7 +1304,7 @@ def register_node_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error approving node: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<node_id>/reject", methods=["POST"])
     @login_required
@@ -1337,7 +1354,7 @@ def register_node_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error rejecting node: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<node_id>/test", methods=["POST"])
     @login_required
@@ -1411,19 +1428,20 @@ def register_node_routes(bp, admin_required):
                         }
                     )
                 except req.exceptions.ConnectionError as e:
+                    logger.error(f"Node connection failed: {e}")
                     return jsonify(
                         {
                             "success": True,
                             "node_id": node_id,
                             "reachable": False,
                             "latency_ms": None,
-                            "error": f"Connection failed: {str(e)}",
+                            "error": "Connection failed",
                         }
                     )
 
         except Exception as e:
             logger.error(f"Error testing node: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<node_id>/health-history", methods=["GET"])
     @login_required
@@ -1475,7 +1493,7 @@ def register_node_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error getting health history: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<node_id>/health")
     @login_required
@@ -1507,7 +1525,7 @@ def register_node_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error getting node health: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<node_id>/dispatch-test", methods=["POST"])
     @login_required
@@ -1554,7 +1572,7 @@ def register_node_routes(bp, admin_required):
             return jsonify({"success": False, "error": "Connection refused"}), 502
         except Exception as e:
             logger.error(f"Error dispatch-testing node: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ============================================================================
     # NODE STATION ASSIGNMENTS - Phase 31
@@ -1612,7 +1630,7 @@ def register_node_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error getting node stations: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<node_id>/stations", methods=["POST"])
     @login_required
@@ -1707,7 +1725,7 @@ def register_node_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error assigning node to station: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<node_id>/stations/<int:station_id>", methods=["PUT"])
     @login_required
@@ -1823,7 +1841,7 @@ def register_node_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error updating station assignment: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<node_id>/stations/<int:station_id>", methods=["DELETE"])
     @login_required
@@ -1870,7 +1888,7 @@ def register_node_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error removing node from station: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/stations/<int:station_id>/nodes", methods=["GET"])
     @login_required
@@ -1951,7 +1969,7 @@ def register_node_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error getting station nodes: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/stations/batch-nodes", methods=["POST"])
     @login_required
@@ -1999,7 +2017,7 @@ def register_node_routes(bp, admin_required):
                 return jsonify({"success": True, "stations": by_station})
         except Exception as e:
             logger.error(f"Error batch fetching nodes: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/stations/coverage", methods=["GET"])
     @login_required
@@ -2036,7 +2054,7 @@ def register_node_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error getting station coverage: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/select-for-station", methods=["POST"])
     @login_required
@@ -2090,4 +2108,4 @@ def register_node_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error selecting node for station: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500

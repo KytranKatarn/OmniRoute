@@ -258,7 +258,7 @@ def register_station_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error getting stations: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/modules/metadata", methods=["POST"])
     @login_required
@@ -369,7 +369,7 @@ def register_station_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error getting station detail: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     def check_ollama_status(host, port):
         """Check if Ollama is running and responsive"""
@@ -551,7 +551,7 @@ def register_station_routes(bp, admin_required):
             )
         except Exception as e:
             logger.error("action-metrics error for %s: %s", station_code, e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ---------------------------------------------------------------------------
     # Benchmark endpoints (Project #110)
@@ -575,7 +575,7 @@ def register_station_routes(bp, admin_required):
             return jsonify(result), status_code
         except Exception as e:
             logger.error("benchmark start error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/benchmarks/active")
     @login_required
@@ -687,7 +687,7 @@ def register_station_routes(bp, admin_required):
             return jsonify({"success": True, **data})
         except Exception as e:
             logger.error("benchmark get error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/benchmarks/<int:run_id>/skill-updates")
     @login_required
@@ -700,7 +700,7 @@ def register_station_routes(bp, admin_required):
             return jsonify({"success": True, **(data or {})})
         except Exception as e:
             logger.error("benchmark skill-updates error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/benchmarks/<int:run_id>/pick", methods=["POST"])
     @login_required
@@ -762,7 +762,7 @@ def register_station_routes(bp, admin_required):
             return jsonify({"success": True, "agent_name": agent_name})
         except Exception as e:
             logger.error("set_benchmark_pick error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/benchmarks/latest/<path:action_key>")
     @login_required
@@ -790,7 +790,7 @@ def register_station_routes(bp, admin_required):
             return jsonify({"success": True, **data})
         except Exception as e:
             logger.error("benchmark latest error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ---------------------------------------------------------------------------
     # Benchmark Recommendations
@@ -809,7 +809,7 @@ def register_station_routes(bp, admin_required):
             return jsonify({"success": True, "recommendations": recs})
         except Exception as e:
             logger.error("get recommendations error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/benchmarks/recommendations/generate", methods=["POST"])
     @login_required
@@ -830,7 +830,7 @@ def register_station_routes(bp, admin_required):
             )
         except Exception as e:
             logger.error("generate recommendations error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/benchmarks/recommendations/<int:rec_id>/resolve", methods=["POST"])
     @login_required
@@ -847,7 +847,7 @@ def register_station_routes(bp, admin_required):
             return jsonify(result), status_code
         except Exception as e:
             logger.error("resolve recommendation error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/benchmarks/station-summary")
     @login_required
@@ -860,7 +860,7 @@ def register_station_routes(bp, admin_required):
             return jsonify({"success": True, "stations": summaries})
         except Exception as e:
             logger.error("station summary error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/benchmarks/score-matrix")
     @login_required
@@ -873,7 +873,7 @@ def register_station_routes(bp, admin_required):
             return jsonify({"success": True, **matrix})
         except Exception as e:
             logger.error("score matrix error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/benchmarks/placement/generate", methods=["POST"])
     @login_required
@@ -886,7 +886,7 @@ def register_station_routes(bp, admin_required):
             return jsonify({"success": True, **plan})
         except Exception as e:
             logger.error("generate placement error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/benchmarks/placement/apply", methods=["POST"])
     @login_required
@@ -902,7 +902,7 @@ def register_station_routes(bp, admin_required):
             return jsonify(result), status_code
         except Exception as e:
             logger.error("apply placement error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/bridge/resources")
     @login_required
@@ -1076,7 +1076,7 @@ def register_station_routes(bp, admin_required):
             return jsonify({"success": True, **result})
         except Exception as e:
             logger.error("resources error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/stations/<station_code>/dispatch")
     @login_required
@@ -1158,7 +1158,7 @@ def register_station_routes(bp, admin_required):
                 )
         except Exception as e:
             logger.error(f"Error getting station metrics: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/stations/<station_code>/module-preview/<module_id>")
     @login_required
@@ -1539,7 +1539,7 @@ def register_station_routes(bp, admin_required):
 
         except Exception as e:
             logger.error("agent_profile error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # --- Agent Portrait Generation ---
 
@@ -1641,7 +1641,7 @@ def register_station_routes(bp, admin_required):
 
         except Exception as e:
             logger.error("generate_portrait error for agent %s: %s", agent_id, e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # --- Agent Memory CRUD ---
 
@@ -1709,7 +1709,7 @@ def register_station_routes(bp, admin_required):
             )
         except Exception as e:
             logger.error("get_agent_memories error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/agents/<int:agent_id>/memory", methods=["POST"])
     @login_required
@@ -1772,7 +1772,7 @@ def register_station_routes(bp, admin_required):
             )
         except Exception as e:
             logger.error("create_agent_memory error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/agents/<int:agent_id>/memory/<int:memory_id>", methods=["GET"])
     @login_required
@@ -1796,7 +1796,7 @@ def register_station_routes(bp, admin_required):
             return jsonify({"success": True, "data": dict(memory)})
         except Exception as e:
             logger.error("get_agent_memory error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/agents/<int:agent_id>/memory/<int:memory_id>", methods=["PUT"])
     @login_required
@@ -1888,7 +1888,7 @@ def register_station_routes(bp, admin_required):
             )
         except Exception as e:
             logger.error("update_agent_memory error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/agents/<int:agent_id>/memory/<int:memory_id>", methods=["DELETE"])
     @login_required
@@ -1933,7 +1933,7 @@ def register_station_routes(bp, admin_required):
             return jsonify({"success": True, "message": "Memory soft-deleted successfully"})
         except Exception as e:
             logger.error("delete_agent_memory error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/agents/<int:agent_id>/memory/<int:memory_id>/restore", methods=["POST"])
     @login_required
@@ -1978,7 +1978,7 @@ def register_station_routes(bp, admin_required):
             )
         except Exception as e:
             logger.error("restore_agent_memory error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # --- Agent Performance ---
 
@@ -2080,4 +2080,4 @@ def register_station_routes(bp, admin_required):
                 )
         except Exception as e:
             logger.error(f"Error getting work history for agent {agent_id}: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500

@@ -11,6 +11,7 @@ import subprocess
 import sys
 import time
 import logging
+from collections import deque
 from datetime import datetime
 from flask import jsonify, request
 from flask_login import current_user

@@ -244,16 +244,20 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
             <div class="sc-node-body">
                 <div class="sc-node-stats">
                     <div class="sc-stat">
-                        <span class="sc-stat-val">{{ node.cpu_cores or '?' }}</span>
-                        <span class="sc-stat-label">Cores</span>
+                        <span class="sc-stat-val" id="fleet-agents-{{ node.node_id }}">--</span>
+                        <span class="sc-stat-label">Agents</span>
                     </div>
                     <div class="sc-stat">
-                        <span class="sc-stat-val">{{ node.ram_gb or '?' }}</span>
+                        <span class="sc-stat-val" id="fleet-ram-{{ node.node_id }}">{{ node.ram_gb or '?' }}</span>
                         <span class="sc-stat-label">RAM GB</span>
                     </div>
                     <div class="sc-stat">
-                        <span class="sc-stat-val">{{ node.gpu_vram_gb or '--' }}</span>
+                        <span class="sc-stat-val" id="fleet-vram-{{ node.node_id }}">{{ node.gpu_vram_gb or '--' }}</span>
                         <span class="sc-stat-label">VRAM GB</span>
+                    </div>
+                    <div class="sc-stat">
+                        <span class="sc-stat-val" id="fleet-models-{{ node.node_id }}">--</span>
+                        <span class="sc-stat-label">Models</span>
                     </div>
                 </div>
             </div>

@@ -60,12 +60,18 @@ function loadDockedFleetStats() {
         .then(function(data) {
             if (!data || !data.success) return;
             (data.nodes || []).forEach(function(n) {
+                // Docked fleet strip
                 var agentEl = document.getElementById('dock-agents-' + n.node_id);
                 if (agentEl) _setLive(agentEl, n.agent_count, true);
                 var vramEl = document.getElementById('dock-vram-' + n.node_id);
                 if (vramEl) _setLive(vramEl, n.vram_used + '/' + n.vram_total + ' GB', true);
                 var ramEl = document.getElementById('dock-ram-' + n.node_id);
                 if (ramEl) _setLive(ramEl, n.ram_used + '/' + n.ram_total + ' GB', true);
+                // Fleet grid cards (same data)
+                _setLive(document.getElementById('fleet-agents-' + n.node_id), n.agent_count, true);
+                _setLive(document.getElementById('fleet-ram-' + n.node_id), n.ram_used + '/' + n.ram_total, true);
+                _setLive(document.getElementById('fleet-vram-' + n.node_id), n.vram_used + '/' + n.vram_total, true);
+                _setLive(document.getElementById('fleet-models-' + n.node_id), n.models_loaded, true);
             });
         })
         .catch(function(e) {

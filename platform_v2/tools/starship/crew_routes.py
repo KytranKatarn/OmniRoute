@@ -105,12 +105,17 @@ def register_crew_routes(bp, auth_decorator):
                 manifest.append(
                     {
                         "agent_id": a["agent_id"],
+                        "hub_agent_id": hub_data.get("id") or hub_data.get("agent_id"),
                         "name": a["name"],
+                        "display_name": a["full_name"] or a["name"],
                         "full_name": a["full_name"] or a["name"],
                         "title": a["title"] or "",
                         "model": agent_model,
                         "status": "active" if a["status"] == "active" else "idle",
+                        "shift_state": a.get("shift_state") or hub_data.get("shift_state", "active"),
                         "llm_status": llm_status,
+                        "llm_size_gb": hub_data.get("llm_size_gb", 0),
+                        "hardware": hub_data.get("hardware", "CPU"),
                         "station": codes[0] if codes else "UNASSIGNED",
                         "station_codes": codes,
                         "station_colors": colors,

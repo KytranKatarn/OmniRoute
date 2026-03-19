@@ -579,6 +579,171 @@
     border-top: 1px solid rgba(255,255,255,0.03);
 }
 
+/* Agent-executed proposal enhancements */
+.dp-proposal-agent {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.7rem;
+    color: var(--archie-cyan, #00d4ff);
+    margin-top: 4px;
+}
+
+.dp-proposal-agent-icon {
+    font-size: 0.75rem;
+    opacity: 0.7;
+}
+
+.dp-proposal-agent-name {
+    font-weight: 600;
+}
+
+.dp-proposal-agent-model {
+    color: var(--archie-text-muted);
+    font-style: italic;
+}
+
+.dp-proposal-review-badge {
+    display: inline-block;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    background: rgba(0, 255, 65, 0.12);
+    color: #00ff41;
+    border: 1px solid rgba(0, 255, 65, 0.25);
+    margin-left: 6px;
+}
+
+.dp-proposal-actions-inline {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.dp-proposal-actions-inline button {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 3px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    border: 1px solid;
+    background: transparent;
+    transition: background 0.15s, color 0.15s;
+}
+
+.dp-btn-approve {
+    color: #00ff41;
+    border-color: rgba(0, 255, 65, 0.4) !important;
+}
+.dp-btn-approve:hover {
+    background: rgba(0, 255, 65, 0.15);
+}
+
+.dp-btn-reject {
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.4) !important;
+}
+.dp-btn-reject:hover {
+    background: rgba(239, 68, 68, 0.15);
+}
+
+.dp-btn-retry {
+    color: #f59e0b;
+    border-color: rgba(245, 158, 11, 0.4) !important;
+}
+.dp-btn-retry:hover {
+    background: rgba(245, 158, 11, 0.15);
+}
+
+/* Diff view in detail panel */
+.dp-detail-agent-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: rgba(0, 212, 255, 0.04);
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    font-size: 0.8rem;
+}
+
+.dp-detail-agent-info .agent-label {
+    color: var(--archie-text-muted);
+    font-family: 'Antonio', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 0.7rem;
+}
+
+.dp-detail-agent-info .agent-value {
+    color: var(--archie-cyan, #00d4ff);
+    font-weight: 600;
+}
+
+.dp-detail-agent-info .agent-model {
+    color: var(--archie-text-muted);
+    font-size: 0.75rem;
+}
+
+.dp-detail-confidence {
+    margin-left: auto;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.75rem;
+}
+
+.dp-detail-diff {
+    padding: 0 16px 12px;
+}
+
+.dp-detail-diff-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--archie-text-muted);
+    cursor: pointer;
+}
+
+.dp-detail-diff-header:hover {
+    color: var(--archie-text-secondary);
+}
+
+.dp-diff-content {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--archie-border-default);
+    border-radius: 4px;
+    padding: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.dp-diff-line-add {
+    color: #00ff41;
+    background: rgba(0, 255, 65, 0.06);
+}
+
+.dp-diff-line-del {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.06);
+}
+
+.dp-diff-line-ctx {
+    color: var(--archie-text-muted);
+}
+
 /* Station Crew Panel — now uses shared station-ops.css */
 /* ENGINEERING station accent override */
 #engOpsTerminal {
@@ -905,7 +1070,20 @@
                 <span class="dp-severity" id="detailPriority">—</span>
                 <span class="dp-severity" id="detailRisk">—</span>
             </div>
+            <div id="detailAgentInfo" class="dp-detail-agent-info" style="display:none;">
+                <span class="agent-label">Agent:</span>
+                <span class="agent-value" id="detailAgentName">—</span>
+                <span class="agent-model" id="detailAgentModel"></span>
+                <span class="dp-detail-confidence" id="detailConfidence"></span>
+            </div>
             <div id="detailDescription" class="dp-detail-desc"></div>
+            <div id="detailDiff" class="dp-detail-diff" style="display:none;">
+                <div class="dp-detail-diff-header" onclick="toggleDiffView()">
+                    <span>DIFF VIEW</span>
+                    <span id="diffToggleIcon">&#9660;</span>
+                </div>
+                <div id="diffContent" class="dp-diff-content"></div>
+            </div>
             <div class="dp-detail-actions" id="detailActions"></div>
         </div>
     </div>
@@ -1829,7 +2007,10 @@ function renderProposals(proposals) {
         var card = document.createElement('div');
         card.className = 'dp-proposal-card';
         card.style.setProperty('--prop-accent', statusColors[p.status] || '#6b7280');
-        card.onclick = function() { showProposalDetail(p.id); };
+        card.onclick = function(e) {
+            if (e.target.tagName === 'BUTTON') return;
+            showProposalDetail(p.id);
+        };
 
         var id = document.createElement('span');
         id.className = 'dp-proposal-id';
@@ -1864,8 +2045,62 @@ function renderProposals(proposals) {
             meta.appendChild(pri);
         }
 
+        // Agent info row for agent-processed proposals
+        var agentName = p.agent_display_name || p.agent_code_name || (p.metadata && p.metadata.assigned_agent_name);
+        var agentModel = p.agent_model || (p.metadata && p.metadata.agent_model);
+        var hasReview = p.code_diff || (p.metadata && p.metadata.contractor_proposal);
+
+        if (agentName) {
+            var agentRow = document.createElement('div');
+            agentRow.className = 'dp-proposal-agent';
+            var icon = document.createElement('span');
+            icon.className = 'dp-proposal-agent-icon';
+            icon.textContent = '\u25C6';
+            agentRow.appendChild(icon);
+            var aname = document.createElement('span');
+            aname.className = 'dp-proposal-agent-name';
+            aname.textContent = agentName;
+            agentRow.appendChild(aname);
+            if (agentModel) {
+                var amodel = document.createElement('span');
+                amodel.className = 'dp-proposal-agent-model';
+                amodel.textContent = ' (' + agentModel + ')';
+                agentRow.appendChild(amodel);
+            }
+            if (hasReview) {
+                var reviewBadge = document.createElement('span');
+                reviewBadge.className = 'dp-proposal-review-badge';
+                reviewBadge.textContent = 'Ready for Review';
+                agentRow.appendChild(reviewBadge);
+            }
+            meta.appendChild(agentRow);
+        }
+
         info.appendChild(title);
         info.appendChild(meta);
+
+        // Inline action buttons for proposals with agent diffs ready for review
+        if (hasReview && ['pending', 'proposed', 'pending_approval', 'in_progress', 'agent_assigned'].indexOf(p.status) >= 0) {
+            var actionsRow = document.createElement('div');
+            actionsRow.className = 'dp-proposal-actions-inline';
+            var approveBtn = document.createElement('button');
+            approveBtn.className = 'dp-btn-approve';
+            approveBtn.textContent = 'Approve';
+            approveBtn.onclick = function(e) { e.stopPropagation(); proposalAction(p.id, 'approve'); };
+            var rejectBtn = document.createElement('button');
+            rejectBtn.className = 'dp-btn-reject';
+            rejectBtn.textContent = 'Reject';
+            rejectBtn.onclick = function(e) { e.stopPropagation(); proposalAction(p.id, 'reject'); };
+            var retryBtn = document.createElement('button');
+            retryBtn.className = 'dp-btn-retry';
+            retryBtn.textContent = 'Retry';
+            retryBtn.onclick = function(e) { e.stopPropagation(); proposalAction(p.id, 'retry'); };
+            actionsRow.appendChild(approveBtn);
+            actionsRow.appendChild(rejectBtn);
+            actionsRow.appendChild(retryBtn);
+            info.appendChild(actionsRow);
+        }
+
         card.appendChild(id);
         card.appendChild(info);
         el.appendChild(card);
@@ -1899,13 +2134,59 @@ function showProposalDetail(id) {
         riskEl.textContent = 'Risk: ' + (p.risk_level || '—');
         riskEl.className = 'dp-severity low';
 
+        // Agent info section
+        var agentInfoEl = document.getElementById('detailAgentInfo');
+        var agentName = p.agent_display_name || p.agent_code_name || (p.metadata && p.metadata.assigned_agent_name);
+        var agentModel = p.agent_model || (p.metadata && p.metadata.agent_model) || p.assigned_model;
+        var confidence = p.metadata && p.metadata.confidence;
+
+        if (agentName || p.assigned_agent_id) {
+            agentInfoEl.style.display = 'flex';
+            document.getElementById('detailAgentName').textContent = agentName || 'Agent #' + p.assigned_agent_id;
+            document.getElementById('detailAgentModel').textContent = agentModel ? '(' + agentModel + ')' : '';
+            var confEl = document.getElementById('detailConfidence');
+            if (confidence) {
+                confEl.textContent = 'Confidence: ' + Math.round(confidence * 100) + '%';
+                confEl.style.color = confidence >= 0.8 ? '#00ff41' : confidence >= 0.5 ? '#f59e0b' : '#ef4444';
+            } else {
+                confEl.textContent = '';
+            }
+        } else {
+            agentInfoEl.style.display = 'none';
+        }
+
         document.getElementById('detailDescription').textContent = p.description || 'No description';
+
+        // Diff view section
+        var diffSection = document.getElementById('detailDiff');
+        var diffContent = document.getElementById('diffContent');
+        var diffText = p.code_diff || (p.metadata && p.metadata.contractor_proposal) || '';
+
+        if (diffText) {
+            diffSection.style.display = 'block';
+            diffContent.textContent = '';
+            var lines = diffText.split('\n');
+            lines.forEach(function(line) {
+                var lineEl = document.createElement('div');
+                if (line.charAt(0) === '+' && line.charAt(1) !== '+') {
+                    lineEl.className = 'dp-diff-line-add';
+                } else if (line.charAt(0) === '-' && line.charAt(1) !== '-') {
+                    lineEl.className = 'dp-diff-line-del';
+                } else {
+                    lineEl.className = 'dp-diff-line-ctx';
+                }
+                lineEl.textContent = line;
+                diffContent.appendChild(lineEl);
+            });
+        } else {
+            diffSection.style.display = 'none';
+        }
 
         // Action buttons based on status
         var actions = document.getElementById('detailActions');
         actions.textContent = '';
 
-        if (['pending', 'proposed', 'pending_approval'].indexOf(p.status) >= 0) {
+        if (['pending', 'proposed', 'pending_approval', 'in_progress', 'agent_assigned'].indexOf(p.status) >= 0) {
             var approveBtn = document.createElement('button');
             approveBtn.className = 'dp-btn dp-btn-accent';
             approveBtn.textContent = 'Approve';
@@ -1919,6 +2200,14 @@ function showProposalDetail(id) {
             rejectBtn.textContent = 'Reject';
             rejectBtn.onclick = function() { proposalAction(id, 'reject'); };
             actions.appendChild(rejectBtn);
+
+            var retryBtn2 = document.createElement('button');
+            retryBtn2.className = 'dp-btn';
+            retryBtn2.style.borderColor = '#f59e0b';
+            retryBtn2.style.color = '#f59e0b';
+            retryBtn2.textContent = 'Retry';
+            retryBtn2.onclick = function() { proposalAction(id, 'retry'); };
+            actions.appendChild(retryBtn2);
         }
 
         if (p.status === 'approved') {
@@ -1961,6 +2250,18 @@ function proposalAction(id, action) {
 
 function closeDetail() {
     document.getElementById('proposalDetail').style.display = 'none';
+}
+
+function toggleDiffView() {
+    var content = document.getElementById('diffContent');
+    var icon = document.getElementById('diffToggleIcon');
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        icon.textContent = '\u25B2';
+    } else {
+        content.style.display = 'none';
+        icon.textContent = '\u25BC';
+    }
 }
 
 // ---- Sandbox Tab ----

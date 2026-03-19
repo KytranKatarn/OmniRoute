@@ -46,20 +46,22 @@ def list_proposals(status=None):
     try:
         conn = _get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        base_sql = """SELECT ip.id, ip.title, ip.description, ip.category,
+                       ip.priority, ip.status, ip.proposed_at, ip.proposed_by,
+                       ip.plan_steps, ip.metadata, ip.assigned_agent_id,
+                       ip.code_diff, ip.retry_count,
+                       a.display_name AS agent_display_name,
+                       a.name AS agent_code_name,
+                       a.assigned_model AS agent_model
+                FROM improvement_proposals ip
+                LEFT JOIN agents a ON a.id = ip.assigned_agent_id"""
         if status:
             cur.execute(
-                """SELECT id, title, description, category, priority, status,
-                       proposed_at, proposed_by, plan_steps, metadata
-                FROM improvement_proposals WHERE status = %s
-                ORDER BY proposed_at DESC""",
+                base_sql + " WHERE ip.status = %s ORDER BY ip.proposed_at DESC",
                 (status,),
             )
         else:
-            cur.execute(
-                """SELECT id, title, description, category, priority, status,
-                       proposed_at, proposed_by, plan_steps, metadata
-                FROM improvement_proposals ORDER BY proposed_at DESC"""
-            )
+            cur.execute(base_sql + " ORDER BY ip.proposed_at DESC")
         proposals = cur.fetchall()
         out = []
         for p in proposals:
@@ -90,7 +92,14 @@ def get_proposal(proposal_id):
     try:
         conn = _get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT * FROM improvement_proposals WHERE id = %s", (proposal_id,))
+        cur.execute(
+            """SELECT ip.*, a.display_name AS agent_display_name,
+                      a.name AS agent_code_name, a.assigned_model AS agent_model
+               FROM improvement_proposals ip
+               LEFT JOIN agents a ON a.id = ip.assigned_agent_id
+               WHERE ip.id = %s""",
+            (proposal_id,),
+        )
         proposal = cur.fetchone()
         if not proposal:
             return {"success": False, "error": "Proposal not found"}

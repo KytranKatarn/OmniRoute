@@ -628,8 +628,16 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        self.scheduler.add_job(
+            with_app_context(self._hourly_uncommitted_check),
+            trigger=IntervalTrigger(hours=1),
+            id="agent_uncommitted_check",
+            name="Agent Loop: Uncommitted Change Monitor",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 46 jobs")
+        logger.info("Agent loop started with 47 jobs")
 
     def _update_stock_prices(self):
         """Job #27: Refresh cached stock prices, check price alerts, and auto-scan watchlist every 5 minutes."""
@@ -4097,3 +4105,42 @@ class AgentLoop:
                         pass
         except Exception as e:
             logger.warning(f"Model state save failed: {e}")
+
+    def _hourly_uncommitted_check(self):
+        """Job #42: Monitor for uncommitted changes in the platform directory."""
+        import subprocess
+
+        try:
+            result = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd="/mnt/archie_brain",
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            lines = [l for l in result.stdout.strip().splitlines() if l.strip()]
+            if not lines:
+                logger.debug("Uncommitted change monitor: working directory clean")
+                return
+
+            modules = set()
+            for line in lines:
+                filepath = line[3:].strip().split(" -> ")[-1]  # handle renames
+                parts = filepath.split("/")
+                if parts[0] == "platform_v2" and len(parts) > 2 and parts[1] == "tools":
+                    modules.add(parts[2])
+                elif parts[0] == "ai_bridge":
+                    modules.add("ai_bridge")
+                elif parts[0] == "platform_v2":
+                    modules.add("app_core")
+                else:
+                    modules.add(parts[0])
+
+            logger.info(
+                "Uncommitted changes detected in %d modules: %s (%d files)",
+                len(modules),
+                ", ".join(sorted(modules)),
+                len(lines),
+            )
+        except Exception as e:
+            logger.warning(f"Uncommitted change monitor failed: {e}")

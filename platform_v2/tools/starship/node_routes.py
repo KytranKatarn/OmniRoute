@@ -544,6 +544,124 @@ def register_node_routes(bp, auth_decorator):
             }
         )
 
+    # ========================================================================
+    # FLEET-WIDE STATS (VRAM / RAM per node)
+    # ========================================================================
+
+    @bp.route("/api/fleet-stats")
+    @auth_decorator
+    def api_fleet_stats():
+        """Return live VRAM/RAM usage per node for fleet overview."""
+        user_id = current_user.id
+        try:
+            with get_db_cursor() as (conn, cur):
+                # All nodes visible to this user with hardware specs
+                cur.execute(
+                    """
+                    SELECT rn.id, rn.node_id, rn.node_name, rn.hostname, rn.port,
+                           rn.status, rn.is_active, rn.last_heartbeat,
+                           rn.ram_gb, rn.gpu_model, rn.gpu_vram_gb,
+                           rn.cpu_model, rn.cpu_cores, rn.deployment_mode,
+                           -- Latest heartbeat metrics (correlated subquery)
+                           hb.cpu_usage, hb.memory_usage, hb.gpu_usage, hb.current_load,
+                           -- Active agent count on this node
+                           (SELECT COUNT(*) FROM node_agents na
+                            WHERE na.node_id = rn.id AND na.status = 'active') AS agent_count,
+                           -- Loaded model count from node_ollama_models
+                           (SELECT COUNT(*) FROM node_ollama_models nom
+                            WHERE nom.node_id = rn.node_id AND nom.is_available = true) AS models_loaded
+                    FROM remote_nodes rn
+                    LEFT JOIN LATERAL (
+                        SELECT cpu_usage, memory_usage, gpu_usage, current_load
+                        FROM node_heartbeats nh
+                        WHERE nh.node_id = rn.id
+                        ORDER BY nh.created_at DESC
+                        LIMIT 1
+                    ) hb ON true
+                    WHERE rn.registered_by = %s OR rn.registered_by IS NULL
+                    ORDER BY rn.bridge_priority DESC, rn.node_name
+                    """,
+                    (user_id,),
+                )
+                nodes_raw = cur.fetchall()
+
+                # For VRAM used, sum model sizes from node_ollama_models
+                node_vram_used = {}
+                if nodes_raw:
+                    node_ids = [n["node_id"] for n in nodes_raw]
+                    cur.execute(
+                        """
+                        SELECT node_id, COALESCE(SUM(model_size_gb), 0) AS total_vram_used
+                        FROM node_ollama_models
+                        WHERE node_id = ANY(%s) AND is_available = true
+                        GROUP BY node_id
+                        """,
+                        (node_ids,),
+                    )
+                    for row in cur.fetchall():
+                        node_vram_used[row["node_id"]] = float(row["total_vram_used"])
+
+            nodes = []
+            for n in nodes_raw:
+                computed_status = _compute_node_status(n)
+                ram_total = float(n["ram_gb"]) if n["ram_gb"] else 0
+                vram_total = float(n["gpu_vram_gb"]) if n["gpu_vram_gb"] else 0
+                mem_pct = float(n["memory_usage"]) if n["memory_usage"] and computed_status != "offline" else 0
+                cpu_pct = float(n["cpu_usage"]) if n["cpu_usage"] and computed_status != "offline" else 0
+                gpu_pct = float(n["gpu_usage"]) if n["gpu_usage"] and computed_status != "offline" else 0
+
+                ram_used = round(ram_total * mem_pct / 100, 1) if ram_total else 0
+                vram_used = round(node_vram_used.get(n["node_id"], 0), 1)
+
+                nodes.append(
+                    {
+                        "node_id": n["node_id"],
+                        "node_name": n["node_name"],
+                        "hostname": n["hostname"],
+                        "status": computed_status,
+                        "deployment_mode": n["deployment_mode"],
+                        "ram_total": ram_total,
+                        "ram_used": ram_used,
+                        "vram_total": vram_total,
+                        "vram_used": vram_used,
+                        "agent_count": n["agent_count"] or 0,
+                        "models_loaded": n["models_loaded"] or 0,
+                        "cpu_usage": round(cpu_pct, 1),
+                        "gpu_usage": round(gpu_pct, 1),
+                        "gpu_model": n["gpu_model"],
+                        "cpu_model": n["cpu_model"],
+                        "cpu_cores": n["cpu_cores"],
+                    }
+                )
+
+            # Fleet totals
+            total_ram = sum(nd["ram_total"] for nd in nodes)
+            total_ram_used = sum(nd["ram_used"] for nd in nodes)
+            total_vram = sum(nd["vram_total"] for nd in nodes)
+            total_vram_used = sum(nd["vram_used"] for nd in nodes)
+            total_agents = sum(nd["agent_count"] for nd in nodes)
+            total_models = sum(nd["models_loaded"] for nd in nodes)
+
+            return jsonify(
+                {
+                    "success": True,
+                    "fleet_totals": {
+                        "node_count": len(nodes),
+                        "online_count": sum(1 for nd in nodes if nd["status"] != "offline"),
+                        "ram_total": round(total_ram, 1),
+                        "ram_used": round(total_ram_used, 1),
+                        "vram_total": round(total_vram, 1),
+                        "vram_used": round(total_vram_used, 1),
+                        "agent_count": total_agents,
+                        "models_loaded": total_models,
+                    },
+                    "nodes": nodes,
+                }
+            )
+        except Exception as e:
+            logger.error(f"Fleet stats error: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
     @bp.route("/api/nodes/<node_id>/disconnect", methods=["DELETE"])
     @auth_decorator
     def api_disconnect_node(node_id):

@@ -2,6 +2,7 @@ from flask import request, jsonify, redirect, session, render_template
 from flask_login import login_required, current_user
 import psycopg2.extras
 
+from rbac import require_permission, require_any_permission, Permission
 from . import google_work_suite_bp
 
 
@@ -128,6 +129,7 @@ def disconnect_account(account_id):
 
 @google_work_suite_bp.route("/api/labels/<int:account_id>")
 @login_required
+@require_permission(Permission.GOOGLE_EMAIL)
 def get_labels(account_id):
     from .services.google_api_service import get_gmail_client
 
@@ -177,6 +179,7 @@ def get_labels(account_id):
 
 @google_work_suite_bp.route("/api/inbox/<int:account_id>")
 @login_required
+@require_permission(Permission.GOOGLE_EMAIL)
 def get_inbox(account_id):
     from .services import get_inbox as svc_get_inbox
     from .services import sync_inbox as svc_sync_inbox
@@ -208,6 +211,7 @@ def get_inbox(account_id):
 
 @google_work_suite_bp.route("/api/email/<int:account_id>/<gmail_id>")
 @login_required
+@require_permission(Permission.GOOGLE_EMAIL)
 def get_email(account_id, gmail_id):
     from .services import get_email as svc_get_email
 
@@ -220,6 +224,7 @@ def get_email(account_id, gmail_id):
 
 @google_work_suite_bp.route("/api/email/<int:account_id>/<gmail_id>/read", methods=["POST"])
 @login_required
+@require_permission(Permission.GOOGLE_EMAIL)
 def mark_as_read(account_id, gmail_id):
     from .services.google_api_service import get_gmail_client
 
@@ -244,6 +249,7 @@ def mark_as_read(account_id, gmail_id):
 
 @google_work_suite_bp.route("/api/email/<int:account_id>/<gmail_id>", methods=["DELETE"])
 @login_required
+@require_permission(Permission.GOOGLE_EMAIL)
 def trash_email(account_id, gmail_id):
     from .services.google_api_service import get_gmail_client
 
@@ -268,6 +274,7 @@ def trash_email(account_id, gmail_id):
 
 @google_work_suite_bp.route("/api/email/send", methods=["POST"])
 @login_required
+@require_permission(Permission.GOOGLE_EMAIL)
 def send_email():
     from .services import send_email as svc_send_email
 
@@ -292,6 +299,7 @@ def send_email():
 
 @google_work_suite_bp.route("/api/email/sync/<int:account_id>", methods=["POST"])
 @login_required
+@require_permission(Permission.GOOGLE_EMAIL)
 def sync_inbox(account_id):
     from .services import sync_inbox as svc_sync_inbox
 
@@ -312,6 +320,7 @@ def sync_inbox(account_id):
 
 @google_work_suite_bp.route("/api/email/<int:account_id>/<gmail_id>/analyze", methods=["POST"])
 @login_required
+@require_permission(Permission.GOOGLE_EMAIL)
 def analyze_email_route(account_id, gmail_id):
     from .services.gmail_service import analyze_email
 
@@ -326,6 +335,7 @@ def analyze_email_route(account_id, gmail_id):
 
 @google_work_suite_bp.route("/api/email/<int:account_id>/analyze-batch", methods=["POST"])
 @login_required
+@require_permission(Permission.GOOGLE_EMAIL)
 def analyze_batch_route(account_id):
     from .services.gmail_service import analyze_batch
 
@@ -340,6 +350,7 @@ def analyze_batch_route(account_id):
 
 @google_work_suite_bp.route("/api/email/<int:account_id>/<gmail_id>/file-kb", methods=["POST"])
 @login_required
+@require_permission(Permission.GOOGLE_EMAIL)
 def file_to_kb_route(account_id, gmail_id):
     from .services.gmail_service import file_to_knowledge_base
 
@@ -354,6 +365,7 @@ def file_to_kb_route(account_id, gmail_id):
 
 @google_work_suite_bp.route("/api/email/<int:account_id>/bulk", methods=["POST"])
 @login_required
+@require_permission(Permission.GOOGLE_EMAIL)
 def bulk_operation_route(account_id):
     from .services.gmail_service import bulk_operation
 
@@ -378,6 +390,7 @@ def bulk_operation_route(account_id):
 
 @google_work_suite_bp.route("/api/rules/<int:account_id>")
 @login_required
+@require_permission(Permission.GOOGLE_EMAIL)
 def get_rules(account_id):
     from database import get_db_cursor
 
@@ -405,6 +418,7 @@ def get_rules(account_id):
 
 @google_work_suite_bp.route("/api/rules/<int:account_id>", methods=["POST"])
 @login_required
+@require_permission(Permission.GOOGLE_EMAIL)
 def create_rule(account_id):
     from database import get_db_cursor
 
@@ -437,6 +451,7 @@ def create_rule(account_id):
 
 @google_work_suite_bp.route("/api/rules/<int:account_id>/<int:rule_id>", methods=["DELETE"])
 @login_required
+@require_permission(Permission.GOOGLE_EMAIL)
 def delete_rule(account_id, rule_id):
     from database import get_db_cursor
 
@@ -459,6 +474,7 @@ def delete_rule(account_id, rule_id):
 
 @google_work_suite_bp.route("/api/calendar/<int:account_id>/events")
 @login_required
+@require_permission(Permission.GOOGLE_CALENDAR)
 def list_calendar_events(account_id):
     from .services.calendar_service import list_events
 
@@ -473,6 +489,7 @@ def list_calendar_events(account_id):
 
 @google_work_suite_bp.route("/api/calendar/<int:account_id>/events/<event_id>")
 @login_required
+@require_permission(Permission.GOOGLE_CALENDAR)
 def get_calendar_event(account_id, event_id):
     from .services.calendar_service import get_event
 
@@ -485,6 +502,7 @@ def get_calendar_event(account_id, event_id):
 
 @google_work_suite_bp.route("/api/calendar/<int:account_id>/events", methods=["POST"])
 @login_required
+@require_permission(Permission.GOOGLE_CALENDAR)
 def create_calendar_event(account_id):
     from .services.calendar_service import create_event
 
@@ -514,6 +532,7 @@ def create_calendar_event(account_id):
 
 @google_work_suite_bp.route("/api/calendar/<int:account_id>/events/<event_id>", methods=["PUT"])
 @login_required
+@require_permission(Permission.GOOGLE_CALENDAR)
 def update_calendar_event(account_id, event_id):
     from .services.calendar_service import update_event
 
@@ -529,6 +548,7 @@ def update_calendar_event(account_id, event_id):
 
 @google_work_suite_bp.route("/api/calendar/<int:account_id>/events/<event_id>", methods=["DELETE"])
 @login_required
+@require_permission(Permission.GOOGLE_CALENDAR)
 def delete_calendar_event(account_id, event_id):
     from .services.calendar_service import delete_event
 
@@ -543,6 +563,7 @@ def delete_calendar_event(account_id, event_id):
 
 @google_work_suite_bp.route("/api/calendar/<int:account_id>/calendars")
 @login_required
+@require_permission(Permission.GOOGLE_CALENDAR)
 def list_calendars(account_id):
     from .services.calendar_service import list_calendars as svc_list_calendars
 
@@ -560,6 +581,7 @@ def list_calendars(account_id):
 
 @google_work_suite_bp.route("/api/drive/<int:account_id>/files")
 @login_required
+@require_any_permission(Permission.GOOGLE_EMAIL, Permission.GOOGLE_CALENDAR)
 def list_drive_files(account_id):
     from .services.drive_service import list_files
 
@@ -574,6 +596,7 @@ def list_drive_files(account_id):
 
 @google_work_suite_bp.route("/api/drive/<int:account_id>/files/<file_id>")
 @login_required
+@require_any_permission(Permission.GOOGLE_EMAIL, Permission.GOOGLE_CALENDAR)
 def get_drive_file(account_id, file_id):
     from .services.drive_service import get_file
 
@@ -586,6 +609,7 @@ def get_drive_file(account_id, file_id):
 
 @google_work_suite_bp.route("/api/drive/<int:account_id>/files", methods=["POST"])
 @login_required
+@require_any_permission(Permission.GOOGLE_EMAIL, Permission.GOOGLE_CALENDAR)
 def create_drive_file(account_id):
     from .services.drive_service import create_file, upload_file
 
@@ -612,6 +636,7 @@ def create_drive_file(account_id):
 
 @google_work_suite_bp.route("/api/drive/<int:account_id>/files/<file_id>/share", methods=["POST"])
 @login_required
+@require_any_permission(Permission.GOOGLE_EMAIL, Permission.GOOGLE_CALENDAR)
 def share_drive_file(account_id, file_id):
     from .services.drive_service import share_file
 

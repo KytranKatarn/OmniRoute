@@ -23,7 +23,6 @@ STUB_TOOLS = [
     "automation_services",
     "book_builder",
     "cursor_integration",
-    "google_workspace",
     "picture_generation",
     "site_manager",
     "stock_bot",

@@ -12,6 +12,7 @@ from . import media_hub_bp
 from .encryption import encrypt_api_key, decrypt_api_key, get_key_source
 from .discovery import discover_all_api_keys
 from .services import get_service_client
+from database import get_db_cursor
 import logging
 import traceback
 import time
@@ -113,104 +114,80 @@ def enrich_items_with_tmdb(items: list) -> list:
     return enriched
 
 
-def get_db():
-    """Get database connection"""
-    from database import get_db as db_get_db
-
-    return db_get_db()
-
-
 def get_service_config(service_type: str) -> dict:
     """Get service configuration from database"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT id, service_type, name, host, port, use_ssl, api_key_encrypted,
-                   is_primary, is_enabled, config_path, health_status
-            FROM media_hub_services
-            WHERE service_type = %s AND is_enabled = TRUE
-            ORDER BY is_primary DESC
-            LIMIT 1
-        """,
-            (service_type,),
-        )
-        row = cursor.fetchone()
-        cursor.close()
+        with get_db_cursor(cursor_factory=None, commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT id, service_type, name, host, port, use_ssl, api_key_encrypted,
+                       is_primary, is_enabled, config_path, health_status
+                FROM media_hub_services
+                WHERE service_type = %s AND is_enabled = TRUE
+                ORDER BY is_primary DESC
+                LIMIT 1
+            """,
+                (service_type,),
+            )
+            row = cur.fetchone()
 
-        if row:
-            return {
-                "id": row[0],
-                "service_type": row[1],
-                "name": row[2],
-                "host": row[3],
-                "port": row[4],
-                "use_ssl": row[5],
-                "api_key": decrypt_api_key(row[6]) if row[6] else None,
-                "is_primary": row[7],
-                "is_enabled": row[8],
-                "config_path": row[9],
-                "health_status": row[10],
-            }
-    except Exception as e:
-        logger.error(f"Error getting service config: {e}")
-
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
-    return None
-
-
-def get_all_services() -> list:
-    """Get all service configurations"""
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT id, service_type, name, host, port, use_ssl, api_key_encrypted,
-                   is_primary, is_enabled, config_path, health_status, health_message,
-                   last_health_check
-            FROM media_hub_services
-            ORDER BY service_type
-        """
-        )
-        rows = cursor.fetchall()
-        cursor.close()
-
-        services = []
-        for row in rows:
-            services.append(
-                {
+            if row:
+                return {
                     "id": row[0],
                     "service_type": row[1],
                     "name": row[2],
                     "host": row[3],
                     "port": row[4],
                     "use_ssl": row[5],
-                    "has_api_key": row[6] is not None,
+                    "api_key": decrypt_api_key(row[6]) if row[6] else None,
                     "is_primary": row[7],
                     "is_enabled": row[8],
                     "config_path": row[9],
                     "health_status": row[10],
-                    "health_message": row[11],
-                    "last_health_check": row[12].isoformat() if row[12] else None,
                 }
+    except Exception as e:
+        logger.error(f"Error getting service config: {e}")
+    return None
+
+
+def get_all_services() -> list:
+    """Get all service configurations"""
+    try:
+        with get_db_cursor(cursor_factory=None, commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT id, service_type, name, host, port, use_ssl, api_key_encrypted,
+                       is_primary, is_enabled, config_path, health_status, health_message,
+                       last_health_check
+                FROM media_hub_services
+                ORDER BY service_type
+            """
             )
-        return services
+            rows = cur.fetchall()
+
+            services = []
+            for row in rows:
+                services.append(
+                    {
+                        "id": row[0],
+                        "service_type": row[1],
+                        "name": row[2],
+                        "host": row[3],
+                        "port": row[4],
+                        "use_ssl": row[5],
+                        "has_api_key": row[6] is not None,
+                        "is_primary": row[7],
+                        "is_enabled": row[8],
+                        "config_path": row[9],
+                        "health_status": row[10],
+                        "health_message": row[11],
+                        "last_health_check": row[12].isoformat() if row[12] else None,
+                    }
+                )
+            return services
     except Exception as e:
         logger.error(f"Error getting services: {e}")
         return []
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
 
 
 def get_primary_media_server():
@@ -299,46 +276,45 @@ def index():
 def api_health():
     """Health check endpoint — queries real service status from DB"""
     try:
-        conn = get_db()
-        cur = conn.cursor()
-        cur.execute(
-            """SELECT service_type, health_status, health_message, last_health_check
-               FROM media_hub_services WHERE is_enabled = true"""
-        )
-        columns = [desc[0] for desc in cur.description] if cur.description else []
-        services = [dict(zip(columns, row)) for row in cur.fetchall()]
+        with get_db_cursor(cursor_factory=None, commit=False) as (conn, cur):
+            cur.execute(
+                """SELECT service_type, health_status, health_message, last_health_check
+                   FROM media_hub_services WHERE is_enabled = true"""
+            )
+            columns = [desc[0] for desc in cur.description] if cur.description else []
+            services = [dict(zip(columns, row)) for row in cur.fetchall()]
 
-        if not services:
+            if not services:
+                return jsonify(
+                    {
+                        "module": "media_hub",
+                        "status": "active",
+                        "healthy": True,
+                        "message": "No services configured",
+                        "services": [],
+                    }
+                )
+
+            unhealthy = [s for s in services if s["health_status"] != "healthy"]
+            healthy = len(unhealthy) == 0
+            service_summary = [
+                {
+                    "type": s["service_type"],
+                    "status": s["health_status"],
+                    "message": s["health_message"],
+                }
+                for s in services
+            ]
+
             return jsonify(
                 {
                     "module": "media_hub",
                     "status": "active",
-                    "healthy": True,
-                    "message": "No services configured",
-                    "services": [],
+                    "healthy": healthy,
+                    "message": f"{len(services) - len(unhealthy)}/{len(services)} services healthy",
+                    "services": service_summary,
                 }
             )
-
-        unhealthy = [s for s in services if s["health_status"] != "healthy"]
-        healthy = len(unhealthy) == 0
-        service_summary = [
-            {
-                "type": s["service_type"],
-                "status": s["health_status"],
-                "message": s["health_message"],
-            }
-            for s in services
-        ]
-
-        return jsonify(
-            {
-                "module": "media_hub",
-                "status": "active",
-                "healthy": healthy,
-                "message": f"{len(services) - len(unhealthy)}/{len(services)} services healthy",
-                "services": service_summary,
-            }
-        )
     except Exception as e:
         return jsonify(
             {
@@ -1365,74 +1341,69 @@ def api_add_service():
         # Encrypt API key if provided
         api_key_encrypted = encrypt_api_key(api_key) if api_key else None
 
-        conn = get_db()
-        cursor = conn.cursor()
-
-        # Check if service exists
-        cursor.execute(
-            "SELECT id FROM media_hub_services WHERE service_type = %s AND host = %s AND port = %s",
-            (service_type, host, port),
-        )
-        existing = cursor.fetchone()
-
-        if existing:
-            # Update existing
-            cursor.execute(
-                """
-                UPDATE media_hub_services SET
-                    name = COALESCE(%s, name),
-                    use_ssl = %s,
-                    api_key_encrypted = COALESCE(%s, api_key_encrypted),
-                    is_primary = %s,
-                    is_enabled = %s,
-                    config_path = COALESCE(%s, config_path),
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = %s
-            """,
-                (
-                    name,
-                    use_ssl,
-                    api_key_encrypted,
-                    is_primary,
-                    is_enabled,
-                    config_path,
-                    existing[0],
-                ),
+        with get_db_cursor(cursor_factory=None, commit=True) as (conn, cur):
+            # Check if service exists
+            cur.execute(
+                "SELECT id FROM media_hub_services WHERE service_type = %s AND host = %s AND port = %s",
+                (service_type, host, port),
             )
-            service_id = existing[0]
-        else:
-            # Insert new
-            cursor.execute(
-                """
-                INSERT INTO media_hub_services
-                (service_type, name, host, port, use_ssl, api_key_encrypted, is_primary, is_enabled, config_path)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
-            """,
-                (
-                    service_type,
-                    name or service_type.title(),
-                    host,
-                    port,
-                    use_ssl,
-                    api_key_encrypted,
-                    is_primary,
-                    is_enabled,
-                    config_path,
-                ),
+            existing = cur.fetchone()
+
+            if existing:
+                # Update existing
+                cur.execute(
+                    """
+                    UPDATE media_hub_services SET
+                        name = COALESCE(%s, name),
+                        use_ssl = %s,
+                        api_key_encrypted = COALESCE(%s, api_key_encrypted),
+                        is_primary = %s,
+                        is_enabled = %s,
+                        config_path = COALESCE(%s, config_path),
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                """,
+                    (
+                        name,
+                        use_ssl,
+                        api_key_encrypted,
+                        is_primary,
+                        is_enabled,
+                        config_path,
+                        existing[0],
+                    ),
+                )
+                service_id = existing[0]
+            else:
+                # Insert new
+                cur.execute(
+                    """
+                    INSERT INTO media_hub_services
+                    (service_type, name, host, port, use_ssl, api_key_encrypted, is_primary, is_enabled, config_path)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                """,
+                    (
+                        service_type,
+                        name or service_type.title(),
+                        host,
+                        port,
+                        use_ssl,
+                        api_key_encrypted,
+                        is_primary,
+                        is_enabled,
+                        config_path,
+                    ),
+                )
+                service_id = cur.fetchone()[0]
+
+            return jsonify(
+                {
+                    "success": True,
+                    "service_id": service_id,
+                    "message": f"{service_type} configuration saved",
+                }
             )
-            service_id = cursor.fetchone()[0]
-
-        conn.commit()
-        cursor.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "service_id": service_id,
-                "message": f"{service_type} configuration saved",
-            }
-        )
     except Exception as e:
         logger.error(f"Error saving service: {e}")
         traceback.print_exc()
@@ -1452,38 +1423,33 @@ def api_discover_services():
         discovered = discover_all_api_keys()
         saved_count = 0
 
-        conn = get_db()
-        cursor = conn.cursor()
+        with get_db_cursor(cursor_factory=None, commit=True) as (conn, cur):
+            for service_type, info in discovered.items():
+                if info["found"] and info["api_key"]:
+                    # Encrypt the discovered API key
+                    api_key_encrypted = encrypt_api_key(info["api_key"])
 
-        for service_type, info in discovered.items():
-            if info["found"] and info["api_key"]:
-                # Encrypt the discovered API key
-                api_key_encrypted = encrypt_api_key(info["api_key"])
-
-                # Update or insert
-                cursor.execute(
-                    """
-                    INSERT INTO media_hub_services
-                    (service_type, name, host, port, use_ssl, api_key_encrypted, config_path)
-                    VALUES (%s, %s, %s, %s, FALSE, %s, %s)
-                    ON CONFLICT (service_type, host, port) DO UPDATE SET
-                        api_key_encrypted = EXCLUDED.api_key_encrypted,
-                        config_path = EXCLUDED.config_path,
-                        updated_at = CURRENT_TIMESTAMP
-                """,
-                    (
-                        service_type,
-                        service_type.title(),
-                        MEDIA_HOST,
-                        info["port"],
-                        api_key_encrypted,
-                        info["config_path"],
-                    ),
-                )
-                saved_count += 1
-
-        conn.commit()
-        cursor.close()
+                    # Update or insert
+                    cur.execute(
+                        """
+                        INSERT INTO media_hub_services
+                        (service_type, name, host, port, use_ssl, api_key_encrypted, config_path)
+                        VALUES (%s, %s, %s, %s, FALSE, %s, %s)
+                        ON CONFLICT (service_type, host, port) DO UPDATE SET
+                            api_key_encrypted = EXCLUDED.api_key_encrypted,
+                            config_path = EXCLUDED.config_path,
+                            updated_at = CURRENT_TIMESTAMP
+                    """,
+                        (
+                            service_type,
+                            service_type.title(),
+                            MEDIA_HOST,
+                            info["port"],
+                            api_key_encrypted,
+                            info["config_path"],
+                        ),
+                    )
+                    saved_count += 1
 
         # Build response without exposing actual keys
         results = {}
@@ -1507,29 +1473,22 @@ def api_discover_services():
         logger.error(f"Error discovering services: {e}")
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
 
 
 @media_hub_bp.route("/api/settings/test/<int:service_id>", methods=["POST"])
 def api_test_service(service_id):
     """Test connection to a specific service"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT service_type, host, port, use_ssl, api_key_encrypted
-            FROM media_hub_services WHERE id = %s
-        """,
-            (service_id,),
-        )
-        row = cursor.fetchone()
-        cursor.close()
+        # Read service config
+        with get_db_cursor(cursor_factory=None, commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT service_type, host, port, use_ssl, api_key_encrypted
+                FROM media_hub_services WHERE id = %s
+            """,
+                (service_id,),
+            )
+            row = cur.fetchone()
 
         if not row:
             return jsonify({"success": False, "error": "Service not found"}), 404
@@ -1545,24 +1504,21 @@ def api_test_service(service_id):
         is_healthy = client.test_connection()
 
         # Update health status in database
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            UPDATE media_hub_services SET
-                health_status = %s,
-                health_message = %s,
-                last_health_check = CURRENT_TIMESTAMP
-            WHERE id = %s
-        """,
-            (
-                "healthy" if is_healthy else "unhealthy",
-                "Connection successful" if is_healthy else "Connection failed",
-                service_id,
-            ),
-        )
-        conn.commit()
-        cursor.close()
+        with get_db_cursor(cursor_factory=None, commit=True) as (conn, cur):
+            cur.execute(
+                """
+                UPDATE media_hub_services SET
+                    health_status = %s,
+                    health_message = %s,
+                    last_health_check = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """,
+                (
+                    "healthy" if is_healthy else "unhealthy",
+                    "Connection successful" if is_healthy else "Connection failed",
+                    service_id,
+                ),
+            )
 
         return jsonify(
             {
@@ -1574,90 +1530,64 @@ def api_test_service(service_id):
     except Exception as e:
         logger.error(f"Error testing service: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
 
 
 @media_hub_bp.route("/api/settings/services/<int:service_id>", methods=["DELETE"])
 def api_delete_service(service_id):
     """Delete a service configuration"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute(
-            "DELETE FROM media_hub_services WHERE id = %s RETURNING service_type",
-            (service_id,),
-        )
-        deleted = cursor.fetchone()
-        conn.commit()
-        cursor.close()
+        with get_db_cursor(cursor_factory=None, commit=True) as (conn, cur):
+            cur.execute(
+                "DELETE FROM media_hub_services WHERE id = %s RETURNING service_type",
+                (service_id,),
+            )
+            deleted = cur.fetchone()
 
-        if deleted:
-            return jsonify({"success": True, "message": f"{deleted[0]} deleted"})
-        else:
-            return jsonify({"success": False, "error": "Service not found"}), 404
+            if deleted:
+                return jsonify({"success": True, "message": f"{deleted[0]} deleted"})
+            else:
+                return jsonify({"success": False, "error": "Service not found"}), 404
     except Exception as e:
         logger.error(f"Error deleting service: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
 
 
 @media_hub_bp.route("/api/settings/set-primary/<int:service_id>", methods=["POST"])
 def api_set_primary_server(service_id):
     """Set a service as the primary media server"""
     try:
-        conn = get_db()
-        cursor = conn.cursor()
+        with get_db_cursor(cursor_factory=None, commit=True) as (conn, cur):
+            # Get service type
+            cur.execute("SELECT service_type FROM media_hub_services WHERE id = %s", (service_id,))
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"success": False, "error": "Service not found"}), 404
 
-        # Get service type
-        cursor.execute("SELECT service_type FROM media_hub_services WHERE id = %s", (service_id,))
-        row = cursor.fetchone()
-        if not row:
-            return jsonify({"success": False, "error": "Service not found"}), 404
+            service_type = row[0]
+            if service_type not in ("plex", "jellyfin"):
+                return (
+                    jsonify({"success": False, "error": "Only Plex or Jellyfin can be primary"}),
+                    400,
+                )
 
-        service_type = row[0]
-        if service_type not in ("plex", "jellyfin"):
-            return (
-                jsonify({"success": False, "error": "Only Plex or Jellyfin can be primary"}),
-                400,
+            # Unset all other primaries for media servers
+            cur.execute(
+                """
+                UPDATE media_hub_services SET is_primary = FALSE
+                WHERE service_type IN ('plex', 'jellyfin')
+            """
             )
 
-        # Unset all other primaries for media servers
-        cursor.execute(
-            """
-            UPDATE media_hub_services SET is_primary = FALSE
-            WHERE service_type IN ('plex', 'jellyfin')
-        """
-        )
+            # Set this one as primary
+            cur.execute(
+                "UPDATE media_hub_services SET is_primary = TRUE WHERE id = %s",
+                (service_id,),
+            )
 
-        # Set this one as primary
-        cursor.execute(
-            "UPDATE media_hub_services SET is_primary = TRUE WHERE id = %s",
-            (service_id,),
-        )
-
-        conn.commit()
-        cursor.close()
-
-        return jsonify({"success": True, "message": f"{service_type} set as primary media server"})
+            return jsonify({"success": True, "message": f"{service_type} set as primary media server"})
     except Exception as e:
         logger.error(f"Error setting primary: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
 
 
 # =============================================================================

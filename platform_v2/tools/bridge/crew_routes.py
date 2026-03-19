@@ -1069,34 +1069,73 @@ def register_crew_routes(bp, admin_required):
                              AND (rn.last_heartbeat > NOW() - INTERVAL '2 minutes')"""
                     )
                     for node in ncur.fetchall():
+                        import requests as _req
+
+                        node_url = f"http://{node['hostname']}:{node['port']}"
+                        vram_total = float(node["gpu_vram_gb"]) if node["gpu_vram_gb"] else 0
+                        ram_total = float(node["ram_gb"]) if node["ram_gb"] else 0
+
                         node_cap = {
                             "node_id": node["node_id"],
                             "node_name": node["node_name"],
                             "gpu_model": node["gpu_model"],
-                            "gpu_vram_gb": float(node["gpu_vram_gb"]) if node["gpu_vram_gb"] else 0,
-                            "ram_gb": float(node["ram_gb"]) if node["ram_gb"] else 0,
+                            "gpu_vram_gb": vram_total,
+                            "gpu_vram_used_gb": 0,
+                            "gpu_vram_free_gb": vram_total,
+                            "ram_gb": ram_total,
+                            "ram_used_gb": 0,
+                            "ram_free_gb": ram_total,
                             "cpu_cores": node["cpu_cores"] or 0,
                             "agent_count": node["agent_count"],
-                            "models": [],
+                            "models_installed": [],
+                            "models_loaded": [],
+                            "models_loaded_count": 0,
+                            "models_installed_count": 0,
                         }
-                        # Fetch loaded models from node Ollama
-                        try:
-                            import requests as _req
 
-                            olresp = _req.get(
-                                f"http://{node['hostname']}:{node['port']}/api/tags",
-                                timeout=3,
-                            )
-                            if olresp.status_code == 200:
-                                for m in olresp.json().get("models", []):
-                                    node_cap["models"].append(
+                        # Fetch installed models (/api/tags)
+                        try:
+                            tags_resp = _req.get(f"{node_url}/api/tags", timeout=3)
+                            if tags_resp.status_code == 200:
+                                for m in tags_resp.json().get("models", []):
+                                    node_cap["models_installed"].append(
                                         {
                                             "name": m["name"],
                                             "size_gb": round(m.get("size", 0) / 1e9, 1),
                                         }
                                     )
+                                node_cap["models_installed_count"] = len(node_cap["models_installed"])
                         except Exception:
                             pass
+
+                        # Fetch loaded models (/api/ps) — live VRAM/RAM usage
+                        try:
+                            ps_resp = _req.get(f"{node_url}/api/ps", timeout=3)
+                            if ps_resp.status_code == 200:
+                                vram_used = 0
+                                ram_used = 0
+                                for m in ps_resp.json().get("models", []):
+                                    size_vram = m.get("size_vram", 0)
+                                    size_total = m.get("size", 0)
+                                    size_ram = size_total - size_vram
+                                    vram_used += size_vram
+                                    ram_used += size_ram
+                                    node_cap["models_loaded"].append(
+                                        {
+                                            "name": m["name"],
+                                            "size_gb": round(size_total / 1e9, 1),
+                                            "vram_gb": round(size_vram / 1e9, 1),
+                                            "ram_gb": round(size_ram / 1e9, 1),
+                                        }
+                                    )
+                                node_cap["gpu_vram_used_gb"] = round(vram_used / 1e9, 1)
+                                node_cap["gpu_vram_free_gb"] = round(vram_total - vram_used / 1e9, 1)
+                                node_cap["ram_used_gb"] = round(ram_used / 1e9, 1)
+                                node_cap["ram_free_gb"] = round(ram_total - ram_used / 1e9, 1)
+                                node_cap["models_loaded_count"] = len(node_cap["models_loaded"])
+                        except Exception:
+                            pass
+
                         node_capacities.append(node_cap)
             except Exception as nc_err:
                 logger.debug(f"Node capacity fetch failed: {nc_err}")

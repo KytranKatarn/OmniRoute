@@ -8992,50 +8992,78 @@ function renderCrewManifest(crew, capacity, nodeCapacities) {
                 header.appendChild(hCount);
                 nodeBar.appendChild(header);
 
-                // GPU row
+                // GPU VRAM bar
                 if (nc.gpu_model) {
                     var gpuRow = document.createElement('div');
-                    gpuRow.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:0.7rem;';
-                    var gpuLabel = document.createElement('span');
-                    gpuLabel.style.cssText = 'color:rgba(255,255,255,0.5);width:50px;';
-                    gpuLabel.textContent = 'GPU';
-                    var gpuName = document.createElement('span');
-                    gpuName.style.color = '#22d3ee';
-                    gpuName.textContent = nc.gpu_model;
-                    var gpuVram = document.createElement('span');
-                    gpuVram.style.cssText = 'margin-left:auto;color:rgba(255,255,255,0.4);';
-                    gpuVram.textContent = (nc.gpu_vram_gb || 0) + ' GB VRAM';
-                    gpuRow.appendChild(gpuLabel);
-                    gpuRow.appendChild(gpuName);
-                    gpuRow.appendChild(gpuVram);
+                    gpuRow.style.cssText = 'margin-bottom:6px;';
+                    var gpuHeader = document.createElement('div');
+                    gpuHeader.style.cssText = 'display:flex;justify-content:space-between;font-size:0.65rem;margin-bottom:2px;';
+                    var gpuLbl = document.createElement('span');
+                    gpuLbl.style.color = 'rgba(255,255,255,0.5)';
+                    gpuLbl.textContent = 'GPU VRAM \u2014 ' + nc.gpu_model;
+                    var gpuStats = document.createElement('span');
+                    gpuStats.style.color = '#22d3ee';
+                    gpuStats.textContent = (nc.gpu_vram_used_gb || 0) + ' / ' + (nc.gpu_vram_gb || 0) + ' GB';
+                    gpuHeader.appendChild(gpuLbl);
+                    gpuHeader.appendChild(gpuStats);
+                    gpuRow.appendChild(gpuHeader);
+                    var gpuTrack = document.createElement('div');
+                    gpuTrack.style.cssText = 'height:6px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;';
+                    var gpuFill = document.createElement('div');
+                    var gpuPct = nc.gpu_vram_gb > 0 ? Math.round((nc.gpu_vram_used_gb / nc.gpu_vram_gb) * 100) : 0;
+                    gpuFill.style.cssText = 'height:100%;border-radius:3px;background:linear-gradient(90deg,#22d3ee,#06b6d4);width:' + gpuPct + '%;transition:width 0.5s;';
+                    gpuTrack.appendChild(gpuFill);
+                    gpuRow.appendChild(gpuTrack);
                     nodeBar.appendChild(gpuRow);
                 }
 
-                // RAM row
+                // RAM bar
                 var ramRow = document.createElement('div');
-                ramRow.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:0.7rem;';
-                var ramLabel = document.createElement('span');
-                ramLabel.style.cssText = 'color:rgba(255,255,255,0.5);width:50px;';
-                ramLabel.textContent = 'RAM';
-                var ramVal = document.createElement('span');
-                ramVal.style.color = '#4ade80';
-                ramVal.textContent = (nc.ram_gb || 0) + ' GB';
-                var cpuVal = document.createElement('span');
-                cpuVal.style.cssText = 'margin-left:auto;color:rgba(255,255,255,0.4);';
-                cpuVal.textContent = (nc.cpu_cores || 0) + ' cores';
-                ramRow.appendChild(ramLabel);
-                ramRow.appendChild(ramVal);
-                ramRow.appendChild(cpuVal);
+                ramRow.style.cssText = 'margin-bottom:6px;';
+                var ramHeader = document.createElement('div');
+                ramHeader.style.cssText = 'display:flex;justify-content:space-between;font-size:0.65rem;margin-bottom:2px;';
+                var ramLbl = document.createElement('span');
+                ramLbl.style.color = 'rgba(255,255,255,0.5)';
+                ramLbl.textContent = 'RAM \u2014 ' + (nc.cpu_cores || 0) + ' cores';
+                var ramStats = document.createElement('span');
+                ramStats.style.color = '#4ade80';
+                ramStats.textContent = (nc.ram_used_gb || 0) + ' / ' + (nc.ram_gb || 0) + ' GB';
+                ramHeader.appendChild(ramLbl);
+                ramHeader.appendChild(ramStats);
+                ramRow.appendChild(ramHeader);
+                var ramTrack = document.createElement('div');
+                ramTrack.style.cssText = 'height:6px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;';
+                var ramFill = document.createElement('div');
+                var ramPct = nc.ram_gb > 0 ? Math.round((nc.ram_used_gb / nc.ram_gb) * 100) : 0;
+                ramFill.style.cssText = 'height:100%;border-radius:3px;background:linear-gradient(90deg,#4ade80,#22c55e);width:' + ramPct + '%;transition:width 0.5s;';
+                ramTrack.appendChild(ramFill);
+                ramRow.appendChild(ramTrack);
                 nodeBar.appendChild(ramRow);
 
-                // Model badges
-                if (nc.models && nc.models.length > 0) {
+                // Loaded vs installed models
+                var modHeader = document.createElement('div');
+                modHeader.style.cssText = 'display:flex;justify-content:space-between;font-size:0.65rem;margin-bottom:4px;';
+                var modLbl = document.createElement('span');
+                modLbl.style.color = 'rgba(255,255,255,0.5)';
+                modLbl.textContent = 'Models: ' + (nc.models_loaded_count || 0) + ' loaded / ' + (nc.models_installed_count || 0) + ' installed';
+                modHeader.appendChild(modLbl);
+                nodeBar.appendChild(modHeader);
+
+                // Model badges — loaded glow, installed dim
+                var loadedNames = {};
+                (nc.models_loaded || []).forEach(function(m) { loadedNames[m.name] = m; });
+                if (nc.models_installed && nc.models_installed.length > 0) {
                     var modRow = document.createElement('div');
-                    modRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;';
-                    nc.models.forEach(function(m) {
+                    modRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;';
+                    nc.models_installed.forEach(function(m) {
+                        var isLoaded = !!loadedNames[m.name];
                         var badge = document.createElement('span');
-                        badge.style.cssText = 'padding:2px 6px;border-radius:3px;font-size:0.6rem;font-family:IBM Plex Mono,monospace;background:rgba(34,211,238,0.08);border:1px solid rgba(34,211,238,0.2);color:#22d3ee;';
+                        badge.style.cssText = 'padding:2px 6px;border-radius:3px;font-size:0.6rem;font-family:IBM Plex Mono,monospace;' +
+                            (isLoaded
+                                ? 'background:rgba(34,211,238,0.15);border:1px solid rgba(34,211,238,0.4);color:#22d3ee;text-shadow:0 0 6px rgba(34,211,238,0.3);'
+                                : 'background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);color:rgba(255,255,255,0.35);');
                         badge.textContent = (m.name || '').replace(':latest', '') + ' (' + (m.size_gb || 0) + 'GB)';
+                        badge.title = isLoaded ? 'LOADED in memory' : 'Installed, not loaded';
                         modRow.appendChild(badge);
                     });
                     nodeBar.appendChild(modRow);

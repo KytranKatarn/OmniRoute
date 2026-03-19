@@ -6002,6 +6002,504 @@ class BridgeDispatcher:
             logger.debug(f"Subtask delegation failed: {e}")
             return {"success": False, "error": str(e)}
 
+    # ========================================================================
+    # MODEL ORCHESTRATION — 3-tier warm/cold management
+    # ========================================================================
+
+    def get_host_capacity(self, node_db_id=None):
+        """
+        Return capacity info for a host (hub or fleet node).
+
+        Args:
+            node_db_id: Integer DB id from remote_nodes table.
+                        None = hub (local Ollama).
+
+        Returns dict with gpu_vram_total/used/free, ram_total/used/free,
+        loaded_models list, and comfyui status.
+        """
+        if node_db_id is not None:
+            return self._get_node_capacity(node_db_id)
+        return self._get_hub_capacity()
+
+    def _get_hub_capacity(self):
+        """Capacity for the local hub Ollama instance."""
+        ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
+        ollama_port = os.getenv("OLLAMA_LOCAL_PORT", "11434")
+        ollama_url = f"http://{ollama_host}:{ollama_port}"
+        hostname = ollama_host
+        port = int(ollama_port)
+
+        result = {
+            "hostname": hostname,
+            "port": port,
+            "gpu_vram_total": 0.0,
+            "gpu_vram_used": 0.0,
+            "gpu_vram_free": 0.0,
+            "ram_total": 0.0,
+            "ram_used_by_models": 0.0,
+            "ram_free": 0.0,
+            "loaded_models": [],
+            "comfyui_active": False,
+            "comfyui_vram_gb": 0.0,
+        }
+
+        # -- GPU info from Ollama /api/ps (size_vram on loaded models) --
+        # Hub GPU: Quadro M4000 8GB
+        gpu_vram_total = 8.0  # Known hardware
+        gpu_vram_used = 0.0
+
+        # -- Loaded models --
+        try:
+            ps_resp = requests.get(f"{ollama_url}/api/ps", timeout=10)
+            if ps_resp.status_code == 200:
+                models_data = ps_resp.json().get("models", [])
+                for m in models_data:
+                    name = m.get("name", "unknown")
+                    size_vram = m.get("size_vram", 0) / (1024**3)  # bytes→GB
+                    size_total = m.get("size", 0) / (1024**3)
+                    size_ram = max(0.0, size_total - size_vram)
+                    result["loaded_models"].append({
+                        "name": name,
+                        "vram_gb": round(size_vram, 2),
+                        "ram_gb": round(size_ram, 2),
+                        "expires_at": m.get("expires_at", ""),
+                    })
+                    gpu_vram_used += size_vram
+                    result["ram_used_by_models"] += size_ram
+        except Exception as e:
+            logger.warning(f"[ModelOrch] Hub /api/ps failed: {e}")
+
+        result["gpu_vram_total"] = gpu_vram_total
+        result["gpu_vram_used"] = round(gpu_vram_used, 2)
+        result["gpu_vram_free"] = round(max(0, gpu_vram_total - gpu_vram_used), 2)
+        result["ram_used_by_models"] = round(result["ram_used_by_models"], 2)
+
+        # -- System RAM (best-effort via Ollama /api/tags or known value) --
+        # Hub has 128GB, 80% budget = ~102GB for models
+        ram_total = 102.0  # ADR-078 budget
+        result["ram_total"] = ram_total
+        result["ram_free"] = round(
+            max(0, ram_total - result["ram_used_by_models"]), 2
+        )
+
+        # -- ComfyUI status --
+        try:
+            comfyui_host = os.getenv(
+                "COMFYUI_HOST", "http://host.docker.internal:8188"
+            )
+            cu_resp = requests.get(f"{comfyui_host}/system_stats", timeout=5)
+            if cu_resp.status_code == 200:
+                cu_data = cu_resp.json()
+                devices = cu_data.get("devices", [])
+                for dev in devices:
+                    if dev.get("type") == "cuda":
+                        vram_used = dev.get("vram_total", 0) - dev.get(
+                            "vram_free", dev.get("vram_total", 0)
+                        )
+                        result["comfyui_vram_gb"] = round(
+                            vram_used / (1024**3), 2
+                        )
+                        result["comfyui_active"] = vram_used > 100_000_000
+                        # Subtract ComfyUI from available GPU VRAM
+                        cu_gb = result["comfyui_vram_gb"]
+                        result["gpu_vram_used"] = round(
+                            result["gpu_vram_used"] + cu_gb, 2
+                        )
+                        result["gpu_vram_free"] = round(
+                            max(0, gpu_vram_total - result["gpu_vram_used"]), 2
+                        )
+        except Exception:
+            pass  # ComfyUI may not be running
+
+        return result
+
+    def _get_node_capacity(self, node_db_id):
+        """Capacity for a remote fleet node."""
+        result = {
+            "hostname": "unknown",
+            "port": 11434,
+            "gpu_vram_total": 0.0,
+            "gpu_vram_used": 0.0,
+            "gpu_vram_free": 0.0,
+            "ram_total": 0.0,
+            "ram_used_by_models": 0.0,
+            "ram_free": 0.0,
+            "loaded_models": [],
+            "comfyui_active": False,
+            "comfyui_vram_gb": 0.0,
+        }
+
+        # -- Look up node from DB --
+        conn = None
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT hostname, port, gpu_vram_gb, ram_gb,
+                       gpu_available, comfyui_available, comfyui_port,
+                       vpn_ip
+                FROM remote_nodes WHERE id = %s AND is_active = true
+                """,
+                (node_db_id,),
+            )
+            row = cur.fetchone()
+            cur.close()
+            if not row:
+                logger.warning(
+                    f"[ModelOrch] Node id={node_db_id} not found or inactive"
+                )
+                return result
+        except Exception as e:
+            logger.error(f"[ModelOrch] DB lookup for node {node_db_id}: {e}")
+            return result
+        finally:
+            if conn:
+                conn.close()
+
+        hostname = row[0] or row[7] or "unknown"  # hostname or vpn_ip
+        port = row[1] or 11434
+        gpu_vram_total = row[2] or 0.0
+        ram_total_raw = row[3] or 0.0
+        ram_total = round(ram_total_raw * 0.8, 1)  # 80% budget
+        gpu_available = row[4]
+        comfyui_available = row[5]
+        comfyui_port = row[6] or 8188
+
+        result["hostname"] = hostname
+        result["port"] = port
+        result["gpu_vram_total"] = gpu_vram_total
+        result["ram_total"] = ram_total
+
+        ollama_url = f"http://{hostname}:{port}"
+        gpu_vram_used = 0.0
+
+        # -- Loaded models --
+        try:
+            ps_resp = requests.get(f"{ollama_url}/api/ps", timeout=10)
+            if ps_resp.status_code == 200:
+                models_data = ps_resp.json().get("models", [])
+                for m in models_data:
+                    name = m.get("name", "unknown")
+                    size_vram = m.get("size_vram", 0) / (1024**3)
+                    size_total = m.get("size", 0) / (1024**3)
+                    size_ram = max(0.0, size_total - size_vram)
+                    result["loaded_models"].append({
+                        "name": name,
+                        "vram_gb": round(size_vram, 2),
+                        "ram_gb": round(size_ram, 2),
+                        "expires_at": m.get("expires_at", ""),
+                    })
+                    gpu_vram_used += size_vram
+                    result["ram_used_by_models"] += size_ram
+        except Exception as e:
+            logger.warning(f"[ModelOrch] Node {hostname} /api/ps failed: {e}")
+
+        result["gpu_vram_used"] = round(gpu_vram_used, 2)
+        result["gpu_vram_free"] = round(
+            max(0, gpu_vram_total - gpu_vram_used), 2
+        )
+        result["ram_used_by_models"] = round(result["ram_used_by_models"], 2)
+        result["ram_free"] = round(
+            max(0, ram_total - result["ram_used_by_models"]), 2
+        )
+
+        # -- ComfyUI on node --
+        if comfyui_available:
+            try:
+                cu_resp = requests.get(
+                    f"http://{hostname}:{comfyui_port}/system_stats", timeout=5
+                )
+                if cu_resp.status_code == 200:
+                    cu_data = cu_resp.json()
+                    for dev in cu_data.get("devices", []):
+                        if dev.get("type") == "cuda":
+                            vram_used = dev.get("vram_total", 0) - dev.get(
+                                "vram_free", dev.get("vram_total", 0)
+                            )
+                            result["comfyui_vram_gb"] = round(
+                                vram_used / (1024**3), 2
+                            )
+                            result["comfyui_active"] = vram_used > 100_000_000
+                            cu_gb = result["comfyui_vram_gb"]
+                            result["gpu_vram_used"] = round(
+                                result["gpu_vram_used"] + cu_gb, 2
+                            )
+                            result["gpu_vram_free"] = round(
+                                max(0, gpu_vram_total - result["gpu_vram_used"]),
+                                2,
+                            )
+            except Exception:
+                pass
+
+        return result
+
+    def ensure_model_ready(self, agent_name, model, target_host=None):
+        """
+        Ensure a model is loaded and ready for inference on the target host.
+
+        3-tier strategy:
+            1. GPU (VRAM) — fastest, check if already loaded with VRAM
+            2. CPU (RAM)  — warm standby, loaded but no VRAM
+            3. Cold (disk) — not loaded, needs warm boot
+
+        Args:
+            agent_name: Name of the agent requesting the model.
+            model: Ollama model tag (e.g. "llama3.2:3b").
+            target_host: Dict with {"hostname": str, "port": int} for remote
+                         node, or None for hub.
+
+        Returns:
+            {
+                "ready": bool,
+                "tier": "gpu" | "cpu" | "cold",
+                "host": str,
+                "warm_boot_ms": int,
+            }
+        """
+        start_ms = time.time() * 1000
+
+        # Resolve Ollama URL
+        if target_host:
+            hostname = target_host.get("hostname", "unknown")
+            port = target_host.get("port", 11434)
+            ollama_url = f"http://{hostname}:{port}"
+            node_db_id = target_host.get("node_db_id")
+        else:
+            hostname = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
+            port = int(os.getenv("OLLAMA_LOCAL_PORT", "11434"))
+            ollama_url = f"http://{hostname}:{port}"
+            node_db_id = None
+
+        host_label = f"{hostname}:{port}"
+
+        # -- Step 1: Check if model is already loaded --
+        try:
+            ps_resp = requests.get(f"{ollama_url}/api/ps", timeout=10)
+            if ps_resp.status_code == 200:
+                for m in ps_resp.json().get("models", []):
+                    if m.get("name", "") == model or m.get("model", "") == model:
+                        size_vram = m.get("size_vram", 0)
+                        size_total = m.get("size", 0)
+                        if size_vram > 0 and size_vram >= size_total * 0.5:
+                            logger.info(
+                                f"[ModelOrch] {model} hot on GPU @ {host_label}"
+                            )
+                            return {
+                                "ready": True,
+                                "tier": "gpu",
+                                "host": host_label,
+                                "warm_boot_ms": 0,
+                            }
+                        else:
+                            logger.info(
+                                f"[ModelOrch] {model} warm in RAM @ {host_label}"
+                            )
+                            return {
+                                "ready": True,
+                                "tier": "cpu",
+                                "host": host_label,
+                                "warm_boot_ms": 0,
+                            }
+        except Exception as e:
+            logger.error(f"[ModelOrch] /api/ps failed on {host_label}: {e}")
+            return {
+                "ready": False,
+                "tier": "cold",
+                "host": host_label,
+                "warm_boot_ms": 0,
+            }
+
+        # -- Step 2: Model is cold — need to warm boot --
+        logger.info(
+            f"[ModelOrch] {model} cold on {host_label}, warm booting for {agent_name}"
+        )
+
+        # Get capacity to decide GPU vs CPU loading
+        capacity = self.get_host_capacity(node_db_id)
+        gpu_free = capacity.get("gpu_vram_free", 0)
+        ram_free = capacity.get("ram_free", 0)
+
+        # Estimate model size (use Ollama /api/show if available, else heuristic)
+        model_size_gb = self._estimate_model_size(model, ollama_url)
+
+        # Decide loading strategy
+        num_gpu = 0  # default: CPU only
+        if model_size_gb <= gpu_free and not capacity.get("comfyui_active", False):
+            num_gpu = 99  # Full GPU offload
+            target_tier = "gpu"
+            logger.info(
+                f"[ModelOrch] Loading {model} to GPU "
+                f"(need {model_size_gb:.1f}GB, free {gpu_free:.1f}GB)"
+            )
+        elif model_size_gb <= ram_free:
+            target_tier = "cpu"
+            logger.info(
+                f"[ModelOrch] Loading {model} to RAM "
+                f"(need {model_size_gb:.1f}GB, free {ram_free:.1f}GB)"
+            )
+        else:
+            # Need to evict LRU model first
+            target_tier = "cpu"
+            evicted = self._evict_lru_model(
+                capacity, model_size_gb, ollama_url
+            )
+            if not evicted:
+                logger.error(
+                    f"[ModelOrch] Cannot free enough RAM for {model} "
+                    f"on {host_label} (need {model_size_gb:.1f}GB, "
+                    f"free {ram_free:.1f}GB)"
+                )
+                return {
+                    "ready": False,
+                    "tier": "cold",
+                    "host": host_label,
+                    "warm_boot_ms": int(time.time() * 1000 - start_ms),
+                }
+
+        # -- Step 3: Load the model --
+        try:
+            load_resp = requests.post(
+                f"{ollama_url}/api/generate",
+                json={
+                    "model": model,
+                    "prompt": "",
+                    "keep_alive": "24h",
+                    "options": {"num_gpu": num_gpu, "num_predict": 1},
+                    "stream": False,
+                },
+                timeout=300,
+            )
+            elapsed_ms = int(time.time() * 1000 - start_ms)
+
+            if load_resp.status_code == 200:
+                logger.info(
+                    f"[ModelOrch] {model} loaded to {target_tier} on "
+                    f"{host_label} in {elapsed_ms}ms"
+                )
+                return {
+                    "ready": True,
+                    "tier": target_tier,
+                    "host": host_label,
+                    "warm_boot_ms": elapsed_ms,
+                }
+            else:
+                logger.error(
+                    f"[ModelOrch] Load {model} failed: "
+                    f"HTTP {load_resp.status_code} — {load_resp.text[:200]}"
+                )
+                return {
+                    "ready": False,
+                    "tier": "cold",
+                    "host": host_label,
+                    "warm_boot_ms": elapsed_ms,
+                }
+        except Exception as e:
+            elapsed_ms = int(time.time() * 1000 - start_ms)
+            logger.error(f"[ModelOrch] Load {model} exception: {e}")
+            return {
+                "ready": False,
+                "tier": "cold",
+                "host": host_label,
+                "warm_boot_ms": elapsed_ms,
+            }
+
+    def _estimate_model_size(self, model, ollama_url):
+        """
+        Estimate model runtime size in GB.
+        Uses /api/show for real size, falls back to name-based heuristic.
+        """
+        try:
+            resp = requests.post(
+                f"{ollama_url}/api/show",
+                json={"name": model},
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                details = resp.json().get("details", {})
+                param_size = details.get("parameter_size", "")
+                # Parse "3.2B", "7B", "70B" etc.
+                if param_size:
+                    num_str = param_size.upper().replace("B", "").strip()
+                    try:
+                        params_b = float(num_str)
+                        # ~0.6 bytes per param for Q4 quant → GB
+                        return round(params_b * 0.6, 1)
+                    except ValueError:
+                        pass
+                # Fallback: use model file size * 1.3
+                model_info = resp.json().get("modelinfo", {})
+                for key, val in model_info.items():
+                    if "parameter" in key.lower() and isinstance(val, (int, float)):
+                        return round(val / 1e9 * 0.6, 1)
+        except Exception:
+            pass
+
+        # Name-based heuristic
+        name_lower = model.lower()
+        if "70b" in name_lower or "72b" in name_lower:
+            return 40.0
+        elif "34b" in name_lower or "35b" in name_lower:
+            return 20.0
+        elif "14b" in name_lower or "13b" in name_lower:
+            return 8.0
+        elif "8b" in name_lower or "7b" in name_lower:
+            return 5.0
+        elif "3b" in name_lower or "4b" in name_lower:
+            return 2.5
+        elif "1b" in name_lower or "1.7b" in name_lower:
+            return 1.5
+        elif "0.5b" in name_lower or "smol" in name_lower:
+            return 0.5
+        return 4.0  # Conservative default
+
+    def _evict_lru_model(self, capacity, needed_gb, ollama_url):
+        """
+        Evict least-recently-used loaded model(s) to free RAM.
+
+        Returns True if enough space was freed, False otherwise.
+        """
+        loaded = capacity.get("loaded_models", [])
+        if not loaded:
+            return False
+
+        # Sort by expires_at ascending (soonest expiry = least recently used)
+        # Models with empty expires_at go first (likely stale)
+        def _sort_key(m):
+            exp = m.get("expires_at", "")
+            return exp if exp else "0000"
+
+        candidates = sorted(loaded, key=_sort_key)
+
+        freed_gb = 0.0
+        for candidate in candidates:
+            cname = candidate.get("name", "")
+            c_ram = candidate.get("ram_gb", 0)
+            c_vram = candidate.get("vram_gb", 0)
+            c_total = c_ram + c_vram
+
+            if c_total < 0.1:
+                continue  # Skip tiny/unknown
+
+            try:
+                resp = requests.post(
+                    f"{ollama_url}/api/generate",
+                    json={"model": cname, "keep_alive": 0},
+                    timeout=10,
+                )
+                if resp.status_code == 200:
+                    freed_gb += c_total
+                    logger.info(
+                        f"[ModelOrch] Evicted {cname} "
+                        f"(freed {c_total:.1f}GB, total freed {freed_gb:.1f}GB)"
+                    )
+                    if freed_gb >= needed_gb:
+                        return True
+            except Exception as e:
+                logger.warning(f"[ModelOrch] Failed to evict {cname}: {e}")
+
+        return freed_gb >= needed_gb
+
 
 # ============================================================================
 # SINGLETON INSTANCE

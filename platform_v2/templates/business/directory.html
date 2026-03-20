@@ -578,7 +578,7 @@
 
     async function loadDirectory() {
         try {
-            const response = await fetch('/business/api/directory');
+            const response = await fetch('/api/directory');
             const data = await response.json();
 
             if (data.success) {
@@ -724,7 +724,7 @@
 
     async function viewEmployee(employeeId) {
         try {
-            const response = await fetch(`/business/api/directory/${employeeId}`);
+            const response = await fetch(`/api/directory/${employeeId}`);
             const data = await response.json();
 
             if (data.success) {

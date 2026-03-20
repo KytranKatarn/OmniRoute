@@ -1450,7 +1450,7 @@ def register_node_routes(bp, admin_required):
     def approve_node(node_id):
         """Approve a pending node registration"""
         try:
-            with get_db_cursor() as (conn, cur):
+            with get_db_cursor(commit=True) as (conn, cur):
 
                 # Get current user ID from Flask-Login session
                 user_id = current_user.id if current_user.is_authenticated else None
@@ -1501,7 +1501,7 @@ def register_node_routes(bp, admin_required):
         reason = data.get("reason", "No reason provided")
 
         try:
-            with get_db_cursor() as (conn, cur):
+            with get_db_cursor(commit=True) as (conn, cur):
 
                 # Get current user ID from Flask-Login session
                 user_id = current_user.id if current_user.is_authenticated else None

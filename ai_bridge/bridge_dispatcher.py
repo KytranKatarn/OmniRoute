@@ -376,7 +376,7 @@ class BridgeDispatcher:
                     JOIN remote_nodes rn ON rn.id = na.node_id
                     WHERE na.status = 'active'
                       AND rn.status = 'online'
-                      AND rn.last_heartbeat > NOW() - INTERVAL '90 seconds'
+                      AND rn.last_heartbeat > NOW() - INTERVAL '30 seconds'
                 """)
                 fleet_agents = cur3.fetchall()
                 cur3.close()
@@ -1410,7 +1410,7 @@ class BridgeDispatcher:
                 JOIN remote_nodes rn ON rn.id = na.node_id
                 WHERE rn.is_active = true
                   AND (
-                      rn.last_heartbeat > NOW() - INTERVAL '2 minutes'
+                      rn.last_heartbeat > NOW() - INTERVAL '30 seconds'
                       OR rn.deployment_mode = 'starbase'
                   )
                   AND %s = ANY(na.station_codes)
@@ -1552,8 +1552,9 @@ class BridgeDispatcher:
             conn.close()
         except Exception as job_err:
             logger.warning(
-                f"[BridgeDispatcher] Failed to create fleet bridge_job: {job_err}"
+                f"[BridgeDispatcher] Failed to create fleet bridge_job: {job_err} — aborting fleet dispatch"
             )
+            return None
 
         # Auto warm-boot: ensure model loaded on node before calling
         try:
@@ -1562,9 +1563,11 @@ class BridgeDispatcher:
                 target_host={"hostname": hostname, "port": port, "node_db_id": node_id}
             )
             if readiness and not readiness.get("ready"):
-                logger.warning(f"[BridgeDispatcher] Node model {model} not ready on {node_name}")
+                logger.warning(f"[BridgeDispatcher] Node model {model} not ready on {node_name} — skipping")
+                return None
         except Exception as wb_err:
-            logger.debug(f"[BridgeDispatcher] Node warm boot check failed: {wb_err}")
+            logger.warning(f"[BridgeDispatcher] Node warm boot check failed: {wb_err} — skipping")
+            return None
 
         # Call the node's Ollama API
         try:
@@ -1586,7 +1589,7 @@ class BridgeDispatcher:
             resp = requests.post(
                 f"http://{hostname}:{port}/api/generate",
                 json=payload,
-                timeout=120,
+                timeout=15,
             )
 
             if resp.status_code == 200:
@@ -1636,12 +1639,14 @@ class BridgeDispatcher:
                     f"[BridgeDispatcher] Fleet node {hostname}:{port} "
                     f"returned HTTP {resp.status_code}"
                 )
+                return None
 
         except requests.exceptions.Timeout:
             logger.warning(
-                f"[BridgeDispatcher] Fleet dispatch timeout (120s) to "
+                f"[BridgeDispatcher] Fleet dispatch timeout (15s) to "
                 f"{hostname}:{port} model={model}"
             )
+            return None
         except Exception as e:
             logger.warning(
                 f"[BridgeDispatcher] Fleet dispatch failed: {e}"
@@ -7097,7 +7102,7 @@ class BridgeDispatcher:
             cur.execute(
                 """
                 SELECT id, node_name, deployment_mode, last_heartbeat,
-                       (last_heartbeat > NOW() - INTERVAL '2 minutes') AS heartbeat_fresh
+                       (last_heartbeat > NOW() - INTERVAL '30 seconds') AS heartbeat_fresh
                 FROM remote_nodes
                 WHERE is_active = true
                   AND deployment_mode != 'starbase'

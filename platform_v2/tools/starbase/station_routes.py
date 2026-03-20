@@ -1507,10 +1507,12 @@ def register_station_routes(bp, admin_required):
 
                 # Build portrait paths from first_name
                 first = (agent.get("first_name") or agent.get("name") or "").lower()
+                # Use avatar_url from DB if set, fall back to SVG
+                avatar = agent.get("avatar_url") or f"/static/avatars/{first}.svg"
                 portraits = {
-                    "portrait": f"/static/avatars/{first}.svg",
-                    "avatar": f"/static/avatars/{first}.svg",
-                    "icon": f"/static/avatars/{first}.svg",
+                    "portrait": avatar,
+                    "avatar": avatar,
+                    "icon": avatar,
                 }
 
                 result = {

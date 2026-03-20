@@ -1565,6 +1565,8 @@ function createIsometricZone(zoneName, zoneInfo, zd) {
             const isAway = !!awayJob;
 
             const avatarSlug = displayName.toLowerCase();
+            const agentAvatarUrl = ag.avatar_url || '';
+            const svgFallback = '/static/avatars/' + avatarSlug + '.svg';
             const dicebearFallback = 'https://api.dicebear.com/9.x/adventurer/svg?seed=' + encodeURIComponent(displayName) + '&backgroundColor=transparent';
 
             const member = document.createElement('div');
@@ -1578,10 +1580,13 @@ function createIsometricZone(zoneName, zoneInfo, zd) {
 
             const img = document.createElement('img');
             img.className = 'iso-avatar-img';
-            img.src = '/static/avatars/' + avatarSlug + '.svg';
+            img.src = agentAvatarUrl || svgFallback;
             img.alt = displayName;
             img.loading = 'lazy';
-            img.onerror = function() { this.src = dicebearFallback; };
+            img.onerror = function() {
+                if (this.src !== svgFallback && this.src !== dicebearFallback) { this.src = svgFallback; }
+                else if (this.src === svgFallback) { this.src = dicebearFallback; }
+            };
             ring.appendChild(img);
 
             if (isCommander) {

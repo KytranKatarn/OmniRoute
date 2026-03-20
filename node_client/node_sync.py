@@ -64,7 +64,7 @@ logger = logging.getLogger("archie_node_sync")
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-CLIENT_VERSION = "2.1.0"
+CLIENT_VERSION = "2.2.0"
 
 
 def _get_config_paths():
@@ -1552,6 +1552,85 @@ def _handle_comfyui_setup(config, payload):
             error = body[:500]
             logger.error("[comfyui_setup] Start failed (HTTP %d): %s", code, error)
             return {"status": "failed", "error": error}
+
+    elif action == "download_model":
+        # Download a checkpoint model into the ComfyUI container
+        model_url = payload.get("url")
+        model_name = payload.get("model_name")
+        model_dir = payload.get("model_dir", "checkpoints")
+        if not model_url or not model_name:
+            return {"status": "failed", "error": "url and model_name required"}
+
+        logger.info(
+            "[comfyui_setup] Downloading model %s → %s", model_name, model_dir
+        )
+
+        # Use Docker exec API to download inside the ComfyUI container
+        # Create exec instance
+        exec_cmd = (
+            f"wget -q --show-progress -O /app/models/{model_dir}/{model_name} "
+            f"'{model_url}'"
+        )
+        exec_body = {
+            "AttachStdout": True,
+            "AttachStderr": True,
+            "Cmd": ["sh", "-c", exec_cmd],
+        }
+        code, body = _docker_api(
+            "POST",
+            f"/containers/{container_name}/exec",
+            body=exec_body,
+            timeout=30,
+        )
+        if code != 201:
+            # Fallback: try curl if wget not available
+            exec_body["Cmd"] = [
+                "sh", "-c",
+                f"curl -sL -o /app/models/{model_dir}/{model_name} '{model_url}'",
+            ]
+            code, body = _docker_api(
+                "POST",
+                f"/containers/{container_name}/exec",
+                body=exec_body,
+                timeout=30,
+            )
+            if code != 201:
+                return {"status": "failed", "error": f"Exec create failed: {body[:300]}"}
+
+        exec_id = json.loads(body).get("Id")
+        if not exec_id:
+            return {"status": "failed", "error": "No exec ID returned"}
+
+        # Start the exec (this blocks until download completes)
+        code, body = _docker_api(
+            "POST",
+            f"/exec/{exec_id}/start",
+            body={"Detach": False},
+            timeout=1800,  # 30 min for large models
+            stream=True,
+        )
+
+        # Check exec result
+        code, body = _docker_api("GET", f"/exec/{exec_id}/json")
+        if code == 200:
+            info = json.loads(body)
+            exit_code = info.get("ExitCode", -1)
+            if exit_code == 0:
+                logger.info(
+                    "[comfyui_setup] Model %s downloaded successfully", model_name
+                )
+                return {
+                    "status": "completed",
+                    "model_name": model_name,
+                    "model_dir": model_dir,
+                }
+            else:
+                return {
+                    "status": "failed",
+                    "error": f"Download exited with code {exit_code}",
+                }
+
+        return {"status": "failed", "error": f"Exec inspect failed: {body[:300]}"}
 
     return {"status": "failed", "error": f"Unknown action: {action}"}
 

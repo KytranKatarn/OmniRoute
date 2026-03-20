@@ -1714,6 +1714,77 @@ class BridgeDispatcher:
         logger.info("[ImageEscalation] All local ComfyUI hosts busy")
         return None, None
 
+    # Hardware-aware model tiers for ComfyUI checkpoints
+    _COMFYUI_MODEL_TIERS = [
+        # (min_vram_gb, model_name, resolution, description)
+        (12, "flux1-dev-fp8.safetensors", 1024, "Flux.1 Dev FP8"),
+        (8, "sd_xl_base_1.0.safetensors", 1024, "Stable Diffusion XL"),
+        (4, "v1-5-pruned-emaonly.ckpt", 512, "Stable Diffusion 1.5"),
+        (2, "v1-5-pruned-emaonly.ckpt", 512, "Stable Diffusion 1.5 (low VRAM)"),
+    ]
+
+    def _select_best_model_for_node(
+        self, node_info: Optional[Dict], available_models: Optional[list] = None
+    ) -> tuple:
+        """Select the best image model based on node hardware and available models.
+
+        Returns (model_name, width, height) tuple.
+        Falls back to SD 1.5 if nothing better is available.
+        """
+        vram = 8.0  # default hub VRAM
+        if node_info:
+            vram = float(node_info.get("gpu_vram_gb", 0) or 8)
+
+        # If we know what models are installed, pick the best that fits
+        if available_models:
+            model_names = {m.get("name", m) if isinstance(m, dict) else m for m in available_models}
+            for min_vram, model, res, desc in self._COMFYUI_MODEL_TIERS:
+                if vram >= min_vram and model in model_names:
+                    logger.info(
+                        "[ImageEscalation] Selected %s (%s) for %.1fGB VRAM",
+                        model, desc, vram,
+                    )
+                    return model, res, res
+
+        # No model list available — pick by VRAM tier
+        for min_vram, model, res, desc in self._COMFYUI_MODEL_TIERS:
+            if vram >= min_vram:
+                logger.info(
+                    "[ImageEscalation] Tier-based selection: %s (%s) for %.1fGB VRAM",
+                    model, desc, vram,
+                )
+                return model, res, res
+
+        return "v1-5-pruned-emaonly.ckpt", 512, 512
+
+    def _get_node_comfyui_models(self, node_db_id: Optional[int]) -> list:
+        """Get list of ComfyUI checkpoint models available on a node."""
+        if node_db_id is None:
+            # Hub — check local ComfyUI
+            try:
+                from ai_bridge.comfyui_service import ComfyUIService
+
+                svc = ComfyUIService()
+                models = svc.get_models()
+                return models.get("installed", [])
+            except Exception:
+                return []
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """SELECT model_name FROM node_ollama_models
+                   WHERE node_id = (SELECT node_id FROM remote_nodes WHERE id = %s)
+                   AND is_available = true""",
+                (node_db_id,),
+            )
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
+            return [r[0] for r in rows]
+        except Exception:
+            return []
+
     def _is_image_host_busy(self, target_host: str) -> bool:
         """Check bridge_jobs metadata for running image_generation jobs on a host."""
         try:
@@ -1942,6 +2013,45 @@ class BridgeDispatcher:
         target_host = "hub" if node_db_id is None else (
             comfyui_host.replace("http://", "").split(":")[0]
         )
+
+        # --- Hardware-aware model selection ---
+        # If caller specified a model, try it; otherwise auto-select best for hardware
+        available_models = self._get_node_comfyui_models(node_db_id)
+        if not available_models or image_model not in [
+            m.get("name", m) if isinstance(m, dict) else m for m in available_models
+        ]:
+            # Requested model not available — get node hardware info
+            node_hw = None
+            if node_db_id:
+                try:
+                    conn = self._get_db()
+                    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                    cur.execute(
+                        "SELECT gpu_vram_gb FROM remote_nodes WHERE id = %s",
+                        (node_db_id,),
+                    )
+                    node_hw = cur.fetchone()
+                    cur.close()
+                    conn.close()
+                except Exception:
+                    pass
+            best_model, best_w, best_h = self._select_best_model_for_node(
+                node_hw, available_models
+            )
+            if image_model not in [
+                m.get("name", m) if isinstance(m, dict) else m
+                for m in (available_models or [])
+            ]:
+                logger.info(
+                    "[ImageEscalation] Model %s not on %s, using %s instead",
+                    image_model, target_host, best_model,
+                )
+                image_model = best_model
+                # Adjust resolution for the model tier
+                if not context.get("width"):
+                    context["width"] = best_w
+                if not context.get("height"):
+                    context["height"] = best_h
 
         # --- Create bridge_job to mark agent busy ---
         bridge_job_id = None

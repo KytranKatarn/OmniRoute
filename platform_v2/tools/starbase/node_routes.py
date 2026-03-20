@@ -7,7 +7,7 @@ import os
 import time
 import logging
 from datetime import datetime
-from flask import jsonify, request, Response
+from flask import jsonify, request, Response, send_file
 from flask_login import login_required, current_user
 from rbac import require_permission, Permission
 import psycopg2
@@ -401,6 +401,27 @@ def register_node_routes(bp, admin_required):
             download_name="archie-node-latest.tar.gz",
         )
 
+    @bp.route("/api/nodes/install-node.sh", methods=["GET"])
+    def serve_install_node_sh():
+        """Serve the Linux terminal installer."""
+        script_path = "/mnt/archie_brain/node_client/install-node.sh"
+        if not os.path.exists(script_path):
+            return jsonify({"error": "Installer not found"}), 404
+        return send_file(script_path, mimetype="text/x-shellscript")
+
+    @bp.route("/api/nodes/installer.exe", methods=["GET"])
+    def serve_installer_exe():
+        """Serve the Windows GUI installer."""
+        exe_path = "/mnt/archie_brain/node_client/installer/dist/ARCHIE-Node-Setup.exe"
+        if not os.path.exists(exe_path):
+            return jsonify({"error": "Windows installer not built yet"}), 404
+        return send_file(
+            exe_path,
+            mimetype="application/octet-stream",
+            as_attachment=True,
+            download_name="ARCHIE-Node-Setup.exe",
+        )
+
     @bp.route("/api/nodes/client-package", methods=["GET"])
     def get_node_client_package():
         """Serve the node client package as a tarball"""
@@ -505,6 +526,25 @@ def register_node_routes(bp, admin_required):
                 # Auto-detect network type from hostname/IP or request origin
                 node_hostname = data.get("hostname") or request.remote_addr
                 network_type = detect_network_type(node_hostname)
+
+                # Clean up stale duplicate registrations for this hostname
+                if node_hostname:
+                    cur.execute(
+                        """
+                        DELETE FROM remote_nodes
+                        WHERE hostname = %s
+                          AND status IN ('pending', 'offline')
+                          AND (last_heartbeat IS NULL OR last_heartbeat < NOW() - INTERVAL '24 hours')
+                        """,
+                        (node_hostname,),
+                    )
+                    stale_count = cur.rowcount
+                    if stale_count:
+                        logger.info(
+                            "Cleaned up %d stale duplicate(s) for hostname %s",
+                            stale_count,
+                            node_hostname,
+                        )
 
                 cur.execute(
                     """
@@ -1338,6 +1378,72 @@ def register_node_routes(bp, admin_required):
             logger.error(f"Error getting node status: {e}")
             return jsonify({"error": "Internal server error"}), 500
 
+    def _on_node_approved(node_id):
+        """Post-approval orchestration: push starter models and optional ComfyUI setup."""
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                # Get node hardware specs and numeric id
+                cur.execute(
+                    """
+                    SELECT id, gpu_model, gpu_vram_gb, ram_gb, deployment_mode
+                    FROM remote_nodes
+                    WHERE node_id = %s
+                    """,
+                    (node_id,),
+                )
+                node = cur.fetchone()
+                if not node:
+                    logger.warning("_on_node_approved: node %s not found", node_id)
+                    return
+
+                node_db_id = node["id"]
+                gpu_vram = node["gpu_vram_gb"] or 0
+
+                # Ensure deployment_mode is set to starship
+                if node["deployment_mode"] != "starship":
+                    cur.execute(
+                        "UPDATE remote_nodes SET deployment_mode = 'starship' WHERE id = %s",
+                        (node_db_id,),
+                    )
+
+                # Starter models every node gets
+                starter_models = ["llama3.2:3b", "qwen2.5:7b"]
+                # GPU-capable nodes get larger models
+                if gpu_vram >= 8:
+                    starter_models.append("llama3.1:8b")
+
+                for model in starter_models:
+                    cur.execute(
+                        """
+                        INSERT INTO mesh_sync_log
+                            (node_id, sync_type, payload, status, created_at)
+                        VALUES (%s, 'model_pull', %s, 'sent', NOW())
+                        """,
+                        (node_db_id, json.dumps({"model": model})),
+                    )
+
+                # Queue ComfyUI setup for nodes with adequate VRAM
+                if gpu_vram >= 6:
+                    cur.execute(
+                        """
+                        INSERT INTO mesh_sync_log
+                            (node_id, sync_type, payload, status, created_at)
+                        VALUES (%s, 'comfyui_setup', %s, 'sent', NOW())
+                        """,
+                        (node_db_id, json.dumps({"action": "start"})),
+                    )
+
+                logger.info(
+                    "Post-approval orchestration for node %s (db_id=%s): " "queued %d model(s)%s",
+                    node_id,
+                    node_db_id,
+                    len(starter_models),
+                    " + comfyui_setup" if gpu_vram >= 6 else "",
+                )
+
+        except Exception as e:
+            logger.error("_on_node_approved failed for %s: %s", node_id, e)
+
     @bp.route("/api/nodes/<node_id>/approve", methods=["POST"])
     @login_required
     @require_permission(Permission.ADMIN_ACCESS)
@@ -1368,6 +1474,9 @@ def register_node_routes(bp, admin_required):
                         jsonify({"success": False, "error": "Node not found or already processed"}),
                         404,
                     )
+
+                # Post-approval orchestration (starter models, ComfyUI setup)
+                _on_node_approved(node_id)
 
                 return jsonify(
                     {

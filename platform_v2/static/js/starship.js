@@ -500,10 +500,10 @@ function openConnectNodeModal() {
 
     // Set commands via textContent (XSS safe)
     var winCmd = document.getElementById('cn-win-cmd');
-    if (winCmd) winCmd.textContent = 'powershell -ExecutionPolicy Bypass -Command "iwr -useb \'' + hubUrl + '/tools/starship/api/nodes/new-setup-script?os=windows\' -OutFile archie-setup.ps1; .\\archie-setup.ps1"';
+    if (winCmd) winCmd.textContent = 'powershell -ExecutionPolicy Bypass -Command "iwr -useb ' + hubUrl + '/tools/starbase/api/nodes/install.ps1 | iex"';
 
     var linuxCmd = document.getElementById('cn-linux-cmd');
-    if (linuxCmd) linuxCmd.textContent = 'curl -fsSL "' + hubUrl + '/tools/starship/api/nodes/new-setup-script?os=linux" -o archie-setup.sh && sudo bash archie-setup.sh';
+    if (linuxCmd) linuxCmd.textContent = 'curl -fsSL ' + hubUrl + '/tools/starbase/api/nodes/install-node.sh | sudo bash';
 
     document.getElementById('connectNodeModal').style.display = 'flex';
     loadPendingNodes();

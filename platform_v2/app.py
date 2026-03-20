@@ -899,6 +899,51 @@ def api_directory():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@app.route("/api/directory/<int:employee_id>")
+def api_directory_employee(employee_id):
+    """Get public details for a specific employee."""
+    from database import get_db_cursor
+    import json as _json
+
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT id, name, first_name, last_name,
+                      COALESCE(first_name || ' ' || last_name, name) as full_name,
+                      email, phone, title, department, pronouns, bio,
+                      avatar_url,
+                      CASE WHEN worker_type IN ('internal','contract') THEN 'AI' ELSE 'Human' END as employee_type,
+                      capabilities
+                   FROM agents WHERE id = %s AND status = 'active'""",
+                (employee_id,),
+            )
+            emp = cur.fetchone()
+
+        if not emp:
+            return jsonify({"success": False, "error": "Employee not found"}), 404
+
+        ed = dict(emp)
+        if ed.get("capabilities"):
+            try:
+                caps = ed["capabilities"] if isinstance(ed["capabilities"], dict) else _json.loads(ed["capabilities"])
+                ed["specialties"] = caps.get("specialties", [])
+                ed["tools"] = caps.get("tools", [])
+            except Exception:
+                ed["specialties"] = []
+                ed["tools"] = []
+        else:
+            ed["specialties"] = []
+            ed["tools"] = []
+        del ed["capabilities"]
+
+        # Generate extension from ID
+        ed["extension"] = f"x{1000 + ed['id']}"
+
+        return jsonify({"success": True, "employee": ed})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route("/api/module-agents")
 def api_module_agents():
     """Get the assigned agent for a module (Project #91 Agent Badge System).

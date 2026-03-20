@@ -739,42 +739,129 @@
                     `<span class="specialty-tag" style="border-color: rgba(139, 92, 246, 0.3); color: #a78bfa;">${t.replace(/_/g, ' ')}</span>`
                 ).join('');
 
-                document.getElementById('modalContent').innerHTML = `
-                    <div class="modal-header">
-                        <img src="${avatarUrl}" alt="${emp.full_name}" class="modal-avatar">
-                        <div>
-                            <div class="modal-name">${emp.full_name}</div>
-                            <div class="modal-title">${emp.title || 'Team Member'} | ${emp.department || 'General'}</div>
-                        </div>
-                    </div>
-                    <div class="modal-body">
-                        <div class="detail-section">
-                            <div class="detail-label">About</div>
-                            <div class="detail-value">${emp.bio || 'No biography available.'}</div>
-                        </div>
+                const ext = emp.extension || ('x' + (1000 + emp.id));
+                const phone = emp.phone || '1-877-463-3352';
+                const email = emp.email || (emp.name || 'team').toLowerCase() + '@kytranempowerment.com';
+                const pronounsText = emp.pronouns ? ' (' + emp.pronouns + ')' : '';
 
-                        ${emp.email ? `
-                        <div class="detail-section">
-                            <div class="detail-label">Contact</div>
-                            <div class="detail-value">${emp.email}</div>
-                        </div>
-                        ` : ''}
+                // Build modal with business card style (trusted server data)
+                var mc = document.getElementById('modalContent');
+                mc.textContent = '';
 
-                        ${specialtiesHTML ? `
-                        <div class="detail-section">
-                            <div class="detail-label">Specialties</div>
-                            <div class="specialties" style="margin-top: 8px;">${specialtiesHTML}</div>
-                        </div>
-                        ` : ''}
+                // Header
+                var hdr = document.createElement('div');
+                hdr.style.cssText = 'display:flex;gap:20px;align-items:center;padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,0.08);';
+                var hImg = document.createElement('img');
+                hImg.src = avatarUrl; hImg.alt = emp.full_name;
+                hImg.style.cssText = 'width:100px;height:100px;border-radius:50%;object-fit:cover;border:3px solid rgba(0,229,255,0.3);';
+                hdr.appendChild(hImg);
+                var hInfo = document.createElement('div');
+                hInfo.style.cssText = 'flex:1;';
+                var hName = document.createElement('div');
+                hName.style.cssText = 'font-size:1.3rem;font-weight:700;color:#fff;';
+                hName.textContent = emp.full_name + pronounsText;
+                var hTitle = document.createElement('div');
+                hTitle.style.cssText = 'color:#00e5ff;font-size:0.85rem;margin-top:2px;';
+                hTitle.textContent = emp.title || 'Team Member';
+                var hDept = document.createElement('div');
+                hDept.style.cssText = 'color:rgba(255,255,255,0.4);font-size:0.75rem;margin-top:2px;';
+                hDept.textContent = (emp.department || 'General') + ' Department';
+                var hBadge = document.createElement('span');
+                hBadge.style.cssText = 'display:inline-block;margin-top:6px;padding:2px 10px;border-radius:12px;font-size:0.65rem;font-weight:600;' +
+                    (emp.employee_type === 'AI' ? 'background:rgba(0,229,255,0.15);color:#00e5ff;border:1px solid rgba(0,229,255,0.3);' : 'background:rgba(74,222,128,0.15);color:#4ade80;border:1px solid rgba(74,222,128,0.3);');
+                hBadge.textContent = emp.employee_type;
+                hInfo.appendChild(hName); hInfo.appendChild(hTitle); hInfo.appendChild(hDept); hInfo.appendChild(hBadge);
+                hdr.appendChild(hInfo);
+                mc.appendChild(hdr);
 
-                        ${toolsHTML ? `
-                        <div class="detail-section">
-                            <div class="detail-label">Tools & Technologies</div>
-                            <div class="specialties" style="margin-top: 8px;">${toolsHTML}</div>
-                        </div>
-                        ` : ''}
-                    </div>
-                `;
+                // Contact card
+                var cc = document.createElement('div');
+                cc.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px;padding:14px;background:rgba(0,0,0,0.3);border-radius:8px;border:1px solid rgba(255,255,255,0.06);';
+                var emailBlock = document.createElement('div');
+                emailBlock.style.cssText = 'display:flex;align-items:center;gap:8px;';
+                var emailIcon = document.createElement('span');
+                emailIcon.style.cssText = 'color:#00e5ff;font-size:1rem;';
+                emailIcon.textContent = '\u2709';
+                var emailInfo = document.createElement('div');
+                var emailLabel = document.createElement('div');
+                emailLabel.style.cssText = 'font-size:0.6rem;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:1px;';
+                emailLabel.textContent = 'Email';
+                var emailVal = document.createElement('a');
+                emailVal.href = 'mailto:' + email;
+                emailVal.style.cssText = 'color:#fff;font-size:0.78rem;text-decoration:none;';
+                emailVal.textContent = email;
+                emailInfo.appendChild(emailLabel); emailInfo.appendChild(emailVal);
+                emailBlock.appendChild(emailIcon); emailBlock.appendChild(emailInfo);
+
+                var phoneBlock = document.createElement('div');
+                phoneBlock.style.cssText = 'display:flex;align-items:center;gap:8px;';
+                var phoneIcon = document.createElement('span');
+                phoneIcon.style.cssText = 'color:#00e5ff;font-size:1rem;';
+                phoneIcon.textContent = '\u260E';
+                var phoneInfo = document.createElement('div');
+                var phoneLabel = document.createElement('div');
+                phoneLabel.style.cssText = 'font-size:0.6rem;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:1px;';
+                phoneLabel.textContent = 'Phone';
+                var phoneVal = document.createElement('div');
+                phoneVal.style.cssText = 'color:#fff;font-size:0.78rem;';
+                phoneVal.textContent = phone + ' ' + ext;
+                phoneInfo.appendChild(phoneLabel); phoneInfo.appendChild(phoneVal);
+                phoneBlock.appendChild(phoneIcon); phoneBlock.appendChild(phoneInfo);
+                cc.appendChild(emailBlock); cc.appendChild(phoneBlock);
+                mc.appendChild(cc);
+
+                // Bio
+                var bioSection = document.createElement('div');
+                bioSection.style.cssText = 'margin-top:16px;';
+                var bioLabel = document.createElement('div');
+                bioLabel.style.cssText = 'font-size:0.65rem;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.35);margin-bottom:6px;';
+                bioLabel.textContent = 'About';
+                var bioVal = document.createElement('div');
+                bioVal.style.cssText = 'color:rgba(255,255,255,0.7);font-size:0.82rem;line-height:1.6;';
+                bioVal.textContent = emp.bio || 'No biography available.';
+                bioSection.appendChild(bioLabel); bioSection.appendChild(bioVal);
+                mc.appendChild(bioSection);
+
+                // Specialties
+                if (specialtiesHTML) {
+                    var specSection = document.createElement('div');
+                    specSection.style.cssText = 'margin-top:14px;';
+                    var specLabel = document.createElement('div');
+                    specLabel.style.cssText = 'font-size:0.65rem;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.35);margin-bottom:6px;';
+                    specLabel.textContent = 'Specialties';
+                    specSection.appendChild(specLabel);
+                    var specTags = document.createElement('div');
+                    specTags.className = 'specialties';
+                    (emp.specialties || []).forEach(function(s) {
+                        var tag = document.createElement('span');
+                        tag.className = 'specialty-tag';
+                        tag.textContent = s.replace(/_/g, ' ');
+                        specTags.appendChild(tag);
+                    });
+                    specSection.appendChild(specTags);
+                    mc.appendChild(specSection);
+                }
+
+                // Tools
+                if (toolsHTML) {
+                    var toolSection = document.createElement('div');
+                    toolSection.style.cssText = 'margin-top:14px;';
+                    var toolLabel = document.createElement('div');
+                    toolLabel.style.cssText = 'font-size:0.65rem;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.35);margin-bottom:6px;';
+                    toolLabel.textContent = 'Tools & Technologies';
+                    toolSection.appendChild(toolLabel);
+                    var toolTags = document.createElement('div');
+                    toolTags.className = 'specialties';
+                    (emp.tools || []).forEach(function(t) {
+                        var tag = document.createElement('span');
+                        tag.className = 'specialty-tag';
+                        tag.style.cssText = 'border-color:rgba(139,92,246,0.3);color:#a78bfa;';
+                        tag.textContent = t.replace(/_/g, ' ');
+                        toolTags.appendChild(tag);
+                    });
+                    toolSection.appendChild(toolTags);
+                    mc.appendChild(toolSection);
+                }
 
                 document.getElementById('employeeModal').style.display = 'block';
             }

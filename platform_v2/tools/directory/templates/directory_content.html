@@ -117,4 +117,33 @@
     </aside>
     <div class="dir-profile-overlay" id="profileOverlay"></div>
 
+    <!-- ============================================================ -->
+    <!-- CHAT SLIDE-OUT PANEL (auth only)                              -->
+    <!-- ============================================================ -->
+    {% if authenticated %}
+    <aside class="dir-chat-panel" id="chatPanel">
+        <div class="dir-chat-header">
+            <div class="dir-chat-header-avatar" id="chatHeaderAvatar"></div>
+            <div class="dir-chat-header-info">
+                <div class="dir-chat-header-name" id="chatHeaderName"></div>
+                <div class="dir-chat-header-status">Active now</div>
+            </div>
+            <button class="dir-chat-close" id="chatCloseBtn" aria-label="Close chat">&times;</button>
+        </div>
+        <div class="dir-chat-memory-banner" id="chatMemoryBanner" style="display:none;"></div>
+        <div class="dir-chat-messages" id="chatMessages"></div>
+        <div class="dir-chat-typing" id="chatTyping" style="display:none;">
+            <span class="dir-chat-typing-dot"></span>
+            <span class="dir-chat-typing-dot"></span>
+            <span class="dir-chat-typing-dot"></span>
+        </div>
+        <div class="dir-chat-input-area">
+            <input type="text" class="dir-chat-input" id="chatInput"
+                   placeholder="Type a message..." maxlength="2000">
+            <button class="dir-chat-send" id="chatSendBtn" disabled>&#10148;</button>
+        </div>
+    </aside>
+    <div class="dir-chat-overlay" id="chatOverlay"></div>
+    {% endif %}
+
 </div>

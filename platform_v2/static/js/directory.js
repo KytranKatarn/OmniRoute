@@ -758,7 +758,19 @@ function _populateProfile(emp) {
         }
 
         var msgWrap = document.getElementById('profileMsgWrap');
-        if (msgWrap) msgWrap.style.display = isOnline ? '' : 'none';
+        var msgBtn = document.getElementById('profileMsgBtn');
+        if (msgWrap && msgBtn) {
+            if (isOnline) {
+                msgWrap.style.display = '';
+                msgBtn.disabled = false;
+                msgBtn.textContent = 'Message ' + name;
+                msgBtn.onclick = function() { openChat(emp.id); };
+                var msgSub = document.getElementById('profileMsgSub');
+                if (msgSub) msgSub.textContent = 'Start a conversation';
+            } else {
+                msgWrap.style.display = 'none';
+            }
+        }
     }
 }
 
@@ -815,6 +827,283 @@ function debounce(fn, ms) {
     };
 }
 
+/* ---------- CHAT PANEL ---------- */
+
+let _chatAgentId = null;
+let _chatAgentData = null;
+let _chatEscHandler = null;
+let _chatSending = false;
+
+function openChat(agentId) {
+    if (!agentId || !isAuthenticated) return;
+    _chatAgentId = agentId;
+
+    var panel = document.getElementById('chatPanel');
+    var overlay = document.getElementById('chatOverlay');
+    if (!panel) return;
+
+    // Close profile panel first
+    closeProfile();
+
+    // Look up agent data from orgChartNodes
+    _chatAgentData = null;
+    if (orgChartNodes) {
+        _chatAgentData = orgChartNodes.find(function(n) { return n.id === agentId; });
+    }
+
+    // Set header
+    var agentName = _chatAgentData
+        ? (_chatAgentData.full_name || _chatAgentData.display_name || _chatAgentData.name || 'Agent')
+        : 'Agent';
+    var dept = _chatAgentData ? (_chatAgentData.department || '') : '';
+    var station = guessStation(dept);
+    var color = STATION_COLORS[station] || '#00e5ff';
+
+    var headerName = document.getElementById('chatHeaderName');
+    if (headerName) headerName.textContent = agentName;
+
+    var headerAvatar = document.getElementById('chatHeaderAvatar');
+    if (headerAvatar) {
+        headerAvatar.textContent = '';
+        headerAvatar.style.background = color + '33';
+        headerAvatar.style.border = '2px solid ' + color;
+        if (_chatAgentData && _chatAgentData.avatar_url) {
+            var img = document.createElement('img');
+            img.src = _chatAgentData.avatar_url;
+            img.alt = agentName;
+            img.style.width = '100%';
+            img.style.height = '100%';
+            img.style.objectFit = 'cover';
+            img.style.borderRadius = '50%';
+            headerAvatar.appendChild(img);
+        } else {
+            headerAvatar.textContent = getInitials(agentName);
+        }
+    }
+
+    // Clear messages area
+    var messagesEl = document.getElementById('chatMessages');
+    if (messagesEl) messagesEl.textContent = '';
+
+    // Hide memory banner and typing
+    var memBanner = document.getElementById('chatMemoryBanner');
+    if (memBanner) memBanner.style.display = 'none';
+    var typing = document.getElementById('chatTyping');
+    if (typing) typing.style.display = 'none';
+
+    // Clear input
+    var input = document.getElementById('chatInput');
+    if (input) { input.value = ''; }
+    _updateSendBtn();
+
+    // Show panel
+    panel.classList.add('active');
+    if (overlay) overlay.classList.add('active');
+
+    // Bind close
+    var closeBtn = document.getElementById('chatCloseBtn');
+    if (closeBtn) closeBtn.onclick = closeChat;
+    if (overlay) overlay.onclick = closeChat;
+
+    _chatEscHandler = function(e) { if (e.key === 'Escape') closeChat(); };
+    document.addEventListener('keydown', _chatEscHandler);
+
+    // Bind input events
+    if (input) {
+        input.onkeydown = function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        };
+        input.oninput = _updateSendBtn;
+    }
+    var sendBtn = document.getElementById('chatSendBtn');
+    if (sendBtn) sendBtn.onclick = sendMessage;
+
+    // Load history
+    _loadChatHistory(agentId);
+
+    // Focus input after a tick
+    setTimeout(function() { if (input) input.focus(); }, 350);
+}
+
+function closeChat() {
+    var panel = document.getElementById('chatPanel');
+    var overlay = document.getElementById('chatOverlay');
+    if (panel) panel.classList.remove('active');
+    if (overlay) overlay.classList.remove('active');
+    if (_chatEscHandler) {
+        document.removeEventListener('keydown', _chatEscHandler);
+        _chatEscHandler = null;
+    }
+    _chatAgentId = null;
+}
+
+async function _loadChatHistory(agentId) {
+    var messagesEl = document.getElementById('chatMessages');
+    if (!messagesEl) return;
+
+    try {
+        var resp = await fetch('/api/directory/chat/' + encodeURIComponent(agentId));
+        if (!resp.ok) throw new Error('Failed to load');
+        var data = await resp.json();
+
+        messagesEl.textContent = '';
+
+        // Memory banner
+        if (data.pinned_memories && data.pinned_memories.length > 0) {
+            _renderMemoryBanner(data.pinned_memories);
+        }
+
+        // Messages
+        if (!data.messages || data.messages.length === 0) {
+            var empty = document.createElement('div');
+            empty.className = 'dir-chat-empty';
+            var agentName = _chatAgentData
+                ? (_chatAgentData.full_name || _chatAgentData.display_name || 'this agent')
+                : 'this agent';
+            empty.textContent = 'Start a conversation with ' + agentName;
+            messagesEl.appendChild(empty);
+        } else {
+            data.messages.forEach(function(msg) {
+                _appendMessage(msg.sender_type, msg.message, msg.timestamp);
+            });
+            _scrollToBottom();
+        }
+    } catch (err) {
+        messagesEl.textContent = '';
+        var errDiv = document.createElement('div');
+        errDiv.className = 'dir-chat-empty';
+        errDiv.textContent = 'Start a new conversation';
+        messagesEl.appendChild(errDiv);
+    }
+}
+
+async function sendMessage() {
+    if (_chatSending || !_chatAgentId) return;
+    var input = document.getElementById('chatInput');
+    var message = (input ? input.value : '').trim();
+    if (!message) return;
+
+    _chatSending = true;
+    _updateSendBtn();
+
+    // Clear input immediately
+    if (input) input.value = '';
+
+    // Clear empty placeholder if present
+    var messagesEl = document.getElementById('chatMessages');
+    var emptyEl = messagesEl ? messagesEl.querySelector('.dir-chat-empty') : null;
+    if (emptyEl) emptyEl.remove();
+
+    // Append user message
+    _appendMessage('user', message, new Date().toISOString());
+    _scrollToBottom();
+
+    // Show typing indicator
+    var typing = document.getElementById('chatTyping');
+    if (typing) typing.style.display = 'flex';
+    _scrollToBottom();
+
+    try {
+        var resp = await fetch('/api/directory/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agent_id: _chatAgentId, message: message })
+        });
+        var data = await resp.json();
+
+        if (typing) typing.style.display = 'none';
+
+        if (!resp.ok) {
+            _appendMessage('agent', data.error || 'Something went wrong.', new Date().toISOString());
+        } else {
+            _appendMessage('agent', data.response, data.timestamp || new Date().toISOString());
+        }
+        _scrollToBottom();
+    } catch (err) {
+        if (typing) typing.style.display = 'none';
+        _appendMessage('agent', 'Network error. Please try again.', new Date().toISOString());
+        _scrollToBottom();
+    } finally {
+        _chatSending = false;
+        _updateSendBtn();
+        if (input) input.focus();
+    }
+}
+
+function _appendMessage(senderType, text, timestamp) {
+    var messagesEl = document.getElementById('chatMessages');
+    if (!messagesEl) return;
+
+    var bubble = document.createElement('div');
+    bubble.className = 'dir-chat-bubble ' +
+        (senderType === 'user' ? 'dir-chat-bubble-user' : 'dir-chat-bubble-agent');
+
+    // Set station color accent for agent bubbles
+    if (senderType === 'agent' && _chatAgentData) {
+        var dept = _chatAgentData.department || '';
+        var station = guessStation(dept);
+        var color = STATION_COLORS[station];
+        if (color) {
+            bubble.style.borderLeft = '3px solid ' + color;
+        }
+    }
+
+    bubble.textContent = text;
+    messagesEl.appendChild(bubble);
+
+    // Timestamp
+    if (timestamp) {
+        var tsEl = document.createElement('div');
+        tsEl.className = 'dir-chat-timestamp ' +
+            (senderType === 'user' ? 'dir-chat-ts-right' : 'dir-chat-ts-left');
+        try {
+            var d = new Date(timestamp);
+            tsEl.textContent = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } catch (e) {
+            tsEl.textContent = '';
+        }
+        messagesEl.appendChild(tsEl);
+    }
+}
+
+function _renderMemoryBanner(memories) {
+    var banner = document.getElementById('chatMemoryBanner');
+    if (!banner || !memories.length) return;
+    banner.textContent = '';
+
+    var agentName = _chatAgentData
+        ? (_chatAgentData.full_name || _chatAgentData.display_name || 'Agent')
+        : 'Agent';
+
+    var label = document.createElement('strong');
+    label.textContent = agentName + ' remembers: ';
+    banner.appendChild(label);
+
+    var texts = memories.map(function(m) { return m.text; });
+    banner.appendChild(document.createTextNode(texts.join(' | ')));
+    banner.style.display = '';
+}
+
+function _scrollToBottom() {
+    var messagesEl = document.getElementById('chatMessages');
+    if (messagesEl) {
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+}
+
+function _updateSendBtn() {
+    var input = document.getElementById('chatInput');
+    var btn = document.getElementById('chatSendBtn');
+    if (btn) {
+        btn.disabled = _chatSending || !(input && input.value.trim());
+    }
+}
+
 // Expose for onclick handlers in template
 window.openProfile = openProfile;
 window.closeProfile = closeProfile;
+window.openChat = openChat;
+window.closeChat = closeChat;

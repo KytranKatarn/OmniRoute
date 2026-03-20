@@ -1686,8 +1686,12 @@ class BridgeDispatcher:
 
             node_info = select_best_image_node("comfyui")
             if node_info:
-                node_hostname = node_info.get("hostname") or node_info.get("vpn_ip")
-                node_port = node_info.get("comfyui_port", 8188)
+                node_hostname = (
+                    node_info.get("hostname")
+                    or node_info.get("vpn_ip")
+                    or node_info.get("node_name")
+                )
+                node_port = node_info.get("port", 8188)
                 node_db_id = node_info.get("id")
                 if not self._is_image_host_busy(node_hostname):
                     url = f"http://{node_hostname}:{node_port}"

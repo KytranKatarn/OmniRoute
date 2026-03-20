@@ -17,7 +17,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
 from typing import Optional, Dict, Any, List
-from db import get_db
+from ai_bridge.db import get_db
 
 logger = logging.getLogger("archie.node_router")
 
@@ -326,8 +326,10 @@ def get_nodes_with_service(service_name: str) -> List[Dict[str, Any]]:
 
         cur.execute(f"""
             SELECT
+                id,
                 node_id,
                 node_name,
+                hostname,
                 vpn_ip,
                 {port_column} as port,
                 current_load,
@@ -335,12 +337,14 @@ def get_nodes_with_service(service_name: str) -> List[Dict[str, Any]]:
                 gpu_available,
                 gpu_model,
                 gpu_vram_gb,
-                status
+                status,
+                deployment_mode
             FROM remote_nodes
             WHERE bridge_enabled = true
               AND status = 'online'
               AND approval_status = 'approved'
               AND {service_column} = true
+              AND deployment_mode = 'starship'
             ORDER BY current_load ASC, bridge_priority DESC
         """)
 

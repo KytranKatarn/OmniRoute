@@ -299,6 +299,25 @@ except ImportError as e:
 
 
 # ============================================================================
+# BRIDGE → STARBASE COMPATIBILITY REDIRECT
+# Old node clients (v1.x) still hit /tools/bridge/ URLs after the rename.
+# Forward them to /tools/starbase/ so heartbeats and mesh sync work.
+# ============================================================================
+
+
+@app.route("/tools/bridge/<path:subpath>", methods=["GET", "POST", "PUT", "DELETE"])
+def bridge_compat_redirect(subpath):
+    """Redirect old /tools/bridge/ URLs to /tools/starbase/ for node clients."""
+    from flask import redirect, request as req
+
+    new_url = f"/tools/starbase/{subpath}"
+    if req.query_string:
+        new_url += f"?{req.query_string.decode()}"
+    # 307 preserves method and body (unlike 301/302 which change POST→GET)
+    return redirect(new_url, code=307)
+
+
+# ============================================================================
 # AI BRIDGE ROUTES
 # ============================================================================
 
@@ -797,14 +816,87 @@ def logout():
 
 @app.route("/directory")
 def directory():
-    """Redirect old directory URL to new Business Directory"""
-    return redirect("/business/directory")
+    """Public business directory — Human + AI employees"""
+    return render_template("business/directory.html")
 
 
 @app.route("/api/directory")
 def api_directory():
-    """Redirect old API endpoint to new Business Directory API"""
-    return redirect("/business/api/directory")
+    """API endpoint for public business directory"""
+    from database import get_db_cursor
+    import json as _json
+
+    try:
+        search = request.args.get("search", "")
+        department = request.args.get("department", "")
+        employee_type = request.args.get("type", "")
+
+        where_clauses = ["status = 'active'"]
+        params = []
+
+        if search:
+            where_clauses.append("(first_name ILIKE %s OR last_name ILIKE %s OR title ILIKE %s OR department ILIKE %s)")
+            params.extend([f"%{search}%"] * 4)
+
+        if department and department != "all":
+            where_clauses.append("department = %s")
+            params.append(department)
+
+        if employee_type == "ai":
+            where_clauses.append("worker_type IN ('internal', 'contract')")
+        elif employee_type == "human":
+            where_clauses.append("worker_type = 'human'")
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                f"""SELECT id, name, first_name, last_name,
+                       COALESCE(first_name || ' ' || last_name, name) as full_name,
+                       email, phone, title, department, pronouns, bio,
+                       avatar_url, tier,
+                       CASE WHEN worker_type IN ('internal','contract') THEN 'AI' ELSE 'Human' END as employee_type,
+                       worker_type, capabilities
+                    FROM agents WHERE {' AND '.join(where_clauses)}
+                    ORDER BY department, first_name""",
+                params,
+            )
+            members = cur.fetchall()
+
+        by_department = {}
+        for m in members:
+            md = dict(m)
+            if md.get("capabilities"):
+                try:
+                    caps = (
+                        md["capabilities"] if isinstance(md["capabilities"], dict) else _json.loads(md["capabilities"])
+                    )
+                    md["specialties"] = caps.get("specialties", [])[:5]
+                except Exception:
+                    md["specialties"] = []
+            else:
+                md["specialties"] = []
+            del md["capabilities"]
+            dept = md["department"] or "General"
+            by_department.setdefault(dept, []).append(md)
+
+        ai_count = sum(1 for m in members if dict(m).get("employee_type") == "AI")
+        human_count = sum(1 for m in members if dict(m).get("employee_type") == "Human")
+
+        return jsonify(
+            {
+                "success": True,
+                "members": [dict(m) for m in members],
+                "by_department": by_department,
+                "departments": sorted(by_department.keys()),
+                "statistics": {
+                    "total_members": len(members),
+                    "total_departments": len(by_department),
+                    "ai_count": ai_count,
+                    "human_count": human_count,
+                },
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @app.route("/api/module-agents")

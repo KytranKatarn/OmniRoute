@@ -469,6 +469,9 @@ def generate_media(provider_key: str, request: dict) -> dict:
         "gemini": _gemini_media_adapter,
         "openai": _openai_image_adapter,
         "local_tts": _local_tts_adapter,
+        "huggingface": _huggingface_image_adapter,
+        "cloudflare_ai": _cloudflare_image_adapter,
+        "together": _together_image_adapter,
     }
     adapter = adapters.get(provider_key)
     if not adapter:
@@ -715,3 +718,164 @@ def call_perplexity(prompt, model=None, system_prompt=None, json_mode=False, tim
 def call_grok(prompt, model=None, system_prompt=None, json_mode=False, timeout=120):
     """Call xAI Grok API."""
     return _call_openai_compatible("xai", prompt, model, system_prompt, json_mode, timeout)
+
+
+# ============================================================================
+# Free-Tier Image Generation Adapters (Project #164)
+# ============================================================================
+
+
+def _huggingface_image_adapter(request: dict) -> dict:
+    """Generate image via HuggingFace Inference API (free tier, rate-limited).
+
+    Uses stabilityai/stable-diffusion-xl-base-1.0 by default.
+    """
+    import uuid
+    from datetime import date
+
+    prompt = request.get("prompt", "")
+    params = request.get("params", {})
+    model = params.get("model", "stabilityai/stable-diffusion-xl-base-1.0")
+
+    api_key = os.getenv("HF_API_KEY", "")
+    if not api_key:
+        return {"success": False, "error": "HF_API_KEY not configured"}
+
+    url = f"https://api-inference.huggingface.co/models/{model}"
+    headers = {"Authorization": f"Bearer {api_key}"}
+
+    try:
+        resp = requests.post(url, json={"inputs": prompt}, headers=headers, timeout=120)
+        if resp.status_code == 200:
+            image_bytes = resp.content
+            date_dir = date.today().strftime("%Y-%m-%d")
+            save_dir = os.path.join("static", "media", "images", date_dir)
+            os.makedirs(save_dir, exist_ok=True)
+            filename = f"hf_{uuid.uuid4().hex[:8]}.png"
+            file_path = os.path.join(save_dir, filename)
+            with open(file_path, "wb") as f:
+                f.write(image_bytes)
+
+            return {
+                "success": True,
+                "file_path": file_path,
+                "model": model,
+                "provider": "huggingface",
+                "cost_usd": 0.0,
+                "metadata": {"model": model, "prompt": prompt[:100]},
+            }
+        else:
+            return {"success": False, "error": f"HF API returned {resp.status_code}: {resp.text[:200]}"}
+    except Exception as e:
+        return {"success": False, "error": f"HuggingFace: {e}"}
+
+
+def _cloudflare_image_adapter(request: dict) -> dict:
+    """Generate image via Cloudflare Workers AI (free tier, 10K/day).
+
+    Uses @cf/stabilityai/stable-diffusion-xl-base-1.0 by default.
+    """
+    import uuid
+    from datetime import date
+
+    prompt = request.get("prompt", "")
+    params = request.get("params", {})
+
+    api_key = os.getenv("CF_AI_API_KEY", "")
+    account_id = os.getenv("CF_ACCOUNT_ID", "")
+    if not api_key or not account_id:
+        return {"success": False, "error": "CF_AI_API_KEY or CF_ACCOUNT_ID not configured"}
+
+    model = params.get("model", "@cf/stabilityai/stable-diffusion-xl-base-1.0")
+    url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model}"
+    headers = {"Authorization": f"Bearer {api_key}"}
+
+    try:
+        resp = requests.post(url, json={"prompt": prompt}, headers=headers, timeout=120)
+        if resp.status_code == 200:
+            image_bytes = resp.content
+            date_dir = date.today().strftime("%Y-%m-%d")
+            save_dir = os.path.join("static", "media", "images", date_dir)
+            os.makedirs(save_dir, exist_ok=True)
+            filename = f"cf_{uuid.uuid4().hex[:8]}.png"
+            file_path = os.path.join(save_dir, filename)
+            with open(file_path, "wb") as f:
+                f.write(image_bytes)
+
+            return {
+                "success": True,
+                "file_path": file_path,
+                "model": model,
+                "provider": "cloudflare_ai",
+                "cost_usd": 0.0,
+                "metadata": {"model": model, "prompt": prompt[:100]},
+            }
+        else:
+            return {"success": False, "error": f"Cloudflare AI returned {resp.status_code}: {resp.text[:200]}"}
+    except Exception as e:
+        return {"success": False, "error": f"Cloudflare: {e}"}
+
+
+def _together_image_adapter(request: dict) -> dict:
+    """Generate image via Together AI (has SDXL and Flux models).
+
+    Free credits on signup, then pay-per-use (~$0.003/image).
+    """
+    import base64
+    import uuid
+    from datetime import date
+
+    prompt = request.get("prompt", "")
+    params = request.get("params", {})
+    model = params.get("model", "stabilityai/stable-diffusion-xl-base-1.0")
+    width = params.get("width", 1024)
+    height = params.get("height", 1024)
+
+    api_key = os.getenv("TOGETHER_API_KEY", "")
+    if not api_key:
+        return {"success": False, "error": "TOGETHER_API_KEY not configured"}
+
+    url = "https://api.together.xyz/v1/images/generations"
+    headers = {"Authorization": f"Bearer {api_key}"}
+
+    try:
+        resp = requests.post(
+            url,
+            json={
+                "model": model,
+                "prompt": prompt,
+                "width": width,
+                "height": height,
+                "n": 1,
+                "response_format": "b64_json",
+            },
+            headers=headers,
+            timeout=120,
+        )
+        if resp.status_code == 200:
+            resp_data = resp.json()
+            b64_data = resp_data.get("data", [{}])[0].get("b64_json", "")
+            if not b64_data:
+                return {"success": False, "error": "Together: empty image response"}
+
+            image_bytes = base64.b64decode(b64_data)
+            date_dir = date.today().strftime("%Y-%m-%d")
+            save_dir = os.path.join("static", "media", "images", date_dir)
+            os.makedirs(save_dir, exist_ok=True)
+            filename = f"together_{uuid.uuid4().hex[:8]}.png"
+            file_path = os.path.join(save_dir, filename)
+            with open(file_path, "wb") as f:
+                f.write(image_bytes)
+
+            return {
+                "success": True,
+                "file_path": file_path,
+                "model": model,
+                "provider": "together",
+                "cost_usd": 0.003,
+                "metadata": {"model": model, "prompt": prompt[:100]},
+            }
+        else:
+            return {"success": False, "error": f"Together AI returned {resp.status_code}: {resp.text[:200]}"}
+    except Exception as e:
+        return {"success": False, "error": f"Together: {e}"}

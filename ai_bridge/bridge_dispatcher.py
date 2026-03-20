@@ -1669,6 +1669,234 @@ class BridgeDispatcher:
 
         return None
 
+    # ================================================================
+    # Image Generation Escalation (Project #164)
+    # 4-tier: Node ComfyUI → Hub ComfyUI → Free Cloud → Paid Cloud
+    # ================================================================
+
+    def _select_comfyui_host(self) -> tuple:
+        """Find the best available ComfyUI host.
+
+        Returns (comfyui_url, node_db_id) or (None, None) if all busy.
+        Priority: fleet nodes (faster GPUs) → hub (fallback).
+        """
+        # Check fleet nodes first
+        try:
+            from ai_bridge.node_router import select_best_image_node
+
+            node_info = select_best_image_node("comfyui")
+            if node_info:
+                node_hostname = node_info.get("hostname") or node_info.get("vpn_ip")
+                node_port = node_info.get("comfyui_port", 8188)
+                node_db_id = node_info.get("id")
+                if not self._is_image_host_busy(node_hostname):
+                    url = f"http://{node_hostname}:{node_port}"
+                    logger.info(
+                        "[ImageEscalation] Node ComfyUI available: %s (id=%s)",
+                        url,
+                        node_db_id,
+                    )
+                    return url, node_db_id
+                logger.info("[ImageEscalation] Node ComfyUI busy, trying hub")
+        except Exception as e:
+            logger.warning("[ImageEscalation] Node router check failed: %s", e)
+
+        # Fall back to hub ComfyUI
+        hub_host = os.getenv("COMFYUI_HOST", "http://archie_comfyui:8188")
+        if not self._is_image_host_busy("hub"):
+            logger.info("[ImageEscalation] Hub ComfyUI available: %s", hub_host)
+            return hub_host, None
+
+        logger.info("[ImageEscalation] All local ComfyUI hosts busy")
+        return None, None
+
+    def _is_image_host_busy(self, target_host: str) -> bool:
+        """Check bridge_jobs metadata for running image_generation jobs on a host."""
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT COUNT(*) FROM bridge_jobs
+                WHERE job_type = 'image_generation'
+                  AND status = 'running'
+                  AND metadata->>'target_host' = %s
+                """,
+                (target_host,),
+            )
+            count = cur.fetchone()[0]
+            cur.close()
+            conn.close()
+            return count > 0
+        except Exception:
+            return False
+
+    def _escalate_image_to_cloud(
+        self,
+        agent_name: str,
+        agent: Dict,
+        prompt: str,
+        context: Dict,
+        station_code: str,
+        capability: str,
+        module_id: str,
+        user_id: Optional[int] = None,
+        job_id: Optional[int] = None,
+    ) -> "DispatchResult":
+        """Escalate image gen to cloud: free contractors (Tier 1), then paid (Tier 2).
+
+        Free cloud providers auto-execute. Paid providers require async
+        Telegram approval via contractor_approval_requests.
+        """
+        agent_id = agent.get("id")
+
+        # --- Tier 1: Free cloud contractors (auto-approve) ---
+        try:
+            from ai_bridge.external_providers import (
+                generate_media,
+                get_providers_with_capability,
+            )
+
+            free_providers = [
+                p
+                for p in get_providers_with_capability("image_gen")
+                if p.get("tier_position", 99) <= 4
+                and p.get("provider_key") not in ("comfyui", "ollama_diffuser")
+            ]
+            for provider in free_providers:
+                pkey = provider["provider_key"]
+                logger.info("[ImageEscalation] Trying free cloud: %s", pkey)
+                try:
+                    result = generate_media(
+                        pkey,
+                        {
+                            "type": "image",
+                            "prompt": prompt,
+                            "params": context.get("image_params", {}),
+                        },
+                    )
+                    if result and result.get("success"):
+                        # Log usage
+                        self._log_cloud_image_usage(
+                            pkey, user_id, result.get("cost_usd", 0)
+                        )
+                        return DispatchResult(
+                            success=True,
+                            response=result.get("file_path", ""),
+                            agent_name=agent_name,
+                            agent_id=agent_id,
+                            model_used=result.get("model", pkey),
+                            station_code=station_code,
+                            capability=capability,
+                            provider=pkey,
+                            metadata={
+                                "file_path": result.get("file_path"),
+                                "provider": pkey,
+                                "escalation": "free_cloud",
+                            },
+                        )
+                except Exception as e:
+                    logger.warning(
+                        "[ImageEscalation] Free cloud %s failed: %s", pkey, e
+                    )
+        except ImportError:
+            logger.warning("[ImageEscalation] external_providers not available")
+
+        # --- Tier 2: Paid cloud contractors (async Telegram approval) ---
+        logger.info(
+            "[ImageEscalation] All free options exhausted, submitting Tier 2 approval"
+        )
+
+        # Create pending bridge_job
+        pending_job_id = None
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO bridge_jobs (job_type, module_source, description,
+                    total_steps, status, agent_name, station_code, metadata)
+                VALUES ('image_generation', %s, %s, 1, 'pending_approval', %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    module_id,
+                    f"Cloud image gen (pending approval): {prompt[:60]}",
+                    agent_name,
+                    station_code,
+                    json.dumps({
+                        "target_host": "cloud",
+                        "prompt": prompt,
+                        "escalation": "paid_cloud",
+                        "user_id": user_id,
+                        "image_params": context.get("image_params", {}),
+                    }),
+                ),
+            )
+            pending_job_id = cur.fetchone()[0]
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            logger.error("[ImageEscalation] Failed to create pending job: %s", e)
+
+        # Submit async approval via Telegram
+        try:
+            from ai_bridge.agent_loop import request_approval
+
+            request_approval(
+                action_type="cloud_throughput_escalation",
+                action_data={
+                    "job_id": pending_job_id,
+                    "prompt": prompt[:100],
+                    "capability": "image_gen",
+                },
+                reason=(
+                    "All local + free cloud image generators busy. "
+                    "Paid cloud image generation requested."
+                ),
+                tier=2,
+            )
+        except Exception as e:
+            logger.error("[ImageEscalation] Failed to submit approval: %s", e)
+
+        return DispatchResult(
+            success=False,
+            response="Image generation queued — awaiting cloud approval via Telegram",
+            agent_name=agent_name,
+            agent_id=agent_id,
+            model_used="pending",
+            station_code=station_code,
+            capability=capability,
+            provider="cloud_pending",
+            metadata={
+                "escalation": "pending_approval",
+                "job_id": pending_job_id,
+            },
+        )
+
+    def _log_cloud_image_usage(
+        self, provider: str, user_id: Optional[int], cost_usd: float
+    ):
+        """Log cloud image generation to cloud_model_usage."""
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO cloud_model_usage
+                    (model_name, provider, prompt_tokens, completion_tokens,
+                     cost_usd, user_id, task_type, success)
+                VALUES (%s, %s, 0, 0, %s, %s, 'image_generation', true)
+                """,
+                (f"{provider}_image", provider, cost_usd, user_id),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            logger.warning("[ImageEscalation] Failed to log usage: %s", e)
+
     def _execute_comfyui(
         self,
         agent_name: str,
@@ -1682,15 +1910,34 @@ class BridgeDispatcher:
         user_id: Optional[int] = None,
         job_id: Optional[int] = None,
     ) -> "DispatchResult":
-        """Execute image generation via ComfyUI for agents with image_model.
+        """Execute image generation with 4-tier escalation.
 
-        Handles VRAM management (unloads Ollama GPU models for SDXL),
-        creates bridge_job for tracking, calls ComfyUI, returns DispatchResult.
+        1. Fleet node ComfyUI (fastest GPU) → free
+        2. Hub ComfyUI (fallback) → free
+        3. Free cloud contractors (HuggingFace, Cloudflare) → free
+        4. Paid cloud contractors (DALL-E 3, Imagen 3) → Telegram approval
+
+        Handles VRAM management, creates bridge_job for tracking, returns DispatchResult.
         """
         from ai_bridge.comfyui_service import ComfyUIService
 
-        comfyui = ComfyUIService()
         agent_id = agent.get("id")
+
+        # --- Escalation: find best available ComfyUI host ---
+        comfyui_host, node_db_id = self._select_comfyui_host()
+
+        if comfyui_host is None:
+            # All local ComfyUI busy → escalate to cloud
+            return self._escalate_image_to_cloud(
+                agent_name, agent, prompt, context,
+                station_code, capability, module_id, user_id, job_id,
+            )
+
+        # --- Instantiate ComfyUI service with selected host ---
+        comfyui = ComfyUIService(host=comfyui_host)
+        target_host = "hub" if node_db_id is None else (
+            comfyui_host.replace("http://", "").split(":")[0]
+        )
 
         # --- Create bridge_job to mark agent busy ---
         bridge_job_id = None
@@ -1713,6 +1960,9 @@ class BridgeDispatcher:
                         "image_model": image_model,
                         "provider": "comfyui",
                         "capability": capability,
+                        "target_host": target_host,
+                        "comfyui_host": comfyui_host,
+                        "node_db_id": node_db_id,
                     }),
                 ),
             )
@@ -1722,22 +1972,20 @@ class BridgeDispatcher:
             conn.close()
             self._busy_agents.add(agent_name)
             logger.info(
-                f"[BridgeDispatcher] ComfyUI job #{bridge_job_id} started: "
-                f"{agent_name} generating with {image_model}"
+                "[BridgeDispatcher] ComfyUI job #%s started: %s → %s (%s)",
+                bridge_job_id, agent_name, target_host, image_model,
             )
         except Exception as e:
             logger.error(f"[BridgeDispatcher] Failed to create bridge_job: {e}")
 
         # --- VRAM swap: unload Ollama GPU models if SDXL needs full GPU ---
-        # Works for hub (default) or any node with ComfyUI
         ollama_models_unloaded = []
         is_xl = "xl" in image_model.lower()
         if is_xl:
-            ollama_models_unloaded = self._vram_swap_for_comfyui()
+            ollama_models_unloaded = self._vram_swap_for_comfyui(node_db_id)
 
         # --- Determine resolution ---
         width, height = (1024, 1024) if is_xl else (512, 512)
-        # Allow context overrides
         width = context.get("width", width)
         height = context.get("height", height)
         steps = context.get("steps", 20)
@@ -1759,7 +2007,7 @@ class BridgeDispatcher:
 
         # --- Reload Ollama GPU models after SDXL ---
         if ollama_models_unloaded:
-            self._vram_restore_after_comfyui(ollama_models_unloaded)
+            self._vram_restore_after_comfyui(ollama_models_unloaded, node_db_id)
 
         # --- Complete bridge_job ---
         if bridge_job_id:
@@ -1787,6 +2035,7 @@ class BridgeDispatcher:
             metadata = result.metadata or {}
             metadata["file_path"] = result.file_path
             metadata["bridge_job_id"] = bridge_job_id
+            metadata["target_host"] = target_host
             if ollama_models_unloaded:
                 metadata["vram_swap"] = ollama_models_unloaded
             return DispatchResult(
@@ -1802,6 +2051,19 @@ class BridgeDispatcher:
             )
         else:
             error_msg = result.error if result else "ComfyUI service unreachable"
+            # If local ComfyUI failed, try cloud escalation
+            if not result or not result.success:
+                logger.info(
+                    "[ImageEscalation] Local ComfyUI on %s failed, trying cloud",
+                    target_host,
+                )
+                cloud_result = self._escalate_image_to_cloud(
+                    agent_name, agent, prompt, context,
+                    station_code, capability, module_id, user_id, job_id,
+                )
+                if cloud_result.success:
+                    return cloud_result
+
             return DispatchResult(
                 success=False,
                 response="",

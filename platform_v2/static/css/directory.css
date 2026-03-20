@@ -79,6 +79,30 @@
     letter-spacing: 1.5px;
 }
 
+/* ---------- STAFF LOGIN CTA ---------- */
+.dir-staff-cta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 14px 24px;
+    background: linear-gradient(135deg, rgba(0, 229, 255, 0.06), rgba(139, 92, 246, 0.06));
+    border-top: 1px solid rgba(0, 229, 255, 0.1);
+    border-bottom: 1px solid rgba(0, 229, 255, 0.1);
+}
+.dir-staff-cta-icon { font-size: 1.1rem; }
+.dir-staff-cta-text {
+    font-size: 0.85rem;
+    color: #94a3b8;
+}
+.dir-staff-cta-link {
+    color: #00e5ff;
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.2s;
+}
+.dir-staff-cta-link:hover { color: #67e8f9; text-decoration: underline; }
+
 /* ---------- FILTERS ---------- */
 .dir-filters {
     background: #0f172a;
@@ -332,18 +356,32 @@
     background: #475569;
 }
 
-/* Station color borders */
-.dir-org-node.station-COMMAND    { border-color: #00e5ff; }
-.dir-org-node.station-ANALYTICS  { border-color: #8b5cf6; }
-.dir-org-node.station-CREATIVE   { border-color: #f472b6; }
-.dir-org-node.station-ENGINEERING { border-color: #fbbf24; }
-.dir-org-node.station-COMMUNICATIONS { border-color: #22d3ee; }
-.dir-org-node.station-RESEARCH   { border-color: #10b981; }
-.dir-org-node.station-SECURITY   { border-color: #ef4444; }
-.dir-org-node.station-LOGISTICS  { border-color: #f97316; }
-.dir-org-node.station-DIPLOMATIC { border-color: #818cf8; }
-.dir-org-node.station-OPERATIONS { border-color: #a3e635; }
+/* Role color borders (set inline for departments) */
 .dir-org-node.role-ceo           { border-color: #f59e0b; }
+.dir-org-node.role-director      { border-color: #00e5ff; }
+
+/* --- Department head wrapper --- */
+.dir-org-dept-head-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 120px;
+    max-width: 140px;
+}
+.dir-org-dept-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.55rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 140px;
+    line-height: 1.2;
+}
 
 /* --- Department member column (Level 5) --- */
 .dir-org-dept-col {
@@ -719,17 +757,7 @@
 
 .dir-profile-bio-text { font-size: 13px; color: #94a3b8; line-height: 1.7; }
 
-.dir-profile-skills-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
-.dir-profile-skill {
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 0.75rem;
-    font-weight: 500;
-    border: 1px solid rgba(0, 229, 255, 0.2);
-    background: rgba(0, 229, 255, 0.08);
-    color: #67e8f9;
-    transition: background 0.2s;
-}
+.dir-profile-skills-wrap { display: flex; flex-direction: column; gap: 0; }
 
 .dir-profile-working-text { font-size: 0.85rem; color: #64748b; font-style: italic; }
 
@@ -792,6 +820,13 @@
     .dir-org-connector-horizontal,
     .dir-org-drop-lines {
         display: none;
+    }
+    .dir-org-dept-head-wrap {
+        min-width: 100px;
+        max-width: 120px;
+    }
+    .dir-org-dept-label {
+        font-size: 0.5rem;
     }
 }
 
@@ -861,28 +896,86 @@
     .dir-hero-subtitle { font-size: 0.7rem; letter-spacing: 4px; }
 }
 
-/* ---------- STATION COLOR UTILITIES ---------- */
-.dir-color-COMMAND       { color: #00e5ff; }
-.dir-color-ANALYTICS     { color: #8b5cf6; }
-.dir-color-CREATIVE      { color: #f472b6; }
-.dir-color-ENGINEERING   { color: #fbbf24; }
-.dir-color-COMMUNICATIONS { color: #22d3ee; }
-.dir-color-RESEARCH      { color: #10b981; }
-.dir-color-SECURITY      { color: #ef4444; }
-.dir-color-LOGISTICS     { color: #f97316; }
-.dir-color-DIPLOMATIC    { color: #818cf8; }
-.dir-color-OPERATIONS    { color: #a3e635; }
+/* ---------- PROFILE: PERFORMANCE BADGE ---------- */
+.dir-profile-id-name-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+}
+.dir-profile-perf-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 600;
+    border: 1px solid;
+    white-space: nowrap;
+}
 
-.dir-bg-COMMAND       { background: linear-gradient(135deg, #0a1628, #0d2a3a); }
-.dir-bg-ANALYTICS     { background: linear-gradient(135deg, #1a0f2e, #2d1b4e); }
-.dir-bg-CREATIVE      { background: linear-gradient(135deg, #2d0f24, #3d1535); }
-.dir-bg-ENGINEERING   { background: linear-gradient(135deg, #2d2508, #3d3210); }
-.dir-bg-COMMUNICATIONS { background: linear-gradient(135deg, #0a2228, #0d2a33); }
-.dir-bg-RESEARCH      { background: linear-gradient(135deg, #0a2218, #0d2d1e); }
-.dir-bg-SECURITY      { background: linear-gradient(135deg, #2d0f0f, #3d1515); }
-.dir-bg-LOGISTICS     { background: linear-gradient(135deg, #2d1a08, #3d2510); }
-.dir-bg-DIPLOMATIC    { background: linear-gradient(135deg, #1a1540, #252060); }
-.dir-bg-OPERATIONS    { background: linear-gradient(135deg, #1a2d08, #223a0d); }
+/* ---------- PROFILE: REPORTS TO ---------- */
+.dir-profile-id-reports {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 4px;
+    letter-spacing: 0.3px;
+}
+
+/* ---------- PROFILE: SKILL RATINGS ---------- */
+.dir-profile-skill-cat {
+    width: 100%;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-top: 10px;
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+.dir-profile-skill-cat:first-child { margin-top: 0; }
+
+.dir-profile-skill-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 5px 0;
+}
+.dir-profile-skill-row + .dir-profile-skill-row {
+    border-top: 1px solid rgba(148, 163, 184, 0.05);
+}
+.dir-profile-skill-name {
+    font-size: 0.8rem;
+    color: #cbd5e1;
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.dir-profile-skill-dots {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+.dir-profile-skill-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #1e293b;
+    border: 1px solid #334155;
+    transition: background 0.2s;
+}
+.dir-profile-skill-dot.filled {
+    border-color: transparent;
+}
 
 .dir-portrait-default { background: linear-gradient(135deg, #1a1040, #0d2137); }
 

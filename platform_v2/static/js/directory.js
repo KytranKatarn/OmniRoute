@@ -4,34 +4,28 @@
    All dynamic content is sanitized via escHtml()/escAttr() before DOM insertion.
    ========================================================================== */
 
-const STATION_COLORS = {
-    COMMAND: '#00e5ff',
-    ANALYTICS: '#8b5cf6',
-    CREATIVE: '#f472b6',
-    ENGINEERING: '#fbbf24',
-    COMMUNICATIONS: '#22d3ee',
-    RESEARCH: '#10b981',
-    SECURITY: '#ef4444',
-    LOGISTICS: '#f97316',
-    DIPLOMATIC: '#818cf8',
-    OPERATIONS: '#a3e635'
+const DEPT_COLORS = {
+    'Analytics & Intelligence': '#8b5cf6',
+    'Engineering': '#fbbf24',
+    'Creative & Design': '#f472b6',
+    'Communications & Marketing': '#22d3ee',
+    'Research & Development': '#10b981',
+    'Security & Compliance': '#ef4444',
+    'Operations & Infrastructure': '#f97316',
+    'Logistics & Supply Chain': '#a3e635',
+    'Diplomatic & Human Relations': '#818cf8',
+    'Medical & Wellness': '#ec4899',
+    'Customer Experience': '#06b6d4',
+    'Documentation & Knowledge': '#d4a843',
 };
 
-// Department-to-station mapping (best guess from department name)
-const DEPT_STATION_MAP = {
-    'Command': 'COMMAND',
-    'Analytics': 'ANALYTICS',
-    'Creative': 'CREATIVE',
-    'Engineering': 'ENGINEERING',
-    'Communications': 'COMMUNICATIONS',
-    'Research': 'RESEARCH',
-    'Security': 'SECURITY',
-    'Logistics': 'LOGISTICS',
-    'Diplomatic': 'DIPLOMATIC',
-    'Operations': 'OPERATIONS'
+const PROFICIENCY_COLORS = {
+    5: '#10b981',
+    4: '#00e5ff',
+    3: '#fbbf24',
+    2: '#f97316',
+    1: '#ef4444',
 };
-
-const STATION_ORDER = ['ANALYTICS', 'CREATIVE', 'ENGINEERING', 'COMMUNICATIONS', 'RESEARCH', 'SECURITY', 'LOGISTICS', 'DIPLOMATIC', 'OPERATIONS'];
 
 let directoryData = null;
 let orgChartNodes = null;
@@ -148,30 +142,35 @@ function renderOrgChart(nodes) {
     if (!chart) return;
     chart.textContent = '';
 
-    // --- Identify key people ---
-    const archie = nodes.find(n => /^archie$/i.test(n.name || '') || /^A\.R\.C\.H\.I\.E\.$/i.test(n.display_name || ''));
+    // --- Identify special nodes ---
+    const archie = nodes.find(n =>
+        (n.reports_to === null || n.reports_to === undefined) &&
+        (/^archie$/i.test(n.name || '') || /^A\.R\.C\.H\.I\.E\.$/i.test(n.display_name || ''))
+    );
     const vigil = nodes.find(n => /^vigil$/i.test(n.name || '') || /^vigil/i.test(n.display_name || ''));
     const skipIds = new Set([archie, vigil].filter(Boolean).map(n => n.id));
 
-    // Group agents by station
-    const stationAgents = {};
-    STATION_ORDER.forEach(s => { stationAgents[s] = []; });
+    // --- Group remaining nodes by department ---
+    const deptMap = {};  // department name -> { head: node|null, members: [] }
     nodes.forEach(n => {
         if (skipIds.has(n.id)) return;
-        const sc = (n.station_code || '').toUpperCase();
-        if (sc && stationAgents[sc]) {
-            stationAgents[sc].push(n);
+        const dept = n.department || 'Unassigned';
+        if (!deptMap[dept]) deptMap[dept] = { head: null, members: [] };
+        if (n.is_head) {
+            deptMap[dept].head = n;
+        } else {
+            deptMap[dept].members.push(n);
         }
     });
 
-    // Unassigned agents (no station_code or not in our 9 stations)
-    const assignedIds = new Set();
-    skipIds.forEach(id => assignedIds.add(id));
-    STATION_ORDER.forEach(s => stationAgents[s].forEach(a => assignedIds.add(a.id)));
-    const unassigned = nodes.filter(n => !assignedIds.has(n.id));
+    // Sort departments by DEPT_COLORS order, then alphabetically for unknown
+    const knownDepts = Object.keys(DEPT_COLORS);
+    const deptOrder = knownDepts.filter(d => deptMap[d]).concat(
+        Object.keys(deptMap).filter(d => !knownDepts.includes(d)).sort()
+    );
 
     // --- LEVEL 1: CEO (Kytran) ---
-    const kytranNode = { full_name: 'Kytran', title: 'CEO & Founder', employee_type: 'Human', _station: 'ceo', id: 0 };
+    const kytranNode = { full_name: 'Kytran', title: 'CEO & Founder', employee_type: 'Human', department: 'Executive', id: 0 };
     const l1 = document.createElement('div');
     l1.className = 'dir-org-level dir-org-level-ceo';
     l1.appendChild(createOrgNode(kytranNode, 'ceo'));
@@ -183,97 +182,98 @@ function renderOrgChart(nodes) {
     // --- LEVEL 2: ARCHIE ---
     const l2 = document.createElement('div');
     l2.className = 'dir-org-level dir-org-level-director';
-    const archieData = archie || { full_name: 'A.R.C.H.I.E.', title: 'AI Director / Co-Owner', employee_type: 'AI', station_code: 'COMMAND', id: 2 };
-    const archieNode = createOrgNode(Object.assign({}, archieData, { _station: 'COMMAND' }), 'COMMAND');
+    const archieData = archie || { full_name: 'A.R.C.H.I.E.', title: 'AI Director / Co-Owner', employee_type: 'AI', department: 'Command', id: 2 };
+    const archieNode = createOrgNode(archieData, 'director');
     l2.appendChild(archieNode);
     chart.appendChild(l2);
 
-    // --- LEVEL 3: Vigil (advisory, offset to right) ---
+    // --- LEVEL 3: Vigil (advisory, dashed line to ARCHIE, offset right) ---
     const vigilWrap = document.createElement('div');
     vigilWrap.className = 'dir-vigil-branch';
     const vigilConnector = document.createElement('div');
     vigilConnector.className = 'dir-vigil-connector';
     vigilWrap.appendChild(vigilConnector);
-    const vigilData = vigil || { full_name: 'Vigil', title: 'Ethics Officer', employee_type: 'AI', station_code: 'COMMAND', id: 3 };
-    const vigilNode = createOrgNode(Object.assign({}, vigilData, { _station: 'COMMAND' }), 'COMMAND');
+    const vigilData = vigil || { full_name: 'Vigil', title: 'Ethics Officer', employee_type: 'AI', department: 'Command', id: 3 };
+    const vigilNode = createOrgNode(vigilData, 'vigil');
     vigilNode.classList.add('dir-org-node-vigil');
     vigilWrap.appendChild(vigilNode);
     chart.appendChild(vigilWrap);
 
     // Connector L2 -> L4 (departments)
     chart.appendChild(createConnector('solid'));
-    chart.appendChild(createHorizontalConnector(STATION_ORDER.length));
-    chart.appendChild(createDeptDropLines(STATION_ORDER.length));
+    chart.appendChild(createHorizontalConnector(deptOrder.length));
+    chart.appendChild(createDeptDropLines(deptOrder.length));
 
     // --- LEVEL 4: Department heads ---
     const l4 = document.createElement('div');
     l4.className = 'dir-org-level dir-org-level-heads';
-    STATION_ORDER.forEach(station => {
-        const members = stationAgents[station];
-        // First member is department head
-        const head = members[0] || { full_name: station.charAt(0) + station.slice(1).toLowerCase(), title: 'Department Head', _station: station, id: 0 };
-        const headNode = createOrgNode(Object.assign({}, head, { _station: station }), station);
+    deptOrder.forEach(dept => {
+        const color = getDeptColor(dept);
+        const info = deptMap[dept];
+        const head = info.head || { full_name: dept, title: 'Department Head', department: dept, id: 0 };
+        const headNode = createOrgNode(Object.assign({}, head, { department: dept }), 'dept', color);
+
+        // Department label above the head node
+        const wrapper = document.createElement('div');
+        wrapper.className = 'dir-org-dept-head-wrap';
+        const deptLabel = document.createElement('div');
+        deptLabel.className = 'dir-org-dept-label';
+        deptLabel.style.color = color;
+        deptLabel.textContent = dept;
+        wrapper.appendChild(deptLabel);
+
         headNode.classList.add('dir-org-node-head');
-        l4.appendChild(headNode);
+        wrapper.appendChild(headNode);
+        l4.appendChild(wrapper);
     });
     chart.appendChild(l4);
 
     // --- LEVEL 5: Department members (below each head) ---
     const l5 = document.createElement('div');
     l5.className = 'dir-org-level dir-org-level-members';
-    STATION_ORDER.forEach(station => {
-        const members = stationAgents[station];
+    deptOrder.forEach(dept => {
+        const color = getDeptColor(dept);
+        const info = deptMap[dept];
         const col = document.createElement('div');
         col.className = 'dir-org-dept-col';
-        col.dataset.station = station;
+        col.dataset.department = dept;
 
-        // Skip the first member (head) and show the rest
-        const teamMembers = members.slice(1);
-        if (teamMembers.length > 0) {
-            // Mini connector from head to team
+        if (info.members.length > 0) {
             const miniConn = document.createElement('div');
             miniConn.className = 'dir-org-mini-connector';
-            miniConn.style.borderColor = (STATION_COLORS[station] || '#00e5ff') + '44';
+            miniConn.style.borderColor = color + '44';
             col.appendChild(miniConn);
 
-            teamMembers.forEach(m => {
-                col.appendChild(createMemberBadge(m, station));
+            info.members.forEach(m => {
+                col.appendChild(createMemberBadge(m, 'dept', color));
             });
         }
         l5.appendChild(col);
     });
     chart.appendChild(l5);
-
-    // --- Unassigned agents section ---
-    if (unassigned.length > 0) {
-        const unassignedSection = document.createElement('div');
-        unassignedSection.className = 'dir-org-unassigned';
-
-        const unassignedLabel = document.createElement('div');
-        unassignedLabel.className = 'dir-org-unassigned-label';
-        unassignedLabel.textContent = 'Reserve Pool (' + unassigned.length + ' agents)';
-        unassignedSection.appendChild(unassignedLabel);
-
-        const unassignedGrid = document.createElement('div');
-        unassignedGrid.className = 'dir-org-unassigned-grid';
-        unassigned.forEach(m => {
-            unassignedGrid.appendChild(createMemberBadge(m, ''));
-        });
-        unassignedSection.appendChild(unassignedGrid);
-        chart.appendChild(unassignedSection);
-    }
 }
 
-function createOrgNode(person, stationCode) {
-    const color = stationCode === 'ceo' ? '#f59e0b' : (STATION_COLORS[stationCode] || '#00e5ff');
+function getDeptColor(dept) {
+    return DEPT_COLORS[dept] || '#64748b';
+}
+
+function createOrgNode(person, nodeType, explicitColor) {
+    // nodeType: 'ceo', 'director', 'vigil', 'dept'
+    let color;
+    if (nodeType === 'ceo') color = '#f59e0b';
+    else if (nodeType === 'director') color = '#00e5ff';
+    else if (nodeType === 'vigil') color = '#00e5ff';
+    else if (explicitColor) color = explicitColor;
+    else color = getDeptColor(person.department || '');
     const name = person.full_name || person.display_name || person.name || 'Unknown';
     const initials = getInitials(name);
     const title = person.title || '';
     const agentId = person.id || 0;
-    const nodeClass = stationCode === 'ceo' ? 'role-ceo' : (stationCode ? 'station-' + stationCode : '');
+    const nodeClass = nodeType === 'ceo' ? 'role-ceo' : (nodeType === 'director' ? 'role-director' : '');
 
     const node = document.createElement('div');
     node.className = 'dir-org-node ' + nodeClass;
+    node.style.borderColor = color;
     node.dataset.agentId = String(agentId);
     if (agentId) node.addEventListener('click', () => openProfile(agentId));
 
@@ -312,8 +312,8 @@ function createOrgNode(person, stationCode) {
     return node;
 }
 
-function createMemberBadge(person, stationCode) {
-    const color = STATION_COLORS[stationCode] || '#64748b';
+function createMemberBadge(person, nodeType, explicitColor) {
+    const color = explicitColor || getDeptColor(person.department || '');
     const name = person.full_name || person.display_name || person.name || 'Unknown';
     const title = person.title || '';
     const agentId = person.id || 0;
@@ -398,42 +398,47 @@ function renderAccordion(nodes) {
     if (!container) return;
     container.textContent = '';
 
-    const archie = nodes.find(n => /^archie$/i.test(n.name || '') || /^A\.R\.C\.H\.I\.E\.$/i.test(n.display_name || ''));
+    const archie = nodes.find(n =>
+        (n.reports_to === null || n.reports_to === undefined) &&
+        (/^archie$/i.test(n.name || '') || /^A\.R\.C\.H\.I\.E\.$/i.test(n.display_name || ''))
+    );
     const vigil = nodes.find(n => /^vigil$/i.test(n.name || '') || /^vigil/i.test(n.display_name || ''));
     const skipIds = new Set([archie, vigil].filter(Boolean).map(n => n.id));
 
     // Leadership accordion item
-    const leadershipItem = createAccordionItem('COMMAND', 'Leadership', [
+    const leadershipColor = '#00e5ff';
+    const leadershipItem = createAccordionItem(leadershipColor, 'Leadership', [
         { full_name: 'Kytran', title: 'CEO & Founder', employee_type: 'Human', id: 0 },
         archie || { full_name: 'A.R.C.H.I.E.', title: 'AI Director / Co-Owner', id: 2 },
         vigil || { full_name: 'Vigil', title: 'Ethics Officer', id: 3 }
     ], true);
     container.appendChild(leadershipItem);
 
-    // Station accordion items
-    STATION_ORDER.forEach(station => {
-        const members = nodes.filter(n => (n.station_code || '').toUpperCase() === station && !skipIds.has(n.id));
-        if (members.length > 0) {
-            const stationName = station.charAt(0) + station.slice(1).toLowerCase();
-            container.appendChild(createAccordionItem(station, stationName, members, false));
-        }
+    // Group by department
+    const deptMap = {};
+    nodes.forEach(n => {
+        if (skipIds.has(n.id)) return;
+        const dept = n.department || 'Unassigned';
+        if (!deptMap[dept]) deptMap[dept] = [];
+        deptMap[dept].push(n);
     });
 
-    // Unassigned
-    const assignedIds = new Set();
-    skipIds.forEach(id => assignedIds.add(id));
-    STATION_ORDER.forEach(s => {
-        nodes.filter(n => (n.station_code || '').toUpperCase() === s && !skipIds.has(n.id))
-             .forEach(a => assignedIds.add(a.id));
+    // Sort departments by DEPT_COLORS order
+    const knownDepts = Object.keys(DEPT_COLORS);
+    const deptOrder = knownDepts.filter(d => deptMap[d]).concat(
+        Object.keys(deptMap).filter(d => !knownDepts.includes(d)).sort()
+    );
+
+    deptOrder.forEach(dept => {
+        const color = getDeptColor(dept);
+        // Put head first
+        const members = deptMap[dept].sort((a, b) => (b.is_head ? 1 : 0) - (a.is_head ? 1 : 0));
+        container.appendChild(createAccordionItem(color, dept, members, false));
     });
-    const unassigned = nodes.filter(n => !assignedIds.has(n.id));
-    if (unassigned.length > 0) {
-        container.appendChild(createAccordionItem('', 'Reserve Pool', unassigned, false));
-    }
 }
 
-function createAccordionItem(station, label, members, startOpen) {
-    const color = STATION_COLORS[station] || '#64748b';
+function createAccordionItem(accentColor, label, members, startOpen) {
+    const color = accentColor || '#64748b';
     const item = document.createElement('div');
     item.className = 'dir-acc-item' + (startOpen ? ' open' : '');
 
@@ -466,7 +471,7 @@ function createAccordionItem(station, label, members, startOpen) {
     const body = document.createElement('div');
     body.className = 'dir-acc-body';
     members.forEach(m => {
-        body.appendChild(createMemberBadge(m, station));
+        body.appendChild(createMemberBadge(m, 'dept', color));
     });
     item.appendChild(body);
 
@@ -498,12 +503,14 @@ function applyFilters() {
         }
         const name = (el.querySelector('.dir-org-node-name, .dir-org-badge-name')?.textContent || '').toLowerCase();
         const title = (el.querySelector('.dir-org-node-title, .dir-org-badge-title')?.textContent || '').toLowerCase();
-        const station = (el.closest('[data-station]')?.dataset.station || '').toLowerCase();
-        const haystack = name + ' ' + title + ' ' + station;
+        const department = (el.closest('[data-department]')?.dataset.department || '').toLowerCase();
+        // Also check parent dept-head-wrap label
+        const deptLabel = (el.closest('.dir-org-dept-head-wrap')?.querySelector('.dir-org-dept-label')?.textContent || '').toLowerCase();
+        const haystack = name + ' ' + title + ' ' + department + ' ' + deptLabel;
 
         let match = true;
         if (searchVal && !haystack.includes(searchVal)) match = false;
-        if (deptVal !== 'all' && !station.includes(deptVal.toLowerCase()) && !haystack.includes(deptVal.toLowerCase())) match = false;
+        if (deptVal !== 'all' && !haystack.includes(deptVal.toLowerCase())) match = false;
 
         el.classList.toggle('dir-filtered-out', !match);
     });
@@ -597,8 +604,7 @@ function _populateProfile(emp) {
     var name = emp.full_name || emp.name || 'Unknown';
     var title = emp.title || 'Team Member';
     var dept = emp.department || '';
-    var station = guessStation(dept);
-    var color = STATION_COLORS[station] || '#00e5ff';
+    var color = getDeptColor(dept) || '#00e5ff';
 
     var nameEl = document.getElementById('profileName');
     if (nameEl) nameEl.textContent = name;
@@ -638,10 +644,27 @@ function _populateProfile(emp) {
     if (identityEl) {
         identityEl.textContent = '';
 
+        // Name row with performance score badge
+        var nameRow = document.createElement('div');
+        nameRow.className = 'dir-profile-id-name-row';
+
         var pName = document.createElement('div');
         pName.className = 'dir-profile-id-name';
         pName.textContent = name;
-        identityEl.appendChild(pName);
+        nameRow.appendChild(pName);
+
+        if (emp.performance_score != null) {
+            var scoreBadge = document.createElement('span');
+            var score = parseFloat(emp.performance_score);
+            var scoreColor = score > 80 ? '#10b981' : (score >= 60 ? '#fbbf24' : '#64748b');
+            scoreBadge.className = 'dir-profile-perf-badge';
+            scoreBadge.style.background = scoreColor + '22';
+            scoreBadge.style.color = scoreColor;
+            scoreBadge.style.borderColor = scoreColor + '44';
+            scoreBadge.textContent = 'Score: ' + score.toFixed(1);
+            nameRow.appendChild(scoreBadge);
+        }
+        identityEl.appendChild(nameRow);
 
         var pTitle = document.createElement('div');
         pTitle.className = 'dir-profile-id-title';
@@ -649,13 +672,20 @@ function _populateProfile(emp) {
         pTitle.textContent = title;
         identityEl.appendChild(pTitle);
 
-        if (station || dept) {
-            var pStation = document.createElement('div');
-            pStation.className = 'dir-profile-id-station';
-            var stationText = station ? (station + ' Station') : dept;
-            if (emp.employee_type) stationText += ' \u2022 ' + emp.employee_type;
-            pStation.textContent = stationText;
-            identityEl.appendChild(pStation);
+        if (dept) {
+            var pDept = document.createElement('div');
+            pDept.className = 'dir-profile-id-station';
+            var deptText = dept;
+            if (emp.employee_type) deptText += ' \u2022 ' + emp.employee_type;
+            pDept.textContent = deptText;
+            identityEl.appendChild(pDept);
+        }
+
+        if (emp.reports_to && emp.reports_to.full_name) {
+            var pReports = document.createElement('div');
+            pReports.className = 'dir-profile-id-reports';
+            pReports.textContent = 'Reports to: ' + emp.reports_to.full_name;
+            identityEl.appendChild(pReports);
         }
 
         if (emp.pronouns) {
@@ -711,19 +741,62 @@ function _populateProfile(emp) {
         bioSection.style.display = '';
     }
 
-    // Skills
+    // Skills — benchmarked proficiency ratings
     var skillsWrap = document.getElementById('profileSkillsWrap');
     var skillsSection = document.getElementById('profileSkills');
-    if (skillsWrap && skillsSection && emp.specialties && emp.specialties.length > 0) {
+    var skills = emp.skills || [];
+    // Fall back to specialties if no benchmarked skills
+    if (skills.length === 0 && emp.specialties && emp.specialties.length > 0) {
+        skills = emp.specialties.map(function(s) { return { skill_name: s, proficiency_level: null }; });
+    }
+    if (skillsWrap && skillsSection && skills.length > 0) {
         skillsWrap.textContent = '';
-        emp.specialties.forEach(function(skill) {
-            var pill = document.createElement('span');
-            pill.className = 'dir-profile-skill';
-            pill.style.borderColor = color + '44';
-            pill.style.color = color;
-            pill.style.background = color + '18';
-            pill.textContent = skill;
-            skillsWrap.appendChild(pill);
+
+        // Group by skill_category if present
+        var grouped = {};
+        skills.forEach(function(sk) {
+            var cat = sk.skill_category || 'General';
+            if (!grouped[cat]) grouped[cat] = [];
+            grouped[cat].push(sk);
+        });
+
+        Object.keys(grouped).sort().forEach(function(cat) {
+            // Category header (only if multiple categories)
+            if (Object.keys(grouped).length > 1) {
+                var catLabel = document.createElement('div');
+                catLabel.className = 'dir-profile-skill-cat';
+                catLabel.textContent = cat;
+                skillsWrap.appendChild(catLabel);
+            }
+
+            grouped[cat].forEach(function(sk) {
+                var row = document.createElement('div');
+                row.className = 'dir-profile-skill-row';
+
+                var nameSpan = document.createElement('span');
+                nameSpan.className = 'dir-profile-skill-name';
+                nameSpan.textContent = sk.skill_name;
+                row.appendChild(nameSpan);
+
+                if (sk.proficiency_level != null) {
+                    var dotsWrap = document.createElement('span');
+                    dotsWrap.className = 'dir-profile-skill-dots';
+                    var level = Math.min(5, Math.max(1, sk.proficiency_level));
+                    var profColor = PROFICIENCY_COLORS[level] || '#64748b';
+                    for (var i = 1; i <= 5; i++) {
+                        var dot = document.createElement('span');
+                        dot.className = 'dir-profile-skill-dot' + (i <= level ? ' filled' : '');
+                        if (i <= level) {
+                            dot.style.background = profColor;
+                            dot.style.boxShadow = '0 0 4px ' + profColor + '66';
+                        }
+                        dotsWrap.appendChild(dot);
+                    }
+                    row.appendChild(dotsWrap);
+                }
+
+                skillsWrap.appendChild(row);
+            });
         });
         skillsSection.style.display = '';
     }
@@ -809,13 +882,8 @@ function getInitials(name) {
     return parts[0].substring(0, 2).toUpperCase();
 }
 
+// Legacy helper — kept for backward compat but now just returns ''
 function guessStation(department) {
-    if (!department) return '';
-    const upper = department.toUpperCase();
-    if (STATION_COLORS[upper]) return upper;
-    for (const key of Object.keys(DEPT_STATION_MAP)) {
-        if (department.toLowerCase().includes(key.toLowerCase())) return DEPT_STATION_MAP[key];
-    }
     return '';
 }
 
@@ -856,8 +924,7 @@ function openChat(agentId) {
         ? (_chatAgentData.full_name || _chatAgentData.display_name || _chatAgentData.name || 'Agent')
         : 'Agent';
     var dept = _chatAgentData ? (_chatAgentData.department || '') : '';
-    var station = guessStation(dept);
-    var color = STATION_COLORS[station] || '#00e5ff';
+    var color = getDeptColor(dept);
 
     var headerName = document.getElementById('chatHeaderName');
     if (headerName) headerName.textContent = agentName;
@@ -1041,13 +1108,12 @@ function _appendMessage(senderType, text, timestamp) {
     bubble.className = 'dir-chat-bubble ' +
         (senderType === 'user' ? 'dir-chat-bubble-user' : 'dir-chat-bubble-agent');
 
-    // Set station color accent for agent bubbles
+    // Set department color accent for agent bubbles
     if (senderType === 'agent' && _chatAgentData) {
         var dept = _chatAgentData.department || '';
-        var station = guessStation(dept);
-        var color = STATION_COLORS[station];
-        if (color) {
-            bubble.style.borderLeft = '3px solid ' + color;
+        var agentColor = getDeptColor(dept);
+        if (agentColor) {
+            bubble.style.borderLeft = '3px solid ' + agentColor;
         }
     }
 

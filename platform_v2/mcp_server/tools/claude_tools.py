@@ -197,11 +197,11 @@ async def search_mistakes_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
                 title,
                 content,
                 tags,
-                importance,
+                importance_score,
                 created_at
             FROM knowledge_base
             WHERE {where_clause}
-            ORDER BY importance DESC, created_at DESC
+            ORDER BY importance_score DESC, created_at DESC
             LIMIT %s
         """,
             params + [limit],
@@ -217,7 +217,7 @@ async def search_mistakes_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
                     "title": m["title"],
                     "pattern": m["content"][:500] if m["content"] else "",
                     "tags": m["tags"] or [],
-                    "importance": float(m["importance"]) if m["importance"] else 0.5,
+                    "importance": float(m["importance_score"]) if m["importance_score"] else 0.5,
                     "learned_at": (m["created_at"].isoformat() if m["created_at"] else None),
                 }
             )
@@ -830,10 +830,10 @@ async def search_knowledge_brief_handler(arguments: Dict[str, Any]) -> Dict[str,
     try:
         cur.execute(
             """
-            SELECT id, title, knowledge_type, importance
+            SELECT id, title, knowledge_type, importance_score
             FROM knowledge_base
             WHERE title ILIKE %s OR content ILIKE %s
-            ORDER BY importance DESC
+            ORDER BY importance_score DESC
             LIMIT %s
         """,
             (f"%{query}%", f"%{query}%", limit),

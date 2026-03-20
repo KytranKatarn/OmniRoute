@@ -165,7 +165,8 @@ def load_config():
         "archie_version": os.environ.get("ARCHIE_VERSION", CLIENT_VERSION),
     }
 
-    # Load config.json as PRIMARY source (overrides env vars)
+    # Load config.json as secondary source — env vars win for hub_url
+    # (hub_url in config.json can be corrupted by OTA pushes with external URLs)
     if os.path.isfile(config_path):
         logger.info("Loading config from %s", config_path)
         try:
@@ -184,8 +185,19 @@ def load_config():
                 "archie_version": "archie_version",
                 "client_version": "archie_version",
             }
+            # Env vars that are SET always take priority over config.json
+            env_protected = set()
+            if os.environ.get("HUB_URL"):
+                env_protected.add("hub_url")
+            if os.environ.get("NODE_ID"):
+                env_protected.add("node_id")
+            if os.environ.get("HUB_API_KEY"):
+                env_protected.add("hub_api_key")
+
             for file_key, internal_key in key_map.items():
                 if file_key in file_cfg and file_cfg[file_key]:
+                    if internal_key in env_protected:
+                        continue  # env var wins
                     val = file_cfg[file_key]
                     if internal_key in ("heartbeat_interval", "sync_poll_interval"):
                         val = int(val)

@@ -1,61 +1,82 @@
 """
-A.R.C.H.I.E. Starship Node Installer — Windows GUI Application
+A.R.C.H.I.E. Node Setup v3.0 — Windows LCARS GUI Installer
 
-A standalone tkinter installer that:
-1. Checks for Ollama installation
-2. Registers the node with the ARCHIE hub
-3. Downloads node_sync.py
-4. Creates a Windows startup shortcut
-5. Launches the node sync service
+A standalone tkinter installer that deploys a full Docker container stack:
+1. Prerequisites check (admin, internet, existing install)
+2. Hardware detection (CPU, RAM, GPU, disk)
+3. Docker setup (install/start Docker Desktop, check native Ollama)
+4. Register with hub
+5. Download stack files (docker-compose, node_sync, node_api, etc.)
+6. Build & start containers
+7. Wait for hub approval
+8. Verify deployment
 
 No external dependencies — uses only Python stdlib.
 Package with PyInstaller for a single .exe distribution.
 """
 
+import ctypes
 import json
 import os
 import platform
+import shutil
 import socket
 import subprocess
 import sys
 import threading
+import time
 import tkinter as tk
-from tkinter import font as tkfont
-from pathlib import Path
+from tkinter import font as tkfont, messagebox
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-from urllib.error import URLError, HTTPError
-import webbrowser
-import shutil
 
-# ── Colour palette (LCARS-inspired) ──────────────────────────────────────────
-BG_DARK = "#0a0e17"
-BG_PANEL = "#111827"
+# winreg is stdlib on Windows only
+if platform.system() == "Windows":
+    import winreg
+
+# ── Constants ─────────────────────────────────────────────────────────────────
+CLIENT_VERSION = "3.0.0"
+INSTALL_DIR = r"C:\archie-node"
+RESUME_FILE = os.path.join(INSTALL_DIR, "resume_after_reboot.json")
+ENV_FILE = os.path.join(INSTALL_DIR, ".env")
+TOTAL_STEPS = 8
+
+# ── LCARS Colour Palette ─────────────────────────────────────────────────────
+BG_DARK = "#0a0a12"
+BG_PANEL = "#12121f"
 BG_INPUT = "#1e293b"
 CYAN = "#00e5ff"
-TEAL = "#14b8a6"
-AMBER = "#fbbf24"
+ORANGE = "#f97316"
+GREEN = "#10b981"
 RED = "#ef4444"
-GREEN = "#22c55e"
-PURPLE = "#8b5cf6"
-TEXT_PRIMARY = "#e2e8f0"
-TEXT_DIM = "#94a3b8"
+YELLOW = "#fbbf24"
+TEXT_PRIMARY = "#e0e0e0"
+TEXT_DIM = "#666680"
 BORDER = "#1e3a5f"
 
-APP_DATA_DIR = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "ARCHIE-Node")
-CONFIG_PATH = os.path.join(APP_DATA_DIR, "config.json")
-NODE_SYNC_PATH = os.path.join(APP_DATA_DIR, "node_sync.py")
+# ── Font Helper ───────────────────────────────────────────────────────────────
+FONT_MONO = "Consolas"
 
 
 class ArchieInstaller(tk.Tk):
-    """Main installer window."""
+    """LCARS-themed ARCHIE Node installer with 8-step Docker deployment."""
 
     def __init__(self):
         super().__init__()
 
-        self.title("A.R.C.H.I.E. Starship Node Setup")
-        self.geometry("620x680")
+        self.title("A.R.C.H.I.E. Node Setup")
+        self.geometry("700x500")
         self.resizable(False, False)
         self.configure(bg=BG_DARK)
+
+        # State
+        self.hub_url = ""
+        self.node_id = None
+        self.api_key = None
+        self.current_step = 0
+        self.hw_info = {}
+        self._cancel_flag = False
+        self._install_thread = None
 
         # Try to set icon if bundled
         icon_path = self._resource_path("archie_icon.ico")
@@ -66,608 +87,1026 @@ class ArchieInstaller(tk.Tk):
                 pass
 
         self._build_ui()
-        self.protocol("WM_DELETE_WINDOW", self._on_close)
+        self.protocol("WM_DELETE_WINDOW", self._on_cancel)
 
-    # ── Resource helper (PyInstaller compat) ─────────────────────────────────
+        # Check for resume state on launch
+        self.after(300, self._check_resume_on_start)
+
+    # ── Resource helper (PyInstaller compat) ──────────────────────────────────
     @staticmethod
     def _resource_path(relative_path):
-        """Get absolute path to resource, works for dev and for PyInstaller."""
         base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
         return os.path.join(base, relative_path)
 
-    # ── UI Construction ──────────────────────────────────────────────────────
+    # ── UI Construction ───────────────────────────────────────────────────────
     def _build_ui(self):
-        # Title bar
-        title_frame = tk.Frame(self, bg=CYAN, height=4)
-        title_frame.pack(fill="x")
+        # Top accent bar
+        tk.Frame(self, bg=CYAN, height=3).pack(fill="x")
 
-        header = tk.Frame(self, bg=BG_DARK, pady=16)
-        header.pack(fill="x")
+        # Header
+        header = tk.Frame(self, bg=BG_DARK, pady=10)
+        header.pack(fill="x", padx=20)
 
-        title_font = tkfont.Font(family="Segoe UI", size=18, weight="bold")
+        title_font = tkfont.Font(family=FONT_MONO, size=16, weight="bold")
         tk.Label(
-            header,
-            text="A.R.C.H.I.E.",
-            font=title_font,
-            fg=CYAN,
-            bg=BG_DARK,
-        ).pack()
-
-        subtitle_font = tkfont.Font(family="Segoe UI", size=11)
-        tk.Label(
-            header,
-            text="Starship Node Setup",
-            font=subtitle_font,
-            fg=TEXT_DIM,
-            bg=BG_DARK,
-        ).pack()
-
-        # Separator
-        tk.Frame(self, bg=BORDER, height=1).pack(fill="x", padx=20)
-
-        # Hub URL input section
-        input_frame = tk.Frame(self, bg=BG_DARK, pady=16, padx=30)
-        input_frame.pack(fill="x")
-
-        label_font = tkfont.Font(family="Segoe UI", size=10)
-        tk.Label(
-            input_frame,
-            text="Hub URL",
-            font=label_font,
-            fg=TEAL,
-            bg=BG_DARK,
-            anchor="w",
+            header, text="A.R.C.H.I.E. Node Setup v3.0",
+            font=title_font, fg=CYAN, bg=BG_DARK, anchor="w",
         ).pack(fill="x")
+
+        # Separator under title
+        tk.Frame(header, bg=CYAN, height=2).pack(fill="x", pady=(4, 0))
+
+        # ── Hub URL input ─────────────────────────────────────────────────
+        url_frame = tk.Frame(self, bg=BG_DARK, padx=20, pady=(8, 4))
+        url_frame.pack(fill="x")
+
+        lbl_font = tkfont.Font(family=FONT_MONO, size=9)
+        tk.Label(
+            url_frame, text="Hub URL:", font=lbl_font,
+            fg=TEXT_DIM, bg=BG_DARK, anchor="w",
+        ).pack(side="left")
 
         self.hub_url_var = tk.StringVar(value="https://archie.kytranempowerment.com")
-        entry_font = tkfont.Font(family="Consolas", size=11)
+        entry_font = tkfont.Font(family=FONT_MONO, size=10)
         self.hub_entry = tk.Entry(
-            input_frame,
-            textvariable=self.hub_url_var,
-            font=entry_font,
-            bg=BG_INPUT,
-            fg=TEXT_PRIMARY,
-            insertbackground=CYAN,
-            relief="flat",
-            bd=0,
-            highlightthickness=1,
-            highlightbackground=BORDER,
-            highlightcolor=CYAN,
+            url_frame, textvariable=self.hub_url_var, font=entry_font,
+            bg=BG_INPUT, fg=TEXT_PRIMARY, insertbackground=CYAN,
+            relief="flat", bd=0, highlightthickness=1,
+            highlightbackground=BORDER, highlightcolor=CYAN,
         )
-        self.hub_entry.pack(fill="x", pady=(4, 0), ipady=8)
+        self.hub_entry.pack(side="left", fill="x", expand=True, padx=(8, 0), ipady=4)
 
-        # Node name input
-        tk.Label(
-            input_frame,
-            text="Node Name (optional — auto-generated if blank)",
-            font=label_font,
-            fg=TEAL,
-            bg=BG_DARK,
-            anchor="w",
-        ).pack(fill="x", pady=(12, 0))
-
-        self.node_name_var = tk.StringVar(value="")
-        self.name_entry = tk.Entry(
-            input_frame,
-            textvariable=self.node_name_var,
-            font=entry_font,
-            bg=BG_INPUT,
-            fg=TEXT_PRIMARY,
-            insertbackground=CYAN,
-            relief="flat",
-            bd=0,
-            highlightthickness=1,
-            highlightbackground=BORDER,
-            highlightcolor=CYAN,
+        # ── Hardware Panel ────────────────────────────────────────────────
+        hw_outer = tk.LabelFrame(
+            self, text=" Hardware ", font=tkfont.Font(family=FONT_MONO, size=9),
+            fg=CYAN, bg=BG_PANEL, labelanchor="nw",
+            highlightbackground=BORDER, highlightthickness=1,
+            bd=0, padx=8, pady=6,
         )
-        self.name_entry.pack(fill="x", pady=(4, 0), ipady=8)
-        self.name_entry.insert(0, f"{socket.gethostname()}")
+        hw_outer.pack(fill="x", padx=20, pady=(8, 4))
 
-        # Connect button
-        btn_frame = tk.Frame(self, bg=BG_DARK, pady=10)
-        btn_frame.pack(fill="x", padx=30)
+        hw_grid = tk.Frame(hw_outer, bg=BG_PANEL)
+        hw_grid.pack(fill="x")
 
-        btn_font = tkfont.Font(family="Segoe UI", size=12, weight="bold")
-        self.connect_btn = tk.Button(
-            btn_frame,
-            text="CONNECT",
-            font=btn_font,
-            bg=CYAN,
-            fg=BG_DARK,
-            activebackground=TEAL,
-            activeforeground=BG_DARK,
-            relief="flat",
-            bd=0,
-            cursor="hand2",
-            command=self._start_setup,
-            padx=30,
-            pady=10,
+        hw_lbl_font = tkfont.Font(family=FONT_MONO, size=9)
+        hw_val_font = tkfont.Font(family=FONT_MONO, size=9)
+
+        self.hw_labels = {}
+        hw_items = [
+            ("CPU", 0, 0), ("RAM", 0, 2),
+            ("GPU", 1, 0), ("Disk", 1, 2),
+        ]
+        for name, row, col in hw_items:
+            tk.Label(
+                hw_grid, text=f"{name}:", font=hw_lbl_font,
+                fg=TEXT_DIM, bg=BG_PANEL, anchor="w",
+            ).grid(row=row, column=col, sticky="w", padx=(0, 4), pady=1)
+            lbl = tk.Label(
+                hw_grid, text="(detecting...)", font=hw_val_font,
+                fg=TEXT_PRIMARY, bg=BG_PANEL, anchor="w",
+            )
+            lbl.grid(row=row, column=col + 1, sticky="w", padx=(0, 20), pady=1)
+            self.hw_labels[name] = lbl
+
+        hw_grid.columnconfigure(1, weight=1)
+        hw_grid.columnconfigure(3, weight=1)
+
+        # ── Progress Bar ──────────────────────────────────────────────────
+        prog_frame = tk.Frame(self, bg=BG_DARK, padx=20, pady=(8, 2))
+        prog_frame.pack(fill="x")
+
+        self.progress_canvas = tk.Canvas(
+            prog_frame, height=16, bg=BG_PANEL, highlightthickness=0, bd=0,
         )
-        self.connect_btn.pack(fill="x")
+        self.progress_canvas.pack(fill="x")
 
-        # Separator
-        tk.Frame(self, bg=BORDER, height=1).pack(fill="x", padx=20, pady=(10, 0))
+        self.step_label = tk.Label(
+            self, text="Ready to install", font=tkfont.Font(family=FONT_MONO, size=9),
+            fg=TEXT_DIM, bg=BG_DARK, anchor="w",
+        )
+        self.step_label.pack(fill="x", padx=20)
 
-        # Status / log area
-        log_header = tk.Frame(self, bg=BG_DARK, padx=30, pady=(8, 0))
-        log_header.pack(fill="x")
-        tk.Label(
-            log_header,
-            text="STATUS LOG",
-            font=tkfont.Font(family="Segoe UI", size=9, weight="bold"),
-            fg=TEXT_DIM,
-            bg=BG_DARK,
-            anchor="w",
-        ).pack(fill="x")
+        # ── Log Panel ────────────────────────────────────────────────────
+        log_outer = tk.LabelFrame(
+            self, text=" Log ", font=tkfont.Font(family=FONT_MONO, size=9),
+            fg=CYAN, bg=BG_PANEL, labelanchor="nw",
+            highlightbackground=BORDER, highlightthickness=1,
+            bd=0, padx=4, pady=4,
+        )
+        log_outer.pack(fill="both", expand=True, padx=20, pady=(4, 8))
 
-        log_frame = tk.Frame(self, bg=BG_PANEL, padx=30, pady=8)
-        log_frame.pack(fill="both", expand=True, padx=20, pady=(4, 10))
-
-        log_font = tkfont.Font(family="Consolas", size=9)
+        log_font = tkfont.Font(family=FONT_MONO, size=8)
         self.log_text = tk.Text(
-            log_frame,
-            bg=BG_PANEL,
-            fg=TEXT_DIM,
-            font=log_font,
-            relief="flat",
-            bd=0,
-            wrap="word",
-            state="disabled",
-            cursor="arrow",
+            log_outer, bg=BG_PANEL, fg=TEXT_DIM, font=log_font,
+            relief="flat", bd=0, wrap="word", state="disabled", cursor="arrow",
         )
-        self.log_text.pack(fill="both", expand=True, padx=8, pady=8)
+        self.log_text.pack(fill="both", expand=True, padx=4, pady=4)
 
-        # Configure text tags for colours
         self.log_text.tag_configure("info", foreground=TEXT_DIM)
-        self.log_text.tag_configure("step", foreground=CYAN)
-        self.log_text.tag_configure("success", foreground=GREEN)
-        self.log_text.tag_configure("warning", foreground=AMBER)
+        self.log_text.tag_configure("ok", foreground=GREEN)
+        self.log_text.tag_configure("warn", foreground=ORANGE)
         self.log_text.tag_configure("error", foreground=RED)
-        self.log_text.tag_configure("highlight", foreground=PURPLE)
+        self.log_text.tag_configure("cyan", foreground=CYAN)
+        self.log_text.tag_configure("yellow", foreground=YELLOW)
 
-        # Bottom bar with close button (hidden until done)
-        self.bottom_frame = tk.Frame(self, bg=BG_DARK, pady=10, padx=30)
-        self.bottom_frame.pack(fill="x")
+        # ── Button Row ───────────────────────────────────────────────────
+        btn_frame = tk.Frame(self, bg=BG_DARK, padx=20, pady=(0, 10))
+        btn_frame.pack(fill="x")
 
-        self.close_btn = tk.Button(
-            self.bottom_frame,
-            text="CLOSE",
-            font=tkfont.Font(family="Segoe UI", size=10, weight="bold"),
-            bg=BG_INPUT,
-            fg=TEXT_PRIMARY,
-            activebackground=BORDER,
-            activeforeground=TEXT_PRIMARY,
-            relief="flat",
-            bd=0,
-            cursor="hand2",
-            command=self._on_close,
-            padx=20,
-            pady=6,
+        btn_font = tkfont.Font(family=FONT_MONO, size=11, weight="bold")
+
+        self.install_btn = tk.Button(
+            btn_frame, text="Install", font=btn_font,
+            bg=CYAN, fg=BG_DARK, activebackground="#00b8d4",
+            activeforeground=BG_DARK, relief="flat", bd=0,
+            cursor="hand2", command=self._start_install, padx=24, pady=6,
         )
-        # Don't pack yet — shown after setup completes
+        self.install_btn.pack(side="right", padx=(8, 0))
+
+        self.cancel_btn = tk.Button(
+            btn_frame, text="Cancel", font=btn_font,
+            bg=BG_INPUT, fg=TEXT_PRIMARY, activebackground=BORDER,
+            activeforeground=TEXT_PRIMARY, relief="flat", bd=0,
+            cursor="hand2", command=self._on_cancel, padx=24, pady=6,
+        )
+        self.cancel_btn.pack(side="right")
 
         # Bottom accent bar
         tk.Frame(self, bg=CYAN, height=3).pack(fill="x", side="bottom")
 
-    # ── Logging helpers ──────────────────────────────────────────────────────
+    # ── Logging ───────────────────────────────────────────────────────────────
     def _log(self, message, tag="info"):
-        """Append a message to the log area (thread-safe)."""
+        """Append message to log panel. Thread-safe via self.after()."""
         def _do():
             self.log_text.configure(state="normal")
-            prefix = {"step": ">> ", "success": "[OK] ", "error": "[!!] ", "warning": "[!] ", "highlight": "   "}.get(tag, "   ")
+            prefixes = {
+                "ok": "[OK] ", "error": "[!!] ", "warn": "[!] ",
+                "cyan": ">> ", "yellow": "[~] ",
+            }
+            prefix = prefixes.get(tag, "    ")
             self.log_text.insert("end", f"{prefix}{message}\n", tag)
             self.log_text.see("end")
             self.log_text.configure(state="disabled")
         self.after(0, _do)
 
-    # ── Ollama detection ─────────────────────────────────────────────────────
-    def _find_ollama(self):
-        """Check if Ollama is installed. Returns path or None."""
-        # Check PATH first
-        ollama_in_path = shutil.which("ollama")
-        if ollama_in_path:
-            return ollama_in_path
+    def _update_progress(self, step, description):
+        """Update progress bar and step label. Thread-safe."""
+        self.current_step = step
 
-        # Common Windows install locations
-        common_paths = [
-            os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Ollama", "ollama.exe"),
-            os.path.join(os.environ.get("PROGRAMFILES", ""), "Ollama", "ollama.exe"),
-            os.path.join(os.environ.get("PROGRAMFILES(X86)", ""), "Ollama", "ollama.exe"),
-            os.path.join(os.environ.get("USERPROFILE", ""), "AppData", "Local", "Programs", "Ollama", "ollama.exe"),
-            r"C:\Program Files\Ollama\ollama.exe",
-            r"C:\Ollama\ollama.exe",
-        ]
-        # Linux/macOS
-        if platform.system() != "Windows":
-            common_paths.extend(["/usr/local/bin/ollama", "/usr/bin/ollama", "/opt/ollama/ollama"])
+        def _do():
+            self.step_label.configure(text=f"Step {step}/{TOTAL_STEPS}  {description}")
+            # Redraw progress bar
+            c = self.progress_canvas
+            c.delete("all")
+            w = c.winfo_width() or 660
+            h = 16
+            # Background
+            c.create_rectangle(0, 0, w, h, fill=BG_INPUT, outline="")
+            # Filled portion
+            fill_w = int(w * step / TOTAL_STEPS)
+            if fill_w > 0:
+                c.create_rectangle(0, 0, fill_w, h, fill=CYAN, outline="")
+        self.after(0, _do)
 
-        for p in common_paths:
-            if p and os.path.isfile(p):
-                return p
+    def _update_hw_label(self, key, value):
+        """Update a hardware panel label. Thread-safe."""
+        def _do():
+            if key in self.hw_labels:
+                self.hw_labels[key].configure(text=value)
+        self.after(0, _do)
 
-        return None
+    def _set_install_btn(self, text, command, bg=CYAN):
+        """Change install button state. Thread-safe."""
+        def _do():
+            self.install_btn.configure(text=text, command=command, bg=bg, state="normal")
+        self.after(0, _do)
 
-    def _check_ollama_running(self):
-        """Check if Ollama server is responding."""
-        try:
-            req = Request("http://127.0.0.1:11434/api/tags", method="GET")
-            resp = urlopen(req, timeout=5)
-            return resp.status == 200
-        except Exception:
-            return False
+    def _disable_inputs(self):
+        def _do():
+            self.install_btn.configure(state="disabled", bg=BG_INPUT, fg=TEXT_DIM)
+            self.hub_entry.configure(state="disabled")
+        self.after(0, _do)
 
-    # ── Hardware detection ───────────────────────────────────────────────────
-    def _detect_hardware(self):
-        """Gather basic hardware info."""
-        info = {
-            "hostname": socket.gethostname(),
-            "os_info": f"{platform.system()} {platform.release()} {platform.machine()}",
-            "cpu_model": platform.processor() or "Unknown",
-            "cpu_cores": os.cpu_count() or 1,
-        }
+    def _enable_inputs(self):
+        def _do():
+            self.install_btn.configure(state="normal", bg=CYAN, fg=BG_DARK)
+            self.hub_entry.configure(state="normal")
+        self.after(0, _do)
 
-        # Try to get RAM
-        try:
-            if platform.system() == "Windows":
-                import ctypes
-                kernel32 = ctypes.windll.kernel32
-                c_ulonglong = ctypes.c_ulonglong
+    # ── Network helpers ───────────────────────────────────────────────────────
+    def _http_get(self, url, timeout=30):
+        """GET request, returns bytes."""
+        req = Request(url, method="GET")
+        resp = urlopen(req, timeout=timeout)
+        return resp.read()
 
-                class MEMORYSTATUSEX(ctypes.Structure):
-                    _fields_ = [
-                        ("dwLength", ctypes.c_ulong),
-                        ("dwMemoryLoad", ctypes.c_ulong),
-                        ("ullTotalPhys", c_ulonglong),
-                        ("ullAvailPhys", c_ulonglong),
-                        ("ullTotalPageFile", c_ulonglong),
-                        ("ullAvailPageFile", c_ulonglong),
-                        ("ullTotalVirtual", c_ulonglong),
-                        ("ullAvailVirtual", c_ulonglong),
-                        ("ullAvailExtendedVirtual", c_ulonglong),
-                    ]
-
-                stat = MEMORYSTATUSEX()
-                stat.dwLength = ctypes.sizeof(stat)
-                kernel32.GlobalMemoryStatusEx(ctypes.byref(stat))
-                info["ram_gb"] = round(stat.ullTotalPhys / (1024 ** 3), 1)
-            else:
-                with open("/proc/meminfo") as f:
-                    for line in f:
-                        if line.startswith("MemTotal"):
-                            kb = int(line.split()[1])
-                            info["ram_gb"] = round(kb / (1024 * 1024), 1)
-                            break
-        except Exception:
-            info["ram_gb"] = 0
-
-        # Try to detect GPU via Ollama (if running)
-        info["gpu_available"] = False
-        info["gpu_model"] = None
-        info["gpu_vram_gb"] = None
-
-        return info
-
-    # ── Network helpers ──────────────────────────────────────────────────────
-    def _post_json(self, url, data):
-        """POST JSON and return parsed response."""
+    def _http_post_json(self, url, data, timeout=30):
+        """POST JSON, returns parsed dict."""
         body = json.dumps(data).encode("utf-8")
         req = Request(url, data=body, method="POST")
         req.add_header("Content-Type", "application/json")
-        resp = urlopen(req, timeout=30)
+        resp = urlopen(req, timeout=timeout)
         return json.loads(resp.read().decode("utf-8"))
 
-    def _download_file(self, url, dest_path):
-        """Download a file from URL to local path."""
+    def _download_file(self, url, dest_path, timeout=120):
+        """Download file from URL to local path."""
         req = Request(url, method="GET")
-        resp = urlopen(req, timeout=60)
+        resp = urlopen(req, timeout=timeout)
         content = resp.read()
         os.makedirs(os.path.dirname(dest_path), exist_ok=True)
         with open(dest_path, "wb") as f:
             f.write(content)
         return len(content)
 
-    # ── Startup shortcut ─────────────────────────────────────────────────────
-    def _create_startup_shortcut(self):
-        """Create a .bat in Windows Startup folder to launch node_sync.py on boot."""
-        if platform.system() != "Windows":
-            self._log("Skipping startup shortcut (not Windows)", "info")
-            return False
+    # ── Resume handling ───────────────────────────────────────────────────────
+    def _save_resume_state(self, step, data=None):
+        """Save state so installer can resume after reboot."""
+        os.makedirs(INSTALL_DIR, exist_ok=True)
+        state = {"step": step, "hub_url": self.hub_url}
+        if data:
+            state.update(data)
+        if self.node_id:
+            state["node_id"] = self.node_id
+        if self.api_key:
+            state["api_key"] = self.api_key
+        with open(RESUME_FILE, "w") as f:
+            json.dump(state, f, indent=2)
 
-        try:
-            startup_dir = os.path.join(
-                os.environ.get("APPDATA", ""),
-                "Microsoft", "Windows", "Start Menu", "Programs", "Startup",
-            )
-            if not os.path.isdir(startup_dir):
-                self._log(f"Startup folder not found: {startup_dir}", "warning")
-                return False
-
-            # Find python
-            python_exe = sys.executable
-            if not python_exe or "python" not in python_exe.lower():
-                python_exe = shutil.which("python3") or shutil.which("python") or "python"
-
-            bat_path = os.path.join(startup_dir, "ARCHIE-Node-Sync.bat")
-            bat_content = (
-                "@echo off\r\n"
-                f'start /min "" "{python_exe}" "{NODE_SYNC_PATH}"\r\n'
-            )
-            with open(bat_path, "w") as f:
-                f.write(bat_content)
-
-            self._log(f"Startup shortcut created: {bat_path}", "success")
-            return True
-        except Exception as e:
-            self._log(f"Could not create startup shortcut: {e}", "warning")
-            return False
-
-    # ── Main setup flow ──────────────────────────────────────────────────────
-    def _start_setup(self):
-        """Begin the setup process in a background thread."""
-        self.connect_btn.configure(state="disabled", bg=BG_INPUT, fg=TEXT_DIM)
-        self.hub_entry.configure(state="disabled")
-        self.name_entry.configure(state="disabled")
-        thread = threading.Thread(target=self._run_setup, daemon=True)
-        thread.start()
-
-    def _run_setup(self):
-        """Execute all setup steps (runs in background thread)."""
-        hub_url = self.hub_url_var.get().strip().rstrip("/")
-        node_name = self.node_name_var.get().strip()
-
-        if not hub_url:
-            self._log("Please enter a Hub URL.", "error")
-            self._re_enable_connect()
-            return
-
-        # ── Step 1: Check Ollama ─────────────────────────────────────────
-        self._log("Checking prerequisites...", "step")
-
-        ollama_path = self._find_ollama()
-        if ollama_path:
-            self._log(f"Ollama found: {ollama_path}", "success")
-        else:
-            self._log("Ollama is NOT installed.", "error")
-            self._log("Ollama is required to run AI models on this node.", "warning")
-            self._log("Download from: https://ollama.com/download", "warning")
-            self._show_ollama_link()
-            self._re_enable_connect()
-            return
-
-        # Check if Ollama is running
-        if self._check_ollama_running():
-            self._log("Ollama server is running.", "success")
-        else:
-            self._log("Ollama is installed but not running.", "warning")
-            self._log("Starting Ollama...", "step")
+        # Add RunOnce registry key (Windows only)
+        if platform.system() == "Windows":
             try:
-                if platform.system() == "Windows":
-                    subprocess.Popen(
-                        [ollama_path, "serve"],
-                        creationflags=subprocess.CREATE_NO_WINDOW,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
+                key = winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER,
+                    r"Software\Microsoft\Windows\CurrentVersion\RunOnce",
+                    0, winreg.KEY_SET_VALUE,
+                )
+                if getattr(sys, "frozen", False):
+                    exe_path = sys.executable
                 else:
-                    subprocess.Popen(
-                        [ollama_path, "serve"],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
-                # Wait a moment for it to start
-                import time
-                for i in range(10):
-                    time.sleep(1)
-                    if self._check_ollama_running():
-                        break
-                if self._check_ollama_running():
-                    self._log("Ollama started successfully.", "success")
-                else:
-                    self._log("Ollama may still be starting. Continuing anyway...", "warning")
-            except Exception as e:
-                self._log(f"Could not start Ollama: {e}", "warning")
-                self._log("You may need to start Ollama manually.", "warning")
+                    exe_path = f'pythonw "{os.path.abspath(__file__)}"'
+                winreg.SetValueEx(key, "ARCHIE-Node-Resume", 0, winreg.REG_SZ, exe_path)
+                winreg.CloseKey(key)
+            except Exception:
+                pass
 
-        # ── Step 2: Detect hardware ──────────────────────────────────────
-        self._log("Detecting hardware...", "step")
-        hw = self._detect_hardware()
-        self._log(f"OS: {hw['os_info']}", "highlight")
-        self._log(f"CPU: {hw['cpu_model']} ({hw['cpu_cores']} cores)", "highlight")
-        if hw.get("ram_gb"):
-            self._log(f"RAM: {hw['ram_gb']} GB", "highlight")
+    def _check_resume(self):
+        """Check for saved resume state."""
+        if os.path.exists(RESUME_FILE):
+            try:
+                with open(RESUME_FILE) as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return None
 
-        # Check Ollama for GPU info
+    def _clear_resume(self):
+        """Remove resume file."""
         try:
-            req = Request("http://127.0.0.1:11434/api/tags", method="GET")
-            resp = urlopen(req, timeout=5)
-            ollama_data = json.loads(resp.read().decode("utf-8"))
-            hw["ollama_available"] = True
-            model_count = len(ollama_data.get("models", []))
-            self._log(f"Ollama models available: {model_count}", "highlight")
+            if os.path.exists(RESUME_FILE):
+                os.remove(RESUME_FILE)
         except Exception:
-            hw["ollama_available"] = True  # It's installed, just may not respond yet
+            pass
 
-        # ── Step 3: Register with hub ────────────────────────────────────
-        self._log("Registering with hub...", "step")
+    def _check_resume_on_start(self):
+        """Called after UI loads to check for resume state."""
+        resume = self._check_resume()
+        if resume:
+            step = resume.get("step", 0)
+            hub = resume.get("hub_url", "")
+            answer = messagebox.askyesno(
+                "Resume Installation",
+                f"A previous installation was interrupted at step {step}.\n"
+                f"Hub: {hub}\n\nResume where you left off?",
+            )
+            if answer:
+                self.hub_url = hub
+                self.hub_url_var.set(hub)
+                self.node_id = resume.get("node_id")
+                self.api_key = resume.get("api_key")
+                self._clear_resume()
+                self._start_install(resume_from=step)
+            else:
+                self._clear_resume()
 
-        register_url = f"{hub_url}/tools/starbase/api/nodes/register"
+    # ── Install flow ──────────────────────────────────────────────────────────
+    def _start_install(self, resume_from=0):
+        """Begin installation in a background thread."""
+        self._cancel_flag = False
+        self._disable_inputs()
+        self.hub_url = self.hub_url_var.get().strip().rstrip("/")
+        if not self.hub_url:
+            self._log("Please enter a Hub URL.", "error")
+            self._enable_inputs()
+            return
+        self._install_thread = threading.Thread(
+            target=self._run_install, args=(resume_from,), daemon=True,
+        )
+        self._install_thread.start()
+
+    def _run_install(self, resume_from=0):
+        """Execute all 8 install steps. Runs in background thread."""
+        try:
+            steps = [
+                (1, "Checking prerequisites...", self._step_prerequisites),
+                (2, "Detecting hardware...", self._step_hardware),
+                (3, "Setting up Docker...", self._step_docker),
+                (4, "Registering with hub...", self._step_register),
+                (5, "Downloading stack files...", self._step_download),
+                (6, "Building & starting containers...", self._step_build),
+                (7, "Waiting for approval...", self._step_approval),
+                (8, "Verifying deployment...", self._step_verify),
+            ]
+
+            for step_num, desc, func in steps:
+                if self._cancel_flag:
+                    self._log("Installation cancelled.", "warn")
+                    self._enable_inputs()
+                    return
+                if step_num < resume_from:
+                    continue
+                self._update_progress(step_num, desc)
+                self._log(desc, "cyan")
+                func()
+
+        except _StepError as e:
+            self._log(str(e), "error")
+            self._enable_inputs()
+        except Exception as e:
+            self._log(f"Unexpected error: {e}", "error")
+            self._enable_inputs()
+
+    # ── Step 1: Prerequisites ─────────────────────────────────────────────────
+    def _step_prerequisites(self):
+        # Check admin
+        if platform.system() == "Windows":
+            try:
+                is_admin = ctypes.windll.shell32.IsUserAnAdmin()
+            except Exception:
+                is_admin = False
+            if not is_admin:
+                self._log("Not running as Administrator.", "warn")
+                self._log("Some features may require elevation.", "warn")
+            else:
+                self._log("Running as Administrator", "ok")
+        else:
+            if os.geteuid() == 0:
+                self._log("Running as root", "ok")
+            else:
+                self._log("Not running as root — some steps may need sudo", "warn")
+
+        # Check internet
+        try:
+            self._http_get(self.hub_url, timeout=10)
+            self._log(f"Hub reachable: {self.hub_url}", "ok")
+        except Exception as e:
+            raise _StepError(f"Cannot reach hub at {self.hub_url}: {e}")
+
+        # Check existing installation
+        if os.path.exists(ENV_FILE):
+            containers_running = False
+            try:
+                result = subprocess.run(
+                    ["docker", "compose", "ps", "-q"],
+                    cwd=INSTALL_DIR, capture_output=True, timeout=15,
+                )
+                containers_running = bool(result.stdout.strip())
+            except Exception:
+                pass
+
+            if containers_running:
+                self._log("Existing ARCHIE installation found (containers running).", "yellow")
+                answer = self._ask_choice(
+                    "Existing Installation",
+                    "An ARCHIE node is already installed and running.\n\n"
+                    "Choose an option:",
+                    ["Upgrade", "Fresh Install", "Cancel"],
+                )
+                if answer == "Cancel" or answer is None:
+                    raise _StepError("Installation cancelled by user.")
+                elif answer == "Fresh Install":
+                    self._log("Stopping existing containers...", "cyan")
+                    subprocess.run(
+                        ["docker", "compose", "down", "--remove-orphans"],
+                        cwd=INSTALL_DIR, capture_output=True, timeout=60,
+                    )
+                    self._log("Existing containers stopped.", "ok")
+                else:
+                    self._log("Upgrading existing installation...", "cyan")
+            else:
+                self._log("Existing config found (not running).", "yellow")
+                answer = self._ask_choice(
+                    "Existing Config Found",
+                    "A previous ARCHIE node config exists but containers are not running.\n\n"
+                    "Choose an option:",
+                    ["Resume", "Fresh Install", "Cancel"],
+                )
+                if answer == "Cancel" or answer is None:
+                    raise _StepError("Installation cancelled by user.")
+                elif answer == "Fresh Install":
+                    self._log("Starting fresh installation...", "cyan")
+                else:
+                    self._log("Resuming previous installation...", "cyan")
+                    # Load existing config
+                    try:
+                        with open(ENV_FILE) as f:
+                            for line in f:
+                                line = line.strip()
+                                if line.startswith("NODE_ID="):
+                                    self.node_id = line.split("=", 1)[1]
+                                elif line.startswith("HUB_API_KEY="):
+                                    self.api_key = line.split("=", 1)[1]
+                    except Exception:
+                        pass
+        else:
+            self._log("No existing installation found.", "ok")
+
+    # ── Step 2: Hardware Detection ────────────────────────────────────────────
+    def _step_hardware(self):
+        hw = self.hw_info
+
+        # CPU
+        cpu_name = "Unknown"
+        if platform.system() == "Windows":
+            try:
+                result = subprocess.run(
+                    ["wmic", "cpu", "get", "name"],
+                    capture_output=True, text=True, timeout=10,
+                )
+                lines = [l.strip() for l in result.stdout.strip().split("\n") if l.strip() and l.strip() != "Name"]
+                if lines:
+                    cpu_name = lines[0]
+            except Exception:
+                cpu_name = platform.processor() or "Unknown"
+        else:
+            cpu_name = platform.processor() or "Unknown"
+        hw["cpu_model"] = cpu_name
+        hw["cpu_cores"] = os.cpu_count() or 1
+        # Truncate long CPU names for display
+        display_cpu = cpu_name[:30] + "..." if len(cpu_name) > 33 else cpu_name
+        self._update_hw_label("CPU", f"{display_cpu} ({hw['cpu_cores']}c)")
+        self._log(f"CPU: {cpu_name} ({hw['cpu_cores']} cores)", "ok")
+
+        # RAM
+        ram_gb = 0
+        if platform.system() == "Windows":
+            try:
+                result = subprocess.run(
+                    ["wmic", "computersystem", "get", "totalphysicalmemory"],
+                    capture_output=True, text=True, timeout=10,
+                )
+                lines = [l.strip() for l in result.stdout.strip().split("\n") if l.strip() and l.strip().isdigit()]
+                if lines:
+                    ram_gb = round(int(lines[0]) / (1024 ** 3), 1)
+            except Exception:
+                pass
+        else:
+            try:
+                with open("/proc/meminfo") as f:
+                    for line in f:
+                        if line.startswith("MemTotal"):
+                            ram_gb = round(int(line.split()[1]) / (1024 * 1024), 1)
+                            break
+            except Exception:
+                pass
+        hw["ram_gb"] = ram_gb
+        self._update_hw_label("RAM", f"{ram_gb} GB")
+        self._log(f"RAM: {ram_gb} GB", "ok")
+
+        # GPU
+        gpu_model = None
+        gpu_vram_gb = None
+        gpu_available = False
+        if platform.system() == "Windows":
+            try:
+                result = subprocess.run(
+                    ["wmic", "path", "win32_videocontroller", "get", "name,adapterram"],
+                    capture_output=True, text=True, timeout=10,
+                )
+                for line in result.stdout.strip().split("\n")[1:]:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    # adapterram is first numeric field, name is the rest
+                    parts = line.split()
+                    if parts:
+                        # Try to find NVIDIA
+                        full_line = " ".join(parts)
+                        if "NVIDIA" in full_line.upper():
+                            gpu_available = True
+                            # Parse adapter RAM (bytes) and name
+                            # Format: "AdapterRAM  Name" — numbers first
+                            ram_bytes = 0
+                            name_parts = []
+                            for p in parts:
+                                if p.isdigit() and not name_parts:
+                                    ram_bytes = int(p)
+                                else:
+                                    name_parts.append(p)
+                            gpu_model = " ".join(name_parts) if name_parts else full_line
+                            if ram_bytes > 0:
+                                gpu_vram_gb = round(ram_bytes / (1024 ** 3), 1)
+            except Exception:
+                pass
+        hw["gpu_available"] = gpu_available
+        hw["gpu_model"] = gpu_model
+        hw["gpu_vram_gb"] = gpu_vram_gb
+        if gpu_available:
+            vram_str = f" ({gpu_vram_gb}GB)" if gpu_vram_gb else ""
+            self._update_hw_label("GPU", f"{gpu_model}{vram_str}")
+            self._log(f"GPU: {gpu_model}{vram_str}", "ok")
+        else:
+            self._update_hw_label("GPU", "None detected")
+            self._log("GPU: No NVIDIA GPU detected (CPU-only mode)", "yellow")
+
+        # Disk
+        try:
+            usage = shutil.disk_usage("C:\\" if platform.system() == "Windows" else "/")
+            disk_free_gb = round(usage.free / (1024 ** 3), 1)
+            disk_total_gb = round(usage.total / (1024 ** 3), 1)
+        except Exception:
+            disk_free_gb = 0
+            disk_total_gb = 0
+        hw["disk_free_gb"] = disk_free_gb
+        hw["disk_total_gb"] = disk_total_gb
+        self._update_hw_label("Disk", f"{disk_free_gb} GB free / {disk_total_gb} GB")
+        self._log(f"Disk: {disk_free_gb} GB free of {disk_total_gb} GB", "ok")
+
+        # OS
+        hw["os_info"] = f"{platform.system()} {platform.release()} {platform.machine()}"
+        hw["hostname"] = socket.gethostname()
+
+    # ── Step 3: Docker Setup ──────────────────────────────────────────────────
+    def _step_docker(self):
+        docker_ok = self._check_docker()
+
+        if not docker_ok:
+            self._log("Docker not found. Installing Docker Desktop...", "warn")
+            self._install_docker()
+            docker_ok = self._check_docker()
+            if not docker_ok:
+                # Docker installed but needs restart
+                self._log("Docker installed. A system restart may be required.", "yellow")
+                self._save_resume_state(3, {"needs_docker_start": True})
+                answer = self._ask_choice(
+                    "Restart Required",
+                    "Docker Desktop has been installed but requires a system restart.\n\n"
+                    "The installer will resume automatically after reboot.",
+                    ["Restart Now", "I'll restart later"],
+                )
+                if answer == "Restart Now":
+                    self._log("Restarting system...", "cyan")
+                    subprocess.run(["shutdown", "/r", "/t", "5"], capture_output=True)
+                raise _StepError("Please restart your computer and run the installer again.")
+
+        # Docker found — check if running
+        if not self._docker_running():
+            self._log("Docker Desktop not running. Starting...", "yellow")
+            self._start_docker_desktop()
+            # Poll for up to 90s
+            for i in range(18):
+                if self._cancel_flag:
+                    return
+                time.sleep(5)
+                if self._docker_running():
+                    break
+                self._log(f"Waiting for Docker... ({(i + 1) * 5}s)", "info")
+            if not self._docker_running():
+                raise _StepError("Docker Desktop did not start within 90 seconds. Please start it manually.")
+
+        self._log("Docker Desktop is running.", "ok")
+
+        # Check for native Ollama on port 11434
+        self._check_native_ollama()
+
+    def _check_docker(self):
+        """Check if docker CLI exists."""
+        try:
+            result = subprocess.run(
+                ["docker", "--version"],
+                capture_output=True, text=True, timeout=10,
+            )
+            return result.returncode == 0
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            return False
+
+    def _docker_running(self):
+        """Check if Docker daemon is responsive."""
+        try:
+            result = subprocess.run(
+                ["docker", "info"],
+                capture_output=True, text=True, timeout=15,
+            )
+            return result.returncode == 0
+        except Exception:
+            return False
+
+    def _install_docker(self):
+        """Download and install Docker Desktop silently."""
+        installer_url = "https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe"
+        installer_path = os.path.join(INSTALL_DIR, "DockerDesktopInstaller.exe")
+
+        self._log("Downloading Docker Desktop installer...", "cyan")
+        os.makedirs(INSTALL_DIR, exist_ok=True)
+        try:
+            self._download_file(installer_url, installer_path, timeout=300)
+            self._log("Docker Desktop downloaded.", "ok")
+        except Exception as e:
+            raise _StepError(f"Failed to download Docker Desktop: {e}")
+
+        self._log("Installing Docker Desktop (this may take several minutes)...", "cyan")
+        try:
+            result = subprocess.run(
+                [installer_path, "install", "--quiet", "--accept-license"],
+                capture_output=True, text=True, timeout=600,
+            )
+            if result.returncode != 0:
+                self._log(f"Docker installer output: {result.stderr[:200]}", "warn")
+        except subprocess.TimeoutExpired:
+            self._log("Docker install is taking a long time. It may still be running.", "warn")
+        except Exception as e:
+            raise _StepError(f"Docker install failed: {e}")
+
+        # Refresh PATH
+        if platform.system() == "Windows":
+            docker_paths = [
+                os.path.join(os.environ.get("PROGRAMFILES", ""), "Docker", "Docker", "resources", "bin"),
+                os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Docker", "Docker", "resources", "bin"),
+            ]
+            for dp in docker_paths:
+                if os.path.isdir(dp) and dp not in os.environ.get("PATH", ""):
+                    os.environ["PATH"] = dp + os.pathsep + os.environ.get("PATH", "")
+
+        # Clean up installer
+        try:
+            os.remove(installer_path)
+        except Exception:
+            pass
+
+    def _start_docker_desktop(self):
+        """Attempt to start Docker Desktop."""
+        if platform.system() != "Windows":
+            return
+        docker_desktop_paths = [
+            os.path.join(os.environ.get("PROGRAMFILES", ""), "Docker", "Docker", "Docker Desktop.exe"),
+            os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Docker", "Docker", "Docker Desktop.exe"),
+        ]
+        for path in docker_desktop_paths:
+            if os.path.isfile(path):
+                try:
+                    subprocess.Popen(
+                        [path],
+                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                    self._log(f"Started Docker Desktop: {path}", "ok")
+                    return
+                except Exception:
+                    continue
+        self._log("Could not find Docker Desktop executable to start.", "warn")
+
+    def _check_native_ollama(self):
+        """Check for native Ollama running on port 11434."""
+        try:
+            resp = urlopen("http://localhost:11434/api/tags", timeout=3)
+            if resp.status == 200:
+                self._log("Native Ollama detected on port 11434.", "warn")
+                self._log("The Docker stack includes its own Ollama container.", "warn")
+                self._log("Consider stopping native Ollama to avoid port conflicts.", "warn")
+        except Exception:
+            pass  # Not running, that's fine
+
+    # ── Step 4: Register with Hub ─────────────────────────────────────────────
+    def _step_register(self):
+        if self.node_id and self.api_key:
+            self._log(f"Already registered as node {self.node_id}. Skipping.", "ok")
+            return
+
+        hw = self.hw_info
+        local_ip = self._get_local_ip()
+        register_url = f"{self.hub_url}/tools/starbase/api/nodes/register"
+
         payload = {
-            "node_name": node_name or hw["hostname"],
-            "hostname": hw["hostname"],
-            "os_info": hw["os_info"],
-            "cpu_model": hw["cpu_model"],
-            "cpu_cores": hw["cpu_cores"],
-            "ram_gb": hw.get("ram_gb"),
+            "node_name": hw.get("hostname", socket.gethostname()),
+            "hostname": local_ip,
+            "port": 11434,
             "gpu_available": hw.get("gpu_available", False),
             "gpu_model": hw.get("gpu_model"),
             "gpu_vram_gb": hw.get("gpu_vram_gb"),
-            "ollama_available": hw.get("ollama_available", False),
-            "client_version": "1.0.0-installer",
+            "cpu_cores": hw.get("cpu_cores", os.cpu_count() or 1),
+            "cpu_model": hw.get("cpu_model", "Unknown"),
+            "ram_gb": hw.get("ram_gb", 0),
+            "disk_gb": hw.get("disk_free_gb", 0),
+            "os_info": hw.get("os_info", platform.platform()),
+            "client_version": CLIENT_VERSION,
+            "tags": ["windows"],
         }
 
         try:
-            result = self._post_json(register_url, payload)
+            result = self._http_post_json(register_url, payload)
         except HTTPError as e:
             body = ""
             try:
-                body = e.read().decode("utf-8", errors="replace")
+                body = e.read().decode("utf-8", errors="replace")[:200]
             except Exception:
                 pass
-            self._log(f"Registration failed (HTTP {e.code}): {body[:200]}", "error")
-            self._re_enable_connect()
-            return
+            raise _StepError(f"Registration failed (HTTP {e.code}): {body}")
         except URLError as e:
-            self._log(f"Cannot reach hub: {e.reason}", "error")
-            self._log("Check the URL and your network connection.", "warning")
-            self._re_enable_connect()
-            return
+            raise _StepError(f"Cannot reach hub: {e.reason}")
         except Exception as e:
-            self._log(f"Registration error: {e}", "error")
-            self._re_enable_connect()
-            return
+            raise _StepError(f"Registration error: {e}")
 
         if not result.get("success"):
-            self._log(f"Registration rejected: {result.get('error', 'Unknown error')}", "error")
-            self._re_enable_connect()
-            return
+            raise _StepError(f"Registration rejected: {result.get('error', 'Unknown')}")
 
-        node_id = result.get("node_id", "unknown")
-        api_key = result.get("api_key", "")
-        node_display = result.get("node_name", node_name)
-        approval = result.get("approval_status", "pending")
+        self.node_id = result.get("node_id", "unknown")
+        self.api_key = result.get("api_key", "")
 
-        self._log(f"Registered as: {node_display}", "success")
-        self._log(f"Node ID: {node_id}", "highlight")
-        self._log(f"Approval status: {approval}", "highlight")
+        self._log(f"Registered as node: {self.node_id}", "ok")
 
-        # ── Step 4: Save config ──────────────────────────────────────────
-        self._log("Saving configuration...", "step")
+        # Save .env file
+        os.makedirs(INSTALL_DIR, exist_ok=True)
+        env_content = (
+            f"NODE_ID={self.node_id}\n"
+            f"HUB_URL={self.hub_url}\n"
+            f"HUB_API_KEY={self.api_key}\n"
+            f"DB_PASSWORD=archie_node_default\n"
+            f"OLLAMA_PORT=11434\n"
+            f"NODE_API_PORT=3001\n"
+        )
+        with open(ENV_FILE, "w") as f:
+            f.write(env_content)
+        self._log(f"Config saved to {ENV_FILE}", "ok")
 
-        config = {
-            "node_id": node_id,
-            "node_name": node_display,
-            "hub_url": hub_url,
-            "api_key": api_key,
-            "starbase_url": f"{hub_url}",
-            "deployment_mode": "starship",
-            "heartbeat_interval": 30,
-            "ollama_host": "http://127.0.0.1:11434",
-        }
-
+    def _get_local_ip(self):
+        """Get local IP address."""
         try:
-            os.makedirs(APP_DATA_DIR, exist_ok=True)
-            with open(CONFIG_PATH, "w") as f:
-                json.dump(config, f, indent=2)
-            self._log(f"Config saved: {CONFIG_PATH}", "success")
-        except Exception as e:
-            self._log(f"Failed to save config: {e}", "error")
-            self._re_enable_connect()
-            return
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+            s.close()
+            return ip
+        except Exception:
+            return "127.0.0.1"
 
-        # ── Step 5: Download node_sync.py ────────────────────────────────
-        self._log("Downloading node client...", "step")
+    # ── Step 5: Download Stack Files ──────────────────────────────────────────
+    def _step_download(self):
+        base_url = f"{self.hub_url}/tools/starbase/api/nodes"
+        os.makedirs(INSTALL_DIR, exist_ok=True)
+        migrations_dir = os.path.join(INSTALL_DIR, "migrations")
+        os.makedirs(migrations_dir, exist_ok=True)
 
-        sync_url = f"{hub_url}/tools/starbase/api/nodes/node_sync.py"
+        files_to_download = [
+            ("docker-compose.node.yml", os.path.join(INSTALL_DIR, "docker-compose.yml")),
+            ("node_sync.py", os.path.join(INSTALL_DIR, "node_sync.py")),
+            ("node_api.py", os.path.join(INSTALL_DIR, "node_api.py")),
+            ("Dockerfile.node", os.path.join(INSTALL_DIR, "Dockerfile.node")),
+            ("migrations/001_node_schema.sql", os.path.join(migrations_dir, "001_node_schema.sql")),
+            ("migrations/002_knowledge_projects.sql", os.path.join(migrations_dir, "002_knowledge_projects.sql")),
+        ]
+
+        for filename, dest in files_to_download:
+            if self._cancel_flag:
+                return
+            url = f"{base_url}/{filename}"
+            try:
+                size = self._download_file(url, dest)
+                self._log(f"Downloaded {filename} ({size:,} bytes)", "ok")
+            except HTTPError as e:
+                self._log(f"Could not download {filename} (HTTP {e.code})", "warn")
+            except Exception as e:
+                self._log(f"Failed to download {filename}: {e}", "warn")
+
+        # Post-process docker-compose.yml based on hardware
+        compose_path = os.path.join(INSTALL_DIR, "docker-compose.yml")
+        if os.path.exists(compose_path):
+            self._adjust_compose(compose_path)
+
+    def _adjust_compose(self, compose_path):
+        """Adjust docker-compose.yml based on detected hardware."""
         try:
-            size = self._download_file(sync_url, NODE_SYNC_PATH)
-            self._log(f"Downloaded node_sync.py ({size:,} bytes)", "success")
-        except HTTPError as e:
-            self._log(f"Download failed (HTTP {e.code})", "error")
-            self._log("The node client file may not be available on the hub.", "warning")
-            self._re_enable_connect()
-            return
-        except Exception as e:
-            self._log(f"Download error: {e}", "error")
-            self._re_enable_connect()
+            with open(compose_path, "r") as f:
+                content = f.read()
+        except Exception:
             return
 
-        # ── Step 6: Create startup shortcut ──────────────────────────────
-        self._log("Setting up auto-start...", "step")
-        self._create_startup_shortcut()
+        modified = False
+        hw = self.hw_info
 
-        # ── Step 7: Launch node sync ─────────────────────────────────────
-        self._log("Launching node sync service...", "step")
+        # No GPU: strip GPU config
+        if not hw.get("gpu_available", False):
+            self._log("No GPU detected — removing GPU config from compose.", "yellow")
+            # Remove deploy.resources.reservations.devices YAML block
+            # and NVIDIA_VISIBLE_DEVICES env var
+            if "NVIDIA_VISIBLE_DEVICES" in content:
+                lines = content.split("\n")
+                new_lines = [l for l in lines if "NVIDIA_VISIBLE_DEVICES" not in l]
+                content = "\n".join(new_lines)
+                modified = True
+            if "driver: nvidia" in content:
+                # Remove the deploy/resources/reservations/devices block
+                # This is a simplified approach — strip lines between markers
+                lines = content.split("\n")
+                new_lines = []
+                skip_depth = 0
+                for line in lines:
+                    stripped = line.strip()
+                    if stripped.startswith("deploy:"):
+                        skip_depth = len(line) - len(line.lstrip())
+                        # Skip this entire deploy block
+                        continue
+                    if skip_depth > 0:
+                        current_depth = len(line) - len(line.lstrip()) if line.strip() else skip_depth + 1
+                        if current_depth > skip_depth or not line.strip():
+                            continue
+                        else:
+                            skip_depth = 0
+                    new_lines.append(line)
+                content = "\n".join(new_lines)
+                modified = True
 
+        # GPU detected but low disk: remove ComfyUI service
+        if hw.get("gpu_available", False) and hw.get("disk_free_gb", 0) < 50:
+            self._log("Low disk space — disabling ComfyUI service.", "warn")
+            if "comfyui" in content.lower():
+                lines = content.split("\n")
+                new_lines = []
+                in_comfyui = False
+                comfyui_indent = 0
+                for line in lines:
+                    stripped = line.strip()
+                    if stripped.startswith("comfyui:") or stripped.startswith("archie_comfyui:"):
+                        in_comfyui = True
+                        comfyui_indent = len(line) - len(line.lstrip())
+                        continue
+                    if in_comfyui:
+                        current_indent = len(line) - len(line.lstrip()) if line.strip() else comfyui_indent + 1
+                        if current_indent > comfyui_indent or not line.strip():
+                            continue
+                        else:
+                            in_comfyui = False
+                    if not in_comfyui:
+                        new_lines.append(line)
+                content = "\n".join(new_lines)
+                modified = True
+
+        if modified:
+            with open(compose_path, "w") as f:
+                f.write(content)
+
+    # ── Step 6: Build & Start ─────────────────────────────────────────────────
+    def _step_build(self):
+        self._log("Building containers (this may take several minutes)...", "cyan")
         try:
-            python_exe = sys.executable
-            if not python_exe or "python" not in python_exe.lower():
-                python_exe = shutil.which("python3") or shutil.which("python") or "python"
-
-            if platform.system() == "Windows":
-                subprocess.Popen(
-                    [python_exe, NODE_SYNC_PATH],
-                    creationflags=subprocess.CREATE_NO_WINDOW,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    cwd=APP_DATA_DIR,
-                )
-            else:
-                subprocess.Popen(
-                    [python_exe, NODE_SYNC_PATH],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    cwd=APP_DATA_DIR,
-                )
-            self._log("Node sync service launched.", "success")
-        except Exception as e:
-            self._log(f"Could not launch sync service: {e}", "warning")
-            self._log("You can start it manually by running:", "warning")
-            self._log(f"  python \"{NODE_SYNC_PATH}\"", "highlight")
-
-        # ── Done ─────────────────────────────────────────────────────────
-        self._log("", "info")
-        self._log("=" * 50, "success")
-        self._log("SUCCESS! Your node is now connected.", "success")
-        self._log("=" * 50, "success")
-        self._log("", "info")
-        self._log(f"Node name:   {node_display}", "highlight")
-        self._log(f"Node ID:     {node_id}", "highlight")
-        self._log(f"Hub:         {hub_url}", "highlight")
-        self._log(f"Config:      {CONFIG_PATH}", "highlight")
-        self._log("", "info")
-        if approval == "pending":
-            self._log("Your node is pending approval by the hub admin.", "warning")
-            self._log("Once approved, it will begin receiving AI workloads.", "warning")
-        else:
-            self._log("Your node is active and ready for AI workloads.", "success")
-
-        # Show close button
-        self.after(0, lambda: self.close_btn.pack(fill="x"))
-
-    # ── UI helpers ───────────────────────────────────────────────────────────
-    def _re_enable_connect(self):
-        """Re-enable the connect button after a failure."""
-        def _do():
-            self.connect_btn.configure(state="normal", bg=CYAN, fg=BG_DARK)
-            self.hub_entry.configure(state="normal")
-            self.name_entry.configure(state="normal")
-        self.after(0, _do)
-
-    def _show_ollama_link(self):
-        """Show a clickable link to download Ollama."""
-        def _do():
-            link_frame = tk.Frame(self.log_text, bg=BG_PANEL)
-            link = tk.Label(
-                link_frame,
-                text="Click here to download Ollama",
-                fg=CYAN,
-                bg=BG_PANEL,
-                cursor="hand2",
-                font=tkfont.Font(family="Segoe UI", size=10, underline=True),
+            result = subprocess.run(
+                ["docker", "compose", "build", "--no-cache"],
+                cwd=INSTALL_DIR, capture_output=True, text=True, timeout=600,
             )
-            link.pack(padx=4, pady=4)
-            link.bind("<Button-1>", lambda e: webbrowser.open("https://ollama.com/download"))
+            if result.returncode != 0:
+                self._log(f"Build warnings: {result.stderr[:300]}", "warn")
+            else:
+                self._log("Containers built successfully.", "ok")
+        except subprocess.TimeoutExpired:
+            self._log("Build is taking a long time but may still be running.", "warn")
+        except Exception as e:
+            raise _StepError(f"Docker build failed: {e}")
 
-            self.log_text.configure(state="normal")
-            self.log_text.window_create("end", window=link_frame)
-            self.log_text.insert("end", "\n")
-            self.log_text.see("end")
-            self.log_text.configure(state="disabled")
-        self.after(0, _do)
+        self._log("Starting containers...", "cyan")
+        try:
+            result = subprocess.run(
+                ["docker", "compose", "up", "-d"],
+                cwd=INSTALL_DIR, capture_output=True, text=True, timeout=120,
+            )
+            if result.returncode != 0:
+                raise _StepError(f"Docker compose up failed: {result.stderr[:300]}")
+        except subprocess.TimeoutExpired:
+            raise _StepError("Docker compose up timed out after 120 seconds.")
+        except _StepError:
+            raise
+        except Exception as e:
+            raise _StepError(f"Failed to start containers: {e}")
+
+        # Count containers
+        try:
+            ps_result = subprocess.run(
+                ["docker", "compose", "ps", "-q"],
+                cwd=INSTALL_DIR, capture_output=True, text=True, timeout=15,
+            )
+            count = len([l for l in ps_result.stdout.strip().split("\n") if l.strip()])
+            self._log(f"Started {count} container(s).", "ok")
+        except Exception:
+            self._log("Containers started.", "ok")
+
+    # ── Step 7: Wait for Approval ─────────────────────────────────────────────
+    def _step_approval(self):
+        if not self.node_id:
+            self._log("No node ID — skipping approval check.", "warn")
+            return
+
+        status_url = f"{self.hub_url}/tools/starbase/api/nodes/{self.node_id}/status"
+        dots = ""
+
+        for i in range(60):  # Poll for up to 10 minutes
+            if self._cancel_flag:
+                return
+            try:
+                resp_bytes = self._http_get(status_url, timeout=10)
+                data = json.loads(resp_bytes.decode("utf-8"))
+                status = data.get("status", data.get("approval_status", "pending"))
+                if status in ("approved", "active", "online"):
+                    self._log("Node approved by hub!", "ok")
+                    self._log("Models are being pushed to your node...", "cyan")
+                    return
+            except Exception:
+                pass
+
+            dots = "." * ((i % 3) + 1)
+            self._log(f"Waiting for hub approval{dots}", "info")
+            time.sleep(10)
+
+        self._log("Timed out waiting for approval. The node will sync once approved.", "yellow")
+
+    # ── Step 8: Verify ────────────────────────────────────────────────────────
+    def _step_verify(self):
+        # Check container status
+        try:
+            result = subprocess.run(
+                ["docker", "compose", "ps"],
+                cwd=INSTALL_DIR, capture_output=True, text=True, timeout=15,
+            )
+            if result.stdout.strip():
+                for line in result.stdout.strip().split("\n")[1:]:
+                    if line.strip():
+                        self._log(f"  {line.strip()}", "info")
+        except Exception:
+            self._log("Could not check container status.", "warn")
+
+        # Clean up resume file
+        self._clear_resume()
+
+        # Show summary
+        self._log("", "info")
+        self._log("=" * 48, "ok")
+        self._log("  INSTALLATION COMPLETE", "ok")
+        self._log("=" * 48, "ok")
+        self._log("", "info")
+        self._log(f"Node ID:      {self.node_id}", "cyan")
+        self._log(f"Hub URL:      {self.hub_url}", "cyan")
+        self._log(f"Install dir:  {INSTALL_DIR}", "cyan")
+        self._log(f"Version:      {CLIENT_VERSION}", "cyan")
+        self._log("", "info")
+
+        self._update_progress(TOTAL_STEPS, "Installation complete!")
+
+        # Change Install button to Close
+        self._set_install_btn("Close", self._on_close, bg=GREEN)
+
+    # ── Dialog helper ─────────────────────────────────────────────────────────
+    def _ask_choice(self, title, message, options):
+        """Show a dialog with multiple choices. Returns the chosen option text or None.
+        Must be called from background thread — uses threading.Event for sync."""
+        result = [None]
+        event = threading.Event()
+
+        def _show():
+            # Use simple messagebox for 2-option choices, custom dialog for 3+
+            if len(options) == 2:
+                answer = messagebox.askyesno(title, f"{message}\n\nYes = {options[0]}\nNo = {options[1]}")
+                result[0] = options[0] if answer else options[1]
+            elif len(options) == 3:
+                # Yes/No/Cancel style
+                answer = messagebox.askyesnocancel(title, f"{message}\n\nYes = {options[0]}\nNo = {options[1]}\nCancel = {options[2]}")
+                if answer is True:
+                    result[0] = options[0]
+                elif answer is False:
+                    result[0] = options[1]
+                else:
+                    result[0] = options[2]
+            event.set()
+
+        self.after(0, _show)
+        event.wait(timeout=300)
+        return result[0]
+
+    # ── Cancel / Close ────────────────────────────────────────────────────────
+    def _on_cancel(self):
+        """Handle cancel button or window close."""
+        if self._install_thread and self._install_thread.is_alive():
+            self._cancel_flag = True
+            self._log("Cancelling installation...", "warn")
+            # Give thread a moment to notice
+            self.after(2000, self.destroy)
+        else:
+            self.destroy()
 
     def _on_close(self):
         """Clean shutdown."""
         self.destroy()
+
+
+class _StepError(Exception):
+    """Raised by a step to abort the install flow with a message."""
+    pass
 
 
 def main():

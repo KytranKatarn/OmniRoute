@@ -1,9 +1,10 @@
 FROM python:3.11-slim
 
+RUN apt-get update && apt-get install -y --no-install-recommends curl jq && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir flask psycopg2-binary requests
 
 WORKDIR /app
-COPY node_sync.py node_api.py ./
+COPY node_sync.py node_api.py node_triage.py ./
 COPY migrations/ ./migrations/
 
 CMD ["python3", "-u", "node_sync.py"]

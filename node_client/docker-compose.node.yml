@@ -81,6 +81,7 @@ services:
       DEPLOYMENT_MODE: "starship"
       ARCHIE_VERSION: "1.0.0"
       NODE_TIMEZONE: ${NODE_TIMEZONE:-America/Toronto}
+      COMFYUI_PORT: "${COMFYUI_PORT:-8188}"
     volumes:
       - ./node_sync.py:/app/node_sync.py
       - ./node_api.py:/app/node_api.py
@@ -114,32 +115,29 @@ services:
     networks:
       - starship_net
 
-  # === OPTIONAL: ComfyUI for image/video generation (GPU nodes only) ===
-  # Uncomment this section to enable ComfyUI on nodes with NVIDIA GPUs.
-  # The deploy script will uncomment automatically when GPU is detected.
-  #
-  # comfyui:
-  #   image: comfyanonymous/comfyui:latest
-  #   container_name: archie_starship_comfyui
-  #   restart: unless-stopped
-  #   deploy:
-  #     resources:
-  #       reservations:
-  #         devices:
-  #           - driver: nvidia
-  #             count: all
-  #             capabilities: [gpu]
-  #   volumes:
-  #     - comfyui_data:/app/models
-  #   ports:
-  #     - "${COMFYUI_PORT:-8188}:8188"
-  #   networks:
-  #     - starship_net
+  # === ComfyUI for image/video generation (GPU nodes only) ===
+  comfyui:
+    image: comfyui/base:latest
+    container_name: archie_starship_comfyui
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - comfyui_data:/app/models
+    ports:
+      - "${COMFYUI_PORT:-8188}:8188"
+    networks:
+      - starship_net
 
 volumes:
   ollama_data:
   pg_data:
-  # comfyui_data:
+  comfyui_data:
 
 networks:
   starship_net:

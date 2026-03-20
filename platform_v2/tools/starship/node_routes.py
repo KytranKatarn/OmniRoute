@@ -849,6 +849,84 @@ def register_node_routes(bp, auth_decorator):
             logger.error(f"Failed to disconnect node {node_id}: {e}")
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
+    # ========================================================================
+    # SSH TOGGLE
+    # ========================================================================
+
+    @bp.route("/api/nodes/<node_id>/ssh-toggle", methods=["POST"])
+    @auth_decorator
+    def api_ssh_toggle(node_id):
+        """Toggle SSH access on a node via mesh sync command."""
+        user_id = current_user.id
+        node = _get_node_for_user(node_id, user_id)
+        if not node:
+            return jsonify({"success": False, "error": "Node not found"}), 404
+
+        data = request.get_json() or {}
+        enabled = data.get("enabled", True)
+        timeout_minutes = int(data.get("timeout_minutes", 60))
+
+        try:
+            node_db_id = node["id"]
+            with get_db_cursor(commit=True) as (conn, cur):
+                # Update SSH state in remote_nodes
+                if enabled:
+                    cur.execute(
+                        """UPDATE remote_nodes
+                           SET ssh_enabled = TRUE,
+                               ssh_enabled_at = NOW(),
+                               ssh_auto_disable_at = NOW() + INTERVAL '%s minutes'
+                           WHERE id = %s""",
+                        (timeout_minutes, node_db_id),
+                    )
+                else:
+                    cur.execute(
+                        """UPDATE remote_nodes
+                           SET ssh_enabled = FALSE,
+                               ssh_enabled_at = NULL,
+                               ssh_auto_disable_at = NULL
+                           WHERE id = %s""",
+                        (node_db_id,),
+                    )
+
+                # Push sync command to node
+                hub_public_key = ""
+                ssh_key_path = os.path.expanduser("~/.ssh/id_rsa.pub")
+                if os.path.isfile(ssh_key_path):
+                    with open(ssh_key_path, "r") as f:
+                        hub_public_key = f.read().strip()
+
+                cur.execute(
+                    """INSERT INTO mesh_sync_log
+                       (node_id, sync_type, payload, status)
+                       VALUES (%s, 'ssh_toggle', %s::jsonb, 'pending')""",
+                    (
+                        node["node_id"],
+                        json.dumps(
+                            {
+                                "enabled": enabled,
+                                "hub_public_key": hub_public_key,
+                                "timeout_minutes": timeout_minutes,
+                            }
+                        ),
+                    ),
+                )
+
+            action = "enabled" if enabled else "disabled"
+            logger.info("SSH %s on node %s (timeout: %dm)", action, node["node_name"], timeout_minutes)
+            return jsonify(
+                {
+                    "success": True,
+                    "ssh_enabled": enabled,
+                    "timeout_minutes": timeout_minutes if enabled else 0,
+                    "message": f"SSH {action} on {node['node_name']}"
+                    + (f" (auto-disable in {timeout_minutes}m)" if enabled else ""),
+                }
+            )
+        except Exception as e:
+            logger.error("SSH toggle failed for node %s: %s", node_id, e)
+            return jsonify({"success": False, "error": "Internal server error"}), 500
+
 
 # ============================================================================
 # PRIVATE HELPERS (installer generators)
@@ -891,18 +969,20 @@ mkdir -p "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 echo "[1/5] Install dir: $INSTALL_DIR"
 
-# ── Step 2: Register with hub ──
+# ── Step 2: Register with hub (or verify existing) ──
 echo "[2/5] Registering with hub..."
 REG_RESPONSE=$(curl -sS -X POST "$HUB_URL/tools/starbase/api/nodes/register" \\
     -H "Content-Type: application/json" \\
-    -d "{{\\"node_id\\": \\"$NODE_ID\\", \\"api_key\\": \\"$API_KEY\\", \\"node_name\\": \\"$NODE_NAME\\"}}" 2>/dev/null) || true
+    -d "{{\\"node_name\\": \\"$NODE_NAME\\", \\"hostname\\": \\"$(hostname -I 2>/dev/null | awk '{{print $1}}')\\"}}" 2>/dev/null) || true
 
 if echo "$REG_RESPONSE" | grep -q '"api_key"'; then
     REG_KEY=$(echo "$REG_RESPONSE" | grep -o '"api_key"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | cut -d'"' -f4)
+    REG_NODE_ID=$(echo "$REG_RESPONSE" | grep -o '"node_id"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | cut -d'"' -f4)
     if [ -n "$REG_KEY" ]; then API_KEY="$REG_KEY"; fi
-    echo "  Registered successfully."
+    if [ -n "$REG_NODE_ID" ]; then NODE_ID="$REG_NODE_ID"; fi
+    echo "  Registered successfully. Node ID: $NODE_ID"
 else
-    echo "  Using pre-assigned credentials."
+    echo "  Using pre-assigned credentials (node already registered)."
 fi
 
 # ── Step 3: Write config.json ──
@@ -1005,7 +1085,7 @@ while true; do
 \\"client_version\\": \\"$CLIENT_VERSION\\", \\"cpu_model\\": \\"$CPU_MODEL\\", \
 \\"ram_gb\\": $RAM_GB, \\"gpu_model\\": \\"$GPU_MODEL\\", \\"gpu_vram_gb\\": $GPU_VRAM}}"
 
-    RESPONSE=$(curl -sS -X POST "$HUB_URL/tools/starbase/api/nodes/heartbeat" \\
+    RESPONSE=$(curl -sS -X POST "$HUB_URL/tools/starbase/api/nodes/$NODE_ID/heartbeat" \\
         -H "Content-Type: application/json" -H "X-Node-API-Key: $API_KEY" \\
         -d "$PAYLOAD" --max-time 10 2>/dev/null) || RESPONSE=""
 

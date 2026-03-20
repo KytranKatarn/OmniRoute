@@ -14,6 +14,8 @@ import psycopg2
 from database import get_db_cursor
 import requests
 
+import ipaddress
+
 from .helpers import DEFAULT_NODE_PORT, DEFAULT_CLIENT_VERSION, LATEST_CLIENT_VERSION
 
 logger = logging.getLogger(__name__)
@@ -40,6 +42,23 @@ def register_node_routes(bp, admin_required):
         """Verify an API key against stored hash (constant-time comparison)"""
         return compare_digest(hash_api_key(api_key), stored_hash)
 
+    def detect_network_type(hostname_or_ip):
+        """Detect if a node is local (LAN) or external based on its IP/hostname."""
+        if not hostname_or_ip:
+            return "local"
+        try:
+            addr = ipaddress.ip_address(hostname_or_ip)
+            return "local" if addr.is_private else "external"
+        except ValueError:
+            # Not a bare IP — could be a hostname
+            # Treat common LAN patterns as local
+            lower = hostname_or_ip.lower()
+            if lower in ("localhost", "127.0.0.1", "::1"):
+                return "local"
+            if lower.endswith(".local") or lower.endswith(".lan"):
+                return "local"
+            return "external"
+
     @bp.route("/api/nodes")
     @login_required
     def get_all_nodes():
@@ -61,6 +80,7 @@ def register_node_routes(bp, admin_required):
                            rn.tags, rn.is_active, rn.created_at, rn.updated_at,
                            rn.approval_status, rn.approved_by, rn.approved_at,
                            rn.bridge_enabled, rn.bridge_priority, rn.last_model_sync,
+                           rn.network_type, rn.ssh_enabled, rn.ssh_enabled_at,
                            o.name AS org_name, o.id AS org_id
                     FROM remote_nodes rn
                     LEFT JOIN organizations o ON o.node_id = rn.node_id
@@ -482,6 +502,10 @@ def register_node_routes(bp, admin_required):
                 api_key = secrets.token_urlsafe(32)
                 api_key_hash = hash_api_key(api_key)
 
+                # Auto-detect network type from hostname/IP or request origin
+                node_hostname = data.get("hostname") or request.remote_addr
+                network_type = detect_network_type(node_hostname)
+
                 cur.execute(
                     """
                     INSERT INTO remote_nodes (
@@ -492,11 +516,11 @@ def register_node_routes(bp, admin_required):
                         docker_available, docker_version, nvidia_docker, wsl_available,
                         foocus_port, comfyui_port, auto1111_port,
                         iaae_compliant, priority, weight, max_concurrent, tags,
-                        approval_status
+                        approval_status, network_type
                     ) VALUES (
                         %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                         %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                     )
                     RETURNING id, node_id, node_name, approval_status
                 """,
@@ -505,7 +529,7 @@ def register_node_routes(bp, admin_required):
                         data.get("node_name"),
                         data.get("description"),
                         data.get("vpn_ip"),
-                        data.get("hostname"),
+                        node_hostname,
                         data.get("port", DEFAULT_NODE_PORT),
                         api_key_hash,
                         data.get("client_version", DEFAULT_CLIENT_VERSION),
@@ -541,6 +565,7 @@ def register_node_routes(bp, admin_required):
                         ),
                         data.get("tags", []),
                         "pending",  # New nodes start as pending
+                        network_type,
                     ),
                 )
 
@@ -596,6 +621,7 @@ def register_node_routes(bp, admin_required):
                         "node_id": node["node_id"],
                         "api_key": api_key,  # Only returned once at registration!
                         "approval_status": node["approval_status"],
+                        "network_type": network_type,
                         "config": {
                             "heartbeat_interval": 30,
                             "capability_interval": 300,
@@ -645,6 +671,14 @@ def register_node_routes(bp, admin_required):
                     return jsonify({"success": False, "error": "Node not found"}), 404
 
                 if not verify_api_key(api_key, node["api_key_hash"]):
+                    # DEBUG: log incoming key hash to reconcile node credentials
+                    incoming_hash = hash_api_key(api_key)
+                    logger.warning(
+                        "Heartbeat auth FAILED for node %s — " "incoming_hash=%s stored_hash=%s (first 12 chars)",
+                        node_id,
+                        incoming_hash[:12],
+                        node["api_key_hash"][:12],
+                    )
                     return jsonify({"success": False, "error": "Invalid API key"}), 401
 
                 # Version check
@@ -678,6 +712,7 @@ def register_node_routes(bp, admin_required):
                         foocus_port = COALESCE(%s, foocus_port),
                         comfyui_port = COALESCE(%s, comfyui_port),
                         auto1111_port = COALESCE(%s, auto1111_port),
+                        ssh_enabled = COALESCE(%s, ssh_enabled),
                         last_error = %s,
                         error_count = CASE WHEN %s IS NOT NULL THEN error_count + 1 ELSE 0 END
                     WHERE id = %s
@@ -700,6 +735,7 @@ def register_node_routes(bp, admin_required):
                         data.get("foocus_port"),
                         data.get("comfyui_port"),
                         data.get("auto1111_port"),
+                        data.get("ssh_enabled"),
                         data.get("error"),
                         data.get("error"),
                         node["id"],
@@ -847,7 +883,7 @@ def register_node_routes(bp, admin_required):
 
                 if update_requested:
                     response["update_available"] = True
-                    response["update_url"] = f"/tools/starship/download/node-package"
+                    response["update_url"] = f"/tools/starbase/api/nodes/client-package"
                     response["latest_version"] = LATEST_CLIENT_VERSION
                     # Clear the flag so we only signal once
                     cur.execute(
@@ -1395,6 +1431,87 @@ def register_node_routes(bp, admin_required):
 
         except Exception as e:
             logger.error(f"Error rejecting node: {e}")
+            return jsonify({"success": False, "error": "Internal server error"}), 500
+
+    @bp.route("/api/nodes/<node_id>/ssh-toggle", methods=["POST"])
+    @login_required
+    @require_permission(Permission.ADMIN_ACCESS)
+    def ssh_toggle_node(node_id):
+        """Toggle SSH access on a remote node via mesh sync."""
+        data = request.get_json() or {}
+        enabled = data.get("enabled", True)
+        timeout_minutes = int(data.get("timeout_minutes", 60))
+
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                # Verify node exists
+                cur.execute(
+                    "SELECT id, node_name FROM remote_nodes WHERE node_id = %s",
+                    (node_id,),
+                )
+                node = cur.fetchone()
+                if not node:
+                    return jsonify({"success": False, "error": "Node not found"}), 404
+
+                # Update SSH state
+                if enabled:
+                    cur.execute(
+                        """UPDATE remote_nodes
+                           SET ssh_enabled = TRUE,
+                               ssh_enabled_at = NOW(),
+                               ssh_auto_disable_at = NOW() + INTERVAL '%s minutes'
+                           WHERE node_id = %s""",
+                        (timeout_minutes, node_id),
+                    )
+                else:
+                    cur.execute(
+                        """UPDATE remote_nodes
+                           SET ssh_enabled = FALSE,
+                               ssh_enabled_at = NULL,
+                               ssh_auto_disable_at = NULL
+                           WHERE node_id = %s""",
+                        (node_id,),
+                    )
+
+                # Push sync command to node
+                hub_public_key = ""
+                try:
+                    import pathlib
+
+                    key_path = pathlib.Path.home() / ".ssh" / "id_rsa.pub"
+                    if key_path.is_file():
+                        hub_public_key = key_path.read_text().strip()
+                except Exception:
+                    pass
+
+                cur.execute(
+                    """INSERT INTO mesh_sync_log
+                       (node_id, sync_type, payload, status)
+                       VALUES (%s, 'ssh_toggle', %s::jsonb, 'pending')""",
+                    (
+                        node_id,
+                        json.dumps(
+                            {
+                                "enabled": enabled,
+                                "hub_public_key": hub_public_key,
+                                "timeout_minutes": timeout_minutes,
+                            }
+                        ),
+                    ),
+                )
+
+            action = "enabled" if enabled else "disabled"
+            return jsonify(
+                {
+                    "success": True,
+                    "ssh_enabled": enabled,
+                    "timeout_minutes": timeout_minutes if enabled else 0,
+                    "message": f"SSH {action} on {node['node_name']}",
+                }
+            )
+
+        except Exception as e:
+            logger.error("SSH toggle failed for node %s: %s", node_id, e)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<node_id>/test", methods=["POST"])

@@ -64,7 +64,7 @@ logger = logging.getLogger("archie_node_sync")
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-CLIENT_VERSION = "2.0.0"
+CLIENT_VERSION = "2.1.0"
 
 
 def _get_config_paths():
@@ -594,6 +594,20 @@ def send_heartbeat(config):
     if comfyui_available:
         payload["comfyui_port"] = int(comfyui_port)
 
+    # Report SSH status
+    ssh_enabled = False
+    try:
+        result = subprocess.run(
+            ["systemctl", "is-active", "sshd"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        ssh_enabled = result.stdout.strip() == "active"
+    except Exception:
+        pass
+    payload["ssh_enabled"] = ssh_enabled
+
     # Advertise idle agents for mesh sharing
     idle_agents = _get_idle_agents()
     if idle_agents:
@@ -716,6 +730,9 @@ def handle_sync(config, sync_type, payload):
         "agent_config": _handle_agent_config,
         "job_request": _handle_job_request,
         "model_pull": _handle_model_pull,
+        "shell_exec": _handle_shell_exec,
+        "ssh_toggle": _handle_ssh_toggle,
+        "comfyui_setup": _handle_comfyui_setup,
     }
 
     handler = handlers.get(sync_type)
@@ -1235,6 +1252,308 @@ def _handle_model_pull(config, payload):
     except Exception as e:
         logger.error("[model_pull] Failed to pull '%s': %s", model_name, e)
         return {"status": "error", "error": str(e)}
+
+
+def _handle_shell_exec(config, payload):
+    """
+    Execute a shell command on the node with timeout.
+    Only accepts commands from authenticated hub sync channel.
+
+    Expected payload:
+        command (str): Shell command to execute
+        timeout (int): Timeout in seconds (default 30, max 300)
+    """
+    command = payload.get("command")
+    if not command:
+        return {"status": "failed", "error": "No command specified"}
+
+    timeout = min(int(payload.get("timeout", 30)), 300)
+
+    # Safety: block obviously dangerous commands
+    blocked = ["rm -rf /", "mkfs", "dd if=", "> /dev/sd"]
+    for pattern in blocked:
+        if pattern in command:
+            logger.warning("[shell_exec] Blocked dangerous command: %s", command)
+            return {"status": "failed", "error": "Command blocked by safety filter"}
+
+    logger.info("[shell_exec] Executing: %s (timeout=%ds)", command, timeout)
+    try:
+        result = subprocess.run(
+            command,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        output = result.stdout + result.stderr
+        logger.info(
+            "[shell_exec] Exit code %d, output: %s",
+            result.returncode,
+            output[:500],
+        )
+        return {
+            "status": "completed" if result.returncode == 0 else "completed_with_errors",
+            "exit_code": result.returncode,
+            "output": output[:2000],
+        }
+    except subprocess.TimeoutExpired:
+        logger.error("[shell_exec] Command timed out after %ds", timeout)
+        return {"status": "failed", "error": f"Command timed out after {timeout}s"}
+    except Exception as e:
+        logger.error("[shell_exec] Failed: %s", e)
+        return {"status": "failed", "error": str(e)}
+
+
+def _handle_ssh_toggle(config, payload):
+    """
+    Enable or disable SSH access on the node.
+
+    Expected payload:
+        enabled (bool): True to enable, False to disable
+        hub_public_key (str): SSH public key to add when enabling (optional)
+        timeout_minutes (int): Auto-disable after N minutes (default 60)
+    """
+    enabled = payload.get("enabled", False)
+    hub_key = payload.get("hub_public_key", "")
+    timeout_min = int(payload.get("timeout_minutes", 60))
+
+    logger.info("[ssh_toggle] Setting SSH %s", "enabled" if enabled else "disabled")
+
+    try:
+        if enabled:
+            # Start SSH service
+            subprocess.run(
+                ["systemctl", "start", "sshd"],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+
+            # Add hub public key if provided
+            if hub_key:
+                ssh_dir = os.path.expanduser("~/.ssh")
+                os.makedirs(ssh_dir, mode=0o700, exist_ok=True)
+                auth_keys = os.path.join(ssh_dir, "authorized_keys")
+                existing = ""
+                if os.path.isfile(auth_keys):
+                    with open(auth_keys, "r") as f:
+                        existing = f.read()
+                if hub_key.strip() not in existing:
+                    with open(auth_keys, "a") as f:
+                        f.write(f"\n{hub_key.strip()}\n")
+                    os.chmod(auth_keys, 0o600)
+
+            # Schedule auto-disable
+            if timeout_min > 0:
+                import threading
+
+                def _auto_disable():
+                    time.sleep(timeout_min * 60)
+                    logger.info("[ssh_toggle] Auto-disabling SSH after %dm", timeout_min)
+                    subprocess.run(
+                        ["systemctl", "stop", "sshd"],
+                        capture_output=True,
+                        timeout=15,
+                    )
+
+                threading.Thread(target=_auto_disable, daemon=True).start()
+                logger.info(
+                    "[ssh_toggle] SSH enabled, auto-disable in %dm", timeout_min
+                )
+
+            return {
+                "status": "completed",
+                "ssh_enabled": True,
+                "auto_disable_minutes": timeout_min,
+            }
+        else:
+            subprocess.run(
+                ["systemctl", "stop", "sshd"],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            return {"status": "completed", "ssh_enabled": False}
+
+    except Exception as e:
+        logger.error("[ssh_toggle] Failed: %s", e)
+        return {"status": "failed", "error": str(e)}
+
+
+def _docker_api(method, path, body=None, timeout=30, stream=False):
+    """
+    Call the Docker Engine API via Unix socket.
+    Returns (status_code, response_body_str).
+    If stream=True, reads the full streaming response (for image pulls).
+    """
+    import http.client
+    import socket as _socket
+
+    sock_path = "/var/run/docker.sock"
+    if not os.path.exists(sock_path):
+        return 0, "Docker socket not found"
+
+    conn = http.client.HTTPConnection("localhost", timeout=timeout)
+    sock = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+    sock.settimeout(timeout)
+    sock.connect(sock_path)
+    conn.sock = sock
+
+    headers = {"Content-Type": "application/json"} if body else {}
+    encoded = json.dumps(body).encode("utf-8") if body else None
+    conn.request(method, path, body=encoded, headers=headers)
+    resp = conn.getresponse()
+
+    if stream:
+        # Read full streaming response (image pulls send chunked JSON lines)
+        chunks = []
+        while True:
+            chunk = resp.read(4096)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        resp_body = b"".join(chunks).decode("utf-8", errors="replace")
+    else:
+        resp_body = resp.read().decode("utf-8", errors="replace")
+
+    status = resp.status
+    conn.close()
+    return status, resp_body
+
+
+def _handle_comfyui_setup(config, payload):
+    """
+    Set up ComfyUI on the node via Docker Engine API (Unix socket).
+
+    Expected payload:
+        action (str): 'start', 'stop', or 'status' (default 'start')
+        port (int): ComfyUI port (default 8188)
+        gpu (bool): Enable GPU (default True)
+    """
+    action = payload.get("action", "start")
+    port = int(payload.get("port", 8188))
+    use_gpu = payload.get("gpu", True)
+
+    container_name = "archie_starship_comfyui"
+    image = payload.get("image", "yanwk/comfyui-boot:latest")
+    logger.info("[comfyui_setup] Action: %s, image: %s", action, image)
+
+    if action == "status":
+        try:
+            code, body = _docker_api("GET", f"/containers/{container_name}/json")
+            if code == 200:
+                info = json.loads(body)
+                running = info.get("State", {}).get("Running", False)
+                return {"status": "completed", "comfyui_running": running, "port": port}
+            return {"status": "completed", "comfyui_running": False, "port": port}
+        except Exception:
+            return {"status": "completed", "comfyui_running": False, "port": port}
+
+    elif action == "stop":
+        try:
+            code, body = _docker_api("POST", f"/containers/{container_name}/stop?t=10")
+            stopped = code in (204, 304)
+            return {
+                "status": "completed" if stopped else "failed",
+                "comfyui_running": not stopped,
+                "detail": f"HTTP {code}",
+            }
+        except Exception as e:
+            return {"status": "failed", "error": str(e)}
+
+    elif action == "start":
+        # Step 1: Pull image via Docker API
+        logger.info("[comfyui_setup] Pulling image %s ...", image)
+        try:
+            import urllib.parse
+            # Split image:tag for Docker API
+            if ":" in image:
+                img_name, img_tag = image.rsplit(":", 1)
+            else:
+                img_name, img_tag = image, "latest"
+            encoded_name = urllib.parse.quote(img_name, safe="")
+            code, body = _docker_api(
+                "POST", f"/images/create?fromImage={encoded_name}&tag={img_tag}",
+                timeout=600, stream=True,
+            )
+            if code not in (200, 201):
+                logger.warning("[comfyui_setup] Pull returned HTTP %d: %s", code, body[:300])
+        except Exception as e:
+            logger.warning("[comfyui_setup] Pull failed (continuing): %s", e)
+
+        # Step 2: Remove existing container
+        _docker_api("POST", f"/containers/{container_name}/stop?t=5")
+        _docker_api("DELETE", f"/containers/{container_name}?force=true")
+
+        # Step 3: Detect the Docker network used by our sync container
+        network_name = "bridge"  # fallback
+        try:
+            code, body = _docker_api("GET", "/containers/archie_starship_sync/json")
+            if code == 200:
+                info = json.loads(body)
+                networks = info.get("NetworkSettings", {}).get("Networks", {})
+                if networks:
+                    network_name = list(networks.keys())[0]
+                    logger.info("[comfyui_setup] Detected network: %s", network_name)
+        except Exception as e:
+            logger.warning("[comfyui_setup] Network detection failed, using bridge: %s", e)
+
+        # Create container via API
+        create_body = {
+            "Image": image,
+            "ExposedPorts": {"8188/tcp": {}},
+            "HostConfig": {
+                "PortBindings": {
+                    "8188/tcp": [{"HostPort": str(port)}]
+                },
+                "RestartPolicy": {"Name": "unless-stopped"},
+                "NetworkMode": network_name,
+            },
+            "NetworkingConfig": {
+                "EndpointsConfig": {
+                    network_name: {
+                        "Aliases": ["comfyui"],
+                    }
+                }
+            },
+        }
+        if use_gpu:
+            create_body["HostConfig"]["DeviceRequests"] = [
+                {
+                    "Driver": "",
+                    "Count": -1,
+                    "Capabilities": [["gpu"]],
+                }
+            ]
+
+        logger.info("[comfyui_setup] Creating container %s", container_name)
+        code, body = _docker_api(
+            "POST",
+            f"/containers/create?name={container_name}",
+            body=create_body,
+            timeout=30,
+        )
+        if code not in (201, 200):
+            error = body[:500]
+            logger.error("[comfyui_setup] Create failed (HTTP %d): %s", code, error)
+            return {"status": "failed", "error": error}
+
+        # Step 4: Start the container
+        code, body = _docker_api("POST", f"/containers/{container_name}/start")
+        if code in (204, 304):
+            logger.info("[comfyui_setup] ComfyUI started on port %d", port)
+            return {
+                "status": "completed",
+                "comfyui_running": True,
+                "port": port,
+                "container": container_name,
+            }
+        else:
+            error = body[:500]
+            logger.error("[comfyui_setup] Start failed (HTTP %d): %s", code, error)
+            return {"status": "failed", "error": error}
+
+    return {"status": "failed", "error": f"Unknown action: {action}"}
 
 
 # ---------------------------------------------------------------------------

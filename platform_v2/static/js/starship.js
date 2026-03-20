@@ -468,6 +468,131 @@ function loadOpsModelCatalog() {
         }).catch(function() {});
 }
 
+// ══════════════════════════════════════════════════════════════
+// MODAL OTA TAB — functions for per-node OTA inside detail modal
+// ══════════════════════════════════════════════════════════════
+
+function modalOtaPush(type) {
+    if (!selectedNodeDbId) { scToast('No node selected', 'error'); return; }
+    var endpoint = type === 'update'
+        ? '/tools/starship/api/nodes/' + selectedNodeDbId + '/push-update'
+        : '/tools/starship/api/nodes/' + selectedNodeDbId + '/push-config';
+    var body = type === 'config' ? JSON.stringify({type: 'agent_config'}) : '{}';
+    function doIt() {
+        fetch(endpoint, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: body })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    scToast('Push successful' + (data.sync_id ? ' (ID: ' + data.sync_id + ')' : ''), 'success');
+                    modalLoadSyncStatus();
+                    modalLoadSyncLog();
+                } else {
+                    scToast(data.error || 'Push failed', 'error');
+                }
+            }).catch(function() { scToast('Network error', 'error'); });
+    }
+    if (type === 'update') {
+        lcarsConfirm('Push a code update to this node?', {
+            title: 'CODE UPDATE',
+            confirmText: 'PUSH UPDATE',
+            confirmColor: '#fbbf24'
+        }).then(function(ok) { if (ok) doIt(); });
+    } else {
+        doIt();
+    }
+}
+
+function modalPullModel() {
+    if (!selectedNodeDbId) { scToast('No node selected', 'error'); return; }
+    var sel = document.getElementById('modal-pull-model-select');
+    var model = sel.value;
+    if (!model) { scToast('Select a model', 'error'); return; }
+    fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/pull-model', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({model_name: model})
+    }).then(function(r) { return r.json(); })
+      .then(function(data) {
+          if (data.success) { scToast('Model pull queued', 'success'); modalLoadSyncLog(); }
+          else { scToast(data.error || 'Failed', 'error'); }
+      }).catch(function() { scToast('Network error', 'error'); });
+}
+
+function modalLoadSyncStatus() {
+    if (!selectedNodeDbId) return;
+    fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/sync-status')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            var dot = document.getElementById('modal-sync-dot');
+            var ind = document.getElementById('modal-sync-indicator');
+            if (!dot || !ind) return;
+            if (data.pending_count === 0) {
+                dot.style.background = '#00ff41';
+                ind.style.color = 'rgba(0,255,65,0.7)';
+                ind.textContent = 'All synced \u2014 v' + (data.config_version || '?');
+            } else {
+                dot.style.background = '#ffaa00';
+                ind.style.color = 'rgba(255,170,0,0.8)';
+                ind.textContent = data.pending_count + ' change' + (data.pending_count > 1 ? 's' : '') + ' pending';
+            }
+        }).catch(function() {});
+}
+
+function modalLoadSyncLog() {
+    if (!selectedNodeDbId) return;
+    fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/sync-log')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            var tbody = document.getElementById('modal-sync-log-body');
+            if (!tbody) return;
+            tbody.textContent = '';
+            var logs = data.logs || [];
+            if (logs.length === 0) {
+                var row = document.createElement('tr');
+                var td = document.createElement('td');
+                td.colSpan = 3; td.textContent = 'No sync activity yet.';
+                td.style.color = 'rgba(255,255,255,0.3)';
+                row.appendChild(td); tbody.appendChild(row);
+                return;
+            }
+            logs.forEach(function(log) {
+                var row = document.createElement('tr');
+                var typeTd = document.createElement('td');
+                typeTd.textContent = log.sync_type || '\u2014';
+                typeTd.style.cssText = 'padding:6px;color:var(--sc-accent);font-family:IBM Plex Mono,monospace;font-size:0.8rem;';
+                var statusTd = document.createElement('td');
+                statusTd.textContent = log.status || '\u2014';
+                statusTd.style.cssText = 'padding:6px;font-family:IBM Plex Mono,monospace;font-size:0.8rem;';
+                var timeTd = document.createElement('td');
+                timeTd.textContent = log.created_at ? new Date(log.created_at).toLocaleString() : '\u2014';
+                timeTd.style.cssText = 'padding:6px;color:rgba(255,255,255,0.5);font-family:IBM Plex Mono,monospace;font-size:0.8rem;';
+                row.appendChild(typeTd); row.appendChild(statusTd); row.appendChild(timeTd);
+                tbody.appendChild(row);
+            });
+        }).catch(function() {});
+}
+
+var _modalModelCatalogLoaded = false;
+function loadModalModelCatalog() {
+    if (_modalModelCatalogLoaded) return;
+    _modalModelCatalogLoaded = true;
+    fetch('/tools/starship/api/model-catalog')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            var sel = document.getElementById('modal-pull-model-select');
+            if (!sel) return;
+            (data.models || []).forEach(function(m) {
+                var opt = document.createElement('option');
+                opt.value = m.name || m;
+                opt.textContent = m.name || m;
+                sel.appendChild(opt);
+            });
+        }).catch(function() {});
+}
+
 // ── Helper: render ops gauge (CPU/RAM/GPU) ──
 function renderOpsGauge(valId, barId, pct) {
     pct = pct || 0;
@@ -941,6 +1066,9 @@ function switchTab(tab) {
     var panel = document.getElementById('panel-' + tab);
     if (panel) panel.classList.add('active');
     if (tab === 'ota' && selectedNodeDbId) {
+        loadModalModelCatalog();
+        modalLoadSyncStatus();
+        modalLoadSyncLog();
         startSyncPolling();
     }
     if (tab === 'stations' && selectedNodeDbId) {
@@ -1485,12 +1613,12 @@ function renderSyncLog(logs) {
 
 // ── Save Node Settings (inline on STATUS tab) ──
 async function saveNodeSettings() {
-    if (!selectedNodeDbId) return;
+    if (!selectedNodeId) return;
     var name = document.getElementById('settings-name').value.trim();
     var mode = document.getElementById('settings-mode').value;
     var priority = parseInt(document.getElementById('settings-priority').value) || 0;
     try {
-        var resp = await fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/settings', {
+        var resp = await fetch('/tools/starship/api/nodes/' + encodeURIComponent(selectedNodeId) + '/settings', {
             method: 'PUT',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({node_name: name, deployment_mode: mode, bridge_priority: priority})
@@ -2121,26 +2249,8 @@ var _syncPollTimer = null;
 
 function pollSyncStatus() {
     if (!selectedNodeDbId) return;
-    fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/sync-status')
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (!data.success) return;
-            var dot = document.getElementById('sync-dot');
-            var indicator = document.getElementById('sync-indicator');
-            if (!dot || !indicator) return;
-
-            if (data.pending_count === 0) {
-                dot.style.background = '#00ff41';
-                indicator.style.color = 'rgba(0,255,65,0.7)';
-                indicator.textContent = 'All synced \u2014 v' + (data.config_version || 1);
-            } else {
-                dot.style.background = '#ffaa00';
-                indicator.style.color = 'rgba(255,170,0,0.8)';
-                indicator.textContent = data.pending_count + ' change' + (data.pending_count > 1 ? 's' : '') + ' pending';
-            }
-        }).catch(function() {
-            // Silently ignore poll failures
-        });
+    modalLoadSyncStatus();
+    modalLoadSyncLog();
 }
 
 function startSyncPolling() {

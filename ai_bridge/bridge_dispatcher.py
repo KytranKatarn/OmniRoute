@@ -7138,6 +7138,11 @@ class BridgeDispatcher:
 
     def _handle_node_offline(self, cur, conn, node_id, node_name):
         """Return all agents on this node to barracks and log notification."""
+        # 0. Update node status in DB so UI reflects reality
+        cur.execute(
+            "UPDATE remote_nodes SET status = 'offline' WHERE node_id = %s",
+            (node_id,),
+        )
         # 1. Find agents deployed to this node
         cur.execute(
             """
@@ -7202,6 +7207,11 @@ class BridgeDispatcher:
 
     def _handle_node_online(self, cur, conn, node_id, node_name):
         """Restore previously deployed agents when a node comes back online."""
+        # 0. Update node status in DB so UI reflects reality
+        cur.execute(
+            "UPDATE remote_nodes SET status = 'online' WHERE node_id = %s",
+            (node_id,),
+        )
         # 1. Find agents that were on this node before it went offline
         cur.execute(
             """

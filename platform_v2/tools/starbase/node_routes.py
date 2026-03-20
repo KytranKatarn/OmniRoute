@@ -314,7 +314,6 @@ def register_node_routes(bp, admin_required):
         return jsonify({"success": False, "error": "Sync service script not found"}), 404
 
     @bp.route("/api/nodes/Dockerfile.node", methods=["GET"])
-    @login_required
     def get_node_dockerfile():
         """Serve the node Dockerfile"""
         script_path = "/mnt/archie_brain/node_client/Dockerfile.node"
@@ -331,7 +330,6 @@ def register_node_routes(bp, admin_required):
         return jsonify({"success": False, "error": "Dockerfile.node not found"}), 404
 
     @bp.route("/api/nodes/node_api.py", methods=["GET"])
-    @login_required
     def get_node_api_service():
         """Serve the node API service script"""
         script_path = "/mnt/archie_brain/node_client/node_api.py"
@@ -347,8 +345,23 @@ def register_node_routes(bp, admin_required):
             )
         return jsonify({"success": False, "error": "node_api.py not found"}), 404
 
+    @bp.route("/api/nodes/node_triage.py", methods=["GET"])
+    def get_node_triage_service():
+        """Serve the node triage/diagnostics script"""
+        script_path = "/mnt/archie_brain/node_client/node_triage.py"
+        if os.path.exists(script_path):
+            with open(script_path, "r") as f:
+                content = f.read()
+            from flask import Response
+
+            return Response(
+                content,
+                mimetype="text/x-python",
+                headers={"Content-Disposition": "attachment; filename=node_triage.py"},
+            )
+        return jsonify({"success": False, "error": "node_triage.py not found"}), 404
+
     @bp.route("/api/nodes/migrations/<filename>", methods=["GET"])
-    @login_required
     def get_node_migration(filename):
         """Serve node migration SQL files"""
         import re

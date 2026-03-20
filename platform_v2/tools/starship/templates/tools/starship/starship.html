@@ -103,8 +103,7 @@
     <!-- Page-Level Tabs — only node owners and admins can manage fleet -->
     {% if is_owner or is_admin %}
     <div class="sc-page-tabs">
-        <button class="sc-page-tab active" onclick="switchPageTab('fleet')" data-page-tab="fleet">FLEET</button>
-        <button class="sc-page-tab" onclick="switchPageTab('operations')" data-page-tab="operations">OPERATIONS</button>
+        <button class="sc-page-tab active" data-page-tab="fleet">FLEET</button>
     </div>
 
     <!-- Connect a Machine Modal (LCARS tablet) -->
@@ -262,66 +261,7 @@
     {% endif %}
     </div><!-- /page-fleet -->
 
-    <!-- ═══ OPERATIONS PAGE TAB ═══ -->
-    <div class="sc-page-panel" id="page-operations">
-        <div class="sc-section">
-            <h4>TARGET NODE</h4>
-            <select class="sc-input" id="ops-node-select" style="max-width:400px;" onchange="onOpsNodeSelect(this.value)">
-                <option value="">Select a node...</option>
-                {% for node in nodes %}
-                {% if node.deployment_mode != 'starbase' %}
-                <option value="{{ node.node_id }}">{{ node.node_name }} ({{ node.deployment_mode }})</option>
-                {% endif %}
-                {% endfor %}
-            </select>
-        </div>
-
-        <div id="ops-content" style="display:none;">
-            <div class="sc-section">
-                <h4>OTA ACTIONS</h4>
-                <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
-                    <button class="sc-btn" onclick="opsOtaPush('update')">PUSH UPDATE</button>
-                    <button class="sc-btn" onclick="opsOtaPush('config')">PUSH AGENT CONFIG</button>
-                    <button class="sc-btn" id="ops-resync-btn" onclick="opsResyncNode()">RESYNC</button>
-                    <button class="sc-btn" id="ops-upgrade-v3-btn" onclick="opsUpgradeNodeV3()" style="background:var(--sc-amber);color:#000;">UPGRADE v3.0</button>
-                </div>
-                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-                    <select class="sc-input" id="ops-pull-model-select" style="width:250px;">
-                        <option value="">Select model...</option>
-                    </select>
-                    <button class="sc-btn" onclick="opsPullModel()">PULL MODEL</button>
-                </div>
-            </div>
-
-            <div class="sc-section">
-                <h4>SYNC STATUS</h4>
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-                    <span id="ops-sync-dot" style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.2);display:inline-block;"></span>
-                    <span id="ops-sync-indicator" style="color:rgba(255,255,255,0.4);font-family:'IBM Plex Mono',monospace;font-size:0.8rem;">Select a node above</span>
-                </div>
-            </div>
-
-            <div class="sc-section">
-                <h4>SYNC LOG</h4>
-                <table style="width:100%;border-collapse:collapse;">
-                    <thead><tr>
-                        <th class="sc-label" style="text-align:left;padding:6px;">Type</th>
-                        <th class="sc-label" style="text-align:left;padding:6px;">Status</th>
-                        <th class="sc-label" style="text-align:left;padding:6px;">Time</th>
-                    </tr></thead>
-                    <tbody id="ops-sync-log-body"></tbody>
-                </table>
-            </div>
-
-            <div class="sc-section">
-                <h4>NODE SETUP</h4>
-                <p style="color:rgba(255,255,255,0.5);font-family:'IBM Plex Mono',monospace;font-size:0.8rem;">
-                    To add a new node to the fleet, click <strong style="color:var(--sc-accent);">ADD NODE</strong> in the header above.
-                    For existing nodes, use OTA push to deploy updates remotely.
-                </p>
-            </div>
-        </div>
-    </div><!-- /page-operations -->
+    <!-- Operations tab removed — OTA controls now live in each node's detail modal -->
     {% endif %}
 
     <!-- Node Detail Modal (LCARS tablet) -->
@@ -351,6 +291,7 @@
             <div class="bm-body" style="padding:0;">
         <div class="sc-tabs">
             <button class="sc-tab active" onclick="switchTab('status')" data-tab="status">STATUS</button>
+            <button class="sc-tab" onclick="switchTab('ota')" data-tab="ota">OTA</button>
             <button class="sc-tab" onclick="switchTab('stations')" data-tab="stations">STATIONS</button>
             <button class="sc-tab" onclick="switchTab('crew')" data-tab="crew">CREW</button>
         </div>
@@ -422,11 +363,11 @@
                 <h4>NODE SETTINGS</h4>
                 <div class="sc-row">
                     <span class="sc-label">Name</span>
-                    <input type="text" class="sc-input" id="settings-name" style="width:200px;" onchange="saveNodeSettings()">
+                    <input type="text" class="sc-input" id="settings-name" style="width:200px;">
                 </div>
                 <div class="sc-row">
                     <span class="sc-label">Mode</span>
-                    <select class="sc-input" id="settings-mode" style="width:200px;" onchange="saveNodeSettings()">
+                    <select class="sc-input" id="settings-mode" style="width:200px;">
                         <option value="starship">Starship</option>
                         <option value="satellite">Satellite</option>
                         <option value="outpost">Outpost</option>
@@ -434,11 +375,51 @@
                 </div>
                 <div class="sc-row">
                     <span class="sc-label">Priority</span>
-                    <input type="number" class="sc-input" id="settings-priority" min="0" max="100" style="width:200px;" onchange="saveNodeSettings()">
+                    <input type="number" class="sc-input" id="settings-priority" min="0" max="100" style="width:200px;">
+                </div>
+                <div class="sc-row" style="justify-content:flex-end;margin-top:8px;">
+                    <button class="sc-btn" onclick="saveNodeSettings()" style="min-width:140px;">SAVE SETTINGS</button>
                 </div>
             </div>
             <div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(239,68,68,0.15);">
                 <div id="d-disconnect-area"></div>
+            </div>
+        </div>
+
+        <!-- OTA TAB — Over-the-air updates & sync -->
+        <div class="sc-panel" id="panel-ota">
+            <div class="sc-section">
+                <h4>OTA ACTIONS</h4>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+                    <button class="sc-btn" onclick="modalOtaPush('update')">PUSH UPDATE</button>
+                    <button class="sc-btn" onclick="modalOtaPush('config')">PUSH AGENT CONFIG</button>
+                </div>
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                    <select class="sc-input" id="modal-pull-model-select" style="width:250px;">
+                        <option value="">Select model...</option>
+                    </select>
+                    <button class="sc-btn" onclick="modalPullModel()">PULL MODEL</button>
+                </div>
+            </div>
+
+            <div class="sc-section">
+                <h4>SYNC STATUS</h4>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+                    <span id="modal-sync-dot" style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.2);display:inline-block;"></span>
+                    <span id="modal-sync-indicator" style="color:rgba(255,255,255,0.4);font-family:'IBM Plex Mono',monospace;font-size:0.8rem;">Loading...</span>
+                </div>
+            </div>
+
+            <div class="sc-section">
+                <h4>SYNC LOG</h4>
+                <table style="width:100%;border-collapse:collapse;">
+                    <thead><tr>
+                        <th class="sc-label" style="text-align:left;padding:6px;">Type</th>
+                        <th class="sc-label" style="text-align:left;padding:6px;">Status</th>
+                        <th class="sc-label" style="text-align:left;padding:6px;">Time</th>
+                    </tr></thead>
+                    <tbody id="modal-sync-log-body"></tbody>
+                </table>
             </div>
         </div>
 

@@ -41,8 +41,8 @@ OLLAMA_LOCAL_HOST = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
 OLLAMA_DEFAULT_PORT = os.getenv("OLLAMA_LOCAL_PORT", "11434")
 OLLAMA_LOCAL_URL = f"http://{OLLAMA_LOCAL_HOST}:{OLLAMA_DEFAULT_PORT}"
 DEFAULT_NODE_PORT = 11434  # integer fallback for remote-node DB rows
-DEFAULT_CLIENT_VERSION = "1.0.0"
-LATEST_CLIENT_VERSION = "1.1.2"
+DEFAULT_CLIENT_VERSION = "2.2.0"
+LATEST_CLIENT_VERSION = "2.2.0"
 
 # Ollama tags cache (avoid hitting Ollama on every stats poll)
 _ollama_tags_cache = {"models": [], "count": 0, "time": 0}
@@ -259,6 +259,43 @@ def push_agent_event(event_type, agent_id=None, data=None):
         "created_at": datetime.utcnow().isoformat() + "Z",
     }
     _activity_queue.appendleft(evt)
+
+
+# ============================================================================
+# OLLAMA STATUS HELPERS (extracted from station_routes for shared use)
+# ============================================================================
+
+
+def check_ollama_status(host, port):
+    """Check if Ollama is running and responsive"""
+    try:
+        start = time.time()
+        response = requests.get(f"http://{host}:{port}/api/tags", timeout=5)
+        latency = int((time.time() - start) * 1000)
+
+        if response.status_code == 200:
+            return "online", latency
+        else:
+            return "degraded", latency
+    except requests.exceptions.Timeout:
+        return "timeout", None
+    except requests.exceptions.ConnectionError:
+        return "offline", None
+    except Exception as e:
+        logger.error(f"Error checking Ollama: {e}")
+        return "error", None
+
+
+def get_ollama_models(host, port):
+    """Get list of available Ollama models with sizes"""
+    try:
+        response = requests.get(f"http://{host}:{port}/api/tags", timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            return {model["name"]: model.get("size", 0) for model in data.get("models", [])}
+    except Exception as e:
+        logger.error(f"Error getting Ollama models: {e}")
+    return {}
 
 
 # ============================================================================

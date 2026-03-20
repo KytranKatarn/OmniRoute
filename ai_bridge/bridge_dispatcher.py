@@ -1757,32 +1757,24 @@ class BridgeDispatcher:
 
         return "v1-5-pruned-emaonly.ckpt", 512, 512
 
-    def _get_node_comfyui_models(self, node_db_id: Optional[int]) -> list:
-        """Get list of ComfyUI checkpoint models available on a node."""
-        if node_db_id is None:
-            # Hub — check local ComfyUI
-            try:
-                from ai_bridge.comfyui_service import ComfyUIService
+    def _get_node_comfyui_models(
+        self, node_db_id: Optional[int], comfyui_host: Optional[str] = None
+    ) -> list:
+        """Get list of ComfyUI checkpoint models available on a node/hub.
 
-                svc = ComfyUIService()
-                models = svc.get_models()
-                return models.get("installed", [])
-            except Exception:
-                return []
+        Queries the ComfyUI instance directly for its installed checkpoints.
+        """
         try:
-            conn = self._get_db()
-            cur = conn.cursor()
-            cur.execute(
-                """SELECT model_name FROM node_ollama_models
-                   WHERE node_id = (SELECT node_id FROM remote_nodes WHERE id = %s)
-                   AND is_available = true""",
-                (node_db_id,),
+            from ai_bridge.comfyui_service import ComfyUIService
+
+            host = comfyui_host or os.getenv(
+                "COMFYUI_HOST", "http://archie_comfyui:8188"
             )
-            rows = cur.fetchall()
-            cur.close()
-            conn.close()
-            return [r[0] for r in rows]
-        except Exception:
+            svc = ComfyUIService(host=host)
+            models = svc.get_models()
+            return models.get("installed", [])
+        except Exception as e:
+            logger.debug("[ImageEscalation] Failed to get ComfyUI models: %s", e)
             return []
 
     def _is_image_host_busy(self, target_host: str) -> bool:
@@ -2016,7 +2008,7 @@ class BridgeDispatcher:
 
         # --- Hardware-aware model selection ---
         # If caller specified a model, try it; otherwise auto-select best for hardware
-        available_models = self._get_node_comfyui_models(node_db_id)
+        available_models = self._get_node_comfyui_models(node_db_id, comfyui_host)
         if not available_models or image_model not in [
             m.get("name", m) if isinstance(m, dict) else m for m in available_models
         ]:

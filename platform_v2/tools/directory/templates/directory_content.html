@@ -75,12 +75,46 @@
     <aside class="dir-profile-panel" id="profilePanel">
         <div class="dir-profile-header">
             <h3 class="dir-profile-name" id="profileName">--</h3>
-            <button class="dir-profile-close" onclick="closeProfile()" aria-label="Close profile">&times;</button>
+            <button class="dir-profile-close" id="profileCloseBtn" aria-label="Close profile">&times;</button>
         </div>
         <div class="dir-profile-body" id="profileBody">
-            <!-- Populated by JS on card click -->
+            <!-- Portrait -->
+            <div class="dir-profile-portrait-wrap" id="profilePortraitWrap"></div>
+            <!-- Name + Title + Station -->
+            <div class="dir-profile-identity" id="profileIdentity"></div>
+            <!-- Status Badge -->
+            <div class="dir-profile-status-row" id="profileStatusRow"></div>
+            <!-- Contact Card -->
+            <div class="dir-profile-section" id="profileContact" style="display:none;">
+                <div class="dir-profile-section-label">Contact</div>
+                <div class="dir-profile-contact-list" id="profileContactList"></div>
+            </div>
+            <!-- About / Bio -->
+            <div class="dir-profile-section" id="profileBio" style="display:none;">
+                <div class="dir-profile-section-label">About</div>
+                <div class="dir-profile-bio-text" id="profileBioText"></div>
+            </div>
+            <!-- Expertise & Skills -->
+            <div class="dir-profile-section" id="profileSkills" style="display:none;">
+                <div class="dir-profile-section-label">Expertise &amp; Skills</div>
+                <div class="dir-profile-skills-wrap" id="profileSkillsWrap"></div>
+            </div>
+            <!-- Currently Working On (internal only) -->
+            {% if authenticated %}
+            <div class="dir-profile-section" id="profileWorkingOn" style="display:none;">
+                <div class="dir-profile-section-label">Currently Working On</div>
+                <div class="dir-profile-working-text" id="profileWorkingText"></div>
+            </div>
+            {% endif %}
+            <!-- Message Button (internal only) -->
+            {% if authenticated %}
+            <div class="dir-profile-msg-wrap" id="profileMsgWrap" style="display:none;">
+                <button class="dir-profile-msg-btn" id="profileMsgBtn" disabled></button>
+                <div class="dir-profile-msg-sub" id="profileMsgSub"></div>
+            </div>
+            {% endif %}
         </div>
     </aside>
-    <div class="dir-profile-overlay" id="profileOverlay" onclick="closeProfile()"></div>
+    <div class="dir-profile-overlay" id="profileOverlay"></div>
 
 </div>

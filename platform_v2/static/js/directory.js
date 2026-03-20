@@ -420,151 +420,265 @@ function applyFilters() {
 
 /* ---------- PROFILE PANEL ---------- */
 
+let _profileEscHandler = null;
+
 async function openProfile(employeeId) {
     if (!employeeId) return;
     const panel = document.getElementById('profilePanel');
     const overlay = document.getElementById('profileOverlay');
     const nameEl = document.getElementById('profileName');
-    const bodyEl = document.getElementById('profileBody');
-    if (!panel || !bodyEl) return;
+    if (!panel) return;
 
-    bodyEl.textContent = '';
-    const loadingDiv = document.createElement('div');
-    loadingDiv.style.cssText = 'color:#64748b;padding:20px;';
-    loadingDiv.textContent = 'Loading profile...';
-    bodyEl.appendChild(loadingDiv);
+    // Show panel with loading state
     nameEl.textContent = 'Loading...';
-    panel.classList.add('open');
-    if (overlay) overlay.classList.add('open');
+    _resetProfileSections();
+    panel.classList.add('active');
+    if (overlay) overlay.classList.add('active');
+
+    // ESC key listener
+    _profileEscHandler = function(e) {
+        if (e.key === 'Escape') closeProfile();
+    };
+    document.addEventListener('keydown', _profileEscHandler);
+
+    // Backdrop click
+    if (overlay) overlay.onclick = closeProfile;
+
+    // Close button
+    var closeBtn = document.getElementById('profileCloseBtn');
+    if (closeBtn) closeBtn.onclick = closeProfile;
 
     try {
-        const resp = await fetch('/api/directory/' + employeeId);
+        const resp = await fetch('/api/directory/' + encodeURIComponent(employeeId));
         const data = await resp.json();
-        if (!data.success) throw new Error(data.error);
+        if (!data.success) throw new Error(data.error || 'Not found');
 
         const emp = data.employee;
-        const name = emp.full_name || emp.name || 'Unknown';
-        nameEl.textContent = name;
-
-        bodyEl.textContent = '';
-
-        const station = guessStation(emp.department || '');
-        const color = STATION_COLORS[station] || '#00e5ff';
-
-        // Portrait
-        const portraitWrap = document.createElement('div');
-        portraitWrap.style.cssText = 'text-align:center;margin-bottom:24px;';
-        if (emp.avatar_url) {
-            const img = document.createElement('img');
-            img.src = emp.avatar_url;
-            img.alt = name;
-            img.style.cssText = 'width:120px;height:120px;border-radius:50%;object-fit:cover;border:3px solid ' + color;
-            portraitWrap.appendChild(img);
-        } else {
-            const initCircle = document.createElement('div');
-            initCircle.style.cssText = 'width:120px;height:120px;border-radius:50%;background:' + color + '22;border:3px solid ' + color + ';display:inline-flex;align-items:center;justify-content:center;font-family:Orbitron,sans-serif;font-size:2rem;font-weight:700;color:#f1f5f9;';
-            initCircle.textContent = getInitials(name);
-            portraitWrap.appendChild(initCircle);
-        }
-        bodyEl.appendChild(portraitWrap);
-
-        // Info block
-        const infoBlock = document.createElement('div');
-        infoBlock.style.marginBottom = '16px';
-
-        const pName = document.createElement('div');
-        pName.style.cssText = 'color:#f1f5f9;font-weight:600;font-size:1.1rem;margin-bottom:4px;';
-        pName.textContent = name;
-        infoBlock.appendChild(pName);
-
-        const pTitle = document.createElement('div');
-        pTitle.style.cssText = 'color:' + color + ';font-size:0.9rem;margin-bottom:4px;';
-        pTitle.textContent = emp.title || 'Team Member';
-        infoBlock.appendChild(pTitle);
-
-        const pDept = document.createElement('div');
-        pDept.style.cssText = 'color:#64748b;font-size:0.85rem;';
-        pDept.textContent = emp.department || '';
-        infoBlock.appendChild(pDept);
-
-        bodyEl.appendChild(infoBlock);
-
-        // Contact
-        if (emp.email) {
-            const emailRow = document.createElement('div');
-            emailRow.style.cssText = 'margin-bottom:8px;font-size:0.85rem;';
-            const emailLabel = document.createElement('span');
-            emailLabel.style.color = '#64748b';
-            emailLabel.textContent = 'Email: ';
-            emailRow.appendChild(emailLabel);
-            const emailLink = document.createElement('a');
-            emailLink.href = 'mailto:' + emp.email;
-            emailLink.style.cssText = 'color:#00e5ff;text-decoration:none;';
-            emailLink.textContent = emp.email;
-            emailRow.appendChild(emailLink);
-            bodyEl.appendChild(emailRow);
-        }
-        if (emp.extension) {
-            const extRow = document.createElement('div');
-            extRow.style.cssText = 'margin-bottom:8px;font-size:0.85rem;';
-            const extLabel = document.createElement('span');
-            extLabel.style.color = '#64748b';
-            extLabel.textContent = 'Ext: ';
-            extRow.appendChild(extLabel);
-            const extVal = document.createElement('span');
-            extVal.style.color = '#f1f5f9';
-            extVal.textContent = emp.extension;
-            extRow.appendChild(extVal);
-            bodyEl.appendChild(extRow);
-        }
-
-        // Bio
-        if (emp.bio) {
-            const bioDiv = document.createElement('div');
-            bioDiv.style.cssText = 'margin-top:20px;padding:16px;background:#1e293b;border-radius:8px;border-left:3px solid ' + color + ';font-size:0.85rem;color:#94a3b8;line-height:1.6;';
-            bioDiv.textContent = emp.bio;
-            bodyEl.appendChild(bioDiv);
-        }
-
-        // Specialties
-        if (emp.specialties && emp.specialties.length > 0) {
-            const specWrap = document.createElement('div');
-            specWrap.style.marginTop = '16px';
-
-            const specLabel = document.createElement('div');
-            specLabel.style.cssText = 'color:#64748b;font-size:0.78rem;margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;';
-            specLabel.textContent = 'Expertise';
-            specWrap.appendChild(specLabel);
-
-            const specTags = document.createElement('div');
-            specTags.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;';
-            emp.specialties.forEach(s => {
-                const tag = document.createElement('span');
-                tag.className = 'dir-skill-tag';
-                tag.style.borderColor = color + '33';
-                tag.style.color = color;
-                tag.style.background = color + '15';
-                tag.textContent = s;
-                specTags.appendChild(tag);
-            });
-            specWrap.appendChild(specTags);
-            bodyEl.appendChild(specWrap);
-        }
+        _populateProfile(emp);
 
     } catch (err) {
-        bodyEl.textContent = '';
-        const errDiv = document.createElement('div');
-        errDiv.style.cssText = 'color:#ef4444;padding:20px;';
-        errDiv.textContent = 'Failed to load profile.';
-        bodyEl.appendChild(errDiv);
+        nameEl.textContent = 'Error';
+        var portraitWrap = document.getElementById('profilePortraitWrap');
+        if (portraitWrap) {
+            portraitWrap.textContent = '';
+            var errDiv = document.createElement('div');
+            errDiv.className = 'dir-profile-error';
+            errDiv.textContent = 'Failed to load profile.';
+            portraitWrap.appendChild(errDiv);
+        }
     }
 }
 
 function closeProfile() {
-    const panel = document.getElementById('profilePanel');
-    const overlay = document.getElementById('profileOverlay');
-    if (panel) panel.classList.remove('open');
-    if (overlay) overlay.classList.remove('open');
+    var panel = document.getElementById('profilePanel');
+    var overlay = document.getElementById('profileOverlay');
+    if (panel) panel.classList.remove('active');
+    if (overlay) overlay.classList.remove('active');
+    if (_profileEscHandler) {
+        document.removeEventListener('keydown', _profileEscHandler);
+        _profileEscHandler = null;
+    }
+}
+
+function _resetProfileSections() {
+    // Clear dynamic content areas
+    var ids = ['profilePortraitWrap', 'profileIdentity', 'profileStatusRow',
+               'profileContactList', 'profileBioText', 'profileSkillsWrap'];
+    ids.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = '';
+    });
+    // Hide optional sections
+    var sections = ['profileContact', 'profileBio', 'profileSkills',
+                    'profileWorkingOn', 'profileMsgWrap'];
+    sections.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+}
+
+function _populateProfile(emp) {
+    var name = emp.full_name || emp.name || 'Unknown';
+    var title = emp.title || 'Team Member';
+    var dept = emp.department || '';
+    var station = guessStation(dept);
+    var color = STATION_COLORS[station] || '#00e5ff';
+
+    // Header name
+    var nameEl = document.getElementById('profileName');
+    if (nameEl) nameEl.textContent = name;
+
+    // --- Portrait ---
+    var portraitWrap = document.getElementById('profilePortraitWrap');
+    if (portraitWrap) {
+        portraitWrap.textContent = '';
+        var portraitOuter = document.createElement('div');
+        portraitOuter.className = 'dir-profile-portrait';
+        portraitOuter.style.borderColor = color;
+
+        if (emp.avatar_url) {
+            var img = document.createElement('img');
+            img.src = emp.avatar_url;
+            img.alt = name;
+            img.className = 'dir-profile-portrait-img';
+            portraitOuter.appendChild(img);
+        } else {
+            var initCircle = document.createElement('div');
+            initCircle.className = 'dir-profile-portrait-initials';
+            initCircle.style.background = color + '22';
+            initCircle.style.color = color;
+            initCircle.textContent = getInitials(name);
+            portraitOuter.appendChild(initCircle);
+        }
+
+        // Status dot overlay (bottom-right)
+        var statusDot = document.createElement('span');
+        statusDot.className = 'dir-profile-portrait-dot offline';
+        statusDot.id = 'profilePortraitDot';
+        portraitOuter.appendChild(statusDot);
+
+        portraitWrap.appendChild(portraitOuter);
+    }
+
+    // --- Identity (name, title, station+role) ---
+    var identityEl = document.getElementById('profileIdentity');
+    if (identityEl) {
+        identityEl.textContent = '';
+
+        var pName = document.createElement('div');
+        pName.className = 'dir-profile-id-name';
+        pName.textContent = name;
+        identityEl.appendChild(pName);
+
+        var pTitle = document.createElement('div');
+        pTitle.className = 'dir-profile-id-title';
+        pTitle.style.color = color;
+        pTitle.textContent = title;
+        identityEl.appendChild(pTitle);
+
+        if (station || dept) {
+            var pStation = document.createElement('div');
+            pStation.className = 'dir-profile-id-station';
+            var stationText = station ? (station + ' Station') : dept;
+            if (emp.employee_type) {
+                stationText += ' \u2022 ' + emp.employee_type;
+            }
+            pStation.textContent = stationText;
+            identityEl.appendChild(pStation);
+        }
+
+        // Pronouns
+        if (emp.pronouns) {
+            var pPronouns = document.createElement('div');
+            pPronouns.className = 'dir-profile-id-pronouns';
+            pPronouns.textContent = emp.pronouns;
+            identityEl.appendChild(pPronouns);
+        }
+    }
+
+    // --- Status Badge ---
+    var statusRow = document.getElementById('profileStatusRow');
+    if (statusRow) {
+        statusRow.textContent = '';
+        var badge = document.createElement('span');
+        badge.className = 'dir-profile-status-badge offline';
+        badge.id = 'profileStatusBadge';
+        var dot = document.createElement('span');
+        dot.className = 'dir-profile-badge-dot';
+        badge.appendChild(dot);
+        badge.appendChild(document.createTextNode(' Off Duty'));
+        statusRow.appendChild(badge);
+    }
+
+    // --- Contact Card ---
+    var contactList = document.getElementById('profileContactList');
+    var contactSection = document.getElementById('profileContact');
+    if (contactList && contactSection) {
+        contactList.textContent = '';
+        var hasContact = false;
+
+        if (emp.email) {
+            hasContact = true;
+            contactList.appendChild(_contactRow('email', emp.email, 'mailto:' + emp.email));
+        }
+        if (emp.phone || emp.extension) {
+            hasContact = true;
+            var phoneText = emp.phone || '1-877-463-3352';
+            if (emp.extension) phoneText += ' ' + emp.extension;
+            contactList.appendChild(_contactRow('phone', phoneText, null));
+        }
+        if (dept) {
+            hasContact = true;
+            contactList.appendChild(_contactRow('dept', dept, null));
+        }
+
+        if (hasContact) contactSection.style.display = '';
+    }
+
+    // --- Bio ---
+    var bioText = document.getElementById('profileBioText');
+    var bioSection = document.getElementById('profileBio');
+    if (bioText && bioSection && emp.bio) {
+        bioText.textContent = emp.bio;
+        bioSection.style.display = '';
+    }
+
+    // --- Skills ---
+    var skillsWrap = document.getElementById('profileSkillsWrap');
+    var skillsSection = document.getElementById('profileSkills');
+    if (skillsWrap && skillsSection && emp.specialties && emp.specialties.length > 0) {
+        skillsWrap.textContent = '';
+        emp.specialties.forEach(function(skill) {
+            var pill = document.createElement('span');
+            pill.className = 'dir-profile-skill';
+            pill.style.borderColor = color + '44';
+            pill.style.color = color;
+            pill.style.background = color + '18';
+            pill.textContent = skill;
+            skillsWrap.appendChild(pill);
+        });
+        skillsSection.style.display = '';
+    }
+
+    // --- Currently Working On (internal only) ---
+    if (isAuthenticated) {
+        var workingText = document.getElementById('profileWorkingText');
+        var workingSection = document.getElementById('profileWorkingOn');
+        if (workingText && workingSection) {
+            workingText.textContent = 'No active jobs';
+            workingSection.style.display = '';
+        }
+    }
+
+    // --- Message Button (internal only, hidden until Task 6) ---
+    // Left hidden for now; Task 6 will wire up chat functionality.
+}
+
+function _contactRow(type, text, href) {
+    var row = document.createElement('div');
+    row.className = 'dir-profile-contact-row';
+
+    var icon = document.createElement('span');
+    icon.className = 'dir-profile-contact-icon';
+    if (type === 'email') icon.textContent = '\u2709';
+    else if (type === 'phone') icon.textContent = '\u260E';
+    else if (type === 'dept') icon.textContent = '\u2302';
+    row.appendChild(icon);
+
+    if (href) {
+        var link = document.createElement('a');
+        link.href = href;
+        link.className = 'dir-profile-contact-link';
+        link.textContent = text;
+        row.appendChild(link);
+    } else {
+        var span = document.createElement('span');
+        span.className = 'dir-profile-contact-text';
+        span.textContent = text;
+        row.appendChild(span);
+    }
+
+    return row;
 }
 
 /* ---------- HELPERS ---------- */

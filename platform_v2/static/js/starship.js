@@ -31,34 +31,36 @@ function lcarsConfirm(message, opts) {
 
     return new Promise(function(resolve) {
         var overlay = document.createElement('div');
-        overlay.className = 'bm-overlay';
-        overlay.style.display = 'flex';
+        overlay.className = 'bm-overlay active';
         overlay.style.zIndex = '10000';
 
         var shell = document.createElement('div');
         shell.className = 'bm-shell';
         shell.style.maxWidth = '450px';
         shell.style.width = '90%';
+        shell.style.margin = '0 auto';
 
         var frame = document.createElement('div');
         frame.className = 'bm-frame';
+        frame.style.padding = '0';
 
         var content = document.createElement('div');
         content.className = 'bm-content';
-        content.style.padding = '24px';
+        content.style.padding = '28px';
+        content.style.textAlign = 'center';
 
         var titleEl = document.createElement('h3');
-        titleEl.style.cssText = 'color:' + confirmColor + ';font-family:Orbitron,monospace;font-size:16px;margin:0 0 16px;';
+        titleEl.style.cssText = 'color:' + confirmColor + ';font-family:Orbitron,monospace;font-size:16px;margin:0 0 16px;text-align:center;';
         titleEl.textContent = title;
         content.appendChild(titleEl);
 
         var msgEl = document.createElement('p');
-        msgEl.style.cssText = 'color:#e0e0e0;font-size:14px;line-height:1.5;margin:0 0 24px;white-space:pre-wrap;';
+        msgEl.style.cssText = 'color:#e0e0e0;font-size:14px;line-height:1.6;margin:0 0 28px;white-space:pre-wrap;text-align:center;';
         msgEl.textContent = message;
         content.appendChild(msgEl);
 
         var btnRow = document.createElement('div');
-        btnRow.style.cssText = 'display:flex;justify-content:flex-end;gap:12px;';
+        btnRow.style.cssText = 'display:flex;justify-content:center;gap:12px;';
 
         function closeModal(result) {
             document.removeEventListener('keydown', onKey);
@@ -68,14 +70,14 @@ function lcarsConfirm(message, opts) {
 
         if (!isAlert) {
             var cancelBtn = document.createElement('button');
-            cancelBtn.style.cssText = 'background:#1a1a2e;color:#666680;border:1px solid #333;padding:8px 20px;cursor:pointer;font-family:Orbitron,monospace;font-size:12px;';
+            cancelBtn.style.cssText = 'background:#1a1a2e;color:#999;border:1px solid #444;padding:10px 24px;cursor:pointer;font-family:Orbitron,monospace;font-size:13px;border-radius:4px;';
             cancelBtn.textContent = cancelText;
             cancelBtn.onclick = function() { closeModal(false); };
             btnRow.appendChild(cancelBtn);
         }
 
         var okBtn = document.createElement('button');
-        okBtn.style.cssText = 'background:' + confirmColor + ';color:#0a0a12;border:none;padding:8px 24px;cursor:pointer;font-family:Orbitron,monospace;font-size:12px;font-weight:bold;';
+        okBtn.style.cssText = 'background:' + confirmColor + ';color:#0a0a12;border:none;padding:10px 28px;cursor:pointer;font-family:Orbitron,monospace;font-size:13px;font-weight:bold;border-radius:4px;';
         okBtn.textContent = isAlert ? 'OK' : confirmText;
         okBtn.onclick = function() { closeModal(true); };
         btnRow.appendChild(okBtn);

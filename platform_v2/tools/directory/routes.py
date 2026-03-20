@@ -140,7 +140,7 @@ def api_directory_employee(employee_id):
                 """SELECT id, name, first_name, last_name,
                       COALESCE(first_name || ' ' || last_name, name) as full_name,
                       email, phone, title, department, pronouns, bio,
-                      avatar_url,
+                      avatar_url, performance_score, reports_to_agent_id,
                       CASE WHEN worker_type IN ('internal','contract')
                            THEN 'AI' ELSE 'Human' END as employee_type,
                       capabilities
@@ -149,10 +149,35 @@ def api_directory_employee(employee_id):
             )
             emp = cur.fetchone()
 
-        if not emp:
-            return jsonify({"success": False, "error": "Employee not found"}), 404
+            if not emp:
+                return jsonify({"success": False, "error": "Employee not found"}), 404
 
-        ed = dict(emp)
+            ed = dict(emp)
+
+            # Fetch all skills
+            cur.execute(
+                """SELECT skill_name, skill_category, proficiency_level
+                   FROM agent_skills
+                   WHERE agent_id = %s
+                   ORDER BY proficiency_level DESC""",
+                (employee_id,),
+            )
+            ed["skills"] = [dict(row) for row in cur.fetchall()]
+
+            # Fetch manager info if reports_to_agent_id is set
+            manager_id = ed.pop("reports_to_agent_id", None)
+            if manager_id:
+                cur.execute(
+                    """SELECT id,
+                          COALESCE(first_name || ' ' || last_name, display_name, name) as full_name
+                       FROM agents WHERE id = %s""",
+                    (manager_id,),
+                )
+                mgr = cur.fetchone()
+                ed["reports_to"] = dict(mgr) if mgr else None
+            else:
+                ed["reports_to"] = None
+
         if ed.get("capabilities"):
             try:
                 caps = ed["capabilities"] if isinstance(ed["capabilities"], dict) else json.loads(ed["capabilities"])
@@ -177,31 +202,48 @@ def api_directory_employee(employee_id):
 
 @bp.route("/api/directory/org-chart")
 def api_directory_org_chart():
-    """Return org hierarchy from agents table with station assignments."""
+    """Return org hierarchy grouped by corporate department with skill ratings."""
     try:
         with get_db_cursor() as (conn, cur):
             cur.execute(
                 """SELECT a.id, a.name, a.first_name, a.last_name,
                       a.display_name, a.title, a.department,
                       a.avatar_url, a.reports_to_agent_id,
+                      a.performance_score,
                       CASE WHEN a.worker_type IN ('internal','contract')
                            THEN 'AI' ELSE 'Human' END as employee_type,
-                      bs.station_code
+                      a.worker_type,
+                      (SELECT json_agg(json_build_object(
+                                'skill', s.skill_name,
+                                'level', s.proficiency_level))
+                       FROM (SELECT skill_name, proficiency_level
+                             FROM agent_skills
+                             WHERE agent_id = a.id
+                             ORDER BY proficiency_level DESC
+                             LIMIT 3) s
+                      ) as top_skills
                    FROM agents a
-                   LEFT JOIN station_assignments sa
-                        ON sa.agent_id = a.id AND sa.is_active = true
-                   LEFT JOIN bridge_stations bs
-                        ON bs.id = sa.station_id
                    WHERE a.status = 'active'
-                   ORDER BY a.department, a.first_name"""
+                   ORDER BY a.department, COALESCE(a.performance_score, 0) DESC"""
             )
             agents = cur.fetchall()
+
+            # Determine which agents have direct reports
+            cur.execute(
+                """SELECT DISTINCT reports_to_agent_id
+                   FROM agents
+                   WHERE reports_to_agent_id IS NOT NULL AND status = 'active'"""
+            )
+            manager_ids = {row["reports_to_agent_id"] for row in cur.fetchall()}
 
         nodes = []
         for agent in agents:
             ad = dict(agent)
-            ad["full_name"] = derive_full_name(ad)
+            ad["name"] = derive_full_name(ad)
             ad["email"] = derive_email(ad)
+            ad["reports_to"] = ad.pop("reports_to_agent_id", None)
+            ad["is_head"] = ad["id"] in manager_ids
+            ad["top_skills"] = ad["top_skills"] or []
             nodes.append(ad)
 
         return jsonify({"success": True, "nodes": nodes})

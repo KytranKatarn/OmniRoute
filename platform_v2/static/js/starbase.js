@@ -1782,10 +1782,12 @@ function showZoneInfo(zoneName, zoneInfo, zd) {
             row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(255,255,255,0.03);border-radius:8px;border-left:3px solid ' + zoneInfo.color + ';';
 
             const img = document.createElement('img');
-            img.src = '/static/avatars/' + avatarSlug + '.svg';
+            img.src = agent.avatar_url || ('/static/avatars/' + avatarSlug + '.svg');
             img.alt = displayName;
-            img.style.cssText = 'width:36px;height:36px;border-radius:50%;background:rgba(10,14,20,0.9);flex-shrink:0;';
-            img.onerror = function() { this.src = fallback; };
+            img.style.cssText = 'width:36px;height:36px;border-radius:50%;background:rgba(10,14,20,0.9);flex-shrink:0;object-fit:cover;';
+            img.onerror = function() {
+                if (this.src.indexOf('dicebear') < 0) this.src = fallback;
+            };
             row.appendChild(img);
 
             const info = document.createElement('div');
@@ -4669,9 +4671,12 @@ function renderCrewTab(agents, stationColor, maxPrimary, maxAuxiliary) {
             var aHelperSlug = aHelperName.toLowerCase();
             var aImg = document.createElement('img');
             aImg.className = 'lcars-crew-avatar';
-            aImg.src = '/static/avatars/' + aHelperSlug + '.svg';
+            aImg.src = '/static/media/portraits/' + aHelperSlug + '.png';
             aImg.alt = aHelperName;
-            aImg.onerror = function() { this.src = 'https://api.dicebear.com/7.x/bottts/svg?seed=' + encodeURIComponent(this.alt); };
+            aImg.onerror = function() {
+                if (this.src.indexOf('/static/avatars/') < 0) { this.src = '/static/avatars/' + aHelperSlug + '.svg'; }
+                else { this.src = 'https://api.dicebear.com/7.x/bottts/svg?seed=' + encodeURIComponent(this.alt); }
+            };
             aRow.appendChild(aImg);
 
             var aInfo = document.createElement('div');

@@ -1565,16 +1565,19 @@ def _handle_comfyui_setup(config, payload):
             "[comfyui_setup] Downloading model %s → %s", model_name, model_dir
         )
 
-        # Use Docker exec API to download inside the ComfyUI container
-        # Create exec instance
-        exec_cmd = (
-            f"wget -q --show-progress -O /app/models/{model_dir}/{model_name} "
-            f"'{model_url}'"
+        # Use Python inside the ComfyUI container (guaranteed available)
+        python_script = (
+            "import urllib.request, os; "
+            f"os.makedirs('/app/models/{model_dir}', exist_ok=True); "
+            f"urllib.request.urlretrieve('{model_url}', "
+            f"'/app/models/{model_dir}/{model_name}'); "
+            f"sz = os.path.getsize('/app/models/{model_dir}/{model_name}'); "
+            f"print(f'Downloaded {{sz}} bytes')"
         )
         exec_body = {
             "AttachStdout": True,
             "AttachStderr": True,
-            "Cmd": ["sh", "-c", exec_cmd],
+            "Cmd": ["python3", "-c", python_script],
         }
         code, body = _docker_api(
             "POST",
@@ -1583,25 +1586,17 @@ def _handle_comfyui_setup(config, payload):
             timeout=30,
         )
         if code != 201:
-            # Fallback: try curl if wget not available
-            exec_body["Cmd"] = [
-                "sh", "-c",
-                f"curl -sL -o /app/models/{model_dir}/{model_name} '{model_url}'",
-            ]
-            code, body = _docker_api(
-                "POST",
-                f"/containers/{container_name}/exec",
-                body=exec_body,
-                timeout=30,
-            )
-            if code != 201:
-                return {"status": "failed", "error": f"Exec create failed: {body[:300]}"}
+            return {"status": "failed", "error": f"Exec create failed: {body[:300]}"}
 
         exec_id = json.loads(body).get("Id")
         if not exec_id:
             return {"status": "failed", "error": "No exec ID returned"}
 
-        # Start the exec (this blocks until download completes)
+        # Start the exec (blocks until download completes)
+        logger.info(
+            "[comfyui_setup] Download started for %s (may take 10-15min for large models)",
+            model_name,
+        )
         code, body = _docker_api(
             "POST",
             f"/exec/{exec_id}/start",

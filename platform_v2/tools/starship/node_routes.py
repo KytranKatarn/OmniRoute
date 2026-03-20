@@ -934,17 +934,28 @@ def register_node_routes(bp, auth_decorator):
 
 
 def _generate_setup_sh(hub_url, node_id, token, node_name):
-    """Generate a self-contained bash heartbeat script. No Python, no Docker required.
-    The script IS the heartbeat — it registers, collects hw info, and loops forever."""
+    """Generate a full node deployment script with Docker Compose stack.
+
+    Flow:
+      1. Detect Docker — if available, deploy full stack (Ollama + ComfyUI + sync)
+      2. If no Docker — fall back to lightweight heartbeat (bash + curl only)
+      3. Detects GPU — enables ComfyUI if NVIDIA GPU found
+      4. Downloads all files from hub API endpoints
+    """
     return f"""#!/bin/bash
 # ============================================================
-#  A.R.C.H.I.E. STARSHIP NODE — Self-Contained Heartbeat
+#  A.R.C.H.I.E. STARSHIP NODE — Full Deployment Installer
 #  Node: {node_name} ({node_id})
 #  Hub:  {hub_url}
-#  Just bash + curl. No Python. No Docker. No admin.
+#
+#  Deploys full Docker stack if Docker available:
+#    Ollama + ComfyUI (GPU) + Postgres + sync + node_api
+#  Falls back to lightweight heartbeat if no Docker.
 # ============================================================
 
-CLIENT_VERSION="3.0.0"
+set -e
+
+CLIENT_VERSION="4.0.0"
 HUB_URL="{hub_url}"
 NODE_ID="{node_id}"
 API_KEY="{token}"
@@ -998,6 +1009,115 @@ cat > "$INSTALL_DIR/config.json" << CONFIGEOF
     "client_version": "$CLIENT_VERSION"
 }}
 CONFIGEOF
+
+# ══════════════════════════════════════════════════════════════
+#  DOCKER DEPLOYMENT — Full stack if Docker is available
+# ══════════════════════════════════════════════════════════════
+if command -v docker >/dev/null 2>&1 && command -v docker compose >/dev/null 2>&1; then
+    echo ""
+    echo "  ┌──────────────────────────────────────────────┐"
+    echo "  │  Docker detected — deploying full stack      │"
+    echo "  └──────────────────────────────────────────────┘"
+    echo ""
+
+    DOCKER_DIR="$INSTALL_DIR/docker"
+    mkdir -p "$DOCKER_DIR"
+
+    # Download node files from hub
+    echo "[DOCKER 1/6] Downloading docker-compose.yml..."
+    curl -sS "$HUB_URL/tools/starbase/api/nodes/docker-compose.node.yml" \\
+        -H "X-Node-API-Key: $API_KEY" -o "$DOCKER_DIR/docker-compose.yml" || true
+
+    echo "[DOCKER 2/6] Downloading node_sync.py..."
+    curl -sS "$HUB_URL/tools/starbase/api/nodes/node_sync.py" \\
+        -H "X-Node-API-Key: $API_KEY" -o "$DOCKER_DIR/node_sync.py" || true
+
+    echo "[DOCKER 3/6] Downloading Dockerfile..."
+    curl -sS "$HUB_URL/tools/starbase/api/nodes/Dockerfile.node" \\
+        -H "X-Node-API-Key: $API_KEY" -o "$DOCKER_DIR/Dockerfile.node" || true
+
+    # Detect GPU for ComfyUI
+    HAS_GPU="false"
+    GPU_VRAM_MB=0
+    if command -v nvidia-smi >/dev/null 2>&1; then
+        HAS_GPU="true"
+        GPU_VRAM_MB=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 || echo "0")
+        echo "[DOCKER 3/6] NVIDIA GPU detected (${{GPU_VRAM_MB}}MB VRAM) — ComfyUI will be enabled"
+    else
+        echo "[DOCKER 3/6] No NVIDIA GPU — ComfyUI disabled"
+    fi
+
+    # Create .env file
+    echo "[DOCKER 4/6] Creating .env..."
+    LOCAL_IP=$(hostname -I 2>/dev/null | awk '{{print $1}}' || echo "127.0.0.1")
+    cat > "$DOCKER_DIR/.env" << ENVEOF
+NODE_ID=$NODE_ID
+HUB_URL=$HUB_URL
+HUB_API_KEY=$API_KEY
+OLLAMA_PORT=11434
+DB_PASSWORD=archie_node_${{NODE_ID##*_}}
+NODE_API_PORT=3001
+NODE_TIMEZONE=$(cat /etc/timezone 2>/dev/null || echo "UTC")
+COMFYUI_PORT=8188
+ENVEOF
+
+    # Create migrations directory
+    mkdir -p "$DOCKER_DIR/migrations"
+
+    # Check if docker-compose downloaded successfully
+    if [ -s "$DOCKER_DIR/docker-compose.yml" ] && grep -q "services:" "$DOCKER_DIR/docker-compose.yml" 2>/dev/null; then
+
+        echo "[DOCKER 5/6] Pulling Docker images (this may take a few minutes)..."
+        cd "$DOCKER_DIR"
+        docker compose pull 2>&1 | tail -5 || true
+
+        echo "[DOCKER 6/6] Starting services..."
+        docker compose up -d 2>&1 || true
+
+        # Verify
+        sleep 5
+        RUNNING=$(docker compose ps --format json 2>/dev/null | grep -c '"running"' || echo "0")
+        TOTAL=$(docker compose ps --format json 2>/dev/null | wc -l || echo "0")
+
+        echo ""
+        echo "  ╔══════════════════════════════════════════════╗"
+        echo "  ║  DOCKER STACK DEPLOYED                       ║"
+        echo "  ║  Node:      $NODE_NAME"
+        echo "  ║  Node ID:   $NODE_ID"
+        echo "  ║  Services:  $RUNNING/$TOTAL running"
+        echo "  ║  Ollama:    http://$LOCAL_IP:11434"
+        if [ "$HAS_GPU" = "true" ]; then
+        echo "  ║  ComfyUI:   http://$LOCAL_IP:8188"
+        fi
+        echo "  ║  API:       http://$LOCAL_IP:3001"
+        echo "  ║  Directory: $DOCKER_DIR"
+        echo "  ║                                              ║"
+        echo "  ║  Sync service handles heartbeats + OTA       ║"
+        echo "  ║  No need to keep this terminal open.         ║"
+        echo "  ╚══════════════════════════════════════════════╝"
+        echo ""
+        echo "  Manage with:"
+        echo "    cd $DOCKER_DIR"
+        echo "    docker compose logs -f    # View logs"
+        echo "    docker compose restart    # Restart"
+        echo "    docker compose down       # Stop"
+        echo ""
+        exit 0
+    else
+        echo "  WARNING: Failed to download docker-compose.yml from hub."
+        echo "  Falling back to lightweight heartbeat mode..."
+        echo ""
+    fi
+else
+    echo ""
+    echo "  Docker not found — using lightweight heartbeat mode."
+    echo "  Install Docker for full node deployment (Ollama + ComfyUI + sync)."
+    echo ""
+fi
+
+# ══════════════════════════════════════════════════════════════
+#  LIGHTWEIGHT HEARTBEAT — Fallback when Docker not available
+# ══════════════════════════════════════════════════════════════
 
 # ── Step 4: Detect hardware ──
 echo "[4/5] Detecting hardware..."

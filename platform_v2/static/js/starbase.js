@@ -1,4 +1,73 @@
 /* starbase.js — Starbase Command module logic (extracted from starbase.html) */
+
+// ── LCARS Confirm (shared utility, guarded against double-define) ──
+if (typeof window.lcarsConfirm === 'undefined') {
+window.lcarsConfirm = function(message, opts) {
+    opts = opts || {};
+    var title = opts.title || 'CONFIRM';
+    var confirmText = opts.confirmText || 'CONFIRM';
+    var cancelText = opts.cancelText || 'CANCEL';
+    var confirmColor = opts.confirmColor || '#00e5ff';
+    var isAlert = opts.alert || false;
+    return new Promise(function(resolve) {
+        var overlay = document.createElement('div');
+        overlay.className = 'bm-overlay active';
+        overlay.style.zIndex = '10000';
+        var shell = document.createElement('div');
+        shell.className = 'bm-shell';
+        shell.style.maxWidth = '450px';
+        shell.style.width = '90%';
+        shell.style.margin = '0 auto';
+        var frame = document.createElement('div');
+        frame.className = 'bm-frame';
+        frame.style.padding = '0';
+        var content = document.createElement('div');
+        content.className = 'bm-content';
+        content.style.padding = '28px';
+        content.style.textAlign = 'center';
+        var titleEl = document.createElement('h3');
+        titleEl.style.cssText = 'color:' + confirmColor + ';font-family:Orbitron,monospace;font-size:16px;margin:0 0 16px;text-align:center;';
+        titleEl.textContent = title;
+        content.appendChild(titleEl);
+        var msgEl = document.createElement('p');
+        msgEl.style.cssText = 'color:#e0e0e0;font-size:14px;line-height:1.6;margin:0 0 28px;white-space:pre-wrap;text-align:center;';
+        msgEl.textContent = message;
+        content.appendChild(msgEl);
+        var btnRow = document.createElement('div');
+        btnRow.style.cssText = 'display:flex;justify-content:center;gap:12px;';
+        function closeModal(result) {
+            document.removeEventListener('keydown', onKey);
+            overlay.remove();
+            resolve(result);
+        }
+        if (!isAlert) {
+            var cancelBtn = document.createElement('button');
+            cancelBtn.style.cssText = 'background:#1a1a2e;color:#999;border:1px solid #444;padding:10px 24px;cursor:pointer;font-family:Orbitron,monospace;font-size:13px;border-radius:4px;';
+            cancelBtn.textContent = cancelText;
+            cancelBtn.onclick = function() { closeModal(false); };
+            btnRow.appendChild(cancelBtn);
+        }
+        var okBtn = document.createElement('button');
+        okBtn.style.cssText = 'background:' + confirmColor + ';color:#0a0a12;border:none;padding:10px 28px;cursor:pointer;font-family:Orbitron,monospace;font-size:13px;font-weight:bold;border-radius:4px;';
+        okBtn.textContent = isAlert ? 'OK' : confirmText;
+        okBtn.onclick = function() { closeModal(true); };
+        btnRow.appendChild(okBtn);
+        content.appendChild(btnRow);
+        frame.appendChild(content);
+        shell.appendChild(frame);
+        overlay.appendChild(shell);
+        document.body.appendChild(overlay);
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay) closeModal(false);
+        });
+        function onKey(e) {
+            if (e.key === 'Escape') closeModal(false);
+        }
+        document.addEventListener('keydown', onKey);
+    });
+};
+}
+
 // === IAAE Capacity Modal ===
 function showIaaeCapacityModal(level, info) {
     var modal = document.getElementById('iaae-capacity-modal');
@@ -6500,6 +6569,28 @@ function closeNodeDetailModal() {
     currentNodeId = null;
     currentNodeData = null;
     hideAddStationToNode();
+}
+
+async function starbaseUpgradeNodeV3() {
+    if (!currentNodeId) return;
+    var nodeName = currentNodeData && currentNodeData.node ? currentNodeData.node.node_name : currentNodeId;
+    var ok = await lcarsConfirm('Push v3.0 stack upgrade to ' + nodeName + '?\n\nThis will update all node files and restart containers.', {
+        title: 'UPGRADE NODE',
+        confirmText: 'UPGRADE',
+        confirmColor: '#fbbf24'
+    });
+    if (!ok) return;
+    try {
+        var resp = await fetch('/tools/starship/api/nodes/' + currentNodeId + '/upgrade-v3', { method: 'POST' });
+        var data = await resp.json();
+        if (data.success) {
+            showToast('Upgrade queued: ' + data.syncs_queued + ' sync commands sent', 'success');
+        } else {
+            showToast('Upgrade failed: ' + (data.error || 'Unknown error'), 'error');
+        }
+    } catch (err) {
+        showToast('Upgrade request failed', 'error');
+    }
 }
 
 function switchNodeTab(tabName) {

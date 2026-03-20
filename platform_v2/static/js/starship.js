@@ -7,6 +7,104 @@ var nodeConnectionPoller = null;
 var _opsSelectedNodeDbId = null;
 
 // ══════════════════════════════════════════════════════════════
+// LCARS CONFIRM / ALERT — replaces native confirm() and alert()
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * LCARS-styled confirmation dialog — replaces native confirm()/alert()
+ * @param {string} message - The message to display
+ * @param {Object} opts - Options
+ * @param {string} opts.title - Modal title (default: 'CONFIRM')
+ * @param {string} opts.confirmText - Confirm button text (default: 'CONFIRM')
+ * @param {string} opts.cancelText - Cancel button text (default: 'CANCEL')
+ * @param {string} opts.confirmColor - Confirm button color (default: '#00e5ff')
+ * @param {boolean} opts.alert - If true, only show OK button (default: false)
+ * @returns {Promise<boolean>}
+ */
+function lcarsConfirm(message, opts) {
+    opts = opts || {};
+    var title = opts.title || 'CONFIRM';
+    var confirmText = opts.confirmText || 'CONFIRM';
+    var cancelText = opts.cancelText || 'CANCEL';
+    var confirmColor = opts.confirmColor || '#00e5ff';
+    var isAlert = opts.alert || false;
+
+    return new Promise(function(resolve) {
+        var overlay = document.createElement('div');
+        overlay.className = 'bm-overlay';
+        overlay.style.display = 'flex';
+        overlay.style.zIndex = '10000';
+
+        var shell = document.createElement('div');
+        shell.className = 'bm-shell';
+        shell.style.maxWidth = '450px';
+        shell.style.width = '90%';
+
+        var frame = document.createElement('div');
+        frame.className = 'bm-frame';
+
+        var content = document.createElement('div');
+        content.className = 'bm-content';
+        content.style.padding = '24px';
+
+        var titleEl = document.createElement('h3');
+        titleEl.style.cssText = 'color:' + confirmColor + ';font-family:Orbitron,monospace;font-size:16px;margin:0 0 16px;';
+        titleEl.textContent = title;
+        content.appendChild(titleEl);
+
+        var msgEl = document.createElement('p');
+        msgEl.style.cssText = 'color:#e0e0e0;font-size:14px;line-height:1.5;margin:0 0 24px;white-space:pre-wrap;';
+        msgEl.textContent = message;
+        content.appendChild(msgEl);
+
+        var btnRow = document.createElement('div');
+        btnRow.style.cssText = 'display:flex;justify-content:flex-end;gap:12px;';
+
+        function closeModal(result) {
+            document.removeEventListener('keydown', onKey);
+            overlay.remove();
+            resolve(result);
+        }
+
+        if (!isAlert) {
+            var cancelBtn = document.createElement('button');
+            cancelBtn.style.cssText = 'background:#1a1a2e;color:#666680;border:1px solid #333;padding:8px 20px;cursor:pointer;font-family:Orbitron,monospace;font-size:12px;';
+            cancelBtn.textContent = cancelText;
+            cancelBtn.onclick = function() { closeModal(false); };
+            btnRow.appendChild(cancelBtn);
+        }
+
+        var okBtn = document.createElement('button');
+        okBtn.style.cssText = 'background:' + confirmColor + ';color:#0a0a12;border:none;padding:8px 24px;cursor:pointer;font-family:Orbitron,monospace;font-size:12px;font-weight:bold;';
+        okBtn.textContent = isAlert ? 'OK' : confirmText;
+        okBtn.onclick = function() { closeModal(true); };
+        btnRow.appendChild(okBtn);
+
+        content.appendChild(btnRow);
+        frame.appendChild(content);
+        shell.appendChild(frame);
+        overlay.appendChild(shell);
+        document.body.appendChild(overlay);
+
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay) closeModal(false);
+        });
+
+        function onKey(e) {
+            if (e.key === 'Escape') closeModal(false);
+        }
+        document.addEventListener('keydown', onKey);
+    });
+}
+
+function lcarsAlert(message, opts) {
+    opts = opts || {};
+    opts.alert = true;
+    opts.title = opts.title || 'NOTICE';
+    return lcarsConfirm(message, opts);
+}
+
+// ══════════════════════════════════════════════════════════════
 // BROWSER NODE CLIENT — no install, the browser IS the node
 // ══════════════════════════════════════════════════════════════
 var _browserNode = { active: false, nodeId: null, apiKey: null, interval: null, ollamaUrl: 'http://localhost:11434' };
@@ -250,18 +348,28 @@ function opsOtaPush(type) {
         ? '/tools/starship/api/nodes/' + _opsSelectedNodeDbId + '/push-update'
         : '/tools/starship/api/nodes/' + _opsSelectedNodeDbId + '/push-config';
     var body = type === 'config' ? JSON.stringify({type: 'agent_config'}) : '{}';
-    if (type === 'update' && !confirm('Push a code update to this node?')) return;
-    fetch(endpoint, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: body })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (data.success) {
-                scToast('Push successful' + (data.sync_id ? ' (ID: ' + data.sync_id + ')' : ''), 'success');
-                opsLoadSyncStatus();
-                opsLoadSyncLog();
-            } else {
-                scToast(data.error || 'Push failed', 'error');
-            }
-        }).catch(function() { scToast('Network error', 'error'); });
+    function doOtaPush() {
+        fetch(endpoint, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: body })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    scToast('Push successful' + (data.sync_id ? ' (ID: ' + data.sync_id + ')' : ''), 'success');
+                    opsLoadSyncStatus();
+                    opsLoadSyncLog();
+                } else {
+                    scToast(data.error || 'Push failed', 'error');
+                }
+            }).catch(function() { scToast('Network error', 'error'); });
+    }
+    if (type === 'update') {
+        lcarsConfirm('Push a code update to this node?', {
+            title: 'CODE UPDATE',
+            confirmText: 'PUSH UPDATE',
+            confirmColor: '#fbbf24'
+        }).then(function(ok) { if (ok) doOtaPush(); });
+    } else {
+        doOtaPush();
+    }
 }
 
 // ── Operations Tab: Pull Model ──
@@ -511,14 +619,20 @@ function approveNodeFromModal(nodeId, cardEl) {
 }
 
 function denyNodeFromModal(nodeId, cardEl) {
-    if (!confirm('Deny this node? It will be removed.')) return;
-    fetch('/tools/starbase/api/nodes/' + nodeId + '/deny', { method: 'POST' })
-        .then(function(r) { return r.json(); })
-        .then(function() {
-            cardEl.remove();
-            scToast('Node denied', 'success');
-        })
-        .catch(function() { scToast('Failed to deny node', 'error'); });
+    lcarsConfirm('Deny this node? It will be permanently removed.', {
+        title: 'DENY NODE',
+        confirmText: 'DENY',
+        confirmColor: '#ef4444'
+    }).then(function(ok) {
+        if (!ok) return;
+        fetch('/tools/starbase/api/nodes/' + nodeId + '/deny', { method: 'POST' })
+            .then(function(r) { return r.json(); })
+            .then(function() {
+                cardEl.remove();
+                scToast('Node denied', 'success');
+            })
+            .catch(function() { scToast('Failed to deny node', 'error'); });
+    });
 }
 
 // Resync modal (manual commands for offline resync)
@@ -600,7 +714,12 @@ async function opsResyncNode() {
 // V3.0 upgrade from fleet detail panel
 async function upgradeNodeV3() {
     if (!selectedNodeDbId) { scToast('No node selected', 'error'); return; }
-    if (!confirm('Push v3.0 upgrade to this node? Containers will restart.')) return;
+    var ok = await lcarsConfirm('Push v3.0 upgrade to this node? Containers will restart.', {
+        title: 'UPGRADE NODE',
+        confirmText: 'UPGRADE',
+        confirmColor: '#fbbf24'
+    });
+    if (!ok) return;
     var btn = document.getElementById('d-upgrade-v3-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'UPGRADING...'; }
     try {
@@ -629,7 +748,12 @@ async function upgradeNodeV3() {
 // V3.0 upgrade from Operations tab
 async function opsUpgradeNodeV3() {
     if (!_opsSelectedNodeDbId) { scToast('Select a node first', 'error'); return; }
-    if (!confirm('Push v3.0 upgrade to this node? Containers will restart.')) return;
+    var ok = await lcarsConfirm('Push v3.0 upgrade to this node? Containers will restart.', {
+        title: 'UPGRADE NODE',
+        confirmText: 'UPGRADE',
+        confirmColor: '#fbbf24'
+    });
+    if (!ok) return;
     var btn = document.getElementById('ops-upgrade-v3-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'UPGRADING...'; }
     try {
@@ -900,17 +1024,23 @@ function renderDetail(data) {
             badge.title = 'Click to push update to this node';
             badge.style.cursor = 'pointer';
             badge.addEventListener('click', function() {
-                if (!confirm('Push update v' + data.version.latest + ' to this node?\n\nThe node will download and install the update on its next heartbeat (~30s).')) return;
-                fetch('/tools/starship/api/nodes/' + encodeURIComponent(selectedNodeId) + '/request-update', {method:'POST',headers:{'Content-Type':'application/json'}})
-                .then(function(r){return r.json()})
-                .then(function(d){
-                    if (d.success) {
-                        scToast('Update queued — node will update on next heartbeat', 'success');
-                        badge.textContent = 'v' + data.version.current + ' \u2192 UPDATING...';
-                        badge.className = 'sc-version-badge outdated';
-                    } else {
-                        scToast('Failed: ' + (d.error || 'Unknown error'), 'error');
-                    }
+                lcarsConfirm('Push update v' + data.version.latest + ' to this node?\n\nThe node will download and install the update on its next heartbeat (~30s).', {
+                    title: 'PUSH UPDATE',
+                    confirmText: 'UPDATE',
+                    confirmColor: '#fbbf24'
+                }).then(function(ok) {
+                    if (!ok) return;
+                    fetch('/tools/starship/api/nodes/' + encodeURIComponent(selectedNodeId) + '/request-update', {method:'POST',headers:{'Content-Type':'application/json'}})
+                    .then(function(r){return r.json()})
+                    .then(function(d){
+                        if (d.success) {
+                            scToast('Update queued — node will update on next heartbeat', 'success');
+                            badge.textContent = 'v' + data.version.current + ' \u2192 UPDATING...';
+                            badge.className = 'sc-version-badge outdated';
+                        } else {
+                            scToast('Failed: ' + (d.error || 'Unknown error'), 'error');
+                        }
+                    });
                 });
             });
         }
@@ -1279,7 +1409,12 @@ async function pushAgentConfig() {
 // ── OTA Code Update + Sync Log ──
 async function pushCodeUpdate() {
     if (!selectedNodeDbId) return;
-    if (!confirm('Push a code update to this node? The node will download and install on its next heartbeat.')) return;
+    var ok = await lcarsConfirm('Push a code update to this node? The node will download and install on its next heartbeat.', {
+        title: 'CODE UPDATE',
+        confirmText: 'PUSH UPDATE',
+        confirmColor: '#fbbf24'
+    });
+    if (!ok) return;
     try {
         var resp = await fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/push-update', {
             method: 'POST',

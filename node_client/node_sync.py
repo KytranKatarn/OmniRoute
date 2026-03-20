@@ -821,7 +821,8 @@ def _handle_code_update(config, payload):
 
     logger.info("[code_update] Updating to version %s", version)
 
-    hub_url = config["hub_url"]
+    # Always prefer HUB_URL env var for downloads — immune to OTA config corruption
+    hub_url = os.environ.get("HUB_URL", "") or config["hub_url"]
     headers = _auth_headers(config)
     updated = []
     errors = []
@@ -834,7 +835,12 @@ def _handle_code_update(config, payload):
         if status == 200:
             # http_get returns parsed JSON or {"raw": text}
             content = resp.get("raw", "")
-            if content:
+            if not content:
+                errors.append(f"{fname}: empty response")
+            elif content.lstrip().startswith("<!DOCTYPE") or content.lstrip().startswith("<html"):
+                errors.append(f"{fname}: got HTML instead of code — hub may require auth")
+                logger.error("[code_update] REJECTED %s — received HTML (login page?), not code", fname)
+            else:
                 try:
                     fpath = os.path.join("/app", fname)
                     with open(fpath, "w") as fh:
@@ -844,8 +850,6 @@ def _handle_code_update(config, payload):
                 except Exception as e:
                     errors.append(f"{fname}: write failed: {e}")
                     logger.error("[code_update] Failed to write %s: %s", fname, e)
-            else:
-                errors.append(f"{fname}: empty response")
         else:
             errors.append(f"{fname}: HTTP {status}")
             logger.warning("[code_update] Failed to download %s (HTTP %d)", fname, status)
@@ -944,10 +948,11 @@ def _handle_config_update(config, payload):
     )
 
     # Reload into the running config dict (in-memory update)
+    # NOTE: hub_url is PROTECTED — it can only be set via .env or manual config.
+    # OTA config_update must NOT override it, as the hub may push an external URL
+    # (e.g. via reverse proxy) that returns HTML login pages instead of files.
     key_map = {
         "node_id": "node_id",
-        "hub_url": "hub_url",
-        "server_url": "hub_url",
         "hub_api_key": "hub_api_key",
         "api_key": "hub_api_key",
         "ollama_host": "ollama_host",
@@ -955,6 +960,8 @@ def _handle_config_update(config, payload):
         "sync_poll_interval": "sync_poll_interval",
         "archie_version": "archie_version",
     }
+    if "hub_url" in payload or "server_url" in payload:
+        logger.info("[config_update] Ignoring hub_url from OTA — protected field")
     updated_keys = []
     for file_key, internal_key in key_map.items():
         if file_key in payload:

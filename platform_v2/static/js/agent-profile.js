@@ -231,10 +231,89 @@
             var genStatus = document.createElement('span');
             genStatus.style.cssText = 'font-size:0.65rem;color:rgba(255,255,255,0.4);';
 
+            // Variant grid container
+            var variantGrid = document.createElement('div');
+            variantGrid.className = 'portrait-variant-grid';
+            variantGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:10px;';
+
+            function _buildVariantCard(v) {
+                var card = document.createElement('div');
+                card.style.cssText = 'background:rgba(0,0,0,0.4);border-radius:8px;overflow:hidden;border:2px solid ' + (v.approved ? '#4ade80' : 'rgba(255,255,255,0.1)') + ';cursor:pointer;transition:border-color 0.2s;';
+
+                var img = document.createElement('img');
+                img.src = v.image_path + '?t=' + Date.now();
+                img.style.cssText = 'width:100%;aspect-ratio:1;object-fit:cover;display:block;';
+                img.alt = v.model || 'variant';
+                card.appendChild(img);
+
+                var info = document.createElement('div');
+                info.style.cssText = 'padding:6px 8px;font-size:0.6rem;line-height:1.5;';
+
+                var modelDiv = document.createElement('div');
+                modelDiv.style.cssText = 'color:#00e5ff;font-weight:600;';
+                modelDiv.textContent = v.model || 'Unknown';
+                info.appendChild(modelDiv);
+
+                var gpuDiv = document.createElement('div');
+                gpuDiv.style.cssText = 'color:rgba(255,255,255,0.5);';
+                gpuDiv.textContent = v.gpu_model || v.gpu_host || '?';
+                info.appendChild(gpuDiv);
+
+                var statsDiv = document.createElement('div');
+                statsDiv.style.cssText = 'color:rgba(255,255,255,0.4);';
+                statsDiv.textContent = (v.resolution || '?') + ' \u2022 ' + ((v.time_ms / 1000).toFixed(1)) + 's';
+                info.appendChild(statsDiv);
+
+                if (v.approved) {
+                    var activeLabel = document.createElement('div');
+                    activeLabel.style.cssText = 'color:#4ade80;font-weight:600;margin-top:2px;';
+                    activeLabel.textContent = '\u2713 ACTIVE';
+                    info.appendChild(activeLabel);
+                } else {
+                    var selBtn = document.createElement('button');
+                    selBtn.className = 'bm-btn';
+                    selBtn.style.cssText = 'background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:#00e5ff;font-size:0.55rem;padding:2px 8px;margin-top:4px;cursor:pointer;width:100%;';
+                    selBtn.textContent = 'Select';
+                    selBtn.onclick = function(e) {
+                        e.stopPropagation();
+                        fetch('/tools/starbase/api/agents/' + agentId + '/portraits/' + v.id + '/select', { method: 'POST' })
+                            .then(function(r) { return r.json(); })
+                            .then(function(res) {
+                                if (res.success) {
+                                    _loadVariants();
+                                    var profImg = bodyEl.querySelector('.crew-profile-portrait');
+                                    if (profImg) { profImg.src = res.image_path + '?t=' + Date.now(); profImg.style.display = ''; }
+                                    var fb = bodyEl.querySelector('.crew-profile-portrait-fallback');
+                                    if (fb) fb.style.display = 'none';
+                                }
+                            });
+                    };
+                    info.appendChild(selBtn);
+                }
+                card.appendChild(info);
+                return card;
+            }
+
+            function _renderVariantGrid(variants) {
+                variantGrid.textContent = '';
+                if (!variants || !variants.length) return;
+                variants.forEach(function(v) {
+                    variantGrid.appendChild(_buildVariantCard(v));
+                });
+            }
+
+            function _loadVariants() {
+                fetch('/tools/starbase/api/agents/' + agentId + '/portraits')
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (data.success) _renderVariantGrid(data.portraits);
+                    });
+            }
+
             genBtn.onclick = function() {
                 genBtn.disabled = true;
-                genBtn.textContent = 'Generating...';
-                genStatus.textContent = 'Dispatching to Pixel via ComfyUI...';
+                genBtn.textContent = 'Generating on all GPUs...';
+                genStatus.textContent = 'Fan-out to all ComfyUI hosts...';
 
                 fetch('/tools/starbase/api/agents/' + agentId + '/generate-portrait', {
                     method: 'POST',
@@ -247,31 +326,33 @@
                         genStatus.textContent = 'Failed: ' + (result.error || 'Unknown error');
                         genStatus.style.color = '#ef4444';
                     } else {
-                        genStatus.textContent = result.message || 'Portrait generated!';
+                        genStatus.textContent = result.message || 'Variants generated!';
                         genStatus.style.color = '#4ade80';
-                        // Update the portrait image with cache-bust
-                        if (result.image_path) {
+                        if (result.variants) _renderVariantGrid(result.variants);
+                        if (result.active) {
                             var cacheBust = '?t=' + Date.now();
-                            var img = bodyEl.querySelector('.crew-profile-portrait');
-                            if (img) { img.src = result.image_path + cacheBust; img.style.display = ''; }
+                            var pImg = bodyEl.querySelector('.crew-profile-portrait');
+                            if (pImg) { pImg.src = result.active + cacheBust; pImg.style.display = ''; }
                             var fb = bodyEl.querySelector('.crew-profile-portrait-fallback');
                             if (fb) fb.style.display = 'none';
                         }
                     }
                     genBtn.disabled = false;
-                    genBtn.textContent = '\uD83C\uDFA8 Generate Portrait';
+                    genBtn.textContent = '\uD83C\uDFA8 Generate Variants';
                 })
                 .catch(function(err) {
                     genStatus.textContent = 'Error: ' + err;
                     genStatus.style.color = '#ef4444';
                     genBtn.disabled = false;
-                    genBtn.textContent = '\uD83C\uDFA8 Generate Portrait';
+                    genBtn.textContent = '\uD83C\uDFA8 Generate Variants';
                 });
             };
 
             genRow.appendChild(genBtn);
             genRow.appendChild(genStatus);
             ppCard.appendChild(genRow);
+            ppCard.appendChild(variantGrid);
+            _loadVariants();
             editSection.appendChild(ppCard);
         }
 

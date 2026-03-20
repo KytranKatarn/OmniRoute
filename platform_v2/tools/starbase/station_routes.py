@@ -1543,12 +1543,22 @@ def register_station_routes(bp, admin_required):
             logger.error("agent_profile error: %s", e)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
-    # --- Agent Portrait Generation ---
+    # --- Agent Portrait Generation (Multi-GPU Fan-Out) ---
 
     @bp.route("/api/agents/<int:agent_id>/generate-portrait", methods=["POST"])
     @login_required
     def generate_agent_portrait(agent_id):
-        """Generate portrait via ComfyUI, save to consistent path, update avatar_url."""
+        """Fan-out portrait generation across all available ComfyUI hosts.
+
+        Generates variants in parallel on each GPU, stores all with benchmark
+        data in agent_portraits. First successful result becomes active avatar.
+        """
+        import os
+        import shutil
+        import threading
+        import time as _time
+        import uuid
+
         try:
             with get_db_cursor(commit=True) as (conn, cur):
                 cur.execute(
@@ -1564,96 +1574,299 @@ def register_station_routes(bp, admin_required):
                     return jsonify({"success": False, "error": "No avatar prompt"}), 400
 
                 agent_name = agent["name"].lower()
-
-                # Consistent path — always overwrites
-                import os
-
-                portraits_dir = os.path.join(
-                    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                    "static",
-                    "media",
-                    "portraits",
-                )
+                base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                portraits_dir = os.path.join(base_dir, "static", "media", "portraits")
                 os.makedirs(portraits_dir, exist_ok=True)
-                portrait_path = f"/static/media/portraits/{agent_name}.png"
-                full_path = os.path.join(portraits_dir, f"{agent_name}.png")
 
-                # Dispatch to ComfyUI via Bridge
-                from ai_bridge.bridge_dispatcher import get_dispatcher
+            # Discover all ComfyUI hosts
+            from ai_bridge.comfyui_service import ComfyUIService
 
-                dispatcher = get_dispatcher()
-
-                # Look up Pixel agent from DB for the agent dict
-                cur.execute("SELECT id, name, display_name FROM agents WHERE name = 'Pixel' LIMIT 1")
-                pixel_agent = cur.fetchone()
-                pixel_dict = dict(pixel_agent) if pixel_agent else {"id": None, "name": "Pixel"}
-
-                result = dispatcher._execute_comfyui(
-                    agent_name="Pixel",
-                    agent=pixel_dict,
-                    image_model="sd_xl_base_1.0.safetensors",
-                    prompt=prompt,
-                    context={"width": 512, "height": 512, "steps": 25},
-                    station_code="CREATIVE",
-                    capability="image_generation",
-                    module_id="starbase",
-                    user_id=current_user.id if current_user.is_authenticated else None,
+            hosts = []
+            # Hub ComfyUI
+            hub_host = os.getenv("COMFYUI_HOST", "http://archie_comfyui:8188")
+            hub_svc = ComfyUIService(host=hub_host)
+            if hub_svc.is_healthy:
+                hub_models = hub_svc.get_models().get("installed", [])
+                hosts.append(
+                    {
+                        "url": hub_host,
+                        "name": "hub",
+                        "gpu_model": "Quadro M4000",
+                        "models": hub_models,
+                        "vram_gb": 8,
+                    }
                 )
 
-                if result and result.success and result.metadata:
-                    # Copy generated image to persistent location
-                    import shutil
+            # Fleet nodes with ComfyUI
+            try:
+                from ai_bridge.node_router import get_nodes_with_service
 
-                    src = result.metadata.get("file_path") or result.metadata.get("output_path")
-                    if src:
-                        abs_src = (
-                            os.path.join(
-                                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                                src.lstrip("/"),
-                            )
-                            if not os.path.isabs(src)
-                            else src
-                        )
-                        if os.path.exists(abs_src):
-                            shutil.copy2(abs_src, full_path)
-
-                    # Update agents table
-                    cur.execute(
-                        "UPDATE agents SET avatar_url = %s WHERE id = %s",
-                        (portrait_path, agent_id),
-                    )
-
-                    # Update agent_portraits table
-                    cur.execute(
-                        """INSERT INTO agent_portraits (agent_id, canonical_image_path, identity_prompt)
-                           VALUES (%s, %s, %s)
-                           ON CONFLICT (agent_id) DO UPDATE SET
-                               canonical_image_path = EXCLUDED.canonical_image_path,
-                               identity_prompt = EXCLUDED.identity_prompt,
-                               updated_at = NOW()""",
-                        (agent_id, portrait_path, prompt),
-                    )
-
-                    return (
-                        jsonify(
+                nodes = get_nodes_with_service("comfyui")
+                for n in nodes:
+                    hostname = n.get("hostname") or n.get("vpn_ip")
+                    port = n.get("port", 8188)
+                    if not hostname:
+                        continue
+                    node_url = f"http://{hostname}:{port}"
+                    node_svc = ComfyUIService(host=node_url)
+                    if node_svc.is_healthy:
+                        node_models = node_svc.get_models().get("installed", [])
+                        hosts.append(
                             {
-                                "success": True,
-                                "image_path": portrait_path,
-                                "message": f"Portrait generated for {agent['name']}",
+                                "url": node_url,
+                                "name": hostname,
+                                "gpu_model": n.get("gpu_model", "Unknown GPU"),
+                                "models": node_models,
+                                "vram_gb": float(n.get("gpu_vram_gb", 0) or 0),
                             }
+                        )
+            except Exception as e:
+                logger.warning("Node discovery failed: %s", e)
+
+            if not hosts:
+                return jsonify({"success": False, "error": "No ComfyUI hosts available"}), 503
+
+            # For each host, pick the best model and generate in parallel
+            variants = []
+            lock = threading.Lock()
+
+            def _generate_on_host(host_info):
+                svc = ComfyUIService(host=host_info["url"])
+                models = host_info["models"]
+                vram = host_info["vram_gb"]
+
+                # Pick best model for this hardware
+                model_tiers = [
+                    (12, "sd_xl_base_1.0.safetensors", 1024, "SDXL"),
+                    (4, "v1-5-pruned-emaonly.safetensors", 512, "SD 1.5"),
+                    (4, "v1-5-pruned-emaonly.ckpt", 512, "SD 1.5"),
+                ]
+                selected_model = None
+                res = 512
+                model_label = "unknown"
+                for min_vram, model, r, label in model_tiers:
+                    if vram >= min_vram and model in models:
+                        selected_model = model
+                        res = r
+                        model_label = label
+                        break
+
+                if not selected_model and models:
+                    # Use first available model
+                    selected_model = models[0]
+                    model_label = selected_model
+
+                if not selected_model:
+                    return
+
+                start = _time.time()
+                try:
+                    result = svc.generate_image(
+                        prompt=prompt,
+                        model=selected_model,
+                        steps=25,
+                        width=res,
+                        height=res,
+                        cfg=7.0,
+                    )
+                except Exception as e:
+                    logger.warning("Fan-out gen failed on %s: %s", host_info["name"], e)
+                    return
+
+                elapsed_ms = int((_time.time() - start) * 1000)
+
+                if result and result.success and result.file_path:
+                    # Copy to unique variant path
+                    variant_id = uuid.uuid4().hex[:8]
+                    variant_filename = f"{agent_name}_{host_info['name'].replace('.', '-')}_{variant_id}.png"
+                    variant_path = f"/static/media/portraits/{variant_filename}"
+                    abs_src = os.path.join(base_dir, result.file_path.lstrip("/"))
+                    abs_dst = os.path.join(portraits_dir, variant_filename)
+
+                    if os.path.isfile(abs_src):
+                        shutil.copy2(abs_src, abs_dst)
+                        file_size = os.path.getsize(abs_dst)
+                    else:
+                        return
+
+                    variant = {
+                        "agent_id": agent_id,
+                        "path": variant_path,
+                        "prompt": prompt,
+                        "model": selected_model,
+                        "model_label": model_label,
+                        "gpu_host": host_info["name"],
+                        "gpu_model": host_info["gpu_model"],
+                        "time_ms": elapsed_ms,
+                        "res_w": res,
+                        "res_h": res,
+                        "file_size": file_size,
+                    }
+                    with lock:
+                        variants.append(variant)
+
+            threads = [threading.Thread(target=_generate_on_host, args=(h,)) for h in hosts]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join(timeout=120)
+
+            if not variants:
+                return jsonify({"success": False, "error": "All hosts failed"}), 500
+
+            # Save all variants to agent_portraits
+            first_variant = None
+            with get_db_cursor(commit=True) as (conn, cur):
+                for v in variants:
+                    cur.execute(
+                        """INSERT INTO agent_portraits
+                           (agent_id, canonical_image_path, identity_prompt,
+                            model_used, gpu_host, gpu_model, generation_time_ms,
+                            resolution_w, resolution_h, provider, file_size_bytes,
+                            approved, created_at, updated_at)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'comfyui', %s,
+                                   false, NOW(), NOW())
+                           RETURNING id""",
+                        (
+                            v["agent_id"],
+                            v["path"],
+                            v["prompt"],
+                            v["model"],
+                            v["gpu_host"],
+                            v["gpu_model"],
+                            v["time_ms"],
+                            v["res_w"],
+                            v["res_h"],
+                            v["file_size"],
                         ),
-                        201,
                     )
-                else:
-                    error = (
-                        result.metadata.get("error", "Generation failed")
-                        if result and result.metadata
-                        else "Generation failed"
-                    )
-                    return jsonify({"success": False, "error": str(error)[:300]}), 500
+                    v["portrait_id"] = cur.fetchone()["id"]
+                    if first_variant is None:
+                        first_variant = v
+
+                # Set fastest variant as active avatar
+                best = min(variants, key=lambda x: (-x["res_w"], x["time_ms"]))
+                cur.execute(
+                    "UPDATE agents SET avatar_url = %s WHERE id = %s",
+                    (best["path"], agent_id),
+                )
+                cur.execute(
+                    "UPDATE agent_portraits SET approved = true WHERE id = %s",
+                    (best["portrait_id"],),
+                )
+
+            return (
+                jsonify(
+                    {
+                        "success": True,
+                        "variants": [
+                            {
+                                "id": v["portrait_id"],
+                                "image_path": v["path"],
+                                "model": v["model_label"],
+                                "gpu_host": v["gpu_host"],
+                                "gpu_model": v["gpu_model"],
+                                "time_ms": v["time_ms"],
+                                "resolution": f"{v['res_w']}x{v['res_h']}",
+                                "file_size": v["file_size"],
+                            }
+                            for v in sorted(variants, key=lambda x: x["time_ms"])
+                        ],
+                        "active": best["path"],
+                        "message": f"{len(variants)} variant(s) generated for {agent['name']}",
+                    }
+                ),
+                201,
+            )
 
         except Exception as e:
             logger.error("generate_portrait error for agent %s: %s", agent_id, e)
+            return jsonify({"success": False, "error": "Internal server error"}), 500
+
+    @bp.route("/api/agents/<int:agent_id>/portraits", methods=["GET"])
+    @login_required
+    def get_agent_portraits(agent_id):
+        """Get all portrait variants for an agent with benchmark data."""
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT id, canonical_image_path, model_used, gpu_host,
+                              gpu_model, generation_time_ms, resolution_w,
+                              resolution_h, provider, file_size_bytes,
+                              approved, created_at
+                       FROM agent_portraits
+                       WHERE agent_id = %s
+                       ORDER BY created_at DESC""",
+                    (agent_id,),
+                )
+                rows = cur.fetchall()
+                return jsonify(
+                    {
+                        "success": True,
+                        "portraits": [
+                            {
+                                "id": r["id"],
+                                "image_path": r["canonical_image_path"],
+                                "model": r["model_used"],
+                                "gpu_host": r["gpu_host"],
+                                "gpu_model": r["gpu_model"],
+                                "time_ms": r["generation_time_ms"],
+                                "resolution": (
+                                    f"{r['resolution_w']}x{r['resolution_h']}" if r["resolution_w"] else "unknown"
+                                ),
+                                "file_size": r["file_size_bytes"],
+                                "provider": r["provider"],
+                                "approved": r["approved"],
+                                "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                            }
+                            for r in rows
+                        ],
+                    }
+                )
+        except Exception as e:
+            logger.error("get_portraits error for agent %s: %s", agent_id, e)
+            return jsonify({"success": False, "error": "Internal server error"}), 500
+
+    @bp.route("/api/agents/<int:agent_id>/portraits/<int:portrait_id>/select", methods=["POST"])
+    @login_required
+    def select_agent_portrait(agent_id, portrait_id):
+        """Select a portrait variant as the active avatar."""
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                # Get the portrait path
+                cur.execute(
+                    "SELECT canonical_image_path FROM agent_portraits WHERE id = %s AND agent_id = %s",
+                    (portrait_id, agent_id),
+                )
+                portrait = cur.fetchone()
+                if not portrait:
+                    return jsonify({"success": False, "error": "Portrait not found"}), 404
+
+                # Unmark all, mark selected
+                cur.execute(
+                    "UPDATE agent_portraits SET approved = false WHERE agent_id = %s",
+                    (agent_id,),
+                )
+                cur.execute(
+                    "UPDATE agent_portraits SET approved = true WHERE id = %s",
+                    (portrait_id,),
+                )
+
+                # Update avatar_url
+                cur.execute(
+                    "UPDATE agents SET avatar_url = %s WHERE id = %s",
+                    (portrait["canonical_image_path"], agent_id),
+                )
+
+                return jsonify(
+                    {
+                        "success": True,
+                        "image_path": portrait["canonical_image_path"],
+                        "message": "Portrait selected as active avatar",
+                    }
+                )
+        except Exception as e:
+            logger.error("select_portrait error: %s", e)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # --- Agent Memory CRUD ---

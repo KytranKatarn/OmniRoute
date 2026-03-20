@@ -828,3 +828,35 @@
     .node-setup-btn { min-width: unset; }
     .node-setup-title { font-size: 1rem; letter-spacing: 2px; }
 }
+
+/* ══ Connect a Machine Modal ══ */
+.cn-tabs { display: flex; gap: 10px; margin: 15px 0; }
+.cn-tab { background: #1a1a2e; color: #00e5ff; border: 1px solid #00e5ff; padding: 8px 24px; cursor: pointer; font-family: 'Orbitron', monospace; font-size: 12px; transition: all 0.2s; }
+.cn-tab:hover { background: rgba(0, 229, 255, 0.15); }
+.cn-tab-active { background: #00e5ff; color: #0a0a12; }
+.cn-section-title { color: #f97316; font-size: 13px; margin: 16px 0 8px; font-family: 'Orbitron', monospace; letter-spacing: 1px; }
+.cn-cmd-box { background: #0a0a12; border: 1px solid #333; padding: 12px; display: flex; align-items: center; gap: 10px; border-radius: 4px; }
+.cn-cmd-box code { color: #00e5ff; font-family: 'IBM Plex Mono', monospace; font-size: 12px; flex: 1; word-break: break-all; line-height: 1.5; }
+.cn-copy-btn { background: #00e5ff; color: #0a0a12; border: none; padding: 6px 14px; cursor: pointer; font-size: 11px; font-weight: bold; font-family: 'Orbitron', monospace; white-space: nowrap; flex-shrink: 0; }
+.cn-copy-btn:hover { background: #33ecff; }
+.cn-download-btn { display: inline-block; background: #10b981; color: #0a0a12; padding: 10px 24px; text-decoration: none; font-weight: bold; font-family: 'Orbitron', monospace; font-size: 13px; border-radius: 4px; transition: background 0.2s; }
+.cn-download-btn:hover { background: #34d399; color: #0a0a12; }
+.cn-note { color: #666680; font-size: 12px; margin: 4px 0 12px; font-family: 'IBM Plex Mono', monospace; }
+.cn-close-btn { background: #1a1a2e; color: #00e5ff; border: 1px solid #00e5ff; padding: 10px 30px; cursor: pointer; font-family: 'Orbitron', monospace; font-size: 13px; transition: all 0.2s; }
+.cn-close-btn:hover { background: rgba(0, 229, 255, 0.15); }
+.cn-pending-card { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #1a1a2e; flex-wrap: wrap; }
+.cn-pending-name { color: #e0e0e0; flex: 1; font-weight: bold; min-width: 120px; }
+.cn-pending-gpu { color: #8b5cf6; font-size: 12px; font-family: 'IBM Plex Mono', monospace; }
+.cn-pending-ram { color: #666680; font-size: 12px; min-width: 80px; font-family: 'IBM Plex Mono', monospace; }
+.cn-approve-btn { background: #10b981; color: #0a0a12; border: none; padding: 4px 12px; cursor: pointer; font-size: 11px; font-weight: bold; font-family: 'Orbitron', monospace; }
+.cn-approve-btn:hover { background: #34d399; }
+.cn-approve-btn:disabled { opacity: 0.5; cursor: default; }
+.cn-deny-btn { background: #ef4444; color: white; border: none; padding: 4px 12px; cursor: pointer; font-size: 11px; font-weight: bold; font-family: 'Orbitron', monospace; }
+.cn-deny-btn:hover { background: #f87171; }
+
+@media (max-width: 768px) {
+    .cn-tabs { flex-wrap: wrap; }
+    .cn-cmd-box { flex-direction: column; align-items: stretch; }
+    .cn-copy-btn { align-self: flex-end; }
+    .cn-pending-card { flex-direction: column; align-items: flex-start; gap: 6px; }
+}

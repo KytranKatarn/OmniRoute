@@ -379,19 +379,146 @@ function buildSummarySpan(parent, value, label) {
     parent.appendChild(span);
 }
 
-// ── Add Node Modal ──
-function openAddNodeModal() {
-    document.getElementById('add-node-modal').classList.add('active');
-    document.getElementById('modal-step-1').style.display = '';
-    document.getElementById('modal-step-2').style.display = 'none';
-    document.getElementById('new-node-name').value = '';
-    document.getElementById('new-node-name').focus();
+// ── Add Node Modal (legacy — kept for backward compat) ──
+function openAddNodeModal() { openConnectNodeModal(); }
+function closeAddNodeModal() { closeConnectModal(); }
+
+// ── Connect a Machine Modal (LCARS) ──
+function openConnectNodeModal() {
+    var container = document.querySelector('.sc-container');
+    var hubUrl = (container && container.getAttribute('data-hub-url')) || window.location.origin;
+
+    // Set commands via textContent (XSS safe)
+    var winCmd = document.getElementById('cn-win-cmd');
+    if (winCmd) winCmd.textContent = 'powershell -ExecutionPolicy Bypass -Command "iwr -useb \'' + hubUrl + '/tools/starship/api/nodes/new-setup-script?os=windows\' -OutFile archie-setup.ps1; .\\archie-setup.ps1"';
+
+    var linuxCmd = document.getElementById('cn-linux-cmd');
+    if (linuxCmd) linuxCmd.textContent = 'curl -fsSL "' + hubUrl + '/tools/starship/api/nodes/new-setup-script?os=linux" -o archie-setup.sh && sudo bash archie-setup.sh';
+
+    document.getElementById('connectNodeModal').style.display = 'flex';
+    loadPendingNodes();
 }
 
-function closeAddNodeModal() {
-    document.getElementById('add-node-modal').classList.remove('active');
+function closeConnectModal() {
+    document.getElementById('connectNodeModal').style.display = 'none';
     pendingConfig = null;
     if (nodeConnectionPoller) { clearInterval(nodeConnectionPoller); nodeConnectionPoller = null; }
+}
+
+function showConnectTab(platform, btn) {
+    // Hide all panels
+    document.querySelectorAll('.cn-panel').forEach(function(p) { p.style.display = 'none'; });
+    // Deactivate all tabs
+    document.querySelectorAll('.cn-tab').forEach(function(t) { t.classList.remove('cn-tab-active'); });
+    // Show selected
+    document.getElementById('cn-' + platform).style.display = 'block';
+    btn.classList.add('cn-tab-active');
+}
+
+function copyConnectCmd(elementId) {
+    var el = document.getElementById(elementId);
+    if (!el) return;
+    var text = el.textContent;
+    // Fallback copy for HTTP (navigator.clipboard requires HTTPS)
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    var btn = el.parentElement.querySelector('.cn-copy-btn');
+    if (btn) {
+        btn.textContent = 'COPIED';
+        setTimeout(function() { btn.textContent = 'COPY'; }, 2000);
+    }
+    scToast('Copied to clipboard', 'success');
+}
+
+function loadPendingNodes() {
+    var container = document.getElementById('cn-pending-nodes');
+    if (!container) return;
+    // Clear existing
+    while (container.firstChild) container.removeChild(container.firstChild);
+
+    fetch('/tools/starship/api/nodes')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var nodes = (data.nodes || []).filter(function(n) { return n.approval_status === 'pending'; });
+            if (nodes.length === 0) {
+                var p = document.createElement('p');
+                p.className = 'cn-note';
+                p.textContent = 'No pending nodes';
+                container.appendChild(p);
+                return;
+            }
+            nodes.forEach(function(n) {
+                var card = document.createElement('div');
+                card.className = 'cn-pending-card';
+
+                var nameEl = document.createElement('span');
+                nameEl.className = 'cn-pending-name';
+                nameEl.textContent = n.node_name || 'Unknown';
+                card.appendChild(nameEl);
+
+                var gpuEl = document.createElement('span');
+                gpuEl.className = 'cn-pending-gpu';
+                gpuEl.textContent = n.gpu_model || 'No GPU';
+                card.appendChild(gpuEl);
+
+                var ramEl = document.createElement('span');
+                ramEl.className = 'cn-pending-ram';
+                ramEl.textContent = (n.ram_gb || '?') + ' GB RAM';
+                card.appendChild(ramEl);
+
+                var approveBtn = document.createElement('button');
+                approveBtn.className = 'cn-approve-btn';
+                approveBtn.textContent = 'APPROVE';
+                approveBtn.onclick = function() { approveNodeFromModal(n.node_id, card); };
+                card.appendChild(approveBtn);
+
+                var denyBtn = document.createElement('button');
+                denyBtn.className = 'cn-deny-btn';
+                denyBtn.textContent = 'DENY';
+                denyBtn.onclick = function() { denyNodeFromModal(n.node_id, card); };
+                card.appendChild(denyBtn);
+
+                container.appendChild(card);
+            });
+        })
+        .catch(function() {
+            var p = document.createElement('p');
+            p.className = 'cn-note';
+            p.textContent = 'Failed to load pending nodes';
+            p.style.color = '#ef4444';
+            container.appendChild(p);
+        });
+}
+
+function approveNodeFromModal(nodeId, cardEl) {
+    fetch('/tools/starbase/api/nodes/' + nodeId + '/approve', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success || data.status === 'approved') {
+                cardEl.style.opacity = '0.5';
+                var btn = cardEl.querySelector('.cn-approve-btn');
+                if (btn) { btn.textContent = 'APPROVED'; btn.disabled = true; }
+                scToast('Node approved', 'success');
+            }
+        })
+        .catch(function() { scToast('Failed to approve node', 'error'); });
+}
+
+function denyNodeFromModal(nodeId, cardEl) {
+    if (!confirm('Deny this node? It will be removed.')) return;
+    fetch('/tools/starbase/api/nodes/' + nodeId + '/deny', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function() {
+            cardEl.remove();
+            scToast('Node denied', 'success');
+        })
+        .catch(function() { scToast('Failed to deny node', 'error'); });
 }
 
 // Resync modal (manual commands for offline resync)

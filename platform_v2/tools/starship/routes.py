@@ -7,7 +7,7 @@ Starbase (hub) overview + fleet node management.
 
 import logging
 
-from flask import Blueprint, render_template, jsonify
+from flask import Blueprint, render_template, jsonify, request
 from flask_login import login_required, current_user
 from database import get_db_cursor
 
@@ -60,12 +60,15 @@ def starship_dashboard():
     except Exception as e:
         logger.warning(f"Failed to load fleet nodes: {e}")
 
+    hub_url = request.host_url.rstrip("/")
+
     return render_template(
         "tools/starship/starship.html",
         nodes=nodes,
         fleet_nodes=fleet_nodes,
         is_admin=is_admin,
         is_owner=len(nodes) > 0,
+        hub_url=hub_url,
     )
 
 

@@ -34,14 +34,16 @@ bp = Blueprint(
 def directory_public():
     """Public business directory — Human + AI employees."""
     authenticated = "user_id" in session
-    return render_template("business/directory.html", authenticated=authenticated)
+    if authenticated:
+        return render_template("directory.html", authenticated=True)
+    return render_template("directory_public.html", authenticated=False)
 
 
 @bp.route("/tools/directory")
 @login_required
 def directory_authenticated():
     """Authenticated business directory view."""
-    return render_template("business/directory.html", authenticated=True)
+    return render_template("directory.html", authenticated=True)
 
 
 # ============================================================================

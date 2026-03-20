@@ -1,0 +1,86 @@
+{# Shared directory page content — included by both public and authenticated templates #}
+<div class="dir-wrapper" data-authenticated="{{ 'true' if authenticated else 'false' }}">
+
+    <!-- ============================================================ -->
+    <!-- HERO SECTION                                                  -->
+    <!-- ============================================================ -->
+    <section class="dir-hero">
+        <div class="dir-hero-inner">
+            <p class="dir-hero-subtitle">KYTRAN EMPOWERMENT</p>
+            <h1 class="dir-hero-title">Meet Our Team</h1>
+            <p class="dir-hero-tagline">The AI-powered professionals building the future of business intelligence, creative solutions, and enterprise technology.</p>
+            <div class="dir-hero-stats">
+                <div class="dir-stat">
+                    <span class="dir-stat-value" id="statTotalMembers">--</span>
+                    <span class="dir-stat-label">Total Members</span>
+                </div>
+                {% if authenticated %}
+                <div class="dir-stat">
+                    <span class="dir-stat-value" id="statOnlineNow">--</span>
+                    <span class="dir-stat-label">Online Now</span>
+                </div>
+                {% endif %}
+                <div class="dir-stat">
+                    <span class="dir-stat-value" id="statDepartments">--</span>
+                    <span class="dir-stat-label">Departments</span>
+                </div>
+                <div class="dir-stat">
+                    <span class="dir-stat-value">24/7</span>
+                    <span class="dir-stat-label">Availability</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- ORG CHART                                                     -->
+    <!-- ============================================================ -->
+    <section class="dir-org-section">
+        <h2 class="dir-section-label">Leadership</h2>
+        <div class="dir-org-chart" id="orgChart">
+            <div class="dir-org-loading">Loading org chart...</div>
+        </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- SEARCH & FILTERS                                              -->
+    <!-- ============================================================ -->
+    <section class="dir-filters">
+        <div class="dir-filters-inner">
+            <input type="text" class="dir-search-input" id="dirSearch"
+                   placeholder="Search by name, role, expertise..." autocomplete="off">
+            <select class="dir-filter-select" id="dirDeptFilter">
+                <option value="all">All Departments</option>
+            </select>
+            {% if authenticated %}
+            <select class="dir-filter-select" id="dirStatusFilter">
+                <option value="all">All Status</option>
+                <option value="online">Online</option>
+                <option value="offline">Off Duty</option>
+            </select>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- DEPARTMENT CARD GRID                                          -->
+    <!-- ============================================================ -->
+    <section class="dir-departments" id="dirDepartments">
+        <div class="dir-loading">Loading team directory...</div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- PROFILE SLIDE-OUT PANEL                                       -->
+    <!-- ============================================================ -->
+    <aside class="dir-profile-panel" id="profilePanel">
+        <div class="dir-profile-header">
+            <h3 class="dir-profile-name" id="profileName">--</h3>
+            <button class="dir-profile-close" onclick="closeProfile()" aria-label="Close profile">&times;</button>
+        </div>
+        <div class="dir-profile-body" id="profileBody">
+            <!-- Populated by JS on card click -->
+        </div>
+    </aside>
+    <div class="dir-profile-overlay" id="profileOverlay" onclick="closeProfile()"></div>
+
+</div>

@@ -291,6 +291,7 @@
             <div class="bm-body" style="padding:0;">
         <div class="sc-tabs">
             <button class="sc-tab active" onclick="switchTab('status')" data-tab="status">STATUS</button>
+            <button class="sc-tab" onclick="switchTab('diag')" data-tab="diag">DIAG</button>
             <button class="sc-tab" onclick="switchTab('ota')" data-tab="ota">OTA</button>
             <button class="sc-tab" onclick="switchTab('stations')" data-tab="stations">STATIONS</button>
             <button class="sc-tab" onclick="switchTab('crew')" data-tab="crew">CREW</button>
@@ -432,6 +433,72 @@
                     </tr></thead>
                     <tbody id="modal-sync-log-body"></tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- DIAGNOSTICS TAB — remote node health snapshot -->
+        <div class="sc-panel" id="panel-diag">
+            <div class="sc-section" style="display:flex;justify-content:space-between;align-items:center;">
+                <h4 style="margin:0;">NODE DIAGNOSTICS</h4>
+                <button class="sc-btn-small" onclick="loadDiagnostics()" id="diag-refresh-btn">REFRESH</button>
+            </div>
+            <div id="diag-loading" style="display:none;text-align:center;padding:20px;">
+                <span class="sc-label" style="color:var(--sc-accent);">Querying node...</span>
+            </div>
+            <div id="diag-error" style="display:none;" class="sc-section">
+                <p id="diag-error-msg" style="color:var(--sc-red);font-family:'IBM Plex Mono',monospace;font-size:0.8rem;"></p>
+            </div>
+            <div id="diag-content" style="display:none;">
+                <!-- Disk -->
+                <div class="sc-section">
+                    <h4>STORAGE</h4>
+                    <div class="sc-ops-metric">
+                        <span class="sc-ops-metric-val" id="diag-disk-val">—</span>
+                        <span class="sc-ops-metric-label">DISK USAGE</span>
+                        <div class="sc-ops-bar-fill"><div id="diag-disk-bar" style="width:0%;background:var(--sc-green)"></div></div>
+                    </div>
+                    <div class="sc-row" style="margin-top:6px;"><span class="sc-label">Free</span><span class="sc-value" id="diag-disk-free">—</span></div>
+                </div>
+                <!-- GPU -->
+                <div class="sc-section">
+                    <h4>GPU</h4>
+                    <div class="sc-row"><span class="sc-label">Model</span><span class="sc-value" id="diag-gpu-model">—</span></div>
+                    <div class="sc-ops-metric">
+                        <span class="sc-ops-metric-val" id="diag-vram-val">—</span>
+                        <span class="sc-ops-metric-label">VRAM</span>
+                        <div class="sc-ops-bar-fill"><div id="diag-vram-bar" style="width:0%;background:var(--sc-green)"></div></div>
+                    </div>
+                    <div class="sc-row" style="margin-top:6px;"><span class="sc-label">Temperature</span><span class="sc-value" id="diag-gpu-temp">—</span></div>
+                </div>
+                <!-- Ollama -->
+                <div class="sc-section">
+                    <h4>OLLAMA</h4>
+                    <div class="sc-row"><span class="sc-label">Status</span><span class="sc-value" id="diag-ollama-status">—</span></div>
+                    <div class="sc-row"><span class="sc-label">Models Available</span><span class="sc-value" id="diag-ollama-count">—</span></div>
+                    <div class="sc-row"><span class="sc-label">Loaded in RAM</span><span class="sc-value" id="diag-ollama-loaded">—</span></div>
+                    <div id="diag-ollama-models" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
+                </div>
+                <!-- ComfyUI -->
+                <div class="sc-section">
+                    <h4>COMFYUI</h4>
+                    <div class="sc-row"><span class="sc-label">Status</span><span class="sc-value" id="diag-comfy-status">—</span></div>
+                    <div class="sc-row"><span class="sc-label">VRAM Free</span><span class="sc-value" id="diag-comfy-vram">—</span></div>
+                </div>
+                <!-- Database -->
+                <div class="sc-section">
+                    <h4>DATABASE</h4>
+                    <div class="sc-row"><span class="sc-label">Status</span><span class="sc-value" id="diag-db-status">—</span></div>
+                    <div class="sc-row"><span class="sc-label">Local Agents</span><span class="sc-value" id="diag-db-agents">—</span></div>
+                    <div class="sc-row"><span class="sc-label">Pending Jobs</span><span class="sc-value" id="diag-db-jobs">—</span></div>
+                </div>
+                <!-- Versions -->
+                <div class="sc-section">
+                    <h4>SYSTEM</h4>
+                    <div class="sc-row"><span class="sc-label">Client Version</span><span class="sc-value" id="diag-version">—</span></div>
+                    <div class="sc-row"><span class="sc-label">Python</span><span class="sc-value" id="diag-python">—</span></div>
+                    <div class="sc-row"><span class="sc-label">Platform</span><span class="sc-value" id="diag-platform">—</span></div>
+                    <div class="sc-row"><span class="sc-label">Uptime</span><span class="sc-value" id="diag-uptime">—</span></div>
+                </div>
             </div>
         </div>
 

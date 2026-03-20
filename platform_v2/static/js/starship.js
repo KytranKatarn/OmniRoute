@@ -1055,6 +1055,9 @@ function switchTab(tab) {
     if (tabBtn) tabBtn.classList.add('active');
     var panel = document.getElementById('panel-' + tab);
     if (panel) panel.classList.add('active');
+    if (tab === 'diag' && selectedNodeDbId) {
+        loadDiagnostics();
+    }
     if (tab === 'ota' && selectedNodeDbId) {
         loadModalModelCatalog();
         modalLoadSyncStatus();
@@ -1604,6 +1607,118 @@ function renderSyncLog(logs) {
         row.appendChild(timeTd);
         tbody.appendChild(row);
     });
+}
+
+// ══════════════════════════════════════════════════════════════
+// DIAGNOSTICS TAB — remote node health snapshot (v3.0)
+// ══════════════════════════════════════════════════════════════
+
+function _diagStatus(online) {
+    var span = document.createElement('span');
+    span.style.color = online ? 'var(--sc-green)' : 'var(--sc-red)';
+    span.textContent = online ? 'ONLINE' : 'OFFLINE';
+    return span;
+}
+
+function loadDiagnostics() {
+    if (!selectedNodeDbId) return;
+    var loading = document.getElementById('diag-loading');
+    var error = document.getElementById('diag-error');
+    var content = document.getElementById('diag-content');
+    var btn = document.getElementById('diag-refresh-btn');
+
+    loading.style.display = '';
+    error.style.display = 'none';
+    content.style.display = 'none';
+    if (btn) btn.disabled = true;
+
+    fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/diagnostics')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            loading.style.display = 'none';
+            if (btn) btn.disabled = false;
+
+            if (!data.success) {
+                error.style.display = '';
+                document.getElementById('diag-error-msg').textContent = data.error || 'Failed to reach node';
+                return;
+            }
+
+            content.style.display = '';
+            var d = data.diagnostics;
+
+            // Disk
+            if (d.disk && !d.disk.error) {
+                var diskPct = d.disk.percent_used || 0;
+                renderOpsGauge('diag-disk-val', 'diag-disk-bar', diskPct);
+                document.getElementById('diag-disk-free').textContent = d.disk.free_gb + ' GB free of ' + d.disk.total_gb + ' GB';
+            }
+
+            // GPU
+            if (d.gpu && d.gpu.model) {
+                document.getElementById('diag-gpu-model').textContent = d.gpu.model;
+                var vramPct = d.gpu.vram_total_mb > 0 ? Math.round((d.gpu.vram_used_mb / d.gpu.vram_total_mb) * 100) : 0;
+                renderOpsGauge('diag-vram-val', 'diag-vram-bar', vramPct);
+                document.getElementById('diag-gpu-temp').textContent = d.gpu.temperature_c + '\u00B0C';
+            } else {
+                document.getElementById('diag-gpu-model').textContent = 'No GPU detected';
+                document.getElementById('diag-gpu-temp').textContent = '\u2014';
+            }
+
+            // Ollama
+            if (d.ollama) {
+                var ollamaEl = document.getElementById('diag-ollama-status');
+                ollamaEl.textContent = '';
+                ollamaEl.appendChild(_diagStatus(d.ollama.online));
+                document.getElementById('diag-ollama-count').textContent = d.ollama.model_count || 0;
+                var loadedNames = (d.ollama.loaded || []).map(function(m) { return m.name; }).join(', ');
+                document.getElementById('diag-ollama-loaded').textContent = loadedNames || 'None';
+
+                var modelsDiv = document.getElementById('diag-ollama-models');
+                modelsDiv.textContent = '';
+                (d.ollama.models || []).forEach(function(m) {
+                    var tag = document.createElement('span');
+                    tag.style.cssText = 'padding:3px 8px;border-radius:4px;font-size:0.7rem;font-family:IBM Plex Mono,monospace;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.2);color:var(--sc-accent);';
+                    tag.textContent = m.name + ' (' + m.size_gb + 'GB)';
+                    modelsDiv.appendChild(tag);
+                });
+            }
+
+            // ComfyUI
+            if (d.comfyui) {
+                var comfyEl = document.getElementById('diag-comfy-status');
+                comfyEl.textContent = '';
+                comfyEl.appendChild(_diagStatus(d.comfyui.online));
+                if (d.comfyui.online) {
+                    document.getElementById('diag-comfy-vram').textContent =
+                        Math.round(d.comfyui.vram_free_mb) + ' MB / ' + Math.round(d.comfyui.vram_total_mb) + ' MB';
+                }
+            }
+
+            // Database
+            if (d.database) {
+                var dbEl = document.getElementById('diag-db-status');
+                dbEl.textContent = '';
+                dbEl.appendChild(_diagStatus(d.database.connected));
+                document.getElementById('diag-db-agents').textContent = d.database.agents || 0;
+                document.getElementById('diag-db-jobs').textContent = d.database.pending_jobs || 0;
+            }
+
+            // System
+            document.getElementById('diag-version').textContent = d.client_version || '\u2014';
+            document.getElementById('diag-python').textContent = d.python_version || '\u2014';
+            document.getElementById('diag-platform').textContent = d.platform || '\u2014';
+            var upSec = d.uptime_seconds || 0;
+            var hours = Math.floor(upSec / 3600);
+            var mins = Math.floor((upSec % 3600) / 60);
+            document.getElementById('diag-uptime').textContent = hours + 'h ' + mins + 'm';
+        })
+        .catch(function(e) {
+            loading.style.display = 'none';
+            error.style.display = '';
+            if (btn) btn.disabled = false;
+            document.getElementById('diag-error-msg').textContent = 'Network error: ' + e.message;
+        });
 }
 
 // ── Save Node Settings (inline on STATUS tab) ──

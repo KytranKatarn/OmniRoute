@@ -33,6 +33,7 @@ const DEPT_STATION_MAP = {
 
 let directoryData = null;
 let isAuthenticated = false;
+window.agentStatus = {};
 
 document.addEventListener('DOMContentLoaded', init);
 
@@ -41,6 +42,10 @@ async function init() {
     isAuthenticated = wrapper && wrapper.dataset.authenticated === 'true';
     await Promise.all([loadDirectory(), loadOrgChart()]);
     setupFilters();
+    if (isAuthenticated) {
+        loadAgentStatus();
+        setInterval(loadAgentStatus, 30000);
+    }
 }
 
 /* ---------- DIRECTORY DATA ---------- */
@@ -67,11 +72,70 @@ async function loadDirectory() {
     }
 }
 
+/* ---------- LIVE STATUS ---------- */
+
+async function loadAgentStatus() {
+    try {
+        const resp = await fetch('/api/directory/status');
+        if (!resp.ok) return; // Not logged in or error — skip silently
+        const data = await resp.json();
+        window.agentStatus = data.status || {};
+        updateStatusIndicators();
+        updateHeroOnlineCount();
+    } catch (e) {
+        // Status is a progressive enhancement — don't break the page
+    }
+}
+
+function updateStatusIndicators() {
+    document.querySelectorAll('.dir-card').forEach(card => {
+        const agentId = card.dataset.agentId;
+        const status = window.agentStatus[agentId];
+        const dot = card.querySelector('.dir-status-dot');
+        const statusText = card.querySelector('.dir-status-text');
+        const chatBtn = card.querySelector('.dir-chat-btn');
+
+        if (status && status.is_online) {
+            dot?.classList.add('online');
+            dot?.classList.remove('offline');
+            if (statusText) statusText.textContent = 'Online';
+            if (chatBtn) {
+                chatBtn.classList.remove('unavailable');
+                chatBtn.textContent = 'Message';
+            }
+            card.classList.remove('offline');
+        } else {
+            dot?.classList.add('offline');
+            dot?.classList.remove('online');
+            if (statusText) statusText.textContent = 'Off Duty';
+            if (chatBtn) {
+                chatBtn.classList.add('unavailable');
+                chatBtn.textContent = 'Unavailable';
+            }
+            card.classList.add('offline');
+        }
+    });
+
+    // Also update org chart dots
+    document.querySelectorAll('.dir-org-node').forEach(node => {
+        const dot = node.querySelector('.dir-org-node-dot');
+        if (!dot) return;
+        // Org nodes don't have data-agent-id; match by name is impractical.
+        // We update them via profile panel when opened instead.
+    });
+}
+
+function updateHeroOnlineCount() {
+    const onlineCount = Object.values(window.agentStatus).filter(s => s.is_online).length;
+    const el = document.getElementById('statOnlineNow');
+    if (el) el.textContent = onlineCount;
+}
+
 function renderHeroStats(stats) {
     const el = (id) => document.getElementById(id);
     if (el('statTotalMembers')) el('statTotalMembers').textContent = stats.total_members || 0;
     if (el('statDepartments')) el('statDepartments').textContent = stats.total_departments || 0;
-    // Online count will be populated by Task 5 live status polling
+    // Online count populated by live status polling (loadAgentStatus)
     if (el('statOnlineNow')) el('statOnlineNow').textContent = '--';
 }
 
@@ -226,6 +290,7 @@ function buildCard(member, station, color) {
         dot.className = 'dir-status-dot offline';
         status.appendChild(dot);
         const statusText = document.createElement('span');
+        statusText.className = 'dir-status-text';
         statusText.textContent = 'Off Duty';
         status.appendChild(statusText);
         footer.appendChild(status);
@@ -650,8 +715,44 @@ function _populateProfile(emp) {
         }
     }
 
-    // --- Message Button (internal only, hidden until Task 6) ---
-    // Left hidden for now; Task 6 will wire up chat functionality.
+    // --- Live Status overlay on profile (authenticated only) ---
+    if (isAuthenticated) {
+        var agentIdStr = String(emp.id || 0);
+        var liveStatus = window.agentStatus[agentIdStr];
+        var isOnline = liveStatus && liveStatus.is_online;
+
+        // Portrait dot
+        var portraitDot = document.getElementById('profilePortraitDot');
+        if (portraitDot) {
+            if (isOnline) {
+                portraitDot.classList.add('online');
+                portraitDot.classList.remove('offline');
+            } else {
+                portraitDot.classList.add('offline');
+                portraitDot.classList.remove('online');
+            }
+        }
+
+        // Status badge
+        var badge = document.getElementById('profileStatusBadge');
+        if (badge) {
+            if (isOnline) {
+                badge.classList.add('online');
+                badge.classList.remove('offline');
+                badge.lastChild.textContent = ' Online';
+            } else {
+                badge.classList.add('offline');
+                badge.classList.remove('online');
+                badge.lastChild.textContent = ' Off Duty';
+            }
+        }
+
+        // Message button — show if online, hide if not (Task 6 wires the click)
+        var msgWrap = document.getElementById('profileMsgWrap');
+        if (msgWrap) {
+            msgWrap.style.display = isOnline ? '' : 'none';
+        }
+    }
 }
 
 function _contactRow(type, text, href) {

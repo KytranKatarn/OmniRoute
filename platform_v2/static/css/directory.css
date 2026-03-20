@@ -832,8 +832,8 @@
     }
 }
 
-/* Ultra-small */
-@media (max-width: 400px) {
+/* Ultra-small: 360px phone */
+@media (max-width: 360px) {
     .dir-hero-title {
         font-size: 1.5rem;
     }

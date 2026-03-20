@@ -39,6 +39,30 @@ def register_node_routes(bp, auth_decorator):
     # NODE STATUS / SETTINGS / CATALOG
     # ========================================================================
 
+    @bp.route("/api/nodes/<int:node_id>/diagnostics")
+    @auth_decorator
+    def api_node_diagnostics(node_id):
+        """Proxy diagnostics request to a node's local API."""
+        import requests as _req
+
+        node = _get_node_for_user_by_int_id(node_id, current_user.id)
+        if not node:
+            return jsonify({"success": False, "error": "Node not found"}), 404
+
+        hostname = node["hostname"]
+        api_port = 3001  # node_api default port
+        try:
+            resp = _req.get(f"http://{hostname}:{api_port}/diagnostics", timeout=8)
+            if resp.ok:
+                return jsonify({"success": True, "diagnostics": resp.json()})
+            return jsonify({"success": False, "error": f"Node returned HTTP {resp.status_code}"}), 502
+        except _req.exceptions.Timeout:
+            return jsonify({"success": False, "error": "Node API timed out"}), 504
+        except _req.exceptions.ConnectionError:
+            return jsonify({"success": False, "error": "Node API unreachable"}), 502
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
     @bp.route("/api/nodes/<node_id>/status")
     @auth_decorator
     def api_node_status(node_id):

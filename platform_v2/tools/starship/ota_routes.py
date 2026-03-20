@@ -328,6 +328,63 @@ def register_ota_routes(bp, auth_decorator):
             logger.exception("Failed to get sync log for node %s", node_id)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
+    @bp.route("/api/nodes/<int:node_id>/upgrade-v3", methods=["POST"])
+    @auth_decorator
+    def upgrade_node_v3(node_id):
+        """Push full v3.0 stack upgrade to an existing node via OTA."""
+        node = _get_node_for_user_by_int_id(node_id, current_user.id)
+        if not node:
+            return jsonify({"success": False, "error": "Node not found"}), 404
+        node_id_str = node["node_id"]
+
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                # 1) Push code_update with full v3.0 file set
+                code_payload = {
+                    "files": [
+                        "docker-compose.yml",
+                        "node_sync.py",
+                        "node_api.py",
+                        "Dockerfile.node",
+                        "migrations/001_node_schema.sql",
+                        "migrations/002_knowledge_projects.sql",
+                    ],
+                    "version": "3.0.0",
+                }
+                cur.execute(
+                    """
+                    INSERT INTO mesh_sync_log
+                        (node_id, sync_type, payload, status, sent_at)
+                    VALUES (%s, 'code_update', %s, 'sent', NOW())
+                    RETURNING id
+                    """,
+                    (node_id_str, json.dumps(code_payload)),
+                )
+                code_sync_id = cur.fetchone()["id"]
+
+                # 2) Queue container rebuild
+                cur.execute(
+                    """
+                    INSERT INTO mesh_sync_log
+                        (node_id, sync_type, payload, status, sent_at)
+                    VALUES (%s, 'container_restart', %s, 'sent', NOW())
+                    RETURNING id
+                    """,
+                    (node_id_str, json.dumps({"action": "rebuild"})),
+                )
+                restart_sync_id = cur.fetchone()["id"]
+
+            return jsonify(
+                {
+                    "success": True,
+                    "message": "V3.0 upgrade queued for {}".format(node_id_str),
+                    "syncs_queued": 2,
+                }
+            )
+        except Exception as e:
+            logger.exception("Failed to queue v3.0 upgrade for node %s", node_id)
+            return jsonify({"success": False, "error": "Internal server error"}), 500
+
     @bp.route("/api/nodes/<int:node_id>/sync-status")
     @auth_decorator
     def api_node_sync_status(node_id):

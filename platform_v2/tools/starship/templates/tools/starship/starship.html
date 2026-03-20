@@ -283,6 +283,7 @@
                     <button class="sc-btn" onclick="opsOtaPush('update')">PUSH UPDATE</button>
                     <button class="sc-btn" onclick="opsOtaPush('config')">PUSH AGENT CONFIG</button>
                     <button class="sc-btn" id="ops-resync-btn" onclick="opsResyncNode()">RESYNC</button>
+                    <button class="sc-btn" id="ops-upgrade-v3-btn" onclick="opsUpgradeNodeV3()" style="background:var(--sc-amber);color:#000;">UPGRADE v3.0</button>
                 </div>
                 <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                     <select class="sc-input" id="ops-pull-model-select" style="width:250px;">
@@ -384,6 +385,7 @@
                 <div class="sc-row"><span class="sc-label">Last Heartbeat</span><span class="sc-value" id="d-heartbeat">—</span></div>
                 <div class="sc-row"><span class="sc-label">Version</span><span class="sc-value" id="d-version">—</span></div>
                 <div class="sc-row"><span class="sc-label">Resync</span><span class="sc-value" style="display:flex;gap:6px;align-items:center;"><button class="sc-btn-small" id="d-resync-btn" onclick="resyncNode()">RESYNC NODE</button><button class="sc-btn-small" onclick="showResyncModal()" title="Manual resync commands for offline nodes" style="opacity:0.6;font-size:0.6rem;">MANUAL</button></span></div>
+                <div class="sc-row"><span class="sc-label">Upgrade</span><span class="sc-value"><button class="sc-btn-small" id="d-upgrade-v3-btn" onclick="upgradeNodeV3()" style="background:var(--sc-amber);color:#000;">UPGRADE TO v3.0</button></span></div>
             </div>
             <!-- Offline Update Section (shown dynamically when node is offline) -->
             <div class="sc-section" id="d-offline-update" style="display:none;">

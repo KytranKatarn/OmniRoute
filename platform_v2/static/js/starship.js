@@ -596,6 +596,61 @@ async function opsResyncNode() {
     }
     if (btn) { btn.disabled = false; btn.textContent = 'RESYNC'; }
 }
+
+// V3.0 upgrade from fleet detail panel
+async function upgradeNodeV3() {
+    if (!selectedNodeDbId) { scToast('No node selected', 'error'); return; }
+    if (!confirm('Push v3.0 upgrade to this node? Containers will restart.')) return;
+    var btn = document.getElementById('d-upgrade-v3-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'UPGRADING...'; }
+    try {
+        var resp = await fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/upgrade-v3', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        var data = await resp.json();
+        if (data.success) {
+            scToast('Upgrade queued: ' + data.syncs_queued + ' sync commands sent', 'success');
+            if (selectedNodeDbId) {
+                pollSyncStatus();
+                loadSyncLog(selectedNodeDbId);
+                opsLoadSyncStatus();
+                opsLoadSyncLog();
+            }
+        } else {
+            scToast(data.error || 'Upgrade failed', 'error');
+        }
+    } catch (e) {
+        scToast('Request failed: ' + e, 'error');
+    }
+    if (btn) { btn.disabled = false; btn.textContent = 'UPGRADE TO v3.0'; }
+}
+
+// V3.0 upgrade from Operations tab
+async function opsUpgradeNodeV3() {
+    if (!_opsSelectedNodeDbId) { scToast('Select a node first', 'error'); return; }
+    if (!confirm('Push v3.0 upgrade to this node? Containers will restart.')) return;
+    var btn = document.getElementById('ops-upgrade-v3-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'UPGRADING...'; }
+    try {
+        var resp = await fetch('/tools/starship/api/nodes/' + _opsSelectedNodeDbId + '/upgrade-v3', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        var data = await resp.json();
+        if (data.success) {
+            scToast('Upgrade queued: ' + data.syncs_queued + ' sync commands sent', 'success');
+            opsLoadSyncStatus();
+            opsLoadSyncLog();
+        } else {
+            scToast(data.error || 'Upgrade failed', 'error');
+        }
+    } catch (e) {
+        scToast('Request failed: ' + e, 'error');
+    }
+    if (btn) { btn.disabled = false; btn.textContent = 'UPGRADE v3.0'; }
+}
+
 function copyResyncCmd(os) {
     var el = document.getElementById('resync-cmd-' + (os === 'win' ? 'win' : 'linux'));
     var text = el.textContent.replace('COPY', '').trim();

@@ -854,9 +854,52 @@
 .cn-deny-btn { background: #ef4444; color: white; border: none; padding: 4px 12px; cursor: pointer; font-size: 11px; font-weight: bold; font-family: 'Orbitron', monospace; }
 .cn-deny-btn:hover { background: #f87171; }
 
+/* ── Mode Selector (visual 3-option picker) ── */
+.sc-mode-selector {
+    display: flex; gap: 8px;
+}
+.sc-mode-option {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 8px 12px; border-radius: 6px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.4); cursor: pointer; transition: all 0.2s;
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; letter-spacing: 1px;
+    min-width: 72px;
+}
+.sc-mode-option:hover {
+    background: rgba(0,229,255,0.06); border-color: rgba(0,229,255,0.3);
+    color: rgba(255,255,255,0.7);
+}
+.sc-mode-option.active {
+    background: rgba(0,229,255,0.1); border-color: var(--sc-accent, #00e5ff);
+    color: var(--sc-accent, #00e5ff); box-shadow: 0 0 12px rgba(0,229,255,0.15);
+}
+.sc-mode-option svg { opacity: 0.5; transition: opacity 0.2s; }
+.sc-mode-option.active svg { opacity: 1; }
+
+/* ── Priority Slider ── */
+.sc-slider {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 4px;
+    background: rgba(255,255,255,0.1); border-radius: 2px; outline: none;
+}
+.sc-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 16px; height: 16px;
+    border-radius: 50%; background: var(--sc-accent, #00e5ff); cursor: grab;
+    box-shadow: 0 0 8px rgba(0,229,255,0.4);
+}
+.sc-slider::-moz-range-thumb {
+    width: 16px; height: 16px; border-radius: 50%; border: none;
+    background: var(--sc-accent, #00e5ff); cursor: grab;
+    box-shadow: 0 0 8px rgba(0,229,255,0.4);
+}
+.sc-slider::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; }
+.sc-slider::-moz-range-track { height: 4px; border-radius: 2px; background: rgba(255,255,255,0.1); }
+
 @media (max-width: 768px) {
     .cn-tabs { flex-wrap: wrap; }
     .cn-cmd-box { flex-direction: column; align-items: stretch; }
     .cn-copy-btn { align-self: flex-end; }
     .cn-pending-card { flex-direction: column; align-items: flex-start; gap: 6px; }
+    .sc-mode-selector { flex-wrap: wrap; }
+    .sc-mode-option { min-width: 60px; padding: 6px 8px; }
 }

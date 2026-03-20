@@ -35,19 +35,10 @@ function lcarsConfirm(message, opts) {
         overlay.style.zIndex = '10000';
 
         var shell = document.createElement('div');
-        shell.className = 'bm-shell';
-        shell.style.maxWidth = '450px';
-        shell.style.width = '90%';
-        shell.style.margin = '0 auto';
-
-        var frame = document.createElement('div');
-        frame.className = 'bm-frame';
-        frame.style.padding = '0';
+        shell.style.cssText = 'max-width:450px;width:90%;margin:15vh auto 0;background:#0d0d1a;border:1px solid ' + confirmColor + '44;border-radius:8px;box-shadow:0 0 30px rgba(0,0,0,0.6),0 0 15px ' + confirmColor + '22;';
 
         var content = document.createElement('div');
-        content.className = 'bm-content';
-        content.style.padding = '28px';
-        content.style.textAlign = 'center';
+        content.style.cssText = 'padding:28px;text-align:center;';
 
         var titleEl = document.createElement('h3');
         titleEl.style.cssText = 'color:' + confirmColor + ';font-family:Orbitron,monospace;font-size:16px;margin:0 0 16px;text-align:center;';
@@ -83,8 +74,7 @@ function lcarsConfirm(message, opts) {
         btnRow.appendChild(okBtn);
 
         content.appendChild(btnRow);
-        frame.appendChild(content);
-        shell.appendChild(frame);
+        shell.appendChild(content);
         overlay.appendChild(shell);
         document.body.appendChild(overlay);
 
@@ -1196,9 +1186,14 @@ function renderDetail(data) {
     var nameEl = document.getElementById('settings-name');
     if (nameEl) nameEl.value = n.node_name || '';
     var modeEl = document.getElementById('settings-mode');
-    if (modeEl) modeEl.value = n.deployment_mode || 'starship';
+    var currentMode = n.deployment_mode || 'starship';
+    if (modeEl) modeEl.value = currentMode;
+    selectMode(currentMode);
     var prioEl = document.getElementById('settings-priority');
-    if (prioEl) prioEl.value = n.bridge_priority || 0;
+    var prioVal = n.bridge_priority || 0;
+    if (prioEl) { prioEl.value = prioVal; }
+    var prioLabel = document.getElementById('priority-val');
+    if (prioLabel) prioLabel.textContent = prioVal + '%';
 
     // Show/hide offline update section
     var offlinePanel = document.getElementById('d-offline-update');
@@ -1612,6 +1607,14 @@ function renderSyncLog(logs) {
 }
 
 // ── Save Node Settings (inline on STATUS tab) ──
+function selectMode(mode) {
+    document.querySelectorAll('.sc-mode-option').forEach(function(btn) {
+        btn.classList.toggle('active', btn.getAttribute('data-mode') === mode);
+    });
+    var hidden = document.getElementById('settings-mode');
+    if (hidden) hidden.value = mode;
+}
+
 async function saveNodeSettings() {
     if (!selectedNodeId) return;
     var name = document.getElementById('settings-name').value.trim();

@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from flask import jsonify, request
 from flask_login import current_user
 from database import get_db_cursor
@@ -243,8 +244,11 @@ def register_ota_routes(bp, auth_decorator):
             sync_ids = []
             with get_db_cursor(commit=True) as (conn, cur):
                 # 1) Push fresh config_update with current hub settings
+                # Use internal network URL, not request.host_url which may be
+                # the external domain behind a reverse proxy that requires auth
+                hub_url = os.environ.get("HUB_INTERNAL_URL", "http://192.168.1.200:3000")
                 config_payload = {
-                    "hub_url": request.host_url.rstrip("/"),
+                    "hub_url": hub_url,
                     "heartbeat_interval": 30,
                     "sync_poll_interval": 60,
                 }

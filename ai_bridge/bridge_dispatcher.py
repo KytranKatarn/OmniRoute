@@ -1414,7 +1414,7 @@ class BridgeDispatcher:
                       OR rn.deployment_mode = 'starbase'
                   )
                   AND %s = ANY(na.station_codes)
-                ORDER BY rn.last_heartbeat DESC NULLS LAST
+                ORDER BY rn.bridge_priority DESC, rn.last_heartbeat DESC NULLS LAST
                 """,
                 (station_code,),
             )

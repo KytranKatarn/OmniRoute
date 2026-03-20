@@ -325,8 +325,7 @@
                 <div class="sc-row"><span class="sc-label">Priority</span><span class="sc-value" id="d-priority">—</span></div>
                 <div class="sc-row"><span class="sc-label">Last Heartbeat</span><span class="sc-value" id="d-heartbeat">—</span></div>
                 <div class="sc-row"><span class="sc-label">Version</span><span class="sc-value" id="d-version">—</span></div>
-                <div class="sc-row"><span class="sc-label">Resync</span><span class="sc-value" style="display:flex;gap:6px;align-items:center;"><button class="sc-btn-small" id="d-resync-btn" onclick="resyncNode()">RESYNC NODE</button><button class="sc-btn-small" onclick="showResyncModal()" title="Manual resync commands for offline nodes" style="opacity:0.6;font-size:0.6rem;">MANUAL</button></span></div>
-                <div class="sc-row"><span class="sc-label">Upgrade</span><span class="sc-value"><button class="sc-btn-small" id="d-upgrade-v3-btn" onclick="upgradeNodeV3()" style="background:var(--sc-amber);color:#000;">UPGRADE TO v3.0</button></span></div>
+                <div class="sc-row"><span class="sc-label">Manual Sync</span><span class="sc-value" style="display:flex;gap:6px;align-items:center;"><button class="sc-btn-small" onclick="showResyncModal()" title="Manual resync commands for offline nodes">MANUAL COMMANDS</button></span></div>
             </div>
             <!-- Offline Update Section (shown dynamically when node is offline) -->
             <div class="sc-section" id="d-offline-update" style="display:none;">
@@ -367,15 +366,28 @@
                 </div>
                 <div class="sc-row">
                     <span class="sc-label">Mode</span>
-                    <select class="sc-input" id="settings-mode" style="width:200px;">
-                        <option value="starship">Starship</option>
-                        <option value="satellite">Satellite</option>
-                        <option value="outpost">Outpost</option>
-                    </select>
+                    <div class="sc-mode-selector" id="settings-mode-selector">
+                        <button class="sc-mode-option" data-mode="starship" onclick="selectMode('starship')" title="Starship — Full fleet node">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 19h20L12 2z"/><line x1="12" y1="8" x2="12" y2="14"/><circle cx="12" cy="16" r="0.5" fill="currentColor"/></svg>
+                            <span>STARSHIP</span>
+                        </button>
+                        <button class="sc-mode-option" data-mode="satellite" onclick="selectMode('satellite')" title="Satellite — Lightweight relay node">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/><path d="M4.2 4.2l2.8 2.8M17 17l2.8 2.8M4.2 19.8l2.8-2.8M17 7l2.8-2.8"/></svg>
+                            <span>SATELLITE</span>
+                        </button>
+                        <button class="sc-mode-option" data-mode="outpost" onclick="selectMode('outpost')" title="Outpost — Edge compute node">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M7 8V5a2 2 0 012-2h6a2 2 0 012 2v3"/><circle cx="8" cy="14" r="1" fill="currentColor"/><circle cx="12" cy="14" r="1" fill="currentColor"/><circle cx="16" cy="14" r="1" fill="currentColor"/></svg>
+                            <span>OUTPOST</span>
+                        </button>
+                    </div>
+                    <input type="hidden" id="settings-mode" value="starship">
                 </div>
-                <div class="sc-row">
+                <div class="sc-row" style="align-items:center;">
                     <span class="sc-label">Priority</span>
-                    <input type="number" class="sc-input" id="settings-priority" min="0" max="100" style="width:200px;">
+                    <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:240px;">
+                        <input type="range" class="sc-slider" id="settings-priority" min="0" max="100" value="10" oninput="document.getElementById('priority-val').textContent=this.value+'%'">
+                        <span id="priority-val" style="color:var(--sc-accent);font-family:'IBM Plex Mono',monospace;font-size:0.85rem;min-width:36px;text-align:right;">10%</span>
+                    </div>
                 </div>
                 <div class="sc-row" style="justify-content:flex-end;margin-top:8px;">
                     <button class="sc-btn" onclick="saveNodeSettings()" style="min-width:140px;">SAVE SETTINGS</button>

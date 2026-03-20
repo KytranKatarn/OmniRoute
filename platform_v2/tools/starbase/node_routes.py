@@ -1450,11 +1450,9 @@ def register_node_routes(bp, admin_required):
     def approve_node(node_id):
         """Approve a pending node registration"""
         try:
+            # Phase 1: approve the node (own cursor, commits and closes)
             with get_db_cursor(commit=True) as (conn, cur):
-
-                # Get current user ID from Flask-Login session
                 user_id = current_user.id if current_user.is_authenticated else None
-
                 cur.execute(
                     """
                     UPDATE remote_nodes
@@ -1466,27 +1464,27 @@ def register_node_routes(bp, admin_required):
                 """,
                     (user_id, node_id),
                 )
-
                 node = cur.fetchone()
-
                 if not node:
                     return (
                         jsonify({"success": False, "error": "Node not found or already processed"}),
                         404,
                     )
+                result = {
+                    "success": True,
+                    "node_id": node["node_id"],
+                    "node_name": node["node_name"],
+                    "approval_status": node["approval_status"],
+                    "message": f"Node '{node['node_name']}' approved successfully",
+                }
 
-                # Post-approval orchestration (starter models, ComfyUI setup)
+            # Phase 2: post-approval orchestration (separate connection, no deadlock)
+            try:
                 _on_node_approved(node_id)
+            except Exception as e:
+                logger.error("Post-approval orchestration failed for %s: %s", node_id, e)
 
-                return jsonify(
-                    {
-                        "success": True,
-                        "node_id": node["node_id"],
-                        "node_name": node["node_name"],
-                        "approval_status": node["approval_status"],
-                        "message": f"Node '{node['node_name']}' approved successfully",
-                    }
-                )
+            return jsonify(result)
 
         except Exception as e:
             logger.error(f"Error approving node: {e}")

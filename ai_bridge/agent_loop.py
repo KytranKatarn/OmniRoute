@@ -636,6 +636,15 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Job #47 — Chat memory extraction (every 2 minutes)
+        self.scheduler.add_job(
+            _process_chat_memories,
+            trigger=IntervalTrigger(minutes=2),
+            id="job_47_chat_memories",
+            name="Chat memory extraction",
+            replace_existing=True,
+        )
+
         # Job #48 — Auto-execute approved dev pipeline proposals
         self.scheduler.add_job(
             with_app_context(self._auto_execute_proposals),
@@ -4805,3 +4814,105 @@ class AgentLoop:
             _trigger_loop_op("embedding")
         except Exception as e:
             logger.warning(f"[Consciousness Batch] Embedding batch failed: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Job #47 — Chat Memory Extraction (module-level, no app context needed)
+# ---------------------------------------------------------------------------
+
+
+def _process_chat_memories():
+    """Job #47: Extract conversation summaries and pinned memories from idle chats."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Find conversations idle for 5+ minutes with unsummarized messages
+        cur.execute("""
+            SELECT dc.id, dc.agent_id, dc.user_id, dc.last_message_at
+            FROM directory_conversations dc
+            WHERE dc.last_message_at IS NOT NULL
+              AND dc.last_message_at < NOW() - INTERVAL '5 minutes'
+              AND dc.last_message_at > COALESCE(
+                (SELECT MAX(created_at) FROM directory_agent_memories
+                 WHERE agent_id = dc.agent_id AND user_id = dc.user_id
+                   AND memory_type = 'summary'),
+                '1970-01-01'
+              )
+        """)
+        idle_convos = cur.fetchall()
+
+        for convo in idle_convos:
+            try:
+                _summarize_conversation(cur, conn, convo)
+            except Exception as e:
+                logging.error(f"Chat memory extraction failed for conv {convo['id']}: {e}")
+
+        conn.close()
+    except Exception as e:
+        logging.error(f"Job #47 chat memories error: {e}")
+
+
+def _summarize_conversation(cur, conn, convo):
+    """Summarize a single conversation and extract pinned memories."""
+    # Get messages since last summary
+    cur.execute("""
+        SELECT sender_type, message, timestamp
+        FROM directory_messages
+        WHERE conversation_id = %s
+        ORDER BY timestamp ASC
+    """, (convo['id'],))
+    messages = cur.fetchall()
+
+    if len(messages) < 2:
+        return  # Not enough to summarize
+
+    # Get agent info
+    cur.execute("SELECT name, display_name, title FROM agents WHERE id = %s", (convo['agent_id'],))
+    agent = cur.fetchone()
+    if not agent:
+        return
+    agent_name = agent.get('display_name') or agent.get('name')
+
+    # Build conversation text
+    conv_text = ""
+    for msg in messages:
+        role = "User" if msg['sender_type'] == 'user' else agent_name
+        conv_text += f"{role}: {msg['message']}\n"
+
+    # Dispatch summarization
+    from bridge_dispatcher import get_dispatcher
+    dispatcher = get_dispatcher()
+
+    # Summary
+    summary_result = dispatcher.dispatch(
+        prompt=f"Summarize this conversation in 2-3 sentences:\n\n{conv_text}",
+        system_prompt="You are a helpful assistant. Provide a concise summary.",
+        agent_name=agent.get('name'),
+    )
+    summary = summary_result.get('response', '').strip()
+
+    if summary:
+        cur.execute("""
+            INSERT INTO directory_agent_memories (agent_id, user_id, memory_type, content)
+            VALUES (%s, %s, 'summary', %s)
+        """, (convo['agent_id'], convo['user_id'], summary))
+
+    # Pinned memories
+    pinned_result = dispatcher.dispatch(
+        prompt=f"What important facts should you remember about this user from this conversation? List each fact on its own line. Only include facts worth remembering for future conversations.\n\n{conv_text}",
+        system_prompt="You are a helpful assistant. Extract key facts about the user.",
+        agent_name=agent.get('name'),
+    )
+    pinned_text = pinned_result.get('response', '').strip()
+
+    if pinned_text:
+        for line in pinned_text.split('\n'):
+            line = line.strip().lstrip('•-* ')
+            if line and len(line) > 10:
+                cur.execute("""
+                    INSERT INTO directory_agent_memories (agent_id, user_id, memory_type, content)
+                    VALUES (%s, %s, 'pinned', %s)
+                """, (convo['agent_id'], convo['user_id'], line))
+
+    conn.commit()

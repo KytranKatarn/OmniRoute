@@ -1,6 +1,6 @@
 /* ==========================================================================
    EMPLOYEE DIRECTORY — Kytran Empowerment
-   Professional corporate team page
+   Professional corporate team page — Full pyramid org chart
    ========================================================================== */
 
 /* ---------- Reset & Base ---------- */
@@ -79,130 +79,6 @@
     letter-spacing: 1.5px;
 }
 
-/* ---------- ORG CHART ---------- */
-.dir-org-section {
-    padding: 60px 24px;
-    max-width: 1200px;
-    margin: 0 auto;
-}
-.dir-section-label {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 1.3rem;
-    font-weight: 600;
-    color: #f1f5f9;
-    text-align: center;
-    margin-bottom: 40px;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-}
-.dir-org-chart {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0;
-}
-.dir-org-loading {
-    color: #64748b;
-    font-size: 0.9rem;
-    padding: 40px;
-}
-.dir-org-level {
-    display: flex;
-    justify-content: center;
-    gap: 24px;
-    flex-wrap: wrap;
-    position: relative;
-    padding: 16px 0;
-}
-
-/* Connector lines */
-.dir-org-connector {
-    width: 2px;
-    height: 32px;
-    background: rgba(0, 229, 255, 0.3);
-    margin: 0 auto;
-}
-.dir-org-connector-horizontal {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-    width: 100%;
-    max-width: 800px;
-    height: 2px;
-    background: rgba(0, 229, 255, 0.15);
-    margin: 0 auto;
-}
-
-/* Org chart node */
-.dir-org-node {
-    background: #111827;
-    border: 2px solid #1e293b;
-    border-radius: 12px;
-    padding: 16px 20px;
-    text-align: center;
-    cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
-    min-width: 160px;
-    max-width: 200px;
-}
-.dir-org-node:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-}
-.dir-org-node-portrait {
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    margin: 0 auto 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: 'Orbitron', sans-serif;
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: #fff;
-}
-.dir-org-node-name {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: #f1f5f9;
-    margin-bottom: 4px;
-}
-.dir-org-node-title {
-    font-size: 0.75rem;
-    color: #94a3b8;
-    line-height: 1.3;
-}
-.dir-org-node-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    display: inline-block;
-    margin-right: 4px;
-    vertical-align: middle;
-}
-.dir-org-node-dot.online {
-    background: #10b981;
-    box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
-}
-.dir-org-node-dot.offline {
-    background: #475569;
-}
-
-/* Station color borders */
-.dir-org-node.station-COMMAND    { border-color: #00e5ff; }
-.dir-org-node.station-ANALYTICS  { border-color: #8b5cf6; }
-.dir-org-node.station-CREATIVE   { border-color: #f472b6; }
-.dir-org-node.station-ENGINEERING { border-color: #fbbf24; }
-.dir-org-node.station-COMMUNICATIONS { border-color: #22d3ee; }
-.dir-org-node.station-RESEARCH   { border-color: #10b981; }
-.dir-org-node.station-SECURITY   { border-color: #ef4444; }
-.dir-org-node.station-LOGISTICS  { border-color: #f97316; }
-.dir-org-node.station-DIPLOMATIC { border-color: #818cf8; }
-.dir-org-node.station-OPERATIONS { border-color: #a3e635; }
-.dir-org-node.role-ceo           { border-color: #f59e0b; }
-
 /* ---------- FILTERS ---------- */
 .dir-filters {
     background: #0f172a;
@@ -229,12 +105,8 @@
     outline: none;
     transition: border-color 0.2s;
 }
-.dir-search-input::placeholder {
-    color: #64748b;
-}
-.dir-search-input:focus {
-    border-color: #00e5ff;
-}
+.dir-search-input::placeholder { color: #64748b; }
+.dir-search-input:focus { border-color: #00e5ff; }
 .dir-filter-select {
     padding: 10px 16px;
     background: #1e293b;
@@ -246,206 +118,408 @@
     cursor: pointer;
     min-width: 160px;
 }
-.dir-filter-select:focus {
-    border-color: #00e5ff;
-}
+.dir-filter-select:focus { border-color: #00e5ff; }
 
-/* ---------- DEPARTMENT CARD GRID ---------- */
-.dir-departments {
-    max-width: 1200px;
+/* ---------- ORG CHART PYRAMID ---------- */
+.dir-org-section {
+    padding: 60px 24px 40px;
+    max-width: 1400px;
     margin: 0 auto;
-    padding: 40px 24px 80px;
+    overflow-x: auto;
 }
-.dir-loading {
-    text-align: center;
-    color: #64748b;
-    padding: 60px 20px;
-    font-size: 0.95rem;
-}
-.dir-dept-section {
-    margin-bottom: 48px;
-}
-.dir-dept-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 20px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
-}
-.dir-dept-accent {
-    width: 4px;
-    height: 28px;
-    border-radius: 2px;
-    flex-shrink: 0;
-}
-.dir-dept-name {
+.dir-section-label {
     font-family: 'Orbitron', sans-serif;
-    font-size: 1.05rem;
+    font-size: 1.3rem;
     font-weight: 600;
     color: #f1f5f9;
-    letter-spacing: 2px;
+    text-align: center;
+    margin-bottom: 40px;
+    letter-spacing: 3px;
     text-transform: uppercase;
 }
-.dir-dept-count {
-    font-size: 0.8rem;
+.dir-org-chart {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    min-width: 900px;
+}
+.dir-org-loading {
     color: #64748b;
-    margin-left: auto;
-}
-.dir-card-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 20px;
+    font-size: 0.9rem;
+    padding: 40px;
 }
 
-/* ---------- EMPLOYEE CARD ---------- */
-.dir-card {
-    background: #111827;
-    border-radius: 12px;
-    overflow: hidden;
-    cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s, opacity 0.3s;
-    border: 1px solid #1e293b;
+/* Org chart levels */
+.dir-org-level {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    flex-wrap: nowrap;
+    position: relative;
+    padding: 8px 0;
 }
-.dir-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
-    border-color: rgba(0, 229, 255, 0.3);
+.dir-org-level-ceo { padding: 12px 0; }
+.dir-org-level-director { padding: 12px 0; }
+.dir-org-level-heads {
+    gap: 8px;
+    padding: 12px 0 4px;
 }
-.dir-card.offline {
-    opacity: 0.65;
-}
-.dir-card.offline:hover {
-    opacity: 0.85;
+.dir-org-level-members {
+    gap: 8px;
+    align-items: flex-start;
+    padding: 0;
 }
 
-/* Portrait area */
-.dir-portrait {
-    height: 200px;
+/* Connector lines */
+.dir-org-connector {
+    width: 2px;
+    height: 28px;
+    background: rgba(0, 229, 255, 0.3);
+    margin: 0 auto;
+}
+.dir-org-connector-dashed {
+    background: none;
+    border-left: 2px dashed rgba(0, 229, 255, 0.25);
+}
+.dir-org-connector-horizontal {
+    position: relative;
+    width: 85%;
+    max-width: 1100px;
+    height: 2px;
+    background: rgba(0, 229, 255, 0.15);
+    margin: 0 auto;
+}
+
+/* Drop lines from horizontal bar to each department */
+.dir-org-drop-lines {
+    display: flex;
+    justify-content: space-around;
+    width: 85%;
+    max-width: 1100px;
+    margin: 0 auto;
+    height: 20px;
+}
+.dir-org-drop-line {
+    width: 2px;
+    height: 100%;
+    background: rgba(0, 229, 255, 0.2);
+}
+
+/* --- Vigil advisory branch --- */
+.dir-vigil-branch {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    position: relative;
+    margin-top: -20px;
+    margin-bottom: 4px;
+    padding-left: 220px;
+}
+.dir-vigil-connector {
+    width: 60px;
+    height: 2px;
+    border-top: 2px dashed rgba(0, 229, 255, 0.25);
+    margin-right: 8px;
+}
+.dir-org-node-vigil {
+    min-width: 130px;
+    max-width: 150px;
+    padding: 10px 14px;
+    opacity: 0.85;
+    border-style: dashed;
+}
+.dir-org-node-vigil .dir-org-node-portrait {
+    width: 40px;
+    height: 40px;
+    font-size: 0.85rem;
+}
+
+/* Org chart node */
+.dir-org-node {
+    background: #111827;
+    border: 2px solid #1e293b;
+    border-radius: 12px;
+    padding: 14px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s, opacity 0.3s;
+    min-width: 120px;
+    max-width: 140px;
+}
+.dir-org-node:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.dir-org-node.dir-filtered-out {
+    opacity: 0.15;
+    pointer-events: none;
+}
+
+/* CEO + Director nodes slightly larger */
+.dir-org-level-ceo .dir-org-node {
+    min-width: 180px;
+    max-width: 220px;
+    padding: 18px 24px;
+}
+.dir-org-level-director .dir-org-node {
+    min-width: 160px;
+    max-width: 200px;
+    padding: 16px 20px;
+}
+
+.dir-org-node-portrait {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    margin: 0 auto 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
     overflow: hidden;
 }
-.dir-portrait img {
+.dir-org-level-ceo .dir-org-node-portrait {
+    width: 60px;
+    height: 60px;
+    font-size: 1.2rem;
+}
+.dir-org-level-director .dir-org-node-portrait {
+    width: 56px;
+    height: 56px;
+    font-size: 1.1rem;
+}
+.dir-org-node-portrait-img {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    border-radius: 50%;
 }
-.dir-initials {
-    width: 80px;
-    height: 80px;
+.dir-org-node-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #f1f5f9;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.dir-org-node-title {
+    font-size: 0.68rem;
+    color: #94a3b8;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.dir-org-node-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 3px;
+    vertical-align: middle;
+}
+.dir-org-node-dot.online {
+    background: #10b981;
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+}
+.dir-org-node-dot.offline {
+    background: #475569;
+}
+
+/* Station color borders */
+.dir-org-node.station-COMMAND    { border-color: #00e5ff; }
+.dir-org-node.station-ANALYTICS  { border-color: #8b5cf6; }
+.dir-org-node.station-CREATIVE   { border-color: #f472b6; }
+.dir-org-node.station-ENGINEERING { border-color: #fbbf24; }
+.dir-org-node.station-COMMUNICATIONS { border-color: #22d3ee; }
+.dir-org-node.station-RESEARCH   { border-color: #10b981; }
+.dir-org-node.station-SECURITY   { border-color: #ef4444; }
+.dir-org-node.station-LOGISTICS  { border-color: #f97316; }
+.dir-org-node.station-DIPLOMATIC { border-color: #818cf8; }
+.dir-org-node.station-OPERATIONS { border-color: #a3e635; }
+.dir-org-node.role-ceo           { border-color: #f59e0b; }
+
+/* --- Department member column (Level 5) --- */
+.dir-org-dept-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: 120px;
+    max-width: 140px;
+}
+.dir-org-mini-connector {
+    width: 2px;
+    height: 14px;
+    border-left: 2px solid rgba(0, 229, 255, 0.2);
+}
+
+/* --- Member badge (small card for L5 + unassigned) --- */
+.dir-org-member-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: #111827;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s, opacity 0.3s;
+    width: 100%;
+    max-width: 200px;
+    min-width: 0;
+}
+.dir-org-member-badge:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.dir-org-member-badge.dir-filtered-out {
+    opacity: 0.15;
+    pointer-events: none;
+}
+.dir-org-badge-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+.dir-org-badge-initials {
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     font-family: 'Orbitron', sans-serif;
-    font-size: 1.6rem;
+    font-size: 0.6rem;
     font-weight: 700;
-    color: #fff;
-    background: rgba(255, 255, 255, 0.15);
-    border: 2px solid rgba(255, 255, 255, 0.25);
-}
-
-/* Card body */
-.dir-card-body {
-    padding: 16px 20px 20px;
-}
-.dir-card-name {
-    font-size: 1.05rem;
-    font-weight: 600;
-    color: #f1f5f9;
-    margin-bottom: 2px;
-}
-.dir-card-title {
-    font-size: 0.85rem;
-    font-weight: 500;
-    margin-bottom: 6px;
-}
-.dir-card-email {
-    font-size: 0.78rem;
-    color: #64748b;
-    margin-bottom: 12px;
-}
-.dir-card-email a {
-    color: #64748b;
-    text-decoration: none;
-}
-.dir-card-email a:hover {
-    color: #00e5ff;
-}
-
-/* Skill tags */
-.dir-skill-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: 14px;
-}
-.dir-skill-tag {
-    padding: 3px 10px;
-    border-radius: 20px;
-    font-size: 0.7rem;
-    font-weight: 500;
-    background: rgba(0, 229, 255, 0.1);
-    color: #67e8f9;
-    border: 1px solid rgba(0, 229, 255, 0.15);
-}
-
-/* Status footer */
-.dir-card-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-top: 12px;
-    border-top: 1px solid rgba(148, 163, 184, 0.08);
-}
-.dir-status {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.78rem;
-    color: #94a3b8;
-}
-.dir-status-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
     flex-shrink: 0;
 }
-.dir-status-dot.online {
-    background: #10b981;
-    box-shadow: 0 0 8px rgba(16, 185, 129, 0.6), 0 0 16px rgba(16, 185, 129, 0.3);
-    animation: dir-pulse 2s ease-in-out infinite;
+.dir-org-badge-info {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
 }
-.dir-status-dot.offline {
-    background: #475569;
+.dir-org-badge-name {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #f1f5f9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.3;
 }
-@keyframes dir-pulse {
-    0%, 100% { box-shadow: 0 0 8px rgba(16, 185, 129, 0.6), 0 0 16px rgba(16, 185, 129, 0.3); }
-    50% { box-shadow: 0 0 12px rgba(16, 185, 129, 0.8), 0 0 24px rgba(16, 185, 129, 0.4); }
+.dir-org-badge-title {
+    font-size: 0.62rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
-.dir-chat-btn {
-    padding: 5px 14px;
-    background: rgba(0, 229, 255, 0.12);
-    border: 1px solid rgba(0, 229, 255, 0.3);
-    border-radius: 6px;
-    color: #00e5ff;
-    font-size: 0.78rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.2s, border-color 0.2s;
+
+/* --- Unassigned / Reserve pool --- */
+.dir-org-unassigned {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid rgba(148, 163, 184, 0.1);
+    width: 100%;
+    max-width: 1100px;
 }
-.dir-chat-btn:hover {
-    background: rgba(0, 229, 255, 0.22);
-    border-color: #00e5ff;
+.dir-org-unassigned-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #64748b;
+    text-align: center;
+    margin-bottom: 16px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
 }
-.dir-chat-btn.unavailable {
-    color: #475569;
-    border-color: #334155;
+.dir-org-unassigned-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+}
+.dir-org-unassigned-grid .dir-org-member-badge {
+    max-width: 180px;
+}
+
+/* ---------- MOBILE ACCORDION ---------- */
+.dir-accordion-section {
+    display: none;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px 16px 60px;
+}
+.dir-acc-item {
+    margin-bottom: 4px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #111827;
+    border: 1px solid #1e293b;
+}
+.dir-acc-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 14px 16px;
     background: transparent;
-    cursor: default;
+    border: none;
+    color: #f1f5f9;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+}
+.dir-acc-accent {
+    width: 4px;
+    height: 20px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+.dir-acc-label {
+    flex: 1;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.8rem;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+}
+.dir-acc-count {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    color: #64748b;
+    background: rgba(100, 116, 139, 0.15);
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+.dir-acc-chevron {
+    font-size: 0.6rem;
+    color: #64748b;
+    transition: transform 0.2s;
+}
+.dir-acc-item.open .dir-acc-chevron {
+    transform: rotate(180deg);
+}
+.dir-acc-body {
+    display: none;
+    padding: 4px 12px 14px;
+    gap: 6px;
+    flex-direction: column;
+}
+.dir-acc-item.open .dir-acc-body {
+    display: flex;
+}
+.dir-acc-body .dir-org-member-badge {
+    max-width: 100%;
 }
 
 /* ---------- PROFILE PANEL ---------- */
@@ -463,11 +537,8 @@
     flex-direction: column;
     overflow-y: auto;
 }
-.dir-profile-panel.active {
-    right: 0;
-}
+.dir-profile-panel.active { right: 0; }
 
-/* Backdrop overlay */
 .dir-profile-overlay {
     position: fixed;
     inset: 0;
@@ -475,11 +546,8 @@
     z-index: 999;
     display: none;
 }
-.dir-profile-overlay.active {
-    display: block;
-}
+.dir-profile-overlay.active { display: block; }
 
-/* Header */
 .dir-profile-header {
     display: flex;
     justify-content: space-between;
@@ -515,7 +583,6 @@
     background: rgba(255, 255, 255, 0.06);
 }
 
-/* Body */
 .dir-profile-body {
     padding: 24px;
     flex: 1;
@@ -523,7 +590,6 @@
     overflow-y: auto;
 }
 
-/* Error */
 .dir-profile-error {
     color: #ef4444;
     padding: 20px;
@@ -531,11 +597,7 @@
     font-size: 0.9rem;
 }
 
-/* Portrait */
-.dir-profile-portrait-wrap {
-    text-align: center;
-    margin-bottom: 20px;
-}
+.dir-profile-portrait-wrap { text-align: center; margin-bottom: 20px; }
 .dir-profile-portrait {
     width: 180px;
     height: 180px;
@@ -548,11 +610,7 @@
     position: relative;
     background: #111827;
 }
-.dir-profile-portrait-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
+.dir-profile-portrait-img { width: 100%; height: 100%; object-fit: cover; }
 .dir-profile-portrait-initials {
     width: 100%;
     height: 100%;
@@ -577,15 +635,9 @@
     background: #10b981;
     box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
 }
-.dir-profile-portrait-dot.offline {
-    background: #475569;
-}
+.dir-profile-portrait-dot.offline { background: #475569; }
 
-/* Identity block */
-.dir-profile-identity {
-    text-align: center;
-    margin-bottom: 16px;
-}
+.dir-profile-identity { text-align: center; margin-bottom: 16px; }
 .dir-profile-id-name {
     font-size: 22px;
     font-weight: 700;
@@ -593,28 +645,11 @@
     margin-bottom: 4px;
     line-height: 1.3;
 }
-.dir-profile-id-title {
-    font-size: 14px;
-    font-weight: 500;
-    margin-bottom: 4px;
-}
-.dir-profile-id-station {
-    font-size: 12px;
-    color: #64748b;
-    letter-spacing: 0.5px;
-}
-.dir-profile-id-pronouns {
-    font-size: 12px;
-    color: #475569;
-    margin-top: 4px;
-    font-style: italic;
-}
+.dir-profile-id-title { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+.dir-profile-id-station { font-size: 12px; color: #64748b; letter-spacing: 0.5px; }
+.dir-profile-id-pronouns { font-size: 12px; color: #475569; margin-top: 4px; font-style: italic; }
 
-/* Status Badge */
-.dir-profile-status-row {
-    text-align: center;
-    margin-bottom: 20px;
-}
+.dir-profile-status-row { text-align: center; margin-bottom: 20px; }
 .dir-profile-status-badge {
     display: inline-flex;
     align-items: center;
@@ -634,20 +669,13 @@
     color: #94a3b8;
     border: 1px solid rgba(71, 85, 105, 0.3);
 }
-.dir-profile-badge-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-}
+.dir-profile-badge-dot { width: 8px; height: 8px; border-radius: 50%; }
 .dir-profile-status-badge.online .dir-profile-badge-dot {
     background: #10b981;
     box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
 }
-.dir-profile-status-badge.offline .dir-profile-badge-dot {
-    background: #475569;
-}
+.dir-profile-status-badge.offline .dir-profile-badge-dot { background: #475569; }
 
-/* Section blocks (Contact, Bio, Skills, Working On) */
 .dir-profile-section {
     background: #111827;
     border: 1px solid #1e293b;
@@ -664,7 +692,6 @@
     margin-bottom: 12px;
 }
 
-/* Contact card rows */
 .dir-profile-contact-row {
     display: flex;
     align-items: center;
@@ -687,26 +714,12 @@
     text-decoration: none;
     transition: color 0.2s;
 }
-.dir-profile-contact-link:hover {
-    color: #67e8f9;
-}
-.dir-profile-contact-text {
-    color: #cbd5e1;
-}
+.dir-profile-contact-link:hover { color: #67e8f9; }
+.dir-profile-contact-text { color: #cbd5e1; }
 
-/* Bio text */
-.dir-profile-bio-text {
-    font-size: 13px;
-    color: #94a3b8;
-    line-height: 1.7;
-}
+.dir-profile-bio-text { font-size: 13px; color: #94a3b8; line-height: 1.7; }
 
-/* Skills pills */
-.dir-profile-skills-wrap {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-}
+.dir-profile-skills-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
 .dir-profile-skill {
     padding: 4px 12px;
     border-radius: 20px;
@@ -718,18 +731,9 @@
     transition: background 0.2s;
 }
 
-/* Working On */
-.dir-profile-working-text {
-    font-size: 0.85rem;
-    color: #64748b;
-    font-style: italic;
-}
+.dir-profile-working-text { font-size: 0.85rem; color: #64748b; font-style: italic; }
 
-/* Message Button */
-.dir-profile-msg-wrap {
-    text-align: center;
-    padding-top: 8px;
-}
+.dir-profile-msg-wrap { text-align: center; padding-top: 8px; }
 .dir-profile-msg-btn {
     width: 100%;
     padding: 12px 20px;
@@ -747,74 +751,97 @@
     border-color: #00e5ff;
     box-shadow: 0 0 16px rgba(0, 229, 255, 0.2);
 }
-.dir-profile-msg-btn:disabled {
-    opacity: 0.4;
-    cursor: default;
+.dir-profile-msg-btn:disabled { opacity: 0.4; cursor: default; }
+.dir-profile-msg-sub { font-size: 0.75rem; color: #475569; margin-top: 6px; }
+
+/* ---------- STATUS DOTS ---------- */
+.dir-status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: inline-block;
 }
-.dir-profile-msg-sub {
-    font-size: 0.75rem;
-    color: #475569;
-    margin-top: 6px;
+.dir-status-dot.online {
+    background: #10b981;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.6), 0 0 16px rgba(16, 185, 129, 0.3);
+    animation: dir-pulse 2s ease-in-out infinite;
+}
+.dir-status-dot.offline { background: #475569; }
+@keyframes dir-pulse {
+    0%, 100% { box-shadow: 0 0 8px rgba(16, 185, 129, 0.6), 0 0 16px rgba(16, 185, 129, 0.3); }
+    50% { box-shadow: 0 0 12px rgba(16, 185, 129, 0.8), 0 0 24px rgba(16, 185, 129, 0.4); }
 }
 
 /* ---------- RESPONSIVE ---------- */
 
-/* Tablet: 730px */
-@media (max-width: 1024px) {
-    .dir-card-grid {
-        grid-template-columns: repeat(2, 1fr);
+/* Tablet: hide horizontal scroll, allow wrapping for heads */
+@media (max-width: 1200px) {
+    .dir-org-chart {
+        min-width: 0;
     }
-    .dir-hero-title {
-        font-size: 2.4rem;
+    .dir-org-level-heads {
+        flex-wrap: wrap;
+        gap: 10px;
     }
-    .dir-hero-stats {
-        gap: 32px;
+    .dir-org-level-members {
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: center;
+    }
+    .dir-org-connector-horizontal,
+    .dir-org-drop-lines {
+        display: none;
     }
 }
 
-/* Mobile: 360px+ */
+/* Fold5 tablet: 730px — show pyramid still but tighter */
+@media (max-width: 1024px) {
+    .dir-hero-title { font-size: 2.4rem; }
+    .dir-hero-stats { gap: 32px; }
+    .dir-org-node {
+        min-width: 100px;
+        max-width: 120px;
+        padding: 10px 10px;
+    }
+    .dir-org-node-portrait {
+        width: 38px;
+        height: 38px;
+        font-size: 0.85rem;
+    }
+    .dir-org-level-ceo .dir-org-node {
+        min-width: 150px;
+        max-width: 180px;
+    }
+    .dir-org-level-director .dir-org-node {
+        min-width: 140px;
+        max-width: 160px;
+    }
+    .dir-vigil-branch {
+        padding-left: 160px;
+    }
+}
+
+/* Mobile: 730px — hide pyramid, show accordion */
 @media (max-width: 730px) {
-    .dir-card-grid {
-        grid-template-columns: 1fr;
+    .dir-org-section {
+        display: none;
+    }
+    .dir-accordion-section {
+        display: block;
     }
     .dir-hero {
         padding: 48px 16px 40px;
     }
-    .dir-hero-title {
-        font-size: 1.8rem;
-    }
-    .dir-hero-tagline {
-        font-size: 0.95rem;
-    }
-    .dir-hero-stats {
-        gap: 20px;
-    }
-    .dir-stat-value {
-        font-size: 1.5rem;
-    }
-    .dir-filters-inner {
-        flex-direction: column;
-    }
+    .dir-hero-title { font-size: 1.8rem; }
+    .dir-hero-tagline { font-size: 0.95rem; }
+    .dir-hero-stats { gap: 20px; }
+    .dir-stat-value { font-size: 1.5rem; }
+    .dir-filters-inner { flex-direction: column; }
     .dir-search-input,
     .dir-filter-select {
         min-width: unset;
         width: 100%;
-    }
-    .dir-org-level {
-        gap: 12px;
-    }
-    .dir-org-node {
-        min-width: 130px;
-        max-width: 160px;
-        padding: 12px 14px;
-    }
-    .dir-org-node-portrait {
-        width: 44px;
-        height: 44px;
-        font-size: 0.9rem;
-    }
-    .dir-org-connector-horizontal {
-        display: none;
     }
     .dir-profile-panel {
         width: 100%;
@@ -824,23 +851,14 @@
         width: 140px;
         height: 140px;
     }
-    .dir-profile-portrait-initials {
-        font-size: 2.4rem;
-    }
-    .dir-profile-id-name {
-        font-size: 18px;
-    }
+    .dir-profile-portrait-initials { font-size: 2.4rem; }
+    .dir-profile-id-name { font-size: 18px; }
 }
 
 /* Ultra-small: 360px phone */
 @media (max-width: 360px) {
-    .dir-hero-title {
-        font-size: 1.5rem;
-    }
-    .dir-hero-subtitle {
-        font-size: 0.7rem;
-        letter-spacing: 4px;
-    }
+    .dir-hero-title { font-size: 1.5rem; }
+    .dir-hero-subtitle { font-size: 0.7rem; letter-spacing: 4px; }
 }
 
 /* ---------- STATION COLOR UTILITIES ---------- */
@@ -866,12 +884,8 @@
 .dir-bg-DIPLOMATIC    { background: linear-gradient(135deg, #1a1540, #252060); }
 .dir-bg-OPERATIONS    { background: linear-gradient(135deg, #1a2d08, #223a0d); }
 
-/* Fallback portrait bg */
-.dir-portrait-default {
-    background: linear-gradient(135deg, #1a1040, #0d2137);
-}
+.dir-portrait-default { background: linear-gradient(135deg, #1a1040, #0d2137); }
 
-/* No results */
 .dir-no-results {
     text-align: center;
     color: #64748b;

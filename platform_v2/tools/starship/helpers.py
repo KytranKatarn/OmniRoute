@@ -11,7 +11,7 @@ from database import get_db_cursor
 HEARTBEAT_TIMEOUT_SECONDS = 120
 
 # Current node package version (update this when releasing new packages)
-LATEST_NODE_VERSION = "2.2.0"
+LATEST_NODE_VERSION = "3.0.0"
 
 
 def _compute_node_status(node):

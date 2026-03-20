@@ -41,8 +41,8 @@ OLLAMA_LOCAL_HOST = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
 OLLAMA_DEFAULT_PORT = os.getenv("OLLAMA_LOCAL_PORT", "11434")
 OLLAMA_LOCAL_URL = f"http://{OLLAMA_LOCAL_HOST}:{OLLAMA_DEFAULT_PORT}"
 DEFAULT_NODE_PORT = 11434  # integer fallback for remote-node DB rows
-DEFAULT_CLIENT_VERSION = "2.2.0"
-LATEST_CLIENT_VERSION = "2.2.0"
+DEFAULT_CLIENT_VERSION = "3.0.0"
+LATEST_CLIENT_VERSION = "3.0.0"
 
 # Ollama tags cache (avoid hitting Ollama on every stats poll)
 _ollama_tags_cache = {"models": [], "count": 0, "time": 0}

@@ -21,8 +21,10 @@ import json
 import logging
 import os
 import platform
+import signal
 import subprocess
 import sys
+import threading
 import time
 
 # ---------------------------------------------------------------------------
@@ -64,7 +66,7 @@ logger = logging.getLogger("archie_node_sync")
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-CLIENT_VERSION = "2.2.0"
+CLIENT_VERSION = "3.0.0"
 
 
 def _get_config_paths():
@@ -1719,6 +1721,59 @@ def _attempt_re_registration(config):
         return False
 
 
+# ---------------------------------------------------------------------------
+# Shutdown event — shared across threads for graceful termination
+# ---------------------------------------------------------------------------
+_shutdown_event = threading.Event()
+
+
+def _heartbeat_thread(config):
+    """Dedicated heartbeat thread — runs independently of sync processing.
+
+    This ensures the hub always knows the node is alive, even during
+    long-running sync operations (model downloads can take 30+ minutes).
+    """
+    heartbeat_failures = 0
+    base_interval = config["heartbeat_interval"]
+    current_interval = base_interval
+
+    logger.info("[heartbeat-thread] Started (interval: %ds)", base_interval)
+
+    while not _shutdown_event.is_set():
+        try:
+            success = send_heartbeat(config)
+            if success:
+                if heartbeat_failures > 0:
+                    logger.info(
+                        "[heartbeat-thread] Recovered after %d failures",
+                        heartbeat_failures,
+                    )
+                heartbeat_failures = 0
+                current_interval = base_interval
+            else:
+                heartbeat_failures += 1
+                _handle_heartbeat_failure(
+                    config, heartbeat_failures, base_interval
+                )
+                if 3 <= heartbeat_failures < 10:
+                    current_interval = base_interval * 2
+                elif heartbeat_failures >= 10:
+                    logger.info(
+                        "[heartbeat-thread] Failure cycle reset after %d",
+                        heartbeat_failures,
+                    )
+                    heartbeat_failures = 0
+                    current_interval = base_interval
+        except Exception as exc:
+            logger.error("[heartbeat-thread] Error: %s", exc)
+            heartbeat_failures += 1
+
+        # Wait for next heartbeat or shutdown signal
+        _shutdown_event.wait(timeout=current_interval)
+
+    logger.info("[heartbeat-thread] Stopped.")
+
+
 def main():
     logger.info("=" * 60)
     logger.info("A.R.C.H.I.E. Unified Node Client v%s starting...", CLIENT_VERSION)
@@ -1740,63 +1795,44 @@ def main():
     # Report version on startup
     report_version(config)
 
-    last_heartbeat = 0.0
-    last_sync_poll = 0.0
+    # --- Graceful shutdown handler ---
+    def _signal_handler(signum, frame):
+        sig_name = signal.Signals(signum).name if hasattr(signal, "Signals") else signum
+        logger.info("Received %s — initiating graceful shutdown...", sig_name)
+        _shutdown_event.set()
 
-    # Self-healing state
-    heartbeat_failures = 0
-    base_heartbeat_interval = config["heartbeat_interval"]
-    current_heartbeat_interval = base_heartbeat_interval
+    signal.signal(signal.SIGTERM, _signal_handler)
+    signal.signal(signal.SIGINT, _signal_handler)
 
-    logger.info("Entering main loop...")
+    # --- Start heartbeat in dedicated thread ---
+    hb_thread = threading.Thread(
+        target=_heartbeat_thread, args=(config,), daemon=True, name="heartbeat"
+    )
+    hb_thread.start()
 
-    while True:
-        now = time.time()
+    logger.info("Entering main loop (sync polling)...")
 
-        # Heartbeat check (with self-healing)
-        if now - last_heartbeat >= current_heartbeat_interval:
-            try:
-                success = send_heartbeat(config)
-                if success:
-                    # Reset failure tracking on success
-                    if heartbeat_failures > 0:
-                        logger.info(
-                            "Heartbeat recovered after %d failures", heartbeat_failures
-                        )
-                    heartbeat_failures = 0
-                    current_heartbeat_interval = base_heartbeat_interval
-                else:
-                    heartbeat_failures += 1
-                    _handle_heartbeat_failure(
-                        config, heartbeat_failures,
-                        base_heartbeat_interval,
-                    )
-                    # Update current interval based on failure count
-                    if 3 <= heartbeat_failures < 10:
-                        current_heartbeat_interval = base_heartbeat_interval * 2
-                    elif heartbeat_failures >= 10:
-                        # Reset cycle — back to normal
-                        logger.info(
-                            "Heartbeat failure cycle reset after %d failures",
-                            heartbeat_failures,
-                        )
-                        heartbeat_failures = 0
-                        current_heartbeat_interval = base_heartbeat_interval
-            except Exception as exc:
-                logger.error("Heartbeat error: %s", exc)
-                heartbeat_failures += 1
-            last_heartbeat = now
+    while not _shutdown_event.is_set():
+        try:
+            poll_syncs(config)
+        except Exception as exc:
+            logger.error("Sync poll error: %s", exc)
 
-        # Sync poll check
-        if now - last_sync_poll >= config["sync_poll_interval"]:
-            try:
-                poll_syncs(config)
-            except Exception as exc:
-                logger.error("Sync poll error: %s", exc)
-            last_sync_poll = now
+        # Wait for next poll or shutdown signal
+        _shutdown_event.wait(timeout=config["sync_poll_interval"])
 
-        # Sleep between checks
-        time.sleep(5)
+    # --- Graceful shutdown ---
+    logger.info("Shutdown: waiting for heartbeat thread to finish...")
+    hb_thread.join(timeout=10)
+
+    # Send final "shutting_down" status heartbeat
+    try:
+        logger.info("Sending final shutdown heartbeat...")
+        send_heartbeat(config)
+    except Exception:
+        pass
+
+    logger.info("Node client stopped cleanly.")
 
 
 def _handle_heartbeat_failure(config, failure_count, base_interval):
@@ -1824,6 +1860,7 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
+        _shutdown_event.set()
         logger.info("Shutting down (KeyboardInterrupt).")
         sys.exit(0)
     except Exception as exc:

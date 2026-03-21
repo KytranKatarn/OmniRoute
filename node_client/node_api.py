@@ -343,6 +343,104 @@ def active_downloads():
         return jsonify({"downloads": [], "note": "download_progress table not yet created"})
 
 
+@app.route("/api/compose-recreate", methods=["POST"])
+def compose_recreate():
+    """Recreate sync container with updated volume mounts.
+
+    Inspects the current sync container, clones its config with added
+    volumes, stops+removes the old one, and creates+starts the new one.
+    Called from hub after docker-compose.node.yml is updated via OTA.
+
+    POST body: { "add_volumes": {"comfyui_data": "/comfyui/models"} }
+    """
+    import http.client
+    import socket as _socket
+    import json as _json
+
+    def _docker_api(method, path, body=None):
+        sock = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+        sock.connect("/var/run/docker.sock")
+        conn = http.client.HTTPConnection("localhost")
+        conn.sock = sock
+        headers = {"Content-Type": "application/json"} if body else {}
+        conn.request(method, path, body=body, headers=headers)
+        resp = conn.getresponse()
+        data = resp.read().decode("utf-8", errors="replace")
+        status = resp.status
+        conn.close()
+        return status, data
+
+    container_name = "archie_starship_sync"
+    data = request.get_json() or {}
+    add_volumes = data.get("add_volumes", {"comfyui_data": "/comfyui/models"})
+
+    try:
+        # Step 1: Inspect current sync container
+        status, inspect_data = _docker_api("GET", f"/containers/{container_name}/json")
+        if status != 200:
+            return jsonify({"success": False, "error": f"Cannot inspect {container_name}: HTTP {status}"}), 500
+
+        config = _json.loads(inspect_data)
+        image = config["Config"]["Image"]
+        env = config["Config"]["Env"]
+        cmd = config["Config"]["Cmd"]
+        binds = config.get("HostConfig", {}).get("Binds", [])
+        network_mode = config.get("HostConfig", {}).get("NetworkMode", "bridge")
+        restart_policy = config.get("HostConfig", {}).get("RestartPolicy", {"Name": "unless-stopped"})
+
+        # Step 2: Add new volume binds
+        for vol_name, mount_path in add_volumes.items():
+            bind_str = f"{vol_name}:{mount_path}"
+            if not any(mount_path in b for b in binds):
+                binds.append(bind_str)
+                logger.info("[compose-recreate] Adding volume: %s", bind_str)
+
+        # Step 3: Stop and remove old container
+        _docker_api("POST", f"/containers/{container_name}/stop?t=10")
+        _docker_api("DELETE", f"/containers/{container_name}")
+        logger.info("[compose-recreate] Removed old %s", container_name)
+
+        # Step 4: Create new container with updated config
+        create_body = _json.dumps({
+            "Image": image,
+            "Cmd": cmd,
+            "Env": env,
+            "HostConfig": {
+                "Binds": binds,
+                "NetworkMode": network_mode,
+                "RestartPolicy": restart_policy,
+            },
+        })
+
+        status, create_data = _docker_api(
+            "POST",
+            f"/containers/create?name={container_name}",
+            body=create_body,
+        )
+        if status not in (200, 201):
+            return jsonify({"success": False, "error": f"Create failed: HTTP {status} {create_data[:200]}"}), 500
+
+        new_id = _json.loads(create_data).get("Id", "unknown")
+
+        # Step 5: Start the new container
+        start_status, _ = _docker_api("POST", f"/containers/{new_id}/start")
+        if start_status not in (200, 204):
+            return jsonify({"success": False, "error": f"Start failed: HTTP {start_status}"}), 500
+
+        logger.info("[compose-recreate] New %s created and started (id=%s)", container_name, new_id[:12])
+        return jsonify({
+            "success": True,
+            "container": container_name,
+            "new_id": new_id[:12],
+            "volumes": binds,
+            "message": f"Sync container recreated with {len(add_volumes)} new volume(s)",
+        })
+
+    except Exception as e:
+        logger.error("[compose-recreate] Failed: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 if __name__ == "__main__":
-    logger.info("Starting Node API v3.0 on port 3001 (node: %s)", NODE_ID)
+    logger.info("Starting Node API v3.2 on port 3001 (node: %s)", NODE_ID)
     app.run(host="0.0.0.0", port=3001, debug=False)

@@ -160,6 +160,38 @@ def register_ota_routes(bp, auth_decorator):
             logger.exception("Failed to queue checkpoint pull for node %s", node_id)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
+    @bp.route("/api/nodes/<int:node_id>/compose-recreate", methods=["POST"])
+    @auth_decorator
+    def api_compose_recreate(node_id):
+        """Remotely recreate a node's sync container with updated volumes.
+
+        Calls the node_api's /api/compose-recreate endpoint directly.
+        Used after OTA pushes docker-compose changes that need container recreation.
+        """
+        import requests as _req
+
+        node = _get_node_for_user_by_int_id(node_id, current_user.id)
+        if not node:
+            return jsonify({"success": False, "error": "Node not found"}), 404
+
+        hostname = node["hostname"]
+        api_port = 3001  # node_api default port
+
+        data = request.get_json() or {}
+        add_volumes = data.get("add_volumes", {"comfyui_data": "/comfyui/models"})
+
+        try:
+            resp = _req.post(
+                f"http://{hostname}:{api_port}/api/compose-recreate",
+                json={"add_volumes": add_volumes},
+                timeout=30,
+            )
+            result = resp.json()
+            return jsonify(result)
+        except Exception as e:
+            logger.exception("Failed to recreate containers on node %s", node_id)
+            return jsonify({"success": False, "error": str(e)}), 500
+
     @bp.route("/api/nodes/<int:node_id>/push-update", methods=["POST"])
     @auth_decorator
     def api_push_code_update(node_id):

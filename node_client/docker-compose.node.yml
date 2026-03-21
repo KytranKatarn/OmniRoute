@@ -115,6 +115,8 @@ services:
       - ./node_sync.py:/app/node_sync.py
       - ./node_api.py:/app/node_api.py
       - ./migrations:/app/migrations
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./docker-compose.node.yml:/app/docker-compose.node.yml:ro
     command: ["python3", "-u", "node_api.py"]
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3001/health || exit 1"]

@@ -653,17 +653,7 @@ function _populateProfile(emp) {
         pName.textContent = name;
         nameRow.appendChild(pName);
 
-        if (emp.performance_score != null) {
-            var scoreBadge = document.createElement('span');
-            var score = parseFloat(emp.performance_score);
-            var scoreColor = score > 80 ? '#10b981' : (score >= 60 ? '#fbbf24' : '#64748b');
-            scoreBadge.className = 'dir-profile-perf-badge';
-            scoreBadge.style.background = scoreColor + '22';
-            scoreBadge.style.color = scoreColor;
-            scoreBadge.style.borderColor = scoreColor + '44';
-            scoreBadge.textContent = 'Score: ' + score.toFixed(1);
-            nameRow.appendChild(scoreBadge);
-        }
+        // Performance score hidden from public directory (internal metric only)
         identityEl.appendChild(nameRow);
 
         var pTitle = document.createElement('div');

@@ -209,7 +209,6 @@ def api_directory_org_chart():
                 """SELECT a.id, a.name, a.first_name, a.last_name,
                       a.display_name, a.title, a.department,
                       a.avatar_url, a.reports_to_agent_id,
-                      a.performance_score,
                       CASE WHEN a.worker_type IN ('internal','contract')
                            THEN 'AI' ELSE 'Human' END as employee_type,
                       a.worker_type,
@@ -224,7 +223,7 @@ def api_directory_org_chart():
                       ) as top_skills
                    FROM agents a
                    WHERE a.status = 'active'
-                   ORDER BY a.department, COALESCE(a.performance_score, 0) DESC"""
+                   ORDER BY a.department, a.first_name"""
             )
             agents = cur.fetchall()
 

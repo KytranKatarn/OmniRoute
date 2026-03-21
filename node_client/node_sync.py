@@ -1307,14 +1307,18 @@ def _handle_checkpoint_pull(config, payload):
     logger.info("[checkpoint_pull] Downloading %s from %s", filename, url[:80])
     start = time.time()
 
+    # Strategy: download to /tmp in sync container, then docker cp to ComfyUI container.
+    # The sync container has docker.sock but NOT the comfyui_data volume.
+    tmp_file = f"/tmp/{filename}.downloading"
+    comfyui_container = payload.get("comfyui_container", "archie_starship_comfyui")
+
     try:
-        tmp_dest = dest + ".downloading"
+        # Step 1: Download to /tmp in sync container
         downloaded = 0
         total = 0
         chunk_size = 8 * 1024 * 1024  # 8MB chunks
 
         if _HAS_REQUESTS:
-            # Use requests (available on most nodes)
             resp = _requests_lib.get(
                 url,
                 stream=True,
@@ -1323,7 +1327,7 @@ def _handle_checkpoint_pull(config, payload):
             )
             resp.raise_for_status()
             total = int(resp.headers.get("Content-Length", 0))
-            with open(tmp_dest, "wb") as f:
+            with open(tmp_file, "wb") as f:
                 for chunk in resp.iter_content(chunk_size=chunk_size):
                     if chunk:
                         f.write(chunk)
@@ -1335,13 +1339,11 @@ def _handle_checkpoint_pull(config, payload):
                                 filename, pct, downloaded / 1e6, total / 1e6,
                             )
         else:
-            # Fallback to urllib
             import urllib.request
-
             req = urllib.request.Request(url, headers={"User-Agent": "ARCHIE-Node/3.0"})
             with urllib.request.urlopen(req, timeout=7200) as resp:
                 total = int(resp.headers.get("Content-Length", 0))
-                with open(tmp_dest, "wb") as f:
+                with open(tmp_file, "wb") as f:
                     while True:
                         chunk = resp.read(chunk_size)
                         if not chunk:
@@ -1355,27 +1357,43 @@ def _handle_checkpoint_pull(config, payload):
                                 filename, pct, downloaded / 1e6, total / 1e6,
                             )
 
-        os.rename(tmp_dest, dest)
+        dl_size = os.path.getsize(tmp_file)
+        dl_elapsed = time.time() - start
+        logger.info(
+            "[checkpoint_pull] Downloaded %s: %.1fGB in %.0fs",
+            filename, dl_size / 1e9, dl_elapsed,
+        )
+
+        # Step 2: Copy into ComfyUI container via docker cp
+        cp_dest = f"{comfyui_container}:{checkpoints_dir}/{filename}"
+        logger.info("[checkpoint_pull] Copying to %s", cp_dest)
+        cp_result = subprocess.run(
+            ["docker", "cp", tmp_file, cp_dest],
+            capture_output=True, text=True, timeout=300,
+        )
+        if cp_result.returncode != 0:
+            raise RuntimeError(f"docker cp failed: {cp_result.stderr}")
+
+        # Step 3: Cleanup temp file
+        os.remove(tmp_file)
 
         elapsed = time.time() - start
-        size = os.path.getsize(dest)
-        speed_mbps = (size / 1e6) / elapsed if elapsed > 0 else 0
+        speed_mbps = (dl_size / 1e6) / elapsed if elapsed > 0 else 0
         logger.info(
             "[checkpoint_pull] %s complete: %.1fGB in %.0fs (%.1f MB/s)",
-            filename, size / 1e9, elapsed, speed_mbps,
+            filename, dl_size / 1e9, elapsed, speed_mbps,
         )
         return {
             "status": "completed",
             "filename": filename,
-            "size_bytes": size,
+            "size_bytes": dl_size,
             "elapsed_seconds": round(elapsed, 1),
             "speed_mbps": round(speed_mbps, 1),
         }
     except Exception as e:
-        tmp_dest = dest + ".downloading"
-        if os.path.exists(tmp_dest):
+        if os.path.exists(tmp_file):
             try:
-                os.remove(tmp_dest)
+                os.remove(tmp_file)
             except Exception:
                 pass
         logger.error("[checkpoint_pull] Failed to download %s: %s", filename, e)

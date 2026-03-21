@@ -2,8 +2,10 @@
 # Based on official config-example.yaml from juanfont/headscale v0.25.1
 # Docs: https://headscale.net/ref/configuration/
 
-# Change to https://mesh.kytranempowerment.com once NPM proxy is configured
-server_url: http://192.168.1.200:8095
+# NPM handles TLS termination — Headscale sees HTTP internally
+# External nodes connect via https://mesh.kytranempowerment.com (NPM → :8095)
+# LAN nodes can also use http://192.168.1.200:8095 directly
+server_url: http://mesh.kytranempowerment.com
 listen_addr: 0.0.0.0:8095
 metrics_listen_addr: 0.0.0.0:9090
 grpc_listen_addr: 127.0.0.1:50443

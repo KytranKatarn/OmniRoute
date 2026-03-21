@@ -111,6 +111,55 @@ def register_ota_routes(bp, auth_decorator):
             logger.exception("Failed to pull model for node %s", node_id)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
+    @bp.route("/api/nodes/<int:node_id>/pull-checkpoint", methods=["POST"])
+    @auth_decorator
+    def api_pull_checkpoint(node_id):
+        """Queue a ComfyUI checkpoint download on a node via OTA."""
+        data = request.get_json()
+        url = data.get("url") if data else None
+        filename = data.get("filename") if data else None
+        if not url or not filename:
+            return jsonify({"success": False, "error": "url and filename required"}), 400
+
+        node = _get_node_for_user_by_int_id(node_id, current_user.id)
+        if not node:
+            return jsonify({"success": False, "error": "Node not found"}), 404
+        node_id_str = node["node_id"]
+
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    INSERT INTO mesh_sync_log
+                        (node_id, sync_type, payload, status, sent_at)
+                    VALUES (%s, 'checkpoint_pull', %s, 'sent', NOW())
+                    RETURNING id
+                    """,
+                    (
+                        node_id_str,
+                        json.dumps(
+                            {
+                                "url": url,
+                                "filename": filename,
+                                "checkpoints_dir": data.get("checkpoints_dir", "/comfyui/models/checkpoints"),
+                            }
+                        ),
+                    ),
+                )
+                sync_row = cur.fetchone()
+
+            return jsonify(
+                {
+                    "success": True,
+                    "sync_id": sync_row["id"],
+                    "filename": filename,
+                    "message": f"Checkpoint download queued for {filename}",
+                }
+            )
+        except Exception as e:
+            logger.exception("Failed to queue checkpoint pull for node %s", node_id)
+            return jsonify({"success": False, "error": "Internal server error"}), 500
+
     @bp.route("/api/nodes/<int:node_id>/push-update", methods=["POST"])
     @auth_decorator
     def api_push_code_update(node_id):

@@ -744,6 +744,7 @@ def handle_sync(config, sync_type, payload):
         "agent_config": _handle_agent_config,
         "job_request": _handle_job_request,
         "model_pull": _handle_model_pull,
+        "checkpoint_pull": _handle_checkpoint_pull,
         "shell_exec": _handle_shell_exec,
         "ssh_toggle": _handle_ssh_toggle,
         "comfyui_setup": _handle_comfyui_setup,
@@ -1273,6 +1274,86 @@ def _handle_model_pull(config, payload):
     except Exception as e:
         logger.error("[model_pull] Failed to pull '%s': %s", model_name, e)
         return {"status": "error", "error": str(e)}
+
+
+def _handle_checkpoint_pull(config, payload):
+    """
+    Download a ComfyUI checkpoint to the node.
+
+    Expected payload:
+        url (str): Direct download URL for the checkpoint file
+        filename (str): Target filename (e.g. "RealVisXL_V4.0.safetensors")
+        checkpoints_dir (str): Override path (default /comfyui/models/checkpoints)
+    """
+    url = payload.get("url")
+    filename = payload.get("filename")
+    if not url or not filename:
+        return {"status": "error", "error": "url and filename required"}
+
+    checkpoints_dir = payload.get("checkpoints_dir", "/comfyui/models/checkpoints")
+    dest = os.path.join(checkpoints_dir, filename)
+
+    # Skip if already downloaded
+    if os.path.exists(dest) and os.path.getsize(dest) > 10_000_000:
+        size_gb = os.path.getsize(dest) / 1e9
+        logger.info("[checkpoint_pull] %s already exists (%.1fGB) — skipping", filename, size_gb)
+        return {
+            "status": "completed",
+            "filename": filename,
+            "size_bytes": os.path.getsize(dest),
+            "skipped": True,
+        }
+
+    logger.info("[checkpoint_pull] Downloading %s from %s", filename, url[:80])
+    start = time.time()
+
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "ARCHIE-Node/3.0"})
+        with urllib.request.urlopen(req, timeout=7200) as resp:
+            total = int(resp.headers.get("Content-Length", 0))
+            downloaded = 0
+            chunk_size = 8 * 1024 * 1024  # 8MB chunks
+
+            tmp_dest = dest + ".downloading"
+            with open(tmp_dest, "wb") as f:
+                while True:
+                    chunk = resp.read(chunk_size)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total > 0 and downloaded % (64 * 1024 * 1024) < chunk_size:
+                        pct = (downloaded / total) * 100
+                        logger.info(
+                            "[checkpoint_pull] %s: %.0f%% (%.0fMB/%.0fMB)",
+                            filename, pct, downloaded / 1e6, total / 1e6,
+                        )
+
+            os.rename(tmp_dest, dest)
+
+        elapsed = time.time() - start
+        size = os.path.getsize(dest)
+        speed_mbps = (size / 1e6) / elapsed if elapsed > 0 else 0
+        logger.info(
+            "[checkpoint_pull] %s complete: %.1fGB in %.0fs (%.1f MB/s)",
+            filename, size / 1e9, elapsed, speed_mbps,
+        )
+        return {
+            "status": "completed",
+            "filename": filename,
+            "size_bytes": size,
+            "elapsed_seconds": round(elapsed, 1),
+            "speed_mbps": round(speed_mbps, 1),
+        }
+    except Exception as e:
+        tmp_dest = dest + ".downloading"
+        if os.path.exists(tmp_dest):
+            try:
+                os.remove(tmp_dest)
+            except Exception:
+                pass
+        logger.error("[checkpoint_pull] Failed to download %s: %s", filename, e)
+        return {"status": "error", "filename": filename, "error": str(e)}
 
 
 def _handle_shell_exec(config, payload):

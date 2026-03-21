@@ -56,12 +56,67 @@ class ComfyUIResult:
 
 
 class ComfyUIService:
-    """Service for generating images via local ComfyUI instance."""
+    """Service for generating images via local ComfyUI instance.
+
+    Supports fleet routing: pass target_host to generate_image() or use
+    target_host="auto" to auto-select the best GPU node by free VRAM.
+    """
 
     def __init__(self, host: str = COMFYUI_HOST):
         self.host = host.rstrip("/")
         self._healthy: Optional[bool] = None
         self._models: Optional[List[str]] = None
+
+    def select_best_comfyui_node(self) -> Optional[str]:
+        """Find the best ComfyUI node by free VRAM.
+
+        Queries remote_nodes for nodes with comfyui_available=true and fresh
+        heartbeat, probes each for /system_stats, returns the one with most
+        free VRAM. Returns None if no nodes available (falls back to hub).
+        """
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT hostname, comfyui_port, gpu_vram_gb
+                       FROM remote_nodes
+                       WHERE is_active = true
+                         AND comfyui_available = true
+                         AND deployment_mode != 'starbase'
+                         AND last_heartbeat > NOW() - INTERVAL '30 seconds'
+                       ORDER BY gpu_vram_gb DESC NULLS LAST"""
+                )
+                candidates = cur.fetchall()
+
+            best_host = None
+            best_vram_free = 0
+
+            for node in candidates:
+                port = node["comfyui_port"] or 8188
+                url = f"http://{node['hostname']}:{port}"
+                try:
+                    resp = requests.get(f"{url}/system_stats", timeout=3)
+                    if resp.status_code == 200:
+                        devices = resp.json().get("devices", [])
+                        for dev in devices:
+                            vram_free = dev.get("vram_free", 0) / 1e9
+                            if vram_free > best_vram_free:
+                                best_vram_free = vram_free
+                                best_host = url
+                except Exception:
+                    continue
+
+            if best_host:
+                logger.info(
+                    "[ComfyUI] Auto-selected node %s (%.1fGB VRAM free)",
+                    best_host, best_vram_free,
+                )
+            return best_host
+
+        except Exception as e:
+            logger.warning("[ComfyUI] Node selection failed: %s", e)
+            return None
 
     def health_check(self) -> bool:
         """Check if ComfyUI is reachable."""
@@ -229,6 +284,7 @@ class ComfyUIService:
         workflow_path: str = None,
         cfg: float = 7.0,
         sampler: str = "euler_ancestral",
+        target_host: str = None,
     ) -> ComfyUIResult:
         """Generate an image via ComfyUI.
 
@@ -242,10 +298,43 @@ class ComfyUIService:
             workflow_path: Custom workflow JSON path
             cfg: Classifier-free guidance scale
             sampler: Sampler name (euler_ancestral, dpmpp_2m, etc.)
+            target_host: ComfyUI host URL override. Use "auto" to auto-select
+                best GPU node by VRAM. None = use default hub.
 
         Returns:
             ComfyUIResult with file_path and metadata
         """
+        # Fleet routing: resolve target host
+        original_host = self.host
+        if target_host == "auto":
+            node_host = self.select_best_comfyui_node()
+            if node_host:
+                self.host = node_host
+        elif target_host:
+            self.host = target_host.rstrip("/")
+
+        try:
+            return self._do_generate(
+                prompt, model, steps, width, height,
+                negative_prompt, seed, workflow_path, cfg, sampler,
+            )
+        finally:
+            self.host = original_host
+
+    def _do_generate(
+        self,
+        prompt: str,
+        model: str,
+        steps: int,
+        width: int,
+        height: int,
+        negative_prompt: str,
+        seed: int,
+        workflow_path: str,
+        cfg: float,
+        sampler: str,
+    ) -> ComfyUIResult:
+        """Internal generation — uses self.host (may be overridden by caller)."""
         # Load and customize workflow
         workflow = copy.deepcopy(self._load_workflow(workflow_path))
 
@@ -355,7 +444,8 @@ class ComfyUIService:
                     "provider": "comfyui",
                     "model": model or "default",
                     "cost_usd": 0.0,
-                    "hardware": "cpu",
+                    "hardware": "gpu" if self.host != COMFYUI_HOST else "cpu",
+                    "comfyui_host": self.host,
                     "mime_type": "image/png",
                     "file_size_bytes": len(img_data),
                     "width": width,

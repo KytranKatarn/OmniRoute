@@ -745,6 +745,7 @@ def handle_sync(config, sync_type, payload):
         "job_request": _handle_job_request,
         "model_pull": _handle_model_pull,
         "checkpoint_pull": _handle_checkpoint_pull,
+        "container_upgrade": _handle_container_upgrade,
         "shell_exec": _handle_shell_exec,
         "ssh_toggle": _handle_ssh_toggle,
         "comfyui_setup": _handle_comfyui_setup,
@@ -1389,6 +1390,104 @@ def _handle_checkpoint_pull(config, payload):
                 pass
         logger.error("[checkpoint_pull] Failed to download %s: %s", filename, e)
         return {"status": "error", "filename": filename, "error": str(e)}
+
+
+def _handle_container_upgrade(config, payload):
+    """
+    Self-replacement: clone this container with new volume mounts, start the
+    clone, then exit. The old container dies, the new one takes over.
+
+    Expected payload:
+        add_binds (list): Additional volume binds to add, e.g. ["comfyui_data:/comfyui/models"]
+        container_name (str): Container to upgrade (default: archie_starship_sync)
+    """
+    container_name = payload.get("container_name", "archie_starship_sync")
+    add_binds = payload.get("add_binds", [])
+
+    if not add_binds:
+        return {"status": "error", "error": "add_binds required (list of 'volume:path' strings)"}
+
+    logger.info("[container_upgrade] Upgrading %s with new binds: %s", container_name, add_binds)
+
+    try:
+        # Step 1: Inspect current container
+        code, raw = _docker_api("GET", f"/containers/{container_name}/json")
+        if code != 200:
+            return {"status": "error", "error": f"Cannot inspect {container_name}: HTTP {code}"}
+
+        config_data = json.loads(raw)
+        image = config_data["Config"]["Image"]
+        env_list = config_data["Config"]["Env"]
+        cmd = config_data["Config"]["Cmd"]
+        host_cfg = config_data.get("HostConfig", {})
+        binds = list(host_cfg.get("Binds", []))
+        network_mode = host_cfg.get("NetworkMode", "bridge")
+        restart_policy = host_cfg.get("RestartPolicy", {"Name": "unless-stopped"})
+
+        # Step 2: Add new binds (skip duplicates)
+        for bind in add_binds:
+            mount_target = bind.split(":")[-1] if ":" in bind else bind
+            if not any(mount_target in b for b in binds):
+                binds.append(bind)
+                logger.info("[container_upgrade] Adding bind: %s", bind)
+            else:
+                logger.info("[container_upgrade] Bind already exists for %s — skipping", mount_target)
+
+        # Step 3: Create the replacement container (with temp name)
+        temp_name = container_name + "_upgrade"
+
+        # Remove temp container if it exists from a previous failed attempt
+        _docker_api("POST", f"/containers/{temp_name}/stop?t=5")
+        _docker_api("DELETE", f"/containers/{temp_name}?force=true")
+
+        create_body = json.dumps({
+            "Image": image,
+            "Cmd": cmd,
+            "Env": env_list,
+            "HostConfig": {
+                "Binds": binds,
+                "NetworkMode": network_mode,
+                "RestartPolicy": restart_policy,
+            },
+        })
+
+        code, raw = _docker_api("POST", f"/containers/create?name={temp_name}", body=create_body)
+        if code not in (200, 201):
+            return {"status": "error", "error": f"Create failed: HTTP {code} {raw[:200]}"}
+
+        new_id = json.loads(raw).get("Id", "unknown")
+        logger.info("[container_upgrade] Created replacement %s (id=%s)", temp_name, new_id[:12])
+
+        # Step 4: Start the replacement
+        code, _ = _docker_api("POST", f"/containers/{new_id}/start")
+        if code not in (200, 204):
+            return {"status": "error", "error": f"Start failed: HTTP {code}"}
+
+        logger.info("[container_upgrade] Replacement started. Renaming...")
+
+        # Step 5: Stop+remove the OLD container (this one!) and rename the new one
+        # We do this in a thread so we can return the ack first
+        import threading
+
+        def _swap():
+            time.sleep(3)  # Give time for the ack to be sent
+            _docker_api("POST", f"/containers/{container_name}/stop?t=5")
+            _docker_api("DELETE", f"/containers/{container_name}?force=true")
+            _docker_api("POST", f"/containers/{temp_name}/rename?name={container_name}")
+            logger.info("[container_upgrade] Swap complete: %s is now the active container", container_name)
+
+        threading.Thread(target=_swap, daemon=True).start()
+
+        return {
+            "status": "completed",
+            "new_id": new_id[:12],
+            "binds": binds,
+            "message": f"Replacement created and started. Self-swap in 3 seconds.",
+        }
+
+    except Exception as e:
+        logger.error("[container_upgrade] Failed: %s", e)
+        return {"status": "error", "error": str(e)}
 
 
 def _handle_shell_exec(config, payload):

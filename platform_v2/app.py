@@ -1300,6 +1300,11 @@ from tools.blueprint import blueprint_bp  # noqa: E402
 
 app.register_blueprint(blueprint_bp)
 
+# Fleet Proxy — routes *.fleet.kytranempowerment.com to node BEACON dashboards
+from fleet_proxy import register_fleet_proxy  # noqa: E402
+
+register_fleet_proxy(app)
+
 # NOTE: System Operations (Phase 78) loaded via module_registry
 
 # NOTE: Business module now loaded via module_registry (business_directory module)

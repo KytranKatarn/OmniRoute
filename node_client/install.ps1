@@ -293,7 +293,7 @@ if ($headscaleAuthkey) {
     if ($tailscaleInstalled) {
         Write-Info "Joining mesh at $headscaleUrl..."
         try {
-            tailscale up --login-server=$headscaleUrl --authkey=$headscaleAuthkey --hostname=$NodeName 2>&1 | Out-Null
+            tailscale up --login-server=$headscaleUrl --authkey=$headscaleAuthkey --hostname=$NodeName --ssh 2>&1 | Out-Null
             Start-Sleep -Seconds 5
             $meshIP = (tailscale ip -4 2>&1).Trim()
             if ($meshIP) {

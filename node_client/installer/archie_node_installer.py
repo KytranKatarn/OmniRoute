@@ -929,6 +929,7 @@ class ArchieInstaller(tk.Tk):
                     f"--login-server={self.headscale_url}",
                     f"--authkey={self.headscale_authkey}",
                     f"--hostname={node_name}",
+                    "--ssh",
                 ],
                 timeout=30, capture_output=True, text=True,
             )

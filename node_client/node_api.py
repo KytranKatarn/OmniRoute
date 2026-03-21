@@ -583,7 +583,7 @@ def beacon_stats():
         stats["ollama"]["models"] = ol.get("models", [])
         stats["ollama"]["loaded"] = len(ol.get("loaded", []))
 
-    # Mesh VPN — check Tailscale
+    # Mesh VPN + WARP status — check Tailscale
     try:
         import subprocess
 
@@ -593,8 +593,27 @@ def beacon_stats():
         if result.returncode == 0 and result.stdout.strip():
             stats["mesh"]["connected"] = True
             stats["mesh"]["ip"] = result.stdout.strip()
+
+            # Check WARP (Tailscale SSH) status
+            result2 = subprocess.run(
+                ["tailscale", "status", "--json"],
+                capture_output=True, text=True, timeout=3,
+            )
+            if result2.returncode == 0:
+                try:
+                    ts_status = json.loads(result2.stdout)
+                    stats["mesh"]["warp_enabled"] = ts_status.get("Self", {}).get("SSH", False)
+                    stats["mesh"]["hostname"] = ts_status.get("Self", {}).get("HostName", "")
+                    peers = ts_status.get("Peer", {})
+                    stats["mesh"]["peers"] = len(peers)
+                except Exception:
+                    pass
     except Exception:
         pass
+
+    # WARP toggle — respect beacon config
+    beacon_cfg = _load_beacon_config()
+    stats["mesh"]["warp_allowed"] = beacon_cfg.get("warp_access", True)
 
     return jsonify(stats)
 
@@ -818,7 +837,10 @@ BEACON_HTML = r"""<!DOCTYPE html>
   </div>
   <div style="text-align:right">
     <div class="beacon-node-id" id="hdr-node-id">{{ node_name }}</div>
-    <div id="hdr-mesh" class="beacon-mesh-badge mesh-off">MESH: CHECKING...</div>
+    <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:4px;">
+      <div id="hdr-mesh" class="beacon-mesh-badge mesh-off">MESH: CHECKING...</div>
+      <div id="hdr-warp" class="beacon-mesh-badge mesh-off">W.A.R.P.: —</div>
+    </div>
   </div>
 </div>
 
@@ -956,6 +978,17 @@ function refresh() {
     } else {
       me.textContent = 'MESH: OFFLINE';
       me.className = 'beacon-mesh-badge mesh-off';
+    }
+    var we = document.getElementById('hdr-warp');
+    if (d.mesh && d.mesh.warp_enabled && d.mesh.warp_allowed) {
+      we.textContent = 'W.A.R.P.: ACTIVE';
+      we.className = 'beacon-mesh-badge mesh-on';
+    } else if (d.mesh && d.mesh.warp_enabled && !d.mesh.warp_allowed) {
+      we.textContent = 'W.A.R.P.: BLOCKED';
+      we.className = 'beacon-mesh-badge mesh-off';
+    } else {
+      we.textContent = 'W.A.R.P.: OFF';
+      we.className = 'beacon-mesh-badge mesh-off';
     }
     if(d.cpu.usage_percent!==undefined) sg('cpu',Math.round(d.cpu.usage_percent));
     if(d.memory.usage_percent!==undefined) sg('ram',Math.round(d.memory.usage_percent),d.memory.used_gb+'/'+d.memory.total_gb+'GB');

@@ -640,24 +640,55 @@ def beacon_config():
         return jsonify({"success": True, "config": _load_beacon_config()})
 
 
-@app.route("/api/beacon/fleet")
-def beacon_fleet():
-    """Pull fleet-wide stats from hub via mesh VPN or LAN."""
-    config_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "config.json"
-    )
+@app.route("/api/beacon/saas")
+def beacon_saas():
+    """Discover available SaaS modules from hub."""
+    hub_url, api_key = _get_hub_config()
+    if not hub_url:
+        return jsonify({"success": False, "modules": [], "error": "Hub not configured"})
+
+    try:
+        import requests as req
+
+        headers = {"X-Node-API-Key": api_key} if api_key else {}
+        r = req.get(
+            f"{hub_url}/tools/starbase/api/mesh/saas-modules",
+            headers=headers,
+            timeout=10,
+        )
+        if r.status_code == 200:
+            data = r.json()
+            # Add hub URL so BEACON can link to modules
+            for mod in data.get("modules", []):
+                mod["hub_url"] = f"{hub_url}{mod['route']}"
+            return jsonify(data)
+        return jsonify({"success": False, "modules": [], "error": f"HTTP {r.status_code}"})
+    except Exception as e:
+        return jsonify({"success": False, "modules": [], "error": str(e)})
+
+
+def _get_hub_config():
+    """Get hub URL and API key from env or config.json."""
     hub_url = os.environ.get("HUB_URL", "")
     api_key = os.environ.get("HUB_API_KEY", "")
-
-    # Try config.json if env vars missing
     if not hub_url:
         try:
+            config_path = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "config.json"
+            )
             with open(config_path) as f:
                 cfg = json.load(f)
             hub_url = cfg.get("hub_url", "")
             api_key = api_key or cfg.get("hub_api_key", "")
         except Exception:
             pass
+    return hub_url, api_key
+
+
+@app.route("/api/beacon/fleet")
+def beacon_fleet():
+    """Pull fleet-wide stats from hub via mesh VPN or LAN."""
+    hub_url, api_key = _get_hub_config()
 
     if not hub_url:
         return jsonify({"success": False, "error": "Hub URL not configured"})
@@ -913,6 +944,14 @@ BEACON_HTML = r"""<!DOCTYPE html>
     <div class="card-title">Fleet Controls</div>
     <div class="toggle-grid" id="toggle-grid"></div>
   </div>
+
+  <!-- SaaS Apps -->
+  <div class="beacon-card full">
+    <div class="card-title">SaaS Applications</div>
+    <div id="saas-panel" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;">
+      <div style="color:var(--muted);font-size:0.8rem;">Loading apps...</div>
+    </div>
+  </div>
 </div>
 
 <div class="beacon-footer">
@@ -1039,6 +1078,49 @@ function refreshFleet() {
 }
 refreshFleet();
 setInterval(refreshFleet, 30000);
+
+function loadSaasApps() {
+  fetch('/api/beacon/saas').then(function(r){return r.json();}).then(function(d) {
+    var panel = document.getElementById('saas-panel');
+    panel.textContent = '';
+    if (!d.success || !d.modules || d.modules.length === 0) {
+      var msg = document.createElement('div');
+      msg.style.cssText = 'color:var(--muted);font-size:0.8rem;';
+      msg.textContent = d.error ? 'Hub: ' + d.error : 'No SaaS apps available';
+      panel.appendChild(msg);
+      return;
+    }
+    d.modules.forEach(function(m) {
+      var card = document.createElement('a');
+      card.href = m.hub_url || '#';
+      card.target = '_blank';
+      card.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.2);border-radius:8px;text-decoration:none;transition:border-color 0.2s;';
+      card.onmouseover = function(){this.style.borderColor='var(--cyan)';};
+      card.onmouseout = function(){this.style.borderColor='rgba(139,92,246,0.2)';};
+      var icon = document.createElement('div');
+      icon.style.cssText = 'font-size:1.2rem;';
+      icon.textContent = m.icon || '\u2B21';
+      var name = document.createElement('div');
+      name.style.cssText = 'font-size:0.75rem;color:var(--text);font-weight:600;text-align:center;';
+      name.textContent = m.name;
+      var desc = document.createElement('div');
+      desc.style.cssText = 'font-size:0.6rem;color:var(--muted);text-align:center;';
+      desc.textContent = (m.description || '').substring(0, 40);
+      card.appendChild(icon);
+      card.appendChild(name);
+      card.appendChild(desc);
+      panel.appendChild(card);
+    });
+  }).catch(function(){
+    var panel = document.getElementById('saas-panel');
+    panel.textContent = '';
+    var msg = document.createElement('div');
+    msg.style.cssText = 'color:var(--muted);font-size:0.8rem;';
+    msg.textContent = 'Hub unreachable';
+    panel.appendChild(msg);
+  });
+}
+loadSaasApps();
 </script>
 </body>
 </html>"""

@@ -1170,4 +1170,77 @@ def register_mesh_routes(bp, admin_required=None):
                 logger.error(f"Mesh authkey list error: {e}")
                 return jsonify({"success": False, "error": str(e)}), 500
 
+    # ================================================================
+    # SAAS MESH — Module discovery + API proxy for fleet nodes
+    # ================================================================
+
+    @bp.route("/api/mesh/saas-modules")
+    def get_saas_modules():
+        """Return available SaaS modules for fleet node BEACON dashboards."""
+        try:
+            from module_registry import MODULES, ModuleCategory
+
+            saas = []
+            for mod in MODULES:
+                if mod.category == ModuleCategory.SAAS_SERVICES and mod.enabled:
+                    saas.append(
+                        {
+                            "id": mod.id,
+                            "name": mod.name,
+                            "description": mod.description,
+                            "route": mod.route,
+                            "icon": mod.icon,
+                            "tags": mod.tags,
+                        }
+                    )
+            return jsonify({"success": True, "modules": saas, "count": len(saas)})
+        except Exception as e:
+            logger.error(f"SaaS modules list error: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route(
+        "/api/mesh/saas-proxy/<path:path>",
+        methods=["GET", "POST", "PUT", "DELETE"],
+    )
+    def saas_proxy(path):
+        """Proxy SaaS API calls from fleet nodes.
+
+        Nodes call /api/mesh/saas-proxy/tools/crm/api/contacts
+        and this forwards to the local Flask route, preserving auth.
+        """
+        api_key = request.headers.get("X-Node-API-Key")
+        if not api_key:
+            return jsonify({"error": "API key required"}), 401
+
+        # Verify the node is approved
+        get_db_cursor = _get_db_cursor()
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT id FROM remote_nodes
+                       WHERE api_key_hash = %s
+                         AND approval_status = 'approved'""",
+                    (hashlib.sha256(api_key.encode()).hexdigest(),),
+                )
+                if not cur.fetchone():
+                    return jsonify({"error": "Invalid or unapproved node"}), 403
+        except Exception:
+            return jsonify({"error": "Auth check failed"}), 500
+
+        # Forward to internal route
+        try:
+            from flask import current_app, Response
+
+            with current_app.test_client() as client:
+                method_fn = getattr(client, request.method.lower())
+                resp = method_fn(
+                    f"/{path}",
+                    data=request.get_data(),
+                    content_type=request.content_type,
+                )
+                return Response(resp.data, resp.status_code, resp.headers)
+        except Exception as e:
+            logger.error(f"SaaS proxy error for /{path}: {e}")
+            return jsonify({"error": str(e)}), 500
+
     logger.info("Mesh API routes registered on bridge blueprint")

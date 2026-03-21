@@ -6343,6 +6343,14 @@ function renderNodeCard(node) {
                 <div class="node-name">${escapeHtml(node.node_name)}</div>
                 ${node.org_name ? `<div class="node-org-badge"><i data-lucide="building" style="width:11px;height:11px;"></i> ${escapeHtml(node.org_name)}</div>` : ''}
                 <div class="node-connection">${node.vpn_ip || node.hostname || 'Unknown'}:${node.port || 11434}</div>
+                ${node.mesh_ip ? `<div class="node-mesh-info">
+                    <span class="mesh-badge ${node.mesh_status === 'connected' ? 'mesh-connected' : node.mesh_status === 'relay' ? 'mesh-relay' : 'mesh-off'}">
+                        <i data-lucide="shield" style="width:10px;height:10px;"></i>
+                        ${node.mesh_ip}
+                        ${node.mesh_connection_type === 'direct' ? ' (direct)' : node.mesh_connection_type === 'relay' ? ' (relay)' : ''}
+                    </span>
+                    ${node.mesh_latency_ms ? `<span class="mesh-latency">${node.mesh_latency_ms}ms</span>` : ''}
+                </div>` : ''}
                 <div class="node-specs">
                     <span><i data-lucide="cpu" style="width:12px;height:12px;"></i> ${node.cpu_cores || '?'} cores</span>
                     <span><i data-lucide="memory-stick" style="width:12px;height:12px;"></i> ${node.ram_gb || '?'}GB</span>

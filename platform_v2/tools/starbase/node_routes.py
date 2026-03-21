@@ -81,6 +81,8 @@ def register_node_routes(bp, admin_required):
                            rn.approval_status, rn.approved_by, rn.approved_at,
                            rn.bridge_enabled, rn.bridge_priority, rn.last_model_sync,
                            rn.network_type, rn.ssh_enabled, rn.ssh_enabled_at,
+                           rn.mesh_ip, rn.mesh_status, rn.mesh_connection_type,
+                           rn.mesh_latency_ms, rn.mesh_last_seen,
                            o.name AS org_name, o.id AS org_id
                     FROM remote_nodes rn
                     LEFT JOIN organizations o ON o.node_id = rn.node_id
@@ -125,7 +127,7 @@ def register_node_routes(bp, admin_required):
 
                 # Convert datetime
                 for node in nodes:
-                    for key in ["last_heartbeat", "created_at", "updated_at", "approved_at"]:
+                    for key in ["last_heartbeat", "created_at", "updated_at", "approved_at", "mesh_last_seen"]:
                         if node.get(key):
                             node[key] = node[key].isoformat()
 
@@ -667,35 +669,112 @@ def register_node_routes(bp, admin_required):
                     data.get("ram_gb", 8), data.get("cpu_cores", 4), data.get("gpu_vram_gb", 0)
                 )
 
+                # Generate Headscale mesh auth key for the node
+                headscale_authkey = None
+                headscale_url = None
+                try:
+                    import subprocess
+
+                    result = subprocess.run(
+                        [
+                            "docker",
+                            "exec",
+                            "archie_headscale",
+                            "headscale",
+                            "preauthkeys",
+                            "create",
+                            "--user",
+                            "archie-fleet",
+                            "--ephemeral",
+                            "--expiration",
+                            "1h",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    if result.returncode == 0:
+                        # Key is the last non-empty line (skip WRN lines)
+                        lines = [l.strip() for l in result.stdout.strip().split("\n") if l.strip() and "WRN" not in l]
+                        if lines:
+                            headscale_authkey = lines[-1]
+                            headscale_url = os.environ.get("HEADSCALE_URL", "http://192.168.1.200:8095")
+                            logger.info("Generated Headscale auth key for node %s", node_id)
+                    else:
+                        logger.warning("Headscale key generation failed: %s", result.stderr)
+                except Exception as hs_err:
+                    logger.warning("Headscale key generation skipped: %s", hs_err)
+
                 # Return config settings for the node client
-                return jsonify(
-                    {
-                        "success": True,
-                        "node_id": node["node_id"],
-                        "api_key": api_key,  # Only returned once at registration!
-                        "approval_status": node["approval_status"],
-                        "network_type": network_type,
-                        "config": {
-                            "heartbeat_interval": 30,
-                            "capability_interval": 300,
-                            "max_concurrent": calculated_max,
-                            "log_level": "INFO",
-                        },
-                        "message": (
-                            "Node registered. Awaiting admin approval."
-                            if node["approval_status"] == "pending"
-                            else "Node registered successfully."
-                        ),
-                        "hardware_recommendation": (
-                            f'Based on {data.get("ram_gb", 8)}GB RAM, '
-                            f'{data.get("cpu_cores", 4)} cores, '
-                            f"recommended max_concurrent: {calculated_max}"
-                        ),
-                    }
-                )
+                response = {
+                    "success": True,
+                    "node_id": node["node_id"],
+                    "api_key": api_key,  # Only returned once at registration!
+                    "approval_status": node["approval_status"],
+                    "network_type": network_type,
+                    "config": {
+                        "heartbeat_interval": 30,
+                        "capability_interval": 300,
+                        "max_concurrent": calculated_max,
+                        "log_level": "INFO",
+                    },
+                    "message": (
+                        "Node registered. Awaiting admin approval."
+                        if node["approval_status"] == "pending"
+                        else "Node registered successfully."
+                    ),
+                    "hardware_recommendation": (
+                        f'Based on {data.get("ram_gb", 8)}GB RAM, '
+                        f'{data.get("cpu_cores", 4)} cores, '
+                        f"recommended max_concurrent: {calculated_max}"
+                    ),
+                }
+
+                # Include mesh VPN credentials if available
+                if headscale_authkey:
+                    response["headscale_authkey"] = headscale_authkey
+                    response["headscale_url"] = headscale_url
+
+                return jsonify(response)
 
         except Exception as e:
             logger.error(f"Error registering node: {e}")
+            return jsonify({"success": False, "error": "Internal server error"}), 500
+
+    @bp.route("/api/nodes/<node_id>/mesh-ip", methods=["POST"])
+    def update_mesh_ip(node_id):
+        """Update a node's mesh VPN IP address (called by installer after Tailscale joins)."""
+        data = request.get_json() or {}
+        api_key = request.headers.get("X-Node-API-Key")
+        mesh_ip = data.get("mesh_ip")
+
+        if not api_key:
+            return jsonify({"success": False, "error": "API key required"}), 401
+        if not mesh_ip:
+            return jsonify({"success": False, "error": "mesh_ip is required"}), 400
+
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """
+                    UPDATE remote_nodes
+                    SET mesh_ip = %s,
+                        mesh_status = 'connected',
+                        mesh_last_seen = NOW()
+                    WHERE node_id = %s
+                      AND api_key_hash = %s
+                    RETURNING id, node_name
+                    """,
+                    (mesh_ip, node_id, hash_api_key(api_key)),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return jsonify({"success": False, "error": "Invalid node or API key"}), 403
+                conn.commit()
+                logger.info("Node %s (%s) mesh IP updated to %s", row["node_name"], node_id, mesh_ip)
+                return jsonify({"success": True, "mesh_ip": mesh_ip})
+        except Exception as e:
+            logger.error("Error updating mesh IP for %s: %s", node_id, e)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/nodes/<node_id>/heartbeat", methods=["POST"])

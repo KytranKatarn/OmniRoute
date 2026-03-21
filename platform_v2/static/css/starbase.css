@@ -5843,7 +5843,47 @@ body.light-mode .bridge-zone-unstaffed {
 .node-connection {
     font-size: 0.75rem;
     color: var(--archie-text-muted);
-    margin-bottom: 10px;
+    margin-bottom: 4px;
+}
+
+.node-mesh-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 0.7rem;
+}
+
+.mesh-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: 'IBM Plex Mono', monospace;
+}
+
+.mesh-badge.mesh-connected {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.mesh-badge.mesh-relay {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+    border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.mesh-badge.mesh-off {
+    background: rgba(107, 114, 128, 0.15);
+    color: #6b7280;
+    border: 1px solid rgba(107, 114, 128, 0.3);
+}
+
+.mesh-latency {
+    color: var(--archie-text-muted);
+    font-size: 0.65rem;
 }
 
 .node-specs {

@@ -18,7 +18,7 @@ import sys
 from datetime import datetime
 
 from flask import jsonify, request
-from flask_login import login_required
+from flask_login import login_required, current_user
 
 logger = logging.getLogger(__name__)
 
@@ -951,5 +951,223 @@ def register_mesh_routes(bp, admin_required=None):
         except Exception as e:
             logger.error(f"Mesh push-update failed: {e}")
             return jsonify({"success": False, "error": "Internal server error"}), 500
+
+    # ================================================================
+    # MESH VPN — Headscale topology, health, and auth key management
+    # ================================================================
+
+    @bp.route("/api/mesh/topology")
+    @login_required
+    def get_mesh_topology():
+        """Return mesh topology — all nodes with their mesh status."""
+        try:
+            get_db_cursor = _get_db_cursor()
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT id, node_id, node_name, hostname, vpn_ip,
+                           mesh_ip, mesh_status, mesh_latency_ms,
+                           mesh_connection_type, mesh_last_seen,
+                           status, gpu_model, gpu_vram_gb, ram_gb,
+                           last_heartbeat, approval_status
+                    FROM remote_nodes
+                    WHERE approval_status = 'approved'
+                    ORDER BY mesh_status = 'connected' DESC, node_name
+                """
+                )
+                nodes = cur.fetchall()
+
+            mesh_nodes = []
+            for n in nodes:
+                mesh_nodes.append(
+                    {
+                        "id": n["id"],
+                        "node_id": n["node_id"],
+                        "node_name": n["node_name"],
+                        "hostname": n["hostname"],
+                        "vpn_ip": n["vpn_ip"],
+                        "mesh_ip": n["mesh_ip"],
+                        "mesh_status": n["mesh_status"] or "disconnected",
+                        "mesh_latency_ms": n["mesh_latency_ms"],
+                        "mesh_connection_type": n["mesh_connection_type"],
+                        "mesh_last_seen": n["mesh_last_seen"].isoformat() if n["mesh_last_seen"] else None,
+                        "status": n["status"],
+                        "gpu_model": n["gpu_model"],
+                        "gpu_vram_gb": float(n["gpu_vram_gb"]) if n["gpu_vram_gb"] else 0,
+                        "ram_gb": float(n["ram_gb"]) if n["ram_gb"] else 0,
+                        "online": (
+                            (
+                                n["last_heartbeat"] is not None
+                                and (datetime.now(n["last_heartbeat"].tzinfo) - n["last_heartbeat"]).total_seconds()
+                                < 60
+                            )
+                            if n["last_heartbeat"]
+                            else False
+                        ),
+                    }
+                )
+
+            return jsonify(
+                {
+                    "success": True,
+                    "nodes": mesh_nodes,
+                    "total": len(mesh_nodes),
+                    "mesh_connected": sum(1 for n in mesh_nodes if n["mesh_status"] == "connected"),
+                }
+            )
+        except Exception as e:
+            logger.error(f"Mesh topology error: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/mesh/health")
+    @login_required
+    def get_mesh_health():
+        """Return mesh health summary with recent latency data."""
+        try:
+            get_db_cursor = _get_db_cursor()
+            with get_db_cursor() as (conn, cur):
+                # Aggregate mesh stats
+                cur.execute(
+                    """
+                    SELECT
+                        COUNT(*) FILTER (WHERE mesh_status = 'connected') as connected,
+                        COUNT(*) FILTER (WHERE mesh_status = 'disconnected' OR mesh_status IS NULL) as disconnected,
+                        COUNT(*) FILTER (WHERE mesh_status = 'relay') as relay,
+                        AVG(mesh_latency_ms) FILTER (WHERE mesh_latency_ms IS NOT NULL) as avg_latency,
+                        MAX(mesh_latency_ms) FILTER (WHERE mesh_latency_ms IS NOT NULL) as max_latency
+                    FROM remote_nodes
+                    WHERE approval_status = 'approved'
+                """
+                )
+                stats = cur.fetchone()
+
+                return jsonify(
+                    {
+                        "success": True,
+                        "connected": stats["connected"] or 0,
+                        "disconnected": stats["disconnected"] or 0,
+                        "relay": stats["relay"] or 0,
+                        "avg_latency_ms": round(float(stats["avg_latency"]), 1) if stats["avg_latency"] else None,
+                        "max_latency_ms": int(stats["max_latency"]) if stats["max_latency"] else None,
+                    }
+                )
+        except Exception as e:
+            logger.error(f"Mesh health error: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/mesh/authkeys", methods=["GET", "POST"])
+    @login_required
+    def manage_mesh_authkeys():
+        """Create or list Headscale pre-auth keys."""
+        get_db_cursor = _get_db_cursor()
+        if request.method == "POST":
+            # Generate a new pre-auth key via Headscale CLI
+            try:
+                import subprocess
+
+                data = request.get_json() or {}
+                expiry = data.get("expiration", "1h")
+                reusable = data.get("reusable", False)
+
+                cmd = [
+                    "docker",
+                    "exec",
+                    "archie_headscale",
+                    "headscale",
+                    "preauthkeys",
+                    "create",
+                    "--user",
+                    "archie-fleet",
+                    "--expiration",
+                    expiry,
+                ]
+                if not reusable:
+                    cmd.append("--ephemeral")
+
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+                if result.returncode != 0:
+                    return jsonify({"success": False, "error": result.stderr}), 500
+
+                # Parse key from output (skip WRN lines)
+                lines = [
+                    l.strip()
+                    for l in result.stdout.strip().split("\n")
+                    if l.strip() and "WRN" not in l and "TRC" not in l
+                ]
+                if not lines:
+                    return jsonify({"success": False, "error": "No key in output"}), 500
+
+                key = lines[-1]
+                key_prefix = key[:12] + "..."
+
+                # Store in DB for tracking
+                with get_db_cursor() as (conn, cur):
+                    cur.execute(
+                        """
+                        INSERT INTO headscale_authkeys
+                            (key_prefix, key_hash, created_by, is_ephemeral, is_reusable, expires_at)
+                        VALUES (%s, %s, %s, %s, %s, NOW() + %s::interval)
+                        RETURNING id
+                    """,
+                        (
+                            key_prefix,
+                            hashlib.sha256(key.encode()).hexdigest(),
+                            current_user.id if hasattr(current_user, "id") else None,
+                            not reusable,
+                            reusable,
+                            expiry,
+                        ),
+                    )
+                    key_id = cur.fetchone()["id"]
+                    conn.commit()
+
+                return jsonify(
+                    {
+                        "success": True,
+                        "key": key,
+                        "key_id": key_id,
+                        "prefix": key_prefix,
+                        "expiration": expiry,
+                        "reusable": reusable,
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Mesh authkey creation error: {e}")
+                return jsonify({"success": False, "error": str(e)}), 500
+
+        else:  # GET — list keys
+            try:
+                with get_db_cursor() as (conn, cur):
+                    cur.execute(
+                        """
+                        SELECT id, key_prefix, is_ephemeral, is_reusable,
+                               is_used, expires_at, created_at
+                        FROM headscale_authkeys
+                        ORDER BY created_at DESC
+                        LIMIT 50
+                    """
+                    )
+                    keys = cur.fetchall()
+
+                return jsonify(
+                    {
+                        "success": True,
+                        "keys": [
+                            {
+                                "id": k["id"],
+                                "prefix": k["key_prefix"],
+                                "ephemeral": k["is_ephemeral"],
+                                "reusable": k["is_reusable"],
+                                "used": k["is_used"],
+                                "expires_at": k["expires_at"].isoformat() if k["expires_at"] else None,
+                                "created_at": k["created_at"].isoformat() if k["created_at"] else None,
+                            }
+                            for k in keys
+                        ],
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Mesh authkey list error: {e}")
+                return jsonify({"success": False, "error": str(e)}), 500
 
     logger.info("Mesh API routes registered on bridge blueprint")

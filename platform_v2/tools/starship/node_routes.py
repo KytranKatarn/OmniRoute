@@ -191,6 +191,12 @@ def register_node_routes(bp, auth_decorator):
                         "last_heartbeat": node["last_heartbeat"].isoformat() if node["last_heartbeat"] else None,
                         "privacy_settings": node.get("privacy_settings", {}),
                         "client_version": client_ver,
+                        "mesh_ip": node.get("mesh_ip"),
+                        "mesh_status": node.get("mesh_status", "disconnected"),
+                        "mesh_connection_type": node.get("mesh_connection_type"),
+                        "mesh_latency_ms": node.get("mesh_latency_ms"),
+                        "hostname": node.get("hostname"),
+                        "vpn_ip": node.get("vpn_ip"),
                     },
                     "version": {
                         "current": client_ver,

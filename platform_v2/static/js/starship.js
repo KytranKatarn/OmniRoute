@@ -1135,6 +1135,18 @@ function renderDetail(data) {
     _setLive(document.getElementById('d-priority'), n.bridge_priority || '—', true);
     _setLive(document.getElementById('d-heartbeat'), n.last_heartbeat ? new Date(n.last_heartbeat).toLocaleString() : 'Never', !!n.last_heartbeat);
 
+    // Mesh VPN status
+    var meshEl = document.getElementById('d-mesh');
+    if (meshEl) {
+        if (n.mesh_ip) {
+            var connType = n.mesh_connection_type === 'direct' ? ' (DIRECT)' : n.mesh_connection_type === 'relay' ? ' (RELAY)' : '';
+            _setLive(meshEl, n.mesh_ip + connType, true);
+        } else {
+            meshEl.textContent = 'Not connected';
+            meshEl.className = 'sc-static';
+        }
+    }
+
     // Version
     var verEl = document.getElementById('d-version');
     verEl.textContent = '';

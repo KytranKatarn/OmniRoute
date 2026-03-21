@@ -29,23 +29,36 @@ def _compute_node_status(node):
     return node.get("status", "online")
 
 
-def _get_user_nodes(user_id):
+def _get_user_nodes(user_id, is_admin=False):
     """Get all starship nodes owned by or visible to this user.
-    Nodes with NULL registered_by are visible to all authenticated users."""
+    Admins see all nodes. Nodes with NULL registered_by are visible to all."""
     with get_db_cursor() as (conn, cur):
-        cur.execute(
-            """
-            SELECT id, node_id, node_name, deployment_mode, hostname, port,
-                   status, is_active, bridge_enabled, bridge_priority,
-                   gpu_model, gpu_vram_gb, cpu_model, cpu_cores, ram_gb, disk_gb,
-                   approval_status, last_heartbeat, client_version,
-                   COALESCE(privacy_settings, '{}'::jsonb) as privacy_settings
-            FROM remote_nodes
-            WHERE registered_by = %s OR registered_by IS NULL
-            ORDER BY bridge_priority DESC, node_name
-            """,
-            (user_id,),
-        )
+        if is_admin:
+            cur.execute(
+                """
+                SELECT id, node_id, node_name, deployment_mode, hostname, port,
+                       status, is_active, bridge_enabled, bridge_priority,
+                       gpu_model, gpu_vram_gb, cpu_model, cpu_cores, ram_gb, disk_gb,
+                       approval_status, last_heartbeat, client_version,
+                       COALESCE(privacy_settings, '{}'::jsonb) as privacy_settings
+                FROM remote_nodes
+                ORDER BY bridge_priority DESC, node_name
+                """
+            )
+        else:
+            cur.execute(
+                """
+                SELECT id, node_id, node_name, deployment_mode, hostname, port,
+                       status, is_active, bridge_enabled, bridge_priority,
+                       gpu_model, gpu_vram_gb, cpu_model, cpu_cores, ram_gb, disk_gb,
+                       approval_status, last_heartbeat, client_version,
+                       COALESCE(privacy_settings, '{}'::jsonb) as privacy_settings
+                FROM remote_nodes
+                WHERE registered_by = %s OR registered_by IS NULL
+                ORDER BY bridge_priority DESC, node_name
+                """,
+                (user_id,),
+            )
         return cur.fetchall()
 
 

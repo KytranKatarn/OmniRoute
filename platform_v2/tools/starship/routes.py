@@ -32,7 +32,7 @@ def starship_dashboard():
     # User's own nodes (for FLEET/OPERATIONS management)
     nodes = []
     try:
-        raw_nodes = _get_user_nodes(user_id)
+        raw_nodes = _get_user_nodes(user_id, is_admin=is_admin)
         for n in raw_nodes:
             d = dict(n)
             d["status"] = _compute_node_status(n)
@@ -179,7 +179,7 @@ def api_starbase_stats():
             cur.execute(
                 """SELECT COUNT(*) as cnt FROM remote_nodes
                    WHERE is_active = true
-                   AND (last_heartbeat > NOW() - INTERVAL '2 minutes'
+                   AND (last_heartbeat > NOW() - INTERVAL '30 seconds'
                         OR deployment_mode = 'starbase')"""
             )
             online_count = cur.fetchone()["cnt"]

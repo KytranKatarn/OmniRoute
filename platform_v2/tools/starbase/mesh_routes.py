@@ -1243,4 +1243,106 @@ def register_mesh_routes(bp, admin_required=None):
             logger.error(f"SaaS proxy error for /{path}: {e}")
             return jsonify({"error": str(e)}), 500
 
+    # ================================================================
+    # DATA SYNC — Incremental data packages for fleet nodes
+    # ================================================================
+
+    @bp.route("/api/mesh/sync-data", methods=["POST"])
+    def sync_data():
+        """Serve incremental data package for node DB sync.
+
+        Node sends watermarks (last sync timestamps per type).
+        Hub returns records updated since those watermarks.
+        """
+        api_key = request.headers.get("X-Node-API-Key")
+        if not api_key:
+            return jsonify({"error": "API key required"}), 401
+
+        get_db_cursor = _get_db_cursor()
+        try:
+            with get_db_cursor() as (conn, cur):
+                # Verify node
+                cur.execute(
+                    """SELECT id, node_name FROM remote_nodes
+                       WHERE api_key_hash = %s
+                         AND approval_status = 'approved'""",
+                    (hashlib.sha256(api_key.encode()).hexdigest(),),
+                )
+                node = cur.fetchone()
+                if not node:
+                    return jsonify({"error": "Invalid node"}), 403
+
+                data = request.get_json() or {}
+                watermarks = data.get("watermarks", {})
+                limit = min(data.get("limit", 100), 500)
+
+                package = {}
+
+                # Knowledge sync
+                kb_since = watermarks.get("knowledge_sync", "1970-01-01")
+                cur.execute(
+                    """SELECT id, title, content, knowledge_type, category,
+                              tags, importance_score, source_type, updated_at
+                       FROM knowledge_base
+                       WHERE updated_at > %s AND status = 'active'
+                       ORDER BY updated_at ASC LIMIT %s""",
+                    (kb_since, limit),
+                )
+                package["knowledge"] = [dict(r) for r in cur.fetchall()]
+
+                # Projects sync
+                proj_since = watermarks.get("project_sync", "1970-01-01")
+                cur.execute(
+                    """SELECT id, name, slug, description, status, priority,
+                              project_type, tags, updated_at
+                       FROM unified_projects
+                       WHERE updated_at > %s
+                       ORDER BY updated_at ASC LIMIT %s""",
+                    (proj_since, limit),
+                )
+                package["projects"] = [dict(r) for r in cur.fetchall()]
+
+                # Tasks sync
+                task_since = watermarks.get("task_sync", "1970-01-01")
+                cur.execute(
+                    """SELECT id, project_id, title, description, status,
+                              priority, assigned_agent, tags, updated_at
+                       FROM unified_tasks
+                       WHERE updated_at > %s
+                       ORDER BY updated_at ASC LIMIT %s""",
+                    (task_since, limit),
+                )
+                package["tasks"] = [dict(r) for r in cur.fetchall()]
+
+                # Contacts sync (CRM)
+                contact_since = watermarks.get("contact_sync", "1970-01-01")
+                cur.execute(
+                    """SELECT id, name, email, company, role, tags,
+                              updated_at
+                       FROM crm_customers
+                       WHERE updated_at > %s
+                       ORDER BY updated_at ASC LIMIT %s""",
+                    (contact_since, limit),
+                )
+                package["contacts"] = [dict(r) for r in cur.fetchall()]
+
+                # Serialize datetimes
+                for section in package.values():
+                    for row in section:
+                        for k, v in row.items():
+                            if hasattr(v, "isoformat"):
+                                row[k] = v.isoformat()
+
+                return jsonify(
+                    {
+                        "success": True,
+                        "package": package,
+                        "counts": {k: len(v) for k, v in package.items()},
+                    }
+                )
+
+        except Exception as e:
+            logger.error(f"Sync data error: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
     logger.info("Mesh API routes registered on bridge blueprint")

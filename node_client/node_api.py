@@ -685,6 +685,220 @@ def _get_hub_config():
     return hub_url, api_key
 
 
+@app.route("/api/beacon/sync", methods=["POST"])
+def beacon_sync():
+    """Trigger data sync from hub — pull knowledge, projects, tasks, contacts."""
+    hub_url, api_key = _get_hub_config()
+    if not hub_url:
+        return jsonify({"success": False, "error": "Hub not configured"})
+
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        # Get watermarks
+        cur.execute("SELECT sync_type, last_synced_at FROM node_sync_watermarks")
+        watermarks = {r["sync_type"]: r["last_synced_at"].isoformat() for r in cur.fetchall()}
+
+        # Pull from hub
+        import requests as req
+
+        r = req.post(
+            f"{hub_url}/tools/starbase/api/mesh/sync-data",
+            json={"watermarks": watermarks, "limit": 200},
+            headers={"X-Node-API-Key": api_key},
+            timeout=30,
+        )
+        if r.status_code != 200:
+            return jsonify({"success": False, "error": f"Hub returned {r.status_code}"})
+
+        data = r.json()
+        if not data.get("success"):
+            return jsonify({"success": False, "error": data.get("error", "Unknown")})
+
+        package = data.get("package", {})
+        synced = {}
+
+        # Upsert knowledge
+        for kb in package.get("knowledge", []):
+            cur.execute(
+                """INSERT INTO node_knowledge_cache
+                   (hub_kb_id, title, content, knowledge_type, category,
+                    tags, importance_score, source_type, synced_at, hub_updated_at)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,NOW(),%s)
+                   ON CONFLICT (hub_kb_id) DO UPDATE SET
+                    title=EXCLUDED.title, content=EXCLUDED.content,
+                    knowledge_type=EXCLUDED.knowledge_type, category=EXCLUDED.category,
+                    tags=EXCLUDED.tags, importance_score=EXCLUDED.importance_score,
+                    synced_at=NOW(), hub_updated_at=EXCLUDED.hub_updated_at""",
+                (
+                    kb["id"], kb.get("title"), kb.get("content"),
+                    kb.get("knowledge_type"), kb.get("category"),
+                    kb.get("tags", []), kb.get("importance_score", 0.5),
+                    kb.get("source_type"), kb.get("updated_at"),
+                ),
+            )
+        synced["knowledge"] = len(package.get("knowledge", []))
+
+        # Upsert projects
+        for p in package.get("projects", []):
+            cur.execute(
+                """INSERT INTO node_projects
+                   (hub_project_id, name, slug, description, status, priority,
+                    project_type, tags, synced_at, hub_updated_at)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,NOW(),%s)
+                   ON CONFLICT (hub_project_id) DO UPDATE SET
+                    name=EXCLUDED.name, slug=EXCLUDED.slug,
+                    description=EXCLUDED.description, status=EXCLUDED.status,
+                    priority=EXCLUDED.priority, synced_at=NOW(),
+                    hub_updated_at=EXCLUDED.hub_updated_at""",
+                (
+                    p["id"], p["name"], p.get("slug"), p.get("description"),
+                    p.get("status"), p.get("priority", 5),
+                    p.get("project_type"), p.get("tags", []),
+                    p.get("updated_at"),
+                ),
+            )
+        synced["projects"] = len(package.get("projects", []))
+
+        # Upsert tasks
+        for t in package.get("tasks", []):
+            cur.execute(
+                """INSERT INTO node_tasks
+                   (hub_task_id, hub_project_id, title, description, status,
+                    priority, assigned_agent, tags, synced_at, hub_updated_at)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,NOW(),%s)
+                   ON CONFLICT (hub_task_id) DO UPDATE SET
+                    title=EXCLUDED.title, description=EXCLUDED.description,
+                    status=EXCLUDED.status, priority=EXCLUDED.priority,
+                    assigned_agent=EXCLUDED.assigned_agent, synced_at=NOW(),
+                    hub_updated_at=EXCLUDED.hub_updated_at""",
+                (
+                    t["id"], t.get("project_id"), t["title"],
+                    t.get("description"), t.get("status"),
+                    t.get("priority", 5), t.get("assigned_agent"),
+                    t.get("tags", []), t.get("updated_at"),
+                ),
+            )
+        synced["tasks"] = len(package.get("tasks", []))
+
+        # Upsert contacts
+        for c in package.get("contacts", []):
+            cur.execute(
+                """INSERT INTO node_contacts
+                   (hub_contact_id, name, email, company, role,
+                    tags, synced_at, hub_updated_at)
+                   VALUES (%s,%s,%s,%s,%s,%s,NOW(),%s)
+                   ON CONFLICT (hub_contact_id) DO UPDATE SET
+                    name=EXCLUDED.name, email=EXCLUDED.email,
+                    company=EXCLUDED.company, role=EXCLUDED.role,
+                    tags=EXCLUDED.tags, synced_at=NOW(),
+                    hub_updated_at=EXCLUDED.hub_updated_at""",
+                (
+                    c["id"], c["name"], c.get("email"),
+                    c.get("company"), c.get("role"),
+                    c.get("tags", []), c.get("updated_at"),
+                ),
+            )
+        synced["contacts"] = len(package.get("contacts", []))
+
+        # Update watermarks
+        for sync_type, records in [
+            ("knowledge_sync", package.get("knowledge", [])),
+            ("project_sync", package.get("projects", [])),
+            ("task_sync", package.get("tasks", [])),
+            ("contact_sync", package.get("contacts", [])),
+        ]:
+            if records:
+                latest = max(r.get("updated_at", "") for r in records)
+                cur.execute(
+                    """UPDATE node_sync_watermarks
+                       SET last_synced_at = %s, record_count = record_count + %s,
+                           updated_at = NOW()
+                       WHERE sync_type = %s""",
+                    (latest, len(records), sync_type),
+                )
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "synced": synced})
+
+    except Exception as e:
+        logger.error(f"Data sync failed: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/api/beacon/local-data")
+def beacon_local_data():
+    """Query locally synced data — works offline."""
+    data_type = request.args.get("type", "knowledge")
+    search = request.args.get("q", "")
+    limit = min(int(request.args.get("limit", 50)), 200)
+
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        if data_type == "knowledge":
+            if search:
+                cur.execute(
+                    """SELECT hub_kb_id, title, knowledge_type, category, importance_score, synced_at
+                       FROM node_knowledge_cache
+                       WHERE title ILIKE %s OR content ILIKE %s
+                       ORDER BY importance_score DESC LIMIT %s""",
+                    (f"%{search}%", f"%{search}%", limit),
+                )
+            else:
+                cur.execute(
+                    """SELECT hub_kb_id, title, knowledge_type, category, importance_score, synced_at
+                       FROM node_knowledge_cache
+                       ORDER BY synced_at DESC LIMIT %s""",
+                    (limit,),
+                )
+        elif data_type == "projects":
+            cur.execute(
+                "SELECT * FROM node_projects ORDER BY priority DESC LIMIT %s",
+                (limit,),
+            )
+        elif data_type == "tasks":
+            cur.execute(
+                "SELECT * FROM node_tasks WHERE status != 'completed' ORDER BY priority DESC LIMIT %s",
+                (limit,),
+            )
+        elif data_type == "contacts":
+            if search:
+                cur.execute(
+                    """SELECT * FROM node_contacts
+                       WHERE name ILIKE %s OR email ILIKE %s OR company ILIKE %s
+                       ORDER BY name LIMIT %s""",
+                    (f"%{search}%", f"%{search}%", f"%{search}%", limit),
+                )
+            else:
+                cur.execute(
+                    "SELECT * FROM node_contacts ORDER BY name LIMIT %s",
+                    (limit,),
+                )
+        else:
+            return jsonify({"success": False, "error": f"Unknown type: {data_type}"})
+
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        # Serialize
+        for row in rows:
+            for k, v in row.items():
+                if hasattr(v, "isoformat"):
+                    row[k] = v.isoformat()
+
+        return jsonify({"success": True, "type": data_type, "count": len(rows), "data": rows})
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
 @app.route("/api/beacon/fleet")
 def beacon_fleet():
     """Pull fleet-wide stats from hub via mesh VPN or LAN."""

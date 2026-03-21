@@ -621,6 +621,91 @@ def beacon_config():
         return jsonify({"success": True, "config": _load_beacon_config()})
 
 
+@app.route("/api/beacon/fleet")
+def beacon_fleet():
+    """Pull fleet-wide stats from hub via mesh VPN or LAN."""
+    config_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "config.json"
+    )
+    hub_url = os.environ.get("HUB_URL", "")
+    api_key = os.environ.get("HUB_API_KEY", "")
+
+    # Try config.json if env vars missing
+    if not hub_url:
+        try:
+            with open(config_path) as f:
+                cfg = json.load(f)
+            hub_url = cfg.get("hub_url", "")
+            api_key = api_key or cfg.get("hub_api_key", "")
+        except Exception:
+            pass
+
+    if not hub_url:
+        return jsonify({"success": False, "error": "Hub URL not configured"})
+
+    fleet = {
+        "connected": False,
+        "nodes_online": 0,
+        "nodes_total": 0,
+        "total_gpu_vram_gb": 0,
+        "total_ram_gb": 0,
+        "total_models": 0,
+        "mesh_connected": 0,
+        "this_node": {},
+    }
+
+    try:
+        import requests as req
+
+        headers = {}
+        if api_key:
+            headers["X-Node-API-Key"] = api_key
+
+        # Pull node stats from hub
+        r = req.get(
+            f"{hub_url}/tools/starbase/api/nodes",
+            headers=headers,
+            timeout=10,
+        )
+        if r.status_code == 200:
+            data = r.json()
+            fleet["connected"] = True
+            nodes = data.get("nodes", [])
+            summary = data.get("summary", {})
+            fleet["nodes_online"] = summary.get("online", 0)
+            fleet["nodes_total"] = summary.get("total", 0)
+
+            for n in nodes:
+                fleet["total_ram_gb"] += float(n.get("ram_gb") or 0)
+                fleet["total_gpu_vram_gb"] += float(n.get("gpu_vram_gb") or 0)
+                if n.get("mesh_ip"):
+                    fleet["mesh_connected"] += 1
+                # Find this node's rank
+                if n.get("node_id") == NODE_ID:
+                    fleet["this_node"] = {
+                        "name": n.get("node_name"),
+                        "total_requests": n.get("total_requests", 0),
+                        "avg_latency_ms": n.get("avg_latency_ms"),
+                        "priority": n.get("bridge_priority"),
+                    }
+
+            # Count total models from hub mesh topology
+            try:
+                r2 = req.get(
+                    f"{hub_url}/tools/starbase/api/mesh/topology",
+                    headers=headers,
+                    timeout=5,
+                )
+                if r2.status_code == 200:
+                    fleet["mesh_connected"] = r2.json().get("mesh_connected", 0)
+            except Exception:
+                pass
+    except Exception as e:
+        fleet["error"] = str(e)
+
+    return jsonify(fleet)
+
+
 @app.route("/")
 def beacon_dashboard():
     """B.E.A.C.O.N. — Local LCARS fleet node dashboard."""
@@ -778,6 +863,30 @@ BEACON_HTML = r"""<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Fleet Stats -->
+  <div class="beacon-card full">
+    <div class="card-title">Fleet Network</div>
+    <div id="fleet-panel" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;">
+      <div class="stat-row" style="flex-direction:column;align-items:center;text-align:center;border:1px solid var(--border);border-radius:8px;padding:12px;">
+        <div style="font-size:1.8rem;font-weight:700;color:var(--cyan);" id="f-online">-</div>
+        <div class="stat-label">Nodes Online</div>
+      </div>
+      <div class="stat-row" style="flex-direction:column;align-items:center;text-align:center;border:1px solid var(--border);border-radius:8px;padding:12px;">
+        <div style="font-size:1.8rem;font-weight:700;color:var(--green);" id="f-mesh">-</div>
+        <div class="stat-label">On Mesh</div>
+      </div>
+      <div class="stat-row" style="flex-direction:column;align-items:center;text-align:center;border:1px solid var(--border);border-radius:8px;padding:12px;">
+        <div style="font-size:1.8rem;font-weight:700;color:var(--purple);" id="f-ram">-</div>
+        <div class="stat-label">Fleet RAM (GB)</div>
+      </div>
+      <div class="stat-row" style="flex-direction:column;align-items:center;text-align:center;border:1px solid var(--border);border-radius:8px;padding:12px;">
+        <div style="font-size:1.8rem;font-weight:700;color:var(--yellow);" id="f-vram">-</div>
+        <div class="stat-label">Fleet VRAM (GB)</div>
+      </div>
+    </div>
+    <div id="fleet-status" style="margin-top:8px;font-size:0.7rem;color:var(--muted);"></div>
+  </div>
+
   <div class="beacon-card full">
     <div class="card-title">Fleet Controls</div>
     <div class="toggle-grid" id="toggle-grid"></div>
@@ -874,6 +983,29 @@ function refresh() {
 }
 refresh();
 setInterval(refresh, 5000);
+
+function refreshFleet() {
+  fetch('/api/beacon/fleet').then(function(r){return r.json();}).then(function(f) {
+    if (f.connected) {
+      document.getElementById('f-online').textContent = f.nodes_online || 0;
+      document.getElementById('f-mesh').textContent = f.mesh_connected || 0;
+      document.getElementById('f-ram').textContent = Math.round(f.total_ram_gb || 0);
+      document.getElementById('f-vram').textContent = Math.round(f.total_gpu_vram_gb || 0);
+      var status = 'Connected to hub';
+      if (f.this_node && f.this_node.name) {
+        status += ' | This node: ' + f.this_node.name;
+        if (f.this_node.total_requests) status += ' (' + f.this_node.total_requests + ' requests)';
+      }
+      document.getElementById('fleet-status').textContent = status;
+    } else {
+      document.getElementById('fleet-status').textContent = f.error ? 'Hub unreachable: ' + f.error : 'Fleet: disconnected';
+    }
+  }).catch(function(){
+    document.getElementById('fleet-status').textContent = 'Fleet: offline';
+  });
+}
+refreshFleet();
+setInterval(refreshFleet, 30000);
 </script>
 </body>
 </html>"""

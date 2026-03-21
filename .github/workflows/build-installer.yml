@@ -1,0 +1,39 @@
+name: Build ARCHIE Node Installer (.exe)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'node_client/installer/archie_node_installer.py'
+      - 'node_client/installer/build_installer.py'
+
+jobs:
+  build-exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      - name: Build .exe
+        working-directory: node_client/installer
+        run: python build_installer.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ARCHIE-Node-Setup
+          path: node_client/installer/dist/ARCHIE-Node-Setup.exe
+          retention-days: 90
+
+      - name: Create Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: node_client/installer/dist/ARCHIE-Node-Setup.exe

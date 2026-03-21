@@ -1,0 +1,24 @@
+services:
+  stalwart:
+    image: stalwartlabs/stalwart:latest
+    container_name: archie_mail
+    restart: unless-stopped
+    ports:
+      - "25:25"       # SMTP (inbound)
+      - "587:587"     # SMTP Submission (outbound, STARTTLS)
+      - "465:465"     # SMTP Submission (outbound, implicit TLS)
+      - "993:993"     # IMAPS
+      - "143:143"     # IMAP
+      - "4190:4190"   # ManageSieve
+      - "8443:443"    # Webmail + Admin UI (HTTPS)
+      - "8880:8080"   # HTTP API / Webmail fallback
+    volumes:
+      - ./data:/opt/stalwart-mail
+    environment:
+      - STALWART_HOSTNAME=mail.kytranempowerment.com
+    networks:
+      - archie_network
+
+networks:
+  archie_network:
+    external: true

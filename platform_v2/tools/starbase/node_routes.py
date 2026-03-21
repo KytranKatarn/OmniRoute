@@ -1578,20 +1578,28 @@ def register_node_routes(bp, admin_required):
                         (node_db_id,),
                     )
 
-                # Starter models every node gets
-                starter_models = ["llama3.2:3b", "qwen2.5:7b"]
-                # GPU-capable nodes get larger models
+                # Smart model recommendations based on hardware
+                ram_gb = float(node["ram_gb"] or 0)
+                starter_models = ["nomic-embed-text:latest"]  # Embeddings — every node
+                if ram_gb >= 8:
+                    starter_models.append("qwen2.5:1.5b")  # Lightweight LLM
+                if ram_gb >= 16:
+                    starter_models.append("qwen2.5:7b")  # Mid-range
+                if gpu_vram >= 6:
+                    starter_models.append("llama3.1:8b")  # GPU-accelerated
                 if gpu_vram >= 8:
-                    starter_models.append("llama3.1:8b")
+                    starter_models.append("qwen2.5-coder:7b")  # Code agent
+                if gpu_vram >= 12:
+                    starter_models.append("deepseek-r1:7b")  # Reasoning
 
                 for model in starter_models:
                     cur.execute(
                         """
                         INSERT INTO mesh_sync_log
-                            (node_id, sync_type, payload, status, created_at)
-                        VALUES (%s, 'model_pull', %s, 'sent', NOW())
+                            (node_id, sync_type, payload, status)
+                        VALUES (%s, 'model_pull', %s, 'sent')
                         """,
-                        (node_db_id, json.dumps({"model": model})),
+                        (node_id, json.dumps({"model": model})),
                     )
 
                 # Queue ComfyUI setup for nodes with adequate VRAM
@@ -1599,10 +1607,10 @@ def register_node_routes(bp, admin_required):
                     cur.execute(
                         """
                         INSERT INTO mesh_sync_log
-                            (node_id, sync_type, payload, status, created_at)
-                        VALUES (%s, 'comfyui_setup', %s, 'sent', NOW())
+                            (node_id, sync_type, payload, status)
+                        VALUES (%s, 'comfyui_setup', %s, 'sent')
                         """,
-                        (node_db_id, json.dumps({"action": "start"})),
+                        (node_id, json.dumps({"action": "start"})),
                     )
 
                 logger.info(

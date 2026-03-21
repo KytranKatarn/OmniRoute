@@ -35,11 +35,11 @@ if platform.system() == "Windows":
     import winreg
 
 # ── Constants ─────────────────────────────────────────────────────────────────
-CLIENT_VERSION = "3.0.0"
+CLIENT_VERSION = "4.0.0"
 INSTALL_DIR = r"C:\archie-node"
 RESUME_FILE = os.path.join(INSTALL_DIR, "resume_after_reboot.json")
 ENV_FILE = os.path.join(INSTALL_DIR, ".env")
-TOTAL_STEPS = 8
+TOTAL_STEPS = 9
 
 # ── LCARS Colour Palette ─────────────────────────────────────────────────────
 BG_DARK = "#0a0a12"
@@ -73,6 +73,9 @@ class ArchieInstaller(tk.Tk):
         self.hub_url = ""
         self.node_id = None
         self.api_key = None
+        self.headscale_authkey = None
+        self.headscale_url = None
+        self.mesh_ip = None
         self.current_step = 0
         self.hw_info = {}
         self._cancel_flag = False
@@ -411,10 +414,11 @@ class ArchieInstaller(tk.Tk):
                 (2, "Detecting hardware...", self._step_hardware),
                 (3, "Setting up Docker...", self._step_docker),
                 (4, "Registering with hub...", self._step_register),
-                (5, "Downloading stack files...", self._step_download),
-                (6, "Building & starting containers...", self._step_build),
-                (7, "Waiting for approval...", self._step_approval),
-                (8, "Verifying deployment...", self._step_verify),
+                (5, "Setting up mesh VPN...", self._step_tailscale),
+                (6, "Downloading stack files...", self._step_download),
+                (7, "Building & starting containers...", self._step_build),
+                (8, "Waiting for approval...", self._step_approval),
+                (9, "Verifying deployment...", self._step_verify),
             ]
 
             for step_num, desc, func in steps:
@@ -821,18 +825,26 @@ class ArchieInstaller(tk.Tk):
 
         self.node_id = result.get("node_id", "unknown")
         self.api_key = result.get("api_key", "")
+        self.headscale_authkey = result.get("headscale_authkey")
+        self.headscale_url = result.get("headscale_url")
 
         self._log(f"Registered as node: {self.node_id}", "ok")
+        if self.headscale_authkey:
+            self._log("Mesh VPN auth key received", "ok")
 
         # Save .env file
         os.makedirs(INSTALL_DIR, exist_ok=True)
         env_content = (
             f"NODE_ID={self.node_id}\n"
+            f"NODE_NAME={self.hw_info.get('hostname', socket.gethostname())}\n"
             f"HUB_URL={self.hub_url}\n"
             f"HUB_API_KEY={self.api_key}\n"
             f"DB_PASSWORD=archie_node_default\n"
             f"OLLAMA_PORT=11434\n"
             f"NODE_API_PORT=3001\n"
+            f"COMFYUI_PORT=8188\n"
+            f"HEADSCALE_URL={self.headscale_url or ''}\n"
+            f"HEADSCALE_AUTHKEY={self.headscale_authkey or ''}\n"
         )
         with open(ENV_FILE, "w") as f:
             f.write(env_content)
@@ -849,7 +861,115 @@ class ArchieInstaller(tk.Tk):
         except Exception:
             return "127.0.0.1"
 
-    # ── Step 5: Download Stack Files ──────────────────────────────────────────
+    # ── Step 5: Tailscale Mesh VPN ───────────────────────────────────────────
+    def _step_tailscale(self):
+        if not self.headscale_authkey:
+            self._log("No mesh auth key — skipping VPN setup (LAN only)", "warn")
+            return
+
+        # Check if Tailscale is already installed
+        tailscale_exe = None
+        for path in [
+            r"C:\Program Files\Tailscale\tailscale.exe",
+            r"C:\Program Files (x86)\Tailscale\tailscale.exe",
+        ]:
+            if os.path.exists(path):
+                tailscale_exe = path
+                break
+
+        if not tailscale_exe:
+            try:
+                result = subprocess.run(
+                    ["where", "tailscale"], capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    tailscale_exe = result.stdout.strip().split("\n")[0]
+            except Exception:
+                pass
+
+        if not tailscale_exe:
+            self._log("Installing Tailscale...", "info")
+            try:
+                msi_url = "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi"
+                msi_path = os.path.join(os.environ.get("TEMP", INSTALL_DIR), "tailscale-setup.msi")
+                self._download_file(msi_url, msi_path)
+                self._log("Running Tailscale installer...", "info")
+                subprocess.run(
+                    ["msiexec", "/i", msi_path, "/qn"],
+                    timeout=120, check=True,
+                )
+                time.sleep(5)
+                # Find the installed exe
+                for path in [
+                    r"C:\Program Files\Tailscale\tailscale.exe",
+                    r"C:\Program Files (x86)\Tailscale\tailscale.exe",
+                ]:
+                    if os.path.exists(path):
+                        tailscale_exe = path
+                        break
+                if tailscale_exe:
+                    self._log("Tailscale installed", "ok")
+                else:
+                    self._log("Tailscale installed but exe not found in expected path", "warn")
+                    return
+            except Exception as e:
+                self._log(f"Tailscale install failed: {e}", "warn")
+                self._log("Install manually from https://tailscale.com/download/windows", "info")
+                return
+        else:
+            self._log(f"Tailscale found: {tailscale_exe}", "ok")
+
+        # Join the mesh
+        self._log(f"Joining mesh at {self.headscale_url}...", "info")
+        try:
+            node_name = self.hw_info.get("hostname", socket.gethostname())
+            subprocess.run(
+                [
+                    tailscale_exe, "up",
+                    f"--login-server={self.headscale_url}",
+                    f"--authkey={self.headscale_authkey}",
+                    f"--hostname={node_name}",
+                ],
+                timeout=30, capture_output=True, text=True,
+            )
+            time.sleep(5)
+
+            # Get mesh IP
+            result = subprocess.run(
+                [tailscale_exe, "ip", "-4"],
+                capture_output=True, text=True, timeout=10,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                self.mesh_ip = result.stdout.strip()
+                self._log(f"Mesh VPN connected: {self.mesh_ip}", "ok")
+
+                # Report mesh IP to hub
+                try:
+                    report_url = f"{self.hub_url}/tools/starbase/api/nodes/{self.node_id}/mesh-ip"
+                    req = Request(
+                        report_url,
+                        data=json.dumps({"mesh_ip": self.mesh_ip}).encode(),
+                        headers={
+                            "Content-Type": "application/json",
+                            "X-Node-API-Key": self.api_key,
+                        },
+                        method="POST",
+                    )
+                    urlopen(req, timeout=10)
+                    self._log("Mesh IP reported to hub", "ok")
+                except Exception as e:
+                    self._log(f"Could not report mesh IP: {e}", "warn")
+
+                # Update .env with mesh IP
+                with open(ENV_FILE, "a") as f:
+                    f.write(f"MESH_IP={self.mesh_ip}\n")
+            else:
+                self._log("Tailscale joined but no IP assigned yet", "warn")
+        except Exception as e:
+            self._log(f"Mesh join failed: {e}", "warn")
+            self._log("VPN can be configured later", "info")
+
+    # ── Step 6: Download Stack Files ──────────────────────────────────────────
     def _step_download(self):
         base_url = f"{self.hub_url}/tools/starbase/api/nodes"
         os.makedirs(INSTALL_DIR, exist_ok=True)
@@ -1054,6 +1174,8 @@ class ArchieInstaller(tk.Tk):
         self._log(f"Hub URL:      {self.hub_url}", "cyan")
         self._log(f"Install dir:  {INSTALL_DIR}", "cyan")
         self._log(f"Version:      {CLIENT_VERSION}", "cyan")
+        if self.mesh_ip:
+            self._log(f"Mesh VPN:     {self.mesh_ip}", "cyan")
         self._log("", "info")
 
         self._update_progress(TOTAL_STEPS, "Installation complete!")

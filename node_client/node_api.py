@@ -479,7 +479,11 @@ def _save_beacon_config(config):
 
 @app.route("/api/beacon/stats")
 def beacon_stats():
-    """Live local stats for BEACON dashboard."""
+    """Live local stats for BEACON dashboard.
+
+    Reuses the existing /diagnostics endpoint data which works inside Docker
+    (reads /proc, calls Ollama API, checks ComfyUI) without needing psutil.
+    """
     import platform as plat
 
     stats = {
@@ -495,78 +499,91 @@ def beacon_stats():
         "config": _load_beacon_config(),
     }
 
-    # System stats via psutil if available
+    # Pull data from the diagnostics endpoint (same process, just call the func)
     try:
-        import psutil
+        with app.test_request_context():
+            diag_resp = diagnostics()
+            diag = diag_resp.get_json() if hasattr(diag_resp, "get_json") else {}
+    except Exception:
+        diag = {}
 
-        stats["cpu"] = {
-            "cores": psutil.cpu_count(logical=False),
-            "threads": psutil.cpu_count(logical=True),
-            "usage_percent": psutil.cpu_percent(interval=0.5),
-        }
-        mem = psutil.virtual_memory()
-        stats["memory"] = {
-            "total_gb": round(mem.total / (1024**3), 1),
-            "used_gb": round(mem.used / (1024**3), 1),
-            "usage_percent": mem.percent,
-        }
-        disk = psutil.disk_usage("/")
+    # Disk from diagnostics
+    if diag.get("disk"):
+        d = diag["disk"]
         stats["disk"] = {
-            "total_gb": round(disk.total / (1024**3), 1),
-            "free_gb": round(disk.free / (1024**3), 1),
-            "usage_percent": round(disk.percent, 1),
+            "total_gb": d.get("total_gb", 0),
+            "free_gb": d.get("free_gb", 0),
+            "usage_percent": d.get("percent_used", 0),
         }
-        boot = datetime.fromtimestamp(psutil.boot_time())
-        stats["uptime"] = str(datetime.now() - boot).split(".")[0]
-    except ImportError:
-        pass
 
-    # GPU via nvidia-smi
+    # Uptime from diagnostics
+    if diag.get("uptime_seconds"):
+        secs = int(diag["uptime_seconds"])
+        hours, rem = divmod(secs, 3600)
+        mins, s = divmod(rem, 60)
+        stats["uptime"] = f"{hours}h {mins}m {s}s"
+
+    # CPU — read from /proc/stat (works in Docker containers)
     try:
         import subprocess
 
         result = subprocess.run(
-            [
-                "nvidia-smi",
-                "--query-gpu=name,memory.total,memory.used,utilization.gpu",
-                "--format=csv,noheader,nounits",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=5,
+            ["nproc"], capture_output=True, text=True, timeout=3
         )
-        if result.returncode == 0 and result.stdout.strip():
-            parts = result.stdout.strip().split(", ")
-            if len(parts) >= 4:
-                stats["gpu"] = {
-                    "name": parts[0],
-                    "vram_total_mb": int(parts[1]),
-                    "vram_used_mb": int(parts[2]),
-                    "usage_percent": int(parts[3]),
-                }
+        if result.returncode == 0:
+            cores = int(result.stdout.strip())
+            stats["cpu"]["cores"] = cores
+            stats["cpu"]["threads"] = cores
+
+        # Get CPU usage from /proc/stat snapshot
+        with open("/proc/loadavg") as f:
+            load_1min = float(f.read().split()[0])
+            stats["cpu"]["usage_percent"] = round(
+                min(load_1min / max(cores, 1) * 100, 100), 1
+            )
     except Exception:
         pass
 
-    # Ollama
+    # Memory — read from /proc/meminfo (works in Docker)
     try:
-        import requests as req
-
-        r = req.get(f"{OLLAMA_HOST}/api/tags", timeout=3)
-        if r.status_code == 200:
-            models = r.json().get("models", [])
-            stats["ollama"]["online"] = True
-            stats["ollama"]["models"] = [
-                {"name": m["name"], "size_gb": round(m.get("size", 0) / 1e9, 1)}
-                for m in models
-            ]
-        # Check loaded models
-        r2 = req.get(f"{OLLAMA_HOST}/api/ps", timeout=3)
-        if r2.status_code == 200:
-            stats["ollama"]["loaded"] = len(r2.json().get("models", []))
+        meminfo = {}
+        with open("/proc/meminfo") as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 2:
+                    meminfo[parts[0].rstrip(":")] = int(parts[1])
+        total_kb = meminfo.get("MemTotal", 0)
+        avail_kb = meminfo.get("MemAvailable", meminfo.get("MemFree", 0))
+        used_kb = total_kb - avail_kb
+        stats["memory"] = {
+            "total_gb": round(total_kb / 1048576, 1),
+            "used_gb": round(used_kb / 1048576, 1),
+            "usage_percent": round(used_kb / max(total_kb, 1) * 100, 1),
+        }
     except Exception:
         pass
 
-    # Mesh VPN
+    # GPU from ComfyUI diagnostics (VRAM info)
+    if diag.get("comfyui", {}).get("online"):
+        cu = diag["comfyui"]
+        vram_total = cu.get("vram_total_mb", 0)
+        vram_free = cu.get("vram_free_mb", 0)
+        vram_used = vram_total - vram_free
+        stats["gpu"] = {
+            "name": "GPU (via ComfyUI)",
+            "vram_total_mb": vram_total,
+            "vram_used_mb": vram_used,
+            "usage_percent": round(vram_used / max(vram_total, 1) * 100) if vram_total else 0,
+        }
+
+    # Ollama from diagnostics
+    if diag.get("ollama", {}).get("online"):
+        ol = diag["ollama"]
+        stats["ollama"]["online"] = True
+        stats["ollama"]["models"] = ol.get("models", [])
+        stats["ollama"]["loaded"] = len(ol.get("loaded", []))
+
+    # Mesh VPN — check Tailscale
     try:
         import subprocess
 

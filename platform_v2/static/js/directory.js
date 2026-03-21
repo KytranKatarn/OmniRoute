@@ -122,8 +122,7 @@ async function loadOrgChart() {
         const data = await resp.json();
         if (!data.success) throw new Error(data.error || 'Failed to load');
         orgChartNodes = data.nodes;
-        renderOrgChart(data.nodes);
-        renderAccordion(data.nodes);
+        renderCardsGrid(data.nodes);
     } catch (err) {
         const el = document.getElementById('orgChart');
         if (el) {
@@ -137,10 +136,9 @@ async function loadOrgChart() {
     }
 }
 
-function renderOrgChart(nodes) {
-    const chart = document.getElementById('orgChart');
-    if (!chart) return;
-    chart.textContent = '';
+function renderCardsGrid(nodes) {
+    const leadershipEl = document.getElementById('dirLeadership');
+    const deptGridEl = document.getElementById('dirDeptGrid');
 
     // --- Identify special nodes ---
     const archie = nodes.find(n =>
@@ -163,319 +161,301 @@ function renderOrgChart(nodes) {
         }
     });
 
+    // --- Leadership Banner ---
+    const leaders = [
+        { name: 'Kytran', title: 'CEO & Founder', employee_type: 'Human', department: 'Executive', id: 0 },
+        archie || { name: 'A.R.C.H.I.E.', title: 'AI Director / Co-Owner', employee_type: 'AI', department: 'Command', id: 2 },
+        vigil || { name: 'Vigil', title: 'Ethics Officer', employee_type: 'AI', department: 'Command', id: 3 }
+    ];
+    if (leadershipEl) renderLeadershipBanner(leaders, leadershipEl);
+
+    // --- Department Cards Grid ---
+    if (!deptGridEl) return;
+    deptGridEl.textContent = '';
+
     // Sort departments by DEPT_COLORS order, then alphabetically for unknown
     const knownDepts = Object.keys(DEPT_COLORS);
     const deptOrder = knownDepts.filter(d => deptMap[d]).concat(
         Object.keys(deptMap).filter(d => !knownDepts.includes(d)).sort()
     );
 
-    // --- LEVEL 1: CEO (Kytran) ---
-    const kytranNode = { full_name: 'Kytran', title: 'CEO & Founder', employee_type: 'Human', department: 'Executive', id: 0 };
-    const l1 = document.createElement('div');
-    l1.className = 'dir-org-level dir-org-level-ceo';
-    l1.appendChild(createOrgNode(kytranNode, 'ceo'));
-    chart.appendChild(l1);
-
-    // Connector L1 -> L2
-    chart.appendChild(createConnector('solid'));
-
-    // --- LEVEL 2: ARCHIE ---
-    const l2 = document.createElement('div');
-    l2.className = 'dir-org-level dir-org-level-director';
-    const archieData = archie || { full_name: 'A.R.C.H.I.E.', title: 'AI Director / Co-Owner', employee_type: 'AI', department: 'Command', id: 2 };
-    const archieNode = createOrgNode(archieData, 'director');
-    l2.appendChild(archieNode);
-    chart.appendChild(l2);
-
-    // --- LEVEL 3: Vigil (advisory, dashed line to ARCHIE, offset right) ---
-    const vigilWrap = document.createElement('div');
-    vigilWrap.className = 'dir-vigil-branch';
-    const vigilConnector = document.createElement('div');
-    vigilConnector.className = 'dir-vigil-connector';
-    vigilWrap.appendChild(vigilConnector);
-    const vigilData = vigil || { full_name: 'Vigil', title: 'Ethics Officer', employee_type: 'AI', department: 'Command', id: 3 };
-    const vigilNode = createOrgNode(vigilData, 'vigil');
-    vigilNode.classList.add('dir-org-node-vigil');
-    vigilWrap.appendChild(vigilNode);
-    chart.appendChild(vigilWrap);
-
-    // Connector L2 -> L4 (departments)
-    chart.appendChild(createConnector('solid'));
-    chart.appendChild(createHorizontalConnector(deptOrder.length));
-    chart.appendChild(createDeptDropLines(deptOrder.length));
-
-    // --- LEVEL 4: Department heads ---
-    const l4 = document.createElement('div');
-    l4.className = 'dir-org-level dir-org-level-heads';
     deptOrder.forEach(dept => {
         const color = getDeptColor(dept);
         const info = deptMap[dept];
-        const head = info.head || { full_name: dept, title: 'Department Head', department: dept, id: 0 };
-        const headNode = createOrgNode(Object.assign({}, head, { department: dept }), 'dept', color);
-
-        // Department label above the head node
-        const wrapper = document.createElement('div');
-        wrapper.className = 'dir-org-dept-head-wrap';
-        const deptLabel = document.createElement('div');
-        deptLabel.className = 'dir-org-dept-label';
-        deptLabel.style.color = color;
-        deptLabel.textContent = dept;
-        wrapper.appendChild(deptLabel);
-
-        headNode.classList.add('dir-org-node-head');
-        wrapper.appendChild(headNode);
-        l4.appendChild(wrapper);
+        const allMembers = [];
+        if (info.head) allMembers.push(info.head);
+        allMembers.push(...info.members);
+        renderDeptCard(dept, allMembers, color, deptGridEl);
     });
-    chart.appendChild(l4);
-
-    // --- LEVEL 5: Department members (below each head) ---
-    const l5 = document.createElement('div');
-    l5.className = 'dir-org-level dir-org-level-members';
-    deptOrder.forEach(dept => {
-        const color = getDeptColor(dept);
-        const info = deptMap[dept];
-        const col = document.createElement('div');
-        col.className = 'dir-org-dept-col';
-        col.dataset.department = dept;
-
-        if (info.members.length > 0) {
-            const miniConn = document.createElement('div');
-            miniConn.className = 'dir-org-mini-connector';
-            miniConn.style.borderColor = color + '44';
-            col.appendChild(miniConn);
-
-            info.members.forEach(m => {
-                col.appendChild(createMemberBadge(m, 'dept', color));
-            });
-        }
-        l5.appendChild(col);
-    });
-    chart.appendChild(l5);
 }
 
 function getDeptColor(dept) {
     return DEPT_COLORS[dept] || '#64748b';
 }
 
-function createOrgNode(person, nodeType, explicitColor) {
-    // nodeType: 'ceo', 'director', 'vigil', 'dept'
-    let color;
-    if (nodeType === 'ceo') color = '#f59e0b';
-    else if (nodeType === 'director') color = '#00e5ff';
-    else if (nodeType === 'vigil') color = '#00e5ff';
-    else if (explicitColor) color = explicitColor;
-    else color = getDeptColor(person.department || '');
-    const name = person.full_name || person.display_name || person.name || 'Unknown';
-    const initials = getInitials(name);
-    const title = person.title || '';
-    const agentId = person.id || 0;
-    const nodeClass = nodeType === 'ceo' ? 'role-ceo' : (nodeType === 'director' ? 'role-director' : '');
-
-    const node = document.createElement('div');
-    node.className = 'dir-org-node ' + nodeClass;
-    node.style.borderColor = color;
-    node.dataset.agentId = String(agentId);
-    if (agentId) node.addEventListener('click', () => openProfile(agentId));
-
-    const portraitEl = document.createElement('div');
-    portraitEl.className = 'dir-org-node-portrait';
-    portraitEl.style.background = color + '33';
-    portraitEl.style.border = '2px solid ' + color;
-
-    if (person.avatar_url) {
-        const img = document.createElement('img');
-        img.src = person.avatar_url;
-        img.alt = name;
-        img.loading = 'lazy';
-        img.className = 'dir-org-node-portrait-img';
-        portraitEl.appendChild(img);
-    } else {
-        portraitEl.textContent = initials;
-    }
-    node.appendChild(portraitEl);
-
-    const nameDiv = document.createElement('div');
-    nameDiv.className = 'dir-org-node-name';
-    if (isAuthenticated) {
-        const dot = document.createElement('span');
-        dot.className = 'dir-org-node-dot offline';
-        nameDiv.appendChild(dot);
-    }
-    nameDiv.appendChild(document.createTextNode(name));
-    node.appendChild(nameDiv);
-
-    const titleDiv = document.createElement('div');
-    titleDiv.className = 'dir-org-node-title';
-    titleDiv.textContent = title;
-    node.appendChild(titleDiv);
-
-    return node;
-}
-
-function createMemberBadge(person, nodeType, explicitColor) {
-    const color = explicitColor || getDeptColor(person.department || '');
-    const name = person.full_name || person.display_name || person.name || 'Unknown';
-    const title = person.title || '';
-    const agentId = person.id || 0;
-
-    const badge = document.createElement('div');
-    badge.className = 'dir-org-member-badge';
-    badge.dataset.agentId = String(agentId);
-    badge.style.borderColor = color + '44';
-    if (agentId) badge.addEventListener('click', () => openProfile(agentId));
-
-    if (person.avatar_url) {
-        const img = document.createElement('img');
-        img.src = person.avatar_url;
-        img.alt = name;
-        img.loading = 'lazy';
-        img.className = 'dir-org-badge-avatar';
-        badge.appendChild(img);
-    } else {
-        const initialsEl = document.createElement('div');
-        initialsEl.className = 'dir-org-badge-initials';
-        initialsEl.style.background = color + '22';
-        initialsEl.style.color = color;
-        initialsEl.textContent = getInitials(name);
-        badge.appendChild(initialsEl);
-    }
-
-    const info = document.createElement('div');
-    info.className = 'dir-org-badge-info';
-
-    const nameEl = document.createElement('div');
-    nameEl.className = 'dir-org-badge-name';
-    if (isAuthenticated) {
-        const dot = document.createElement('span');
-        dot.className = 'dir-status-dot offline';
-        dot.style.width = '6px';
-        dot.style.height = '6px';
-        dot.style.marginRight = '4px';
-        nameEl.appendChild(dot);
-    }
-    nameEl.appendChild(document.createTextNode(name));
-    info.appendChild(nameEl);
-
-    const titleEl = document.createElement('div');
-    titleEl.className = 'dir-org-badge-title';
-    titleEl.style.color = color;
-    titleEl.textContent = title;
-    info.appendChild(titleEl);
-
-    badge.appendChild(info);
-    return badge;
-}
-
-function createConnector(style) {
-    const c = document.createElement('div');
-    c.className = 'dir-org-connector';
-    if (style === 'dashed') c.classList.add('dir-org-connector-dashed');
-    return c;
-}
-
-function createHorizontalConnector(count) {
-    const c = document.createElement('div');
-    c.className = 'dir-org-connector-horizontal';
-    // Width spans across the department columns
-    return c;
-}
-
-function createDeptDropLines(count) {
-    const wrap = document.createElement('div');
-    wrap.className = 'dir-org-drop-lines';
-    for (let i = 0; i < count; i++) {
-        const line = document.createElement('div');
-        line.className = 'dir-org-drop-line';
-        wrap.appendChild(line);
-    }
-    return wrap;
-}
-
-/* ---------- MOBILE ACCORDION ---------- */
-
-function renderAccordion(nodes) {
-    const container = document.getElementById('dirAccordion');
-    if (!container) return;
+function renderLeadershipBanner(leaders, container) {
     container.textContent = '';
 
-    const archie = nodes.find(n =>
-        (n.reports_to === null || n.reports_to === undefined) &&
-        (/^archie$/i.test(n.name || '') || /^A\.R\.C\.H\.I\.E\.$/i.test(n.display_name || ''))
-    );
-    const vigil = nodes.find(n => /^vigil$/i.test(n.name || '') || /^vigil/i.test(n.display_name || ''));
-    const skipIds = new Set([archie, vigil].filter(Boolean).map(n => n.id));
+    leaders.forEach(person => {
+        const name = person.full_name || person.display_name || person.name || 'Unknown';
+        const title = person.title || '';
+        const agentId = person.id || 0;
+        const isCeo = name.toLowerCase() === 'kytran';
+        const color = isCeo ? '#f59e0b' : '#00e5ff';
 
-    // Leadership accordion item
-    const leadershipColor = '#00e5ff';
-    const leadershipItem = createAccordionItem(leadershipColor, 'Leadership', [
-        { full_name: 'Kytran', title: 'CEO & Founder', employee_type: 'Human', id: 0 },
-        archie || { full_name: 'A.R.C.H.I.E.', title: 'AI Director / Co-Owner', id: 2 },
-        vigil || { full_name: 'Vigil', title: 'Ethics Officer', id: 3 }
-    ], true);
-    container.appendChild(leadershipItem);
+        const card = document.createElement('div');
+        card.className = 'dir-leader-card ' + (isCeo ? 'dir-leader-card--ceo' : 'dir-leader-card--ai');
+        card.dataset.agentId = String(agentId);
+        if (agentId && !isCeo) {
+            card.style.cursor = 'pointer';
+            card.addEventListener('click', () => openProfile(agentId));
+        }
 
-    // Group by department
-    const deptMap = {};
-    nodes.forEach(n => {
-        if (skipIds.has(n.id)) return;
-        const dept = n.department || 'Unassigned';
-        if (!deptMap[dept]) deptMap[dept] = [];
-        deptMap[dept].push(n);
+        card.appendChild(createPortrait(person, 'dir-leader-portrait', color));
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'dir-leader-name';
+        if (isAuthenticated && !isCeo) {
+            const dot = document.createElement('span');
+            dot.className = 'dir-status-dot offline';
+            dot.style.width = '8px';
+            dot.style.height = '8px';
+            dot.style.marginRight = '6px';
+            nameEl.appendChild(dot);
+        }
+        nameEl.appendChild(document.createTextNode(name));
+        card.appendChild(nameEl);
+
+        const titleEl = document.createElement('div');
+        titleEl.className = 'dir-leader-title';
+        titleEl.textContent = title;
+        card.appendChild(titleEl);
+
+        const roleTag = document.createElement('div');
+        roleTag.className = 'dir-leader-role-tag';
+        roleTag.textContent = isCeo ? 'HUMAN' : 'AI';
+        roleTag.style.color = color;
+        roleTag.style.borderColor = color + '44';
+        card.appendChild(roleTag);
+
+        container.appendChild(card);
     });
 
-    // Sort departments by DEPT_COLORS order
-    const knownDepts = Object.keys(DEPT_COLORS);
-    const deptOrder = knownDepts.filter(d => deptMap[d]).concat(
-        Object.keys(deptMap).filter(d => !knownDepts.includes(d)).sort()
-    );
-
-    deptOrder.forEach(dept => {
-        const color = getDeptColor(dept);
-        // Put head first
-        const members = deptMap[dept].sort((a, b) => (b.is_head ? 1 : 0) - (a.is_head ? 1 : 0));
-        container.appendChild(createAccordionItem(color, dept, members, false));
-    });
+    // Add connector line below leadership
+    const connector = document.createElement('div');
+    connector.className = 'dir-leadership-connector';
+    container.appendChild(connector);
 }
 
-function createAccordionItem(accentColor, label, members, startOpen) {
-    const color = accentColor || '#64748b';
-    const item = document.createElement('div');
-    item.className = 'dir-acc-item' + (startOpen ? ' open' : '');
+function renderDeptCard(deptName, members, color, container) {
+    const card = document.createElement('div');
+    card.className = 'dir-dept-card';
+    card.style.setProperty('--dept-color', color);
+    card.dataset.department = deptName;
 
-    const header = document.createElement('button');
-    header.className = 'dir-acc-header';
-    header.addEventListener('click', () => item.classList.toggle('open'));
+    const nameEl = document.createElement('div');
+    nameEl.className = 'dir-dept-card-name';
+    nameEl.style.color = color;
+    nameEl.textContent = deptName;
+    card.appendChild(nameEl);
 
-    const accent = document.createElement('span');
-    accent.className = 'dir-acc-accent';
-    accent.style.background = color;
-    header.appendChild(accent);
+    const countEl = document.createElement('div');
+    countEl.className = 'dir-dept-card-count';
+    countEl.textContent = members.length + ' member' + (members.length !== 1 ? 's' : '');
+    card.appendChild(countEl);
 
-    const labelEl = document.createElement('span');
-    labelEl.className = 'dir-acc-label';
-    labelEl.textContent = label;
-    header.appendChild(labelEl);
+    // Avatar thumbnails (up to 3 + overflow)
+    const avatarsEl = document.createElement('div');
+    avatarsEl.className = 'dir-dept-card-avatars';
+    const showCount = Math.min(3, members.length);
+    for (let i = 0; i < showCount; i++) {
+        avatarsEl.appendChild(createPortrait(members[i], 'dir-dept-card-avatar', color));
+    }
+    if (members.length > 3) {
+        const overflow = document.createElement('div');
+        overflow.className = 'dir-dept-card-avatar';
+        overflow.style.background = color + '22';
+        overflow.style.color = color;
+        overflow.style.display = 'flex';
+        overflow.style.alignItems = 'center';
+        overflow.style.justifyContent = 'center';
+        overflow.style.fontSize = '0.7rem';
+        overflow.style.fontWeight = '600';
+        overflow.textContent = '+' + (members.length - 3);
+        avatarsEl.appendChild(overflow);
+    }
+    card.appendChild(avatarsEl);
 
-    const countEl = document.createElement('span');
-    countEl.className = 'dir-acc-count';
-    countEl.textContent = members.length;
-    header.appendChild(countEl);
+    card.addEventListener('click', () => expandDepartment(deptName, members, color, card));
+    container.appendChild(card);
+}
 
-    const chevron = document.createElement('span');
-    chevron.className = 'dir-acc-chevron';
-    chevron.textContent = '\u25BC';
-    header.appendChild(chevron);
+let _expandedDeptName = null;
 
-    item.appendChild(header);
+function expandDepartment(deptName, members, color, cardEl) {
+    // Remove any existing expanded panel
+    const existing = document.querySelector('.dir-dept-expanded');
+    if (existing) existing.remove();
 
-    const body = document.createElement('div');
-    body.className = 'dir-acc-body';
-    members.forEach(m => {
-        body.appendChild(createMemberBadge(m, 'dept', color));
-    });
-    item.appendChild(body);
+    // Toggle: if same dept was open, just close
+    if (_expandedDeptName === deptName) {
+        _expandedDeptName = null;
+        document.querySelectorAll('.dir-dept-card.expanded').forEach(c => c.classList.remove('expanded'));
+        return;
+    }
 
-    return item;
+    // Clear previous expanded state
+    document.querySelectorAll('.dir-dept-card.expanded').forEach(c => c.classList.remove('expanded'));
+    cardEl.classList.add('expanded');
+    _expandedDeptName = deptName;
+
+    // Create expanded panel
+    const panel = document.createElement('div');
+    panel.className = 'dir-dept-expanded';
+    panel.style.setProperty('--dept-color', color);
+
+    // Find department head
+    const headRankTerms = ['head', 'director', 'chief', 'lead', 'senior'];
+    let head = members.find(m => m.is_head);
+    if (!head) {
+        head = members.find(m => {
+            const t = (m.title || '').toLowerCase();
+            return headRankTerms.some(term => t.includes(term));
+        });
+    }
+    const rest = members.filter(m => m !== head);
+
+    // Render head card
+    if (head) {
+        const headCard = document.createElement('div');
+        headCard.className = 'dir-head-card';
+        headCard.dataset.agentId = String(head.id || 0);
+        if (head.id) {
+            headCard.style.cursor = 'pointer';
+            headCard.addEventListener('click', () => openProfile(head.id));
+        }
+
+        headCard.appendChild(createPortrait(head, 'dir-head-portrait', color));
+
+        const headInfo = document.createElement('div');
+        headInfo.className = 'dir-head-info';
+
+        const headNameRow = document.createElement('div');
+        headNameRow.style.display = 'flex';
+        headNameRow.style.alignItems = 'center';
+        headNameRow.style.gap = '8px';
+
+        const headName = document.createElement('div');
+        headName.className = 'dir-head-name';
+        const hName = head.full_name || head.display_name || head.name || 'Unknown';
+        if (isAuthenticated) {
+            const dot = document.createElement('span');
+            dot.className = 'dir-status-dot offline';
+            dot.style.width = '6px';
+            dot.style.height = '6px';
+            dot.style.marginRight = '4px';
+            headName.appendChild(dot);
+        }
+        headName.appendChild(document.createTextNode(hName));
+        headNameRow.appendChild(headName);
+
+        const headBadge = document.createElement('span');
+        headBadge.className = 'dir-head-badge';
+        headBadge.textContent = 'HEAD';
+        headBadge.style.color = color;
+        headBadge.style.borderColor = color + '66';
+        headNameRow.appendChild(headBadge);
+        headInfo.appendChild(headNameRow);
+
+        const headTitle = document.createElement('div');
+        headTitle.className = 'dir-head-title';
+        headTitle.style.color = color;
+        headTitle.textContent = head.title || '';
+        headInfo.appendChild(headTitle);
+
+        // Top 3 skills
+        const skills = head.top_skills || [];
+        if (skills.length > 0) {
+            const skillsWrap = document.createElement('div');
+            skillsWrap.className = 'dir-head-skills';
+            skills.slice(0, 3).forEach(sk => {
+                const tag = document.createElement('span');
+                tag.className = 'dir-skill-tag';
+                tag.textContent = sk.skill || sk.skill_name || sk;
+                skillsWrap.appendChild(tag);
+            });
+            headInfo.appendChild(skillsWrap);
+        }
+
+        headCard.appendChild(headInfo);
+        panel.appendChild(headCard);
+    }
+
+    // Render team grid
+    if (rest.length > 0) {
+        const teamGrid = document.createElement('div');
+        teamGrid.className = 'dir-team-grid';
+
+        rest.forEach(member => {
+            const memberEl = document.createElement('div');
+            memberEl.className = 'dir-team-member';
+            memberEl.dataset.agentId = String(member.id || 0);
+            if (member.id) {
+                memberEl.style.cursor = 'pointer';
+                memberEl.addEventListener('click', () => openProfile(member.id));
+            }
+
+            memberEl.appendChild(createPortrait(member, 'dir-team-portrait', color));
+
+            const memberName = document.createElement('div');
+            memberName.className = 'dir-team-name';
+            const mName = member.full_name || member.display_name || member.name || 'Unknown';
+            if (isAuthenticated) {
+                const dot = document.createElement('span');
+                dot.className = 'dir-status-dot offline';
+                dot.style.width = '6px';
+                dot.style.height = '6px';
+                dot.style.marginRight = '4px';
+                memberName.appendChild(dot);
+            }
+            memberName.appendChild(document.createTextNode(mName));
+            memberEl.appendChild(memberName);
+
+            const memberTitle = document.createElement('div');
+            memberTitle.className = 'dir-team-title';
+            memberTitle.textContent = member.title || '';
+            memberEl.appendChild(memberTitle);
+
+            teamGrid.appendChild(memberEl);
+        });
+
+        panel.appendChild(teamGrid);
+    }
+
+    // Insert panel after the card in the grid
+    cardEl.parentNode.insertBefore(panel, cardEl.nextSibling);
+}
+
+function createPortrait(person, sizeClass, color) {
+    const name = person.full_name || person.display_name || person.name || 'Unknown';
+    const el = document.createElement('div');
+    el.className = sizeClass;
+
+    if (person.avatar_url) {
+        el.style.backgroundImage = 'url(' + person.avatar_url + ')';
+        el.style.backgroundSize = 'cover';
+        el.style.backgroundPosition = 'center';
+    } else {
+        el.style.background = color + '22';
+        el.style.color = color;
+        el.style.display = 'flex';
+        el.style.alignItems = 'center';
+        el.style.justifyContent = 'center';
+        el.style.fontWeight = '600';
+        el.textContent = getInitials(name);
+    }
+
+    return el;
 }
 
 /* ---------- FILTERS ---------- */
@@ -495,39 +475,71 @@ function applyFilters() {
     const deptVal = document.getElementById('dirDeptFilter')?.value || 'all';
     const hasFilter = searchVal || deptVal !== 'all';
 
-    // Filter org chart nodes — dim non-matching
-    document.querySelectorAll('.dir-org-node, .dir-org-member-badge').forEach(el => {
-        if (!hasFilter) {
-            el.classList.remove('dir-filtered-out');
-            return;
+    // Close any expanded department when filters change
+    const existing = document.querySelector('.dir-dept-expanded');
+    if (existing) existing.remove();
+    document.querySelectorAll('.dir-dept-card.expanded').forEach(c => c.classList.remove('expanded'));
+    _expandedDeptName = null;
+
+    if (!orgChartNodes) return;
+
+    // Build a set of matching department names for search
+    let searchMatchDepts = null;
+    if (searchVal) {
+        searchMatchDepts = new Set();
+        orgChartNodes.forEach(n => {
+            const name = (n.full_name || n.display_name || n.name || '').toLowerCase();
+            const title = (n.title || '').toLowerCase();
+            if (name.includes(searchVal) || title.includes(searchVal)) {
+                searchMatchDepts.add(n.department || 'Unassigned');
+            }
+        });
+    }
+
+    // Filter department cards
+    document.querySelectorAll('.dir-dept-card').forEach(card => {
+        const dept = card.dataset.department || '';
+        let visible = true;
+
+        // Department filter
+        if (deptVal !== 'all' && dept.toLowerCase() !== deptVal.toLowerCase()) {
+            visible = false;
         }
-        const name = (el.querySelector('.dir-org-node-name, .dir-org-badge-name')?.textContent || '').toLowerCase();
-        const title = (el.querySelector('.dir-org-node-title, .dir-org-badge-title')?.textContent || '').toLowerCase();
-        const department = (el.closest('[data-department]')?.dataset.department || '').toLowerCase();
-        // Also check parent dept-head-wrap label
-        const deptLabel = (el.closest('.dir-org-dept-head-wrap')?.querySelector('.dir-org-dept-label')?.textContent || '').toLowerCase();
-        const haystack = name + ' ' + title + ' ' + department + ' ' + deptLabel;
 
-        let match = true;
-        if (searchVal && !haystack.includes(searchVal)) match = false;
-        if (deptVal !== 'all' && !haystack.includes(deptVal.toLowerCase())) match = false;
+        // Search filter: show card if any member name/title matches
+        if (visible && searchVal && searchMatchDepts && !searchMatchDepts.has(dept)) {
+            visible = false;
+        }
 
-        el.classList.toggle('dir-filtered-out', !match);
+        card.style.display = visible ? '' : 'none';
+
+        // Auto-expand matching department on search
+        if (visible && searchVal && searchMatchDepts && searchMatchDepts.has(dept)) {
+            // Find the members for this dept from orgChartNodes
+            const archie = orgChartNodes.find(n =>
+                (n.reports_to === null || n.reports_to === undefined) &&
+                (/^archie$/i.test(n.name || '') || /^A\.R\.C\.H\.I\.E\.$/i.test(n.display_name || ''))
+            );
+            const vigil = orgChartNodes.find(n => /^vigil$/i.test(n.name || '') || /^vigil/i.test(n.display_name || ''));
+            const skipIds = new Set([archie, vigil].filter(Boolean).map(n => n.id));
+
+            const deptMembers = orgChartNodes.filter(n =>
+                !skipIds.has(n.id) && (n.department || 'Unassigned') === dept
+            );
+            const color = getDeptColor(dept);
+            expandDepartment(dept, deptMembers, color, card);
+        }
     });
 
-    // Filter accordion items
-    document.querySelectorAll('.dir-acc-item .dir-org-member-badge').forEach(el => {
-        if (!hasFilter) {
-            el.classList.remove('dir-filtered-out');
+    // Filter leader cards
+    document.querySelectorAll('.dir-leader-card').forEach(card => {
+        if (!searchVal) {
+            card.style.display = '';
             return;
         }
-        const name = (el.querySelector('.dir-org-badge-name')?.textContent || '').toLowerCase();
-        const title = (el.querySelector('.dir-org-badge-title')?.textContent || '').toLowerCase();
-        const haystack = name + ' ' + title;
-
-        let match = true;
-        if (searchVal && !haystack.includes(searchVal)) match = false;
-        el.classList.toggle('dir-filtered-out', !match);
+        const name = (card.querySelector('.dir-leader-name')?.textContent || '').toLowerCase();
+        const title = (card.querySelector('.dir-leader-title')?.textContent || '').toLowerCase();
+        card.style.display = (name.includes(searchVal) || title.includes(searchVal)) ? '' : 'none';
     });
 }
 

@@ -144,159 +144,295 @@
 }
 .dir-filter-select:focus { border-color: #00e5ff; }
 
-/* ---------- ORG CHART PYRAMID ---------- */
-.dir-org-section {
-    padding: 60px 24px 40px;
-    max-width: 1400px;
-    margin: 0 auto;
-    overflow-x: auto;
-}
-.dir-section-label {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 1.3rem;
-    font-weight: 600;
-    color: #f1f5f9;
-    text-align: center;
-    margin-bottom: 40px;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-}
-.dir-org-chart {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0;
-    min-width: 900px;
-}
-.dir-org-loading {
-    color: #64748b;
-    font-size: 0.9rem;
-    padding: 40px;
-}
-
-/* Org chart levels */
-.dir-org-level {
+/* ==========================================================================
+   LEADERSHIP BANNER
+   ========================================================================== */
+.dir-leadership {
     display: flex;
     justify-content: center;
-    gap: 16px;
-    flex-wrap: nowrap;
-    position: relative;
-    padding: 8px 0;
-}
-.dir-org-level-ceo { padding: 12px 0; }
-.dir-org-level-director { padding: 12px 0; }
-.dir-org-level-heads {
-    gap: 8px;
-    padding: 12px 0 4px;
-}
-.dir-org-level-members {
-    gap: 8px;
-    align-items: flex-start;
-    padding: 0;
-}
-
-/* Connector lines */
-.dir-org-connector {
-    width: 2px;
-    height: 28px;
-    background: rgba(0, 229, 255, 0.3);
+    align-items: stretch;
+    gap: 24px;
+    padding: 48px 24px 32px;
+    max-width: 900px;
     margin: 0 auto;
+    flex-wrap: wrap;
 }
-.dir-org-connector-dashed {
-    background: none;
-    border-left: 2px dashed rgba(0, 229, 255, 0.25);
-}
-.dir-org-connector-horizontal {
-    position: relative;
-    width: 85%;
-    max-width: 1100px;
-    height: 2px;
-    background: rgba(0, 229, 255, 0.15);
-    margin: 0 auto;
-}
-
-/* Drop lines from horizontal bar to each department */
-.dir-org-drop-lines {
-    display: flex;
-    justify-content: space-around;
-    width: 85%;
-    max-width: 1100px;
-    margin: 0 auto;
-    height: 20px;
-}
-.dir-org-drop-line {
-    width: 2px;
-    height: 100%;
-    background: rgba(0, 229, 255, 0.2);
-}
-
-/* --- Vigil advisory branch --- */
-.dir-vigil-branch {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-top: -20px;
-    margin-bottom: 4px;
-    padding-left: 220px;
-}
-.dir-vigil-connector {
-    width: 60px;
-    height: 2px;
-    border-top: 2px dashed rgba(0, 229, 255, 0.25);
-    margin-right: 8px;
-}
-.dir-org-node-vigil {
-    min-width: 130px;
-    max-width: 150px;
-    padding: 10px 14px;
-    opacity: 0.85;
-    border-style: dashed;
-}
-.dir-org-node-vigil .dir-org-node-portrait {
-    width: 40px;
-    height: 40px;
-    font-size: 0.85rem;
-}
-
-/* Org chart node */
-.dir-org-node {
+.dir-leader-card {
     background: #111827;
     border: 2px solid #1e293b;
-    border-radius: 12px;
-    padding: 14px 16px;
+    border-radius: 14px;
+    padding: 24px 20px;
     text-align: center;
     cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s, opacity 0.3s;
-    min-width: 120px;
-    max-width: 140px;
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    width: 220px;
+    flex-shrink: 0;
 }
-.dir-org-node:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+.dir-leader-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
 }
-.dir-org-node.dir-filtered-out {
+.dir-leader-card.dir-filtered-out {
     opacity: 0.15;
     pointer-events: none;
 }
+.dir-leader-card--ceo    { border-color: #f59e0b; }
+.dir-leader-card--ai     { border-color: #00e5ff; }
+.dir-leader-card--ceo:hover { box-shadow: 0 12px 32px rgba(245, 158, 11, 0.15); }
+.dir-leader-card--ai:hover  { box-shadow: 0 12px 32px rgba(0, 229, 255, 0.15); }
 
-/* CEO + Director nodes slightly larger */
-.dir-org-level-ceo .dir-org-node {
-    min-width: 180px;
-    max-width: 220px;
-    padding: 18px 24px;
+.dir-leader-portrait {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    margin: 0 auto 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #fff;
+    overflow: hidden;
+    background: linear-gradient(135deg, #1a1040, #0d2137);
 }
-.dir-org-level-director .dir-org-node {
-    min-width: 160px;
-    max-width: 200px;
-    padding: 16px 20px;
+.dir-leader-portrait img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+.dir-leader-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin-bottom: 4px;
+}
+.dir-leader-title {
+    font-size: 0.78rem;
+    color: #94a3b8;
+    line-height: 1.4;
+    margin-bottom: 8px;
+}
+.dir-leader-role-tag {
+    display: inline-block;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 3px 12px;
+    border-radius: 10px;
+    background: rgba(245, 158, 11, 0.12);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.25);
+}
+.dir-leader-card--ai .dir-leader-role-tag {
+    background: rgba(0, 229, 255, 0.1);
+    color: #00e5ff;
+    border-color: rgba(0, 229, 255, 0.25);
+}
+.dir-leader-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 4px;
+    vertical-align: middle;
+}
+.dir-leader-dot.online {
+    background: #10b981;
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+}
+.dir-leader-dot.offline { background: #475569; }
+
+/* --- Leadership Connector --- */
+.dir-leadership-connector {
+    width: 2px;
+    height: 32px;
+    background: linear-gradient(to bottom, rgba(0, 229, 255, 0.3), rgba(0, 229, 255, 0.08));
+    margin: 0 auto;
 }
 
-.dir-org-node-portrait {
+/* ==========================================================================
+   DEPARTMENT CARDS GRID
+   ========================================================================== */
+.dir-dept-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px 60px;
+}
+.dir-dept-card {
+    --dept-color: #64748b;
+    background: #111827;
+    border: 1px solid #1e293b;
+    border-left: 4px solid var(--dept-color);
+    border-radius: 10px;
+    padding: 18px 16px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    position: relative;
+}
+.dir-dept-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    border-color: var(--dept-color);
+    border-left-color: var(--dept-color);
+}
+.dir-dept-card.dir-filtered-out {
+    opacity: 0.15;
+    pointer-events: none;
+}
+.dir-dept-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+.dir-dept-icon {
+    font-size: 1.3rem;
+    flex-shrink: 0;
+    width: 32px;
+    text-align: center;
+}
+.dir-dept-info {
+    flex: 1;
+    min-width: 0;
+}
+.dir-dept-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--dept-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.dir-dept-count {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    color: #64748b;
+    margin-top: 2px;
+}
+.dir-dept-chevron {
+    font-size: 0.6rem;
+    color: #475569;
+    transition: transform 0.3s;
+    flex-shrink: 0;
+}
+.dir-dept-card.open .dir-dept-chevron {
+    transform: rotate(180deg);
+}
+.dir-dept-head-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0 4px;
+    border-top: 1px solid rgba(148, 163, 184, 0.06);
+}
+.dir-dept-head-portrait {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #fff;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, #1a1040, #0d2137);
+}
+.dir-dept-head-portrait img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+.dir-dept-head-info {
+    flex: 1;
+    min-width: 0;
+}
+.dir-dept-head-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #f1f5f9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.dir-dept-head-title {
+    font-size: 0.68rem;
+    color: #94a3b8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.dir-dept-head-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.dir-dept-head-dot.online {
+    background: #10b981;
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+}
+.dir-dept-head-dot.offline { background: #475569; }
+
+/* ==========================================================================
+   EXPANDED DEPARTMENT PANEL
+   ========================================================================== */
+.dir-dept-expanded {
+    display: none;
+    grid-column: 1 / -1;
+    background: #0d1117;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    padding: 24px;
+    animation: dir-expand-in 0.25s ease-out;
+}
+.dir-dept-expanded.open {
+    display: block;
+}
+@keyframes dir-expand-in {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* --- Head card inside expanded panel --- */
+.dir-head-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px;
+    background: #111827;
+    border: 1px solid #1e293b;
+    border-left: 4px solid var(--dept-color, #64748b);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    margin-bottom: 20px;
+}
+.dir-head-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+.dir-head-card.dir-filtered-out {
+    opacity: 0.15;
+    pointer-events: none;
+}
+.dir-head-portrait {
     width: 48px;
     height: 48px;
     border-radius: 50%;
-    margin: 0 auto 8px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -305,132 +441,82 @@
     font-weight: 700;
     color: #fff;
     overflow: hidden;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, #1a1040, #0d2137);
 }
-.dir-org-level-ceo .dir-org-node-portrait {
-    width: 60px;
-    height: 60px;
-    font-size: 1.2rem;
-}
-.dir-org-level-director .dir-org-node-portrait {
-    width: 56px;
-    height: 56px;
-    font-size: 1.1rem;
-}
-.dir-org-node-portrait-img {
+.dir-head-portrait img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     border-radius: 50%;
 }
-.dir-org-node-name {
-    font-size: 0.82rem;
-    font-weight: 600;
+.dir-head-info {
+    flex: 1;
+    min-width: 0;
+}
+.dir-head-name {
+    font-size: 0.95rem;
+    font-weight: 700;
     color: #f1f5f9;
     margin-bottom: 2px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
-.dir-org-node-title {
-    font-size: 0.68rem;
+.dir-head-title {
+    font-size: 0.78rem;
     color: #94a3b8;
-    line-height: 1.3;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
 }
-.dir-org-node-dot {
-    width: 7px;
-    height: 7px;
+.dir-head-dot {
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
-    display: inline-block;
-    margin-right: 3px;
-    vertical-align: middle;
+    flex-shrink: 0;
 }
-.dir-org-node-dot.online {
+.dir-head-dot.online {
     background: #10b981;
     box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
 }
-.dir-org-node-dot.offline {
-    background: #475569;
-}
+.dir-head-dot.offline { background: #475569; }
 
-/* Role color borders (set inline for departments) */
-.dir-org-node.role-ceo           { border-color: #f59e0b; }
-.dir-org-node.role-director      { border-color: #00e5ff; }
-
-/* --- Department head wrapper --- */
-.dir-org-dept-head-wrap {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    min-width: 120px;
-    max-width: 140px;
-}
-.dir-org-dept-label {
+/* --- Section label inside expanded panel --- */
+.dir-expanded-label {
     font-family: 'Orbitron', sans-serif;
-    font-size: 0.55rem;
+    font-size: 0.65rem;
     font-weight: 600;
-    letter-spacing: 1px;
+    letter-spacing: 1.5px;
     text-transform: uppercase;
-    text-align: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 140px;
-    line-height: 1.2;
+    color: #64748b;
+    margin-bottom: 12px;
 }
 
-/* --- Department member column (Level 5) --- */
-.dir-org-dept-col {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    min-width: 120px;
-    max-width: 140px;
-}
-.dir-org-mini-connector {
-    width: 2px;
-    height: 14px;
-    border-left: 2px solid rgba(0, 229, 255, 0.2);
-}
-
-/* --- Member badge (small card for L5 + unassigned) --- */
-.dir-org-member-badge {
-    display: flex;
-    align-items: center;
+/* ==========================================================================
+   TEAM MEMBER COMPACT GRID
+   ========================================================================== */
+.dir-team-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
     gap: 8px;
-    padding: 6px 10px;
+}
+.dir-team-member {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
     background: #111827;
     border: 1px solid #1e293b;
     border-radius: 8px;
     cursor: pointer;
     transition: transform 0.15s, box-shadow 0.15s, opacity 0.3s;
-    width: 100%;
-    max-width: 200px;
-    min-width: 0;
 }
-.dir-org-member-badge:hover {
+.dir-team-member:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
-.dir-org-member-badge.dir-filtered-out {
+.dir-team-member.dir-filtered-out {
     opacity: 0.15;
     pointer-events: none;
 }
-.dir-org-badge-avatar {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    object-fit: cover;
-    flex-shrink: 0;
-}
-.dir-org-badge-initials {
-    width: 28px;
-    height: 28px;
+.dir-team-portrait {
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -438,126 +524,56 @@
     font-family: 'Orbitron', sans-serif;
     font-size: 0.6rem;
     font-weight: 700;
+    color: #fff;
+    overflow: hidden;
     flex-shrink: 0;
+    background: linear-gradient(135deg, #1a1040, #0d2137);
 }
-.dir-org-badge-info {
+.dir-team-portrait img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+.dir-team-info {
     flex: 1;
     min-width: 0;
     overflow: hidden;
 }
-.dir-org-badge-name {
-    font-size: 0.72rem;
+.dir-team-name {
+    font-size: 0.78rem;
     font-weight: 600;
     color: #f1f5f9;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    line-height: 1.3;
 }
-.dir-org-badge-title {
-    font-size: 0.62rem;
-    line-height: 1.2;
+.dir-team-title {
+    font-size: 0.65rem;
+    color: #94a3b8;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
-
-/* --- Unassigned / Reserve pool --- */
-.dir-org-unassigned {
-    margin-top: 32px;
-    padding-top: 24px;
-    border-top: 1px solid rgba(148, 163, 184, 0.1);
-    width: 100%;
-    max-width: 1100px;
-}
-.dir-org-unassigned-label {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #64748b;
-    text-align: center;
-    margin-bottom: 16px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-}
-.dir-org-unassigned-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    justify-content: center;
-}
-.dir-org-unassigned-grid .dir-org-member-badge {
-    max-width: 180px;
-}
-
-/* ---------- MOBILE ACCORDION ---------- */
-.dir-accordion-section {
-    display: none;
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 24px 16px 60px;
-}
-.dir-acc-item {
-    margin-bottom: 4px;
-    border-radius: 10px;
-    overflow: hidden;
-    background: #111827;
-    border: 1px solid #1e293b;
-}
-.dir-acc-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    padding: 14px 16px;
-    background: transparent;
-    border: none;
-    color: #f1f5f9;
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-    text-align: left;
-}
-.dir-acc-accent {
-    width: 4px;
-    height: 20px;
-    border-radius: 2px;
+.dir-team-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
     flex-shrink: 0;
 }
-.dir-acc-label {
-    flex: 1;
-    font-family: 'Orbitron', sans-serif;
-    font-size: 0.8rem;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
+.dir-team-dot.online {
+    background: #10b981;
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
 }
-.dir-acc-count {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.75rem;
-    color: #64748b;
-    background: rgba(100, 116, 139, 0.15);
-    padding: 2px 8px;
-    border-radius: 10px;
-}
-.dir-acc-chevron {
-    font-size: 0.6rem;
-    color: #64748b;
-    transition: transform 0.2s;
-}
-.dir-acc-item.open .dir-acc-chevron {
-    transform: rotate(180deg);
-}
-.dir-acc-body {
-    display: none;
-    padding: 4px 12px 14px;
-    gap: 6px;
-    flex-direction: column;
-}
-.dir-acc-item.open .dir-acc-body {
-    display: flex;
-}
-.dir-acc-body .dir-org-member-badge {
-    max-width: 100%;
+.dir-team-dot.offline { background: #475569; }
+
+/* --- No results message --- */
+.dir-dept-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: #475569;
+    font-size: 0.85rem;
+    padding: 20px;
 }
 
 /* ---------- PROFILE PANEL ---------- */
@@ -803,68 +819,34 @@
 
 /* ---------- RESPONSIVE ---------- */
 
-/* Tablet: hide horizontal scroll, allow wrapping for heads */
-@media (max-width: 1200px) {
-    .dir-org-chart {
-        min-width: 0;
-    }
-    .dir-org-level-heads {
-        flex-wrap: wrap;
-        gap: 10px;
-    }
-    .dir-org-level-members {
-        flex-wrap: wrap;
-        gap: 10px;
-        justify-content: center;
-    }
-    .dir-org-connector-horizontal,
-    .dir-org-drop-lines {
-        display: none;
-    }
-    .dir-org-dept-head-wrap {
-        min-width: 100px;
-        max-width: 120px;
-    }
-    .dir-org-dept-label {
-        font-size: 0.5rem;
-    }
-}
-
-/* Fold5 tablet: 730px — show pyramid still but tighter */
+/* Tablet: 3-column department grid */
 @media (max-width: 1024px) {
+    .dir-dept-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+    }
     .dir-hero-title { font-size: 2.4rem; }
     .dir-hero-stats { gap: 32px; }
-    .dir-org-node {
-        min-width: 100px;
-        max-width: 120px;
-        padding: 10px 10px;
-    }
-    .dir-org-node-portrait {
-        width: 38px;
-        height: 38px;
-        font-size: 0.85rem;
-    }
-    .dir-org-level-ceo .dir-org-node {
-        min-width: 150px;
-        max-width: 180px;
-    }
-    .dir-org-level-director .dir-org-node {
-        min-width: 140px;
-        max-width: 160px;
-    }
-    .dir-vigil-branch {
-        padding-left: 160px;
-    }
+    .dir-leadership { gap: 16px; }
+    .dir-leader-card { width: 190px; padding: 20px 16px; }
+    .dir-leader-portrait { width: 60px; height: 60px; font-size: 1.1rem; }
+    .dir-team-grid { grid-template-columns: 1fr; }
 }
 
-/* Mobile: 730px — hide pyramid, show accordion */
+/* Phone: 2-column department grid */
 @media (max-width: 730px) {
-    .dir-org-section {
-        display: none;
+    .dir-dept-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        padding: 0 16px 40px;
     }
-    .dir-accordion-section {
-        display: block;
+    .dir-leadership {
+        flex-direction: column;
+        align-items: center;
+        padding: 32px 16px 24px;
+        gap: 12px;
     }
+    .dir-leader-card { width: 100%; max-width: 280px; }
     .dir-hero {
         padding: 48px 16px 40px;
     }
@@ -888,6 +870,15 @@
     }
     .dir-profile-portrait-initials { font-size: 2.4rem; }
     .dir-profile-id-name { font-size: 18px; }
+    .dir-dept-expanded { padding: 16px; }
+    .dir-team-grid { grid-template-columns: 1fr; }
+}
+
+/* Narrow phone: single-column */
+@media (max-width: 480px) {
+    .dir-dept-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* Ultra-small: 360px phone */

@@ -621,6 +621,14 @@ class AgentLoop:
         )
 
         self.scheduler.add_job(
+            with_app_context(self._check_mesh_health),
+            trigger=IntervalTrigger(seconds=60),
+            id="agent_mesh_health",
+            name="Agent Loop: Mesh VPN Health Monitor",
+            replace_existing=True,
+        )
+
+        self.scheduler.add_job(
             with_app_context(self._save_model_state),
             trigger=IntervalTrigger(minutes=5),
             id="agent_model_state_save",
@@ -691,7 +699,7 @@ class AgentLoop:
         )
 
         self._running = True
-        logger.info("Agent loop started with 52 jobs")
+        logger.info("Agent loop started with 53 jobs")
 
     def _update_stock_prices(self):
         """Job #27: Refresh cached stock prices, check price alerts, and auto-scan watchlist every 5 minutes."""
@@ -4340,6 +4348,112 @@ class AgentLoop:
             dispatcher.check_fleet_health()
         except Exception as e:
             logger.warning(f"Fleet health check failed: {e}")
+
+    def _check_mesh_health(self):
+        """Job #53: Monitor mesh VPN connectivity for all fleet nodes.
+
+        Pings each node's mesh_ip, updates mesh_status/mesh_latency_ms
+        in remote_nodes, and logs to mesh_health_log. Triggers fleet cache
+        refresh on status transitions (disconnected→connected or vice versa).
+        """
+        try:
+            import socket
+            import time as _time
+            from database import get_db_cursor
+
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT id, node_name, mesh_ip, mesh_status
+                       FROM remote_nodes
+                       WHERE mesh_ip IS NOT NULL
+                         AND is_active = true
+                         AND approval_status = 'approved'"""
+                )
+                nodes = cur.fetchall()
+
+            if not nodes:
+                return
+
+            changed = False
+            for node in nodes:
+                mesh_ip = node["mesh_ip"]
+                old_status = node["mesh_status"]
+                node_id = node["id"]
+
+                # TCP connect to Ollama port on mesh IP (fast reachability check)
+                latency_ms = None
+                new_status = "disconnected"
+                conn_type = None
+                try:
+                    start = _time.monotonic()
+                    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    s.settimeout(3)
+                    s.connect((mesh_ip, 11434))
+                    s.close()
+                    elapsed = (_time.monotonic() - start) * 1000
+                    latency_ms = int(elapsed)
+                    new_status = "connected"
+                    conn_type = "direct"
+                except Exception:
+                    new_status = "disconnected"
+
+                # Update remote_nodes
+                with get_db_cursor() as (conn, cur):
+                    cur.execute(
+                        """UPDATE remote_nodes
+                           SET mesh_status = %s,
+                               mesh_latency_ms = %s,
+                               mesh_connection_type = %s,
+                               mesh_last_seen = CASE WHEN %s = 'connected' THEN NOW() ELSE mesh_last_seen END
+                           WHERE id = %s""",
+                        (new_status, latency_ms, conn_type, new_status, node_id),
+                    )
+
+                    # Log to mesh_health_log
+                    cur.execute(
+                        """INSERT INTO mesh_health_log
+                           (node_id, mesh_ip, latency_ms, connection_type, is_reachable)
+                           VALUES (%s, %s, %s, %s, %s)""",
+                        (
+                            node_id,
+                            mesh_ip,
+                            latency_ms,
+                            conn_type,
+                            new_status == "connected",
+                        ),
+                    )
+                    conn.commit()
+
+                # Detect status transitions
+                if old_status != new_status:
+                    changed = True
+                    logger.info(
+                        f"[MeshHealth] Node {node['node_name']} mesh "
+                        f"{old_status}→{new_status} ({mesh_ip})"
+                    )
+
+            # Refresh fleet cache if any node changed status
+            if changed:
+                try:
+                    from ai_bridge.bridge_dispatcher import get_dispatcher
+
+                    dispatcher = get_dispatcher()
+                    dispatcher._refresh_fleet_cache()
+                except Exception:
+                    pass
+
+            # Prune old health log entries (keep 7 days)
+            try:
+                with get_db_cursor() as (conn, cur):
+                    cur.execute(
+                        "DELETE FROM mesh_health_log WHERE checked_at < NOW() - INTERVAL '7 days'"
+                    )
+                    conn.commit()
+            except Exception:
+                pass
+
+        except Exception as e:
+            logger.warning(f"Mesh health check failed: {e}")
 
     def _save_model_state(self):
         """Job #46: Save current loaded models to DB for restart recovery."""

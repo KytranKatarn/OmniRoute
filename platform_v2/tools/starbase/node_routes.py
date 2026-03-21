@@ -698,8 +698,15 @@ def register_node_routes(bp, admin_required):
                         lines = [l.strip() for l in result.stdout.strip().split("\n") if l.strip() and "WRN" not in l]
                         if lines:
                             headscale_authkey = lines[-1]
-                            headscale_url = os.environ.get("HEADSCALE_URL", "http://192.168.1.200:8095")
-                            logger.info("Generated Headscale auth key for node %s", node_id)
+                            # WAN nodes use public domain, LAN nodes use direct IP
+                            headscale_url = os.environ.get(
+                                "HEADSCALE_PUBLIC_URL",
+                                "https://mesh.kytranempowerment.com",
+                            )
+                            logger.info(
+                                "Generated Headscale auth key for node %s",
+                                node_id,
+                            )
                     else:
                         logger.warning("Headscale key generation failed: %s", result.stderr)
                 except Exception as hs_err:

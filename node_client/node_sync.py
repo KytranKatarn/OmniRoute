@@ -1308,28 +1308,54 @@ def _handle_checkpoint_pull(config, payload):
     start = time.time()
 
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "ARCHIE-Node/3.0"})
-        with urllib.request.urlopen(req, timeout=7200) as resp:
+        tmp_dest = dest + ".downloading"
+        downloaded = 0
+        total = 0
+        chunk_size = 8 * 1024 * 1024  # 8MB chunks
+
+        if _HAS_REQUESTS:
+            # Use requests (available on most nodes)
+            resp = _requests_lib.get(
+                url,
+                stream=True,
+                timeout=7200,
+                headers={"User-Agent": "ARCHIE-Node/3.0"},
+            )
+            resp.raise_for_status()
             total = int(resp.headers.get("Content-Length", 0))
-            downloaded = 0
-            chunk_size = 8 * 1024 * 1024  # 8MB chunks
-
-            tmp_dest = dest + ".downloading"
             with open(tmp_dest, "wb") as f:
-                while True:
-                    chunk = resp.read(chunk_size)
-                    if not chunk:
-                        break
-                    f.write(chunk)
-                    downloaded += len(chunk)
-                    if total > 0 and downloaded % (64 * 1024 * 1024) < chunk_size:
-                        pct = (downloaded / total) * 100
-                        logger.info(
-                            "[checkpoint_pull] %s: %.0f%% (%.0fMB/%.0fMB)",
-                            filename, pct, downloaded / 1e6, total / 1e6,
-                        )
+                for chunk in resp.iter_content(chunk_size=chunk_size):
+                    if chunk:
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if total > 0 and downloaded % (64 * 1024 * 1024) < chunk_size:
+                            pct = (downloaded / total) * 100
+                            logger.info(
+                                "[checkpoint_pull] %s: %.0f%% (%.0fMB/%.0fMB)",
+                                filename, pct, downloaded / 1e6, total / 1e6,
+                            )
+        else:
+            # Fallback to urllib
+            import urllib.request
 
-            os.rename(tmp_dest, dest)
+            req = urllib.request.Request(url, headers={"User-Agent": "ARCHIE-Node/3.0"})
+            with urllib.request.urlopen(req, timeout=7200) as resp:
+                total = int(resp.headers.get("Content-Length", 0))
+                with open(tmp_dest, "wb") as f:
+                    while True:
+                        chunk = resp.read(chunk_size)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if total > 0 and downloaded % (64 * 1024 * 1024) < chunk_size:
+                            pct = (downloaded / total) * 100
+                            logger.info(
+                                "[checkpoint_pull] %s: %.0f%% (%.0fMB/%.0fMB)",
+                                filename, pct, downloaded / 1e6, total / 1e6,
+                            )
+
+        os.rename(tmp_dest, dest)
 
         elapsed = time.time() - start
         size = os.path.getsize(dest)

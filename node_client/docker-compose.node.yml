@@ -87,6 +87,7 @@ services:
       - ./node_api.py:/app/node_api.py
       - ./migrations:/app/migrations
       - /var/run/docker.sock:/var/run/docker.sock
+      - comfyui_data:/comfyui/models
     command: ["python3", "-u", "node_sync.py"]
     healthcheck:
       test: ["CMD-SHELL", "pgrep -f node_sync.py || exit 1"]

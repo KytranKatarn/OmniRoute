@@ -6356,6 +6356,10 @@ function renderNodeCard(node) {
                     <span><i data-lucide="memory-stick" style="width:12px;height:12px;"></i> ${node.ram_gb || '?'}GB</span>
                     ${node.gpu_model ? `<span><i data-lucide="monitor" style="width:12px;height:12px;"></i> ${node.gpu_model}</span>` : ''}
                 </div>
+                <div class="node-beacon-row" style="display:flex;gap:6px;margin-top:6px;font-size:0.7rem;">
+                    ${node.node_name ? `<a href="http://${encodeURIComponent(node.node_name.toLowerCase().replace(/ /g,'-'))}.fleet.kytranempowerment.com" target="_blank" class="mesh-badge mesh-connected" style="text-decoration:none;cursor:pointer;">BEACON</a>` : ''}
+                    ${node.mesh_ip ? `<span class="mesh-badge ${node.mesh_status === 'connected' ? 'mesh-connected' : 'mesh-off'}">W.A.R.P.</span>` : ''}
+                </div>
             </div>
             ${!isPending ? `
             <div class="node-load">

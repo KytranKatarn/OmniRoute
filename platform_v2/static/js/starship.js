@@ -1147,6 +1147,25 @@ function renderDetail(data) {
         }
     }
 
+    // BEACON link
+    var beaconEl = document.getElementById('d-beacon');
+    if (beaconEl) {
+        var slug = (n.node_name || '').toLowerCase().replace(/ /g, '-').replace(/[^a-z0-9\-]/g, '');
+        if (slug) {
+            beaconEl.textContent = '';
+            var link = document.createElement('a');
+            link.href = 'http://' + slug + '.fleet.kytranempowerment.com';
+            link.target = '_blank';
+            link.textContent = slug + '.fleet';
+            link.style.cssText = 'color:#00e5ff;text-decoration:none;';
+            beaconEl.appendChild(link);
+            beaconEl.className = 'sc-live';
+        } else {
+            beaconEl.textContent = 'Not configured';
+            beaconEl.className = 'sc-static';
+        }
+    }
+
     // Version
     var verEl = document.getElementById('d-version');
     verEl.textContent = '';

@@ -259,6 +259,52 @@ services:
       timeout: 10s
       retries: 3
 
+  # Headscale — Self-hosted Tailscale coordination server (Fleet Mesh VPN)
+  archie_headscale:
+    image: headscale/headscale:0.25
+    container_name: archie_headscale
+    restart: unless-stopped
+    command: serve
+    volumes:
+      - headscale_data:/var/lib/headscale
+      - ./headscale/config.yaml:/etc/headscale/config.yaml:ro
+    ports:
+      - "8095:8095"       # HTTP API + gRPC
+      - "3478:3478/udp"   # STUN (NAT traversal)
+    environment:
+      TZ: America/Toronto
+    networks:
+      - archie_internal
+    healthcheck:
+      test: ["CMD", "headscale", "nodes", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # Tailscale client for hub — joins the mesh as archie-hub (100.64.0.1)
+  archie_tailscale:
+    image: tailscale/tailscale:stable
+    container_name: archie_tailscale
+    restart: unless-stopped
+    hostname: archie-hub
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      TS_AUTHKEY: ${HEADSCALE_HUB_AUTHKEY:-}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_EXTRA_ARGS: "--login-server=http://archie_headscale:8095"
+      TS_USERSPACE: "false"
+    volumes:
+      - tailscale_hub_data:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    networks:
+      - archie_internal
+    depends_on:
+      archie_headscale:
+        condition: service_healthy
+
 networks:
   archie_internal:
     driver: bridge
@@ -274,3 +320,9 @@ volumes:
   comfyui_output:
     driver: local
     name: archie_comfyui_output
+  headscale_data:
+    driver: local
+    name: archie_headscale_data
+  tailscale_hub_data:
+    driver: local
+    name: archie_tailscale_hub

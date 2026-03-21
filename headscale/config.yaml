@@ -1,0 +1,77 @@
+# Headscale 0.25.x — Self-hosted Tailscale coordination server for ARCHIE Fleet Mesh
+# Based on official config-example.yaml from juanfont/headscale v0.25.1
+# Docs: https://headscale.net/ref/configuration/
+
+# Change to https://mesh.kytranempowerment.com once NPM proxy is configured
+server_url: http://192.168.1.200:8095
+listen_addr: 0.0.0.0:8095
+metrics_listen_addr: 0.0.0.0:9090
+grpc_listen_addr: 127.0.0.1:50443
+grpc_allow_insecure: false
+
+# Noise protocol keys (required since 0.17, auto-generated if file missing)
+noise:
+  private_key_path: /var/lib/headscale/noise_private.key
+
+# NOTE: top-level "private_key_path" was REMOVED in 0.23+. Do not set it.
+
+# IP address pools for mesh nodes
+prefixes:
+  v4: 100.64.0.0/10
+  v6: fd7a:115c:a1e0::/48
+  allocation: sequential
+
+# DERP relay — for nodes behind NAT that can't do peer-to-peer
+derp:
+  server:
+    enabled: true
+    region_id: 900
+    region_code: archie
+    region_name: ARCHIE Hub
+
+    # FIX: This was the missing field causing the crash.
+    # Required since 0.23 when embedded DERP is enabled.
+    # File is auto-generated, but the path MUST be specified.
+    private_key_path: /var/lib/headscale/derp_server_private.key
+
+    # STUN is REQUIRED when embedded DERP server is enabled
+    stun_listen_addr: "0.0.0.0:3478"
+
+    automatically_add_embedded_derp_region: true
+
+  urls: []
+  paths: []
+  update_frequency: 24h
+
+# Database — local SQLite (no external dependency)
+database:
+  type: sqlite
+  sqlite:
+    path: /var/lib/headscale/db.sqlite
+
+# DNS — MagicDNS for node discovery
+dns:
+  magic_dns: true
+  base_domain: mesh.archie
+  nameservers:
+    global:
+      - 192.168.1.200
+  search_domains: []
+
+# Unix socket for headscale CLI
+unix_socket: /var/run/headscale/headscale.sock
+unix_socket_permission: "0770"
+
+# Logging
+log:
+  format: text
+  level: info
+
+# Node settings
+ephemeral_node_inactivity_timeout: 5m
+node_update_check_interval: 10s
+
+# ACL policy — disable open registration, nodes need pre-auth keys
+policy:
+  mode: file
+  path: ""

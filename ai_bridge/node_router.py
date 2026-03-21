@@ -61,7 +61,9 @@ def get_nodes_with_model(model_name: str) -> List[Dict[str, Any]]:
                 n.gpu_model,
                 n.status,
                 n.deployment_mode,
-                m.avg_response_ms
+                m.avg_response_ms,
+                n.hostname,
+                n.mesh_ip
             FROM remote_nodes n
             JOIN node_ollama_models m ON n.node_id = m.node_id
             WHERE n.bridge_enabled = true
@@ -157,6 +159,19 @@ def select_best_node(
     return node
 
 
+def _resolve_best_host(node: Dict[str, Any]) -> str:
+    """Resolve the best reachable host for a node.
+
+    Priority: mesh_ip (encrypted, works LAN+WAN) → vpn_ip → hostname → fallback.
+    """
+    return (
+        node.get("mesh_ip")
+        or node.get("vpn_ip")
+        or node.get("hostname")
+        or "unknown"
+    )
+
+
 def get_ollama_url(model_name: str, prefer_gpu: bool = True) -> tuple:
     """
     Get the Ollama URL for a model request.
@@ -167,7 +182,8 @@ def get_ollama_url(model_name: str, prefer_gpu: bool = True) -> tuple:
     node = select_best_node(model_name, prefer_gpu)
 
     if node:
-        url = f"http://{node['vpn_ip']}:{node.get('port', 11434)}"
+        host = _resolve_best_host(node)
+        url = f"http://{host}:{node.get('port', 11434)}"
         return url, node["node_id"]
     else:
         # Fallback to environment variable
@@ -331,6 +347,7 @@ def get_nodes_with_service(service_name: str) -> List[Dict[str, Any]]:
                 node_name,
                 hostname,
                 vpn_ip,
+                mesh_ip,
                 {port_column} as port,
                 current_load,
                 bridge_priority,
@@ -426,7 +443,8 @@ def get_foocus_url() -> tuple:
     node = select_best_image_node("foocus")
 
     if node:
-        url = f"http://{node['vpn_ip']}:{node.get('port', 7865)}"
+        host = _resolve_best_host(node)
+        url = f"http://{host}:{node.get('port', 7865)}"
         return url, node["node_id"]
     else:
         logger.info("Using fallback FOOOCUS_URL")
@@ -444,7 +462,8 @@ def get_comfyui_url() -> tuple:
     node = select_best_image_node("comfyui")
 
     if node:
-        url = f"http://{node['vpn_ip']}:{node.get('port', 8188)}"
+        host = _resolve_best_host(node)
+        url = f"http://{host}:{node.get('port', 8188)}"
         return url, node["node_id"]
     else:
         logger.info("Using fallback COMFYUI_URL")
@@ -462,7 +481,8 @@ def get_auto1111_url() -> tuple:
     node = select_best_image_node("auto1111")
 
     if node:
-        url = f"http://{node['vpn_ip']}:{node.get('port', 7860)}"
+        host = _resolve_best_host(node)
+        url = f"http://{host}:{node.get('port', 7860)}"
         return url, node["node_id"]
     else:
         logger.info("Using fallback AUTO1111_URL")

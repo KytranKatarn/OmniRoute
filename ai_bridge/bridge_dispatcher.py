@@ -1377,6 +1377,71 @@ class BridgeDispatcher:
     # FLEET NODE DISPATCH — Cross-node agent fallback (ADR-xxx)
     # ====================================================================
 
+    def _resolve_node_address(
+        self,
+        hostname: Optional[str],
+        vpn_ip: Optional[str] = None,
+        mesh_ip: Optional[str] = None,
+        port: int = 11434,
+        timeout: float = 2.0,
+    ) -> tuple:
+        """Resolve the best reachable address for a fleet node.
+
+        Priority: LAN hostname (fast) → mesh VPN IP (encrypted) → vpn_ip (legacy).
+        Returns (host, port, conn_type) where conn_type is 'lan'|'mesh'|'vpn'|'unreachable'.
+        """
+        candidates = []
+        # Priority 1: LAN hostname (lowest latency, same subnet)
+        if hostname and self._is_lan_address(hostname):
+            candidates.append((hostname, port, "lan"))
+        # Priority 2: Mesh IP (Headscale/WireGuard, works LAN + WAN)
+        if mesh_ip:
+            candidates.append((mesh_ip, port, "mesh"))
+        # Priority 3: Legacy vpn_ip field
+        if vpn_ip and vpn_ip not in (hostname, mesh_ip):
+            candidates.append((vpn_ip, port, "vpn"))
+
+        for host, p, conn_type in candidates:
+            try:
+                resp = requests.get(
+                    f"http://{host}:{p}/api/tags",
+                    timeout=timeout,
+                )
+                if resp.status_code == 200:
+                    logger.debug(
+                        f"[BridgeDispatcher] Node resolved via {conn_type}: "
+                        f"{host}:{p}"
+                    )
+                    return host, p, conn_type
+            except Exception:
+                continue
+
+        # All failed — return best available for error context
+        fallback = hostname or mesh_ip or vpn_ip or "unknown"
+        logger.debug(
+            f"[BridgeDispatcher] Node unreachable via all addresses: "
+            f"hostname={hostname} mesh_ip={mesh_ip} vpn_ip={vpn_ip}"
+        )
+        return fallback, port, "unreachable"
+
+    @staticmethod
+    def _is_lan_address(addr: str) -> bool:
+        """Check if an address is a private/LAN IP."""
+        try:
+            import ipaddress
+            ip = ipaddress.ip_address(addr)
+            return ip.is_private and not str(ip).startswith("100.64.")
+        except ValueError:
+            return False
+
+    def _refresh_fleet_cache(self):
+        """Clear fleet-related caches so new/recovered nodes are discovered."""
+        if hasattr(self, "_agent_cache"):
+            self._agent_cache.clear()
+        if hasattr(self, "_fleet_health_cache"):
+            self._fleet_health_cache.clear()
+        logger.info("[BridgeDispatcher] Fleet cache refreshed")
+
     def _find_fleet_agent(
         self,
         station_code: str,
@@ -1405,6 +1470,8 @@ class BridgeDispatcher:
                        rn.id AS node_id,
                        rn.node_name,
                        rn.hostname AS node_hostname,
+                       rn.vpn_ip,
+                       rn.mesh_ip,
                        rn.port AS node_port
                 FROM node_agents na
                 JOIN remote_nodes rn ON rn.id = na.node_id
@@ -1428,21 +1495,37 @@ class BridgeDispatcher:
                 )
                 return None
 
-            # Check each candidate — verify model is reachable on the node
+            # Check each candidate — resolve address, verify model is reachable
             for candidate in candidates:
                 agent_name = candidate["agent_name"]
                 model = candidate["model"]
-                hostname = candidate["node_hostname"]
                 port = candidate["node_port"] or 11434
 
                 # If caller wants a specific model, skip non-matching agents
                 if model_preference and model != model_preference:
                     continue
 
-                # Verify model is available on the node's Ollama
+                # Resolve best reachable address (LAN → mesh → vpn)
+                resolved_host, resolved_port, conn_type = self._resolve_node_address(
+                    hostname=candidate["node_hostname"],
+                    vpn_ip=candidate.get("vpn_ip"),
+                    mesh_ip=candidate.get("mesh_ip"),
+                    port=port,
+                    timeout=5,
+                )
+
+                if conn_type == "unreachable":
+                    logger.debug(
+                        f"[BridgeDispatcher] Cannot reach node "
+                        f"{candidate['node_name']} via any address"
+                    )
+                    continue
+
+                # _resolve_node_address already verified /api/tags returned 200,
+                # now check if the specific model is available
                 try:
                     tags_resp = requests.get(
-                        f"http://{hostname}:{port}/api/tags",
+                        f"http://{resolved_host}:{resolved_port}/api/tags",
                         timeout=5,
                     )
                     if tags_resp.status_code == 200:
@@ -1450,7 +1533,6 @@ class BridgeDispatcher:
                             m.get("name", "")
                             for m in tags_resp.json().get("models", [])
                         ]
-                        # Match model name (with or without :latest tag)
                         model_found = any(
                             m == model or m.startswith(f"{model}:")
                             or model.startswith(f"{m.split(':')[0]}:")
@@ -1459,28 +1541,30 @@ class BridgeDispatcher:
                         if not model_found:
                             logger.debug(
                                 f"[BridgeDispatcher] Fleet agent {agent_name} "
-                                f"model '{model}' not on node {hostname}"
+                                f"model '{model}' not on node {candidate['node_name']}"
                             )
                             continue
                 except Exception as tag_err:
                     logger.debug(
-                        f"[BridgeDispatcher] Cannot reach node {hostname}:{port} "
-                        f"Ollama: {tag_err}"
+                        f"[BridgeDispatcher] Model check failed on "
+                        f"{resolved_host}:{resolved_port}: {tag_err}"
                     )
                     continue
 
                 logger.info(
                     f"[BridgeDispatcher] Fleet agent found: {agent_name} "
                     f"(model={model}) on node {candidate['node_name']} "
-                    f"({hostname}:{port}) for station={station_code}"
+                    f"({resolved_host}:{resolved_port} via {conn_type}) "
+                    f"for station={station_code}"
                 )
                 return {
                     "agent_name": agent_name,
                     "model": model,
-                    "node_hostname": hostname,
-                    "node_port": port,
+                    "node_hostname": resolved_host,
+                    "node_port": resolved_port,
                     "node_id": candidate["node_id"],
                     "node_name": candidate["node_name"],
+                    "conn_type": conn_type,
                 }
 
             logger.debug(

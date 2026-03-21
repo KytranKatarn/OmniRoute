@@ -1440,7 +1440,7 @@ def _handle_container_upgrade(config, payload):
         _docker_api("POST", f"/containers/{temp_name}/stop?t=5")
         _docker_api("DELETE", f"/containers/{temp_name}?force=true")
 
-        create_body = json.dumps({
+        create_body = {
             "Image": image,
             "Cmd": cmd,
             "Env": env_list,
@@ -1449,7 +1449,7 @@ def _handle_container_upgrade(config, payload):
                 "NetworkMode": network_mode,
                 "RestartPolicy": restart_policy,
             },
-        })
+        }
 
         code, raw = _docker_api("POST", f"/containers/create?name={temp_name}", body=create_body)
         if code not in (200, 201):

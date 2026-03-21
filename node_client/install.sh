@@ -199,7 +199,7 @@ REGISTER_PAYLOAD=$(jq -n \
     }')
 
 REGISTER_RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST \
-    "${HUB_URL}/tools/starship/api/nodes/register" \
+    "${HUB_URL}/tools/starbase/api/nodes/register" \
     -H "Content-Type: application/json" \
     -d "$REGISTER_PAYLOAD" 2>&1)
 

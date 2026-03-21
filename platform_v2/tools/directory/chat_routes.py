@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "ai
 from flask import jsonify, request
 from flask_login import current_user, login_required
 from functools import wraps
-from .helpers import chat_rate_limiter
+from .helpers import chat_rate_limiter, map_agent_status
 
 
 def login_required_api(f):
@@ -31,9 +31,10 @@ def register_chat_routes(bp, admin_required):
     def get_agent_status():
         """Get live roster status for all agents."""
         try:
-            from bridge_dispatcher import get_crew_manifest
+            from bridge_dispatcher import get_dispatcher
 
-            manifest = get_crew_manifest()
+            dispatcher = get_dispatcher()
+            manifest = dispatcher.get_crew_manifest()
         except Exception:
             manifest = []
 
@@ -41,15 +42,11 @@ def register_chat_routes(bp, admin_required):
         for member in manifest:
             agent_id = member.get("agent_id") or member.get("id")
             if agent_id:
-                model_loaded = member.get("model_loaded", False)
-                shift_state = member.get("shift_state", "off_duty")
-                is_online = shift_state == "active" and model_loaded
-                status_map[str(agent_id)] = {
-                    "is_online": is_online,
-                    "status": "Online" if is_online else "Off Duty",
-                    "chat_available": is_online,
-                    "shift_state": shift_state,
-                }
+                mapped = map_agent_status(member)
+                mapped["shift_state"] = member.get("shift_state", "off_duty")
+                mapped["current_job"] = member.get("current_job")
+                mapped["mood"] = member.get("wellness", {}).get("mood", "neutral")
+                status_map[str(agent_id)] = mapped
 
         return jsonify({"status": status_map})
 
@@ -80,9 +77,10 @@ def register_chat_routes(bp, admin_required):
 
         # --- Check agent is online via crew manifest ---
         try:
-            from bridge_dispatcher import get_crew_manifest
+            from bridge_dispatcher import get_dispatcher
 
-            manifest = get_crew_manifest()
+            dispatcher = get_dispatcher()
+            manifest = dispatcher.get_crew_manifest()
         except Exception:
             manifest = []
 
@@ -96,11 +94,10 @@ def register_chat_routes(bp, admin_required):
         if not agent_manifest:
             return jsonify({"error": "Agent not found in roster"}), 404
 
-        shift_state = agent_manifest.get("shift_state", "off_duty")
-        model_loaded = agent_manifest.get("model_loaded", False)
-        if not (shift_state == "active" and model_loaded):
+        agent_status = map_agent_status(agent_manifest)
+        if not agent_status["chat_available"]:
             return (
-                jsonify({"error": "Agent is currently offline. Try again later."}),
+                jsonify({"error": f"Agent is currently {agent_status['status']}. Try again later."}),
                 503,
             )
 

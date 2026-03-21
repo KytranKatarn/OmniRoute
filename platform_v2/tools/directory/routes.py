@@ -13,7 +13,7 @@ from flask import Blueprint, render_template, jsonify, request, session
 from flask_login import login_required
 from database import get_db_cursor
 
-from .helpers import derive_full_name, derive_email
+from .helpers import derive_full_name, derive_email, map_agent_status
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +108,9 @@ def api_directory():
             )
             members = cur.fetchall()
 
+        # Check if request is from an authenticated session
+        authenticated = "user_id" in session
+
         by_department = {}
         for m in members:
             md = dict(m)
@@ -122,11 +125,20 @@ def api_directory():
             else:
                 md["specialties"] = []
             del md["capabilities"]
+            # Strip internal-only fields from public responses
+            if not authenticated:
+                md.pop("employee_type", None)
+                md.pop("worker_type", None)
             dept = md["department"] or "General"
             by_department.setdefault(dept, []).append(md)
 
-        ai_count = sum(1 for m in members if dict(m).get("employee_type") == "AI")
-        human_count = sum(1 for m in members if dict(m).get("employee_type") == "Human")
+        stats = {
+            "total_members": len(members),
+            "total_departments": len(by_department),
+        }
+        if authenticated:
+            stats["ai_count"] = sum(1 for m in members if dict(m).get("employee_type") == "AI")
+            stats["human_count"] = sum(1 for m in members if dict(m).get("employee_type") == "Human")
 
         return jsonify(
             {
@@ -134,12 +146,7 @@ def api_directory():
                 "members": [dict(m) for m in members],
                 "by_department": by_department,
                 "departments": sorted(by_department.keys()),
-                "statistics": {
-                    "total_members": len(members),
-                    "total_departments": len(by_department),
-                    "ai_count": ai_count,
-                    "human_count": human_count,
-                },
+                "statistics": stats,
             }
         )
     except Exception as e:
@@ -210,10 +217,64 @@ def api_directory_employee(employee_id):
         # Generate extension from ID
         ed["extension"] = f"x{1000 + ed['id']}"
 
+        # Strip internal-only fields from public responses
+        if "user_id" not in session:
+            ed.pop("employee_type", None)
+
         return jsonify({"success": True, "employee": ed})
     except Exception as e:
         logger.error("Directory employee API error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bp.route("/api/directory/live-status")
+def api_directory_live_status():
+    """Public live-status endpoint — lightweight agent availability from Bridge roster.
+
+    Returns per-agent: status label, online flag, mood, department.
+    No internal details (model, hardware, jobs, stats) are exposed.
+    """
+    import sys
+    import os
+
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "ai_bridge"))
+
+    try:
+        from bridge_dispatcher import get_dispatcher
+
+        dispatcher = get_dispatcher()
+        manifest = dispatcher.get_crew_manifest()
+    except Exception as e:
+        logger.error("Live status — Bridge unavailable: %s", e)
+        manifest = []
+
+    agents = {}
+    online_count = 0
+    for member in manifest:
+        agent_id = member.get("agent_id") or member.get("id")
+        if not agent_id:
+            continue
+        mapped = map_agent_status(member)
+        if mapped["is_online"]:
+            online_count += 1
+        agents[str(agent_id)] = {
+            "status": mapped["status"],
+            "is_online": mapped["is_online"],
+            "chat_available": mapped["chat_available"],
+            "mood": member.get("wellness", {}).get("mood", "neutral"),
+            "department": member.get("title", ""),
+        }
+
+    return jsonify(
+        {
+            "success": True,
+            "agents": agents,
+            "summary": {
+                "total": len(agents),
+                "online": online_count,
+            },
+        }
+    )
 
 
 @bp.route("/api/directory/org-chart")
@@ -251,6 +312,7 @@ def api_directory_org_chart():
             )
             manager_ids = {row["reports_to_agent_id"] for row in cur.fetchall()}
 
+        authenticated = "user_id" in session
         nodes = []
         for agent in agents:
             ad = dict(agent)
@@ -259,6 +321,9 @@ def api_directory_org_chart():
             ad["reports_to"] = ad.pop("reports_to_agent_id", None)
             ad["is_head"] = ad["id"] in manager_ids
             ad["top_skills"] = ad["top_skills"] or []
+            if not authenticated:
+                ad.pop("employee_type", None)
+                ad.pop("worker_type", None)
             nodes.append(ad)
 
         return jsonify({"success": True, "nodes": nodes})

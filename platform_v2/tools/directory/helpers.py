@@ -21,13 +21,27 @@ def derive_email(agent):
 
 
 def map_agent_status(crew_member):
-    """Map Starbase roster state to directory status."""
+    """Map Bridge crew manifest state to directory status.
+
+    Uses llm_status (loaded/swap/cloud/barracked) and shift_state from
+    get_crew_manifest() to determine online/chat availability.
+    """
     if not crew_member:
         return {"status": "Off Duty", "is_online": False, "chat_available": False}
-    shift_state = crew_member.get("shift_state", "")
-    model_loaded = crew_member.get("model_loaded", False)
-    if shift_state == "active" and model_loaded:
+    shift_state = crew_member.get("shift_state", "off_duty")
+    llm_status = crew_member.get("llm_status", "barracked")
+    activity = crew_member.get("status", "idle")
+    llm_ready = llm_status in ("loaded", "swap", "cloud")
+    on_shift = shift_state in ("active", "deployed")
+    is_online = on_shift and llm_ready
+    if activity == "resting":
+        return {"status": "Resting", "is_online": False, "chat_available": False}
+    if is_online and activity == "working":
+        return {"status": "Busy", "is_online": True, "chat_available": True}
+    if is_online:
         return {"status": "Online", "is_online": True, "chat_available": True}
+    if on_shift:
+        return {"status": "Standby", "is_online": True, "chat_available": False}
     return {"status": "Off Duty", "is_online": False, "chat_available": False}
 
 

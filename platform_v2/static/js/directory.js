@@ -208,7 +208,7 @@ function renderLeadershipBanner(leaders, container) {
         const color = isCeo ? '#f59e0b' : '#00e5ff';
 
         const card = document.createElement('div');
-        card.className = 'dir-leader-card ' + (isCeo ? 'dir-leader-card--ceo' : 'dir-leader-card--ai');
+        card.className = 'dir-leader-card' + (isCeo ? ' dir-leader-card--ceo' : (isAuthenticated ? ' dir-leader-card--ai' : ''));
         card.dataset.agentId = String(agentId);
         if (agentId && !isCeo) {
             card.style.cursor = 'pointer';
@@ -235,12 +235,14 @@ function renderLeadershipBanner(leaders, container) {
         titleEl.textContent = title;
         card.appendChild(titleEl);
 
-        const roleTag = document.createElement('div');
-        roleTag.className = 'dir-leader-role-tag';
-        roleTag.textContent = isCeo ? 'HUMAN' : 'AI';
-        roleTag.style.color = color;
-        roleTag.style.borderColor = color + '44';
-        card.appendChild(roleTag);
+        if (isAuthenticated) {
+            const roleTag = document.createElement('div');
+            roleTag.className = 'dir-leader-role-tag';
+            roleTag.textContent = isCeo ? 'HUMAN' : 'AI';
+            roleTag.style.color = color;
+            roleTag.style.borderColor = color + '44';
+            card.appendChild(roleTag);
+        }
 
         container.appendChild(card);
     });
@@ -683,7 +685,7 @@ function _populateProfile(emp) {
             var pDept = document.createElement('div');
             pDept.className = 'dir-profile-id-station';
             var deptText = dept;
-            if (emp.employee_type) deptText += ' \u2022 ' + emp.employee_type;
+            if (isAuthenticated && emp.employee_type) deptText += ' \u2022 ' + emp.employee_type;
             pDept.textContent = deptText;
             identityEl.appendChild(pDept);
         }

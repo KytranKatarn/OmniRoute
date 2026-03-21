@@ -32,6 +32,7 @@ def add_cors_headers(response):
     allowed_origins = [
         "https://www.kytranempowerment.com",
         "https://kytranempowerment.com",
+        "https://archie.kytranempowerment.com",
         "http://localhost",
     ]
     if origin in allowed_origins:

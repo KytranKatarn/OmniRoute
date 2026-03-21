@@ -6,17 +6,21 @@
 
 const DEPT_COLORS = {
     'Analytics & Intelligence': '#8b5cf6',
-    'Engineering': '#fbbf24',
     'Creative & Design': '#f472b6',
-    'Communications & Marketing': '#22d3ee',
-    'Research & Development': '#10b981',
-    'Security & Compliance': '#ef4444',
-    'Operations & Infrastructure': '#f97316',
-    'Logistics & Supply Chain': '#a3e635',
-    'Diplomatic & Human Relations': '#818cf8',
-    'Medical & Wellness': '#ec4899',
-    'Customer Experience': '#06b6d4',
+    'Customer Success & Support': '#06b6d4',
+    'Diplomatic & External Relations': '#818cf8',
     'Documentation & Knowledge': '#d4a843',
+    'Engineering & Technology': '#fbbf24',
+    'Executive Office': '#f59e0b',
+    'Finance & Accounting': '#10b981',
+    'Human Resources & Culture': '#a78bfa',
+    'Legal & Regulatory': '#94a3b8',
+    'Logistics & Supply Chain': '#a3e635',
+    'Marketing & Communications': '#22d3ee',
+    'Medical & Wellness': '#ec4899',
+    'Operations & Infrastructure': '#f97316',
+    'Research & Development': '#34d399',
+    'Security & Compliance': '#ef4444',
 };
 
 const PROFICIENCY_COLORS = {
@@ -879,9 +883,11 @@ function _contactRow(type, text, href) {
 
 function getInitials(name) {
     if (!name) return '?';
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-    return parts[0].substring(0, 2).toUpperCase();
+    // Strip parenthetical callsigns like "(DataMind)" or "(Compact)"
+    const clean = name.replace(/\s*\(.*?\)\s*/g, '').trim();
+    const parts = clean.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return parts[0] ? parts[0].substring(0, 2).toUpperCase() : '?';
 }
 
 // Legacy helper — kept for backward compat but now just returns ''

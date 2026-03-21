@@ -1364,9 +1364,11 @@ def _handle_checkpoint_pull(config, payload):
         )
 
         # Step 2: Move to shared volume (comfyui_data mounted at /comfyui/models)
+        # Use shutil.move — os.rename fails across different filesystems
+        import shutil
         dest = os.path.join(checkpoints_dir, filename)
         os.makedirs(checkpoints_dir, exist_ok=True)
-        os.rename(tmp_file, dest)
+        shutil.move(tmp_file, dest)
         logger.info("[checkpoint_pull] Moved to %s", dest)
 
         elapsed = time.time() - start

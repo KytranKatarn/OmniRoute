@@ -25,6 +25,22 @@ bp = Blueprint(
 )
 
 
+@bp.after_request
+def add_cors_headers(response):
+    """Allow cross-origin requests from the public www site."""
+    origin = request.headers.get("Origin", "")
+    allowed_origins = [
+        "https://www.kytranempowerment.com",
+        "https://kytranempowerment.com",
+        "http://localhost",
+    ]
+    if origin in allowed_origins:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return response
+
+
 # ============================================================================
 # PAGE ROUTES
 # ============================================================================

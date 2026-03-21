@@ -63,11 +63,11 @@
                         <div class="stat-label" data-i18n="comp_stat_analyzed">Competitors Analyzed</div>
                     </div>
                     <div class="stat-block">
-                        <div class="stat-number cyan">27</div>
+                        <div class="stat-number cyan">30</div>
                         <div class="stat-label" data-i18n="comp_stat_unique">Unique Features No One Else Has</div>
                     </div>
                     <div class="stat-block">
-                        <div class="stat-number" style="color:#f59e0b;">6</div>
+                        <div class="stat-number" style="color:#f59e0b;">4</div>
                         <div class="stat-label" data-i18n="comp_stat_building">Features We're Still Building</div>
                     </div>
                 </div>
@@ -388,7 +388,7 @@
                         </tr>
                         <tr>
                             <td data-i18n="comp_feat_ide">IDE integration (VS Code / editor)</td>
-                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="archie-check">&#10003;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="cross">&#10007;</span></td>
                             <td><span class="check">&#10003;</span></td>
@@ -399,7 +399,7 @@
                         </tr>
                         <tr>
                             <td data-i18n="comp_feat_parallel">Parallel agent execution</td>
-                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="archie-check">&#10003;</span></td>
                             <td><span class="check">&#10003;</span></td>
                             <td><span class="check">&#10003;</span></td>
                             <td><span class="check">&#10003;</span></td>
@@ -445,7 +445,7 @@
                             </div>
                             <div class="trending-vs-bar archie">
                                 <div class="trending-bar-fill" style="width:100%;">
-                                    <span class="trending-bar-text">23 agents &bull; 10 stations &bull; 39 jobs</span>
+                                    <span class="trending-bar-text">101 agents &bull; 10 stations &bull; 39 jobs</span>
                                 </div>
                             </div>
                         </div>
@@ -540,7 +540,7 @@
                     <h3 class="work" data-i18n="comp_cat_work_title">Workflow Builders</h3>
                     <div class="competitors">Langflow &bull; n8n &bull; Dify &bull; Flowise (acquired by Workday)</div>
                     <p data-i18n="comp_cat_work_desc">Visual drag-and-drop platforms for connecting LLMs to tools and data sources. Strong for no-code teams. Dify leads with RAG and prompt orchestration.</p>
-                    <div class="archie-edge"><strong>ARCHIE's edge:</strong> <span data-i18n="comp_cat_work_edge">Workflow builders connect things. ARCHIE orchestrates a fleet of 23 autonomous agents with station-based dispatch, VRAM-aware model management, and self-improvement &mdash; capabilities no visual builder offers.</span></div>
+                    <div class="archie-edge"><strong>ARCHIE's edge:</strong> <span data-i18n="comp_cat_work_edge">Workflow builders connect things. ARCHIE orchestrates a fleet of 101 agents across a multi-GPU cluster with station-based dispatch, VRAM-aware model management, and self-improvement &mdash; capabilities no visual builder offers.</span></div>
                     <div class="archie-gap"><strong>Their edge:</strong> <span data-i18n="comp_cat_work_gap">Dify and n8n offer visual drag-and-drop workflow builders that non-developers can use. ARCHIE currently requires code or CLI to configure workflows.</span></div>
                 </div>
                 <div class="cat-card">
@@ -548,20 +548,20 @@
                     <div class="competitors">Devin &bull; Cursor &bull; Windsurf &bull; Claude Code &bull; Codex CLI &bull; Cline &bull; Aider</div>
                     <p data-i18n="comp_cat_code_desc">AI-powered coding tools that write, edit, and debug code. Claude Code now has Agent Teams (Opus 4.6). Devin dropped to $20/mo. Cline hit 5M+ installs. Cursor crossed $500M+ ARR.</p>
                     <div class="archie-edge"><strong>ARCHIE's edge:</strong> <span data-i18n="comp_cat_code_edge">Coding agents write code. ARCHIE is a multi-domain operations platform &mdash; it manages physical security, monitors network devices, runs background intelligence, and self-audits its own codebase with tracked before/after metrics.</span></div>
-                    <div class="archie-gap"><strong>Their edge:</strong> <span data-i18n="comp_cat_code_gap">IDE integration (VS Code, terminal), parallel agent execution, and git-native workflows. ARCHIE doesn't plug into editors or run agents in parallel yet.</span></div>
+                    <div class="archie-gap"><strong>Their edge:</strong> <span data-i18n="comp_cat_code_gap">Git-native workflows and deeper editor embedding (inline completions, debugging). ARCHIE integrates via MCP protocol and dispatches across fleet GPUs in parallel, but doesn't embed inside editors like Cursor or Windsurf.</span></div>
                 </div>
                 <div class="cat-card">
                     <h3 class="ent" data-i18n="comp_cat_ent_title">Enterprise Platforms</h3>
                     <div class="competitors">Microsoft Agent Framework &bull; Haystack &bull; Relevance AI &bull; Dust.tt &bull; OpenAI Assistants</div>
                     <p data-i18n="comp_cat_ent_desc">Production-grade platforms backed by major vendors. Cloud-first, enterprise-scale. Microsoft merged AutoGen + Semantic Kernel into a unified Agent Framework (Oct 2025).</p>
-                    <div class="archie-edge"><strong>ARCHIE's edge:</strong> <span data-i18n="comp_cat_ent_edge">Enterprise platforms are cloud-dependent. ARCHIE runs entirely on local hardware (128GB RAM, Quadro M4000), with agent welfare governance, physical-digital convergence, and zero cloud lock-in.</span></div>
+                    <div class="archie-edge"><strong>ARCHIE's edge:</strong> <span data-i18n="comp_cat_ent_edge">Enterprise platforms are cloud-dependent. ARCHIE runs on a self-hosted multi-GPU cluster (128GB hub + RTX 3070 fleet node) with agent welfare governance, physical-digital convergence, and zero cloud lock-in.</span></div>
                     <div class="archie-gap"><strong>Their edge:</strong> <span data-i18n="comp_cat_ent_gap">Cloud auto-scaling, managed infrastructure, and enterprise SSO/compliance. ARCHIE runs on a single server with no auto-scaling.</span></div>
                 </div>
                 <div class="cat-card">
                     <h3 class="self" data-i18n="comp_cat_self_title">Self-Hosted &amp; Open Source</h3>
                     <div class="competitors">Goose (Block/AAIF) &bull; LocalAGI &bull; Aider &bull; Ollama &bull; Open WebUI</div>
                     <p data-i18n="comp_cat_self_desc">Privacy-first, local-hardware AI tools. Goose (30K+ GitHub stars) is MCP-native. LocalAGI offers OpenAI API drop-in replacement. All run on consumer hardware.</p>
-                    <div class="archie-edge"><strong>ARCHIE's edge:</strong> <span data-i18n="comp_cat_self_edge">These tools do one thing well. ARCHIE is a complete operations platform &mdash; 23 agents, 10 stations, 39 background jobs, physical security, knowledge base, and self-auditing codebase. All self-hosted, all unified.</span></div>
+                    <div class="archie-edge"><strong>ARCHIE's edge:</strong> <span data-i18n="comp_cat_self_edge">These tools do one thing well. ARCHIE is a complete operations platform &mdash; 101 agents, 10 stations, 39 background jobs, multi-GPU fleet, physical security, knowledge base, and self-auditing codebase. All self-hosted, all unified.</span></div>
                     <div class="archie-gap"><strong>Their edge:</strong> <span data-i18n="comp_cat_self_gap">Open-source community contributions, lower setup barrier, and plug-and-play simplicity. ARCHIE requires dedicated hardware and configuration.</span></div>
                 </div>
                 <div class="cat-card">
@@ -638,21 +638,9 @@
                         <div class="building-who" data-i18n="comp_building_a2a_who">Who has it: LangGraph</div>
                     </div>
                     <div class="building-card">
-                        <div class="building-icon">&#9654;&#9654;</div>
-                        <h4 data-i18n="comp_building_parallel_title">Parallel Agent Execution</h4>
-                        <p data-i18n="comp_building_parallel_desc">Running multiple agents simultaneously on separate tasks. ARCHIE processes jobs sequentially through the dispatcher. Parallel execution would dramatically speed up multi-step workflows.</p>
-                        <div class="building-who" data-i18n="comp_building_parallel_who">Who has it: CrewAI, LangGraph, Devin, Claude Code, Dify, OpenAI Agents</div>
-                    </div>
-                    <div class="building-card">
-                        <div class="building-icon">&#128187;</div>
-                        <h4 data-i18n="comp_building_ide_title">IDE Integration</h4>
-                        <p data-i18n="comp_building_ide_desc">Plugging into VS Code, JetBrains, or terminal editors for inline code assistance. ARCHIE operates through its web UI and MCP tools, not inside your editor.</p>
-                        <div class="building-who" data-i18n="comp_building_ide_who">Who has it: Cursor, Windsurf, Claude Code, Cline, Codex CLI, Aider, Goose</div>
-                    </div>
-                    <div class="building-card">
                         <div class="building-icon">&#9729;</div>
                         <h4 data-i18n="comp_building_scale_title">Cloud Auto-Scaling</h4>
-                        <p data-i18n="comp_building_scale_desc">Automatically spinning up more compute when demand spikes. ARCHIE runs on dedicated hardware (128GB RAM, Quadro M4000) &mdash; powerful but fixed capacity.</p>
+                        <p data-i18n="comp_building_scale_desc">Elastic cloud compute that scales to zero and spins up on demand. ARCHIE scales via fleet GPU nodes with OTA provisioning &mdash; hardware fleet scaling, not cloud auto-scaling. Trade-off: zero cloud bills, but requires physical hardware.</p>
                         <div class="building-who" data-i18n="comp_building_scale_who">Who has it: Devin, Dify Cloud, OpenAI Assistants</div>
                     </div>
                     <div class="building-card">

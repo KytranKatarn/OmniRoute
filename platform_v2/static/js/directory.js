@@ -273,18 +273,19 @@ function renderDeptCard(deptName, members, color, container) {
     avatarsEl.className = 'dir-dept-card-avatars';
     const showCount = Math.min(3, members.length);
     for (let i = 0; i < showCount; i++) {
-        avatarsEl.appendChild(createPortrait(members[i], 'dir-dept-card-avatar', color));
+        // Use initials only for small card thumbnails (photos too small to see)
+        const thumb = document.createElement('div');
+        thumb.className = 'dir-dept-card-avatar';
+        thumb.style.background = color + '22';
+        thumb.style.color = color;
+        thumb.style.border = '1px solid ' + color + '44';
+        thumb.textContent = getInitials(members[i].full_name || members[i].display_name || members[i].name || '');
+        avatarsEl.appendChild(thumb);
     }
     if (members.length > 3) {
         const overflow = document.createElement('div');
-        overflow.className = 'dir-dept-card-avatar';
-        overflow.style.background = color + '22';
+        overflow.className = 'dir-dept-card-overflow';
         overflow.style.color = color;
-        overflow.style.display = 'flex';
-        overflow.style.alignItems = 'center';
-        overflow.style.justifyContent = 'center';
-        overflow.style.fontSize = '0.7rem';
-        overflow.style.fontWeight = '600';
         overflow.textContent = '+' + (members.length - 3);
         avatarsEl.appendChild(overflow);
     }

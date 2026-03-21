@@ -363,6 +363,44 @@ def register_node_routes(bp, admin_required):
             )
         return jsonify({"success": False, "error": "node_triage.py not found"}), 404
 
+    @bp.route("/api/nodes/installer.py", methods=["GET"])
+    def get_gui_installer():
+        """Serve the LCARS GUI installer (tkinter, PyInstaller-compatible)"""
+        script_path = "/mnt/archie_brain/node_client/installer/archie_node_installer.py"
+        if os.path.exists(script_path):
+            with open(script_path, "r") as f:
+                content = f.read()
+            from flask import Response
+
+            return Response(
+                content,
+                mimetype="text/x-python",
+                headers={"Content-Disposition": "attachment; filename=archie_node_installer.py"},
+            )
+        return (
+            jsonify({"success": False, "error": "GUI installer not found"}),
+            404,
+        )
+
+    @bp.route("/api/nodes/docker-compose", methods=["GET"])
+    def get_docker_compose():
+        """Serve the node docker-compose.yml"""
+        script_path = "/mnt/archie_brain/node_client/docker-compose.node.yml"
+        if os.path.exists(script_path):
+            with open(script_path, "r") as f:
+                content = f.read()
+            from flask import Response
+
+            return Response(
+                content,
+                mimetype="text/x-yaml",
+                headers={"Content-Disposition": "attachment; filename=docker-compose.yml"},
+            )
+        return (
+            jsonify({"success": False, "error": "docker-compose not found"}),
+            404,
+        )
+
     @bp.route("/api/nodes/migrations/<filename>", methods=["GET"])
     def get_node_migration(filename):
         """Serve node migration SQL files"""

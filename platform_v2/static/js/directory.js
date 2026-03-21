@@ -311,7 +311,7 @@ function expandDepartment(deptName, members, color, cardEl) {
 
     // Create expanded panel
     const panel = document.createElement('div');
-    panel.className = 'dir-dept-expanded';
+    panel.className = 'dir-dept-expanded open';
     panel.style.setProperty('--dept-color', color);
 
     // Find department head

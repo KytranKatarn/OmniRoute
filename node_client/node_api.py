@@ -12,7 +12,7 @@ import os
 import sys
 from datetime import datetime, timezone, timedelta
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, render_template_string
 import psycopg2
 import psycopg2.extras
 
@@ -441,6 +441,427 @@ def compose_recreate():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+# =============================================================================
+# B.E.A.C.O.N. — Bridge-Enabled Autonomous Control & Operations Network
+# Local LCARS dashboard for fleet node management
+# =============================================================================
+
+BEACON_CONFIG_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "beacon_config.json"
+)
+
+
+def _load_beacon_config():
+    """Load BEACON feature toggle config."""
+    defaults = {
+        "warp_access": True,
+        "fleet_dispatch": True,
+        "comfyui_sharing": True,
+        "model_sync": True,
+        "ota_updates": "auto",
+        "telemetry": "full",
+    }
+    try:
+        if os.path.exists(BEACON_CONFIG_FILE):
+            with open(BEACON_CONFIG_FILE) as f:
+                saved = json.load(f)
+            defaults.update(saved)
+    except Exception:
+        pass
+    return defaults
+
+
+def _save_beacon_config(config):
+    """Save BEACON feature toggle config."""
+    with open(BEACON_CONFIG_FILE, "w") as f:
+        json.dump(config, f, indent=2)
+
+
+@app.route("/api/beacon/stats")
+def beacon_stats():
+    """Live local stats for BEACON dashboard."""
+    import platform as plat
+
+    stats = {
+        "node_id": NODE_ID,
+        "node_name": os.environ.get("NODE_NAME", plat.node()),
+        "uptime": None,
+        "cpu": {},
+        "memory": {},
+        "gpu": {},
+        "disk": {},
+        "ollama": {"online": False, "models": [], "loaded": 0},
+        "mesh": {"connected": False, "ip": None},
+        "config": _load_beacon_config(),
+    }
+
+    # System stats via psutil if available
+    try:
+        import psutil
+
+        stats["cpu"] = {
+            "cores": psutil.cpu_count(logical=False),
+            "threads": psutil.cpu_count(logical=True),
+            "usage_percent": psutil.cpu_percent(interval=0.5),
+        }
+        mem = psutil.virtual_memory()
+        stats["memory"] = {
+            "total_gb": round(mem.total / (1024**3), 1),
+            "used_gb": round(mem.used / (1024**3), 1),
+            "usage_percent": mem.percent,
+        }
+        disk = psutil.disk_usage("/")
+        stats["disk"] = {
+            "total_gb": round(disk.total / (1024**3), 1),
+            "free_gb": round(disk.free / (1024**3), 1),
+            "usage_percent": round(disk.percent, 1),
+        }
+        boot = datetime.fromtimestamp(psutil.boot_time())
+        stats["uptime"] = str(datetime.now() - boot).split(".")[0]
+    except ImportError:
+        pass
+
+    # GPU via nvidia-smi
+    try:
+        import subprocess
+
+        result = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-gpu=name,memory.total,memory.used,utilization.gpu",
+                "--format=csv,noheader,nounits",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            parts = result.stdout.strip().split(", ")
+            if len(parts) >= 4:
+                stats["gpu"] = {
+                    "name": parts[0],
+                    "vram_total_mb": int(parts[1]),
+                    "vram_used_mb": int(parts[2]),
+                    "usage_percent": int(parts[3]),
+                }
+    except Exception:
+        pass
+
+    # Ollama
+    try:
+        import requests as req
+
+        r = req.get(f"{OLLAMA_HOST}/api/tags", timeout=3)
+        if r.status_code == 200:
+            models = r.json().get("models", [])
+            stats["ollama"]["online"] = True
+            stats["ollama"]["models"] = [
+                {"name": m["name"], "size_gb": round(m.get("size", 0) / 1e9, 1)}
+                for m in models
+            ]
+        # Check loaded models
+        r2 = req.get(f"{OLLAMA_HOST}/api/ps", timeout=3)
+        if r2.status_code == 200:
+            stats["ollama"]["loaded"] = len(r2.json().get("models", []))
+    except Exception:
+        pass
+
+    # Mesh VPN
+    try:
+        import subprocess
+
+        result = subprocess.run(
+            ["tailscale", "ip", "-4"], capture_output=True, text=True, timeout=3
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            stats["mesh"]["connected"] = True
+            stats["mesh"]["ip"] = result.stdout.strip()
+    except Exception:
+        pass
+
+    return jsonify(stats)
+
+
+@app.route("/api/beacon/config", methods=["GET", "POST"])
+def beacon_config():
+    """Get or update BEACON feature toggles."""
+    if request.method == "POST":
+        data = request.get_json() or {}
+        config = _load_beacon_config()
+        for key in [
+            "warp_access",
+            "fleet_dispatch",
+            "comfyui_sharing",
+            "model_sync",
+            "ota_updates",
+            "telemetry",
+        ]:
+            if key in data:
+                config[key] = data[key]
+        _save_beacon_config(config)
+        return jsonify({"success": True, "config": config})
+    else:
+        return jsonify({"success": True, "config": _load_beacon_config()})
+
+
+@app.route("/")
+def beacon_dashboard():
+    """B.E.A.C.O.N. — Local LCARS fleet node dashboard."""
+    node_name = os.environ.get("NODE_NAME", NODE_ID)
+    return render_template_string(BEACON_HTML, node_id=NODE_ID, node_name=node_name)
+
+
+BEACON_HTML = r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>B.E.A.C.O.N. — {{ node_name }}</title>
+<style>
+  :root {
+    --bg: #0a0a12; --panel: #12121f; --cyan: #00e5ff; --green: #10b981;
+    --yellow: #fbbf24; --red: #ef4444; --purple: #8b5cf6; --muted: #64748b;
+    --text: #e2e8f0; --border: rgba(0,229,255,0.15);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui,sans-serif; min-height:100vh; }
+
+  .beacon-header {
+    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+    border-bottom: 2px solid var(--cyan);
+    padding: 16px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .beacon-title { font-size: 1.4rem; color: var(--cyan); letter-spacing: 2px; font-weight: 700; }
+  .beacon-subtitle { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+  .beacon-node-id { font-family: monospace; color: var(--purple); font-size: 0.85rem; }
+  .beacon-mesh-badge { padding: 4px 12px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+  .mesh-on { background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+  .mesh-off { background: rgba(100,116,139,0.15); color: var(--muted); border: 1px solid rgba(100,116,139,0.3); }
+
+  .beacon-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    padding: 20px; max-width: 1200px; margin: 0 auto;
+  }
+  @media (max-width: 768px) { .beacon-grid { grid-template-columns: 1fr; } }
+
+  .beacon-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px; position: relative;
+  }
+  .beacon-card.full { grid-column: 1 / -1; }
+  .card-title {
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1.5px;
+    color: var(--cyan); margin-bottom: 12px; font-weight: 600;
+  }
+
+  .gauge-row { display: flex; gap: 16px; margin-bottom: 8px; align-items: center; }
+  .gauge-label { font-size: 0.75rem; color: var(--muted); width: 50px; }
+  .gauge-bar { flex: 1; height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; }
+  .gauge-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+  .gauge-fill.green { background: var(--green); }
+  .gauge-fill.yellow { background: var(--yellow); }
+  .gauge-fill.red { background: var(--red); }
+  .gauge-value { font-size: 0.75rem; font-family: monospace; width: 65px; text-align: right; }
+
+  .stat-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+  .stat-label { font-size: 0.8rem; color: var(--muted); }
+  .stat-value { font-size: 0.8rem; font-family: monospace; }
+
+  .model-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+  .model-chip {
+    background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.2);
+    padding: 6px 10px; border-radius: 6px; font-size: 0.75rem; font-family: monospace;
+    display: flex; justify-content: space-between;
+  }
+  .model-size { color: var(--muted); }
+
+  .toggle-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 768px) { .toggle-grid { grid-template-columns: 1fr; } }
+  .toggle-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 12px; background: rgba(255,255,255,0.02); border-radius: 6px;
+  }
+  .toggle-label { font-size: 0.8rem; }
+  .toggle-desc { font-size: 0.65rem; color: var(--muted); }
+  .switch { position:relative; width:40px; height:22px; }
+  .switch input { opacity:0; width:0; height:0; }
+  .slider {
+    position:absolute; inset:0; background:#334155; border-radius:11px;
+    cursor:pointer; transition:0.3s;
+  }
+  .slider:before {
+    content:""; position:absolute; height:16px; width:16px; left:3px; bottom:3px;
+    background:white; border-radius:50%; transition:0.3s;
+  }
+  input:checked + .slider { background:var(--cyan); }
+  input:checked + .slider:before { transform:translateX(18px); }
+
+  .beacon-footer {
+    text-align: center; padding: 12px; font-size: 0.65rem; color: var(--muted);
+    border-top: 1px solid var(--border);
+  }
+  .live-dot { display:inline-block; width:6px; height:6px; background:var(--green); border-radius:50%; margin-right:4px; animation:pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .status-ok { color: var(--green); }
+  .status-off { color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="beacon-header">
+  <div>
+    <div class="beacon-title">B.E.A.C.O.N.</div>
+    <div class="beacon-subtitle">Bridge-Enabled Autonomous Control &amp; Operations Network</div>
+  </div>
+  <div style="text-align:right">
+    <div class="beacon-node-id" id="hdr-node-id">{{ node_name }}</div>
+    <div id="hdr-mesh" class="beacon-mesh-badge mesh-off">MESH: CHECKING...</div>
+  </div>
+</div>
+
+<div class="beacon-grid">
+  <div class="beacon-card">
+    <div class="card-title"><span class="live-dot"></span> System Resources</div>
+    <div class="gauge-row">
+      <span class="gauge-label">CPU</span>
+      <div class="gauge-bar"><div class="gauge-fill green" id="g-cpu" style="width:0%"></div></div>
+      <span class="gauge-value" id="v-cpu">-</span>
+    </div>
+    <div class="gauge-row">
+      <span class="gauge-label">RAM</span>
+      <div class="gauge-bar"><div class="gauge-fill green" id="g-ram" style="width:0%"></div></div>
+      <span class="gauge-value" id="v-ram">-</span>
+    </div>
+    <div class="gauge-row">
+      <span class="gauge-label">GPU</span>
+      <div class="gauge-bar"><div class="gauge-fill green" id="g-gpu" style="width:0%"></div></div>
+      <span class="gauge-value" id="v-gpu">-</span>
+    </div>
+    <div class="gauge-row">
+      <span class="gauge-label">Disk</span>
+      <div class="gauge-bar"><div class="gauge-fill green" id="g-disk" style="width:0%"></div></div>
+      <span class="gauge-value" id="v-disk">-</span>
+    </div>
+    <div style="margin-top:10px">
+      <div class="stat-row"><span class="stat-label">Uptime</span><span class="stat-value" id="s-uptime">-</span></div>
+      <div class="stat-row"><span class="stat-label">GPU</span><span class="stat-value" id="s-gpu-name">-</span></div>
+      <div class="stat-row"><span class="stat-label">VRAM</span><span class="stat-value" id="s-vram">-</span></div>
+    </div>
+  </div>
+
+  <div class="beacon-card">
+    <div class="card-title"><span class="live-dot"></span> Ollama Engine</div>
+    <div class="stat-row"><span class="stat-label">Status</span><span class="stat-value" id="o-status">-</span></div>
+    <div class="stat-row"><span class="stat-label">Models Available</span><span class="stat-value" id="o-count">-</span></div>
+    <div class="stat-row"><span class="stat-label">Models Loaded</span><span class="stat-value" id="o-loaded">-</span></div>
+    <div style="margin-top:12px">
+      <div class="card-title">Installed Models</div>
+      <div class="model-grid" id="model-list"></div>
+    </div>
+  </div>
+
+  <div class="beacon-card full">
+    <div class="card-title">Fleet Controls</div>
+    <div class="toggle-grid" id="toggle-grid"></div>
+  </div>
+</div>
+
+<div class="beacon-footer">
+  B.E.A.C.O.N. v4.0 | Kytran Empowerment Technologies | A.R.C.H.I.E. Fleet Mesh
+</div>
+
+<script>
+var TOGGLES = [
+  {key:'warp_access', label:'W.A.R.P. Access', desc:'Allow remote AI agent SSH support'},
+  {key:'fleet_dispatch', label:'Fleet Dispatch', desc:'Share GPU/CPU with fleet inference'},
+  {key:'comfyui_sharing', label:'ComfyUI Sharing', desc:'Allow remote image generation'},
+  {key:'model_sync', label:'Model Sync', desc:'Auto-download recommended models'},
+  {key:'ota_updates', label:'OTA Updates', desc:'Auto-accept platform updates', isSelect:true, options:['auto','manual']},
+  {key:'telemetry', label:'Telemetry', desc:'Metrics shared with hub', isSelect:true, options:['full','basic','off']}
+];
+
+function gc(p) { return p > 85 ? 'red' : p > 60 ? 'yellow' : 'green'; }
+
+function sg(id, pct, lbl) {
+  var e = document.getElementById('g-'+id);
+  var v = document.getElementById('v-'+id);
+  if(e){e.style.width=pct+'%'; e.className='gauge-fill '+gc(pct);}
+  if(v) v.textContent = lbl || pct+'%';
+}
+
+function renderToggles(cfg) {
+  var g = document.getElementById('toggle-grid');
+  g.textContent = '';
+  TOGGLES.forEach(function(t) {
+    var d = document.createElement('div');
+    d.className = 'toggle-item';
+    var left = document.createElement('div');
+    var l1 = document.createElement('div'); l1.className='toggle-label'; l1.textContent=t.label;
+    var l2 = document.createElement('div'); l2.className='toggle-desc'; l2.textContent=t.desc;
+    left.appendChild(l1); left.appendChild(l2);
+    d.appendChild(left);
+    if (t.isSelect) {
+      var sel = document.createElement('select');
+      sel.style.cssText='background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:0.75rem;';
+      t.options.forEach(function(o){var op=document.createElement('option');op.value=o;op.textContent=o.toUpperCase();if(cfg[t.key]===o)op.selected=true;sel.appendChild(op);});
+      sel.onchange=function(){setT(t.key,this.value);};
+      d.appendChild(sel);
+    } else {
+      var sw = document.createElement('label'); sw.className='switch';
+      var inp = document.createElement('input'); inp.type='checkbox'; inp.checked=!!cfg[t.key];
+      inp.onchange=function(){setT(t.key,this.checked);};
+      var sl = document.createElement('span'); sl.className='slider';
+      sw.appendChild(inp); sw.appendChild(sl); d.appendChild(sw);
+    }
+    g.appendChild(d);
+  });
+}
+
+function setT(k,v){var b={};b[k]=v;fetch('/api/beacon/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});}
+
+function refresh() {
+  fetch('/api/beacon/stats').then(function(r){return r.json();}).then(function(d) {
+    document.getElementById('hdr-node-id').textContent = d.node_name || d.node_id;
+    var me = document.getElementById('hdr-mesh');
+    if (d.mesh && d.mesh.connected) {
+      me.textContent = 'MESH: ' + d.mesh.ip;
+      me.className = 'beacon-mesh-badge mesh-on';
+    } else {
+      me.textContent = 'MESH: OFFLINE';
+      me.className = 'beacon-mesh-badge mesh-off';
+    }
+    if(d.cpu.usage_percent!==undefined) sg('cpu',Math.round(d.cpu.usage_percent));
+    if(d.memory.usage_percent!==undefined) sg('ram',Math.round(d.memory.usage_percent),d.memory.used_gb+'/'+d.memory.total_gb+'GB');
+    if(d.gpu && d.gpu.usage_percent!==undefined){
+      sg('gpu',d.gpu.usage_percent,d.gpu.usage_percent+'%');
+      document.getElementById('s-gpu-name').textContent=d.gpu.name||'-';
+      document.getElementById('s-vram').textContent=d.gpu.vram_used_mb+'/'+d.gpu.vram_total_mb+'MB';
+    } else { document.getElementById('s-gpu-name').textContent='None'; document.getElementById('s-vram').textContent='-'; }
+    if(d.disk) sg('disk',d.disk.usage_percent,d.disk.free_gb+'GB free');
+    document.getElementById('s-uptime').textContent=d.uptime||'-';
+    var os=document.getElementById('o-status');
+    os.textContent=d.ollama.online?'ONLINE':'OFFLINE';
+    os.className='stat-value '+(d.ollama.online?'status-ok':'status-off');
+    document.getElementById('o-count').textContent=d.ollama.models.length;
+    document.getElementById('o-loaded').textContent=d.ollama.loaded;
+    var ml=document.getElementById('model-list'); ml.textContent='';
+    d.ollama.models.forEach(function(m){
+      var c=document.createElement('div');c.className='model-chip';
+      var n=document.createElement('span');n.textContent=m.name;
+      var s=document.createElement('span');s.className='model-size';s.textContent=m.size_gb+'GB';
+      c.appendChild(n);c.appendChild(s);ml.appendChild(c);
+    });
+    if(d.config && !window._tr){renderToggles(d.config);window._tr=true;}
+  }).catch(function(){});
+}
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>"""
+
+
 if __name__ == "__main__":
-    logger.info("Starting Node API v3.2 on port 3001 (node: %s)", NODE_ID)
+    logger.info("Starting Node API + BEACON v4.0 on port 3001 (node: %s)", NODE_ID)
     app.run(host="0.0.0.0", port=3001, debug=False)

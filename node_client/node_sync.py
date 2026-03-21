@@ -1364,15 +1364,35 @@ def _handle_checkpoint_pull(config, payload):
             filename, dl_size / 1e9, dl_elapsed,
         )
 
-        # Step 2: Copy into ComfyUI container via docker cp
-        cp_dest = f"{comfyui_container}:{checkpoints_dir}/{filename}"
-        logger.info("[checkpoint_pull] Copying to %s", cp_dest)
-        cp_result = subprocess.run(
-            ["docker", "cp", tmp_file, cp_dest],
-            capture_output=True, text=True, timeout=300,
-        )
-        if cp_result.returncode != 0:
-            raise RuntimeError(f"docker cp failed: {cp_result.stderr}")
+        # Step 2: Copy into ComfyUI container via Docker Engine API (PUT /archive)
+        logger.info("[checkpoint_pull] Copying to %s:%s/%s", comfyui_container, checkpoints_dir, filename)
+        import http.client
+        import socket as _socket
+        import tarfile
+        import io
+
+        # Create a tar archive containing the file (Docker API requires tar format)
+        tar_buf = io.BytesIO()
+        with tarfile.open(fileobj=tar_buf, mode="w") as tar:
+            tar.add(tmp_file, arcname=filename)
+        tar_data = tar_buf.getvalue()
+        tar_buf.close()
+
+        # Upload via Docker Unix socket
+        sock = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+        sock.connect("/var/run/docker.sock")
+        conn = http.client.HTTPConnection("localhost")
+        conn.sock = sock
+
+        path = f"/containers/{comfyui_container}/archive?path={checkpoints_dir}"
+        conn.request("PUT", path, body=tar_data,
+                      headers={"Content-Type": "application/x-tar"})
+        resp = conn.getresponse()
+        body = resp.read().decode("utf-8", errors="replace")
+        conn.close()
+
+        if resp.status != 200:
+            raise RuntimeError(f"Docker archive PUT failed: HTTP {resp.status} {body[:200]}")
 
         # Step 3: Cleanup temp file
         os.remove(tmp_file)

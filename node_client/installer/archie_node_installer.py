@@ -39,7 +39,7 @@ CLIENT_VERSION = "4.0.0"
 INSTALL_DIR = r"C:\ARCHIE-Node"
 RESUME_FILE = os.path.join(INSTALL_DIR, "resume_after_reboot.json")
 ENV_FILE = os.path.join(INSTALL_DIR, ".env")
-TOTAL_STEPS = 9
+TOTAL_STEPS = 11
 
 # ── LCARS Colour Palette ─────────────────────────────────────────────────────
 BG_DARK = "#0a0a12"
@@ -411,14 +411,16 @@ class ArchieInstaller(tk.Tk):
         try:
             steps = [
                 (1, "Checking prerequisites...", self._step_prerequisites),
-                (2, "Detecting hardware...", self._step_hardware),
-                (3, "Setting up Docker...", self._step_docker),
-                (4, "Registering with hub...", self._step_register),
-                (5, "Setting up mesh VPN...", self._step_tailscale),
-                (6, "Downloading stack files...", self._step_download),
-                (7, "Building & starting containers...", self._step_build),
-                (8, "Waiting for approval...", self._step_approval),
-                (9, "Verifying deployment...", self._step_verify),
+                (2, "Configuring firewall...", self._step_firewall),
+                (3, "Detecting hardware...", self._step_hardware),
+                (4, "Setting up Docker...", self._step_docker),
+                (5, "Registering with hub...", self._step_register),
+                (6, "Setting up mesh VPN...", self._step_tailscale),
+                (7, "Downloading stack files...", self._step_download),
+                (8, "Building & starting containers...", self._step_build),
+                (9, "Waiting for approval...", self._step_approval),
+                (10, "Downloading AI models...", self._step_checkpoints),
+                (11, "Verifying deployment...", self._step_verify),
             ]
 
             for step_num, desc, func in steps:
@@ -524,7 +526,54 @@ class ArchieInstaller(tk.Tk):
         else:
             self._log("No existing installation found.", "ok")
 
-    # ── Step 2: Hardware Detection ────────────────────────────────────────────
+    # ── Step 2: Firewall Configuration ───────────────────────────────────────
+    def _step_firewall(self):
+        """Open required ports in Windows Firewall for ARCHIE services."""
+        if platform.system() != "Windows":
+            self._log("Not Windows — skipping firewall config.", "ok")
+            return
+
+        rules = [
+            ("ARCHIE BEACON", "3001", "TCP"),
+            ("ARCHIE ComfyUI", "8188", "TCP"),
+            ("ARCHIE Ollama", "11434", "TCP"),
+            ("Allow ICMPv4-In", None, "ICMPv4"),
+        ]
+
+        for name, port, proto in rules:
+            try:
+                # Check if rule already exists
+                check = subprocess.run(
+                    ["powershell", "-Command",
+                     f'Get-NetFirewallRule -DisplayName "{name}" -ErrorAction SilentlyContinue'],
+                    capture_output=True, text=True, timeout=10,
+                )
+                if name in (check.stdout or ""):
+                    self._log(f"Firewall rule '{name}' already exists.", "ok")
+                    continue
+
+                # Create the rule
+                if proto == "ICMPv4":
+                    cmd = (f'New-NetFirewallRule -DisplayName "{name}" '
+                           f'-Protocol ICMPv4 -IcmpType 8 '
+                           f'-Direction Inbound -Action Allow -Profile Any')
+                else:
+                    cmd = (f'New-NetFirewallRule -DisplayName "{name}" '
+                           f'-Direction Inbound -LocalPort {port} '
+                           f'-Protocol {proto} -Action Allow -Profile Any')
+
+                result = subprocess.run(
+                    ["powershell", "-Command", cmd],
+                    capture_output=True, text=True, timeout=15,
+                )
+                if result.returncode == 0:
+                    self._log(f"Firewall rule '{name}' added.", "ok")
+                else:
+                    self._log(f"Firewall rule '{name}' — needs admin elevation.", "warn")
+            except Exception as e:
+                self._log(f"Firewall rule '{name}' skipped: {e}", "warn")
+
+    # ── Step 3: Hardware Detection ────────────────────────────────────────────
     def _step_hardware(self):
         hw = self.hw_info
 
@@ -1147,7 +1196,73 @@ class ArchieInstaller(tk.Tk):
 
         self._log("Timed out waiting for approval. The node will sync once approved.", "yellow")
 
-    # ── Step 8: Verify ────────────────────────────────────────────────────────
+    # ── Step 10: Download AI Checkpoints ─────────────────────────────────────
+    def _step_checkpoints(self):
+        """Download SDXL checkpoints for ComfyUI if GPU is available."""
+        if not self.hw_info.get("gpu"):
+            self._log("No GPU detected — skipping checkpoint downloads.", "ok")
+            return
+
+        # Check if ComfyUI container is running
+        try:
+            result = subprocess.run(
+                ["docker", "ps", "--filter", "name=archie_comfyui", "-q"],
+                capture_output=True, text=True, timeout=10,
+            )
+            if not result.stdout.strip():
+                self._log("ComfyUI container not running — skipping checkpoints.", "warn")
+                return
+        except Exception:
+            self._log("Could not check ComfyUI container — skipping checkpoints.", "warn")
+            return
+
+        checkpoints_dir = "/comfyui/models/checkpoints"
+        models = [
+            (
+                "RealVisXL_V4.0.safetensors",
+                "https://huggingface.co/SG161222/RealVisXL_V4.0/resolve/main/RealVisXL_V4.0.safetensors",
+            ),
+            (
+                "sd_xl_base_1.0.safetensors",
+                "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors",
+            ),
+        ]
+
+        for filename, url in models:
+            dest = f"{checkpoints_dir}/{filename}"
+            # Check if already exists via docker exec
+            try:
+                check = subprocess.run(
+                    ["docker", "exec", "archie_comfyui", "test", "-f", dest],
+                    capture_output=True, timeout=5,
+                )
+                if check.returncode == 0:
+                    self._log(f"{filename} already downloaded.", "ok")
+                    continue
+            except Exception:
+                pass
+
+            self._log(f"Downloading {filename} (~6.5GB)...", "cyan")
+            self._log("This may take a while depending on internet speed.", "info")
+            try:
+                result = subprocess.run(
+                    [
+                        "docker", "exec", "archie_comfyui",
+                        "wget", "-q", "--show-progress",
+                        "-O", dest, url,
+                    ],
+                    capture_output=True, text=True, timeout=7200,
+                )
+                if result.returncode == 0:
+                    self._log(f"{filename} downloaded successfully.", "ok")
+                else:
+                    self._log(f"{filename} download failed — can be retried later via OTA.", "warn")
+            except subprocess.TimeoutExpired:
+                self._log(f"{filename} download timed out — will retry via OTA.", "warn")
+            except Exception as e:
+                self._log(f"{filename} download error: {e}", "warn")
+
+    # ── Step 11: Verify ───────────────────────────────────────────────────────
     def _step_verify(self):
         # Check container status
         try:

@@ -2,28 +2,22 @@
 Website Studio AI Assistant
 ===========================
 AI-powered assistance for website design and content generation.
-Uses the ARCHIE AI Bridge for intelligent suggestions.
+Uses the Bridge dispatcher for intelligent suggestions (ADR-013).
 
 Author: A.R.C.H.I.E. Platform
 Date: 2026-01-12
 """
 
-import os
-import sys
 import json
-from typing import Optional, Dict, List
-
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from typing import Dict, List
 
 try:
-    from ai_bridge.archie_bridge import archie_bridge
-    from ai_bridge.knowledge_retrieval import get_relevant_knowledge
+    from ai_bridge.bridge_dispatcher import get_dispatcher
 
     AI_BRIDGE_AVAILABLE = True
 except ImportError as e:
     AI_BRIDGE_AVAILABLE = False
-    print(f"[WebsiteStudio] AI Bridge not available: {e}")
+    print(f"[WebsiteStudio] Bridge dispatcher not available: {e}")
 
 
 def suggest_website_design(description: str, website_type: str = None, user_id: int = None) -> Dict:
@@ -46,9 +40,7 @@ def suggest_website_design(description: str, website_type: str = None, user_id: 
         }
 
     try:
-        # Get relevant knowledge for context
-        context = get_relevant_knowledge(f"website design {description} {website_type or ''}", limit=5)
-
+        dispatcher = get_dispatcher()
         prompt = f"""You are a web design expert. A user wants to create a website:
 
 Description: {description}
@@ -64,27 +56,19 @@ Based on this, provide a JSON response with:
 
 Respond ONLY with valid JSON, no markdown or explanation."""
 
-        result = archie_bridge(prompt, context=context, user_id=user_id, enable_memory=False)
-        response = result.get("response", "") if result.get("success") else ""
+        result = dispatcher.dispatch_json(
+            prompt=prompt,
+            capability="writing",
+            module_id="website_studio",
+            user_id=user_id,
+        )
 
-        # Try to parse JSON from response
-        try:
-            # Clean response if needed
-            json_str = response.strip()
-            if json_str.startswith("```"):
-                json_str = json_str.split("```")[1]
-                if json_str.startswith("json"):
-                    json_str = json_str[4:]
-
-            suggestions = json.loads(json_str)
-            return {"success": True, "suggestions": suggestions}
-        except json.JSONDecodeError:
+        if result:
+            return {"success": True, "suggestions": result}
+        else:
             return {
                 "success": True,
-                "suggestions": {
-                    "raw_response": response,
-                    "fallback": get_fallback_suggestions(website_type),
-                },
+                "suggestions": get_fallback_suggestions(website_type),
             }
 
     except Exception as e:
@@ -117,6 +101,7 @@ def generate_page_content(
         return {"success": False, "error": "AI Bridge not available"}
 
     try:
+        dispatcher = get_dispatcher()
         prompt = f"""Generate website content for a "{page_name}" page.
 
 Website: {website_description}
@@ -131,20 +116,16 @@ Provide JSON with:
 
 Keep content concise and engaging. Respond ONLY with valid JSON."""
 
-        result = archie_bridge(prompt, enable_memory=False)
-        response = result.get("response", "") if result.get("success") else ""
+        result = dispatcher.dispatch_json(
+            prompt=prompt,
+            capability="writing",
+            module_id="website_studio",
+        )
 
-        try:
-            json_str = response.strip()
-            if json_str.startswith("```"):
-                json_str = json_str.split("```")[1]
-                if json_str.startswith("json"):
-                    json_str = json_str[4:]
-
-            content = json.loads(json_str)
-            return {"success": True, "content": content}
-        except json.JSONDecodeError:
-            return {"success": True, "content": {"raw_response": response}}
+        if result:
+            return {"success": True, "content": result}
+        else:
+            return {"success": True, "content": {}}
 
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -167,6 +148,7 @@ def improve_seo(title: str, description: str, content: str, keywords: List[str] 
         return {"success": False, "error": "AI Bridge not available"}
 
     try:
+        dispatcher = get_dispatcher()
         prompt = f"""Analyze and improve SEO for this page:
 
 Current Title: {title}
@@ -184,20 +166,16 @@ Provide JSON with:
 
 Respond ONLY with valid JSON."""
 
-        result = archie_bridge(prompt, enable_memory=False)
-        response = result.get("response", "") if result.get("success") else ""
+        result = dispatcher.dispatch_json(
+            prompt=prompt,
+            capability="writing",
+            module_id="website_studio",
+        )
 
-        try:
-            json_str = response.strip()
-            if json_str.startswith("```"):
-                json_str = json_str.split("```")[1]
-                if json_str.startswith("json"):
-                    json_str = json_str[4:]
-
-            seo = json.loads(json_str)
-            return {"success": True, "seo": seo}
-        except json.JSONDecodeError:
-            return {"success": True, "seo": {"raw_response": response}}
+        if result:
+            return {"success": True, "seo": result}
+        else:
+            return {"success": True, "seo": {}}
 
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -223,6 +201,7 @@ def generate_css_styles(design_style: str, color_scheme: Dict = None, components
         }
 
     try:
+        dispatcher = get_dispatcher()
         prompt = f"""Generate modern CSS for a website with:
 
 Design Style: {design_style}
@@ -243,20 +222,16 @@ Return JSON with:
 
 Respond ONLY with valid JSON containing CSS code strings."""
 
-        result = archie_bridge(prompt, enable_memory=False)
-        response = result.get("response", "") if result.get("success") else ""
+        result = dispatcher.dispatch_json(
+            prompt=prompt,
+            capability="writing",
+            module_id="website_studio",
+        )
 
-        try:
-            json_str = response.strip()
-            if json_str.startswith("```"):
-                json_str = json_str.split("```")[1]
-                if json_str.startswith("json"):
-                    json_str = json_str[4:]
-
-            styles = json.loads(json_str)
-            return {"success": True, "styles": styles}
-        except json.JSONDecodeError:
-            return {"success": True, "styles": {"raw_response": response}}
+        if result:
+            return {"success": True, "styles": result}
+        else:
+            return {"success": True, "styles": {}}
 
     except Exception as e:
         return {

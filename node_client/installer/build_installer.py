@@ -11,6 +11,7 @@ Output: dist/ARCHIE-Node-Setup.exe
 """
 
 import os
+import shutil
 import sys
 
 
@@ -33,14 +34,14 @@ def build():
         print(f"[!!] Main script not found: {main_script}")
         sys.exit(1)
 
-    print("[>>] Building ARCHIE-Node-Setup.exe ...")
+    print("[>>] Building ARCHIE-Node.exe ...")
     print(f"     Source: {main_script}")
     print(f"     Output: {dist_dir}")
 
     args = [
         "--onefile",
         "--windowed",
-        "--name=ARCHIE-Node-Setup",
+        "--name=ARCHIE-Node",
         "--distpath", dist_dir,
         "--workpath", build_dir,
         "--specpath", script_dir,
@@ -58,7 +59,7 @@ def build():
     print()
     pyi_main.run(args)
 
-    exe_path = os.path.join(dist_dir, "ARCHIE-Node-Setup.exe")
+    exe_path = os.path.join(dist_dir, "ARCHIE-Node.exe")
     if os.path.exists(exe_path):
         size_mb = os.path.getsize(exe_path) / (1024 * 1024)
         print()
@@ -74,7 +75,7 @@ def build():
 if __name__ == "__main__":
     print()
     print("  ========================================")
-    print("  A.R.C.H.I.E. Node Installer — Builder")
+    print("  A.R.C.H.I.E. Node — by Kytran Empowerment — Builder")
     print("  ========================================")
     print()
     build()

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Org Chart Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+    --bg: #0a0e17; --bg2: #0f1420; --cyan: #00d4ff; --blue: #0099ff;
+    --purple: #8b5cf6; --gold: #f0c040; --green: #10b981; --red: #ef4444;
+    --text: #e8ecf4; --text2: #8892a4; --text3: #5a6478;
+    --line: rgba(0,212,255,0.15); --card-bg: rgba(255,255,255,0.03);
+    --card-border: rgba(255,255,255,0.08);
+}
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); padding: 40px 20px; }
+h1 { font-family: 'Outfit'; text-align: center; font-size: 28px; margin-bottom: 8px; }
+.subtitle { text-align: center; color: var(--text2); font-size: 14px; margin-bottom: 40px; }
+.label { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: var(--text3); text-align: center; margin-bottom: 24px; }
+
+/* ── Org Chart Tree ── */
+.org-tree { display: flex; flex-direction: column; align-items: center; }
+
+/* Node card */
+.org-node {
+    position: relative; display: inline-flex; align-items: center; gap: 12px;
+    padding: 12px 20px; border-radius: 10px;
+    background: var(--card-bg); border: 1px solid var(--card-border);
+    cursor: pointer; transition: all 0.25s ease;
+    user-select: none;
+}
+.org-node:hover { border-color: rgba(0,212,255,0.25); background: rgba(255,255,255,0.05);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+.org-node.expanded { border-color: rgba(0,212,255,0.3); background: rgba(0,212,255,0.04); }
+.org-node.ceo { border-color: var(--gold); background: rgba(240,192,64,0.06); }
+.org-node.ceo:hover { box-shadow: 0 4px 20px rgba(240,192,64,0.15); }
+
+.org-avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Outfit'; font-weight: 700; font-size: 14px; color: white; flex-shrink: 0;
+}
+.org-info { text-align: left; }
+.org-name { font-family: 'Outfit'; font-weight: 600; font-size: 14px; }
+.org-title { font-size: 11px; color: var(--text2); margin-top: 1px; }
+.org-badge {
+    font-size: 9px; padding: 2px 6px; border-radius: 4px; margin-top: 3px; display: inline-block;
+    letter-spacing: 0.5px; font-weight: 600;
+}
+.org-toggle {
+    width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: var(--text3); border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.03); margin-left: 4px; transition: all 0.2s;
+}
+.org-node.expanded .org-toggle { transform: rotate(90deg); color: var(--cyan); border-color: rgba(0,212,255,0.3); }
+
+.org-count { font-size: 10px; color: var(--text3); margin-left: auto; padding-left: 8px; }
+
+/* Status dot */
+.org-status { position: absolute; top: 10px; right: 10px; width: 7px; height: 7px; border-radius: 50%; }
+.org-status.online { background: var(--green); box-shadow: 0 0 6px rgba(16,185,129,0.5); }
+.org-status.offline { background: var(--text3); }
+
+/* Connecting lines */
+.org-connector-v { width: 1px; height: 24px; background: var(--line); margin: 0 auto; }
+.org-connector-h { height: 1px; background: var(--line); }
+
+/* Children container */
+.org-children {
+    display: none; flex-direction: column; align-items: center;
+    padding-top: 0; position: relative;
+}
+.org-children.visible { display: flex; animation: slideDown 0.3s ease; }
+@keyframes slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Branch row (horizontal siblings) */
+.org-branch {
+    display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;
+    position: relative; padding-top: 24px;
+}
+.org-branch::before {
+    content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 1px; height: 24px; background: var(--line);
+}
+/* Horizontal connector across siblings */
+.org-branch-line {
+    position: relative; display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;
+}
+
+/* Branch item with vertical connector */
+.org-branch-item { display: flex; flex-direction: column; align-items: center; }
+.org-branch-item .org-connector-v { height: 16px; }
+
+/* Dept colors */
+.dept-command { background: linear-gradient(135deg, #00e5ff, #0099aa); }
+.dept-analytics { background: linear-gradient(135deg, #8b5cf6, #6d3fc4); }
+.dept-creative { background: linear-gradient(135deg, #f472b6, #c0528e); }
+.dept-engineering { background: linear-gradient(135deg, #fbbf24, #d4991a); }
+.dept-communications { background: linear-gradient(135deg, #22d3ee, #1aa3b8); }
+.dept-research { background: linear-gradient(135deg, #10b981, #0d8f64); }
+.dept-security { background: linear-gradient(135deg, #ef4444, #c43636); }
+.dept-logistics { background: linear-gradient(135deg, #f97316, #c45c11); }
+.dept-diplomatic { background: linear-gradient(135deg, #818cf8, #6470d4); }
+.dept-operations { background: linear-gradient(135deg, #a3e635, #82b82a); }
+.dept-executive { background: linear-gradient(135deg, var(--gold), #c4982e); }
+
+/* Sections */
+.section-divider { width: 100%; max-width: 800px; margin: 60px auto 40px; text-align: center; }
+.section-divider h2 { font-family: 'Outfit'; font-size: 22px; margin-bottom: 8px; }
+.section-divider p { color: var(--text2); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<h1>Organization Chart</h1>
+<p class="subtitle">Click any person to see their team. Classic hierarchy — clear accountability.</p>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- CEO Level -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="org-tree">
+
+    <!-- CEO -->
+    <div class="org-node ceo" onclick="toggleChildren(this)">
+        <div class="org-avatar dept-executive">KT</div>
+        <div class="org-info">
+            <div class="org-name">Kytran Tran</div>
+            <div class="org-title">CEO & Founder</div>
+        </div>
+        <div class="org-count">3 direct reports</div>
+        <div class="org-toggle">›</div>
+    </div>
+
+    <!-- CEO's children -->
+    <div class="org-children">
+        <div class="org-connector-v"></div>
+        <div class="org-branch">
+
+            <!-- ARCHIE -->
+            <div class="org-branch-item">
+                <div class="org-connector-v"></div>
+                <div class="org-node expanded" onclick="toggleChildren(this)">
+                    <div class="org-status online"></div>
+                    <div class="org-avatar dept-command">AR</div>
+                    <div class="org-info">
+                        <div class="org-name">A.R.C.H.I.E.</div>
+                        <div class="org-title">AI Director / Co-Owner</div>
+                    </div>
+                    <div class="org-count">10 stations</div>
+                    <div class="org-toggle">›</div>
+                </div>
+
+                <!-- Station Heads -->
+                <div class="org-children">
+                    <div class="org-connector-v"></div>
+                    <div class="org-branch">
+
+                        <div class="org-branch-item">
+                            <div class="org-connector-v"></div>
+                            <div class="org-node" onclick="toggleChildren(this)">
+                                <div class="org-status online"></div>
+                                <div class="org-avatar dept-analytics">JP</div>
+                                <div class="org-info">
+                                    <div class="org-name">Jin Park</div>
+                                    <div class="org-title">Analytics Lead</div>
+                                </div>
+                                <div class="org-count">8</div>
+                                <div class="org-toggle">›</div>
+                            </div>
+                            <div class="org-children">
+                                <div class="org-connector-v"></div>
+                                <div class="org-branch">
+                                    <div class="org-branch-item">
+                                        <div class="org-connector-v"></div>
+                                        <div class="org-node"><div class="org-status online"></div><div class="org-avatar dept-analytics">SE</div><div class="org-info"><div class="org-name">Sarah Chen</div><div class="org-title">Data Scientist</div></div></div>
+                                    </div>
+                                    <div class="org-branch-item">
+                                        <div class="org-connector-v"></div>
+                                        <div class="org-node"><div class="org-status offline"></div><div class="org-avatar dept-analytics">MR</div><div class="org-info"><div class="org-name">Marcus Rivera</div><div class="org-title">ML Engineer</div></div></div>
+                                    </div>
+                                    <div class="org-branch-item">
+                                        <div class="org-connector-v"></div>
+                                        <div class="org-node"><div class="org-status offline"></div><div class="org-avatar dept-analytics">AK</div><div class="org-info"><div class="org-name">Aisha Khan</div><div class="org-title">BI Analyst</div></div></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="org-branch-item">
+                            <div class="org-connector-v"></div>
+                            <div class="org-node" onclick="toggleChildren(this)">
+                                <div class="org-status online"></div>
+                                <div class="org-avatar dept-creative">DM</div>
+                                <div class="org-info">
+                                    <div class="org-name">Dante Morales</div>
+                                    <div class="org-title">Creative Director</div>
+                                </div>
+                                <div class="org-count">9</div>
+                                <div class="org-toggle">›</div>
+                            </div>
+                            <div class="org-children">
+                                <div class="org-connector-v"></div>
+                                <div class="org-branch">
+                                    <div class="org-branch-item">
+                                        <div class="org-connector-v"></div>
+                                        <div class="org-node"><div class="org-status online"></div><div class="org-avatar dept-creative">PX</div><div class="org-info"><div class="org-name">Pixel</div><div class="org-title">Image Generation</div></div></div>
+                                    </div>
+                                    <div class="org-branch-item">
+                                        <div class="org-connector-v"></div>
+                                        <div class="org-node"><div class="org-status offline"></div><div class="org-avatar dept-creative">LM</div><div class="org-info"><div class="org-name">Lena M.</div><div class="org-title">UX Designer</div></div></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="org-branch-item">
+                            <div class="org-connector-v"></div>
+                            <div class="org-node" onclick="toggleChildren(this)">
+                                <div class="org-status online"></div>
+                                <div class="org-avatar dept-engineering">KB</div>
+                                <div class="org-info">
+                                    <div class="org-name">Koda Begay</div>
+                                    <div class="org-title">Engineering Lead</div>
+                                </div>
+                                <div class="org-count">11</div>
+                                <div class="org-toggle">›</div>
+                            </div>
+                            <div class="org-children">
+                                <div class="org-connector-v"></div>
+                                <div class="org-branch">
+                                    <div class="org-branch-item">
+                                        <div class="org-connector-v"></div>
+                                        <div class="org-node"><div class="org-status offline"></div><div class="org-avatar dept-engineering">CS</div><div class="org-info"><div class="org-name">CodeSmith</div><div class="org-title">Senior Developer</div></div></div>
+                                    </div>
+                                    <div class="org-branch-item">
+                                        <div class="org-connector-v"></div>
+                                        <div class="org-node"><div class="org-status offline"></div><div class="org-avatar dept-engineering">AR</div><div class="org-info"><div class="org-name">Architect</div><div class="org-title">Systems Architect</div></div></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="org-branch-item">
+                            <div class="org-connector-v"></div>
+                            <div class="org-node">
+                                <div class="org-status offline"></div>
+                                <div class="org-avatar dept-security">SC</div>
+                                <div class="org-info">
+                                    <div class="org-name">Security Team</div>
+                                    <div class="org-title">+7 more stations...</div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- Vigil -->
+            <div class="org-branch-item">
+                <div class="org-connector-v"></div>
+                <div class="org-node">
+                    <div class="org-status online"></div>
+                    <div class="org-avatar dept-command">VG</div>
+                    <div class="org-info">
+                        <div class="org-name">Vigil</div>
+                        <div class="org-title">Ethics & Governance Officer</div>
+                        <div class="org-badge" style="background:rgba(0,212,255,0.1);color:var(--cyan);">IAAE Oversight</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+<script>
+function toggleChildren(node) {
+    var children = node.nextElementSibling;
+    while (children && !children.classList.contains('org-children')) {
+        children = children.nextElementSibling;
+    }
+    if (!children) {
+        // Check parent's next sibling
+        var parent = node.parentElement;
+        children = parent.querySelector('.org-children');
+    }
+    if (!children) return;
+
+    var isVisible = children.classList.contains('visible');
+    if (isVisible) {
+        children.classList.remove('visible');
+        node.classList.remove('expanded');
+    } else {
+        children.classList.add('visible');
+        node.classList.add('expanded');
+    }
+}
+
+// Auto-expand CEO on load
+document.addEventListener('DOMContentLoaded', function() {
+    var ceo = document.querySelector('.org-node.ceo');
+    if (ceo) {
+        var children = ceo.nextElementSibling;
+        while (children && !children.classList.contains('org-children')) {
+            children = children.nextElementSibling;
+        }
+        if (children) {
+            children.classList.add('visible');
+            ceo.classList.add('expanded');
+        }
+    }
+});
+</script>
+
+</body>
+</html>

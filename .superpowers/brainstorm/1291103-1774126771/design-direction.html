@@ -1,0 +1,88 @@
+<h2>Design Direction for kytranempowerment.com</h2>
+<p class="subtitle">Which visual direction speaks to you? This sets the foundation for everything else.</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="height:280px;background:linear-gradient(135deg,#0a0e17,#1a1040);position:relative;overflow:hidden;border-radius:8px 8px 0 0;">
+      <!-- Cyberpunk Aurora -->
+      <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:radial-gradient(ellipse at 30% 20%,rgba(139,92,246,0.4),transparent 60%),radial-gradient(ellipse at 70% 80%,rgba(0,212,255,0.3),transparent 50%),radial-gradient(ellipse at 50% 50%,rgba(0,153,255,0.2),transparent 70%);animation:auroraShift 8s ease-in-out infinite alternate;"></div>
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;z-index:2;">
+        <div style="font-family:'Outfit',sans-serif;font-size:28px;font-weight:800;background:linear-gradient(135deg,#00d4ff,#8b5cf6,#f0c040);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-0.5px;">KYTRAN EMPOWERMENT</div>
+        <div style="font-size:13px;color:rgba(255,255,255,0.5);margin-top:8px;letter-spacing:3px;">AI-POWERED INNOVATION</div>
+        <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;">
+          <div style="padding:6px 16px;border-radius:20px;background:rgba(139,92,246,0.2);backdrop-filter:blur(10px);border:1px solid rgba(139,92,246,0.3);color:#c4b5fd;font-size:11px;">Glassmorphism Cards</div>
+          <div style="padding:6px 16px;border-radius:20px;background:rgba(0,212,255,0.15);backdrop-filter:blur(10px);border:1px solid rgba(0,212,255,0.3);color:#67e8f9;font-size:11px;">Aurora Gradients</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. Cyberpunk Aurora</h3>
+      <p>Flowing aurora gradients, glassmorphism cards, glowing accents. Think: <strong>Vercel + Linear + Stripe</strong> merged with sci-fi energy. Deep purples, cyans, and golds against dark navy. Heavy on visual effects — GSAP scroll animations, parallax, magnetic cursors, particle backgrounds.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Maximum wow factor</li><li>Matches ARCHIE's sci-fi identity</li><li>Unique — no one else looks like this</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Higher animation overhead</li><li>Complex to maintain</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="height:280px;background:#0a0e17;position:relative;overflow:hidden;border-radius:8px 8px 0 0;">
+      <!-- Clean Premium -->
+      <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:radial-gradient(ellipse at 50% 0%,rgba(0,153,255,0.08),transparent 60%);"></div>
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;z-index:2;width:80%;">
+        <div style="font-family:'Outfit',sans-serif;font-size:32px;font-weight:700;color:#e8ecf4;letter-spacing:-1px;">Build Smarter.</div>
+        <div style="font-size:14px;color:#8892a4;margin-top:8px;line-height:1.6;">The AI platform that scales with your business.</div>
+        <div style="margin-top:20px;padding:10px 24px;border-radius:8px;background:#0099ff;color:white;display:inline-block;font-size:13px;font-weight:600;">Get Started Free</div>
+        <div style="margin-top:24px;display:flex;gap:24px;justify-content:center;">
+          <div style="text-align:center;"><div style="font-size:22px;font-weight:700;color:#e8ecf4;">107</div><div style="font-size:10px;color:#5a6478;text-transform:uppercase;letter-spacing:1px;">AI Agents</div></div>
+          <div style="text-align:center;"><div style="font-size:22px;font-weight:700;color:#e8ecf4;">16</div><div style="font-size:10px;color:#5a6478;text-transform:uppercase;letter-spacing:1px;">Departments</div></div>
+          <div style="text-align:center;"><div style="font-size:22px;font-weight:700;color:#e8ecf4;">24/7</div><div style="font-size:10px;color:#5a6478;text-transform:uppercase;letter-spacing:1px;">Available</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. Clean Premium SaaS</h3>
+      <p>Minimal, spacious, confident. Think: <strong>Stripe + Notion + Loom</strong>. Subtle animations (fade, counter), generous whitespace, sharp typography. Let the content breathe. Premium without being flashy.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Timeless, professional look</li><li>Fast loading, accessible</li><li>Easy to maintain</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Less visual differentiation</li><li>Can feel "generic SaaS"</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="height:280px;background:linear-gradient(180deg,#0a0e17,#0d1525);position:relative;overflow:hidden;border-radius:8px 8px 0 0;">
+      <!-- Hybrid Command Center -->
+      <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:radial-gradient(ellipse at 50% 30%,rgba(0,212,255,0.15),transparent 60%);"></div>
+      <div style="position:absolute;top:15px;left:15px;right:15px;bottom:15px;border:1px solid rgba(0,212,255,0.15);border-radius:12px;z-index:1;"></div>
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;z-index:2;width:85%;">
+        <div style="display:flex;gap:6px;justify-content:center;margin-bottom:12px;">
+          <div style="width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 8px rgba(16,185,129,0.5);"></div>
+          <div style="font-size:10px;color:#10b981;letter-spacing:2px;text-transform:uppercase;">SYSTEMS ONLINE</div>
+        </div>
+        <div style="font-family:'Outfit',sans-serif;font-size:26px;font-weight:800;color:#e8ecf4;">Your AI Command Center</div>
+        <div style="font-size:12px;color:#8892a4;margin-top:6px;">107 agents. 10 stations. One mission.</div>
+        <div style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+          <div style="padding:8px;border-radius:8px;background:rgba(0,212,255,0.06);border:1px solid rgba(0,212,255,0.12);"><div style="font-size:9px;color:#00d4ff;text-transform:uppercase;letter-spacing:1px;">Bridge</div><div style="font-size:14px;color:#e8ecf4;font-weight:600;">Active</div></div>
+          <div style="padding:8px;border-radius:8px;background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.12);"><div style="font-size:9px;color:#8b5cf6;text-transform:uppercase;letter-spacing:1px;">Fleet</div><div style="font-size:14px;color:#e8ecf4;font-weight:600;">2 Nodes</div></div>
+          <div style="padding:8px;border-radius:8px;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.12);"><div style="font-size:9px;color:#10b981;text-transform:uppercase;letter-spacing:1px;">Ethics</div><div style="font-size:14px;color:#e8ecf4;font-weight:600;">Passed</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. Hybrid Command Center</h3>
+      <p>Professional SaaS clarity + ARCHIE's command center personality. Think: <strong>GitHub + Datadog + Mission Control</strong>. Live data widgets, status indicators, subtle sci-fi touches without going full LCARS. Best of both worlds.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Professional AND unique</li><li>Shows real platform capability</li><li>Live data creates trust</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Most complex to build</li><li>Needs live API integration</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  @keyframes auroraShift {
+    0% { opacity: 0.8; filter: hue-rotate(0deg); }
+    100% { opacity: 1; filter: hue-rotate(30deg); }
+  }
+</style>

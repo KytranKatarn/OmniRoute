@@ -846,7 +846,7 @@ def _handle_container_restart(config, payload):
         logger.info("[container_restart] Pulling latest images...")
         try:
             pull_result = subprocess.run(
-                ["docker", "pull", "ghcr.io/kytranempowerment/archie-node:latest"],
+                ["docker", "pull", "ghcr.io/kytrankatarn/archie-node:latest"],
                 capture_output=True, text=True, timeout=300,
             )
             logger.info("[container_restart] Pull exit=%d: %s", pull_result.returncode, pull_result.stdout[:200])

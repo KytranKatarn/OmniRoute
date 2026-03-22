@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Org Chart v3 — Pyramid + Side Branch</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+    --bg: #0a0e17; --cyan: #00d4ff; --blue: #0099ff;
+    --purple: #8b5cf6; --gold: #f0c040; --green: #10b981;
+    --text: #e8ecf4; --text2: #8892a4; --text3: #5a6478;
+    --line: rgba(0, 212, 255, 0.3);
+}
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); padding: 40px 20px; overflow-x: auto; }
+h1 { font-family: 'Outfit'; text-align: center; font-size: 28px; margin-bottom: 8px; }
+.sub { text-align: center; color: var(--text2); font-size: 14px; margin-bottom: 48px; }
+
+/* ══════════════════════════════ */
+/* NODE CARD                      */
+/* ══════════════════════════════ */
+.n {
+    position: relative; display: inline-flex; align-items: center; gap: 10px;
+    padding: 10px 16px; border-radius: 10px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+    cursor: pointer; transition: all 0.25s; white-space: nowrap;
+    min-width: 170px;
+}
+.n:hover { border-color: rgba(0,212,255,0.3); background: rgba(255,255,255,0.06);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+.n.exp { border-color: rgba(0,212,255,0.35); background: rgba(0,212,255,0.05); }
+.n.ceo { border-color: rgba(240,192,64,0.4); background: rgba(240,192,64,0.06); }
+
+.av {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Outfit'; font-weight: 700; font-size: 12px; color: white; flex-shrink: 0;
+}
+.nm { font-family: 'Outfit'; font-weight: 600; font-size: 13px; }
+.tl { font-size: 10px; color: var(--text2); margin-top: 1px; }
+.ct { font-size: 10px; color: var(--text3); padding: 2px 7px; border-radius: 10px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); margin-left: auto; }
+.ch { font-size: 14px; color: var(--text3); transition: transform 0.25s; margin-left: 4px; }
+.n.exp .ch { transform: rotate(90deg); color: var(--cyan); }
+
+.dot { position: absolute; top: 8px; right: 8px; width: 6px; height: 6px; border-radius: 50%; }
+.on { background: var(--green); box-shadow: 0 0 6px rgba(16,185,129,0.6); }
+.off { background: var(--text3); }
+
+/* Dept colors */
+.c-cmd { background: linear-gradient(135deg, #00e5ff, #0099aa); }
+.c-ana { background: linear-gradient(135deg, #8b5cf6, #6d3fc4); }
+.c-cre { background: linear-gradient(135deg, #f472b6, #c0528e); }
+.c-eng { background: linear-gradient(135deg, #fbbf24, #d4991a); }
+.c-com { background: linear-gradient(135deg, #22d3ee, #1aa3b8); }
+.c-res { background: linear-gradient(135deg, #10b981, #0d8f64); }
+.c-sec { background: linear-gradient(135deg, #ef4444, #c43636); }
+.c-log { background: linear-gradient(135deg, #f97316, #c45c11); }
+.c-dip { background: linear-gradient(135deg, #818cf8, #6470d4); }
+.c-ops { background: linear-gradient(135deg, #a3e635, #82b82a); }
+.c-exe { background: linear-gradient(135deg, var(--gold), #c4982e); }
+
+/* ══════════════════════════════ */
+/* LAYOUT — CEO top center        */
+/* ARCHIE pyramid below           */
+/* Vigil branch to the right      */
+/* ══════════════════════════════ */
+.layout { position: relative; display: flex; flex-direction: column; align-items: center; padding-bottom: 60px; }
+
+/* Vertical line */
+.vl { width: 2px; background: var(--line); margin: 0 auto; }
+.vl-24 { height: 24px; }
+.vl-20 { height: 20px; }
+
+/* Horizontal bar with visible line */
+.hbar {
+    position: relative; height: 2px; background: var(--line);
+}
+
+/* Row of nodes */
+.row { display: flex; gap: 16px; justify-content: center; }
+
+/* Column centered */
+.col { display: flex; flex-direction: column; align-items: center; }
+
+/* The CEO → split layout */
+.split-row {
+    display: flex; align-items: flex-start; gap: 0; position: relative;
+}
+
+/* ARCHIE column — center pyramid */
+.archie-col { display: flex; flex-direction: column; align-items: center; }
+
+/* Vigil column — right side */
+.vigil-col {
+    display: flex; flex-direction: row; align-items: flex-start;
+    margin-left: 0; position: relative;
+}
+.vigil-hline { width: 60px; height: 2px; background: var(--line); margin-top: 28px; }
+.vigil-inner { display: flex; flex-direction: column; align-items: center; }
+
+/* Collapsible children */
+.kids { display: none; flex-direction: column; align-items: center; }
+.kids.open { display: flex; animation: fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+
+/* Right-branching children for Vigil */
+.kids-right { display: none; flex-direction: column; align-items: flex-start; gap: 8px; padding-left: 0; }
+.kids-right.open { display: flex; animation: fadeIn 0.3s ease; }
+.kids-right-item { display: flex; align-items: center; }
+.kids-right-item .hl { width: 30px; height: 2px; background: var(--line); }
+.kids-right-vbar { width: 2px; background: var(--line); align-self: stretch; margin-left: 0; }
+</style>
+</head>
+<body>
+
+<h1>Kytran Empowerment — Organization Chart</h1>
+<p class="sub">Click any person to expand their team. Green dot = online now.</p>
+
+<div class="layout">
+
+    <!-- ═══ CEO ═══ -->
+    <div class="col">
+        <div class="n ceo exp" onclick="tog(this,'ceo-kids')">
+            <div class="dot on"></div>
+            <div class="av c-exe">KT</div>
+            <div><div class="nm">Kytran Tran</div><div class="tl">CEO & Founder</div></div>
+            <div class="ct">3</div>
+            <div class="ch">›</div>
+        </div>
+    </div>
+
+    <!-- ═══ CEO split: ARCHIE (center-down) + Vigil (right) ═══ -->
+    <div class="kids open" id="ceo-kids">
+        <div class="vl vl-24"></div>
+
+        <div class="split-row">
+
+            <!-- ══ ARCHIE — Center Pyramid ══ -->
+            <div class="archie-col">
+                <div class="n exp" onclick="tog(this,'archie-kids')">
+                    <div class="dot on"></div>
+                    <div class="av c-cmd">AR</div>
+                    <div><div class="nm">A.R.C.H.I.E.</div><div class="tl">AI Director / Co-Owner</div></div>
+                    <div class="ct">8 stations</div>
+                    <div class="ch">›</div>
+                </div>
+
+                <!-- ARCHIE's Station Leads (pyramid down) -->
+                <div class="kids open" id="archie-kids">
+                    <div class="vl vl-24"></div>
+                    <div class="hbar" style="width:680px;"></div>
+                    <div class="row">
+
+                        <!-- Analytics -->
+                        <div class="col">
+                            <div class="vl vl-20"></div>
+                            <div class="n" onclick="tog(this,'ana-kids')">
+                                <div class="dot on"></div>
+                                <div class="av c-ana">JP</div>
+                                <div><div class="nm">Jin Park</div><div class="tl">Analytics</div></div>
+                                <div class="ct">8</div>
+                                <div class="ch">›</div>
+                            </div>
+                            <div class="kids" id="ana-kids">
+                                <div class="vl vl-20"></div>
+                                <div class="hbar" style="width:200px;"></div>
+                                <div class="row">
+                                    <div class="col"><div class="vl vl-20"></div><div class="n"><div class="dot on"></div><div class="av c-ana">SC</div><div><div class="nm">Sarah Chen</div><div class="tl">Data Scientist</div></div></div></div>
+                                    <div class="col"><div class="vl vl-20"></div><div class="n"><div class="dot off"></div><div class="av c-ana">MR</div><div><div class="nm">M. Rivera</div><div class="tl">ML Engineer</div></div></div></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Creative -->
+                        <div class="col">
+                            <div class="vl vl-20"></div>
+                            <div class="n" onclick="tog(this,'cre-kids')">
+                                <div class="dot on"></div>
+                                <div class="av c-cre">DM</div>
+                                <div><div class="nm">Dante Morales</div><div class="tl">Creative</div></div>
+                                <div class="ct">9</div>
+                                <div class="ch">›</div>
+                            </div>
+                            <div class="kids" id="cre-kids">
+                                <div class="vl vl-20"></div>
+                                <div class="hbar" style="width:200px;"></div>
+                                <div class="row">
+                                    <div class="col"><div class="vl vl-20"></div><div class="n"><div class="dot on"></div><div class="av c-cre">PX</div><div><div class="nm">Pixel</div><div class="tl">Image Gen</div></div></div></div>
+                                    <div class="col"><div class="vl vl-20"></div><div class="n"><div class="dot off"></div><div class="av c-cre">LW</div><div><div class="nm">Lena Wu</div><div class="tl">UX Design</div></div></div></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Engineering -->
+                        <div class="col">
+                            <div class="vl vl-20"></div>
+                            <div class="n" onclick="tog(this,'eng-kids')">
+                                <div class="dot off"></div>
+                                <div class="av c-eng">KB</div>
+                                <div><div class="nm">Koda Begay</div><div class="tl">Engineering</div></div>
+                                <div class="ct">11</div>
+                                <div class="ch">›</div>
+                            </div>
+                            <div class="kids" id="eng-kids">
+                                <div class="vl vl-20"></div>
+                                <div class="hbar" style="width:200px;"></div>
+                                <div class="row">
+                                    <div class="col"><div class="vl vl-20"></div><div class="n"><div class="dot off"></div><div class="av c-eng">CS</div><div><div class="nm">CodeSmith</div><div class="tl">Sr. Developer</div></div></div></div>
+                                    <div class="col"><div class="vl vl-20"></div><div class="n"><div class="dot off"></div><div class="av c-eng">AT</div><div><div class="nm">Architect</div><div class="tl">Systems Arch</div></div></div></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Communications -->
+                        <div class="col">
+                            <div class="vl vl-20"></div>
+                            <div class="n"><div class="dot off"></div><div class="av c-com">FA</div><div><div class="nm">Fatima A-R</div><div class="tl">Communications</div></div><div class="ct">8</div></div>
+                        </div>
+
+                    </div>
+
+                    <!-- Second row of stations -->
+                    <div style="margin-top: 16px;"></div>
+                    <div class="hbar" style="width:680px;"></div>
+                    <div class="row">
+                        <div class="col">
+                            <div class="vl vl-20"></div>
+                            <div class="n"><div class="dot off"></div><div class="av c-res">RK</div><div><div class="nm">Dr. Reyes K.</div><div class="tl">Research</div></div><div class="ct">9</div></div>
+                        </div>
+                        <div class="col">
+                            <div class="vl vl-20"></div>
+                            <div class="n"><div class="dot off"></div><div class="av c-log">TJ</div><div><div class="nm">Tomas J.</div><div class="tl">Logistics</div></div><div class="ct">8</div></div>
+                        </div>
+                        <div class="col">
+                            <div class="vl vl-20"></div>
+                            <div class="n"><div class="dot off"></div><div class="av c-dip">EM</div><div><div class="nm">Elena M.</div><div class="tl">Diplomatic</div></div><div class="ct">7</div></div>
+                        </div>
+                        <div class="col">
+                            <div class="vl vl-20"></div>
+                            <div class="n"><div class="dot off"></div><div class="av c-ops">OM</div><div><div class="nm">OpsMaster</div><div class="tl">Operations</div></div><div class="ct">9</div></div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- ══ VIGIL — Right Side Branch ══ -->
+            <div class="vigil-col">
+                <div class="vigil-hline"></div>
+                <div class="vigil-inner">
+                    <div class="n exp" onclick="tog(this,'vigil-kids')" style="border-color:rgba(239,68,68,0.3);background:rgba(239,68,68,0.04);">
+                        <div class="dot on"></div>
+                        <div class="av c-sec">VG</div>
+                        <div><div class="nm">Vigil</div><div class="tl">Ethics & Governance</div></div>
+                        <div class="ct">7</div>
+                        <div class="ch">›</div>
+                    </div>
+
+                    <!-- Vigil's Security Team — vertical list branching right -->
+                    <div class="kids open" id="vigil-kids" style="align-items:flex-start;padding-left:28px;">
+                        <div style="display:flex;">
+                            <div style="width:2px;background:var(--line);margin-right:0;"></div>
+                            <div style="display:flex;flex-direction:column;gap:8px;padding:8px 0;">
+
+                                <div style="display:flex;align-items:center;">
+                                    <div style="width:24px;height:2px;background:var(--line);"></div>
+                                    <div class="n"><div class="dot on"></div><div class="av c-sec">SN</div><div><div class="nm">Sentinel</div><div class="tl">Security Lead</div></div></div>
+                                </div>
+
+                                <div style="display:flex;align-items:center;">
+                                    <div style="width:24px;height:2px;background:var(--line);"></div>
+                                    <div class="n"><div class="dot off"></div><div class="av c-sec">FW</div><div><div class="nm">Firewall</div><div class="tl">Network Security</div></div></div>
+                                </div>
+
+                                <div style="display:flex;align-items:center;">
+                                    <div style="width:24px;height:2px;background:var(--line);"></div>
+                                    <div class="n"><div class="dot off"></div><div class="av c-sec">CC</div><div><div class="nm">CipherCat</div><div class="tl">Cryptography</div></div></div>
+                                </div>
+
+                                <div style="display:flex;align-items:center;">
+                                    <div style="width:24px;height:2px;background:var(--line);"></div>
+                                    <div class="n"><div class="dot off"></div><div class="av c-sec">WD</div><div><div class="nm">Watchdog</div><div class="tl">Threat Detection</div></div></div>
+                                </div>
+
+                                <div style="display:flex;align-items:center;">
+                                    <div style="width:24px;height:2px;background:var(--line);"></div>
+                                    <div class="n"><div class="dot off"></div><div class="av c-sec">PH</div><div><div class="nm">Phantom</div><div class="tl">Pen Testing</div></div></div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+<script>
+function tog(el, id) {
+    var kids = document.getElementById(id);
+    if (!kids) return;
+    var isOpen = kids.classList.contains('open');
+    if (isOpen) { kids.classList.remove('open'); el.classList.remove('exp'); }
+    else { kids.classList.add('open'); el.classList.add('exp'); }
+}
+</script>
+
+</body>
+</html>

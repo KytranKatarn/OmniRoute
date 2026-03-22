@@ -1,0 +1,164 @@
+<h2>Org Chart Layout Style</h2>
+<p class="subtitle">Which layout approach for 101 employees across 16 departments?</p>
+
+<div class="cards">
+  <!-- Option A: Classic Corporate Tree -->
+  <div class="card" data-choice="classic-tree" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:20px;background:#1a1a2e;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;font-family:system-ui;color:#e0e0e0;">
+        <!-- CEO -->
+        <div style="background:#2d1f3d;border:2px solid #f59e0b;border-radius:8px;padding:8px 16px;text-align:center;min-width:120px;">
+          <div style="font-size:10px;color:#f59e0b;">CEO</div>
+          <div style="font-weight:bold;font-size:12px;">Kytran</div>
+        </div>
+        <div style="width:2px;height:12px;background:#555;"></div>
+        <!-- C-Suite Row -->
+        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;">
+          <div style="background:#1e293b;border:1px solid #00e5ff;border-radius:6px;padding:4px 8px;text-align:center;font-size:9px;">
+            <div style="color:#00e5ff;">COO</div>
+            <div>ARCHIE</div>
+          </div>
+          <div style="background:#1e293b;border:1px solid #00e5ff;border-radius:6px;padding:4px 8px;text-align:center;font-size:9px;">
+            <div style="color:#00e5ff;">CTO</div>
+            <div>Marcus</div>
+          </div>
+          <div style="background:#1e293b;border:1px solid #00e5ff;border-radius:6px;padding:4px 8px;text-align:center;font-size:9px;">
+            <div style="color:#00e5ff;">CFO</div>
+            <div>Fatima</div>
+          </div>
+          <div style="background:#1e293b;border:1px solid #00e5ff;border-radius:6px;padding:4px 8px;text-align:center;font-size:9px;">
+            <div style="color:#00e5ff;">CMO</div>
+            <div>Jabari</div>
+          </div>
+        </div>
+        <div style="width:2px;height:8px;background:#555;"></div>
+        <!-- Departments Row -->
+        <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center;">
+          <div style="background:#0f172a;border:1px solid #8b5cf6;border-radius:4px;padding:3px 6px;font-size:8px;color:#8b5cf6;">Analytics (8)</div>
+          <div style="background:#0f172a;border:1px solid #f472b6;border-radius:4px;padding:3px 6px;font-size:8px;color:#f472b6;">Creative (7)</div>
+          <div style="background:#0f172a;border:1px solid #fbbf24;border-radius:4px;padding:3px 6px;font-size:8px;color:#fbbf24;">Engineering (8)</div>
+          <div style="background:#0f172a;border:1px solid #10b981;border-radius:4px;padding:3px 6px;font-size:8px;color:#10b981;">Research (5)</div>
+          <div style="background:#0f172a;border:1px solid #64748b;border-radius:4px;padding:3px 6px;font-size:8px;color:#94a3b8;">+12 more</div>
+        </div>
+        <div style="font-size:8px;color:#64748b;margin-top:4px;">Click department to expand team members</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. Classic Corporate Tree</h3>
+      <p>Top-down hierarchy like Lucidchart. CEO at top, C-suite below, departments expand on click. Clean lines connecting levels. Professional, familiar, scalable.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Hub & Spoke -->
+  <div class="card" data-choice="hub-spoke" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:20px;background:#1a1a2e;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;font-family:system-ui;color:#e0e0e0;">
+        <!-- Center Hub -->
+        <div style="position:relative;width:200px;height:200px;">
+          <!-- Center -->
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#2d1f3d;border:2px solid #f59e0b;border-radius:50%;width:60px;height:60px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:9px;font-weight:bold;">
+            <div><div style="color:#f59e0b;font-size:7px;">CEO</div>Kytran</div>
+          </div>
+          <!-- Orbiting departments -->
+          <div style="position:absolute;top:5px;left:50%;transform:translateX(-50%);background:#1e293b;border:1px solid #00e5ff;border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:7px;text-align:center;color:#00e5ff;">Eng</div>
+          <div style="position:absolute;top:25px;right:10px;background:#1e293b;border:1px solid #f472b6;border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:7px;text-align:center;color:#f472b6;">Design</div>
+          <div style="position:absolute;bottom:25px;right:10px;background:#1e293b;border:1px solid #10b981;border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:7px;text-align:center;color:#10b981;">R&D</div>
+          <div style="position:absolute;bottom:5px;left:50%;transform:translateX(-50%);background:#1e293b;border:1px solid #8b5cf6;border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:7px;text-align:center;color:#8b5cf6;">Ops</div>
+          <div style="position:absolute;bottom:25px;left:10px;background:#1e293b;border:1px solid #ef4444;border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:7px;text-align:center;color:#ef4444;">Sec</div>
+          <div style="position:absolute;top:25px;left:10px;background:#1e293b;border:1px solid #fbbf24;border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:7px;text-align:center;color:#fbbf24;">Fin</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. Hub & Spoke (Radial)</h3>
+      <p>CEO in center, departments radiating outward like a starship bridge map. Visually striking, fits the LCARS theme. Click a spoke to expand that department. Unique but harder to read at scale.</p>
+    </div>
+  </div>
+
+  <!-- Option C: Department Cards Grid -->
+  <div class="card" data-choice="dept-cards" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:20px;background:#1a1a2e;">
+      <div style="font-family:system-ui;color:#e0e0e0;">
+        <!-- Leadership banner -->
+        <div style="display:flex;gap:8px;justify-content:center;margin-bottom:12px;">
+          <div style="background:#2d1f3d;border:1px solid #f59e0b;border-radius:6px;padding:4px 10px;text-align:center;font-size:9px;">
+            <div style="width:24px;height:24px;border-radius:50%;background:#f59e0b33;margin:0 auto 2px;display:flex;align-items:center;justify-content:center;color:#f59e0b;font-size:8px;font-weight:bold;">KY</div>
+            <div style="font-weight:bold;">Kytran</div>
+            <div style="color:#f59e0b;font-size:7px;">CEO</div>
+          </div>
+          <div style="background:#1e293b;border:1px solid #00e5ff;border-radius:6px;padding:4px 10px;text-align:center;font-size:9px;">
+            <div style="width:24px;height:24px;border-radius:50%;background:#00e5ff33;margin:0 auto 2px;"></div>
+            <div style="font-weight:bold;">ARCHIE</div>
+            <div style="color:#00e5ff;font-size:7px;">COO</div>
+          </div>
+          <div style="background:#1e293b;border:1px solid #00e5ff;border-radius:6px;padding:4px 10px;text-align:center;font-size:9px;">
+            <div style="width:24px;height:24px;border-radius:50%;background:#00e5ff33;margin:0 auto 2px;"></div>
+            <div style="font-weight:bold;">Vigil</div>
+            <div style="color:#00e5ff;font-size:7px;">Ethics</div>
+          </div>
+        </div>
+        <!-- Department cards grid -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;">
+          <div style="background:#0f172a;border:1px solid #8b5cf6;border-radius:4px;padding:4px;font-size:7px;">
+            <div style="color:#8b5cf6;font-weight:bold;">Analytics</div>
+            <div style="color:#94a3b8;">8 members</div>
+            <div style="display:flex;gap:2px;margin-top:2px;">
+              <div style="width:12px;height:12px;border-radius:50%;background:#8b5cf622;border:1px solid #8b5cf6;"></div>
+              <div style="width:12px;height:12px;border-radius:50%;background:#8b5cf622;border:1px solid #8b5cf6;"></div>
+              <div style="width:12px;height:12px;border-radius:50%;background:#8b5cf622;border:1px solid #8b5cf6;"></div>
+              <div style="font-size:7px;color:#64748b;">+5</div>
+            </div>
+          </div>
+          <div style="background:#0f172a;border:1px solid #f472b6;border-radius:4px;padding:4px;font-size:7px;">
+            <div style="color:#f472b6;font-weight:bold;">Creative</div>
+            <div style="color:#94a3b8;">7 members</div>
+            <div style="display:flex;gap:2px;margin-top:2px;">
+              <div style="width:12px;height:12px;border-radius:50%;background:#f472b622;border:1px solid #f472b6;"></div>
+              <div style="width:12px;height:12px;border-radius:50%;background:#f472b622;border:1px solid #f472b6;"></div>
+              <div style="width:12px;height:12px;border-radius:50%;background:#f472b622;border:1px solid #f472b6;"></div>
+              <div style="font-size:7px;color:#64748b;">+4</div>
+            </div>
+          </div>
+          <div style="background:#0f172a;border:1px solid #fbbf24;border-radius:4px;padding:4px;font-size:7px;">
+            <div style="color:#fbbf24;font-weight:bold;">Engineering</div>
+            <div style="color:#94a3b8;">8 members</div>
+          </div>
+          <div style="background:#0f172a;border:1px solid #10b981;border-radius:4px;padding:4px;font-size:7px;">
+            <div style="color:#10b981;font-weight:bold;">Research</div>
+            <div style="color:#94a3b8;">5 members</div>
+          </div>
+          <div style="background:#0f172a;border:1px solid #ef4444;border-radius:4px;padding:4px;font-size:7px;">
+            <div style="color:#ef4444;font-weight:bold;">Security</div>
+            <div style="color:#94a3b8;">5 members</div>
+          </div>
+          <div style="background:#0f172a;border:1px solid #22d3ee;border-radius:4px;padding:4px;font-size:7px;">
+            <div style="color:#22d3ee;font-weight:bold;">Operations</div>
+            <div style="color:#94a3b8;">8 members</div>
+          </div>
+          <div style="background:#0f172a;border:1px solid #f97316;border-radius:4px;padding:4px;font-size:7px;">
+            <div style="color:#f97316;font-weight:bold;">Logistics</div>
+            <div style="color:#94a3b8;">4 members</div>
+          </div>
+          <div style="background:#0f172a;border:1px solid #818cf8;border-radius:4px;padding:4px;font-size:7px;">
+            <div style="color:#818cf8;font-weight:bold;">Diplomatic</div>
+            <div style="color:#94a3b8;">4 members</div>
+          </div>
+        </div>
+        <div style="font-size:7px;color:#64748b;text-align:center;margin-top:6px;">Click any department card to expand full team</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. Department Cards Grid</h3>
+      <p>Leadership banner at top, then a responsive grid of department cards with member count + avatar thumbnails. Click to expand into full team list. Mobile-friendly, scannable at a glance, easy to find people.</p>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:24px;padding:16px;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.2);border-radius:8px;">
+  <h3 style="color:#8b5cf6;margin:0 0 8px;">My Recommendation: A (Classic Tree) or C (Cards Grid)</h3>
+  <p style="margin:0;font-size:14px;">
+    <strong>A</strong> matches the Lucidchart reference you showed — professional, familiar, great for showing reporting relationships.
+    <strong>C</strong> is more modern and mobile-friendly — better for a public-facing page where visitors want to find someone quickly.
+    <strong>B</strong> looks cool but gets messy with 16 departments.
+  </p>
+</div>

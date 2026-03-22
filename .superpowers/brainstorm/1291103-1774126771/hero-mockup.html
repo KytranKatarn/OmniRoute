@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hero Mockup — Kytran Empowerment</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+    --bg: #0a0e17;
+    --bg2: #0f1420;
+    --cyan: #00d4ff;
+    --blue: #0099ff;
+    --purple: #8b5cf6;
+    --gold: #f0c040;
+    --green: #10b981;
+    --text: #e8ecf4;
+    --text2: #8892a4;
+    --text3: #5a6478;
+}
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); overflow-x: hidden; }
+
+/* ── Aurora Background ── */
+.aurora-bg {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 0;
+    background: var(--bg);
+}
+.aurora-blob {
+    position: absolute; border-radius: 50%; filter: blur(120px); opacity: 0.4;
+    animation: auroraFloat 12s ease-in-out infinite alternate;
+}
+.aurora-blob.b1 { width: 600px; height: 600px; top: -200px; left: -100px; background: var(--purple); animation-delay: 0s; }
+.aurora-blob.b2 { width: 500px; height: 500px; top: -100px; right: -150px; background: var(--cyan); animation-delay: -4s; }
+.aurora-blob.b3 { width: 400px; height: 400px; bottom: -100px; left: 30%; background: var(--blue); animation-delay: -8s; opacity: 0.25; }
+@keyframes auroraFloat {
+    0% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(30px, -20px) scale(1.05); }
+    66% { transform: translate(-20px, 15px) scale(0.95); }
+    100% { transform: translate(10px, -10px) scale(1.02); }
+}
+
+/* ── Grain Overlay ── */
+.grain { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1; opacity: 0.03; pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ── Nav ── */
+nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    padding: 16px 32px;
+    background: rgba(10, 14, 23, 0.7);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(0, 212, 255, 0.08);
+    display: flex; align-items: center; justify-content: space-between;
+}
+.nav-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.nav-brand-text { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 18px; color: var(--text);
+    background: linear-gradient(135deg, var(--cyan), var(--blue));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.nav-links { display: flex; gap: 28px; align-items: center; }
+.nav-links a { color: var(--text2); text-decoration: none; font-size: 14px; font-weight: 500; transition: color 0.3s; }
+.nav-links a:hover { color: var(--text); }
+.nav-cta { padding: 8px 20px; border-radius: 8px; background: linear-gradient(135deg, var(--blue), var(--purple));
+    color: white; font-weight: 600; font-size: 13px; border: none; cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.3s; }
+.nav-cta:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(0, 153, 255, 0.4); }
+
+/* ── Hero ── */
+.hero {
+    position: relative; z-index: 2;
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 120px 24px 80px;
+}
+.hero-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 16px; border-radius: 20px;
+    background: rgba(139, 92, 246, 0.12); border: 1px solid rgba(139, 92, 246, 0.25);
+    font-size: 12px; color: #c4b5fd; letter-spacing: 0.5px; margin-bottom: 24px;
+}
+.hero-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green);
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.6); animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+.hero h1 {
+    font-family: 'Outfit', sans-serif; font-size: clamp(42px, 6vw, 80px); font-weight: 800;
+    line-height: 1.05; letter-spacing: -2px; margin-bottom: 20px; max-width: 900px;
+}
+.hero h1 .gradient-text {
+    background: linear-gradient(135deg, var(--cyan), var(--purple), var(--gold));
+    background-size: 200% 200%;
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    animation: gradientShift 6s ease-in-out infinite;
+}
+@keyframes gradientShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+
+.hero-sub {
+    font-size: clamp(16px, 2vw, 20px); color: var(--text2); max-width: 600px;
+    line-height: 1.6; margin-bottom: 36px;
+}
+.hero-buttons { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-bottom: 48px; }
+.btn-primary {
+    padding: 14px 32px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--blue), var(--purple));
+    color: white; font-weight: 600; font-size: 15px; border: none; cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.3s; text-decoration: none;
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0, 153, 255, 0.4); }
+.btn-secondary {
+    padding: 14px 32px; border-radius: 10px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12);
+    color: var(--text); font-weight: 500; font-size: 15px; cursor: pointer;
+    transition: background 0.3s, border-color 0.3s; text-decoration: none;
+}
+.btn-secondary:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.2); }
+
+/* ── Live Stats Bar ── */
+.hero-stats {
+    display: flex; gap: 32px; flex-wrap: wrap; justify-content: center;
+}
+.hero-stat {
+    padding: 16px 24px; border-radius: 12px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(0, 212, 255, 0.1);
+    backdrop-filter: blur(10px);
+    text-align: center; min-width: 120px;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+.hero-stat:hover { border-color: rgba(0, 212, 255, 0.25); box-shadow: 0 4px 20px rgba(0, 212, 255, 0.08); }
+.hero-stat-value {
+    font-family: 'Outfit', sans-serif; font-size: 28px; font-weight: 700;
+    background: linear-gradient(135deg, var(--cyan), var(--blue));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.hero-stat-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 1.5px; margin-top: 4px; }
+.hero-stat .live-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--green);
+    box-shadow: 0 0 6px rgba(16,185,129,0.5); margin-right: 4px; animation: pulse 2s ease-in-out infinite; }
+
+/* ── Scroll Indicator ── */
+.scroll-hint {
+    position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    color: var(--text3); font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+}
+.scroll-arrow { width: 20px; height: 20px; border-right: 2px solid var(--text3); border-bottom: 2px solid var(--text3);
+    transform: rotate(45deg); animation: scrollBounce 2s ease-in-out infinite; }
+@keyframes scrollBounce { 0%, 100% { transform: rotate(45deg) translate(0, 0); opacity: 0.5; } 50% { transform: rotate(45deg) translate(4px, 4px); opacity: 1; } }
+
+/* ── Glassmorphism Preview Cards (below hero) ── */
+.preview-section {
+    position: relative; z-index: 2; padding: 80px 24px;
+    max-width: 1200px; margin: 0 auto;
+}
+.preview-section h2 { font-family: 'Outfit'; font-size: 32px; font-weight: 700; text-align: center; margin-bottom: 48px; }
+.glass-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+.glass-card {
+    padding: 28px; border-radius: 16px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    backdrop-filter: blur(12px);
+    transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
+}
+.glass-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(0, 212, 255, 0.2);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3), 0 0 30px rgba(0, 212, 255, 0.05);
+}
+.glass-card-icon { font-size: 28px; margin-bottom: 16px; }
+.glass-card h3 { font-family: 'Outfit'; font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+.glass-card p { font-size: 14px; color: var(--text2); line-height: 1.6; }
+
+/* ── Typewriter Cursor ── */
+.cursor { display: inline-block; width: 3px; height: 0.9em; background: var(--cyan); margin-left: 2px;
+    animation: blink 1s step-end infinite; vertical-align: text-bottom; }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+</style>
+</head>
+<body>
+
+<!-- Aurora Background -->
+<div class="aurora-bg">
+    <div class="aurora-blob b1"></div>
+    <div class="aurora-blob b2"></div>
+    <div class="aurora-blob b3"></div>
+</div>
+<div class="grain"></div>
+
+<!-- Nav -->
+<nav>
+    <a class="nav-brand" href="#">
+        <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,var(--cyan),var(--purple));display:flex;align-items:center;justify-content:center;font-family:'Outfit';font-weight:800;font-size:14px;color:white;">K</div>
+        <span class="nav-brand-text">KYTRAN EMPOWERMENT</span>
+    </a>
+    <div class="nav-links">
+        <a href="#">Services</a>
+        <a href="#">Platform</a>
+        <a href="#">Our Team</a>
+        <a href="#">Competitors</a>
+        <a href="#">About</a>
+        <button class="nav-cta">Get Started</button>
+    </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+    <div class="hero-badge">
+        <span class="hero-badge-dot"></span>
+        <span>Platform Online — 25 Agents Active</span>
+    </div>
+
+    <h1>
+        Build the Future with<br>
+        <span class="gradient-text">AI-Powered Intelligence</span><span class="cursor"></span>
+    </h1>
+
+    <p class="hero-sub">
+        107 AI agents. 10 specialized stations. One unified platform.
+        Enterprise-grade orchestration that scales with your ambition.
+    </p>
+
+    <div class="hero-buttons">
+        <a href="#" class="btn-primary">Explore the Platform</a>
+        <a href="#" class="btn-secondary">Meet Our Team &rarr;</a>
+    </div>
+
+    <div class="hero-stats">
+        <div class="hero-stat">
+            <div class="hero-stat-value">107</div>
+            <div class="hero-stat-label">AI Agents</div>
+        </div>
+        <div class="hero-stat">
+            <div class="hero-stat-value"><span class="live-dot"></span>25</div>
+            <div class="hero-stat-label">Online Now</div>
+        </div>
+        <div class="hero-stat">
+            <div class="hero-stat-value">10</div>
+            <div class="hero-stat-label">Stations</div>
+        </div>
+        <div class="hero-stat">
+            <div class="hero-stat-value">2</div>
+            <div class="hero-stat-label">Fleet Nodes</div>
+        </div>
+    </div>
+
+    <div class="scroll-hint">
+        <span>Scroll to explore</span>
+        <div class="scroll-arrow"></div>
+    </div>
+</section>
+
+<!-- Services Preview (glassmorphism cards) -->
+<section class="preview-section">
+    <h2>What We Build</h2>
+    <div class="glass-grid">
+        <div class="glass-card">
+            <div class="glass-card-icon">🧠</div>
+            <h3>AI Consulting</h3>
+            <p>Strategic AI integration for your business. Custom agent teams, model selection, and deployment architecture.</p>
+        </div>
+        <div class="glass-card">
+            <div class="glass-card-icon">⚡</div>
+            <h3>SaaS Platform</h3>
+            <p>CRM, invoicing, social media, content tools — all AI-enhanced with 107 specialized agents ready to work.</p>
+        </div>
+        <div class="glass-card">
+            <div class="glass-card-icon">🚀</div>
+            <h3>Fleet Orchestration</h3>
+            <p>Multi-node GPU cluster with automatic model routing, health monitoring, and 4-tier dispatch escalation.</p>
+        </div>
+        <div class="glass-card">
+            <div class="glass-card-icon">🎨</div>
+            <h3>Creative Studio</h3>
+            <p>AI image generation, media production, and game development powered by ComfyUI and SDXL across your GPU fleet.</p>
+        </div>
+    </div>
+</section>
+
+</body>
+</html>

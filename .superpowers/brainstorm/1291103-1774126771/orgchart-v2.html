@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Org Chart v2 — Clear Lines + Vigil Security</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+    --bg: #0a0e17; --cyan: #00d4ff; --blue: #0099ff;
+    --purple: #8b5cf6; --gold: #f0c040; --green: #10b981;
+    --text: #e8ecf4; --text2: #8892a4; --text3: #5a6478;
+    --line-color: rgba(0, 212, 255, 0.25);
+    --line-width: 2px;
+}
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); padding: 40px 20px; min-width: 900px; }
+h1 { font-family: 'Outfit'; text-align: center; font-size: 28px; margin-bottom: 8px; }
+.subtitle { text-align: center; color: var(--text2); font-size: 14px; margin-bottom: 48px; }
+
+/* ══════════════════════════════════════════ */
+/* TREE STRUCTURE — SVG-like lines via CSS   */
+/* ══════════════════════════════════════════ */
+
+.tree { display: flex; flex-direction: column; align-items: center; }
+
+/* Each level is a row */
+.tree-level { display: flex; flex-direction: column; align-items: center; }
+
+/* Vertical drop line from parent to children row */
+.tree-vline {
+    width: var(--line-width); height: 28px; background: var(--line-color); margin: 0 auto;
+}
+
+/* Horizontal connector bar spanning across siblings */
+.tree-hbar {
+    position: relative; display: flex; justify-content: center;
+}
+.tree-hbar::before {
+    content: ''; position: absolute; top: 0;
+    height: var(--line-width); background: var(--line-color);
+    left: var(--hbar-left, 25%); right: var(--hbar-right, 25%);
+}
+
+/* Row of sibling nodes */
+.tree-row {
+    display: flex; gap: 20px; justify-content: center; flex-wrap: nowrap;
+}
+
+/* Single branch (vertical line down + node) */
+.tree-branch {
+    display: flex; flex-direction: column; align-items: center;
+}
+.tree-branch > .tree-vline { height: 20px; }
+
+/* ══════════════════════════════════════════ */
+/* NODE CARD                                  */
+/* ══════════════════════════════════════════ */
+.node {
+    position: relative; display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px; border-radius: 10px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+    cursor: pointer; transition: all 0.25s; white-space: nowrap;
+    min-width: 180px;
+}
+.node:hover { border-color: rgba(0,212,255,0.3); background: rgba(255,255,255,0.06);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+.node.expanded { border-color: rgba(0,212,255,0.35); background: rgba(0,212,255,0.05); }
+.node.ceo { border-color: rgba(240,192,64,0.4); background: rgba(240,192,64,0.06); }
+.node.ceo:hover { box-shadow: 0 4px 20px rgba(240,192,64,0.15); }
+
+.node-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Outfit'; font-weight: 700; font-size: 12px; color: white; flex-shrink: 0;
+}
+.node-info { text-align: left; flex: 1; }
+.node-name { font-family: 'Outfit'; font-weight: 600; font-size: 13px; }
+.node-title { font-size: 10px; color: var(--text2); margin-top: 1px; }
+.node-count { font-size: 10px; color: var(--text3); padding: 2px 8px; border-radius: 10px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); }
+.node-chevron { font-size: 14px; color: var(--text3); transition: transform 0.25s; margin-left: 4px; }
+.node.expanded .node-chevron { transform: rotate(90deg); color: var(--cyan); }
+
+/* Status dot */
+.dot { position: absolute; top: 8px; right: 8px; width: 6px; height: 6px; border-radius: 50%; }
+.dot.on { background: var(--green); box-shadow: 0 0 6px rgba(16,185,129,0.6); }
+.dot.off { background: var(--text3); }
+
+/* Children collapse */
+.tree-children { display: none; flex-direction: column; align-items: center; }
+.tree-children.open { display: flex; animation: fadeSlide 0.3s ease; }
+@keyframes fadeSlide { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+
+/* Dept colors */
+.bg-command { background: linear-gradient(135deg, #00e5ff, #0099aa); }
+.bg-analytics { background: linear-gradient(135deg, #8b5cf6, #6d3fc4); }
+.bg-creative { background: linear-gradient(135deg, #f472b6, #c0528e); }
+.bg-engineering { background: linear-gradient(135deg, #fbbf24, #d4991a); }
+.bg-comms { background: linear-gradient(135deg, #22d3ee, #1aa3b8); }
+.bg-research { background: linear-gradient(135deg, #10b981, #0d8f64); }
+.bg-security { background: linear-gradient(135deg, #ef4444, #c43636); }
+.bg-logistics { background: linear-gradient(135deg, #f97316, #c45c11); }
+.bg-diplomatic { background: linear-gradient(135deg, #818cf8, #6470d4); }
+.bg-operations { background: linear-gradient(135deg, #a3e635, #82b82a); }
+.bg-exec { background: linear-gradient(135deg, var(--gold), #c4982e); }
+</style>
+</head>
+<body>
+
+<h1>Kytran Empowerment — Organization Chart</h1>
+<p class="subtitle">Click any person to expand their team. Green dot = online now.</p>
+
+<div class="tree">
+
+    <!-- ═══ LEVEL 0: CEO ═══ -->
+    <div class="tree-level">
+        <div class="node ceo expanded" onclick="toggle(this)">
+            <div class="dot on"></div>
+            <div class="node-avatar bg-exec">KT</div>
+            <div class="node-info">
+                <div class="node-name">Kytran Tran</div>
+                <div class="node-title">CEO & Founder</div>
+            </div>
+            <div class="node-count">3</div>
+            <div class="node-chevron">›</div>
+        </div>
+    </div>
+
+    <!-- ═══ LEVEL 1: Direct Reports ═══ -->
+    <div class="tree-children open" id="ceo-children">
+        <div class="tree-vline"></div>
+        <div class="tree-hbar" style="--hbar-left:10%;--hbar-right:10%;width:700px;height:2px;"></div>
+        <div class="tree-row">
+
+            <!-- ARCHIE -->
+            <div class="tree-branch">
+                <div class="tree-vline"></div>
+                <div class="node expanded" onclick="toggle(this)">
+                    <div class="dot on"></div>
+                    <div class="node-avatar bg-command">AR</div>
+                    <div class="node-info">
+                        <div class="node-name">A.R.C.H.I.E.</div>
+                        <div class="node-title">AI Director / Co-Owner</div>
+                    </div>
+                    <div class="node-count">8 stations</div>
+                    <div class="node-chevron">›</div>
+                </div>
+
+                <!-- ARCHIE's Station Leads -->
+                <div class="tree-children open">
+                    <div class="tree-vline"></div>
+                    <div class="tree-hbar" style="--hbar-left:2%;--hbar-right:2%;width:820px;height:2px;"></div>
+                    <div class="tree-row">
+
+                        <!-- Analytics -->
+                        <div class="tree-branch">
+                            <div class="tree-vline"></div>
+                            <div class="node" onclick="toggle(this)">
+                                <div class="dot on"></div>
+                                <div class="node-avatar bg-analytics">JP</div>
+                                <div class="node-info">
+                                    <div class="node-name">Jin Park</div>
+                                    <div class="node-title">Analytics Lead</div>
+                                </div>
+                                <div class="node-count">8</div>
+                                <div class="node-chevron">›</div>
+                            </div>
+                            <div class="tree-children">
+                                <div class="tree-vline"></div>
+                                <div class="tree-hbar" style="--hbar-left:5%;--hbar-right:5%;width:400px;height:2px;"></div>
+                                <div class="tree-row">
+                                    <div class="tree-branch"><div class="tree-vline"></div><div class="node"><div class="dot on"></div><div class="node-avatar bg-analytics">SC</div><div class="node-info"><div class="node-name">Sarah Chen</div><div class="node-title">Data Scientist</div></div></div></div>
+                                    <div class="tree-branch"><div class="tree-vline"></div><div class="node"><div class="dot off"></div><div class="node-avatar bg-analytics">MR</div><div class="node-info"><div class="node-name">Marcus Rivera</div><div class="node-title">ML Engineer</div></div></div></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Creative -->
+                        <div class="tree-branch">
+                            <div class="tree-vline"></div>
+                            <div class="node" onclick="toggle(this)">
+                                <div class="dot on"></div>
+                                <div class="node-avatar bg-creative">DM</div>
+                                <div class="node-info">
+                                    <div class="node-name">Dante Morales</div>
+                                    <div class="node-title">Creative Director</div>
+                                </div>
+                                <div class="node-count">9</div>
+                                <div class="node-chevron">›</div>
+                            </div>
+                            <div class="tree-children">
+                                <div class="tree-vline"></div>
+                                <div class="tree-hbar" style="--hbar-left:5%;--hbar-right:5%;width:400px;height:2px;"></div>
+                                <div class="tree-row">
+                                    <div class="tree-branch"><div class="tree-vline"></div><div class="node"><div class="dot on"></div><div class="node-avatar bg-creative">PX</div><div class="node-info"><div class="node-name">Pixel</div><div class="node-title">Image Generation</div></div></div></div>
+                                    <div class="tree-branch"><div class="tree-vline"></div><div class="node"><div class="dot off"></div><div class="node-avatar bg-creative">LW</div><div class="node-info"><div class="node-name">Lena Wu</div><div class="node-title">UX Designer</div></div></div></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Engineering -->
+                        <div class="tree-branch">
+                            <div class="tree-vline"></div>
+                            <div class="node" onclick="toggle(this)">
+                                <div class="dot off"></div>
+                                <div class="node-avatar bg-engineering">KB</div>
+                                <div class="node-info">
+                                    <div class="node-name">Koda Begay</div>
+                                    <div class="node-title">Engineering Lead</div>
+                                </div>
+                                <div class="node-count">11</div>
+                                <div class="node-chevron">›</div>
+                            </div>
+                            <div class="tree-children">
+                                <div class="tree-vline"></div>
+                                <div class="tree-hbar" style="--hbar-left:5%;--hbar-right:5%;width:400px;height:2px;"></div>
+                                <div class="tree-row">
+                                    <div class="tree-branch"><div class="tree-vline"></div><div class="node"><div class="dot off"></div><div class="node-avatar bg-engineering">CS</div><div class="node-info"><div class="node-name">CodeSmith</div><div class="node-title">Senior Developer</div></div></div></div>
+                                    <div class="tree-branch"><div class="tree-vline"></div><div class="node"><div class="dot off"></div><div class="node-avatar bg-engineering">AT</div><div class="node-info"><div class="node-name">Architect</div><div class="node-title">Systems Architect</div></div></div></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- More stations indicator -->
+                        <div class="tree-branch">
+                            <div class="tree-vline"></div>
+                            <div class="node" style="opacity:0.6;cursor:default;">
+                                <div class="node-avatar" style="background:rgba(255,255,255,0.1);font-size:16px;">+5</div>
+                                <div class="node-info">
+                                    <div class="node-name" style="color:var(--text2);">More Stations</div>
+                                    <div class="node-title">Comms, Research, Logistics, Diplomatic, Ops</div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIGIL + Security -->
+            <div class="tree-branch">
+                <div class="tree-vline"></div>
+                <div class="node expanded" onclick="toggle(this)">
+                    <div class="dot on"></div>
+                    <div class="node-avatar bg-security">VG</div>
+                    <div class="node-info">
+                        <div class="node-name">Vigil</div>
+                        <div class="node-title">Ethics & Governance Officer</div>
+                    </div>
+                    <div class="node-count">7</div>
+                    <div class="node-chevron">›</div>
+                </div>
+                <div class="tree-children open">
+                    <div class="tree-vline"></div>
+                    <div class="tree-hbar" style="--hbar-left:3%;--hbar-right:3%;width:560px;height:2px;"></div>
+                    <div class="tree-row">
+                        <div class="tree-branch"><div class="tree-vline"></div><div class="node"><div class="dot on"></div><div class="node-avatar bg-security">SN</div><div class="node-info"><div class="node-name">Sentinel</div><div class="node-title">Security Lead</div></div></div></div>
+                        <div class="tree-branch"><div class="tree-vline"></div><div class="node"><div class="dot off"></div><div class="node-avatar bg-security">FW</div><div class="node-info"><div class="node-name">Firewall</div><div class="node-title">Network Security</div></div></div></div>
+                        <div class="tree-branch"><div class="tree-vline"></div><div class="node"><div class="dot off"></div><div class="node-avatar bg-security">CC</div><div class="node-info"><div class="node-name">CipherCat</div><div class="node-title">Cryptography</div></div></div></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+<script>
+function toggle(el) {
+    var children = el.parentElement.querySelector('.tree-children');
+    if (!children) return;
+    var isOpen = children.classList.contains('open');
+    if (isOpen) {
+        children.classList.remove('open');
+        el.classList.remove('expanded');
+    } else {
+        children.classList.add('open');
+        el.classList.add('expanded');
+    }
+}
+</script>
+
+</body>
+</html>

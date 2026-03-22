@@ -59,7 +59,7 @@ services:
       - archie_net
 
   sync:
-    image: ghcr.io/kytranempowerment/archie-node:latest
+    image: ghcr.io/kytrankatarn/archie-node:latest
     container_name: archie_node_sync
     restart: unless-stopped
     depends_on:
@@ -92,7 +92,7 @@ services:
       - archie_net
 
   node_api:
-    image: ghcr.io/kytranempowerment/archie-node:latest
+    image: ghcr.io/kytrankatarn/archie-node:latest
     container_name: archie_node_api
     restart: unless-stopped
     depends_on:

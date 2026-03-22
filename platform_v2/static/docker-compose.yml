@@ -1,0 +1,178 @@
+###############################################################################
+# A.R.C.H.I.E. Starship Node - Docker Compose (Phase 1)
+# ============================================================================
+# 4-service stack: Ollama + Postgres + sync_service + node_api
+# Optional 5th service: ComfyUI (GPU nodes only, commented out by default)
+#
+# Required env vars (set in .env):
+#   NODE_ID, HUB_URL, HUB_API_KEY
+#
+# Optional:
+#   OLLAMA_PORT (default 11434), DB_PASSWORD, NODE_API_PORT (default 3001)
+###############################################################################
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: archie_starship_ollama
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_NUM_PARALLEL=4
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - starship_net
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: archie_starship_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: archie_node
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-archie_node_default}
+      POSTGRES_DB: archie_node
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U archie_node"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - starship_net
+
+  sync:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    container_name: archie_starship_sync
+    restart: unless-stopped
+    depends_on:
+      ollama:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ID: ${NODE_ID}
+      HUB_URL: ${HUB_URL}
+      HUB_API_KEY: ${HUB_API_KEY}
+      OLLAMA_HOST: http://ollama:11434
+      DATABASE_URL: postgresql://archie_node:${DB_PASSWORD:-archie_node_default}@postgres:5432/archie_node
+      HEARTBEAT_INTERVAL: "30"
+      SYNC_POLL_INTERVAL: "60"
+      DEPLOYMENT_MODE: "starship"
+      ARCHIE_VERSION: "1.0.0"
+      NODE_TIMEZONE: ${NODE_TIMEZONE:-America/Toronto}
+      COMFYUI_PORT: "${COMFYUI_PORT:-8188}"
+    volumes:
+      - ./node_sync.py:/app/node_sync.py
+      - ./node_api.py:/app/node_api.py
+      - ./migrations:/app/migrations
+      - /var/run/docker.sock:/var/run/docker.sock
+      - comfyui_data:/comfyui/models
+    command: ["python3", "-u", "node_sync.py"]
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f node_sync.py || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - starship_net
+
+  node_api:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    container_name: archie_starship_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://archie_node:${DB_PASSWORD:-archie_node_default}@postgres:5432/archie_node
+      OLLAMA_HOST: http://ollama:11434
+      NODE_ID: ${NODE_ID}
+      NODE_TIMEZONE: ${NODE_TIMEZONE:-America/Toronto}
+    volumes:
+      - ./node_sync.py:/app/node_sync.py
+      - ./node_api.py:/app/node_api.py
+      - ./migrations:/app/migrations
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./docker-compose.node.yml:/app/docker-compose.node.yml:ro
+    command: ["python3", "-u", "node_api.py"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3001/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    ports:
+      - "${NODE_API_PORT:-3001}:3001"
+    networks:
+      - starship_net
+
+  # === ComfyUI for image/video generation (GPU nodes only) ===
+  comfyui:
+    image: comfyui/base:latest
+    container_name: archie_starship_comfyui
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - comfyui_data:/comfyui/models
+    ports:
+      - "${COMFYUI_PORT:-8188}:8188"
+    networks:
+      - starship_net
+
+  # === Tailscale mesh VPN — connects node to ARCHIE fleet mesh ===
+  tailscale:
+    image: tailscale/tailscale:stable
+    container_name: archie_starship_tailscale
+    restart: unless-stopped
+    hostname: ${NODE_NAME:-archie-node}
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      TS_AUTHKEY: ${HEADSCALE_AUTHKEY:-}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_EXTRA_ARGS: "--login-server=${HEADSCALE_URL:-http://192.168.1.200:8095} --ssh"
+      TS_USERSPACE: "false"
+    volumes:
+      - tailscale_data:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    networks:
+      - starship_net
+
+volumes:
+  ollama_data:
+  pg_data:
+  comfyui_data:
+  tailscale_data:
+
+networks:
+  starship_net:
+    driver: bridge

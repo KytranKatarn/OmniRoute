@@ -1,0 +1,145 @@
+<h2>Employee Card Design</h2>
+<p class="subtitle">When you click a department, how should each team member appear?</p>
+
+<div class="cards">
+  <!-- Option A: Compact List -->
+  <div class="card" data-choice="compact-list" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#0f172a;">
+      <div style="font-family:system-ui;color:#e0e0e0;">
+        <div style="color:#8b5cf6;font-weight:bold;font-size:11px;margin-bottom:8px;border-bottom:1px solid #8b5cf633;padding-bottom:4px;">ANALYTICS & INTELLIGENCE</div>
+        <!-- Row 1 -->
+        <div style="display:flex;align-items:center;gap:8px;padding:6px;border-radius:4px;margin-bottom:4px;background:#1e293b;">
+          <div style="width:32px;height:32px;border-radius:50%;background:#8b5cf622;border:1px solid #8b5cf6;display:flex;align-items:center;justify-content:center;font-size:9px;color:#8b5cf6;font-weight:bold;flex-shrink:0;">AO</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:bold;font-size:11px;">Amara Osei</div>
+            <div style="font-size:9px;color:#94a3b8;">Chief Data Analyst</div>
+          </div>
+          <div style="font-size:8px;color:#10b981;">Online</div>
+        </div>
+        <!-- Row 2 -->
+        <div style="display:flex;align-items:center;gap:8px;padding:6px;border-radius:4px;margin-bottom:4px;background:#1e293b;">
+          <div style="width:32px;height:32px;border-radius:50%;background:#8b5cf622;border:1px solid #8b5cf6;display:flex;align-items:center;justify-content:center;font-size:9px;color:#8b5cf6;font-weight:bold;flex-shrink:0;">JP</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:bold;font-size:11px;">Jin Park</div>
+            <div style="font-size:9px;color:#94a3b8;">Embedding & Vision Specialist</div>
+          </div>
+          <div style="font-size:8px;color:#10b981;">Online</div>
+        </div>
+        <!-- Row 3 -->
+        <div style="display:flex;align-items:center;gap:8px;padding:6px;border-radius:4px;background:#1e293b;">
+          <div style="width:32px;height:32px;border-radius:50%;background:#8b5cf622;border:1px solid #8b5cf6;display:flex;align-items:center;justify-content:center;font-size:9px;color:#8b5cf6;font-weight:bold;flex-shrink:0;">PK</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:bold;font-size:11px;">Priya Krishnan</div>
+            <div style="font-size:9px;color:#94a3b8;">Senior Data Scientist</div>
+          </div>
+          <div style="font-size:8px;color:#64748b;">Off Duty</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. Compact List Rows</h3>
+      <p>Small avatar + name + title in horizontal rows. Dense, scannable, works great on mobile. Like a contact list. Click a row to open the profile panel.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Photo Cards Grid -->
+  <div class="card" data-choice="photo-cards" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#0f172a;">
+      <div style="font-family:system-ui;color:#e0e0e0;">
+        <div style="color:#8b5cf6;font-weight:bold;font-size:11px;margin-bottom:8px;border-bottom:1px solid #8b5cf633;padding-bottom:4px;">ANALYTICS & INTELLIGENCE</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+          <!-- Card 1 -->
+          <div style="background:#1e293b;border:1px solid #334155;border-radius:8px;padding:10px;text-align:center;">
+            <div style="width:48px;height:48px;border-radius:50%;background:#8b5cf622;border:2px solid #8b5cf6;margin:0 auto 6px;display:flex;align-items:center;justify-content:center;font-size:14px;color:#8b5cf6;font-weight:bold;">AO</div>
+            <div style="font-weight:bold;font-size:10px;">Amara Osei</div>
+            <div style="font-size:8px;color:#94a3b8;margin-top:2px;">Chief Data Analyst</div>
+            <div style="margin-top:4px;display:flex;gap:2px;justify-content:center;">
+              <span style="font-size:7px;background:#10b98122;color:#10b981;padding:1px 4px;border-radius:3px;">Data</span>
+              <span style="font-size:7px;background:#8b5cf622;color:#8b5cf6;padding:1px 4px;border-radius:3px;">SQL</span>
+            </div>
+          </div>
+          <!-- Card 2 -->
+          <div style="background:#1e293b;border:1px solid #334155;border-radius:8px;padding:10px;text-align:center;">
+            <div style="width:48px;height:48px;border-radius:50%;background:#8b5cf622;border:2px solid #8b5cf6;margin:0 auto 6px;display:flex;align-items:center;justify-content:center;font-size:14px;color:#8b5cf6;font-weight:bold;">JP</div>
+            <div style="font-weight:bold;font-size:10px;">Jin Park</div>
+            <div style="font-size:8px;color:#94a3b8;margin-top:2px;">Vision Specialist</div>
+            <div style="margin-top:4px;display:flex;gap:2px;justify-content:center;">
+              <span style="font-size:7px;background:#00e5ff22;color:#00e5ff;padding:1px 4px;border-radius:3px;">Vision</span>
+              <span style="font-size:7px;background:#fbbf2422;color:#fbbf24;padding:1px 4px;border-radius:3px;">ML</span>
+            </div>
+          </div>
+          <!-- Card 3 -->
+          <div style="background:#1e293b;border:1px solid #334155;border-radius:8px;padding:10px;text-align:center;">
+            <div style="width:48px;height:48px;border-radius:50%;background:#8b5cf622;border:2px solid #8b5cf6;margin:0 auto 6px;display:flex;align-items:center;justify-content:center;font-size:14px;color:#8b5cf6;font-weight:bold;">PK</div>
+            <div style="font-weight:bold;font-size:10px;">Priya Krishnan</div>
+            <div style="font-size:8px;color:#94a3b8;margin-top:2px;">Data Scientist</div>
+            <div style="margin-top:4px;display:flex;gap:2px;justify-content:center;">
+              <span style="font-size:7px;background:#f472b622;color:#f472b6;padding:1px 4px;border-radius:3px;">Stats</span>
+              <span style="font-size:7px;background:#10b98122;color:#10b981;padding:1px 4px;border-radius:3px;">Python</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. Photo Cards Grid</h3>
+      <p>Larger portrait, name, title, and skill tags in a responsive grid. More visual, shows personality. Like a team page on a startup website. Great when portraits are generated.</p>
+    </div>
+  </div>
+
+  <!-- Option C: Hybrid -->
+  <div class="card" data-choice="hybrid" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#0f172a;">
+      <div style="font-family:system-ui;color:#e0e0e0;">
+        <div style="color:#8b5cf6;font-weight:bold;font-size:11px;margin-bottom:8px;border-bottom:1px solid #8b5cf633;padding-bottom:4px;">ANALYTICS & INTELLIGENCE</div>
+        <!-- Department Head - larger -->
+        <div style="display:flex;align-items:center;gap:12px;padding:10px;border-radius:6px;margin-bottom:8px;background:#1e293b;border-left:3px solid #8b5cf6;">
+          <div style="width:44px;height:44px;border-radius:50%;background:#8b5cf622;border:2px solid #8b5cf6;display:flex;align-items:center;justify-content:center;font-size:12px;color:#8b5cf6;font-weight:bold;flex-shrink:0;">PK</div>
+          <div style="flex:1;">
+            <div style="font-weight:bold;font-size:12px;">Priya Krishnan <span style="font-size:9px;color:#8b5cf6;">HEAD</span></div>
+            <div style="font-size:10px;color:#94a3b8;">Senior Data Scientist</div>
+            <div style="display:flex;gap:3px;margin-top:3px;">
+              <span style="font-size:7px;background:#10b98122;color:#10b981;padding:1px 4px;border-radius:3px;">Data Analysis</span>
+              <span style="font-size:7px;background:#8b5cf622;color:#8b5cf6;padding:1px 4px;border-radius:3px;">ML</span>
+            </div>
+          </div>
+        </div>
+        <!-- Team members - compact -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+          <div style="display:flex;align-items:center;gap:6px;padding:5px;border-radius:4px;background:#1e293b;">
+            <div style="width:28px;height:28px;border-radius:50%;background:#8b5cf622;border:1px solid #8b5cf644;display:flex;align-items:center;justify-content:center;font-size:8px;color:#8b5cf6;flex-shrink:0;">AO</div>
+            <div>
+              <div style="font-size:10px;font-weight:bold;">Amara Osei</div>
+              <div style="font-size:8px;color:#94a3b8;">Chief Data Analyst</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;padding:5px;border-radius:4px;background:#1e293b;">
+            <div style="width:28px;height:28px;border-radius:50%;background:#8b5cf622;border:1px solid #8b5cf644;display:flex;align-items:center;justify-content:center;font-size:8px;color:#8b5cf6;flex-shrink:0;">JP</div>
+            <div>
+              <div style="font-size:10px;font-weight:bold;">Jin Park</div>
+              <div style="font-size:8px;color:#94a3b8;">Vision Specialist</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;padding:5px;border-radius:4px;background:#1e293b;">
+            <div style="width:28px;height:28px;border-radius:50%;background:#8b5cf622;border:1px solid #8b5cf644;display:flex;align-items:center;justify-content:center;font-size:8px;color:#8b5cf6;flex-shrink:0;">DC</div>
+            <div>
+              <div style="font-size:10px;font-weight:bold;">Diego Castillo</div>
+              <div style="font-size:8px;color:#94a3b8;">Fundamental Analyst</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;padding:5px;border-radius:4px;background:#1e293b;">
+            <div style="width:28px;height:28px;border-radius:50%;background:#8b5cf622;border:1px solid #8b5cf644;display:flex;align-items:center;justify-content:center;font-size:8px;color:#8b5cf6;flex-shrink:0;">EP</div>
+            <div>
+              <div style="font-size:10px;font-weight:bold;">Elena P.</div>
+              <div style="font-size:8px;color:#94a3b8;">Predictive Analyst</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. Hybrid — Head + Team Grid</h3>
+      <p>Department head gets a larger featured card with skills. Team members below in a compact 2-column grid. Shows hierarchy within each department while staying dense. Best of both worlds.</p>
+    </div>
+  </div>
+</div>

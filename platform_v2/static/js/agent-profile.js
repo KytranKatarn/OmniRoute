@@ -380,6 +380,94 @@
             bodyEl.appendChild(stEl);
         }
 
+        /* ── 7a. Portrait Variants Grid ────────────────────────── */
+        if (data.portrait_variants && data.portrait_variants.length > 0) {
+            var pvCard = makeCard('Portrait Variants', '#f472b6');
+            var pvGrid = el('div', { style: 'display:grid;grid-template-columns:repeat(3,1fr);gap:8px;' });
+
+            data.portrait_variants.forEach(function (pv) {
+                var pvItem = el('div', { style: 'background:rgba(0,0,0,0.3);border-radius:6px;overflow:hidden;cursor:pointer;border:2px solid ' + (pv.is_primary ? '#00e5ff' : 'rgba(255,255,255,0.08)') + ';transition:border-color 0.2s;' + (pv.is_primary ? 'box-shadow:0 0 8px rgba(0,229,255,0.3);' : '') });
+
+                if (pv.canonical_image_path) {
+                    var pvImg = document.createElement('img');
+                    pvImg.src = pv.canonical_image_path;
+                    pvImg.alt = pv.variant_name || 'variant';
+                    pvImg.style.cssText = 'width:100%;aspect-ratio:1;object-fit:cover;display:block;';
+                    pvImg.onerror = function () { this.style.display = 'none'; };
+                    pvItem.appendChild(pvImg);
+
+                    // Click to swap main portrait
+                    pvImg.onclick = function () {
+                        var mainImg = bodyEl.querySelector('.crew-profile-portrait');
+                        if (mainImg) {
+                            mainImg.src = pv.canonical_image_path;
+                            mainImg.style.display = '';
+                        }
+                        var fb = bodyEl.querySelector('.crew-profile-portrait-fallback');
+                        if (fb) fb.style.display = 'none';
+                    };
+                }
+
+                var pvInfo = el('div', { style: 'padding:4px 6px;' });
+                pvInfo.appendChild(el('div', { text: pv.variant_name || 'Default', style: 'font-size:0.65rem;color:#00e5ff;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' }));
+
+                if (pv.benchmark_score != null) {
+                    var scoreColor = pv.benchmark_score >= 8 ? '#00ff41' : pv.benchmark_score >= 5 ? '#ffaa00' : '#ff4444';
+                    pvInfo.appendChild(el('span', { text: pv.benchmark_score.toFixed(1), style: 'font-size:0.6rem;color:' + scoreColor + ';background:rgba(255,255,255,0.05);padding:1px 5px;border-radius:3px;' }));
+                }
+
+                if (pv.is_primary) {
+                    pvInfo.appendChild(el('div', { text: 'PRIMARY', style: 'font-size:0.5rem;color:#00e5ff;font-weight:700;margin-top:2px;letter-spacing:0.05em;' }));
+                }
+
+                pvItem.appendChild(pvInfo);
+                pvGrid.appendChild(pvItem);
+            });
+
+            pvCard.appendChild(pvGrid);
+
+            if (data.portrait_variants.length === 1) {
+                pvCard.appendChild(el('div', { text: 'Single variant \u2014 generate more from Media Studio', style: 'font-size:0.65rem;color:rgba(255,255,255,0.3);text-align:center;margin-top:6px;font-style:italic;' }));
+            }
+
+            bodyEl.appendChild(pvCard);
+        }
+
+        /* ── 7b. Bridge Dispatch Benchmark ─────────────────────── */
+        if (data.benchmark) {
+            var bm = data.benchmark;
+            var bmCard = makeCard('Dispatch Benchmark', '#10b981');
+            var bmGrid = el('div', { style: 'display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;' });
+
+            // Total Jobs
+            var tjBox = el('div', { style: 'background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.15);border-radius:6px;padding:8px;text-align:center;' });
+            tjBox.appendChild(el('div', { text: String(bm.total_jobs), style: 'font-size:1.2rem;font-weight:700;color:#00e5ff;font-family:Orbitron,sans-serif;' }));
+            tjBox.appendChild(el('div', { text: 'Total Jobs', style: 'font-size:0.6rem;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.05em;' }));
+            bmGrid.appendChild(tjBox);
+
+            // Success Rate
+            var sr = bm.success_rate || 0;
+            var srColor = sr >= 90 ? '#10b981' : sr >= 75 ? '#ffaa00' : '#ef4444';
+            var srBox = el('div', { style: 'background:' + srColor + '0f;border:1px solid ' + srColor + '26;border-radius:6px;padding:8px;text-align:center;' });
+            srBox.appendChild(el('div', { text: sr.toFixed(1) + '%', style: 'font-size:1.2rem;font-weight:700;color:' + srColor + ';font-family:Orbitron,sans-serif;' }));
+            srBox.appendChild(el('div', { text: 'Success Rate', style: 'font-size:0.6rem;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.05em;' }));
+            bmGrid.appendChild(srBox);
+
+            // Avg Duration
+            var adBox = el('div', { style: 'background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.15);border-radius:6px;padding:8px;text-align:center;' });
+            var durText = bm.avg_duration_seconds < 60 ? bm.avg_duration_seconds.toFixed(1) + 's' : (bm.avg_duration_seconds / 60).toFixed(1) + 'm';
+            adBox.appendChild(el('div', { text: durText, style: 'font-size:1.2rem;font-weight:700;color:#8b5cf6;font-family:Orbitron,sans-serif;' }));
+            adBox.appendChild(el('div', { text: 'Avg Duration', style: 'font-size:0.6rem;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.05em;' }));
+            bmGrid.appendChild(adBox);
+
+            bmCard.appendChild(bmGrid);
+            bodyEl.appendChild(bmCard);
+        } else if (!data.benchmark) {
+            var nbCard = makeCard('Dispatch Benchmark', '#10b981');
+            nbCard.appendChild(el('span', { text: 'No dispatch history', style: 'font-size:0.75rem;color:rgba(255,255,255,0.3);' }));
+            bodyEl.appendChild(nbCard);
+        }
+
         /* ── 7 + 8. Performance (24h) + Wellness — two columns ─── */
         var gridRow = el('div', { style: 'display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;' });
 

@@ -1515,6 +1515,49 @@ def register_station_routes(bp, admin_required):
                     "icon": avatar,
                 }
 
+                # Portrait variants from agent_portraits table
+                cur.execute(
+                    """
+                    SELECT id, variant_name, canonical_image_path, is_primary,
+                           benchmark_score, benchmark_notes, approved, style_tags, face_seed
+                    FROM agent_portraits
+                    WHERE agent_id = %s
+                    ORDER BY is_primary DESC, variant_name
+                """,
+                    (agent_id,),
+                )
+                portrait_variants = cur.fetchall()
+                for pv in portrait_variants:
+                    for k in ["benchmark_score"]:
+                        if pv.get(k) is not None:
+                            pv[k] = float(pv[k])
+
+                # Bridge jobs benchmark (uses agent code name, not id)
+                agent_code_name = agent.get("name") or ""
+                cur.execute(
+                    """
+                    SELECT
+                        COUNT(*) as total_jobs,
+                        COUNT(*) FILTER (WHERE status = 'completed') as completed_jobs,
+                        COUNT(*) FILTER (WHERE status = 'failed') as failed_jobs,
+                        ROUND(AVG(EXTRACT(EPOCH FROM (completed_at - created_at)))::numeric, 1) as avg_duration_seconds,
+                        ROUND((COUNT(*) FILTER (WHERE status = 'completed')::numeric / NULLIF(COUNT(*), 0) * 100), 1) as success_rate
+                    FROM bridge_jobs
+                    WHERE agent_name = %s
+                """,
+                    (agent_code_name,),
+                )
+                benchmark_row = cur.fetchone()
+                benchmark = None
+                if benchmark_row and benchmark_row.get("total_jobs", 0) > 0:
+                    benchmark = {
+                        "total_jobs": benchmark_row["total_jobs"],
+                        "completed_jobs": benchmark_row["completed_jobs"],
+                        "failed_jobs": benchmark_row["failed_jobs"],
+                        "avg_duration_seconds": float(benchmark_row["avg_duration_seconds"] or 0),
+                        "success_rate": float(benchmark_row["success_rate"] or 0),
+                    }
+
                 result = {
                     "success": True,
                     "agent": agent,
@@ -1527,6 +1570,8 @@ def register_station_routes(bp, admin_required):
                     "rankings": rankings,
                     "shift_history": shift_history,
                     "portraits": portraits,
+                    "portrait_variants": portrait_variants,
+                    "benchmark": benchmark,
                     "performance_24h": {
                         "tasks": perf["tasks_24h"],
                         "completed": perf["completed"],

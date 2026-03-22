@@ -1,5 +1,5 @@
 ###############################################################################
-# A.R.C.H.I.E. Starship Node - Docker Compose (Phase 1)
+# A.R.C.H.I.E. Node - Docker Compose
 # ============================================================================
 # 4-service stack: Ollama + Postgres + sync_service + node_api
 # Optional 5th service: ComfyUI (GPU nodes only, commented out by default)
@@ -14,7 +14,7 @@
 services:
   ollama:
     image: ollama/ollama:latest
-    container_name: archie_starship_ollama
+    container_name: archie_node_ollama
     restart: unless-stopped
     deploy:
       resources:
@@ -38,11 +38,11 @@ services:
       retries: 3
       start_period: 30s
     networks:
-      - starship_net
+      - archie_net
 
   postgres:
     image: postgres:16-alpine
-    container_name: archie_starship_db
+    container_name: archie_node_db
     restart: unless-stopped
     environment:
       POSTGRES_USER: archie_node
@@ -50,20 +50,17 @@ services:
       POSTGRES_DB: archie_node
     volumes:
       - pg_data:/var/lib/postgresql/data
-      - ./migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U archie_node"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - starship_net
+      - archie_net
 
   sync:
-    build:
-      context: .
-      dockerfile: Dockerfile.node
-    container_name: archie_starship_sync
+    image: ghcr.io/kytranempowerment/archie-node:latest
+    container_name: archie_node_sync
     restart: unless-stopped
     depends_on:
       ollama:
@@ -83,9 +80,6 @@ services:
       NODE_TIMEZONE: ${NODE_TIMEZONE:-America/Toronto}
       COMFYUI_PORT: "${COMFYUI_PORT:-8188}"
     volumes:
-      - ./node_sync.py:/app/node_sync.py
-      - ./node_api.py:/app/node_api.py
-      - ./migrations:/app/migrations
       - /var/run/docker.sock:/var/run/docker.sock
       - comfyui_data:/comfyui/models
     command: ["python3", "-u", "node_sync.py"]
@@ -95,13 +89,11 @@ services:
       timeout: 5s
       retries: 3
     networks:
-      - starship_net
+      - archie_net
 
   node_api:
-    build:
-      context: .
-      dockerfile: Dockerfile.node
-    container_name: archie_starship_api
+    image: ghcr.io/kytranempowerment/archie-node:latest
+    container_name: archie_node_api
     restart: unless-stopped
     depends_on:
       postgres:
@@ -112,11 +104,7 @@ services:
       NODE_ID: ${NODE_ID}
       NODE_TIMEZONE: ${NODE_TIMEZONE:-America/Toronto}
     volumes:
-      - ./node_sync.py:/app/node_sync.py
-      - ./node_api.py:/app/node_api.py
-      - ./migrations:/app/migrations
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./docker-compose.node.yml:/app/docker-compose.node.yml:ro
     command: ["python3", "-u", "node_api.py"]
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3001/health || exit 1"]
@@ -126,12 +114,12 @@ services:
     ports:
       - "${NODE_API_PORT:-3001}:3001"
     networks:
-      - starship_net
+      - archie_net
 
   # === ComfyUI for image/video generation (GPU nodes only) ===
   comfyui:
     image: comfyui/base:latest
-    container_name: archie_starship_comfyui
+    container_name: archie_node_comfyui
     restart: unless-stopped
     deploy:
       resources:
@@ -145,34 +133,13 @@ services:
     ports:
       - "${COMFYUI_PORT:-8188}:8188"
     networks:
-      - starship_net
-
-  # === Tailscale mesh VPN — connects node to ARCHIE fleet mesh ===
-  tailscale:
-    image: tailscale/tailscale:stable
-    container_name: archie_starship_tailscale
-    restart: unless-stopped
-    hostname: ${NODE_NAME:-archie-node}
-    cap_add:
-      - NET_ADMIN
-      - SYS_MODULE
-    environment:
-      TS_AUTHKEY: ${HEADSCALE_AUTHKEY:-}
-      TS_STATE_DIR: /var/lib/tailscale
-      TS_EXTRA_ARGS: "--login-server=${HEADSCALE_URL:-http://192.168.1.200:8095} --ssh"
-      TS_USERSPACE: "false"
-    volumes:
-      - tailscale_data:/var/lib/tailscale
-      - /dev/net/tun:/dev/net/tun
-    networks:
-      - starship_net
+      - archie_net
 
 volumes:
   ollama_data:
   pg_data:
   comfyui_data:
-  tailscale_data:
 
 networks:
-  starship_net:
+  archie_net:
     driver: bridge

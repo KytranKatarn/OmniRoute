@@ -787,6 +787,7 @@ def handle_sync(config, sync_type, payload):
         "comfyui_setup": _handle_comfyui_setup,
         "firewall_rule": _handle_firewall_rule,
         "tailscale_status": _handle_tailscale_status,
+        "docker_cleanup": _handle_docker_cleanup,
     }
 
     handler = handlers.get(sync_type)
@@ -839,6 +840,33 @@ def _handle_container_restart(config, payload):
         containers (list[str]): Container names to restart.
             e.g. ["archie_starship_api", "archie_starship_sync"]
     """
+    action = payload.get("action", "restart")
+
+    if action == "pull_and_restart":
+        logger.info("[container_restart] Pulling latest images...")
+        try:
+            pull_result = subprocess.run(
+                ["docker", "pull", "ghcr.io/kytranempowerment/archie-node:latest"],
+                capture_output=True, text=True, timeout=300,
+            )
+            logger.info("[container_restart] Pull exit=%d: %s", pull_result.returncode, pull_result.stdout[:200])
+        except Exception as e:
+            logger.error("[container_restart] Pull failed: %s", e)
+            return json.dumps({"error": f"Pull failed: {e}"})
+
+        # Restart sync and api containers with new image
+        for container in ["archie_node_sync", "archie_node_api"]:
+            try:
+                subprocess.run(
+                    ["docker", "restart", container],
+                    capture_output=True, text=True, timeout=60,
+                )
+                logger.info("[container_restart] Restarted %s", container)
+            except Exception as e:
+                logger.warning("[container_restart] Failed to restart %s: %s", container, e)
+
+        return json.dumps({"action": "pull_and_restart", "status": "completed"})
+
     containers = payload.get("containers", [])
     if not containers:
         return {"status": "skipped", "error": "No containers specified"}
@@ -1586,6 +1614,53 @@ def _handle_shell_exec(config, payload):
     except Exception as e:
         logger.error("[shell_exec] Failed: %s", e)
         return {"status": "failed", "error": str(e)}
+
+
+def _handle_docker_cleanup(config, payload):
+    """Clean up Docker debris — dangling images, unused volumes, build cache."""
+    action = payload.get("action", "report")
+    logger.info("[docker_cleanup] Action: %s", action)
+
+    commands = {
+        "prune_all": ["docker", "system", "prune", "-af", "--volumes"],
+        "prune_images": ["docker", "image", "prune", "-af"],
+        "prune_volumes": ["docker", "volume", "prune", "-f"],
+    }
+
+    result = {"action": action}
+
+    # Get docker disk usage
+    try:
+        du_out = subprocess.run(
+            ["docker", "system", "df"],
+            capture_output=True, text=True, timeout=30,
+        )
+        result["docker_usage"] = du_out.stdout.strip()
+    except Exception as e:
+        result["docker_usage"] = str(e)
+
+    if action == "report":
+        logger.info("[docker_cleanup] Report only — no cleanup performed")
+        return json.dumps(result)
+
+    cmd = commands.get(action)
+    if not cmd:
+        logger.warning("[docker_cleanup] Unknown action: %s", action)
+        return json.dumps({"error": f"Unknown action: {action}"})
+
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        result["output"] = proc.stdout.strip()
+        result["exit_code"] = proc.returncode
+        logger.info("[docker_cleanup] %s completed (exit %d)", action, proc.returncode)
+    except subprocess.TimeoutExpired:
+        result["error"] = "Cleanup timed out after 300s"
+        logger.error("[docker_cleanup] Timed out")
+    except Exception as e:
+        result["error"] = str(e)
+        logger.error("[docker_cleanup] Failed: %s", e)
+
+    return json.dumps(result)
 
 
 def _handle_firewall_rule(config, payload):

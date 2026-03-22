@@ -499,6 +499,97 @@ def register_node_routes(bp, auth_decorator):
             )
         return jsonify({"success": False, "error": "Package not found"}), 404
 
+    @bp.route("/api/nodes/<node_id>/download-zip")
+    @auth_decorator
+    def api_download_node_zip(node_id):
+        """Generate and serve a ZIP with everything needed to run a node.
+
+        Contains: docker-compose.yml, .env (pre-filled), start/stop/update
+        scripts for Windows and Mac. Zero build steps required.
+        """
+        import io
+        import zipfile
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT node_id, node_name, setup_token FROM remote_nodes WHERE node_id = %s",
+                (node_id,),
+            )
+            node = cur.fetchone()
+            if not node:
+                return jsonify({"error": "Node not found"}), 404
+
+            api_key = node.get("setup_token", "")
+            node_name = node.get("node_name", "archie-node")
+
+        hub_url = request.host_url.rstrip("/")
+        external_url = os.environ.get("EXTERNAL_URL", hub_url)
+
+        compose_path = os.path.join(NODE_CLIENT_DIR, "docker-compose.node.yml")
+        if not os.path.exists(compose_path):
+            return jsonify({"error": "Compose template not found"}), 500
+        with open(compose_path) as f:
+            compose_content = f.read()
+
+        env_content = (
+            f"NODE_ID={node_id}\n"
+            f"NODE_NAME={node_name}\n"
+            f"HUB_URL={external_url}\n"
+            f"HUB_API_KEY={api_key}\n"
+            f"DB_PASSWORD=archie_node_default\n"
+            f"OLLAMA_PORT=11434\n"
+            f"NODE_API_PORT=3001\n"
+            f"COMFYUI_PORT=8188\n"
+        )
+
+        scripts = {}
+        for script_name in [
+            "start.bat",
+            "stop.bat",
+            "update.bat",
+            "start.command",
+            "stop.command",
+            "update.command",
+        ]:
+            script_path = os.path.join(NODE_CLIENT_DIR, script_name)
+            if os.path.exists(script_path):
+                with open(script_path) as f:
+                    scripts[script_name] = f.read()
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("docker-compose.yml", compose_content)
+            zf.writestr(".env", env_content)
+            for name, content in scripts.items():
+                zf.writestr(name, content)
+            zf.writestr(
+                "README.txt",
+                "A.R.C.H.I.E. Node — by Kytran Empowerment\n"
+                "==========================================\n\n"
+                "Prerequisites:\n"
+                "  1. Install Docker Desktop from https://docker.com/products/docker-desktop\n"
+                "  2. Start Docker Desktop\n\n"
+                "Setup:\n"
+                "  1. Extract this folder anywhere on your computer\n"
+                "  2. Double-click start.bat (Windows) or start.command (Mac)\n"
+                "  3. Wait ~2 minutes for containers to download and start\n"
+                "  4. Your node will appear in the fleet automatically\n\n"
+                "Commands:\n"
+                "  start.bat / start.command   - Start the node\n"
+                "  stop.bat / stop.command     - Stop the node\n"
+                "  update.bat / update.command - Update to latest version\n\n"
+                f"Node ID: {node_id}\n"
+                f"Hub: {external_url}\n",
+            )
+        buf.seek(0)
+
+        safe_name = node_name.replace(" ", "-").lower()
+        return Response(
+            buf.read(),
+            mimetype="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="ARCHIE-Node-{safe_name}.zip"'},
+        )
+
     # ========================================================================
     # STATION COMMANDS
     # ========================================================================

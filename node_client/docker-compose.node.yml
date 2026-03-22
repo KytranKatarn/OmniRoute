@@ -141,7 +141,7 @@ services:
               count: all
               capabilities: [gpu]
     volumes:
-      - comfyui_data:/app/models
+      - comfyui_data:/comfyui/models
     ports:
       - "${COMFYUI_PORT:-8188}:8188"
     networks:

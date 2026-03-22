@@ -370,9 +370,21 @@ def compose_recreate():
         conn.close()
         return status, data
 
-    container_name = "archie_starship_sync"
     data = request.get_json() or {}
+    container_name = data.get("container_name", "archie_starship_sync")
     add_volumes = data.get("add_volumes", {"comfyui_data": "/comfyui/models"})
+
+    # Safety: only allow recreating known ARCHIE containers
+    ALLOWED_CONTAINERS = {
+        "archie_starship_sync",
+        "archie_starship_api",
+        "archie_starship_comfyui",
+    }
+    if container_name not in ALLOWED_CONTAINERS:
+        return jsonify({
+            "success": False,
+            "error": f"Container not in allowlist. Allowed: {sorted(ALLOWED_CONTAINERS)}",
+        }), 400
 
     try:
         # Step 1: Inspect current sync container
@@ -395,9 +407,13 @@ def compose_recreate():
                 binds.append(bind_str)
                 logger.info("[compose-recreate] Adding volume: %s", bind_str)
 
-        # Step 3: Stop and remove old container
+        # Step 3: Disable restart policy, stop and remove old container
+        _docker_api("POST", f"/containers/{container_name}/update",
+                    body=_json.dumps({"RestartPolicy": {"Name": "no"}}))
         _docker_api("POST", f"/containers/{container_name}/stop?t=10")
-        _docker_api("DELETE", f"/containers/{container_name}")
+        import time as _time
+        _time.sleep(2)
+        _docker_api("DELETE", f"/containers/{container_name}?force=true")
         logger.info("[compose-recreate] Removed old %s", container_name)
 
         # Step 4: Create new container with updated config

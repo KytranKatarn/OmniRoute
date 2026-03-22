@@ -17,6 +17,8 @@ import logging
 import sys
 from datetime import datetime
 
+import psycopg2.extras
+
 from flask import jsonify, request
 from flask_login import login_required, current_user
 
@@ -640,11 +642,12 @@ def register_mesh_routes(bp, admin_required=None):
                 cur.execute(
                     """
                     UPDATE mesh_sync_log
-                    SET status = %s, acknowledged_at = NOW(), error_message = %s
+                    SET status = %s, acknowledged_at = NOW(), error_message = %s,
+                        result_payload = %s
                     WHERE id = %s
                     RETURNING id, acknowledged_at
                     """,
-                    (status, error_message, sync_id),
+                    (status, error_message, psycopg2.extras.Json(ack_payload), sync_id),
                 )
                 row = cur.fetchone()
 

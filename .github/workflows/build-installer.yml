@@ -1,14 +1,13 @@
-name: Build ARCHIE Node Installer (.exe)
+name: Build A.R.C.H.I.E. Node Installer
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - 'node_client/installer/archie_node_installer.py'
-      - 'node_client/installer/build_installer.py'
+      - 'node_client/installer/**'
 
 jobs:
-  build-exe:
+  build-installer:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,11 +20,33 @@ jobs:
       - name: Install PyInstaller
         run: pip install pyinstaller
 
-      - name: Build .exe
+      - name: Install ImageMagick
+        run: choco install imagemagick -y
+
+      - name: Convert PNG to ICO
+        working-directory: node_client/installer
+        run: magick logo-sm.png -define icon:auto-resize=256,48,32,16 archie_icon.ico
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y
+
+      - name: Download NSSM
+        working-directory: node_client/installer
+        run: |
+          Invoke-WebRequest -Uri "https://nssm.cc/release/nssm-2.24.zip" -OutFile nssm.zip
+          Expand-Archive nssm.zip -DestinationPath nssm-temp
+          Copy-Item nssm-temp/nssm-2.24/win64/nssm.exe .
+          Remove-Item -Recurse nssm-temp, nssm.zip
+
+      - name: Build app with PyInstaller
         working-directory: node_client/installer
         run: python build_installer.py
 
-      - name: Upload artifact
+      - name: Build installer with Inno Setup
+        working-directory: node_client/installer
+        run: iscc installer.iss
+
+      - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: ARCHIE-Node-Setup

@@ -1,5 +1,5 @@
 """
-Build script for ARCHIE Node Installer v3.0 .exe
+Build script for A.R.C.H.I.E. Node v4.0 .exe
 
 Wraps PyInstaller to package archie_node_installer.py into a standalone
 single-file Windows executable with no console window.
@@ -7,7 +7,7 @@ single-file Windows executable with no console window.
 Run on a Windows machine with Python 3.8+ and PyInstaller installed:
     python build_installer.py
 
-Output: dist/ARCHIE-Node-Setup.exe
+Output: dist/ARCHIE-Node.exe (app binary — Inno Setup wraps this into the final installer)
 """
 
 import os

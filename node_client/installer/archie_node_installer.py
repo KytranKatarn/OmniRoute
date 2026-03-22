@@ -1,5 +1,5 @@
 """
-A.R.C.H.I.E. Node Setup v3.0 — Windows LCARS GUI Installer
+A.R.C.H.I.E. Node v4.0 — by Kytran Empowerment
 
 A standalone tkinter installer that deploys a full Docker container stack:
 1. Prerequisites check (admin, internet, existing install)
@@ -36,7 +36,7 @@ if platform.system() == "Windows":
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 CLIENT_VERSION = "4.0.0"
-INSTALL_DIR = r"C:\archie-node"
+INSTALL_DIR = r"C:\ARCHIE-Node"
 RESUME_FILE = os.path.join(INSTALL_DIR, "resume_after_reboot.json")
 ENV_FILE = os.path.join(INSTALL_DIR, ".env")
 TOTAL_STEPS = 9
@@ -59,12 +59,12 @@ FONT_MONO = "Consolas"
 
 
 class ArchieInstaller(tk.Tk):
-    """LCARS-themed ARCHIE Node installer with 8-step Docker deployment."""
+    """LCARS-themed A.R.C.H.I.E. Node installer by Kytran Empowerment."""
 
     def __init__(self):
         super().__init__()
 
-        self.title("A.R.C.H.I.E. Node Setup")
+        self.title("A.R.C.H.I.E. Node — by Kytran Empowerment")
         self.geometry("700x500")
         self.resizable(False, False)
         self.configure(bg=BG_DARK)
@@ -112,7 +112,7 @@ class ArchieInstaller(tk.Tk):
 
         title_font = tkfont.Font(family=FONT_MONO, size=16, weight="bold")
         tk.Label(
-            header, text="A.R.C.H.I.E. Node Setup v3.0",
+            header, text="A.R.C.H.I.E. Node v4.0",
             font=title_font, fg=CYAN, bg=BG_DARK, anchor="w",
         ).pack(fill="x")
 
@@ -478,10 +478,10 @@ class ArchieInstaller(tk.Tk):
                 pass
 
             if containers_running:
-                self._log("Existing ARCHIE installation found (containers running).", "yellow")
+                self._log("Existing A.R.C.H.I.E. Node installation found (containers running).", "yellow")
                 answer = self._ask_choice(
                     "Existing Installation",
-                    "An ARCHIE node is already installed and running.\n\n"
+                    "An A.R.C.H.I.E. Node is already installed and running.\n\n"
                     "Choose an option:",
                     ["Upgrade", "Fresh Install", "Cancel"],
                 )
@@ -500,7 +500,7 @@ class ArchieInstaller(tk.Tk):
                 self._log("Existing config found (not running).", "yellow")
                 answer = self._ask_choice(
                     "Existing Config Found",
-                    "A previous ARCHIE node config exists but containers are not running.\n\n"
+                    "A previous A.R.C.H.I.E. Node config exists but containers are not running.\n\n"
                     "Choose an option:",
                     ["Resume", "Fresh Install", "Cancel"],
                 )

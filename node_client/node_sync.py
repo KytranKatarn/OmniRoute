@@ -26,6 +26,7 @@ import subprocess
 import sys
 import threading
 import time
+from datetime import datetime, timezone, timedelta
 
 # ---------------------------------------------------------------------------
 # Optional requests import — fall back to urllib
@@ -67,6 +68,9 @@ logger = logging.getLogger("archie_node_sync")
 # Configuration
 # ---------------------------------------------------------------------------
 CLIENT_VERSION = "3.0.0"
+
+# Container name for ComfyUI on starship nodes
+NODE_COMFYUI_CONTAINER = "archie_starship_comfyui"
 
 
 def _get_config_paths():
@@ -694,6 +698,38 @@ def poll_syncs(config):
 
     logger.info("Received %d pending sync(s)", len(syncs))
 
+    # Filter out stale syncs (>24h old) — auto-expire them
+    now = datetime.now(timezone.utc)
+    fresh_syncs = []
+    for sync_item in syncs:
+        sent_at_str = sync_item.get("sent_at")
+        if sent_at_str:
+            try:
+                sent_at = datetime.fromisoformat(sent_at_str.replace("Z", "+00:00"))
+                if sent_at.tzinfo is None:
+                    sent_at = sent_at.replace(tzinfo=timezone.utc)
+                age = now - sent_at
+                if age > timedelta(hours=24):
+                    sync_id = sync_item.get("id")
+                    logger.warning(
+                        "Sync #%s is stale (%.1fh old) — auto-expiring",
+                        sync_id, age.total_seconds() / 3600,
+                    )
+                    # ACK as expired
+                    ack_url = f"{config['hub_url']}/tools/starbase/api/mesh/sync/{sync_id}/ack"
+                    ack_payload = {
+                        "node_id": config["node_id"],
+                        "status": "expired",
+                        "error_message": f"Stale sync expired after {age.total_seconds() / 3600:.1f}h",
+                        "result": {"status": "expired"},
+                    }
+                    http_post(ack_url, ack_payload, _auth_headers(config))
+                    continue
+            except (ValueError, TypeError):
+                pass  # If we can't parse sent_at, process normally
+        fresh_syncs.append(sync_item)
+    syncs = fresh_syncs
+
     for sync_item in syncs:
         sync_id = sync_item.get("id")
         sync_type = sync_item.get("sync_type", "unknown")
@@ -709,7 +745,7 @@ def poll_syncs(config):
             ack_status = handler_result.get("status", "acknowledged")
             error_message = handler_result.get("error")
         except Exception as exc:
-            logger.error("Sync #%s handler failed: %s", sync_id, exc)
+            logger.exception("Sync #%s handler failed", sync_id)
             ack_status = "failed"
             error_message = str(exc)
 
@@ -1371,6 +1407,13 @@ def _handle_checkpoint_pull(config, payload):
         shutil.move(tmp_file, dest)
         logger.info("[checkpoint_pull] Moved to %s", dest)
 
+        # Restart ComfyUI so it detects the new checkpoint
+        restart_ok, restart_msg = _restart_container(NODE_COMFYUI_CONTAINER)
+        if restart_ok:
+            logger.info("[checkpoint_pull] ComfyUI restarted to detect %s", filename)
+        else:
+            logger.warning("[checkpoint_pull] ComfyUI restart failed: %s", restart_msg)
+
         elapsed = time.time() - start
         speed_mbps = (dl_size / 1e6) / elapsed if elapsed > 0 else 0
         logger.info(
@@ -1383,6 +1426,7 @@ def _handle_checkpoint_pull(config, payload):
             "size_bytes": dl_size,
             "elapsed_seconds": round(elapsed, 1),
             "speed_mbps": round(speed_mbps, 1),
+            "comfyui_restarted": restart_ok,
         }
     except Exception as e:
         if os.path.exists(tmp_file):
@@ -1672,7 +1716,7 @@ def _handle_comfyui_setup(config, payload):
     port = int(payload.get("port", 8188))
     use_gpu = payload.get("gpu", True)
 
-    container_name = "archie_starship_comfyui"
+    container_name = NODE_COMFYUI_CONTAINER
     image = payload.get("image", "yanwk/comfyui-boot:latest")
     logger.info("[comfyui_setup] Action: %s, image: %s", action, image)
 

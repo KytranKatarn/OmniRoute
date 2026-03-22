@@ -380,7 +380,7 @@
             bodyEl.appendChild(stEl);
         }
 
-        /* ── 7a. Portrait Variants Grid ────────────────────────── */
+        /* ── 7a. Portrait Variants Grid (Admin only) ─────────── */
         if (data.portrait_variants && data.portrait_variants.length > 0) {
             var pvCard = makeCard('Portrait Variants', '#f472b6');
             var pvGrid = el('div', { style: 'display:grid;grid-template-columns:repeat(3,1fr);gap:8px;' });
@@ -430,7 +430,7 @@
                 pvCard.appendChild(el('div', { text: 'Single variant \u2014 generate more from Media Studio', style: 'font-size:0.65rem;color:rgba(255,255,255,0.3);text-align:center;margin-top:6px;font-style:italic;' }));
             }
 
-            bodyEl.appendChild(pvCard);
+            editSection.appendChild(pvCard);
         }
 
         /* ── 7b. Bridge Dispatch Benchmark ─────────────────────── */
@@ -461,11 +461,11 @@
             bmGrid.appendChild(adBox);
 
             bmCard.appendChild(bmGrid);
-            bodyEl.appendChild(bmCard);
+            editSection.appendChild(bmCard);
         } else if (!data.benchmark) {
             var nbCard = makeCard('Dispatch Benchmark', '#10b981');
             nbCard.appendChild(el('span', { text: 'No dispatch history', style: 'font-size:0.75rem;color:rgba(255,255,255,0.3);' }));
-            bodyEl.appendChild(nbCard);
+            editSection.appendChild(nbCard);
         }
 
         /* ── 7 + 8. Performance (24h) + Wellness — two columns ─── */

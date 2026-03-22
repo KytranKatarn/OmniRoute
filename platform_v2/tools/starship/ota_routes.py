@@ -385,7 +385,7 @@ def register_ota_routes(bp, auth_decorator):
                 cur.execute(
                     """
                     SELECT id, sync_type, status, sent_at, acknowledged_at,
-                           error_message
+                           error_message, result_payload
                     FROM mesh_sync_log
                     WHERE node_id = %s
                     ORDER BY sent_at DESC
@@ -405,6 +405,7 @@ def register_ota_routes(bp, auth_decorator):
                         "sent_at": r["sent_at"].isoformat() if r["sent_at"] else None,
                         "acknowledged_at": r["acknowledged_at"].isoformat() if r["acknowledged_at"] else None,
                         "error_message": r["error_message"],
+                        "result_payload": r["result_payload"],
                     }
                 )
 

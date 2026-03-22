@@ -14,8 +14,11 @@ services:
       - "8880:8080"   # HTTP API / Webmail fallback
     volumes:
       - ./data:/opt/stalwart-mail
+      - ./dkim-private.pem:/opt/stalwart/etc/dkim-private.pem:ro
     environment:
       - STALWART_HOSTNAME=mail.kytranempowerment.com
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
     networks:
       - archie_network
 

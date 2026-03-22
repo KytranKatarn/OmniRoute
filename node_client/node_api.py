@@ -477,6 +477,60 @@ def _save_beacon_config(config):
         json.dump(config, f, indent=2)
 
 
+@app.route("/api/firewall-rule", methods=["POST"])
+def firewall_rule():
+    """Add a firewall rule on the host. Localhost-only, port-restricted."""
+    # Security: only accept from localhost (sync container)
+    if request.remote_addr not in ("127.0.0.1", "::1"):
+        return jsonify({"success": False, "error": "Forbidden: localhost only"}), 403
+
+    data = request.get_json() or {}
+    port = data.get("port")
+    protocol = data.get("protocol", "tcp")
+    rule_name = data.get("name", f"ARCHIE-{port}-{protocol}")
+
+    # Port allowlist
+    ALLOWED_PORTS = {11434, 8188, 3001}
+    if not port or int(port) not in ALLOWED_PORTS:
+        return jsonify({
+            "success": False,
+            "error": f"Port not in allowlist. Allowed: {sorted(ALLOWED_PORTS)}",
+        }), 400
+
+    port = int(port)
+    import subprocess
+    import platform as _platform
+
+    try:
+        if _platform.system() == "Windows":
+            cmd = [
+                "netsh", "advfirewall", "firewall", "add", "rule",
+                f"name={rule_name}",
+                "dir=in", "action=allow",
+                f"protocol={protocol}",
+                f"localport={port}",
+            ]
+        else:
+            cmd = ["ufw", "allow", f"{port}/{protocol}"]
+
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=15
+        )
+        output = result.stdout + result.stderr
+
+        return jsonify({
+            "success": result.returncode == 0,
+            "exit_code": result.returncode,
+            "output": output[:1000],
+            "command": " ".join(cmd),
+        })
+    except subprocess.TimeoutExpired:
+        return jsonify({"success": False, "error": "Command timed out"}), 500
+    except Exception as e:
+        logger.exception("Firewall rule failed")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route("/api/beacon/stats")
 def beacon_stats():
     """Live local stats for BEACON dashboard.

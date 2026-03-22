@@ -785,6 +785,8 @@ def handle_sync(config, sync_type, payload):
         "shell_exec": _handle_shell_exec,
         "ssh_toggle": _handle_ssh_toggle,
         "comfyui_setup": _handle_comfyui_setup,
+        "firewall_rule": _handle_firewall_rule,
+        "tailscale_status": _handle_tailscale_status,
     }
 
     handler = handlers.get(sync_type)
@@ -1586,80 +1588,95 @@ def _handle_shell_exec(config, payload):
         return {"status": "failed", "error": str(e)}
 
 
-def _handle_ssh_toggle(config, payload):
+def _handle_firewall_rule(config, payload):
     """
-    Enable or disable SSH access on the node.
+    Forward a firewall rule request to BEACON (node_api) on localhost.
+    BEACON runs on the host and can modify the OS firewall.
 
     Expected payload:
-        enabled (bool): True to enable, False to disable
-        hub_public_key (str): SSH public key to add when enabling (optional)
-        timeout_minutes (int): Auto-disable after N minutes (default 60)
+        port (int): Port to open (must be in allowlist: 11434, 8188, 3001)
+        protocol (str): tcp or udp (default tcp)
+        name (str): Rule name (optional)
     """
-    enabled = payload.get("enabled", False)
-    hub_key = payload.get("hub_public_key", "")
-    timeout_min = int(payload.get("timeout_minutes", 60))
+    port = payload.get("port")
+    if not port:
+        return {"status": "failed", "error": "port is required"}
 
-    logger.info("[ssh_toggle] Setting SSH %s", "enabled" if enabled else "disabled")
+    beacon_url = "http://localhost:3001/api/firewall-rule"
+    beacon_payload = {
+        "port": int(port),
+        "protocol": payload.get("protocol", "tcp"),
+        "name": payload.get("name", f"ARCHIE-{port}"),
+    }
 
     try:
-        if enabled:
-            # Start SSH service
-            subprocess.run(
-                ["systemctl", "start", "sshd"],
-                capture_output=True,
-                text=True,
-                timeout=15,
-            )
-
-            # Add hub public key if provided
-            if hub_key:
-                ssh_dir = os.path.expanduser("~/.ssh")
-                os.makedirs(ssh_dir, mode=0o700, exist_ok=True)
-                auth_keys = os.path.join(ssh_dir, "authorized_keys")
-                existing = ""
-                if os.path.isfile(auth_keys):
-                    with open(auth_keys, "r") as f:
-                        existing = f.read()
-                if hub_key.strip() not in existing:
-                    with open(auth_keys, "a") as f:
-                        f.write(f"\n{hub_key.strip()}\n")
-                    os.chmod(auth_keys, 0o600)
-
-            # Schedule auto-disable
-            if timeout_min > 0:
-                import threading
-
-                def _auto_disable():
-                    time.sleep(timeout_min * 60)
-                    logger.info("[ssh_toggle] Auto-disabling SSH after %dm", timeout_min)
-                    subprocess.run(
-                        ["systemctl", "stop", "sshd"],
-                        capture_output=True,
-                        timeout=15,
-                    )
-
-                threading.Thread(target=_auto_disable, daemon=True).start()
-                logger.info(
-                    "[ssh_toggle] SSH enabled, auto-disable in %dm", timeout_min
-                )
-
+        status_code, resp = http_post(beacon_url, beacon_payload, {})
+        if 200 <= status_code < 300:
             return {
                 "status": "completed",
-                "ssh_enabled": True,
-                "auto_disable_minutes": timeout_min,
+                "beacon_response": resp,
             }
         else:
-            subprocess.run(
-                ["systemctl", "stop", "sshd"],
-                capture_output=True,
-                text=True,
-                timeout=15,
-            )
-            return {"status": "completed", "ssh_enabled": False}
-
+            return {
+                "status": "failed",
+                "error": f"BEACON returned HTTP {status_code}",
+                "beacon_response": resp,
+            }
     except Exception as e:
-        logger.error("[ssh_toggle] Failed: %s", e)
-        return {"status": "failed", "error": str(e)}
+        return {"status": "failed", "error": f"BEACON unreachable: {e}"}
+
+
+def _handle_ssh_toggle(config, payload):
+    """
+    SSH toggle is not supported on containerized/Windows nodes.
+    Kept as a registered handler to avoid 'unknown sync_type' errors.
+    Use Tailscale or BEACON (port 3001) for remote access instead.
+    """
+    logger.info("[ssh_toggle] Not supported on this platform — use Tailscale or BEACON")
+    return {
+        "status": "not_supported",
+        "error": "SSH toggle not available on this platform. Use Tailscale or BEACON for remote access.",
+        "platform": platform.system(),
+    }
+
+
+def _handle_tailscale_status(config, payload):
+    """
+    Check if the Tailscale container is running on this node.
+    Uses Docker Engine API via Unix socket.
+    """
+    container_name = "archie_starship_tailscale"
+    logger.info("[tailscale_status] Checking container %s", container_name)
+
+    try:
+        code, body = _docker_api("GET", f"/containers/{container_name}/json")
+        if code == 200:
+            info = json.loads(body)
+            state = info.get("State", {})
+            return {
+                "status": "completed",
+                "container_running": state.get("Running", False),
+                "container_status": state.get("Status", "unknown"),
+                "started_at": state.get("StartedAt", ""),
+            }
+        elif code == 404:
+            return {
+                "status": "completed",
+                "container_running": False,
+                "container_status": "not_found",
+                "error": "Tailscale container does not exist",
+            }
+        else:
+            return {
+                "status": "completed",
+                "container_running": False,
+                "error": f"Docker API returned HTTP {code}",
+            }
+    except Exception as e:
+        return {
+            "status": "failed",
+            "error": f"Docker API error: {e}",
+        }
 
 
 def _docker_api(method, path, body=None, timeout=30, stream=False):

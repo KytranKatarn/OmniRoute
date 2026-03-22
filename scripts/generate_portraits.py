@@ -1,23 +1,32 @@
 #!/usr/bin/env python3
 """
 Generate photorealistic professional headshot portraits for ALL ARCHIE platform agents.
-Uses ComfyUI API on hub (192.168.1.200:8188) with RealVisXL_V4.0 checkpoint.
+
+Default mode routes through Bridge dispatcher for automatic VRAM swap management,
+fleet GPU routing (hub M4000 + node RTX 3070), job tracking, and parallel generation.
 
 Usage:
-    python3 generate_portraits.py                    # Generate ALL portraits (overwrites existing)
+    python3 generate_portraits.py                    # Generate ALL via Bridge (parallel)
     python3 generate_portraits.py --missing-only      # Only generate missing portraits
     python3 generate_portraits.py --agent-id 8       # Generate for specific agent ID
     python3 generate_portraits.py --checkpoint RealVisXL_V4.0.safetensors
-    python3 generate_portraits.py --node starship    # Use Starship GPU (SD1.5 only)
-    python3 generate_portraits.py --dry-run           # Show what would be generated
+    python3 generate_portraits.py --no-parallel       # Serial Bridge dispatch (one at a time)
+    python3 generate_portraits.py --direct            # Bypass Bridge, talk to ComfyUI directly
+    python3 generate_portraits.py --direct --node starship  # Direct mode + specific node
+    python3 generate_portraits.py --dry-run           # Show prompts without generating
     python3 generate_portraits.py --sd15              # Use SD1.5 for faster generation
+
+Requires DB_PASSWORD env var when running outside Docker.
 """
 
 import argparse
+import concurrent.futures
 import json
 import os
+import shutil
 import sys
 import time
+import threading
 import urllib.request
 import urllib.error
 from pathlib import Path
@@ -265,6 +274,9 @@ def build_prompt(agent):
     return prompt
 
 
+# ── Direct ComfyUI helpers (used in --direct fallback mode) ─────────────────
+
+
 def get_available_checkpoints(comfyui_url):
     """List checkpoints available on a ComfyUI instance."""
     try:
@@ -399,13 +411,20 @@ def download_image(comfyui_url, image_info, dest_path):
         return False
 
 
-def save_to_db(agent_id, image_path, prompt, seed, checkpoint, comfyui_url, gen_time_ms, width, height, file_size):
+def save_to_db(agent_id, image_path, prompt, seed, checkpoint, gpu_source, gen_time_ms, width, height, file_size):
     """Save portrait record to agent_portraits table and update agents.avatar_url."""
     conn = get_db()
     cur = conn.cursor()
-    # Determine GPU info from URL
-    gpu_host = "hub" if "200" in comfyui_url else "starship"
-    gpu_model = "Quadro M4000" if gpu_host == "hub" else "RTX 3070"
+    # Determine GPU info — gpu_source is either a URL or a host label from Bridge
+    if isinstance(gpu_source, str) and ("200" in gpu_source or gpu_source == "hub"):
+        gpu_host = "hub"
+        gpu_model = "Quadro M4000"
+    elif isinstance(gpu_source, str) and ("246" in gpu_source or gpu_source == "starship"):
+        gpu_host = "starship"
+        gpu_model = "RTX 3070"
+    else:
+        gpu_host = str(gpu_source) if gpu_source else "bridge"
+        gpu_model = "auto-routed"
 
     try:
         # Delete any existing portrait record for this agent, then insert fresh
@@ -434,6 +453,253 @@ def save_to_db(agent_id, image_path, prompt, seed, checkpoint, comfyui_url, gen_
         conn.close()
 
 
+# ── Bridge dispatch mode ────────────────────────────────────────────────────
+
+# Thread-safe print lock for parallel output
+_print_lock = threading.Lock()
+
+
+def _tprint(*args, **kwargs):
+    """Thread-safe print."""
+    with _print_lock:
+        print(*args, **kwargs)
+
+
+def _get_bridge_dispatcher():
+    """Import and return the Bridge dispatcher singleton."""
+    # Add ai_bridge to path so imports resolve
+    ai_bridge_dir = os.path.join(os.path.dirname(__file__), "..", "ai_bridge")
+    platform_dir = os.path.join(os.path.dirname(__file__), "..", "platform_v2")
+    for p in [ai_bridge_dir, platform_dir]:
+        p = os.path.normpath(p)
+        if p not in sys.path:
+            sys.path.insert(0, p)
+
+    from bridge_dispatcher import get_dispatcher
+    return get_dispatcher()
+
+
+def dispatch_portrait(dispatcher, agent, prompt, checkpoint, width, height, idx, total):
+    """Generate a single portrait via Bridge dispatch.
+
+    Returns (agent_code, success, gen_time_ms, file_path_or_error) tuple.
+    """
+    code = agent["name"].lower()
+    name = agent["display_name"] or agent["name"]
+    dest_path = os.path.join(PORTRAITS_DIR, f"{code}.png")
+
+    _tprint(f"[{idx}/{total}] Dispatching via Bridge: {name} -> {code}.png")
+
+    is_sdxl = "XL" in checkpoint or "xl" in checkpoint or "sdxl" in checkpoint
+    steps = 25 if is_sdxl else 20
+    cfg = 7.0 if is_sdxl else 7.5
+
+    context = {
+        "image_model": checkpoint,
+        "width": width,
+        "height": height,
+        "steps": steps,
+        "cfg": cfg,
+        "negative_prompt": NEGATIVE_PROMPT,
+    }
+
+    gen_start = time.time()
+    try:
+        result = dispatcher.request_work(
+            capability="image_generation",
+            prompt=prompt,
+            module_id="portrait_generator",
+            context=context,
+            priority="normal",
+            timeout=600,
+            prefer_gpu=True,
+        )
+    except Exception as e:
+        gen_time_ms = int((time.time() - gen_start) * 1000)
+        return (code, False, gen_time_ms, f"Bridge dispatch error: {e}")
+
+    gen_time_ms = int((time.time() - gen_start) * 1000)
+
+    if not result or not result.success:
+        error_msg = getattr(result, "error", None) or "Unknown dispatch failure"
+        return (code, False, gen_time_ms, f"Bridge failed: {error_msg}")
+
+    # result.response contains the generated image file path
+    bridge_image_path = result.response
+    target_host = (result.metadata or {}).get("target_host", "unknown")
+
+    # Copy the Bridge-generated image to our portraits directory
+    try:
+        if bridge_image_path and os.path.exists(bridge_image_path):
+            shutil.copy2(bridge_image_path, dest_path)
+        elif bridge_image_path and bridge_image_path.startswith("/"):
+            # Might be a relative-to-platform path; try absolute
+            shutil.copy2(bridge_image_path, dest_path)
+        else:
+            return (code, False, gen_time_ms, f"Bridge returned no file path: {bridge_image_path}")
+    except Exception as e:
+        return (code, False, gen_time_ms, f"Failed to copy image: {e}")
+
+    if not os.path.exists(dest_path):
+        return (code, False, gen_time_ms, "Image file not found after copy")
+
+    file_size = os.path.getsize(dest_path)
+    rel_path = f"/static/media/portraits/{code}.png"
+
+    # Use a deterministic seed for DB record (Bridge generates its own seed internally)
+    seed = hash(code) % (2**32)
+    save_to_db(
+        agent["id"], rel_path, prompt, seed, checkpoint,
+        target_host, gen_time_ms, width, height, file_size,
+    )
+
+    _tprint(
+        f"  DONE: {code}.png ({file_size/1024:.0f}KB, {gen_time_ms/1000:.1f}s, "
+        f"host={target_host}, agent={result.agent_name})"
+    )
+    return (code, True, gen_time_ms, rel_path)
+
+
+def generate_bridge_parallel(agents, checkpoint, width, height, max_workers=2):
+    """Generate portraits in parallel via Bridge dispatch across fleet GPUs."""
+    dispatcher = _get_bridge_dispatcher()
+
+    generated = 0
+    failed = 0
+    failed_agents = []
+    total = len(agents)
+
+    print(f"\n  Parallel mode: {max_workers} workers (Bridge routes to best GPU)")
+    print()
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {}
+        for i, agent in enumerate(agents):
+            prompt = build_prompt(agent)
+            future = executor.submit(
+                dispatch_portrait, dispatcher, agent, prompt,
+                checkpoint, width, height, i + 1, total,
+            )
+            futures[future] = agent["name"].lower()
+
+        for future in concurrent.futures.as_completed(futures):
+            code = futures[future]
+            try:
+                code, success, gen_time_ms, detail = future.result()
+                if success:
+                    generated += 1
+                else:
+                    failed += 1
+                    failed_agents.append(code)
+                    _tprint(f"  FAILED: {code} -- {detail}")
+            except Exception as e:
+                failed += 1
+                failed_agents.append(code)
+                _tprint(f"  FAILED: {code} -- {e}")
+
+    return generated, failed, failed_agents
+
+
+def generate_bridge_serial(agents, checkpoint, width, height):
+    """Generate portraits one at a time via Bridge dispatch."""
+    dispatcher = _get_bridge_dispatcher()
+
+    generated = 0
+    failed = 0
+    failed_agents = []
+    total = len(agents)
+
+    print(f"\n  Serial mode (Bridge dispatch, one at a time)")
+    print()
+
+    for i, agent in enumerate(agents):
+        prompt = build_prompt(agent)
+        code, success, gen_time_ms, detail = dispatch_portrait(
+            dispatcher, agent, prompt, checkpoint, width, height, i + 1, total,
+        )
+        if success:
+            generated += 1
+        else:
+            failed += 1
+            failed_agents.append(code)
+            print(f"  FAILED: {code} -- {detail}")
+
+    return generated, failed, failed_agents
+
+
+# ── Direct ComfyUI mode (legacy fallback) ──────────────────────────────────
+
+
+def generate_direct(agents, comfyui_url, checkpoint, width, height, fixed_seed=None):
+    """Generate portraits via direct ComfyUI HTTP calls (bypasses Bridge)."""
+    generated = 0
+    failed = 0
+    skipped = 0
+    failed_agents = []
+
+    for i, agent in enumerate(agents):
+        name = agent["display_name"] or agent["name"]
+        code = agent["name"].lower()
+        dest_path = os.path.join(PORTRAITS_DIR, f"{code}.png")
+
+        print(f"[{i+1}/{len(agents)}] Generating: {name} -> {code}.png")
+
+        prompt = build_prompt(agent)
+        # Seed: reproducible per agent but includes a run timestamp component
+        # so re-runs generate fresh images (avoids ComfyUI caching)
+        run_seed_offset = int(time.time()) % 100000
+        seed = fixed_seed if fixed_seed else (agent["id"] * 7919 + 42 + run_seed_offset) % (2**32)
+
+        workflow = build_workflow(prompt, NEGATIVE_PROMPT, checkpoint, seed, width, height)
+
+        gen_start = time.time()
+        prompt_id = queue_prompt(comfyui_url, workflow)
+        if not prompt_id:
+            print(f"  FAILED to queue")
+            failed += 1
+            failed_agents.append(code)
+            continue
+
+        print(f"  Queued: {prompt_id}, seed={seed}, waiting...")
+        images = wait_for_completion(comfyui_url, prompt_id, timeout=600)
+        gen_time_ms = int((time.time() - gen_start) * 1000)
+
+        if images == "CACHED":
+            # Cached result -- file may already exist from prior run
+            if os.path.exists(dest_path):
+                print(f"  SKIPPED (cached, file exists): {code}.png")
+                skipped += 1
+            else:
+                print(f"  FAILED -- cached but no file on disk")
+                failed += 1
+                failed_agents.append(code)
+            continue
+
+        if not images:
+            print(f"  FAILED -- no images returned")
+            failed += 1
+            failed_agents.append(code)
+            continue
+
+        if download_image(comfyui_url, images[0], dest_path):
+            file_size = os.path.getsize(dest_path)
+            rel_path = f"/static/media/portraits/{code}.png"
+            save_to_db(
+                agent["id"], rel_path, prompt, seed, checkpoint,
+                comfyui_url, gen_time_ms, width, height, file_size,
+            )
+            print(f"  DONE: {rel_path} ({file_size/1024:.0f}KB, {gen_time_ms/1000:.1f}s)")
+            generated += 1
+        else:
+            failed += 1
+            failed_agents.append(code)
+
+    return generated, failed, failed_agents, skipped
+
+
+# ── Main ────────────────────────────────────────────────────────────────────
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate agent portraits via ComfyUI")
     parser.add_argument("--agent-id", type=int, help="Generate for specific agent ID")
@@ -442,27 +708,38 @@ def main():
         "--node",
         choices=["hub", "starship"],
         default="hub",
-        help="Which GPU to use (default: hub with RealVisXL)",
+        help="Which GPU to use in --direct mode (default: hub with RealVisXL)",
     )
     parser.add_argument("--dry-run", action="store_true", help="Show prompts without generating")
     parser.add_argument("--missing-only", action="store_true", help="Only generate missing portraits")
     parser.add_argument("--sd15", action="store_true", help="Use SD1.5 (faster, lower quality)")
     parser.add_argument("--seed", type=int, help="Fixed seed for reproducibility")
     parser.add_argument("--start-from", type=int, default=0, help="Start from Nth agent (for resuming)")
+
+    # Bridge vs direct mode
+    parser.add_argument(
+        "--direct", action="store_true",
+        help="Bypass Bridge dispatcher — talk to ComfyUI HTTP API directly (legacy mode)",
+    )
+    parser.add_argument(
+        "--no-parallel", action="store_true",
+        help="Disable parallel generation (serial Bridge dispatch)",
+    )
+    parser.add_argument(
+        "--workers", type=int, default=2,
+        help="Number of parallel workers for Bridge mode (default: 2, one per GPU)",
+    )
     args = parser.parse_args()
 
     os.makedirs(PORTRAITS_DIR, exist_ok=True)
-
-    # Determine ComfyUI endpoint
-    comfyui_url = STARSHIP_COMFYUI if args.node == "starship" else HUB_COMFYUI
 
     # Determine checkpoint and resolution
     if args.checkpoint:
         checkpoint = args.checkpoint
         is_sdxl = "XL" in checkpoint or "xl" in checkpoint or "sdxl" in checkpoint
-    elif args.sd15 or args.node == "starship":
-        # Starship only has SD1.5; also use SD1.5 if --sd15 flag
-        checkpoint = "v1-5-pruned-emaonly.ckpt" if args.node == "starship" else SD15_CHECKPOINT
+    elif args.sd15 or (args.direct and args.node == "starship"):
+        # Starship only has SD1.5 in direct mode; also use SD1.5 if --sd15 flag
+        checkpoint = "v1-5-pruned-emaonly.ckpt" if (args.direct and args.node == "starship") else SD15_CHECKPOINT
         is_sdxl = False
     else:
         checkpoint = DEFAULT_CHECKPOINT
@@ -470,17 +747,27 @@ def main():
 
     width, height = SDXL_RES if is_sdxl else SD15_RES
 
+    # Determine routing mode
+    if args.direct:
+        comfyui_url = STARSHIP_COMFYUI if args.node == "starship" else HUB_COMFYUI
+        routing = f"DIRECT -> {comfyui_url}"
+    elif args.no_parallel:
+        routing = "BRIDGE (serial)"
+    else:
+        routing = f"BRIDGE (parallel, {args.workers} workers)"
+
     print(f"═══════════════════════════════════════════════════")
     print(f"  ARCHIE Agent Portrait Generator")
     print(f"═══════════════════════════════════════════════════")
-    print(f"  ComfyUI:    {comfyui_url}")
+    print(f"  Routing:    {routing}")
     print(f"  Checkpoint: {checkpoint}")
     print(f"  Resolution: {width}x{height}")
     print(f"  Mode:       {'Dry Run' if args.dry_run else 'LIVE GENERATION'}")
     print(f"═══════════════════════════════════════════════════")
 
-    # Verify checkpoint availability
-    if not args.dry_run:
+    # Verify checkpoint availability in direct mode
+    if args.direct and not args.dry_run:
+        comfyui_url = STARSHIP_COMFYUI if args.node == "starship" else HUB_COMFYUI
         checkpoints = get_available_checkpoints(comfyui_url)
         if not checkpoints:
             print(f"ERROR: Cannot reach ComfyUI at {comfyui_url}")
@@ -504,81 +791,46 @@ def main():
             name = agent["display_name"] or agent["name"]
             code = agent["name"].lower()
             prompt = build_prompt(agent)
-            print(f"  [{i+1}] {name} → {code}.png")
+            print(f"  [{i+1}] {name} -> {code}.png")
             print(f"      {prompt[:120]}...")
             print()
         return
 
+    if not agents:
+        print("  No agents to generate. Done.")
+        return
+
     # ── Generate portraits ──────────────────────────────────────────────────
-    generated = 0
-    failed = 0
+    total_start = time.time()
     skipped = 0
-    failed_agents = []
 
-    for i, agent in enumerate(agents):
-        name = agent["display_name"] or agent["name"]
-        code = agent["name"].lower()
-        dest_path = os.path.join(PORTRAITS_DIR, f"{code}.png")
+    if args.direct:
+        # Legacy direct ComfyUI mode
+        comfyui_url = STARSHIP_COMFYUI if args.node == "starship" else HUB_COMFYUI
+        generated, failed, failed_agents, skipped = generate_direct(
+            agents, comfyui_url, checkpoint, width, height, args.seed,
+        )
+    elif args.no_parallel:
+        # Bridge serial mode
+        generated, failed, failed_agents = generate_bridge_serial(
+            agents, checkpoint, width, height,
+        )
+    else:
+        # Bridge parallel mode (default)
+        generated, failed, failed_agents = generate_bridge_parallel(
+            agents, checkpoint, width, height, max_workers=args.workers,
+        )
 
-        print(f"[{i+1}/{len(agents)}] Generating: {name} → {code}.png")
-
-        prompt = build_prompt(agent)
-        # Seed: reproducible per agent but includes a run timestamp component
-        # so re-runs generate fresh images (avoids ComfyUI caching)
-        run_seed_offset = int(time.time()) % 100000
-        seed = args.seed if args.seed else (agent["id"] * 7919 + 42 + run_seed_offset) % (2**32)
-
-        workflow = build_workflow(prompt, NEGATIVE_PROMPT, checkpoint, seed, width, height)
-
-        gen_start = time.time()
-        prompt_id = queue_prompt(comfyui_url, workflow)
-        if not prompt_id:
-            print(f"  FAILED to queue")
-            failed += 1
-            failed_agents.append(code)
-            continue
-
-        print(f"  Queued: {prompt_id}, seed={seed}, waiting...")
-        images = wait_for_completion(comfyui_url, prompt_id, timeout=600)
-        gen_time_ms = int((time.time() - gen_start) * 1000)
-
-        if images == "CACHED":
-            # Cached result — file may already exist from prior run
-            if os.path.exists(dest_path):
-                print(f"  SKIPPED (cached, file exists): {code}.png")
-                skipped += 1
-            else:
-                print(f"  FAILED — cached but no file on disk")
-                failed += 1
-                failed_agents.append(code)
-            continue
-
-        if not images:
-            print(f"  FAILED — no images returned")
-            failed += 1
-            failed_agents.append(code)
-            continue
-
-        if download_image(comfyui_url, images[0], dest_path):
-            file_size = os.path.getsize(dest_path)
-            rel_path = f"/static/media/portraits/{code}.png"
-            save_to_db(
-                agent["id"], rel_path, prompt, seed, checkpoint,
-                comfyui_url, gen_time_ms, width, height, file_size,
-            )
-            print(f"  DONE: {rel_path} ({file_size/1024:.0f}KB, {gen_time_ms/1000:.1f}s)")
-            generated += 1
-        else:
-            failed += 1
-            failed_agents.append(code)
+    total_time = time.time() - total_start
 
     # ── Summary ─────────────────────────────────────────────────────────────
     print()
     print(f"═══════════════════════════════════════════════════")
-    print(f"  COMPLETE")
+    print(f"  COMPLETE ({total_time:.1f}s total)")
     print(f"═══════════════════════════════════════════════════")
     print(f"  Generated: {generated}")
-    print(f"  Skipped:   {skipped}")
+    if skipped:
+        print(f"  Skipped:   {skipped}")
     print(f"  Failed:    {failed}")
     print(f"  Total:     {len(agents)}")
     if failed_agents:

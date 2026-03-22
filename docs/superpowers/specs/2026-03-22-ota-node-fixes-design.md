@@ -17,7 +17,7 @@ The OTA system is architecturally sound (hub queues commands in `mesh_sync_log`,
 
 **Changes**:
 - **Migration**: Add `result_payload JSONB` column to `mesh_sync_log`
-- **`mesh_routes.py`** (`mesh_ack_sync`, ~line 640): Store `data.get("result")` into `result_payload` in the UPDATE statement
+- **`mesh_routes.py`** (`mesh_ack_sync`, UPDATE at line 643): The result data is already extracted into `ack_payload` at line 612 via `data.get("result")`. Add `result_payload = %s` to the existing UPDATE and pass `psycopg2.extras.Json(ack_payload)` — do NOT re-extract from `data`.
 - **`ota_routes.py`** (`api_get_sync_log`, ~line 385): Add `result_payload` to the SELECT query and include it in the JSON response
 
 **Verification**: Push a `shell_exec` command (e.g., `echo hello`), confirm the output appears in the sync log API response.
@@ -28,7 +28,7 @@ The OTA system is architecturally sound (hub queues commands in `mesh_sync_log`,
 
 **Changes**:
 - **`node_sync.py`** (`poll_syncs`, handler try/except block): Log full traceback via `logger.exception()` instead of `logger.error("...: %s", exc)` for better post-mortem debugging
-- **`node_sync.py`** (`poll_syncs`, after fetching syncs): Add stale sync expiry — if a sync's `sent_at` is >24h old, auto-ACK as `expired` instead of executing. Prevents stale commands from re-executing after a node restart.
+- **`node_sync.py`** (`poll_syncs`, after fetching syncs): Add stale sync expiry — if a sync's `sent_at` is >24h old, auto-ACK as `expired` instead of executing. Prevents stale commands from re-executing after a node restart. Note: `sent_at` is already included in the hub's pending response (line 573 of `mesh_routes.py`), so the node has the data needed for age checks.
 
 **Verification**: Trigger a handler error (e.g., invalid payload), confirm poller logs full traceback and continues processing remaining syncs. Confirm stale entries are auto-expired.
 
@@ -38,7 +38,8 @@ The OTA system is architecturally sound (hub queues commands in `mesh_sync_log`,
 
 **Changes**:
 - **`node_sync.py`**: Add constant `NODE_COMFYUI_CONTAINER = "archie_starship_comfyui"` near top of file
-- **`node_sync.py`** (`_handle_checkpoint_pull`, after successful move ~line 1372): Call `_restart_container(NODE_COMFYUI_CONTAINER)` to trigger ComfyUI to rescan models. Include restart result in the return dict.
+- **`node_sync.py`** (`_handle_checkpoint_pull`, between the move log at line 1372 and the elapsed calculation at line 1374): Call `_restart_container(NODE_COMFYUI_CONTAINER)` to trigger ComfyUI to rescan models. Include restart result in the return dict.
+- **`node_sync.py`** (`_handle_comfyui_setup`, line 1675): Update existing hardcoded `archie_starship_comfyui` to use the new `NODE_COMFYUI_CONTAINER` constant for consistency.
 - **Hub code**: Any hub references to node ComfyUI container names should use metadata from `remote_nodes` rather than hardcoding `archie_comfyui`. Hub's own ComfyUI name stays as-is.
 
 **Verification**: Push a `checkpoint_pull` for a known model, confirm ComfyUI auto-restarts and the model appears in ComfyUI's `/object_info` or checkpoint list.
@@ -48,7 +49,7 @@ The OTA system is architecturally sound (hub queues commands in `mesh_sync_log`,
 **Root cause**: `shell_exec` runs inside Docker — cannot modify Windows host firewall. BEACON (`node_api.py`, port 3001) runs on the host but only serves health and compose-recreate endpoints.
 
 **Changes**:
-- **`node_api.py`**: Add `POST /api/firewall-rule` endpoint that accepts `{port, protocol, action, name}` and executes `netsh advfirewall firewall add rule` (Windows) or `ufw allow` (Linux). Restricted to ports 11434, 8188, 3001 only (allowlist).
+- **`node_api.py`**: Add `POST /api/firewall-rule` endpoint that accepts `{port, protocol, action, name}` and executes `netsh advfirewall firewall add rule` (Windows) or `ufw allow` (Linux). Restricted to ports 11434, 8188, 3001 only (allowlist). **Security**: Restrict to localhost-only requests (`request.remote_addr == '127.0.0.1'`) since only the sync container calls BEACON locally. Reject all non-localhost requests with 403.
 - **`node_sync.py`**: Add `firewall_rule` sync type handler that forwards the request to BEACON's new endpoint via HTTP POST to `localhost:3001/api/firewall-rule`.
 
 **Verification**: Push a `firewall_rule` sync command for port 8188, confirm BEACON executes the netsh command and returns success.

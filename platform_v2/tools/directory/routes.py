@@ -9,7 +9,7 @@ Date: 2026-03-20
 
 import json
 import logging
-from flask import Blueprint, render_template, jsonify, request, session
+from flask import Blueprint, render_template, jsonify, request, session, make_response
 from flask_login import login_required
 from database import get_db_cursor
 
@@ -25,20 +25,38 @@ bp = Blueprint(
 )
 
 
+ALLOWED_ORIGINS = [
+    "https://www.kytranempowerment.com",
+    "https://kytranempowerment.com",
+    "https://archie.kytranempowerment.com",
+    "http://localhost",
+]
+
+
+@bp.before_request
+def handle_preflight():
+    """Handle CORS preflight (OPTIONS) for Private Network Access."""
+    if request.method == "OPTIONS":
+        origin = request.headers.get("Origin", "")
+        if origin in ALLOWED_ORIGINS:
+            resp = make_response("", 204)
+            resp.headers["Access-Control-Allow-Origin"] = origin
+            resp.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+            resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+            resp.headers["Access-Control-Allow-Private-Network"] = "true"
+            resp.headers["Access-Control-Max-Age"] = "3600"
+            return resp
+
+
 @bp.after_request
 def add_cors_headers(response):
     """Allow cross-origin requests from the public www site."""
     origin = request.headers.get("Origin", "")
-    allowed_origins = [
-        "https://www.kytranempowerment.com",
-        "https://kytranempowerment.com",
-        "https://archie.kytranempowerment.com",
-        "http://localhost",
-    ]
-    if origin in allowed_origins:
+    if origin in ALLOWED_ORIGINS:
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        response.headers["Access-Control-Allow-Private-Network"] = "true"
     return response
 
 

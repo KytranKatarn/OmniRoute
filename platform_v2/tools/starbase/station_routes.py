@@ -1671,59 +1671,55 @@ def register_station_routes(bp, admin_required):
             if not hosts:
                 return jsonify({"success": False, "error": "No ComfyUI hosts available"}), 503
 
-            # For each host, pick the best model and generate in parallel
+            # Build list of (checkpoint, resolution, label) jobs across all hosts
+            # Each available checkpoint on each host = one variant
+            checkpoint_tiers = [
+                ("RealVisXL_V4.0.safetensors", 768, "RealVisXL V4"),
+                ("juggernautXL_v9Rundiffusion.safetensors", 768, "Juggernaut XL"),
+                ("sd_xl_base_1.0.safetensors", 1024, "SDXL Base"),
+                ("v1-5-pruned-emaonly.safetensors", 512, "SD 1.5"),
+                ("v1-5-pruned-emaonly.ckpt", 512, "SD 1.5"),
+            ]
+
+            # Build jobs: one per unique checkpoint found across all hosts
+            jobs = []
+            seen_checkpoints = set()
+            for ckpt, res, label in checkpoint_tiers:
+                if label in seen_checkpoints:
+                    continue
+                for host_info in hosts:
+                    if ckpt in host_info["models"]:
+                        jobs.append((host_info, ckpt, res, label))
+                        seen_checkpoints.add(label)
+                        break
+
+            if not jobs:
+                return jsonify({"success": False, "error": "No checkpoints found on any host"}), 503
+
             variants = []
             lock = threading.Lock()
 
-            def _generate_on_host(host_info):
+            def _generate_variant(host_info, checkpoint, res, label):
                 svc = ComfyUIService(host=host_info["url"])
-                models = host_info["models"]
-                vram = host_info["vram_gb"]
-
-                # Pick best model for this hardware
-                model_tiers = [
-                    (12, "sd_xl_base_1.0.safetensors", 1024, "SDXL"),
-                    (4, "v1-5-pruned-emaonly.safetensors", 512, "SD 1.5"),
-                    (4, "v1-5-pruned-emaonly.ckpt", 512, "SD 1.5"),
-                ]
-                selected_model = None
-                res = 512
-                model_label = "unknown"
-                for min_vram, model, r, label in model_tiers:
-                    if vram >= min_vram and model in models:
-                        selected_model = model
-                        res = r
-                        model_label = label
-                        break
-
-                if not selected_model and models:
-                    # Use first available model
-                    selected_model = models[0]
-                    model_label = selected_model
-
-                if not selected_model:
-                    return
-
                 start = _time.time()
                 try:
                     result = svc.generate_image(
                         prompt=prompt,
-                        model=selected_model,
+                        model=checkpoint,
                         steps=25,
                         width=res,
                         height=res,
                         cfg=7.0,
                     )
                 except Exception as e:
-                    logger.warning("Fan-out gen failed on %s: %s", host_info["name"], e)
+                    logger.warning("Variant gen failed (%s on %s): %s", label, host_info["name"], e)
                     return
 
                 elapsed_ms = int((_time.time() - start) * 1000)
 
                 if result and result.success and result.file_path:
-                    # Copy to unique variant path
                     variant_id = uuid.uuid4().hex[:8]
-                    variant_filename = f"{agent_name}_{host_info['name'].replace('.', '-')}_{variant_id}.png"
+                    variant_filename = f"{agent_name}_{label.lower().replace(' ', '-')}_{variant_id}.png"
                     variant_path = f"/static/media/portraits/{variant_filename}"
                     abs_src = os.path.join(base_dir, result.file_path.lstrip("/"))
                     abs_dst = os.path.join(portraits_dir, variant_filename)
@@ -1738,8 +1734,8 @@ def register_station_routes(bp, admin_required):
                         "agent_id": agent_id,
                         "path": variant_path,
                         "prompt": prompt,
-                        "model": selected_model,
-                        "model_label": model_label,
+                        "model": checkpoint,
+                        "model_label": label,
                         "gpu_host": host_info["name"],
                         "gpu_model": host_info["gpu_model"],
                         "time_ms": elapsed_ms,
@@ -1750,11 +1746,13 @@ def register_station_routes(bp, admin_required):
                     with lock:
                         variants.append(variant)
 
-            threads = [threading.Thread(target=_generate_on_host, args=(h,)) for h in hosts]
+            threads = [
+                threading.Thread(target=_generate_variant, args=(h, ckpt, res, lbl)) for h, ckpt, res, lbl in jobs
+            ]
             for t in threads:
                 t.start()
             for t in threads:
-                t.join(timeout=120)
+                t.join(timeout=300)
 
             if not variants:
                 return jsonify({"success": False, "error": "All hosts failed"}), 500

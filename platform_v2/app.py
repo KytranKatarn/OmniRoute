@@ -531,6 +531,143 @@ def chat_send():
 
 
 # ============================================================================
+# PINNED MEMORIES ROUTES
+# ============================================================================
+
+
+@app.route("/api/chat/pin", methods=["POST"])
+@login_required
+def pin_message():
+    """Pin or unpin a chat message. Toggle: if already pinned, removes it."""
+    from database import get_db_cursor
+
+    try:
+        data = request.json or {}
+        content = data.get("message_content", "").strip()
+        if not content:
+            return jsonify({"success": False, "error": "message_content is required"}), 400
+
+        conversation_id = data.get("conversation_id")
+        message_type = data.get("message_type", "assistant")
+        note = data.get("note")
+        preview = content[:200]
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            # Check for existing pin with same content preview + conversation
+            cur.execute(
+                """SELECT id FROM pinned_messages
+                   WHERE user_id = %s
+                     AND LEFT(message_content, 200) = %s
+                     AND conversation_id IS NOT DISTINCT FROM %s""",
+                (current_user.id, preview, conversation_id),
+            )
+            existing = cur.fetchone()
+
+            if existing:
+                # Toggle off — unpin
+                cur.execute(
+                    "DELETE FROM pinned_messages WHERE id = %s AND user_id = %s",
+                    (existing["id"], current_user.id),
+                )
+                return jsonify({"success": True, "action": "unpinned", "pin_id": existing["id"]})
+            else:
+                # Pin the message
+                cur.execute(
+                    """INSERT INTO pinned_messages
+                       (user_id, conversation_id, message_content, message_type, note)
+                       VALUES (%s, %s, %s, %s, %s)
+                       RETURNING id""",
+                    (current_user.id, conversation_id, content, message_type, note),
+                )
+                pin_id = cur.fetchone()["id"]
+                return jsonify({"success": True, "action": "pinned", "pin_id": pin_id}), 201
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/chat/pinned", methods=["GET"])
+@login_required
+def get_pinned_messages():
+    """Get the current user's pinned messages with optional search."""
+    from database import get_db_cursor
+
+    try:
+        limit = min(int(request.args.get("limit", 50)), 200)
+        offset = int(request.args.get("offset", 0))
+        search = request.args.get("search", "").strip()
+
+        with get_db_cursor(commit=False) as (conn, cur):
+            if search:
+                cur.execute(
+                    """SELECT p.id, p.conversation_id, p.message_content,
+                              p.message_type, p.note, p.created_at,
+                              c.tool_name, c.model
+                       FROM pinned_messages p
+                       LEFT JOIN ai_conversations c ON c.id = p.conversation_id
+                       WHERE p.user_id = %s
+                         AND (p.message_content ILIKE %s OR p.note ILIKE %s)
+                       ORDER BY p.created_at DESC
+                       LIMIT %s OFFSET %s""",
+                    (current_user.id, f"%{search}%", f"%{search}%", limit, offset),
+                )
+            else:
+                cur.execute(
+                    """SELECT p.id, p.conversation_id, p.message_content,
+                              p.message_type, p.note, p.created_at,
+                              c.tool_name, c.model
+                       FROM pinned_messages p
+                       LEFT JOIN ai_conversations c ON c.id = p.conversation_id
+                       WHERE p.user_id = %s
+                       ORDER BY p.created_at DESC
+                       LIMIT %s OFFSET %s""",
+                    (current_user.id, limit, offset),
+                )
+            pins = cur.fetchall()
+
+            # Get total count
+            cur.execute(
+                "SELECT COUNT(*) as total FROM pinned_messages WHERE user_id = %s",
+                (current_user.id,),
+            )
+            total = cur.fetchone()["total"]
+
+        # Serialize datetimes
+        results = []
+        for p in pins:
+            row = dict(p)
+            if row.get("created_at"):
+                row["created_at"] = row["created_at"].isoformat()
+            results.append(row)
+
+        return jsonify({"success": True, "pins": results, "total": total})
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/chat/pin/<int:pin_id>", methods=["DELETE"])
+@login_required
+def delete_pin(pin_id):
+    """Remove a pinned message by ID (ownership-verified)."""
+    from database import get_db_cursor
+
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "DELETE FROM pinned_messages WHERE id = %s AND user_id = %s RETURNING id",
+                (pin_id, current_user.id),
+            )
+            deleted = cur.fetchone()
+            if not deleted:
+                return jsonify({"success": False, "error": "Pin not found"}), 404
+            return jsonify({"success": True, "deleted": pin_id})
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
 # AUTHENTICATION ROUTES
 # ============================================================================
 

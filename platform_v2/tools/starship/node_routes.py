@@ -547,9 +547,11 @@ def register_node_routes(bp, auth_decorator):
             "start.bat",
             "stop.bat",
             "update.bat",
+            "cleanup.bat",
             "start.command",
             "stop.command",
             "update.command",
+            "cleanup.command",
         ]:
             script_path = os.path.join(NODE_CLIENT_DIR, script_name)
             if os.path.exists(script_path):
@@ -575,9 +577,10 @@ def register_node_routes(bp, auth_decorator):
                 "  3. Wait ~2 minutes for containers to download and start\n"
                 "  4. Your node will appear in the fleet automatically\n\n"
                 "Commands:\n"
-                "  start.bat / start.command   - Start the node\n"
-                "  stop.bat / stop.command     - Stop the node\n"
-                "  update.bat / update.command - Update to latest version\n\n"
+                "  start.bat / start.command     - Start the node\n"
+                "  stop.bat / stop.command       - Stop the node\n"
+                "  update.bat / update.command   - Update to latest version\n"
+                "  cleanup.bat / cleanup.command - Remove old install + free disk space\n\n"
                 f"Node ID: {node_id}\n"
                 f"Hub: {external_url}\n",
             )

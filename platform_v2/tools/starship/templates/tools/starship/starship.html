@@ -132,36 +132,23 @@
             </div>
             <div class="bm-body" style="padding:16px;">
 
-                <!-- Platform Tabs -->
-                <div class="cn-tabs">
-                    <button class="cn-tab cn-tab-active" onclick="showConnectTab('windows', this)">WINDOWS</button>
-                    <button class="cn-tab" onclick="showConnectTab('linux', this)">LINUX / MAC</button>
-                </div>
-
-                <!-- Windows Tab -->
-                <div id="cn-windows" class="cn-panel">
-                    <h3 class="cn-section-title">Option 1: GUI Installer (.exe)</h3>
-                    <a href="/tools/starbase/api/nodes/installer.py" class="cn-download-btn" download="archie_node_installer.py">
-                        Download ARCHIE Node Setup v4.0
+                <!-- Docker-Only Deployment -->
+                <div class="cn-panel">
+                    <h3 class="cn-section-title">Step 1: Install Docker Desktop</h3>
+                    <a href="https://www.docker.com/products/docker-desktop/" target="_blank" class="cn-download-btn" style="background:#1e293b;border:1px solid #00e5ff;">
+                        Get Docker Desktop (Windows / Mac / Linux)
                     </a>
-                    <p class="cn-note">LCARS-themed installer. Double-click to run. Handles Docker, Ollama, mesh VPN, and hub registration.</p>
+                    <p class="cn-note">Free download. Install and start Docker Desktop before proceeding.</p>
 
-                    <h3 class="cn-section-title">Option 2: PowerShell One-Liner</h3>
-                    <div class="cn-cmd-box">
-                        <code id="cn-win-cmd"></code>
-                        <button onclick="copyConnectCmd('cn-win-cmd')" class="cn-copy-btn">COPY</button>
-                    </div>
-                    <p class="cn-note">Run in PowerShell as Administrator. Auto-installs Docker, Tailscale mesh VPN, and registers with hub.</p>
+                    <h3 class="cn-section-title">Step 2: Download Node Package</h3>
+                    <a id="cn-zip-download" href="#" class="cn-download-btn" download>
+                        Download Node ZIP
+                    </a>
+                    <p class="cn-note">Contains docker-compose.yml, start/stop/update scripts, and pre-configured credentials. Extract anywhere.</p>
+
+                    <h3 class="cn-section-title">Step 3: Start</h3>
+                    <p class="cn-note">Double-click <strong>start.bat</strong> (Windows) or <strong>start.command</strong> (Mac). Docker pulls all images automatically. Node appears in fleet within 2 minutes.</p>
                 </div>
-
-                <!-- Linux Tab -->
-                <div id="cn-linux" class="cn-panel" style="display:none">
-                    <h3 class="cn-section-title">One-Command Install</h3>
-                    <div class="cn-cmd-box">
-                        <code id="cn-linux-cmd"></code>
-                        <button onclick="copyConnectCmd('cn-linux-cmd')" class="cn-copy-btn">COPY</button>
-                    </div>
-                    <p class="cn-note">Run as root. Installs Docker, NVIDIA toolkit (if GPU), Tailscale mesh VPN, Ollama, and full node stack. Everything under /opt/archie-node/.</p>
                 </div>
 
                 <!-- What Gets Installed -->

@@ -610,18 +610,37 @@ function closeAddNodeModal() { closeConnectModal(); }
 
 // ── Connect a Machine Modal (LCARS) ──
 function openConnectNodeModal() {
-    var container = document.querySelector('.sc-container');
-    var hubUrl = (container && container.getAttribute('data-hub-url')) || window.location.origin;
-
-    // Set commands via textContent (XSS safe)
-    var winCmd = document.getElementById('cn-win-cmd');
-    if (winCmd) winCmd.textContent = 'powershell -ExecutionPolicy Bypass -Command "irm ' + hubUrl + '/tools/starbase/api/nodes/install.ps1 | iex"';
-
-    var linuxCmd = document.getElementById('cn-linux-cmd');
-    if (linuxCmd) linuxCmd.textContent = 'curl -fsSL ' + hubUrl + '/tools/starbase/api/nodes/install.sh | HUB_URL=' + hubUrl + ' sudo bash';
-
     document.getElementById('connectNodeModal').style.display = 'flex';
+    // Reset ZIP download link
+    var zipBtn = document.getElementById('cn-zip-download');
+    if (zipBtn) {
+        zipBtn.href = '#';
+        zipBtn.style.opacity = '0.4';
+        zipBtn.style.pointerEvents = 'none';
+        zipBtn.textContent = 'Request a node first';
+    }
     loadPendingNodes();
+    loadApprovedNodesForDownload();
+}
+
+function loadApprovedNodesForDownload() {
+    // Load approved nodes so user can download ZIP for any of them
+    fetch('/tools/starship/api/nodes')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var nodes = (data.nodes || []).filter(function(n) {
+                return n.approval_status === 'approved' || n.approval_status === 'pending';
+            });
+            var zipBtn = document.getElementById('cn-zip-download');
+            if (!zipBtn || nodes.length === 0) return;
+            // Use the most recent node for the download link
+            var latest = nodes[0];
+            zipBtn.href = '/tools/starship/api/nodes/' + encodeURIComponent(latest.node_id) + '/download-zip';
+            zipBtn.style.opacity = '1';
+            zipBtn.style.pointerEvents = 'auto';
+            zipBtn.textContent = 'Download Node ZIP (' + (latest.node_name || latest.node_id) + ')';
+        })
+        .catch(function() {});
 }
 
 function closeConnectModal() {
@@ -630,15 +649,7 @@ function closeConnectModal() {
     if (nodeConnectionPoller) { clearInterval(nodeConnectionPoller); nodeConnectionPoller = null; }
 }
 
-function showConnectTab(platform, btn) {
-    // Hide all panels
-    document.querySelectorAll('.cn-panel').forEach(function(p) { p.style.display = 'none'; });
-    // Deactivate all tabs
-    document.querySelectorAll('.cn-tab').forEach(function(t) { t.classList.remove('cn-tab-active'); });
-    // Show selected
-    document.getElementById('cn-' + platform).style.display = 'block';
-    btn.classList.add('cn-tab-active');
-}
+// showConnectTab removed — Docker-only deployment has no platform tabs
 
 function copyConnectCmd(elementId) {
     var el = document.getElementById(elementId);

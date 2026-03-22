@@ -57,6 +57,144 @@ BORDER = "#1e3a5f"
 # ── Font Helper ───────────────────────────────────────────────────────────────
 FONT_MONO = "Consolas"
 
+# ── Docker Compose Template (pull-only, zero build, zero bind mounts) ─────────
+_COMPOSE_TEMPLATE = """\
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: archie_node_ollama
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_NUM_PARALLEL=4
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - archie_net
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: archie_node_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: archie_node
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-archie_node_default}
+      POSTGRES_DB: archie_node
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U archie_node"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - archie_net
+
+  sync:
+    image: ghcr.io/kytrankatarn/archie-node:latest
+    container_name: archie_node_sync
+    restart: unless-stopped
+    depends_on:
+      ollama:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ID: ${NODE_ID}
+      HUB_URL: ${HUB_URL}
+      HUB_API_KEY: ${HUB_API_KEY}
+      OLLAMA_HOST: http://ollama:11434
+      DATABASE_URL: postgresql://archie_node:${DB_PASSWORD:-archie_node_default}@postgres:5432/archie_node
+      HEARTBEAT_INTERVAL: "30"
+      SYNC_POLL_INTERVAL: "60"
+      DEPLOYMENT_MODE: "starship"
+      COMFYUI_PORT: "${COMFYUI_PORT:-8188}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - comfyui_data:/comfyui/models
+    command: ["python3", "-u", "node_sync.py"]
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f node_sync.py || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - archie_net
+
+  node_api:
+    image: ghcr.io/kytrankatarn/archie-node:latest
+    container_name: archie_node_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://archie_node:${DB_PASSWORD:-archie_node_default}@postgres:5432/archie_node
+      OLLAMA_HOST: http://ollama:11434
+      NODE_ID: ${NODE_ID}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: ["python3", "-u", "node_api.py"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3001/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    ports:
+      - "${NODE_API_PORT:-3001}:3001"
+    networks:
+      - archie_net
+
+  comfyui:
+    image: comfyui/base:latest
+    container_name: archie_node_comfyui
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - comfyui_data:/comfyui/models
+    ports:
+      - "${COMFYUI_PORT:-8188}:8188"
+    networks:
+      - archie_net
+
+volumes:
+  ollama_data:
+  pg_data:
+  comfyui_data:
+
+networks:
+  archie_net:
+    driver: bridge
+"""
+
+_HELPER_SCRIPTS = {
+    "start.bat": "@echo off\necho Starting A.R.C.H.I.E. Node...\ndocker compose up -d\necho.\necho Node started! You can close this window.\npause\n",
+    "stop.bat": "@echo off\necho Stopping A.R.C.H.I.E. Node...\ndocker compose down\necho.\necho Node stopped.\npause\n",
+    "update.bat": "@echo off\necho Updating A.R.C.H.I.E. Node...\ndocker compose pull\ndocker compose up -d\necho.\necho Node updated!\npause\n",
+}
+
 
 class ArchieInstaller(tk.Tk):
     """LCARS-themed A.R.C.H.I.E. Node installer by Kytran Empowerment."""
@@ -1019,33 +1157,25 @@ class ArchieInstaller(tk.Tk):
             self._log(f"Mesh join failed: {e}", "warn")
             self._log("VPN can be configured later", "info")
 
-    # ── Step 6: Download Stack Files ──────────────────────────────────────────
+    # ── Step 6: Write Stack Files (no downloads — images pulled by Docker) ───
     def _step_download(self):
-        base_url = f"{self.hub_url}/tools/starbase/api/nodes"
+        """Write docker-compose.yml to disk. All code runs inside Docker images
+        pulled from ghcr.io — no local Python files, no Dockerfile, no build step.
+        This eliminates the hub-download approach that corrupted node .246."""
         os.makedirs(INSTALL_DIR, exist_ok=True)
-        migrations_dir = os.path.join(INSTALL_DIR, "migrations")
-        os.makedirs(migrations_dir, exist_ok=True)
 
-        files_to_download = [
-            ("docker-compose.node.yml", os.path.join(INSTALL_DIR, "docker-compose.yml")),
-            ("node_sync.py", os.path.join(INSTALL_DIR, "node_sync.py")),
-            ("node_api.py", os.path.join(INSTALL_DIR, "node_api.py")),
-            ("Dockerfile.node", os.path.join(INSTALL_DIR, "Dockerfile.node")),
-            ("migrations/001_node_schema.sql", os.path.join(migrations_dir, "001_node_schema.sql")),
-            ("migrations/002_knowledge_projects.sql", os.path.join(migrations_dir, "002_knowledge_projects.sql")),
-        ]
+        compose_path = os.path.join(INSTALL_DIR, "docker-compose.yml")
+        compose_content = _COMPOSE_TEMPLATE
+        with open(compose_path, "w") as f:
+            f.write(compose_content)
+        self._log(f"Wrote docker-compose.yml ({len(compose_content):,} bytes)", "ok")
 
-        for filename, dest in files_to_download:
-            if self._cancel_flag:
-                return
-            url = f"{base_url}/{filename}"
-            try:
-                size = self._download_file(url, dest)
-                self._log(f"Downloaded {filename} ({size:,} bytes)", "ok")
-            except HTTPError as e:
-                self._log(f"Could not download {filename} (HTTP {e.code})", "warn")
-            except Exception as e:
-                self._log(f"Failed to download {filename}: {e}", "warn")
+        # Write helper scripts
+        for name, content in _HELPER_SCRIPTS.items():
+            path = os.path.join(INSTALL_DIR, name)
+            with open(path, "w") as f:
+                f.write(content)
+            self._log(f"Wrote {name}", "ok")
 
         # Post-process docker-compose.yml based on hardware
         compose_path = os.path.join(INSTALL_DIR, "docker-compose.yml")

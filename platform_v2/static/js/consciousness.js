@@ -116,12 +116,6 @@ window.switchConsciousnessTab = function (tab) {
   if (tab === "knowledge" || tab === "github") {
     checkActiveJobs();
   }
-  /* Loop monitor — active on dashboard tab */
-  if (tab === "dashboard") {
-    _startLoopMonitor();
-  } else {
-    _stopLoopMonitor();
-  }
   /* Job polling — only needed on dashboard/knowledge/github/languages tabs */
   if (tab !== "dashboard" && tab !== "knowledge" && tab !== "github" && tab !== "languages") {
     _stopJobPolling();
@@ -826,17 +820,7 @@ function checkActiveJobs() {
         _pollJobStatus(job.id, "bjob-kb-" + job.id, function(completedJob) {
           _activeJobPolls[pollKey] = false;
           loadEmbeddingStatus();
-          /* Continuous loop: only restart on successful completion, not failed/reaped */
-          var status = completedJob ? completedJob.status : "unknown";
-          var jt = (completedJob && completedJob.job_type) || (job.job_type) || "";
-          if (status === "completed" && jt.indexOf("analysis") > -1 && _continuousRun.analysis) {
-            _loopNext("analysis", completedJob);
-          } else if (status === "completed" && jt.indexOf("embed") > -1 && _continuousRun.embedding) {
-            _loopNext("embedding", completedJob);
-          } else {
-            _enableProcessingBtns();
-            if (status === "failed") { _loopRetry("analysis"); _loopRetry("embedding"); }
-          }
+          _enableProcessingBtns();
           setTimeout(checkActiveJobs, 500);
         });
       }
@@ -852,15 +836,7 @@ function checkActiveJobs() {
           _activeJobPolls[pollKey] = false;
           loadGitHub();
           loadGitHubEmbedStats();
-          /* Continuous loop: only restart on successful completion, not failed/reaped */
-          var status = completedJob ? completedJob.status : "unknown";
-          var jt = (completedJob && completedJob.job_type) || (job.job_type) || "";
-          if (status === "completed" && jt.indexOf("embed") > -1 && _continuousRun.embedding) {
-            _loopNext("embedding", completedJob);
-          } else {
-            _enableGitHubBtns();
-            if (status === "failed") { _loopRetry("embedding"); }
-          }
+          _enableGitHubBtns();
           setTimeout(checkActiveJobs, 500);
         });
       }
@@ -881,15 +857,6 @@ function checkActiveJobs() {
           _cache.languages = false;
           setTimeout(function() {
             loadLanguages();
-            /* Only loop-next on successful completion, not failed/reaped */
-            var status = completedJob ? completedJob.status : "unknown";
-            var jt = (completedJob && completedJob.job_type) || (job.job_type) || "";
-            if (status === "completed" && jt.indexOf("translate") > -1) {
-              if (_continuousRun.translate) { _loopNext("translate", completedJob); }
-              else if (_continuousRun.fullPass) { _loopNext("fullPass", completedJob); }
-            } else if (status === "failed") {
-              _loopRetry("translate"); _loopRetry("fullPass");
-            }
             checkActiveJobs();
           }, 1500);
         });
@@ -912,11 +879,6 @@ function _renderStationStatus(allJobs, myJobs) {
   renderKnowledgeOps(null, jobData);
   renderGitHubOps(null, jobData);
   renderLangOps(null, jobData);
-
-  /* Re-sync loop button states — rendering may have created buttons just now */
-  Object.keys(_continuousRun).forEach(function(opKey) {
-    _updateLoopBtn(opKey);
-  });
 }
 
 function _buildJobHtml(job) {
@@ -951,9 +913,8 @@ function _disableProcessingBtns() {
 }
 
 function _enableProcessingBtns() {
-  /* Only re-enable buttons whose loop is NOT running */
-  if (!_continuousRun.analysis) _setBtnDisabled("btnStartAnalysis", false);
-  if (!_continuousRun.embedding) _setBtnDisabled("btnGenerateEmbed", false);
+  _setBtnDisabled("btnStartAnalysis", false);
+  _setBtnDisabled("btnGenerateEmbed", false);
 }
 
 function _disableGitHubBtns() {
@@ -964,8 +925,8 @@ function _disableGitHubBtns() {
 
 function _enableGitHubBtns() {
   _setBtnDisabled("btnReindexAll", false);
-  if (!_continuousRun.analysis) _setBtnDisabled("btnStartAnalysis", false);
-  if (!_continuousRun.embedding) _setBtnDisabled("btnGenerateEmbed", false);
+  _setBtnDisabled("btnStartAnalysis", false);
+  _setBtnDisabled("btnGenerateEmbed", false);
 }
 
 function _disableGitHubBtnsByJobType(jobs) {
@@ -977,260 +938,15 @@ function _disableGitHubBtnsByJobType(jobs) {
     if (jt.indexOf("embed") !== -1) hasEmbed = true;
   });
   if (hasReindex) _setBtnDisabled("btnReindexAll", true);
-  if (hasAnalysis || _continuousRun.analysis) _setBtnDisabled("btnStartAnalysis", true);
-  if (hasEmbed || _continuousRun.embedding) _setBtnDisabled("btnGenerateEmbed", true);
+  if (hasAnalysis) _setBtnDisabled("btnStartAnalysis", true);
+  if (hasEmbed) _setBtnDisabled("btnGenerateEmbed", true);
 }
 
-/* Sync button disabled state when a loop starts/stops */
-function _syncLoopBtnState(opKey, running) {
-  var btnMap = { analysis: "btnStartAnalysis", embedding: "btnGenerateEmbed" };
-  var btnId = btnMap[opKey];
-  if (btnId) _setBtnDisabled(btnId, running);
-}
-
-/* ── Continuous Run (Loop) Mode ─────────────────────────── */
-var _continuousRun = {};       /* { analysis: true, reindex: true, ... } */
-var _continuousBatch = {};     /* { analysis: 3, ... } — batch counter */
-var _serverLoops = {};         /* Server-side loop state — browser defers retrigger when active */
-var _LOOP_STORAGE_KEY = "archie_consciousness_loops";
-
-function _saveLoopState() {
-  try {
-    var active = {};
-    Object.keys(_continuousRun).forEach(function(k) {
-      if (_continuousRun[k]) active[k] = true;
-    });
-    localStorage.setItem(_LOOP_STORAGE_KEY, JSON.stringify(active));
-  } catch (e) { /* localStorage unavailable */ }
-}
-
-function _loadLoopState() {
-  try {
-    var raw = localStorage.getItem(_LOOP_STORAGE_KEY);
-    if (raw) {
-      var saved = JSON.parse(raw);
-      Object.keys(saved).forEach(function(k) {
-        /* Only restore keys that exist in _loopOps — skip removed ops like ghEmbed */
-        if (saved[k] && _loopOps[k]) {
-          _continuousRun[k] = true;
-          _continuousBatch[k] = 0;
-        }
-      });
-    }
-  } catch (e) { /* localStorage unavailable */ }
-}
-
-/* Map opKey → { startFn, btnId, idleLabel } */
-var _loopOps = {
-  analysis:  { start: function() { startAnalysis(); },      btnId: "btnStartAnalysis", idle: "\u221E ANALYZE" },
-  embedding: { start: function() { generateEmbeddings(); }, btnId: "btnGenerateEmbed", idle: "\u221E EMBED" },
-  translate: { start: function() { langGenerateAll(); },    btnId: "langGenAllBtn",    idle: "\u221E TRANSLATE" },
-  fullPass:  { start: function() { langFullPass(); },       btnId: "langFullPassBtn",  idle: "\u221E FULL PASS" }
-};
-
-var MAX_STATION_LOOPS = 3;
-
-function _activeLoopCount() {
-  var count = 0;
-  Object.keys(_loopOps).forEach(function(k) {
-    if (_continuousRun[k]) count++;
-  });
-  return count;
-}
-
-window.toggleLoop = function(opKey) {
-  if (_continuousRun[opKey]) {
-    /* Stop */
-    _continuousRun[opKey] = false;
-    _continuousBatch[opKey] = 0;
-    _updateLoopBtn(opKey);
-    _syncServerLoop(opKey, false);
-    _syncLoopBtnState(opKey, false);
-  } else {
-    /* Guard: max 3 loops at this station (matches 3-slot model) */
-    if (_activeLoopCount() >= MAX_STATION_LOOPS) {
-      console.warn("[Loop] Cannot start " + opKey + " — station at max " + MAX_STATION_LOOPS + " loops");
-      return;
-    }
-    /* Start — kick off first batch */
-    _continuousRun[opKey] = true;
-    _syncLoopBtnState(opKey, true);
-    _continuousBatch[opKey] = 0;
-    _updateLoopBtn(opKey);
-    _syncServerLoop(opKey, true);
-    var op = _loopOps[opKey];
-    if (op) op.start();
-  }
-  _saveLoopState();
-};
-
-/* Sync loop state to server so it persists without the browser */
-function _syncServerLoop(opKey, enabled) {
-  _serverLoops[opKey] = enabled;
-  api("/api/processing/server-loop/toggle", {
-    method: "POST",
-    body: { op: opKey, enabled: enabled }
-  }).catch(function(err) {
-    console.error("API error:", err);
-  });
-}
-
-function _updateLoopBtn(opKey) {
-  /* Update all loop buttons for this op (may exist on multiple tabs) */
-  var ids = ["loopBtn-" + opKey, "loopBtn-" + opKey + "2"];
-  var op = _loopOps[opKey];
-  ids.forEach(function(id) {
-    var btn = document.getElementById(id);
-    if (!btn) return;
-    if (_continuousRun[opKey]) {
-      btn.textContent = "\u25A0 STOP";
-      btn.className = "cs-ops-cmd cs-loop-active";
-    } else {
-      btn.textContent = (op && op.idle) || ("\u221E " + opKey.toUpperCase());
-      btn.className = "cs-ops-cmd cs-loop-idle";
-    }
-  });
-}
-
-function _isCloudJob(job) {
-  if (!job || !job.metadata) return false;
-  var meta = (typeof job.metadata === "string") ? JSON.parse(job.metadata) : job.metadata;
-  return meta.is_cloud === "true" || meta.is_cloud === true;
-}
-
-function _loopNext(opKey, completedJob) {
-  /* Called when a job completes — start next batch if still looping */
-  if (!_continuousRun[opKey]) return;
-  /* Never loop on cloud jobs — cloud requires Telegram approval each time */
-  if (_isCloudJob(completedJob)) {
-    console.warn("[Loop] " + opKey + " completed via cloud — stopping loop (no cloud loops)");
-    _loopExhausted(opKey);
-    return;
-  }
-  _loopFailures[opKey] = 0; /* reset failures on success */
-  _continuousBatch[opKey] = (_continuousBatch[opKey] || 0) + 1;
-  /* If server loop is active for this op, let the server retrigger —
-     avoids race where browser and server both create jobs */
-  if (_serverLoops[opKey]) {
-    console.log("[Loop] " + opKey + " — server loop active, deferring to server");
-    return;
-  }
-  var op = _loopOps[opKey];
-  if (op) setTimeout(op.start, 2000); /* 2s pause between batches */
-}
-
-function _loopExhausted(opKey) {
-  /* Called when API says "no items left" — stop loop gracefully */
-  _continuousRun[opKey] = false;
-  _continuousBatch[opKey] = 0;
-  _loopFailures[opKey] = 0;
-  _syncServerLoop(opKey, false);
-  _saveLoopState();
-  _updateLoopBtn(opKey);
-}
-
-var _loopFailures = {};
-var LOOP_MAX_RETRIES = 3;
-
-function _loopRetry(opKey) {
-  /* Called when a job fails (reaped, timeout, transient error).
-     Retry up to LOOP_MAX_RETRIES times, then exhaust. */
-  if (!_continuousRun[opKey]) return;
-  _loopFailures[opKey] = (_loopFailures[opKey] || 0) + 1;
-  if (_loopFailures[opKey] >= LOOP_MAX_RETRIES) {
-    console.warn("[Loop] " + opKey + " failed " + _loopFailures[opKey] + " times — stopping");
-    _loopFailures[opKey] = 0;
-    _loopExhausted(opKey);
-    return;
-  }
-  console.log("[Loop] " + opKey + " failed, retrying (" + _loopFailures[opKey] + "/" + LOOP_MAX_RETRIES + ")");
-  var op = _loopOps[opKey];
-  if (op) setTimeout(op.start, 5000); /* 5s pause before retry */
-}
-
-/* ── Loop Status Monitor ──────────────────────────────────── */
-var _loopMonitorInterval = null;
-
-function _renderLoopMonitor(data) {
-  var grid = document.getElementById("loopMonitorGrid");
-  if (!grid) return;
-  var ops = data.ops_detail || {};
-  var html = "";
-  var opLabels = { analysis: "ANALYSIS", embedding: "EMBEDDING", translate: "TRANSLATE" };
-  Object.keys(opLabels).forEach(function(op) {
-    var d = ops[op] || {};
-    var active = d.active;
-    var badge = active
-      ? '<span style="background:#10b981;color:#000;padding:1px 6px;border-radius:3px;font-size:0.7rem;font-weight:700;">ACTIVE</span>'
-      : '<span style="background:#555;color:#aaa;padding:1px 6px;border-radius:3px;font-size:0.7rem;">INACTIVE</span>';
-    var retryCount = d.retry_count || 0;
-    var retryBadge = "";
-    if (retryCount > 0) {
-      retryBadge = ' <span style="background:#ef4444;color:#fff;padding:1px 5px;border-radius:3px;font-size:0.65rem;">RETRY ' + retryCount + '/5</span>';
-      if (d.next_delay) {
-        var delayLabel = d.next_delay >= 60 ? Math.round(d.next_delay / 60) + "m" : d.next_delay + "s";
-        retryBadge += ' <span style="color:#f97316;font-size:0.65rem;">next in ' + delayLabel + '</span>';
-      }
-    }
-    var lastSuccess = d.last_success ? _formatLoopTime(d.last_success) : "—";
-    var lastFailure = d.last_failure ? _formatLoopTime(d.last_failure) : "—";
-    var lastError = d.last_error ? '<div style="color:#ef4444;font-size:0.65rem;margin-top:2px;word-break:break-all;">' + escHtml(d.last_error).substring(0, 80) + '</div>' : '';
-    var rate = d.jobs_per_hour || 0;
-
-    html += '<div style="background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.25);border-radius:6px;padding:8px 10px;">';
-    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
-    html += '<span style="font-family:Orbitron,sans-serif;font-size:0.75rem;color:#8b5cf6;">' + opLabels[op] + '</span>';
-    html += badge + retryBadge;
-    html += '</div>';
-    html += '<div style="font-size:0.7rem;color:rgba(255,255,255,0.6);line-height:1.6;">';
-    html += '<div>\u2713 Last success: <span style="color:#10b981;">' + lastSuccess + '</span></div>';
-    html += '<div>\u2717 Last failure: <span style="color:#ef4444;">' + lastFailure + '</span></div>';
-    html += '<div>\u26A1 Rate: <span style="color:#00e5ff;">' + rate + ' jobs/hr</span></div>';
-    html += '</div>';
-    html += lastError;
-    html += '</div>';
-  });
-  grid.innerHTML = html;
-}
-
-function _formatLoopTime(iso) {
-  if (!iso) return "—";
-  try {
-    var d = new Date(iso);
-    var now = new Date();
-    var diffMs = now - d;
-    if (diffMs < 60000) return Math.round(diffMs / 1000) + "s ago";
-    if (diffMs < 3600000) return Math.round(diffMs / 60000) + "m ago";
-    if (diffMs < 86400000) return Math.round(diffMs / 3600000) + "h ago";
-    return d.toLocaleDateString();
-  } catch (e) { return iso; }
-}
-
-function _refreshLoopMonitor() {
-  api("/api/processing/server-loop/status").then(function(data) {
-    if (data.success) _renderLoopMonitor(data);
-  }).catch(function(err) {
-    console.error("API error:", err);
-  });
-}
-
-function _startLoopMonitor() {
-  if (_loopMonitorInterval) return;
-  _refreshLoopMonitor();
-  _loopMonitorInterval = setInterval(_refreshLoopMonitor, 10000); /* refresh every 10s */
-}
-
-function _stopLoopMonitor() {
-  if (_loopMonitorInterval) {
-    clearInterval(_loopMonitorInterval);
-    _loopMonitorInterval = null;
-  }
-}
+/* ── Loop controls removed — moved to Autonomy module ── */
 
 window.startAnalysis = function() {
   _disableProcessingBtns();
-  var batchNum = _continuousRun.analysis ? " [batch " + ((_continuousBatch.analysis || 0) + 1) + "]" : "";
-  setHtml("procResult", lcarsMsg("info", "\u25CF", "Assigning agent for analysis\u2026" + batchNum));
+  setHtml("procResult", lcarsMsg("info", "\u25CF", "Assigning agent for analysis\u2026"));
 
   api("/api/processing/start", {
     method: "POST",
@@ -1242,28 +958,24 @@ window.startAnalysis = function() {
       return;
     }
     if (data.success && data.job_id) {
-      setHtml("procResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total || 0) + " items queued" + batchNum));
+      setHtml("procResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total || 0) + " items queued"));
       setTimeout(checkActiveJobs, 1000);
     } else if (data.success) {
       setHtml("procResult", lcarsMsg("ok", "\u2713", escHtml(data.message || "No items to analyze")));
-      _loopExhausted("analysis");
       _enableProcessingBtns();
     } else {
       setHtml("procResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Processing failed")));
-      _loopExhausted("analysis");
       _enableProcessingBtns();
     }
   }).catch(function(err) {
     setHtml("procResult", lcarsMsg("err", "\u2717", "Error: " + escHtml(err.message || "Request failed")));
-    _loopExhausted("analysis");
     _enableProcessingBtns();
   });
 };
 
 window.generateEmbeddings = function() {
   _disableProcessingBtns();
-  var batchNum = _continuousRun.embedding ? " [batch " + ((_continuousBatch.embedding || 0) + 1) + "]" : "";
-  setHtml("procResult", lcarsMsg("info", "\u25CF", "Assigning agent for embeddings\u2026" + batchNum));
+  setHtml("procResult", lcarsMsg("info", "\u25CF", "Assigning agent for embeddings\u2026"));
 
   api("/api/processing/generate-embeddings", {
     method: "POST",
@@ -1275,20 +987,17 @@ window.generateEmbeddings = function() {
       return;
     }
     if (data.success && data.job_id) {
-      setHtml("procResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total || 0) + " entries queued" + batchNum));
+      setHtml("procResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total || 0) + " entries queued"));
       setTimeout(checkActiveJobs, 1000);
     } else if (data.success) {
       setHtml("procResult", lcarsMsg("ok", "\u2713", escHtml(data.message || "All entries already embedded")));
-      _loopExhausted("embedding");
       _enableProcessingBtns();
     } else {
       setHtml("procResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Embedding generation failed")));
-      _loopExhausted("embedding");
       _enableProcessingBtns();
     }
   }).catch(function(err) {
     setHtml("procResult", lcarsMsg("err", "\u2717", "Error: " + escHtml(err.message || "Request failed")));
-    _loopExhausted("embedding");
     _enableProcessingBtns();
   });
 };
@@ -1475,8 +1184,7 @@ window.langGenerateOne = function(langCode) {
 window.langGenerateAll = function() {
   var btn = document.getElementById("langGenAllBtn");
   if (btn) { btn.disabled = true; btn.style.opacity = "0.5"; }
-  var batchNum = _continuousRun.translate ? " [batch " + ((_continuousBatch.translate || 0) + 1) + "]" : "";
-  _showLangJob("Queuing all 7 languages..." + batchNum);
+  _showLangJob("Queuing all 7 languages...");
 
   api("/api/translations/generate-async", {
     method: "POST",
@@ -1490,18 +1198,16 @@ window.langGenerateAll = function() {
     }
     if (!data.job_id) {
       _showLangJob("No missing translations found");
-      _loopExhausted("translate");
       if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
       return;
     }
-    _showLangJob("Job #" + data.job_id + " started \u2014 " + data.total + " keys across 7 languages" + batchNum);
+    _showLangJob("Job #" + data.job_id + " started \u2014 " + data.total + " keys across 7 languages");
     checkActiveJobs();
     _startLangJobPoll(data.job_id, function() {
       if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
     });
   }).catch(function(err) {
     _showLangJob("Failed: " + err);
-    _loopExhausted("translate");
     if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
   });
 };
@@ -1648,7 +1354,6 @@ window.langFullPass = function() {
     }
     if (!data.job_id) {
       _showLangJob("Full i18n Pass complete \u2014 no missing translations!");
-      _loopExhausted("fullPass");
       if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
       return;
     }
@@ -1660,7 +1365,6 @@ window.langFullPass = function() {
     });
   }).catch(function(err) {
     _showLangJob("Full i18n Pass failed: " + err);
-    _loopExhausted("fullPass");
     if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
   });
 };
@@ -1900,9 +1604,7 @@ function _getOpsInstance(elId) {
         statusElId: "kbOpsOnline",
         commands: [
           { label: "ANALYZE", cls: "purple", fn: "startAnalysis()", id: "btnStartAnalysis" },
-          { label: "\u221E ANALYZE", cls: "cs-loop-idle", fn: "toggleLoop('analysis')", id: "loopBtn-analysis" },
-          { label: "EMBED", cls: "green", fn: "generateEmbeddings()", id: "btnGenerateEmbed" },
-          { label: "\u221E EMBED", cls: "cs-loop-idle", fn: "toggleLoop('embedding')", id: "loopBtn-embedding" }
+          { label: "EMBED", cls: "green", fn: "generateEmbeddings()", id: "btnGenerateEmbed" }
         ],
         onCapacityChange: function(atCap) { _stationAtCapacity = atCap; _applyStationCapacity(atCap); }
       });
@@ -1921,9 +1623,7 @@ function _getOpsInstance(elId) {
         commands: [
           { label: "REINDEX ALL", cls: "amber", fn: "reindexAllRepos()", id: "btnReindexAll" },
           { label: "ANALYZE", cls: "purple", fn: "startAnalysis()", id: "btnStartAnalysis2" },
-          { label: "\u221E ANALYZE", cls: "cs-loop-idle", fn: "toggleLoop('analysis')", id: "loopBtn-analysis2" },
           { label: "EMBED", cls: "green", fn: "generateEmbeddings()", id: "btnGenerateEmbed2" },
-          { label: "\u221E EMBED", cls: "cs-loop-idle", fn: "toggleLoop('embedding')", id: "loopBtn-embedding2" },
           { label: "VERIFY", cls: "cyan", fn: "verifyGitHubData()" }
         ],
         onCapacityChange: function(atCap) { _stationAtCapacity = atCap; _applyStationCapacity(atCap); }
@@ -1944,9 +1644,7 @@ function _getOpsInstance(elId) {
           { label: "AUDIT", cls: "amber", fn: "langAuditTemplates()", id: "langAuditBtn" },
           { label: "SCAN KEYS", cls: "purple", fn: "langScanKeys()", id: "langScanBtn" },
           { label: "GENERATE ALL", cls: "green", fn: "langGenerateAll()", id: "langGenAllBtn" },
-          { label: "\u221E TRANSLATE", cls: "cs-loop-idle", fn: "toggleLoop('translate')", id: "loopBtn-translate" },
-          { label: "FULL PASS", cls: "cyan", fn: "langFullPass()", id: "langFullPassBtn" },
-          { label: "\u221E FULL PASS", cls: "cs-loop-idle", fn: "toggleLoop('fullPass')", id: "loopBtn-fullPass" }
+          { label: "FULL PASS", cls: "cyan", fn: "langFullPass()", id: "langFullPassBtn" }
         ],
         onCapacityChange: function(atCap) { _stationAtCapacity = atCap; _applyStationCapacity(atCap); }
       });
@@ -2318,48 +2016,6 @@ document.addEventListener("DOMContentLoaded", function () {
   window.addEventListener("resize", function() {
     if (_holoSphere) _holoSphere.resize();
   });
-
-  /* Restore loop button states from localStorage + server state.
-     Server state takes priority — if server has a loop active, enable it locally too. */
-  _loadLoopState();
-  api("/api/processing/server-loop/status").then(function(data) {
-    if (!data.success) return;
-    var serverLoops = data.loops || {};
-    _serverLoops = serverLoops;
-    Object.keys(serverLoops).forEach(function(opKey) {
-      if (serverLoops[opKey] && !_continuousRun[opKey]) {
-        _continuousRun[opKey] = true;
-        _continuousBatch[opKey] = 0;
-      } else if (!serverLoops[opKey] && _continuousRun[opKey]) {
-        /* Server stopped this loop (e.g. backlog cleared) — sync locally */
-        _continuousRun[opKey] = false;
-        _continuousBatch[opKey] = 0;
-      }
-    });
-    _saveLoopState();
-    Object.keys(_continuousRun).forEach(function(opKey) {
-      _updateLoopBtn(opKey);
-      _syncLoopBtnState(opKey, !!_continuousRun[opKey]);
-    });
-  }).catch(function(err) {
-    console.error("API error:", err);
-  });
-  Object.keys(_continuousRun).forEach(function(opKey) {
-    _updateLoopBtn(opKey);
-    _syncLoopBtnState(opKey, !!_continuousRun[opKey]);
-  });
-  /* Deferred auto-resume: wait for checkActiveJobs to load, then
-     kick any loop that has no running job */
-  setTimeout(function() {
-    Object.keys(_continuousRun).forEach(function(opKey) {
-      if (!_continuousRun[opKey]) return;
-      var op = _loopOps[opKey];
-      if (op) {
-        console.log("[Loop] Auto-resuming " + opKey + " after page load");
-        op.start();
-      }
-    });
-  }, 3000);
 
   var hash = window.location.hash.replace("#", "");
   var validTabs = ["dashboard", "knowledge", "github", "languages"];

@@ -49,58 +49,16 @@ register_integration_routes(consciousness_bp, admin_required)
 # Register code health routes (metrics, audit progress)
 register_code_health_routes(consciousness_bp, admin_required)
 
-# Resume any server-side loops that were active before restart
-try:
-    from services.loop_service import startup_resume_loops
-
-    startup_resume_loops()
-except Exception:
-    pass
+# Loop startup moved to Autonomy module (2026-03-23)
+# See: tools/autonomy/__init__.py
 
 # Register station actions so Bridge ACTN tab can discover them
 try:
     from services.action_registry import register_station_actions
 
+    # Loop actions (analysis, embeddings, translate) migrated to Autonomy module (2026-03-23)
     register_station_actions(
         [
-            {
-                "action_key": "consciousness.analysis.start",
-                "station_code": "ANALYTICS",
-                "module_source": "consciousness",
-                "label": "ANALYZE",
-                "description": "Start batch knowledge analysis",
-                "icon": "brain",
-                "color_class": "cyan",
-                "sort_order": 10,
-                "endpoint_path": "/tools/consciousness/api/processing/start",
-                "creates_job": True,
-                "job_type": "knowledge_analysis",
-                "test_config": {
-                    "capability": "summarize",
-                    "prompt": "Analyze this knowledge entry and extract key topics, entities, and a one-sentence summary:\n\nFlask is a micro web framework written in Python. It is classified as a microframework because it does not require particular tools or libraries.",
-                    "system_prompt": "You are a knowledge analyst. Extract topics, entities, and summary. Be concise.",
-                    "description": "Analyze short knowledge entry",
-                },
-            },
-            {
-                "action_key": "consciousness.embeddings.generate",
-                "station_code": "ANALYTICS",
-                "module_source": "consciousness",
-                "label": "EMBED",
-                "description": "Generate embeddings for unembedded entries",
-                "icon": "vector",
-                "color_class": "cyan",
-                "sort_order": 20,
-                "endpoint_path": "/tools/consciousness/api/processing/generate-embeddings",
-                "creates_job": True,
-                "job_type": "embedding_generation",
-                "test_config": {
-                    "capability": "embedding",
-                    "prompt": "Generate a semantic summary suitable for vector embedding:\n\nDocker containers package applications with their dependencies, ensuring consistent deployment across environments.",
-                    "system_prompt": "Summarize the text in one dense sentence capturing all key concepts.",
-                    "description": "Prepare text for embedding",
-                },
-            },
             {
                 "action_key": "consciousness.github.reindex",
                 "station_code": "ANALYTICS",
@@ -118,25 +76,6 @@ try:
                     "prompt": "Analyze this code file summary and categorize it:\n\nFile: app.py\nLanguage: Python\nImports: flask, os, logging\nFunctions: create_app, register_blueprints\nClasses: none",
                     "system_prompt": "You are a code indexer. Categorize the file type and purpose in one sentence.",
                     "description": "Classify code file metadata",
-                },
-            },
-            {
-                "action_key": "consciousness.translate.generate",
-                "station_code": "ANALYTICS",
-                "module_source": "consciousness",
-                "label": "TRANSLATE",
-                "description": "Generate missing translations",
-                "icon": "globe",
-                "color_class": "cyan",
-                "sort_order": 40,
-                "endpoint_path": "/tools/consciousness/api/translations/generate-async",
-                "creates_job": True,
-                "job_type": "translation",
-                "test_config": {
-                    "capability": "translate",
-                    "prompt": "Translate to French: The system is operating normally. All services are online.",
-                    "system_prompt": "You are a translator. Translate the given text accurately. Output only the translation.",
-                    "description": "Translate short system text",
                 },
             },
         ]

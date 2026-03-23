@@ -2416,20 +2416,6 @@
             </div>
           </div>
 
-          <!-- Loop Status Monitor -->
-          <div class="cs-ops-terminal" id="loopMonitorTerminal" style="margin-top:12px;">
-            <div class="cs-ops-header">
-              <div class="cs-ops-elbow"></div>
-              <div class="cs-ops-title">LOOP STATUS MONITOR</div>
-              <div class="cs-ops-status" id="loopMonitorOnline">
-                <span class="cs-ops-dot"></span> MONITORING
-              </div>
-            </div>
-            <div class="cs-ops-body" style="padding:8px 12px;">
-              <div id="loopMonitorGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;"></div>
-            </div>
-          </div>
-
           <div class="cs-subtabs">
             <button class="cs-subtab active" onclick="switchKnowledgeSubtab('browser')"><i data-lucide="search"></i> <span data-i18n="consciousness.browser">Browser</span></button>
             <button class="cs-subtab" onclick="switchKnowledgeSubtab('categories')"><i data-lucide="folder-tree"></i> <span data-i18n="consciousness.categories">Categories</span></button>
@@ -2904,12 +2890,6 @@
                     <div class="cs-stat-value" id="chJsonLines">—</div>
                     <div class="cs-stat-label">JSON</div>
                 </div>
-            </div>
-
-            <!-- Actions -->
-            <div class="ch-actions">
-                <button class="cs-btn purple" onclick="chRunScan()">SCAN CODEBASE</button>
-                <button class="cs-btn amber" onclick="chBackfillGit()">LIFETIME TRACKER</button>
             </div>
 
             <!-- Charts Row -->

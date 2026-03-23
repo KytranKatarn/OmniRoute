@@ -21,7 +21,8 @@
 .ac-app {
     display: flex;
     flex-direction: row;
-    height: calc(100vh - 60px);
+    height: calc(100vh - 120px);  /* Account for nav + ops-alert-bar */
+    position: relative;  /* Needed for absolute toggle button */
     background: #0d0d0f;
     overflow: hidden;
 }
@@ -616,6 +617,7 @@
 
 /* ── Flight Deck Toggle Button ─────────────────────────── */
 .ac-flight-deck-toggle {
+    display: none;  /* Hidden by default (deck starts visible) — JS shows it when deck collapses */
     position: absolute;
     right: 12px;
     top: 50%;
@@ -640,10 +642,7 @@
     box-shadow: 0 0 10px rgba(251, 191, 36, 0.15);
 }
 
-/* Show toggle when flight deck is hidden */
-.ac-flight-deck.ac-hidden ~ .ac-flight-deck-toggle {
-    display: flex;
-}
+/* Toggle visibility controlled by JS — no sibling selector needed */
 
 .ac-toggle-icon {
     line-height: 1;

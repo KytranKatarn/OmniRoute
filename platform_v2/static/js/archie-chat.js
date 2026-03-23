@@ -367,8 +367,11 @@ class ArchieChatUI {
     var deck = document.getElementById('ac-flight-deck');
     var toggle = document.getElementById('ac-flight-deck-toggle');
     if (!deck) return;
-    deck.classList.toggle('ac-hidden');
-    if (toggle) toggle.classList.toggle('ac-hidden');
+    var isHidden = deck.classList.toggle('ac-hidden');
+    // Toggle button: show (flex) when deck hidden, hide when deck visible
+    if (toggle) {
+      toggle.style.display = isHidden ? 'flex' : 'none';
+    }
   }
 
   setAgentTarget() {

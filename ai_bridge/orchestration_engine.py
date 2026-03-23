@@ -214,6 +214,7 @@ class OrchestrationEngine:
         conversation_id: Optional[str] = None,
         voice_mode: bool = False,
         user_context: Optional[Dict] = None,
+        agent_target: Optional[str] = None,
     ) -> OrchestrationResult:
         """
         Main orchestration pipeline.
@@ -305,6 +306,25 @@ class OrchestrationEngine:
             gpu_info = self._step_gpu_check(routing, steps)
 
             # --- Step 6: Select agent ---
+            if agent_target:
+                # Station or agent targeting override
+                _valid_stations = {
+                    "COMMAND", "ANALYTICS", "CREATIVE", "ENGINEERING",
+                    "COMMUNICATIONS", "RESEARCH", "SECURITY", "LOGISTICS",
+                    "DIPLOMATIC", "OPERATIONS",
+                }
+                if agent_target.upper() in _valid_stations:
+                    steps.append(ThinkingStep(
+                        step_type=StepType.AGENT_SELECT.value,
+                        label="Agent Target (Station)",
+                        data={"station_override": agent_target.upper()},
+                    ))
+                else:
+                    steps.append(ThinkingStep(
+                        step_type=StepType.AGENT_SELECT.value,
+                        label="Agent Target (Direct)",
+                        data={"agent_override": agent_target},
+                    ))
             selected_agent = self._step_select_agent(message, intent, steps)
 
             # --- Step 6b: Agent welfare check (now that we have an agent) ---
@@ -608,6 +628,7 @@ class OrchestrationEngine:
         user_id: int,
         conversation_id: str,
         user_context: Optional[Dict] = None,
+        agent_target: Optional[str] = None,
     ) -> Dict:
         """
         Run orchestration steps 1-6 without executing.
@@ -706,6 +727,25 @@ class OrchestrationEngine:
             gpu_info = self._step_gpu_check(routing, steps)
 
             # --- Step 6: Select agent ---
+            if agent_target:
+                # Station or agent targeting override
+                _valid_stations = {
+                    "COMMAND", "ANALYTICS", "CREATIVE", "ENGINEERING",
+                    "COMMUNICATIONS", "RESEARCH", "SECURITY", "LOGISTICS",
+                    "DIPLOMATIC", "OPERATIONS",
+                }
+                if agent_target.upper() in _valid_stations:
+                    steps.append(ThinkingStep(
+                        step_type=StepType.AGENT_SELECT.value,
+                        label="Agent Target (Station)",
+                        data={"station_override": agent_target.upper()},
+                    ))
+                else:
+                    steps.append(ThinkingStep(
+                        step_type=StepType.AGENT_SELECT.value,
+                        label="Agent Target (Direct)",
+                        data={"agent_override": agent_target},
+                    ))
             selected_agent = self._step_select_agent(message, intent, steps)
 
             # --- Step 6b: Welfare check ---

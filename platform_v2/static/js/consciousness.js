@@ -9,7 +9,6 @@ var _neuralCore = null;
 var _prevJobState = {};
 var _prevKnowledgeCounts = {};
 var _knowledgePollTimer = null;
-var _pixelCrew = null;
 var _glassNav = null;
 
 /* ── Utilities ─────────────────────────────────────── */
@@ -123,6 +122,10 @@ window.switchConsciousnessTab = function (tab) {
   } else {
     _stopLoopMonitor();
   }
+  /* Job polling — only needed on dashboard/knowledge/github/languages tabs */
+  if (tab !== "dashboard" && tab !== "knowledge" && tab !== "github" && tab !== "languages") {
+    _stopJobPolling();
+  }
 };
 
 var _headerLoaded = false;
@@ -132,7 +135,9 @@ function loadTabData(tab) {
     _headerLoaded = true;
     api("/api/dashboard/summary").then(function(d) {
       if (d.success) updateHeaderStats(d);
-    }).catch(function() {});
+    }).catch(function(err) {
+      console.error("API error:", err);
+    });
   }
 
   if (_cache[tab]) return;
@@ -141,7 +146,6 @@ function loadTabData(tab) {
   if (tab !== "dashboard" && _neuralCore) {
     _neuralCore.destroy();
     _neuralCore = null;
-    if (_pixelCrew) { _pixelCrew.destroy(); _pixelCrew = null; }
     if (_knowledgePollTimer) { clearInterval(_knowledgePollTimer); _knowledgePollTimer = null; }
   }
 
@@ -314,18 +318,19 @@ function loadNeuralCore() {
       setHtml("ncGitHubFiles", (data.total_files || 0).toLocaleString());
       setHtml("ncEmbedPct", (data.embed_pct || 0) + "%");
     }
-  }).catch(function() {});
+  }).catch(function(err) {
+    console.error("API error:", err);
+  });
 
   // Emotional state for mood
   api("/emotional-state").then(function(data) {
     var mood = (data.mood || "focused").toLowerCase();
     if (_neuralCore) _neuralCore.setMood(mood);
     else if (_holoSphere) _holoSphere.setMood(mood);
-  }).catch(function() {});
+  }).catch(function(err) {
+    console.error("API error:", err);
+  });
 
-  // Pixel Crew — disabled for now (Phase 2)
-  // var deckEl = document.getElementById("pixelCrewDeck");
-  // if (deckEl && typeof PixelCrew !== "undefined") { _pixelCrew = PixelCrew.create(deckEl); }
 }
 
 function _fallbackToHoloSphere(container, nodes) {
@@ -351,7 +356,7 @@ function _fallbackToHoloSphere(container, nodes) {
 }
 
 function _loadAgentsIntoCore() {
-  if (!_neuralCore && !_pixelCrew) return;
+  if (!_neuralCore) return;
   fetch("/tools/starbase/api/bridge/crew/manifest").then(function(r) { return r.json(); }).then(function(data) {
     if (!data.success) return;
     var crew = data.crew || [];
@@ -364,16 +369,17 @@ function _loadAgentsIntoCore() {
           status: agent.status
         };
         if (_neuralCore) _neuralCore.addAgent(agentData);
-        if (_pixelCrew) _pixelCrew.addAgent(agentData);
       }
     });
-  }).catch(function() {});
+  }).catch(function(err) {
+    console.error("API error:", err);
+  });
 }
 
 function _startKnowledgePolling() {
   if (_knowledgePollTimer) clearInterval(_knowledgePollTimer);
   _knowledgePollTimer = setInterval(function() {
-    if (!_neuralCore && !_pixelCrew) return;
+    if (!_neuralCore) return;
     api("/api/dashboard/summary").then(function(data) {
       if (!data.success) return;
       var kb = data.knowledge || {};
@@ -400,7 +406,9 @@ function _startKnowledgePolling() {
 
       setHtml("ncTotalKnowledge", (newCounts.total || 0).toLocaleString());
       _prevKnowledgeCounts = newCounts;
-    }).catch(function() {});
+    }).catch(function(err) {
+      console.error("API error:", err);
+    });
   }, 20000);
 }
 
@@ -573,7 +581,9 @@ function _loadTypeSummary() {
       '<span class="cs-type-chip api"><span class="chip-count">' + (typeMap.api || 0).toLocaleString() + '</span> API</span>' +
       '<span class="cs-type-chip code"><span class="chip-count">' + (typeMap.code || 0).toLocaleString() + '</span> Code</span>';
     setHtml(el, html);
-  }).catch(function() {});
+  }).catch(function(err) {
+    console.error("API error:", err);
+  });
 }
 
 function loadKnowledgeBrowser() {
@@ -1060,7 +1070,9 @@ function _syncServerLoop(opKey, enabled) {
   api("/api/processing/server-loop/toggle", {
     method: "POST",
     body: { op: opKey, enabled: enabled }
-  }).catch(function() {});
+  }).catch(function(err) {
+    console.error("API error:", err);
+  });
 }
 
 function _updateLoopBtn(opKey) {
@@ -1197,7 +1209,9 @@ function _formatLoopTime(iso) {
 function _refreshLoopMonitor() {
   api("/api/processing/server-loop/status").then(function(data) {
     if (data.success) _renderLoopMonitor(data);
-  }).catch(function() {});
+  }).catch(function(err) {
+    console.error("API error:", err);
+  });
 }
 
 function _startLoopMonitor() {
@@ -1337,7 +1351,9 @@ function loadLanguages() {
     setHtml("langTotalKeys", totalKeys.toLocaleString());
     setHtml("langApproved", totalApproved.toLocaleString());
     setHtml("langPending", totalPending.toLocaleString());
-  }).catch(function() {});
+  }).catch(function(err) {
+    console.error("API error:", err);
+  });
 
   // Per-language coverage → compact LCARS rows
   var flags = {fr:"\ud83c\uddeb\ud83c\uddf7",es:"\ud83c\uddea\ud83c\uddf8",pt:"\ud83c\udde7\ud83c\uddf7",de:"\ud83c\udde9\ud83c\uddea",zh:"\ud83c\udde8\ud83c\uddf3",ar:"\ud83c\uddf8\ud83c\udde6",he:"\ud83c\uddee\ud83c\uddf1"};
@@ -1854,7 +1870,9 @@ function loadGitHubEmbedStats() {
       // Also update file count from actual KB data
       setHtml("ghFileCount", (data.total_files || 0).toLocaleString());
     }
-  }).catch(function() {});
+  }).catch(function(err) {
+    console.error("API error:", err);
+  });
 }
 
 /* ── Shared: Render station crew + cross-station assists ─── */
@@ -2225,7 +2243,9 @@ function loadIntegration() {
       if (statusEl) statusEl.textContent = s.status === "online" ? (s.projects || s.stations || s.repos || "Online") : "Offline";
     });
     refreshIcons();
-  }).catch(function() {});
+  }).catch(function(err) {
+    console.error("API error:", err);
+  });
 
   // Dev HQ summary
   api("/api/integration/devhq-summary").then(function(data) {
@@ -2321,7 +2341,9 @@ document.addEventListener("DOMContentLoaded", function () {
       _updateLoopBtn(opKey);
       _syncLoopBtnState(opKey, !!_continuousRun[opKey]);
     });
-  }).catch(function() {});
+  }).catch(function(err) {
+    console.error("API error:", err);
+  });
   Object.keys(_continuousRun).forEach(function(opKey) {
     _updateLoopBtn(opKey);
     _syncLoopBtnState(opKey, !!_continuousRun[opKey]);
@@ -3140,7 +3162,7 @@ function _renderOrphanTable(orphans) {
 }
 
 window.chRunScan = function() {
-  api("/api/code-health/scan", "POST").then(function(d) {
+  api("/api/code-health/scan", { method: "POST" }).then(function(d) {
     if (d.success) {
       _renderCodeHealthStats(d.metrics);
       _renderModuleChart(d.metrics.modules || {}, {});
@@ -3166,7 +3188,7 @@ window.chRunScan = function() {
 
 window.chBackfillGit = function() {
   if (typeof toast !== "undefined") toast("Building lifetime tracker...");
-  api("/api/code-health/backfill-git", "POST", {}).then(function(d) {
+  api("/api/code-health/backfill-git", { method: "POST" }).then(function(d) {
     if (d.success) {
       if (typeof toast !== "undefined") toast("Tracked " + (d.days || 0) + " days of history");
       _cache.codehealth = false;
@@ -3183,7 +3205,9 @@ window.chLoadHistory = function() {
   api("/api/code-health/snapshots").then(function(d) {
     var snaps = (d.snapshots || []).reverse();
     _renderHistoryChart(snaps);
-  }).catch(function() {});
+  }).catch(function(err) {
+    console.error("API error:", err);
+  });
 };
 
 function _renderHistoryChart(snapshots) {

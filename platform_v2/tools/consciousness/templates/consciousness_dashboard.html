@@ -2251,6 +2251,10 @@
                                     <span class="holo-hud-value" id="intGithubStatus">--</span>
                                     <span class="holo-hud-label">GitHub</span>
                                 </div>
+                                <div class="holo-hud-item green">
+                                    <span class="holo-hud-value" id="intHealthStatus">--</span>
+                                    <span class="holo-hud-label">Health</span>
+                                </div>
                             </div>
                         </div>
                         <div class="lcars-footer-bar" style="background: #22c55e !important; height: 16px !important; display: flex !important; border-radius: 0 20px 20px 0 !important; flex-shrink: 0 !important;"></div>
@@ -2368,6 +2372,17 @@
                         </div>
                         <div class="lcars-footer-bar" style="background: #f59e0b !important; height: 16px !important; display: flex !important; border-radius: 0 20px 20px 0 !important; flex-shrink: 0 !important;"></div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Pipeline Test Accordion -->
+            <div class="cs-pipeline-accordion" style="margin-bottom: 20px;">
+                <button class="cs-pipeline-toggle" id="pipelineToggleBtn" onclick="togglePipelineTest()">
+                    <span>PIPELINE TEST</span>
+                    <i data-lucide="chevron-down"></i>
+                </button>
+                <div id="pipelineBody" style="display:none; padding: 12px 16px;">
+                    <div class="cs-loading" style="color: rgba(255,255,255,0.5); font-size: 0.82rem;">Pipeline test ready.</div>
                 </div>
             </div>
 
@@ -2847,6 +2862,9 @@
         <!-- Code Health Panel                                        -->
         <!-- ════════════════════════════════════════════════════════ -->
         <div class="cs-panel" id="panel-codehealth">
+
+            <!-- Status Summary (populated by loadCodeHealth) -->
+            <div id="chStatusSummary"></div>
 
             <!-- Stats Row -->
             <div class="cs-stats ch-stats-row">

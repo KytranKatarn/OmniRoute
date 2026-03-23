@@ -167,11 +167,12 @@ AGENT_SPECIALIZATION = {
 
 # Scoring weights for multi-factor agent selection
 SELECTION_WEIGHTS = {
-    "skills": 0.35,
+    "skills": 0.30,
     "specialization": 0.25,
-    "welfare": 0.20,
+    "welfare": 0.15,
     "availability": 0.15,
     "budget": 0.05,
+    "tier_match": 0.10,  # Bonus if agent's model matches SmartRouter recommendation
 }
 
 # Shift lifecycle states
@@ -1134,8 +1135,13 @@ class BridgeDispatcher:
         agent_info: Dict,
         capability: str,
         station_code: str,
+        recommended_tier: Optional[str] = None,
     ) -> tuple:
         """Score an agent for a given capability and station.
+
+        Args:
+            recommended_tier: SmartRouter advisory tier (e.g. 'local', 'haiku').
+                              Provides a scoring bonus if agent's model matches.
 
         Returns:
             (score, block_reason_or_None) — score is 0.0 if hard-blocked.
@@ -1240,6 +1246,27 @@ class BridgeDispatcher:
             budget_score = max(1.0 - (task_count / task_limit), 0.0)
 
         # ------------------------------------------------------------------
+        # Tier match score — SmartRouter advisory bonus
+        # ------------------------------------------------------------------
+        tier_match_score = 0.0
+        if recommended_tier:
+            agent_model = agent_info.get("model", "")
+            try:
+                from ai_bridge.smart_router import get_router
+
+                router = get_router()
+                configs = router._get_model_configs()
+                # Check if agent's model belongs to the recommended tier
+                tier_config = configs.get(recommended_tier)
+                if tier_config and (
+                    agent_model == tier_config.model_name
+                    or agent_model.startswith(tier_config.model_name.split(":")[0])
+                ):
+                    tier_match_score = 1.0
+            except Exception:
+                pass  # SmartRouter unavailable — no bonus, no penalty
+
+        # ------------------------------------------------------------------
         # Composite weighted score
         # ------------------------------------------------------------------
         composite = (
@@ -1248,6 +1275,7 @@ class BridgeDispatcher:
             + SELECTION_WEIGHTS["welfare"] * welfare_score
             + SELECTION_WEIGHTS["availability"] * availability_score
             + SELECTION_WEIGHTS["budget"] * budget_score
+            + SELECTION_WEIGHTS["tier_match"] * tier_match_score
         )
 
         # Apply shift state modifiers
@@ -1314,12 +1342,14 @@ class BridgeDispatcher:
         capability: str,
         station_code: str,
         skip_busy_refresh: bool = False,
+        recommended_tier: Optional[str] = None,
     ) -> Optional[Dict]:
         """Select the best agent for a capability within a station.
 
         Uses multi-factor scoring: skills, specialization, welfare,
-        availability, and budget headroom.  Hard-blocked agents (resting,
-        budget exhausted, critical welfare) are filtered out.
+        availability, budget headroom, and SmartRouter tier match.
+        Hard-blocked agents (resting, budget exhausted, critical welfare)
+        are filtered out.
         """
         self._refresh_agent_cache()
         self._refresh_welfare_cache(skip_busy_refresh=skip_busy_refresh)
@@ -1346,7 +1376,8 @@ class BridgeDispatcher:
         blocked = []
         for name, info in candidates:
             score, block_reason = self._score_agent(
-                name, info, capability, station_code
+                name, info, capability, station_code,
+                recommended_tier=recommended_tier,
             )
             if score > 0:
                 scored.append((score, name, info))
@@ -3175,9 +3206,9 @@ class BridgeDispatcher:
     def _get_next_tier(self, current_model: str, capability: str) -> Optional[Dict]:
         """Find the next escalation tier above current model."""
         try:
-            from ai_bridge.smart_router import SmartRouter, TIER_ORDER
+            from ai_bridge.smart_router import get_router, TIER_ORDER
 
-            router = SmartRouter()
+            router = get_router()
             available = router.get_available_tiers()
             configs = router._get_model_configs()
 
@@ -3887,6 +3918,33 @@ class BridgeDispatcher:
         except Exception as busy_err:
             logger.debug(f"[BridgeDispatcher] Busy agents refresh failed: {busy_err}")
 
+        # 0. SmartRouter advisory — classify task and recommend model tier
+        #    This is a HINT, not a command. Existing systems (warm boot, RAM
+        #    budget, Telegram approval) still control actual model selection.
+        recommended_tier = None
+        smart_route_info = {}
+        try:
+            from ai_bridge.smart_router import get_router
+
+            router = get_router()
+            task_type = router.classify_task(prompt)
+            routing_rec = router.suggest_model(task_type, complexity=5)
+            recommended_tier = routing_rec.tier
+            smart_route_info = {
+                "task_type": task_type,
+                "recommended_tier": recommended_tier,
+                "recommended_model": routing_rec.model_name,
+                "should_escalate": routing_rec.should_escalate,
+                "estimated_cost": routing_rec.estimated_cost,
+            }
+            logger.info(
+                f"[BridgeDispatcher] SmartRouter advisory: "
+                f"task_type={task_type} tier={recommended_tier} "
+                f"model={routing_rec.model_name}"
+            )
+        except Exception as sr_err:
+            logger.debug(f"[BridgeDispatcher] SmartRouter advisory skipped: {sr_err}")
+
         # 1. Map capability → station (home-first, mission-profile-aware)
         capability_station = self._resolve_station(capability)
         home_station = self._resolve_module_station(module_id)
@@ -3906,16 +3964,25 @@ class BridgeDispatcher:
             agent = self._agent_cache[prefer_agent]
             dispatch_station = agent.get("station_code", capability_station)
         elif home_station:
-            agent = self._select_agent(capability, home_station, skip_busy_refresh=_sbr)
+            agent = self._select_agent(
+                capability, home_station, skip_busy_refresh=_sbr,
+                recommended_tier=recommended_tier,
+            )
             if agent:
                 dispatch_station = home_station
             else:
                 # Home station can't handle — fall to capability station
-                agent = self._select_agent(capability, capability_station, skip_busy_refresh=_sbr)
+                agent = self._select_agent(
+                    capability, capability_station, skip_busy_refresh=_sbr,
+                    recommended_tier=recommended_tier,
+                )
                 dispatch_station = capability_station
                 is_cross_station = home_station != capability_station
         else:
-            agent = self._select_agent(capability, capability_station, skip_busy_refresh=_sbr)
+            agent = self._select_agent(
+                capability, capability_station, skip_busy_refresh=_sbr,
+                recommended_tier=recommended_tier,
+            )
             dispatch_station = capability_station
 
         station_code = dispatch_station
@@ -4644,6 +4711,9 @@ class BridgeDispatcher:
             "agent_station": agent.get("station_code") if agent else None,
             "module_station": home_station,
         }
+        # Merge SmartRouter advisory info for observability
+        if smart_route_info:
+            result_metadata["smart_routing"] = smart_route_info
         # Merge failure-escalation flags so Bridge Command tracks contractor work
         if escalation_info:
             result_metadata.update(escalation_info)

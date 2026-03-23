@@ -89,7 +89,7 @@ def register_ops_routes(bp, admin_required):
 
             # Server loops
             try:
-                from tools.consciousness.processing_routes import get_server_loops
+                from services.loop_service import get_server_loops
 
                 server_loops = get_server_loops()
             except Exception:
@@ -266,7 +266,7 @@ def register_ops_routes(bp, admin_required):
 
             # Server loops
             try:
-                from tools.consciousness.processing_routes import get_server_loops
+                from services.loop_service import get_server_loops
 
                 server_loops = get_server_loops()
             except Exception:

@@ -5718,7 +5718,7 @@ class BridgeDispatcher:
 
                 # ── Server-side loop: auto-retrigger next batch ──
                 try:
-                    from tools.consciousness.processing_routes import server_loop_retrigger
+                    from services.loop_service import server_loop_retrigger
 
                     server_loop_retrigger(j_type, m_src, status)
                 except Exception as loop_err:

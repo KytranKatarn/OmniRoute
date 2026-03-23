@@ -51,7 +51,7 @@ register_code_health_routes(consciousness_bp, admin_required)
 
 # Resume any server-side loops that were active before restart
 try:
-    from .processing_routes import startup_resume_loops
+    from services.loop_service import startup_resume_loops
 
     startup_resume_loops()
 except Exception:

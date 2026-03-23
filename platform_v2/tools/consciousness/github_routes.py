@@ -181,6 +181,16 @@ def run_reindex_background(repos_list, job_id):
                 logger.error(f"[GitHub] Job #{job_id} progress update failed: {ue}")
         d.complete_job(job_id)
         logger.info(f"[GitHub] Reindex-all job #{job_id} done: {total_indexed} files across {len(repos_list)} repos")
+
+        # Telegram notification — tell Kytran what ARCHIE just learned
+        try:
+            _notify_ingestion_complete(
+                repo_count=len(repos_list),
+                file_count=total_indexed,
+                repo_names=[r["repo_name"] for r in repos_list],
+            )
+        except Exception as tg_err:
+            logger.debug(f"[GitHub] Telegram notification failed: {tg_err}")
     except Exception as fatal:
         logger.error(f"[GitHub] Reindex-all job #{job_id} thread crashed: {fatal}")
         traceback.print_exc()
@@ -340,6 +350,58 @@ def _check_rate_limit(response):
     if response.status_code == 401:
         return True, "GitHub authentication failed. Check your token."
     return False, ""
+
+
+def _notify_ingestion_complete(repo_count, file_count, repo_names):
+    """Send Telegram notification when GitHub repos are ingested.
+
+    Tells Kytran what ARCHIE just learned so Claude can be upgraded next session.
+    """
+    import asyncio
+    from flask import current_app
+
+    gateway = current_app.config.get("TELEGRAM_GATEWAY")
+    if not gateway or not gateway.is_running:
+        return
+
+    # Build repo list (max 5 shown)
+    repo_list = "\n".join(f"  \u2022 {r}" for r in repo_names[:5])
+    if len(repo_names) > 5:
+        repo_list += f"\n  ... and {len(repo_names) - 5} more"
+
+    text = (
+        "\U0001f9e0 *ARCHIE Knowledge Ingestion Complete*\n\n"
+        f"\U0001f4da *{file_count}* files indexed from *{repo_count}* repo(s)\n\n"
+        f"*Repos:*\n{repo_list}\n\n"
+        "\U0001f916 _Skills will be synced to Claude within 6 hours "
+        "(Agent Loop Job #54). Next Claude session will have "
+        "these skills auto-loaded._\n\n"
+        "\U0001f50d Use `/archie-search` to explore what was learned."
+    )
+
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT telegram_id FROM telegram_users
+                WHERE is_authorized = TRUE AND telegram_id IS NOT NULL LIMIT 1
+            """
+            )
+            tg_user = cur.fetchone()
+            if tg_user:
+                loop = gateway._loop
+                asyncio.run_coroutine_threadsafe(
+                    gateway._application.bot.send_message(
+                        chat_id=tg_user["telegram_id"],
+                        text=text,
+                        parse_mode="Markdown",
+                    ),
+                    loop,
+                )
+    except Exception as e:
+        logger.warning(f"[GitHub] Telegram ingestion notification failed: {e}")
 
 
 def _reindex_repo_via_tree(owner, repo, repo_type, importance=0.85, max_files=None):
@@ -989,6 +1051,17 @@ def register_github_routes(bp, admin_required):
                         paths.append(item.get("path", ""))
 
             conn.commit()
+
+            # Telegram notification — tell Kytran what ARCHIE just learned
+            try:
+                _notify_ingestion_complete(
+                    repo_count=1,
+                    file_count=indexed_count,
+                    repo_names=[f"{owner}/{repo}"],
+                )
+            except Exception as tg_err:
+                logger.debug(f"[GitHub] Telegram notification failed: {tg_err}")
+
             return jsonify(
                 {
                     "success": True,

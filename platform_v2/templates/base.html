@@ -40,6 +40,10 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/agent-badge.css') }}">
 
+    {% if current_user.is_authenticated and current_user.is_admin %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/archie-chat.css') }}">
+    {% endif %}
+
     <!-- A.R.C.H.I.E. Theme System (light/dark mode) -->
     <script src="{{ url_for('static', filename='js/archie-theme.js') }}"></script>
 
@@ -388,6 +392,10 @@
         })();
         {% endif %}
     </script>
+
+    {% if current_user.is_authenticated and current_user.is_admin %}
+    <script src="{{ url_for('static', filename='js/archie-chat-overlay.js') }}"></script>
+    {% endif %}
 
 </body>
 </html>

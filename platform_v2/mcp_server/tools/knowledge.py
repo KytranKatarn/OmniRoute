@@ -62,6 +62,82 @@ async def search_knowledge_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     if not query:
         return {"success": False, "error": "Query is required"}
 
+    # Try semantic search first (embedding-based)
+    try:
+        from tools.consciousness.memory_service import semantic_search
+
+        filter_parts = []
+        if types:
+            if isinstance(types, str):
+                types = [types]
+            type_list = ", ".join(f"'{t}'" for t in types)
+            filter_parts.append(f"AND knowledge_type IN ({type_list})")
+        if category:
+            filter_parts.append(f"AND category = '{category}'")
+        filter_sql = " ".join(filter_parts) if filter_parts else ""
+
+        semantic_results = semantic_search(
+            query,
+            table="knowledge_base",
+            limit=limit,
+            filter_sql=filter_sql,
+        )
+        if semantic_results:
+            # Apply type weighting to semantic results
+            type_weights = {
+                "mistake_learned": 1.3,
+                "vault_note": 1.2,
+                "code_snippet": 1.1,
+                "knowledge_card": 1.1,
+                "improvement": 1.0,
+                "github_file": 0.8,
+                "conversation_memory": 0.8,
+            }
+            formatted = []
+            for r in semantic_results:
+                kt = r.get("knowledge_type", "")
+                weight = type_weights.get(kt, 0.8)
+                sim = r.get("similarity", 0.5)
+                formatted.append(
+                    {
+                        "id": r.get("id"),
+                        "type": kt,
+                        "title": r.get("title", ""),
+                        "content": (r.get("content", "") or "")[:500],
+                        "category": r.get("category"),
+                        "tags": r.get("tags") or [],
+                        "relevance_score": round(float(sim) * weight, 4),
+                    }
+                )
+            formatted.sort(key=lambda x: x["relevance_score"], reverse=True)
+
+            # Update access counts
+            conn, cur = get_db_connection()
+            if conn:
+                try:
+                    ids = [r["id"] for r in formatted if r.get("id")]
+                    if ids:
+                        cur.execute(
+                            "UPDATE knowledge_base SET access_count = access_count + 1, last_accessed = NOW() WHERE id = ANY(%s)",
+                            (ids,),
+                        )
+                        conn.commit()
+                finally:
+                    conn.close()
+
+            return {
+                "success": True,
+                "query": query,
+                "total_results": len(formatted),
+                "results": formatted,
+                "search_type": "semantic",
+                "search_types": types or ["all"],
+                "tip": "Use type filters for more specific results: mistake_learned, vault_note, code_snippet, github_file, conversation_memory",
+            }
+    except Exception as e:
+        logger.debug(f"Semantic search unavailable, falling back to text: {e}")
+
+    # Text search fallback
     conn, cur = get_db_connection()
     if not conn:
         return {"success": False, "error": "Database connection failed"}
@@ -779,6 +855,152 @@ async def github_search_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # ============================================================================
+# SESSION BRIEFING TOOL
+# ============================================================================
+
+
+async def session_briefing_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    One-call session briefing for Claude CLI sessions.
+
+    Combines: knowledge context + mistake search + KB stats + active projects
+    + agent/dispatcher status into a single response. Designed to be called
+    at the start of every session via /archie-boot.
+    """
+    topic = arguments.get("topic", "platform status")
+
+    conn, cur = get_db_connection()
+    if not conn:
+        return {"success": False, "error": "Database connection failed"}
+
+    try:
+        briefing = {
+            "topic": topic,
+            "knowledge_context": [],
+            "mistakes_to_avoid": [],
+            "active_projects": [],
+            "kb_stats": {},
+            "agent_status": {},
+        }
+
+        # 1. Relevant knowledge for the topic
+        cur.execute(
+            """
+            SELECT id, knowledge_type, title, LEFT(content, 300) as content,
+                   importance_score, category
+            FROM knowledge_base
+            WHERE (title ILIKE %s OR content ILIKE %s)
+            AND knowledge_type != 'github_file'
+            ORDER BY
+                CASE
+                    WHEN knowledge_type = 'mistake_learned' THEN importance_score * 1.3
+                    WHEN knowledge_type = 'vault_note' THEN importance_score * 1.2
+                    ELSE importance_score
+                END DESC
+            LIMIT 10
+        """,
+            (f"%{topic}%", f"%{topic}%"),
+        )
+        briefing["knowledge_context"] = [dict(r) for r in cur.fetchall()]
+
+        # 2. Mistakes to avoid (always load, critical for preventing repeat errors)
+        cur.execute(
+            """
+            SELECT title, LEFT(content, 200) as content, importance_score
+            FROM knowledge_base
+            WHERE knowledge_type = 'mistake_learned'
+            AND (title ILIKE %s OR content ILIKE %s)
+            ORDER BY importance_score DESC
+            LIMIT 5
+        """,
+            (f"%{topic}%", f"%{topic}%"),
+        )
+        briefing["mistakes_to_avoid"] = [dict(r) for r in cur.fetchall()]
+
+        # 3. Active projects
+        cur.execute(
+            """
+            SELECT id, name, status, priority,
+                   (SELECT COUNT(*) FROM unified_tasks t WHERE t.project_id = p.id AND t.status = 'completed') as done,
+                   (SELECT COUNT(*) FROM unified_tasks t WHERE t.project_id = p.id) as total
+            FROM unified_projects p
+            WHERE status IN ('active', 'planning')
+            ORDER BY priority DESC
+            LIMIT 10
+        """
+        )
+        projects = cur.fetchall()
+        briefing["active_projects"] = [
+            {
+                "id": p["id"],
+                "name": p["name"],
+                "status": p["status"],
+                "priority": p["priority"],
+                "progress": f"{p['done']}/{p['total']} tasks",
+            }
+            for p in projects
+        ]
+
+        # 4. Knowledge base stats
+        cur.execute("SELECT COUNT(*) as total FROM knowledge_base")
+        total = cur.fetchone()["total"]
+        cur.execute("SELECT COUNT(*) as total FROM knowledge_base WHERE embedding IS NOT NULL")
+        embedded = cur.fetchone()["total"]
+        cur.execute(
+            """
+            SELECT knowledge_type, COUNT(*) as count
+            FROM knowledge_base GROUP BY knowledge_type ORDER BY count DESC LIMIT 5
+        """
+        )
+        by_type = {r["knowledge_type"]: r["count"] for r in cur.fetchall()}
+        briefing["kb_stats"] = {
+            "total_entries": total,
+            "embedded": embedded,
+            "embedding_coverage": f"{round(embedded / total * 100, 1)}%" if total > 0 else "0%",
+            "by_type": by_type,
+        }
+
+        # 5. Agent & dispatcher status
+        cur.execute("SELECT COUNT(*) as total FROM agents")
+        agent_total = cur.fetchone()["total"]
+        cur.execute(
+            """
+            SELECT shift_state, COUNT(*) as count
+            FROM agents GROUP BY shift_state ORDER BY count DESC
+        """
+        )
+        by_state = {r["shift_state"]: r["count"] for r in cur.fetchall()}
+        cur.execute(
+            """
+            SELECT COUNT(*) as online FROM remote_nodes
+            WHERE last_heartbeat > NOW() - INTERVAL '2 minutes'
+        """
+        )
+        nodes_online = cur.fetchone()["online"]
+        briefing["agent_status"] = {
+            "total_agents": agent_total,
+            "by_shift_state": by_state,
+            "nodes_online": nodes_online,
+        }
+
+        cur.close()
+        conn.close()
+
+        return {
+            "success": True,
+            "briefing": briefing,
+            "generated_at": datetime.now().isoformat(),
+            "tip": "Review mistakes_to_avoid before starting work. Use search_knowledge for deeper dives.",
+        }
+
+    except Exception as e:
+        logger.error(f"Error in session_briefing: {e}")
+        if conn:
+            conn.close()
+        return {"success": False, "error": str(e)}
+
+
+# ============================================================================
 # TOOL REGISTRATION
 # ============================================================================
 
@@ -1044,8 +1266,27 @@ def register_knowledge_tools():
         requires_permission="read",
     )
 
+    # Session Briefing (one-call boot protocol)
+    register_tool(
+        name="session_briefing",
+        category="knowledge",
+        description="One-call session briefing: returns relevant knowledge, mistakes to avoid, active projects, KB stats, and agent status for a given topic. Call this at session start via /archie-boot.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "topic": {
+                    "type": "string",
+                    "description": "What you're working on this session (e.g., 'website designer module', 'consciousness knowledge tab'). Default: 'platform status'",
+                    "default": "platform status",
+                },
+            },
+        },
+        handler=session_briefing_handler,
+        requires_permission="read",
+    )
+
     logger.info(
-        "Registered 9 knowledge tools: search_knowledge, store_memory, get_user_preferences, recall_context, learn_preference, get_knowledge_stats, github_list_repos, github_index_repo, github_search"
+        "Registered 10 knowledge tools: search_knowledge, store_memory, get_user_preferences, recall_context, learn_preference, get_knowledge_stats, github_list_repos, github_index_repo, github_search, session_briefing"
     )
 
 

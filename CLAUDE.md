@@ -4,6 +4,21 @@
 
 ---
 
+## Session Start Protocol (MANDATORY)
+
+Every new session MUST begin with one of:
+- Run `/archie-boot` (preferred — guided session boot)
+- Call `mcp__archie__session_briefing` with the task topic (one-call alternative)
+
+**The knowledge base has 18,000+ entries with embeddings. Search before building. Search before asking.**
+- `search_knowledge` — semantic + text search across all knowledge types
+- `recall_context` — recall past context for a topic
+- `search_knowledge` with types: ["mistake_learned"] — prevent repeating costly errors
+
+**The user is REMOTE** — always use 192.168.1.200, never localhost.
+
+---
+
 ## Critical Rules
 
 1. **Read before modify** - Check existing code patterns first
@@ -25,12 +40,12 @@
 | Dev HQ | http://192.168.1.200:3000/dev-hq |
 | Docs | `knowledge_base` table → Dev HQ Knowledge tab or MCP `search_knowledge` |
 | Modules | `/mnt/archie_brain/platform_v2/tools/` (50 modules) |
-| MCP Tools | 78 tools via `.mcp.json` |
+| MCP Tools | 79 tools via `.mcp.json` (incl. `session_briefing`) |
 | Projects | `unified_projects` table → MCP `get_projects` / `create_task` |
 
 ## Architecture (7 Systems)
 
-1. **Knowledge Base** - `knowledge_base` table (~5,000 active entries, 100% embedded; ~1,100 archived as `archie_v1`)
+1. **Knowledge Base** - `knowledge_base` table (~18,000 active entries, 99% embedded; ~20 archived as `archie_v1`)
 2. **AI Bridge** - `/ai_bridge/archie_bridge.py` (multi-model router)
 3. **Module System** - Flask Blueprints in `/platform_v2/tools/`
 4. **Dev HQ** - Development command center (`/dev-hq`), projects, knowledge, schema, integrations
@@ -157,6 +172,7 @@ docker exec -it archie_database psql -U archie -d archie  # DB
 
 ## Skills (Use These!)
 
+- `/archie-boot` - Session start protocol (MANDATORY)
 - `/archie-status` - Platform health check
 - `/archie-module` - Create/modify modules
 - `/archie-deploy` - Safe deployment

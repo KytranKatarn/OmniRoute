@@ -1267,60 +1267,97 @@ class OrchestrationEngine:
         user_context: Optional[Dict],
         steps: List[ThinkingStep],
     ) -> str:
-        """Step 7: Execute the request with the selected model"""
+        """Step 7: Execute the request with the selected model.
+
+        Primary path: route through Bridge dispatcher to get agent selection,
+        SmartRouter classification, knowledge augmentation (RAG), IAAE
+        governance logging, and HR tracking. Falls back to direct Ollama if
+        dispatcher is unavailable.
+        """
         t0 = time.time()
         response_text = ""
         actual_model = model_name
+        dispatched_via_bridge = False
 
+        # Primary: try Bridge dispatcher for full pipeline integration
         try:
-            provider = routing.get("provider", "ollama") if routing else "ollama"
-            tier = routing.get("tier", "local") if routing else "local"
+            from ai_bridge.bridge_dispatcher import get_dispatcher
 
-            if provider == "ollama" or tier == "local":
-                response_text, actual_model = self._execute_ollama(
-                    message,
-                    model_name,
-                    user_id,
-                    conversation_id,
-                    voice_mode,
-                    user_context,
-                )
-            elif provider == "claude":
-                response_text, actual_model = self._execute_claude_proxy(
-                    message, model_name, voice_mode
-                )
-            else:
-                # Fallback to Ollama
-                response_text, actual_model = self._execute_ollama(
-                    message,
-                    model_name,
-                    user_id,
-                    conversation_id,
-                    voice_mode,
-                    user_context,
-                )
+            dispatcher = get_dispatcher()
+            task_type = (routing or {}).get("task_type", "general")
+            capability = intent.get("primary_intent", task_type)
 
-        except Exception as e:
-            logger.error(f"Execution failed: {e}")
-            # Fallback: try local Ollama with whatever is loaded
+            result = dispatcher.request_work(
+                capability=capability,
+                prompt=message,
+                module_id="orchestration_engine",
+                user_id=user_id,
+                timeout=120,
+            )
+            if result.success and result.response:
+                response_text = result.response
+                actual_model = result.model_used or model_name
+                dispatched_via_bridge = True
+                logger.info(
+                    f"[OrchestrationEngine] Bridge dispatch OK: "
+                    f"agent={result.agent_name} model={actual_model}"
+                )
+        except Exception as bridge_err:
+            logger.warning(
+                f"[OrchestrationEngine] Bridge dispatch failed, "
+                f"falling back to direct execution: {bridge_err}"
+            )
+
+        # Fallback: direct execution if Bridge didn't handle it
+        if not dispatched_via_bridge:
             try:
-                steps.append(
-                    ThinkingStep(
-                        step_type=StepType.FALLBACK.value,
-                        label="Fallback: retrying with local model",
-                        data={"original_error": str(e)},
+                provider = routing.get("provider", "ollama") if routing else "ollama"
+                tier = routing.get("tier", "local") if routing else "local"
+
+                if provider == "ollama" or tier == "local":
+                    response_text, actual_model = self._execute_ollama(
+                        message,
+                        model_name,
+                        user_id,
+                        conversation_id,
+                        voice_mode,
+                        user_context,
                     )
-                )
-                response_text, actual_model = self._execute_ollama(
-                    message,
-                    _default_conversation_model(),
-                    user_id,
-                    conversation_id,
-                    voice_mode,
-                    user_context,
-                )
-            except Exception as e2:
-                raise RuntimeError(f"All execution paths failed: {e2}") from e
+                elif provider == "claude":
+                    response_text, actual_model = self._execute_claude_proxy(
+                        message, model_name, voice_mode
+                    )
+                else:
+                    response_text, actual_model = self._execute_ollama(
+                        message,
+                        model_name,
+                        user_id,
+                        conversation_id,
+                        voice_mode,
+                        user_context,
+                    )
+
+            except Exception as e:
+                logger.error(f"Execution failed: {e}")
+                # Last resort: try local Ollama with default model
+                try:
+                    steps.append(
+                        ThinkingStep(
+                            step_type=StepType.FALLBACK.value,
+                            label="Fallback: retrying with local model",
+                            data={"original_error": str(e)},
+                        )
+                    )
+                    response_text, actual_model = self._execute_ollama(
+                        message,
+                        _default_conversation_model(),
+                        user_id,
+                        conversation_id,
+                        voice_mode,
+                        user_context,
+                    )
+                except Exception as e2:
+                    raise RuntimeError(f"All execution paths failed: {e2}") from e
 
         duration = int((time.time() - t0) * 1000)
         steps.append(
@@ -1331,6 +1368,7 @@ class OrchestrationEngine:
                     "model": actual_model,
                     "response_length": len(response_text),
                     "voice_mode": voice_mode,
+                    "dispatched_via_bridge": dispatched_via_bridge,
                 },
                 duration_ms=duration,
                 model_used=actual_model,

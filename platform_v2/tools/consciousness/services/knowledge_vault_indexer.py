@@ -201,18 +201,23 @@ class KnowledgeVaultIndexer:
             if not note_id:
                 return True, "Note not found in index (already removed)"
 
-            conn = get_db()
-            cursor = conn.cursor()
+            conn = None
+            cursor = None
+            try:
+                conn = get_db()
+                cursor = conn.cursor()
 
-            # Delete from knowledge_base (CASCADE will delete vault_links)
-            cursor.execute("DELETE FROM knowledge_base WHERE id = %s", (note_id,))
+                # Delete from knowledge_base (CASCADE will delete vault_links)
+                cursor.execute("DELETE FROM knowledge_base WHERE id = %s", (note_id,))
 
-            conn.commit()
-            cursor.close()
-            conn.close()
-
-            print(f"[Vault Indexer] Deleted note #{note_id} from index")
-            return True, "Note removed from index"
+                conn.commit()
+                print(f"[Vault Indexer] Deleted note #{note_id} from index")
+                return True, "Note removed from index"
+            finally:
+                if cursor:
+                    cursor.close()
+                if conn:
+                    conn.close()
 
         except Exception as e:
             print(f"[Vault Indexer] Error deleting note from index: {e}")
@@ -233,6 +238,8 @@ class KnowledgeVaultIndexer:
         embedding: Optional[List[float]] = None,
     ) -> Optional[int]:
         """Insert new note into knowledge_base table"""
+        conn = None
+        cursor = None
         try:
             conn = get_db()
             cursor = conn.cursor()
@@ -246,8 +253,8 @@ class KnowledgeVaultIndexer:
                 INSERT INTO knowledge_base
                 (knowledge_type, title, content, category, tags,
                  is_documentation, file_path, frontmatter_metadata,
-                 last_synced_at, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 embedding, last_synced_at, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             """,
                 (
@@ -259,6 +266,7 @@ class KnowledgeVaultIndexer:
                     True,  # is_documentation
                     file_path,
                     self._serialize_frontmatter(frontmatter),  # frontmatter_metadata (handles datetime)
+                    embedding_json,  # embedding vector
                     datetime.now(),  # last_synced_at
                     datetime.now(),  # created_at
                     datetime.now(),  # updated_at
@@ -268,9 +276,6 @@ class KnowledgeVaultIndexer:
             note_id = cursor.fetchone()[0]
 
             conn.commit()
-            cursor.close()
-            conn.close()
-
             return note_id
 
         except Exception as e:
@@ -279,6 +284,11 @@ class KnowledgeVaultIndexer:
 
             traceback.print_exc()
             return None
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
 
     def _update_note_in_db(
         self,
@@ -292,6 +302,8 @@ class KnowledgeVaultIndexer:
         embedding: Optional[List[float]] = None,
     ) -> bool:
         """Update existing note in knowledge_base table"""
+        conn = None
+        cursor = None
         try:
             conn = get_db()
             cursor = conn.cursor()
@@ -299,7 +311,7 @@ class KnowledgeVaultIndexer:
             # Prepare embedding as JSON
             embedding_json = json.dumps(embedding) if embedding else None
 
-            # Update knowledge_base
+            # Update knowledge_base (include embedding if provided)
             cursor.execute(
                 """
                 UPDATE knowledge_base
@@ -308,6 +320,7 @@ class KnowledgeVaultIndexer:
                     category = %s,
                     tags = %s,
                     frontmatter_metadata = %s,
+                    embedding = COALESCE(%s, embedding),
                     last_synced_at = %s,
                     updated_at = %s
                 WHERE id = %s
@@ -318,6 +331,7 @@ class KnowledgeVaultIndexer:
                     category,
                     [str(t) for t in tags],  # Convert all tags to strings
                     self._serialize_frontmatter(frontmatter),  # Handle datetime objects
+                    embedding_json,  # Update embedding if provided, keep existing otherwise
                     datetime.now(),
                     datetime.now(),
                     note_id,
@@ -325,17 +339,21 @@ class KnowledgeVaultIndexer:
             )
 
             conn.commit()
-            cursor.close()
-            conn.close()
-
             return True
 
         except Exception as e:
             print(f"[Vault Indexer] Error updating note in DB: {e}")
             return False
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
 
     def _get_note_id_by_file_path(self, file_path: str) -> Optional[int]:
         """Get note ID from database by file path"""
+        conn = None
+        cursor = None
         try:
             conn = get_db()
             cursor = conn.cursor()
@@ -346,15 +364,16 @@ class KnowledgeVaultIndexer:
             )
 
             result = cursor.fetchone()
-
-            cursor.close()
-            conn.close()
-
             return result[0] if result else None
 
         except Exception as e:
             print(f"[Vault Indexer] Error getting note ID: {e}")
             return None
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
 
     # ========================================================================
     # WIKILINK GRAPH OPERATIONS
@@ -368,6 +387,8 @@ class KnowledgeVaultIndexer:
             source_note_id: ID of the source note
             wikilinks: List of wikilink texts extracted from content
         """
+        conn = None
+        cursor = None
         try:
             conn = get_db()
             cursor = conn.cursor()
@@ -409,13 +430,15 @@ class KnowledgeVaultIndexer:
                 )
 
             conn.commit()
-            cursor.close()
-            conn.close()
-
             print(f"[Vault Indexer] Updated link graph for note #{source_note_id}")
 
         except Exception as e:
             print(f"[Vault Indexer] Error updating link graph: {e}")
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
 
     def get_backlinks(self, note_id: int) -> List[Dict]:
         """
@@ -427,6 +450,8 @@ class KnowledgeVaultIndexer:
         Returns:
             List of source notes with link information
         """
+        conn = None
+        cursor = None
         try:
             conn = get_db()
             cursor = conn.cursor()
@@ -461,14 +486,16 @@ class KnowledgeVaultIndexer:
                     }
                 )
 
-            cursor.close()
-            conn.close()
-
             return backlinks
 
         except Exception as e:
             print(f"[Vault Indexer] Error getting backlinks: {e}")
             return []
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
 
     def get_link_graph(self, limit: int = 100) -> Dict:
         """
@@ -480,13 +507,15 @@ class KnowledgeVaultIndexer:
         Returns:
             Dict with nodes and edges for graph visualization
         """
+        conn = None
+        cursor = None
         try:
             conn = get_db()
             cursor = conn.cursor()
 
             # Get all links
             cursor.execute(
-                f"""
+                """
                 SELECT
                     vl.source_note_id,
                     vl.target_note_id,
@@ -496,8 +525,9 @@ class KnowledgeVaultIndexer:
                 FROM vault_links vl
                 JOIN knowledge_base s ON vl.source_note_id = s.id
                 JOIN knowledge_base t ON vl.target_note_id = t.id
-                LIMIT {limit}
-            """
+                LIMIT %s
+            """,
+                (limit,),
             )
 
             edges = []
@@ -515,14 +545,16 @@ class KnowledgeVaultIndexer:
                 # Add edge
                 edges.append({"source": source_id, "target": target_id, "link_text": link_text})
 
-            cursor.close()
-            conn.close()
-
             return {"nodes": list(nodes.values()), "edges": edges}
 
         except Exception as e:
             print(f"[Vault Indexer] Error getting link graph: {e}")
             return {"nodes": [], "edges": []}
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
 
     # ========================================================================
     # HELPER FUNCTIONS
@@ -552,6 +584,8 @@ class KnowledgeVaultIndexer:
 
     def get_indexing_stats(self) -> Dict:
         """Get indexing statistics"""
+        conn = None
+        cursor = None
         try:
             conn = get_db()
             cursor = conn.cursor()
@@ -585,9 +619,6 @@ class KnowledgeVaultIndexer:
             )
             recent_events = {row[0]: row[1] for row in cursor.fetchall()}
 
-            cursor.close()
-            conn.close()
-
             return {
                 "total_notes": note_count,
                 "notes_with_embeddings": embedded_count,
@@ -598,6 +629,11 @@ class KnowledgeVaultIndexer:
         except Exception as e:
             print(f"[Vault Indexer] Error getting stats: {e}")
             return {}
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
 
 
 # ============================================================================

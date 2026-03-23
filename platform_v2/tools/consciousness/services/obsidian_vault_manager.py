@@ -542,51 +542,49 @@ class ObsidianVaultManager:
                         stats["tags"][tag] = stats["tags"].get(tag, 0) + 1
 
         # 2. Get database stats (knowledge_base categories)
+        conn = None
+        cursor = None
         try:
-            from database import get_db
+            from database import get_db_cursor
 
-            conn = get_db()
-            cursor = conn.cursor()
-
-            # Get category counts from database
-            cursor.execute(
+            with get_db_cursor() as (conn, cursor):
+                # Get category counts from database
+                cursor.execute(
+                    """
+                    SELECT category, COUNT(*) as count
+                    FROM knowledge_base
+                    WHERE category IS NOT NULL AND category != ''
+                    GROUP BY category
+                    ORDER BY count DESC
                 """
-                SELECT category, COUNT(*) as count
-                FROM knowledge_base
-                WHERE category IS NOT NULL AND category != ''
-                GROUP BY category
-                ORDER BY count DESC
-            """
-            )
+                )
 
-            for row in cursor.fetchall():
-                category = row[0]
-                count = row[1]
-                # Add to stats (merge with file system stats)
-                if category in stats["by_category"]:
-                    stats["by_category"][category] += count
-                else:
-                    stats["by_category"][category] = count
-                stats["total_notes"] += count
+                for row in cursor.fetchall():
+                    category = row[0]
+                    count = row[1]
+                    # Add to stats (merge with file system stats)
+                    if category in stats["by_category"]:
+                        stats["by_category"][category] += count
+                    else:
+                        stats["by_category"][category] = count
+                    stats["total_notes"] += count
 
-            # Get tag counts from database
-            cursor.execute(
+                # Get tag counts from database
+                cursor.execute(
+                    """
+                    SELECT unnest(tags) as tag, COUNT(*) as count
+                    FROM knowledge_base
+                    WHERE tags IS NOT NULL AND array_length(tags, 1) > 0
+                    GROUP BY tag
+                    ORDER BY count DESC
+                    LIMIT 50
                 """
-                SELECT unnest(tags) as tag, COUNT(*) as count
-                FROM knowledge_base
-                WHERE tags IS NOT NULL AND array_length(tags, 1) > 0
-                GROUP BY tag
-                ORDER BY count DESC
-                LIMIT 50
-            """
-            )
+                )
 
-            for row in cursor.fetchall():
-                tag = row[0]
-                count = row[1]
-                stats["tags"][tag] = stats["tags"].get(tag, 0) + count
-
-            cursor.close()
+                for row in cursor.fetchall():
+                    tag = row[0]
+                    count = row[1]
+                    stats["tags"][tag] = stats["tags"].get(tag, 0) + count
 
         except Exception as e:
             # If database fails, still return file system stats

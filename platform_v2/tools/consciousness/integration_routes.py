@@ -52,8 +52,8 @@ def register_integration_routes(bp, admin_required):
                     ollama_host = "http://" + ollama_host
                 req = urllib.request.urlopen(f"{ollama_host}/api/tags", timeout=3)
                 ollama_ok = req.status == 200
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Ollama health check failed: %s", e)
             cur.execute("SELECT count(*) as cnt FROM github_repositories WHERE indexed = true")
             github = cur.fetchone()
             return jsonify(
@@ -165,7 +165,5 @@ def register_integration_routes(bp, admin_required):
                 }
             )
         except Exception as e:
-            import traceback
-
-            traceback.print_exc()
+            logger.exception("Error in integration health")
             return jsonify({"success": False, "error": str(e)}), 500

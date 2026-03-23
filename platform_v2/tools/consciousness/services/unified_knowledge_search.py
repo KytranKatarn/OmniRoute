@@ -78,10 +78,12 @@ def unified_knowledge_search(
         "github_file": 0.85,  # IMPROVED from 0.8 - auto-indexed files
     }
 
-    conn = get_db_connection()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-
+    conn = None
+    cur = None
     try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
         # Build query with filters
         sql = """
             SELECT
@@ -176,9 +178,6 @@ def unified_knowledge_search(
         cur.execute(count_sql, count_params)
         total = cur.fetchone()["total"]
 
-        cur.close()
-        conn.close()
-
         return {
             "results": results,
             "total": total,
@@ -189,17 +188,22 @@ def unified_knowledge_search(
         }
 
     except Exception as e:
-        cur.close()
-        conn.close()
         raise e
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 def get_knowledge_stats() -> Dict[str, Any]:
     """Get statistics about knowledge base"""
-    conn = get_db_connection()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-
+    conn = None
+    cur = None
     try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
         # Knowledge type distribution
         cur.execute(
             """
@@ -253,9 +257,6 @@ def get_knowledge_stats() -> Dict[str, Any]:
         )
         mistake_count = cur.fetchone()["mistake_count"]
 
-        cur.close()
-        conn.close()
-
         return {
             "type_distribution": type_distribution,
             "category_distribution": category_distribution,
@@ -265,17 +266,22 @@ def get_knowledge_stats() -> Dict[str, Any]:
         }
 
     except Exception as e:
-        cur.close()
-        conn.close()
         raise e
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 def search_by_category(category: str, limit: int = 50) -> List[Dict[str, Any]]:
     """Get all knowledge entries for a specific category"""
-    conn = get_db_connection()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-
+    conn = None
+    cur = None
     try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
         cur.execute(
             """
             SELECT
@@ -296,23 +302,25 @@ def search_by_category(category: str, limit: int = 50) -> List[Dict[str, Any]]:
         )
 
         results = cur.fetchall()
-        cur.close()
-        conn.close()
-
         return results
 
     except Exception as e:
-        cur.close()
-        conn.close()
         raise e
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 def get_top_knowledge(knowledge_type: str, limit: int = 10) -> List[Dict[str, Any]]:
     """Get top knowledge entries by type (by importance)"""
-    conn = get_db_connection()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-
+    conn = None
+    cur = None
     try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
         cur.execute(
             """
             SELECT
@@ -334,23 +342,25 @@ def get_top_knowledge(knowledge_type: str, limit: int = 10) -> List[Dict[str, An
         )
 
         results = cur.fetchall()
-        cur.close()
-        conn.close()
-
         return results
 
     except Exception as e:
-        cur.close()
-        conn.close()
         raise e
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 def get_recent_knowledge(days: int = 7, limit: int = 20) -> List[Dict[str, Any]]:
     """Get recently added knowledge entries"""
-    conn = get_db_connection()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-
+    conn = None
+    cur = None
     try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
         cur.execute(
             """
             SELECT
@@ -371,23 +381,25 @@ def get_recent_knowledge(days: int = 7, limit: int = 20) -> List[Dict[str, Any]]
         )
 
         results = cur.fetchall()
-        cur.close()
-        conn.close()
-
         return results
 
     except Exception as e:
-        cur.close()
-        conn.close()
         raise e
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 def get_mistake_learnings(limit: int = 20) -> List[Dict[str, Any]]:
     """Get all mistake learnings (prevent repetition!)"""
-    conn = get_db_connection()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-
+    conn = None
+    cur = None
     try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
         cur.execute(
             """
             SELECT
@@ -408,12 +420,12 @@ def get_mistake_learnings(limit: int = 20) -> List[Dict[str, Any]]:
         )
 
         results = cur.fetchall()
-        cur.close()
-        conn.close()
-
         return results
 
     except Exception as e:
-        cur.close()
-        conn.close()
         raise e
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()

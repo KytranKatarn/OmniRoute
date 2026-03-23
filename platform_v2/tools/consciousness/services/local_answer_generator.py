@@ -232,7 +232,7 @@ def generate_direct_local_response(query: str, result: Dict) -> str:
             else:
                 date_obj = created_at
             date_str = date_obj.strftime("%Y-%m-%d")
-        except:
+        except Exception:
             date_str = str(created_at)[:10]
 
     # mistake_learned responses (highest priority)

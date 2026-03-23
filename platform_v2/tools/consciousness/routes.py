@@ -100,10 +100,14 @@ def index():
 @admin_required
 def api_dashboard_summary():
     """ARCHIE's self-portrait — aggregated stats for dashboard."""
-    conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-
+    conn = None
+    cur = None
+    conn = None
+    cur = None
     try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
         # Knowledge stats
         cur.execute(
             """
@@ -257,8 +261,10 @@ def api_dashboard_summary():
         logger.error("Dashboard summary error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 # ============================================================================
@@ -271,6 +277,8 @@ def api_dashboard_summary():
 @admin_required
 def memory():
     """View A.R.C.H.I.E.'s memory tables"""
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -297,10 +305,10 @@ def memory():
         flash(f"Error loading memory: {str(e)}", "error")
         return redirect(url_for("consciousness.index"))
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/memories/<view_type>", methods=["GET"])
@@ -308,6 +316,8 @@ def memory():
 @admin_required
 def get_memories(view_type):
     """Get memories by view type (recent, important, accessed, types)"""
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -354,23 +364,17 @@ def get_memories(view_type):
             """
             )
         else:
-            cur.execute(
-                """
-                SELECT * FROM knowledge_base
-                ORDER BY created_at DESC
-                LIMIT 50
-            """
-            )
+            return jsonify({"error": f"Unknown view_type: {view_type}. Valid: recent, important, accessed, types"}), 400
 
         memories = cur.fetchall()
         return jsonify({"memories": memories, "view_type": view_type})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 # emotional-state route moved to team_routes.py
@@ -442,13 +446,20 @@ def backup_consciousness():
 @admin_required
 def get_stats():
     """Get comprehensive knowledge statistics - ALL database fields for complete business awareness"""
-    print("🧠 [BACKEND] get_consciousness_stats called - COMPREHENSIVE MODE")
     import psycopg2.extras
 
-    conn = get_db()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    conn = None
+
+    cur = None
+
+    conn = None
+
+    cur = None
 
     try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
         # TOTAL KNOWLEDGE - All sources combined
         cur.execute("SELECT COUNT(*) as total FROM long_term_memory")
         long_term_memories = cur.fetchone()["total"]
@@ -517,16 +528,6 @@ def get_stats():
             + core_identity_count
             + knowledge_base_count
         )
-
-        print(f"🧠 [BACKEND] TOTAL KNOWLEDGE: {total_knowledge}")
-        print(f"  - Long-term memories: {long_term_memories}")
-        print(f"  - Improvement proposals: {improvement_proposals_count}")
-        print(f"  - Improvement conversations: {improvement_conversations_count}")
-        print(f"  - Codebase knowledge: {codebase_knowledge_count}")
-        print(f"  - AI conversations: {ai_conversations_count}")
-        print(f"  - Core identity: {core_identity_count}")
-        print(f"  - Learning resources (GitHub): {knowledge_base_count}")
-        print(f"  - Claude Code sessions: {claude_code_sessions_count}")
 
         # Memory Type breakdown (NEW - tracks what kind of knowledge)
         cur.execute(
@@ -801,25 +802,18 @@ def get_stats():
                 "repository_health": [dict(r) for r in repository_health],
             },
         }
-        print(f"🧠 [BACKEND] Returning COMPREHENSIVE stats:")
-        print(f"  - {total_knowledge} TOTAL KNOWLEDGE (all sources)")
-        print(f"  - {len(memory_types)} memory types")
-        print(f"  - {len(categories)} categories")
-        print(f"  - {len(all_tags)} unique tags")
-        print(
-            f"  - {len(new_tags)} NEW tags detected (7d: {len([t for t in new_tags if t['tag_age'] == 'new_7d'])}, 30d: {len([t for t in new_tags if t['tag_age'] == 'new_30d'])})"
-        )
-        print(f"  - {len(metadata_fields)} metadata fields tracked")
+
         return jsonify(result)
     except Exception as e:
         import traceback
 
-        print("❌ [BACKEND] Error in get_consciousness_stats:")
-        traceback.print_exc()
+        logger.error("Error in get_consciousness_stats: %s", e, exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/charts-data", methods=["GET"])
@@ -827,6 +821,8 @@ def get_stats():
 @admin_required
 def get_charts_data():
     """Provide chart-ready data from ALL knowledge sources for the Charts tab"""
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -913,15 +909,13 @@ def get_charts_data():
             }
         )
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
+        logger.error("Error: %s", e, exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 # search_knowledge() moved to knowledge_routes.py
@@ -932,10 +926,14 @@ def get_charts_data():
 @admin_required
 def delete_memory(memory_id):
     """Delete a memory from knowledge_base"""
-    conn = get_db()
-    cur = conn.cursor()
-
+    conn = None
+    cur = None
+    conn = None
+    cur = None
     try:
+        conn = get_db()
+        cur = conn.cursor()
+
         cur.execute("DELETE FROM knowledge_base WHERE id = %s", (memory_id,))
         conn.commit()
         return jsonify({"success": True})
@@ -943,10 +941,10 @@ def delete_memory(memory_id):
         conn.rollback()
         return jsonify({"error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/memory/<int:memory_id>", methods=["PUT"])
@@ -956,10 +954,18 @@ def update_memory(memory_id):
     """Update a memory — only updates fields that are provided"""
     data = request.get_json() or {}
 
-    conn = get_db()
-    cur = conn.cursor()
+    conn = None
+
+    cur = None
+
+    conn = None
+
+    cur = None
 
     try:
+        conn = get_db()
+        cur = conn.cursor()
+
         # Build dynamic UPDATE — only set fields that were provided
         updates = []
         params = []
@@ -992,10 +998,10 @@ def update_memory(memory_id):
         conn.rollback()
         return jsonify({"error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 # ingest_text(), create_knowledge(), get_knowledge(), list_knowledge(),
@@ -1017,10 +1023,18 @@ def update_memory(memory_id):
 def get_complete_brain_state():
     """Get ARCHIE's complete brain state - all consciousness data"""
 
-    conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    conn = None
+
+    cur = None
+
+    conn = None
+
+    cur = None
 
     try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
         # Overall statistics
         cur.execute(
             """
@@ -1128,10 +1142,10 @@ def get_complete_brain_state():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 # ingest_directory(), browse_files(), view_file(), ingest_all_docs()
@@ -1254,9 +1268,14 @@ def get_knowledge_graph():
 @admin_required
 def get_brain_map_data():
     """Hierarchical brain map data: knowledge types → categories with inter-type similarity."""
-    conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    conn = None
+    cur = None
+    conn = None
+    cur = None
     try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
         # Get regions: knowledge_type → categories with counts and importance
         cur.execute(
             """
@@ -1435,10 +1454,10 @@ def get_brain_map_data():
         logger.error(f"Brain map data error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/brain-map/drill-down", methods=["GET"])
@@ -1453,9 +1472,18 @@ def get_brain_map_drill_down():
     if not knowledge_type:
         return jsonify({"success": False, "error": "type parameter required"}), 400
 
-    conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    conn = None
+
+    cur = None
+
+    conn = None
+
+    cur = None
+
     try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
         # Handle grouped knowledge_card type
         if knowledge_type == "knowledge_card":
             type_condition = "knowledge_type LIKE 'knowledge_card%%'"
@@ -1513,10 +1541,10 @@ def get_brain_map_drill_down():
         logger.error(f"Brain map drill-down error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/knowledge/<int:knowledge_id>/backlinks", methods=["GET"])
@@ -1567,6 +1595,10 @@ def get_activity_feed():
     - Learning events (mistakes learned)
     - Improvement proposals
     """
+    conn = None
+    cur = None
+    conn = None
+    cur = None
     try:
         # Get time window from query params (default 1 hour)
         hours = request.args.get("hours", 1, type=int)
@@ -1835,15 +1867,13 @@ def get_activity_feed():
         )
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
+        logger.error("Error: %s", e, exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/activity-stats")
@@ -1851,6 +1881,8 @@ def get_activity_feed():
 @admin_required
 def get_activity_stats():
     """Get activity statistics for the dashboard"""
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -2118,9 +2150,7 @@ def get_activity_stats():
         )
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
+        logger.error("Error: %s", e, exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         if cur:
@@ -2157,7 +2187,7 @@ try:
     MEMORY_SERVICE_AVAILABLE = True
 except ImportError as e:
     MEMORY_SERVICE_AVAILABLE = False
-    print(f"Memory service not available: {e}")
+    logger.warning("Memory service not available: %s", e)
 
 
 @consciousness_bp.route("/api/memory/search", methods=["POST"])
@@ -2294,6 +2324,10 @@ def save_conversation():
     if not messages or len(messages) == 0:
         return jsonify({"success": False, "error": "No messages provided"}), 400
 
+    conn = None
+
+    cur = None
+
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -2365,7 +2399,7 @@ def save_conversation():
             )
             conn.commit()
         except Exception as embed_err:
-            print(f"Embedding generation failed (non-critical): {embed_err}")
+            logger.debug("Embedding generation failed (non-critical): %s", embed_err)
 
         return jsonify(
             {
@@ -2377,19 +2411,16 @@ def save_conversation():
         )
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
+        logger.error("Error: %s", e, exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         try:
-            cur.close()
+            if cur:
+                cur.close()
         except Exception:
             pass
-        try:
+        if conn:
             conn.close()
-        except Exception:
-            pass
 
 
 # GitHub routes (auth, indexing, repositories, search, dependencies)
@@ -2399,6 +2430,8 @@ def save_conversation():
 @admin_required
 def get_chat_volume():
     """Get chat conversation volume per day for last 30 days"""
+    conn = None
+    cur = None
     try:
         days = request.args.get("days", 30, type=int)
         conn = get_db()
@@ -2419,10 +2452,10 @@ def get_chat_volume():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/collections")
@@ -2583,6 +2616,8 @@ def reinforce_api(memory_type, memory_id):
 @admin_required
 def run_memory_maintenance():
     """Run full memory maintenance (decay + cleanup)"""
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -2602,16 +2637,20 @@ def run_memory_maintenance():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/memory/preferences", methods=["GET"])
 @login_required
 def get_preferences():
     """Get user memory preferences"""
+    conn = None
+    cur = None
+    conn = None
+    cur = None
     try:
         user_id = current_user.id if hasattr(current_user, "id") else 1
         category = request.args.get("category")
@@ -2629,16 +2668,18 @@ def get_preferences():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/memory/preferences", methods=["POST"])
 @login_required
 def learn_preference():
     """Learn a new preference"""
+    conn = None
+    cur = None
     try:
         data = request.get_json()
         if not data:
@@ -2684,16 +2725,18 @@ def learn_preference():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/memory/system-stats", methods=["GET"])
 @login_required
 def get_memory_system_stats():
     """Get comprehensive memory system statistics"""
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -2745,15 +2788,13 @@ def get_memory_system_stats():
             }
         )
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
+        logger.error("Error: %s", e, exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/memory/extract", methods=["POST"])
@@ -2761,6 +2802,8 @@ def get_memory_system_stats():
 @admin_required
 def extract_memories():
     """Extract memories from text content"""
+    conn = None
+    cur = None
     try:
         data = request.get_json()
         if not data or not data.get("content"):
@@ -2791,10 +2834,10 @@ def extract_memories():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 # ============================================================================
@@ -2888,6 +2931,10 @@ def run_scheduler_task_now():
 @login_required
 def get_user_time():
     """Get cumulative time stats for users"""
+    conn = None
+    cur = None
+    conn = None
+    cur = None
     try:
         user_id = request.args.get("user_id")
         if user_id:
@@ -2945,10 +2992,10 @@ def get_user_time():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 # ============================================================================
@@ -2961,6 +3008,8 @@ def get_user_time():
 @admin_required
 def get_bridge_analytics():
     """Get bridge interaction analytics for dashboard"""
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -3048,10 +3097,10 @@ def get_bridge_analytics():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/agent-skills", methods=["GET"])
@@ -3059,6 +3108,8 @@ def get_bridge_analytics():
 @admin_required
 def get_agent_skills():
     """Get agent skills and learning data for dashboard"""
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -3136,10 +3187,10 @@ def get_agent_skills():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/improvements-proposals", methods=["GET"])
@@ -3147,6 +3198,8 @@ def get_agent_skills():
 @admin_required
 def get_improvement_proposals():
     """Get improvement proposals for approval workflow"""
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -3221,10 +3274,10 @@ def get_improvement_proposals():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/improvements/<int:proposal_id>/approve", methods=["POST"])
@@ -3232,6 +3285,8 @@ def get_improvement_proposals():
 @admin_required
 def approve_proposal(proposal_id):
     """Approve an improvement proposal"""
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -3269,10 +3324,10 @@ def approve_proposal(proposal_id):
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/improvements/<int:proposal_id>/reject", methods=["POST"])
@@ -3280,6 +3335,8 @@ def approve_proposal(proposal_id):
 @admin_required
 def reject_proposal(proposal_id):
     """Reject an improvement proposal"""
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -3319,10 +3376,10 @@ def reject_proposal(proposal_id):
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/improvements/<int:proposal_id>/test", methods=["POST"])
@@ -3330,6 +3387,8 @@ def reject_proposal(proposal_id):
 @admin_required
 def test_proposal_in_sandbox(proposal_id):
     """Queue a proposal for sandbox testing"""
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -3368,10 +3427,10 @@ def test_proposal_in_sandbox(proposal_id):
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 # ============================================================================
@@ -3392,6 +3451,10 @@ def list_agent_memories():
     include_deleted = request.args.get("include_deleted", "false").lower() == "true"
     limit = min(request.args.get("limit", 50, type=int), 200)
     offset = request.args.get("offset", 0, type=int)
+
+    conn = None
+
+    cur = None
 
     try:
         conn = get_db()
@@ -3453,10 +3516,10 @@ def list_agent_memories():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/agent-memory/<int:memory_id>", methods=["GET"])
@@ -3464,6 +3527,8 @@ def list_agent_memories():
 @admin_required
 def get_agent_memory(memory_id):
     """Get a specific agent memory by ID"""
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -3501,10 +3566,10 @@ def get_agent_memory(memory_id):
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/agent-memory/<int:memory_id>", methods=["PUT"])
@@ -3513,6 +3578,10 @@ def get_agent_memory(memory_id):
 def update_agent_memory(memory_id):
     """Update an agent memory"""
     data = request.get_json() or {}
+
+    conn = None
+
+    cur = None
 
     try:
         conn = get_db()
@@ -3577,10 +3646,10 @@ def update_agent_memory(memory_id):
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/agent-memory/<int:memory_id>/soft-delete", methods=["POST"])
@@ -3593,6 +3662,10 @@ def soft_delete_agent_memory(memory_id):
     """
     data = request.get_json() or {}
     reason = data.get("reason", "Admin deletion")
+
+    conn = None
+
+    cur = None
 
     try:
         conn = get_db()
@@ -3645,10 +3718,10 @@ def soft_delete_agent_memory(memory_id):
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/agent-memory/<int:memory_id>/restore", methods=["POST"])
@@ -3659,6 +3732,8 @@ def restore_agent_memory(memory_id):
     Restore a soft-deleted agent memory (IAAE-compliant).
     Only admin can restore memories.
     """
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -3706,10 +3781,10 @@ def restore_agent_memory(memory_id):
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/agent-memory/<int:memory_id>/reinforce", methods=["POST"])
@@ -3722,6 +3797,10 @@ def reinforce_agent_memory(memory_id):
     """
     data = request.get_json() or {}
     importance_boost = min(data.get("importance_boost", 0.1), 0.3)  # Max 0.3 boost
+
+    conn = None
+
+    cur = None
 
     try:
         conn = get_db()
@@ -3770,10 +3849,10 @@ def reinforce_agent_memory(memory_id):
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/agent-memory/stats", methods=["GET"])
@@ -3782,6 +3861,10 @@ def reinforce_agent_memory(memory_id):
 def agent_memory_stats():
     """Get statistics for agent memories"""
     agent_id = request.args.get("agent_id", type=int)
+
+    conn = None
+
+    cur = None
 
     try:
         conn = get_db()
@@ -3850,10 +3933,10 @@ def agent_memory_stats():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 # ============================================================================
@@ -3880,9 +3963,7 @@ def log_ingestion_status():
         status = get_ingestion_status()
         return jsonify(status)
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
+        logger.error("Error: %s", e, exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3926,9 +4007,7 @@ def log_ingestion_batch():
 
         return jsonify(result)
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
+        logger.error("Error: %s", e, exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3993,9 +4072,7 @@ def start_collaboration():
         return jsonify({"success": True, "session_id": session.id, "status": session.status.value})
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
+        logger.error("Error: %s", e, exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -4269,9 +4346,7 @@ def continue_collaboration(session_id):
     except ValueError as e:
         return jsonify({"success": False, "error": str(e)}), 400
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
+        logger.error("Error: %s", e, exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -4399,6 +4474,10 @@ def export_collaboration(session_id):
 @login_required
 def save_work_product_to_kb(product_id):
     """Save a work product to the knowledge base."""
+    conn = None
+    cur = None
+    conn = None
+    cur = None
     try:
         from .collaboration_engine import get_collaboration_engine
 
@@ -4452,19 +4531,16 @@ def save_work_product_to_kb(product_id):
         return jsonify({"success": True, "kb_id": kb_id, "title": title})
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
+        logger.error("Error: %s", e, exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         try:
-            cur.close()
+            if cur:
+                cur.close()
         except Exception:
             pass
-        try:
+        if conn:
             conn.close()
-        except Exception:
-            pass
 
 
 @consciousness_bp.route("/api/collab/work-products/<session_id>", methods=["GET"])
@@ -4542,6 +4618,8 @@ def get_chat_history():
     Returns solo (ARCHIE) and side-by-side messages from ai_conversations,
     keyed by chat_mode so the frontend can restore them on page load.
     """
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -4607,15 +4685,13 @@ def get_chat_history():
         )
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
+        logger.error("Error: %s", e, exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 # ============================================================================
@@ -4633,6 +4709,8 @@ def list_conversations():
     Each item includes conversation_id, title, chat_mode, message_count,
     created_at, and last_message_at.
     """
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -4662,10 +4740,10 @@ def list_conversations():
         logging.error(f"Error listing conversations: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/conversations/<conv_id>/messages", methods=["GET"])
@@ -4676,6 +4754,8 @@ def get_conversation_messages(conv_id):
 
     Returns messages from ai_conversations ordered by created_at ASC.
     """
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -4706,10 +4786,10 @@ def get_conversation_messages(conv_id):
         logging.error(f"Error fetching conversation messages: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/conversations/<conv_id>", methods=["DELETE"])
@@ -4721,6 +4801,8 @@ def delete_conversation(conv_id):
     Removes from both ai_conversation_threads and ai_conversations.
     Only the owning user can delete their conversations.
     """
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor()
@@ -4761,10 +4843,10 @@ def delete_conversation(conv_id):
         logging.error(f"Error deleting conversation: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/conversations/<conv_id>", methods=["PUT"])
@@ -4776,6 +4858,8 @@ def update_conversation(conv_id):
     Request body:
         - title: New title for the conversation
     """
+    conn = None
+    cur = None
     try:
         data = request.get_json() or {}
         title = data.get("title", "").strip()
@@ -4812,10 +4896,10 @@ def update_conversation(conv_id):
         logging.error(f"Error updating conversation: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 # ─── File Upload Endpoint ───────────────────────────────────────────────────────
@@ -4972,6 +5056,8 @@ def chat_file_upload():
         # ── Optional: store in knowledge base ───────────────────────────
         store_in_knowledge = request.form.get("store_in_knowledge", "").lower() == "true"
         if store_in_knowledge and extracted_text.strip():
+            conn = None
+            cur = None
             try:
                 conn = get_db()
                 cur = conn.cursor()
@@ -4991,10 +5077,10 @@ def chat_file_upload():
             except Exception as e:
                 logging.error(f"Knowledge base insert error: {e}")
             finally:
-
-                cur.close()
-
-                conn.close()
+                if cur:
+                    cur.close()
+                if conn:
+                    conn.close()
 
         return jsonify(
             {
@@ -5027,6 +5113,8 @@ def generate_terminal_token():
     """Generate a one-time auth token for the Claude Terminal (ttyd SSO)."""
     import secrets
 
+    conn = None
+    cur = None
     try:
         token = secrets.token_urlsafe(32)
 
@@ -5051,10 +5139,10 @@ def generate_terminal_token():
         logging.error(f"Error generating terminal token: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/claude/chat", methods=["POST"])
@@ -5101,6 +5189,8 @@ def claude_side_chat():
 
         if response:
             # Persist Claude side-by-side message to DB
+            conn = None
+            cur = None
             try:
                 conn = get_db()
                 cur = conn.cursor()
@@ -5123,19 +5213,17 @@ def claude_side_chat():
             except Exception as db_err:
                 logger.warning(f"Failed to persist Claude message: {db_err}")
             finally:
-
-                cur.close()
-
-                conn.close()
+                if cur:
+                    cur.close()
+                if conn:
+                    conn.close()
 
             return jsonify({"success": True, "response": response})
         else:
             return jsonify({"success": False, "error": "No response from Claude"}), 502
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
+        logger.error("Error: %s", e, exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -5215,6 +5303,8 @@ def sync_context_to_claude():
 @admin_required
 def voice_dashboard():
     """Aggregated voice stats: cached words, hit rate, storage, today's gens"""
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -5314,10 +5404,10 @@ def voice_dashboard():
         logger.error(f"Voice dashboard error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/voice/speakers", methods=["GET"])
@@ -5444,6 +5534,8 @@ def voice_preview():
 @admin_required
 def voice_profiles_list():
     """List all agent voice profiles with cached word counts"""
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -5502,10 +5594,10 @@ def voice_profiles_list():
         logger.error(f"Voice profiles list error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/voice/profiles", methods=["POST"])
@@ -5552,6 +5644,8 @@ def voice_profile_save():
         if not agent_id:
             return jsonify({"success": False, "error": "agent_id required"}), 400
 
+        conn = None
+        cur = None
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
@@ -5597,10 +5691,10 @@ def voice_profile_save():
         logger.error(f"Voice profile save error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/voice/profiles/<int:profile_id>", methods=["DELETE"])
@@ -5608,6 +5702,8 @@ def voice_profile_save():
 @admin_required
 def voice_profile_delete(profile_id):
     """Delete a voice profile"""
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor()
@@ -5622,10 +5718,10 @@ def voice_profile_delete(profile_id):
         logger.error(f"Voice profile delete error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/voice/profiles/<int:profile_id>/agent-name", methods=["PATCH"])
@@ -5633,6 +5729,10 @@ def voice_profile_delete(profile_id):
 @admin_required
 def voice_profile_rename_agent(profile_id):
     """Rename the agent associated with a voice profile"""
+    conn = None
+    cur = None
+    conn = None
+    cur = None
     try:
         data = request.get_json()
         new_name = (data.get("name") or "").strip()
@@ -5654,10 +5754,10 @@ def voice_profile_rename_agent(profile_id):
         logger.error(f"Voice agent rename error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/voice/cache", methods=["GET"])
@@ -5665,6 +5765,8 @@ def voice_profile_rename_agent(profile_id):
 @admin_required
 def voice_cache_list():
     """Paginated cache entries with filters + agent group summaries"""
+    conn = None
+    cur = None
     try:
         page = int(request.args.get("page", 1))
         per_page = int(request.args.get("per_page", 25))
@@ -5697,11 +5799,11 @@ def voice_cache_list():
 
         where = " AND ".join(conditions)
 
-        order = "c.hit_count DESC"
-        if sort == "recent":
-            order = "c.last_used DESC NULLS LAST"
-        elif sort == "largest":
-            order = "LENGTH(c.full_audio_cache) DESC NULLS LAST"
+        ORDER_MAP = {
+            "recent": "c.last_used DESC NULLS LAST",
+            "largest": "LENGTH(c.full_audio_cache) DESC NULLS LAST",
+        }
+        order = ORDER_MAP.get(sort, "c.hit_count DESC")
 
         cur.execute(f"SELECT COUNT(*) as total FROM voice_word_cache c WHERE {where}", params)
         total = cur.fetchone()["total"]
@@ -5765,10 +5867,10 @@ def voice_cache_list():
         logger.error(f"Voice cache list error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/voice/pregen", methods=["POST"])
@@ -5811,6 +5913,8 @@ def voice_pregen_start():
 
         # Look up agent's voice profile for engine/language
         engine = data.get("engine", "kokoro")
+        conn = None
+        cur = None
         if agent_id:
             conn = get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -5854,13 +5958,12 @@ def voice_pregen_start():
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         try:
-            cur.close()
+            if cur:
+                cur.close()
         except Exception:
             pass
-        try:
+        if conn:
             conn.close()
-        except Exception:
-            pass
 
 
 @consciousness_bp.route("/api/voice/pregen/full-dna", methods=["POST"])
@@ -5868,6 +5971,10 @@ def voice_pregen_start():
 @admin_required
 def voice_full_dna():
     """Start a Full Voice DNA job — all phrases + top words across all 10 emotions"""
+    conn = None
+    cur = None
+    conn = None
+    cur = None
     try:
         data = request.get_json() or {}
         agent_id = data.get("agent_id")
@@ -5924,13 +6031,12 @@ def voice_full_dna():
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         try:
-            cur.close()
+            if cur:
+                cur.close()
         except Exception:
             pass
-        try:
+        if conn:
             conn.close()
-        except Exception:
-            pass
 
 
 @consciousness_bp.route("/api/voice/pregen/<int:job_id>", methods=["GET"])
@@ -5938,6 +6044,8 @@ def voice_full_dna():
 @admin_required
 def voice_pregen_status(job_id):
     """Poll pre-gen job progress"""
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -5965,10 +6073,10 @@ def voice_pregen_status(job_id):
         logger.error(f"Voice pregen status error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/voice/profile-lock-status/<int:profile_id>")
@@ -5976,6 +6084,8 @@ def voice_pregen_status(job_id):
 @admin_required
 def voice_profile_lock_status(profile_id):
     """Get locked cache entry count for a voice profile."""
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor()
@@ -5994,13 +6104,12 @@ def voice_profile_lock_status(profile_id):
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         try:
-            cur.close()
+            if cur:
+                cur.close()
         except Exception:
             pass
-        try:
+        if conn:
             conn.close()
-        except Exception:
-            pass
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -6212,10 +6321,14 @@ def _seed_keys(keys_dict):
     Returns:
         tuple: (seeded_count, skipped_count)
     """
-    conn = get_db()
-    cur = conn.cursor()
-
+    conn = None
+    cur = None
+    conn = None
+    cur = None
     try:
+        conn = get_db()
+        cur = conn.cursor()
+
         seeded = 0
         skipped = 0
 
@@ -6253,8 +6366,10 @@ def _seed_keys(keys_dict):
         conn.commit()
         return seeded, skipped
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 def scan_and_seed_keys():
@@ -6559,6 +6674,8 @@ def translation_tag_module():
 
         # Seed English translations
         seeded = 0
+        conn = None
+        cur = None
         if all_keys:
             conn = get_db()
             cur = conn.cursor()
@@ -6590,13 +6707,12 @@ def translation_tag_module():
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         try:
-            cur.close()
+            if cur:
+                cur.close()
         except Exception:
             pass
-        try:
+        if conn:
             conn.close()
-        except Exception:
-            pass
 
 
 @consciousness_bp.route("/api/translations/module-coverage")
@@ -6735,6 +6851,8 @@ def translation_module_coverage():
 @require_permission(Permission.ADMIN_ACCESS)
 def translation_coverage():
     """Per-source coverage stats for translations in a target language."""
+    conn = None
+    cur = None
     try:
         language = request.args.get("language", "fr")
         keys, _by_source = _scan_all_sources()
@@ -6804,13 +6922,12 @@ def translation_coverage():
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         try:
-            cur.close()
+            if cur:
+                cur.close()
         except Exception:
             pass
-        try:
+        if conn:
             conn.close()
-        except Exception:
-            pass
 
 
 @consciousness_bp.route("/api/translations/browser")
@@ -6818,6 +6935,8 @@ def translation_coverage():
 @require_permission(Permission.ADMIN_ACCESS)
 def translation_browser():
     """Side-by-side EN/FR translation browser with filtering."""
+    conn = None
+    cur = None
     try:
         source_filter = request.args.get("source", "all")
         status_filter = request.args.get("status", "all")
@@ -6912,13 +7031,12 @@ def translation_browser():
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         try:
-            cur.close()
+            if cur:
+                cur.close()
         except Exception:
             pass
-        try:
+        if conn:
             conn.close()
-        except Exception:
-            pass
 
 
 @consciousness_bp.route("/api/translations/language-coverage")
@@ -6926,6 +7044,8 @@ def translation_browser():
 @require_permission(Permission.ADMIN_ACCESS)
 def translation_language_coverage():
     """Per-language coverage: total, approved, pending, missing counts."""
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -6978,10 +7098,10 @@ def translation_language_coverage():
         logger.error(f"Language coverage error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/translations/generate", methods=["POST"])
@@ -6989,6 +7109,8 @@ def translation_language_coverage():
 @require_permission(Permission.ADMIN_ACCESS)
 def translation_generate():
     """Generate AI translations for missing keys in a target language."""
+    conn = None
+    cur = None
     try:
         data = request.get_json() or {}
         language = data.get("language", "fr")
@@ -7068,6 +7190,8 @@ def translation_generate_async():
     """
     import threading
 
+    conn = None
+    cur = None
     try:
         data = request.get_json() or {}
         languages = data.get("languages") or [
@@ -7180,13 +7304,12 @@ def translation_generate_async():
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         try:
-            cur.close()
+            if cur:
+                cur.close()
         except Exception:
             pass
-        try:
+        if conn:
             conn.close()
-        except Exception:
-            pass
 
 
 def _run_translate_bg(languages, module_id, parent_job_id):
@@ -7209,6 +7332,8 @@ def _run_translate_bg(languages, module_id, parent_job_id):
 
     total_batches = 0
     lang_strings = {}  # lang -> list of (key, english_text, context)
+    conn = None
+    cur = None
     try:
         for lang in languages:
             conn = get_db()
@@ -7235,8 +7360,10 @@ def _run_translate_bg(languages, module_id, parent_job_id):
             strings = [(r["key"], r["english_text"], r.get("context") or "") for r in rows]
             lang_strings[lang] = strings
             total_batches += (len(strings) + BATCH_SIZE - 1) // BATCH_SIZE if strings else 0
-            cur.close()
-            conn.close()
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
     except Exception as e:
         logger.error(f"[TranslateBG] Pre-scan failed: {e}")
 
@@ -7317,6 +7444,10 @@ def _run_translate_bg(languages, module_id, parent_job_id):
 @require_permission(Permission.ADMIN_ACCESS)
 def translation_review():
     """Get translations for review, filterable by language and status."""
+    conn = None
+    cur = None
+    conn = None
+    cur = None
     try:
         language = request.args.get("language", "fr")
         status = request.args.get("status", "pending_review")
@@ -7361,10 +7492,10 @@ def translation_review():
         logger.error(f"Translation review error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/translations/approve", methods=["PUT"])
@@ -7372,6 +7503,8 @@ def translation_review():
 @require_permission(Permission.ADMIN_ACCESS)
 def translation_approve():
     """Approve, reject, or edit a single translation."""
+    conn = None
+    cur = None
     try:
         data = request.get_json() or {}
         translation_id = data.get("id")
@@ -7457,10 +7590,10 @@ def translation_approve():
         logger.error(f"Translation approve error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/translations/bulk-approve", methods=["PUT"])
@@ -7468,6 +7601,10 @@ def translation_approve():
 @require_permission(Permission.ADMIN_ACCESS)
 def translation_bulk_approve():
     """Bulk-approve translations by list of IDs."""
+    conn = None
+    cur = None
+    conn = None
+    cur = None
     try:
         data = request.get_json() or {}
         ids = data.get("ids", [])
@@ -7491,10 +7628,10 @@ def translation_bulk_approve():
         logger.error(f"Translation bulk approve error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/translation-memory", methods=["GET", "POST"])
@@ -7502,6 +7639,8 @@ def translation_bulk_approve():
 @require_permission(Permission.ADMIN_ACCESS)
 def translation_memory_api():
     """GET: list translation memory entries. POST: add a new entry."""
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -7562,10 +7701,10 @@ def translation_memory_api():
         logger.error(f"Translation memory error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @consciousness_bp.route("/api/translation-memory/<int:entry_id>", methods=["DELETE"])
@@ -7573,6 +7712,8 @@ def translation_memory_api():
 @require_permission(Permission.ADMIN_ACCESS)
 def translation_memory_delete(entry_id):
     """Delete a translation memory entry by ID."""
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor()
@@ -7587,7 +7728,7 @@ def translation_memory_delete(entry_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()

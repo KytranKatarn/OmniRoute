@@ -297,10 +297,10 @@ def _get_backlog_counts() -> dict:
     except Exception as e:
         logger.error(f"Failed to get backlog counts: {e}")
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
     return counts
 
@@ -485,26 +485,33 @@ def start_processing():
         conn = get_db()
         cur = conn.cursor()
 
-        source_type_map = {
-            "conversations": "source_type = 'conversation_log'",
-            "github": "knowledge_type = 'github_file'",
-            "claude_hooks": "source_type = 'claude_hook'",
-        }
-        type_filter = source_type_map.get(category, "source_type = 'conversation_log'")
-
-        cur.execute(
-            f"""
+        base_sql = """
             SELECT id, title, content, memory_metadata
             FROM knowledge_base
-            WHERE {type_filter}
+            WHERE {filter_clause}
             AND (ai_analysis IS NULL OR analysis_version = 0)
             AND content IS NOT NULL
             AND LENGTH(content) > 100
             ORDER BY created_at DESC
             LIMIT %s
-            """,
-            (batch_size,),
-        )
+        """
+
+        if category == "github":
+            cur.execute(
+                base_sql.format(filter_clause="knowledge_type = %s"),
+                ("github_file", batch_size),
+            )
+        elif category == "claude_hooks":
+            cur.execute(
+                base_sql.format(filter_clause="source_type = %s"),
+                ("claude_hook", batch_size),
+            )
+        else:
+            # Default: conversations
+            cur.execute(
+                base_sql.format(filter_clause="source_type = %s"),
+                ("conversation_log", batch_size),
+            )
         items = cur.fetchall()
         if not items:
             return jsonify({"success": True, "message": "No items to process", "processed": 0})
@@ -566,6 +573,8 @@ def _update_source_analysis(item_id: int, result, batch_id: str):
     Items with 0 cards extracted are NOT marked as fully analyzed
     (analysis_version stays 0) so they can be retried in future batches.
     """
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor()
@@ -597,14 +606,16 @@ def _update_source_analysis(item_id: int, result, batch_id: str):
     except Exception as e:
         logger.error(f"Failed to update source analysis: {e}")
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 def _log_batch_processing(batch_id: str, category: str, results: dict):
     """Log batch processing to knowledge_processing_log"""
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor()
@@ -636,10 +647,10 @@ def _log_batch_processing(batch_id: str, category: str, results: dict):
     except Exception as e:
         logger.error(f"Failed to log batch: {e}")
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 def _run_embedding_job(item_ids_and_data, job_id):
@@ -675,8 +686,13 @@ def _run_embedding_job(item_ids_and_data, job_id):
     dispatcher = get_dispatcher()
     processed = 0
     failed = 0
+    conn = None
+    cur = None
 
     try:
+        conn = get_db()
+        cur = conn.cursor()
+
         for row in item_ids_and_data:
             item_id, title, content = row[0], row[1], row[2]
             source = row[3] if len(row) > 3 else "knowledge_base"
@@ -685,12 +701,7 @@ def _run_embedding_job(item_ids_and_data, job_id):
                 embedding = generate_embedding(text)
 
                 if embedding:
-                    conn = get_db()
-                    cur = conn.cursor()
                     cur.execute(_UPDATE_SQL[source], (embedding, item_id))
-                    conn.commit()
-                    cur.close()
-                    conn.close()
                     processed += 1
                 else:
                     failed += 1
@@ -703,9 +714,15 @@ def _run_embedding_job(item_ids_and_data, job_id):
                 failed += 1
                 if job_id:
                     dispatcher.update_job_progress(job_id, processed, failed)
+
+        conn.commit()
     except Exception as e:
         logger.error(f"Embedding background job failed: {e}")
     finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
         if job_id:
             dispatcher.complete_job(job_id)
         logger.info(f"[Embedding] Job #{job_id} finished: {processed} ok, {failed} failed")
@@ -807,6 +824,8 @@ def generate_embeddings():
 @processing_bp.route("/embedding-coverage", methods=["GET"])
 def get_embedding_coverage():
     """Get embedding coverage broken down by source_type"""
+    conn = None
+    cur = None
     try:
         conn = get_db()
         cur = conn.cursor()
@@ -857,10 +876,10 @@ def get_embedding_coverage():
         logger.error(f"Embedding coverage failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @processing_bp.route("/job-status/<int:job_id>", methods=["GET"])

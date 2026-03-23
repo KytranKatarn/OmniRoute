@@ -49,7 +49,7 @@ def register_knowledge_routes(bp, admin_required):
         query = data.get("query", "")
         category = data.get("category")
         knowledge_type = data.get("knowledge_type")
-        limit = data.get("limit", 50)
+        limit = min(data.get("limit", 50), 500)
 
         conn = _get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -362,6 +362,7 @@ def register_knowledge_routes(bp, admin_required):
                     if filename.endswith((".md", ".txt", ".json", ".py", ".js", ".html", ".css")):
                         filepath = os.path.join(root, filename)
                         try:
+                            cur.execute("SAVEPOINT file_ingest")
                             with open(filepath, "r", encoding="utf-8") as f:
                                 content = f.read()
 
@@ -396,9 +397,10 @@ def register_knowledge_routes(bp, admin_required):
                                 ),
                             )
 
+                            cur.execute("RELEASE SAVEPOINT file_ingest")
                             files_processed += 1
                         except Exception as e:
-                            conn.rollback()
+                            cur.execute("ROLLBACK TO SAVEPOINT file_ingest")
                             errors.append(f"{filename}: {str(e)}")
 
             conn.commit()
@@ -430,6 +432,8 @@ def register_knowledge_routes(bp, admin_required):
         if not any(abs_dir.startswith(base) for base in allowed_bases):
             return jsonify({"success": False, "error": "Access denied"}), 403
 
+        conn = None
+        cur = None
         try:
             # Get all files in directory recursively
             files_info = []
@@ -479,7 +483,7 @@ def register_knowledge_routes(bp, admin_required):
                 cur.execute(
                     """
                     SELECT COUNT(*) as count, MAX(created_at) as last_ingested
-                    FROM long_term_memory
+                    FROM knowledge_base
                     WHERE metadata->>'file_path' = %s
                 """,
                     (file_info["path"],),
@@ -522,11 +526,10 @@ def register_knowledge_routes(bp, admin_required):
             traceback.print_exc()
             return jsonify({"success": False, "error": str(e)}), 500
         finally:
-            try:
+            if cur:
                 cur.close()
+            if conn:
                 conn.close()
-            except NameError:
-                pass
 
     @bp.route("/view-file", methods=["POST"])
     @login_required

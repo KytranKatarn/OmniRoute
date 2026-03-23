@@ -198,53 +198,8 @@ class CollaborationEngine:
 
         try:
             while session.current_turn < session.max_turns:
-                if session.status == CollabStatus.PAUSED:
-                    await asyncio.sleep(1)
-                    continue
-
-                if session.status == CollabStatus.STOPPED:
+                if not await self._run_turn(session):
                     break
-
-                session.current_turn += 1
-
-                # ARCHIE's turn
-                t0 = time.time()
-                archie_response = await self._get_archie_response(session)
-                archie_ms = int((time.time() - t0) * 1000)
-                archie_msg = CollabMessage(
-                    role="archie",
-                    content=archie_response,
-                    turn=session.current_turn,
-                    model_used=(_dispatcher.get_model_for_capability("conversation") if _dispatcher else "unknown"),
-                    duration_ms=archie_ms,
-                )
-                session.messages.append(archie_msg)
-                self._persist_message(session, archie_msg)
-                self._update_session_turn(session)
-
-                if self._is_conclusion(archie_response):
-                    break
-
-                await asyncio.sleep(1)
-
-                # Claude's turn
-                t0 = time.time()
-                claude_response = await self._get_claude_response(session)
-                claude_ms = int((time.time() - t0) * 1000)
-                claude_msg = CollabMessage(
-                    role="claude",
-                    content=claude_response,
-                    turn=session.current_turn,
-                    model_used="claude-proxy",
-                    duration_ms=claude_ms,
-                )
-                session.messages.append(claude_msg)
-                self._persist_message(session, claude_msg)
-
-                if self._is_conclusion(claude_response):
-                    break
-
-                await asyncio.sleep(1)
 
             session.status = CollabStatus.COMPLETED
             self._update_session_status(session, "completed")
@@ -261,6 +216,56 @@ class CollaborationEngine:
             self._update_session_status(session, "error")
 
         return session
+
+    async def _run_turn(self, session: CollabSession) -> bool:
+        """Run a single ARCHIE+Claude turn. Returns False if session should stop."""
+        if session.status == CollabStatus.PAUSED:
+            await asyncio.sleep(1)
+            return True  # Keep looping, just paused
+        if session.status == CollabStatus.STOPPED:
+            return False
+
+        session.current_turn += 1
+
+        # ARCHIE's turn
+        t0 = time.time()
+        archie_response = await self._get_archie_response(session)
+        archie_ms = int((time.time() - t0) * 1000)
+        archie_msg = CollabMessage(
+            role="archie",
+            content=archie_response,
+            turn=session.current_turn,
+            model_used=(_dispatcher.get_model_for_capability("conversation") if _dispatcher else "unknown"),
+            duration_ms=archie_ms,
+        )
+        session.messages.append(archie_msg)
+        self._persist_message(session, archie_msg)
+        self._update_session_turn(session)
+
+        if self._is_conclusion(archie_response):
+            return False
+
+        await asyncio.sleep(1)
+
+        # Claude's turn
+        t0 = time.time()
+        claude_response = await self._get_claude_response(session)
+        claude_ms = int((time.time() - t0) * 1000)
+        claude_msg = CollabMessage(
+            role="claude",
+            content=claude_response,
+            turn=session.current_turn,
+            model_used="claude-proxy",
+            duration_ms=claude_ms,
+        )
+        session.messages.append(claude_msg)
+        self._persist_message(session, claude_msg)
+
+        if self._is_conclusion(claude_response):
+            return False
+
+        await asyncio.sleep(1)
+        return True
 
     def _has_recent_interjection(self, session: CollabSession, since_role: str) -> str:
         """Check if a user interjected since the last message from since_role."""
@@ -483,52 +488,8 @@ Summary (bullet points only):"""
         # Resume the collaboration loop from current_turn
         try:
             while session.current_turn < session.max_turns:
-                if session.status == CollabStatus.PAUSED:
-                    await asyncio.sleep(1)
-                    continue
-                if session.status == CollabStatus.STOPPED:
+                if not await self._run_turn(session):
                     break
-
-                session.current_turn += 1
-
-                # ARCHIE's turn
-                t0 = time.time()
-                archie_response = await self._get_archie_response(session)
-                archie_ms = int((time.time() - t0) * 1000)
-                archie_msg = CollabMessage(
-                    role="archie",
-                    content=archie_response,
-                    turn=session.current_turn,
-                    model_used=(_dispatcher.get_model_for_capability("conversation") if _dispatcher else "unknown"),
-                    duration_ms=archie_ms,
-                )
-                session.messages.append(archie_msg)
-                self._persist_message(session, archie_msg)
-                self._update_session_turn(session)
-
-                if self._is_conclusion(archie_response):
-                    break
-
-                await asyncio.sleep(1)
-
-                # Claude's turn
-                t0 = time.time()
-                claude_response = await self._get_claude_response(session)
-                claude_ms = int((time.time() - t0) * 1000)
-                claude_msg = CollabMessage(
-                    role="claude",
-                    content=claude_response,
-                    turn=session.current_turn,
-                    model_used="claude-proxy",
-                    duration_ms=claude_ms,
-                )
-                session.messages.append(claude_msg)
-                self._persist_message(session, claude_msg)
-
-                if self._is_conclusion(claude_response):
-                    break
-
-                await asyncio.sleep(1)
 
             session.status = CollabStatus.COMPLETED
             self._update_session_status(session, "completed")
@@ -618,14 +579,13 @@ Summary (bullet points only):"""
         try:
             conn = get_db()
             cur = conn.cursor()
-            completed = "NOW()" if status in ("completed", "stopped", "error") else "NULL"
             cur.execute(
-                f"""
+                """
                 UPDATE collaboration_sessions
-                SET status = %s, completed_at = {completed}
+                SET status = %s, completed_at = CASE WHEN %s THEN NOW() ELSE NULL END
                 WHERE id = %s
             """,
-                (status, session.db_id),
+                (status, status in ("completed", "stopped", "error"), session.db_id),
             )
             conn.commit()
             cur.close()

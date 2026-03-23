@@ -255,6 +255,8 @@ def auto_warmup_cache(synthesizer=None, db_conn_func=None):
                 synth = synthesizer
 
             conn_func = db_conn_func or get_db
+            conn = None
+            cur = None
             conn = conn_func()
             cur = conn.cursor()
 
@@ -283,25 +285,31 @@ def auto_warmup_cache(synthesizer=None, db_conn_func=None):
                 except Exception as e:
                     logger.debug(f"[VoiceWarmup] Skipped '{phrase}': {e}")
 
-            # Lock warmup entries for immutability
+            # Lock warmup entries for immutability (reuse existing conn)
             if cached > 0:
-                conn2 = conn_func()
-                cur2 = conn2.cursor()
-                cur2.execute(
+                cur.execute(
                     """
                     UPDATE voice_word_cache
                     SET is_locked = TRUE, locked_at = NOW()
                     WHERE agent_id = 2 AND engine = 'kokoro' AND is_locked = FALSE
                 """
                 )
-                conn2.commit()
-                cur2.close()
-                conn2.close()
+                conn.commit()
 
-            conn.close()
             logger.info(f"[VoiceWarmup] Done: {cached} new, {skipped} already cached")
         except Exception as e:
             logger.error(f"[VoiceWarmup] Failed: {e}")
+        finally:
+            try:
+                if cur is not None:
+                    cur.close()
+            except Exception:
+                pass
+            try:
+                if conn is not None:
+                    conn.close()
+            except Exception:
+                pass
 
     t = threading.Thread(target=_warmup, daemon=True, name="voice-warmup-cache")
     t.start()

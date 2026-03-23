@@ -205,10 +205,10 @@ def text_search(query: str, source_types: Optional[List[str]] = None, limit: int
         if not source_types or "knowledge_base" in source_types:
             cur.execute(
                 """
-                SELECT id, title, content, importance, entry_type, tags, source_type
+                SELECT id, title, content, importance_score, knowledge_type, tags, source_type
                 FROM knowledge_base
                 WHERE content ILIKE %s OR title ILIKE %s
-                ORDER BY importance DESC
+                ORDER BY importance_score DESC
                 LIMIT %s
             """,
                 (f"%{query}%", f"%{query}%", limit),
@@ -221,8 +221,8 @@ def text_search(query: str, source_types: Optional[List[str]] = None, limit: int
                         "source_id": row["id"],
                         "title": row["title"],
                         "content": row["content"][:500],
-                        "importance": (float(row["importance"]) if row["importance"] else 0.5),
-                        "entry_type": row["entry_type"],
+                        "importance": (float(row["importance_score"]) if row["importance_score"] else 0.5),
+                        "entry_type": row["knowledge_type"],
                         "tags": row["tags"] or [],
                         "similarity": 0.7,  # Placeholder for text match
                     }

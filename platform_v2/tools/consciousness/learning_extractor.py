@@ -25,8 +25,16 @@ async def extract_and_save_learnings(session) -> dict:
 
     try:
         from ai_bridge.knowledge_analyzer import get_knowledge_analyzer, KnowledgeCard
-        from ai_bridge.knowledge_cards import save_knowledge_card
         from ai_bridge.embedding_service import generate_embedding
+
+        try:
+            from ai_bridge.knowledge_cards import save_knowledge_card
+        except ImportError:
+            logger.warning("ai_bridge.knowledge_cards not available — save_knowledge_card will be a no-op stub")
+
+            def save_knowledge_card(card, embedding, source_ref):
+                logger.warning(f"Stub save_knowledge_card called for '{card.title}' — card NOT saved")
+                return None
 
         analyzer = get_knowledge_analyzer()
 
@@ -121,6 +129,8 @@ def get_learning_stats() -> dict:
     """Get stats about learnings from collaborations"""
     import psycopg2
 
+    conn = None
+    cur = None
     try:
         conn = psycopg2.connect(
             host=os.getenv("DB_HOST", "archie_database"),
@@ -181,9 +191,6 @@ def get_learning_stats() -> dict:
             for row in cur.fetchall()
         ]
 
-        cur.close()
-        conn.close()
-
         return {
             "total_learnings": total,
             "learnings_last_week": last_week,
@@ -194,12 +201,19 @@ def get_learning_stats() -> dict:
     except Exception as e:
         logger.error(f"Failed to get learning stats: {e}")
         return {"error": str(e)}
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 def get_collaboration_history() -> list:
     """Get history of collaboration sessions"""
     import psycopg2
 
+    conn = None
+    cur = None
     try:
         conn = psycopg2.connect(
             host=os.getenv("DB_HOST", "archie_database"),
@@ -234,11 +248,13 @@ def get_collaboration_history() -> list:
                     }
                 )
 
-        cur.close()
-        conn.close()
-
         return sessions
 
     except Exception as e:
         logger.error(f"Failed to get collaboration history: {e}")
         return []
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()

@@ -194,8 +194,9 @@ def ingest_log_file(filepath: str, dry_run: bool = False, conn=None) -> dict:
             "filename": filename,
         }
 
+    cur = None
+    owns_conn = conn is None
     try:
-        owns_conn = conn is None
         if owns_conn:
             conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -263,6 +264,17 @@ def ingest_log_file(filepath: str, dry_run: bool = False, conn=None) -> dict:
 
     except Exception as e:
         return {"success": False, "error": str(e), "filename": filename}
+    finally:
+        try:
+            if cur is not None:
+                cur.close()
+        except Exception:
+            pass
+        try:
+            if owns_conn and conn is not None:
+                conn.close()
+        except Exception:
+            pass
 
 
 def batch_ingest_logs(limit: int = 5000, dry_run: bool = False) -> dict:

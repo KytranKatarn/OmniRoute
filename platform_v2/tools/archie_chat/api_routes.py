@@ -234,6 +234,21 @@ def register_routes(bp, admin_required):
             duration_ms=duration_ms,
         )
 
+        # Cross-session memory: ingest conversation for knowledge retrieval
+        try:
+            from ai_bridge.conversation_ingest import ingest_conversation
+
+            ingest_conversation(
+                user_message=message,
+                ai_response=result.response,
+                user_id=user_id,
+                source="archie_chat",
+                model=result.model_used or "",
+                provider="orchestration",
+            )
+        except Exception as e:
+            log.debug("Conversation ingest skipped: %s", e)
+
         # Build response
         response_data = {
             "success": True,
@@ -254,6 +269,17 @@ def register_routes(bp, admin_required):
 
         if governance_dicts:
             response_data["governance_events"] = governance_dicts
+
+        # KB augmentation: attach knowledge sources used
+        include_knowledge = bool(body.get("include_knowledge", False))
+        if include_knowledge:
+            try:
+                from ai_bridge.knowledge_retrieval import get_relevant_knowledge
+
+                kb_context = get_relevant_knowledge(message, max_results=3)
+                response_data["knowledge_used"] = kb_context if isinstance(kb_context, list) else []
+            except Exception:
+                response_data["knowledge_used"] = []
 
         return jsonify(response_data), 200
 
@@ -510,3 +536,48 @@ def register_routes(bp, admin_required):
         except Exception as exc:
             log.exception("Failed to revoke API key: %s", exc)
             return _error("INTERNAL_ERROR", "Failed to revoke API key", 500)
+
+    # ------------------------------------------------------------------
+    # 11. GET /api/v1/chat/conversations/search — Search conversations
+    # ------------------------------------------------------------------
+    @bp.route("/api/v1/chat/conversations/search", methods=["GET"])
+    @chat_auth_required
+    def search_convos():
+        user = get_chat_user()
+        query = request.args.get("q", "").strip()
+        if not query:
+            return _error("VALIDATION_ERROR", "Query required", 400)
+        team_id = get_user_team_id(user["id"])
+
+        from .chat_service import search_conversations
+
+        results = search_conversations(user["id"], query, team_id)
+        return jsonify({"success": True, "results": results}), 200
+
+    # ------------------------------------------------------------------
+    # 12. GET /api/v1/chat/knowledge/search — Direct KB search
+    # ------------------------------------------------------------------
+    @bp.route("/api/v1/chat/knowledge/search", methods=["GET"])
+    @chat_auth_required
+    def search_knowledge():
+        query = request.args.get("q", "").strip()
+        if not query:
+            return _error("VALIDATION_ERROR", "Query required", 400)
+        limit = min(request.args.get("limit", 10, type=int), 50)
+        try:
+            from ai_bridge.knowledge_retrieval import get_relevant_knowledge
+
+            results = get_relevant_knowledge(query, max_results=limit)
+            return (
+                jsonify(
+                    {
+                        "success": True,
+                        "query": query,
+                        "results": results if isinstance(results, list) else [],
+                    }
+                ),
+                200,
+            )
+        except Exception as e:
+            log.error("KB search failed: %s", e)
+            return _error("ORCHESTRATION_FAILED", str(e)[:200], 500)

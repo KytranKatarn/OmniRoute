@@ -332,6 +332,55 @@ def archive_conversation(conversation_id, user_id):
         return cur.rowcount > 0
 
 
+def search_conversations(user_id, query, team_id=None, limit=20):
+    """Search conversations by title or message content (ILIKE).
+
+    Args:
+        user_id: The requesting user.
+        query: Search text.
+        team_id: If set, search team conversations instead of personal.
+        limit: Max results (default 20).
+
+    Returns:
+        list of dicts with conversation_uuid, title, updated_at.
+    """
+    safe_query = query.replace("%", "\\%").replace("_", "\\_")
+    pattern = f"%{safe_query}%"
+    limit = min(max(limit, 1), 100)
+
+    with get_db_cursor(commit=False) as (conn, cur):
+        if team_id:
+            cur.execute(
+                """SELECT DISTINCT c.id, c.conversation_uuid, c.title, c.updated_at
+                   FROM chat_conversations c
+                   LEFT JOIN chat_messages m ON m.conversation_id = c.id
+                   WHERE c.team_id = %s AND c.is_archived = FALSE
+                     AND (c.title ILIKE %s OR m.content ILIKE %s)
+                   ORDER BY c.updated_at DESC LIMIT %s""",
+                (team_id, pattern, pattern, limit),
+            )
+        else:
+            cur.execute(
+                """SELECT DISTINCT c.id, c.conversation_uuid, c.title, c.updated_at
+                   FROM chat_conversations c
+                   LEFT JOIN chat_messages m ON m.conversation_id = c.id
+                   WHERE c.user_id = %s AND c.team_id IS NULL AND c.is_archived = FALSE
+                     AND (c.title ILIKE %s OR m.content ILIKE %s)
+                   ORDER BY c.updated_at DESC LIMIT %s""",
+                (user_id, pattern, pattern, limit),
+            )
+        rows = cur.fetchall()
+
+    return [
+        {
+            "conversation_uuid": str(r["conversation_uuid"]),
+            "title": r["title"],
+            "updated_at": r["updated_at"].isoformat() if r["updated_at"] else None,
+        }
+        for r in rows
+    ]
+
+
 def auto_title_conversation(conversation_id, first_message):
     """Auto-generate a conversation title from the first message.
 

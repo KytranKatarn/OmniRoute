@@ -5,10 +5,12 @@ API endpoints for codebase metrics, audit progress, and snapshots.
 """
 
 from flask import jsonify
+from flask_login import login_required
 
 
 def register_code_health_routes(bp, admin_required):
     @bp.route("/api/code-health/scan", methods=["POST"])
+    @login_required
     @admin_required
     def code_health_scan():
         from services.code_metrics_service import scan_codebase, save_snapshot
@@ -18,6 +20,7 @@ def register_code_health_routes(bp, admin_required):
         return jsonify({"success": True, "snapshot_id": snapshot_id, "metrics": metrics})
 
     @bp.route("/api/code-health/current")
+    @login_required
     @admin_required
     def code_health_current():
         from services.code_metrics_service import scan_codebase
@@ -26,6 +29,7 @@ def register_code_health_routes(bp, admin_required):
         return jsonify(metrics)
 
     @bp.route("/api/code-health/snapshots")
+    @login_required
     @admin_required
     def code_health_snapshots():
         from services.code_metrics_service import get_snapshots
@@ -34,6 +38,7 @@ def register_code_health_routes(bp, admin_required):
         return jsonify({"snapshots": snapshots})
 
     @bp.route("/api/code-health/audit-log")
+    @login_required
     @admin_required
     def code_health_audit_log():
         from services.code_metrics_service import get_audit_log
@@ -42,6 +47,7 @@ def register_code_health_routes(bp, admin_required):
         return jsonify({"entries": entries})
 
     @bp.route("/api/code-health/module-status")
+    @login_required
     @admin_required
     def code_health_module_status():
         from database import get_db_cursor
@@ -119,6 +125,7 @@ def register_code_health_routes(bp, admin_required):
         return jsonify({"success": True, "modules": modules, "summary": summary})
 
     @bp.route("/api/code-health/backfill-git", methods=["POST"])
+    @login_required
     @admin_required
     def code_health_backfill_git():
         from services.code_metrics_service import backfill_git_history

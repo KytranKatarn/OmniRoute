@@ -14,7 +14,7 @@ Date: 2026-01-06
 
 from typing import Dict, List, Optional
 import re
-from knowledge_embedding_generator import KnowledgeEmbeddingGenerator
+from .knowledge_embedding_generator import KnowledgeEmbeddingGenerator
 
 
 class KnowledgeHybridSearch:
@@ -71,7 +71,7 @@ class KnowledgeHybridSearch:
                         CASE WHEN documentation ILIKE %s THEN 2 ELSE 0 END +
                         CASE WHEN ARRAY_TO_STRING(tags, ',') ILIKE %s THEN 4 ELSE 0 END
                     ) AS keyword_score
-                FROM archie_codebase_knowledge
+                FROM knowledge_base
                 WHERE
                     entity_name ILIKE %s OR
                     description ILIKE %s OR
@@ -169,7 +169,7 @@ class KnowledgeHybridSearch:
                     tags,
                     metadata,
                     embedding
-                FROM archie_codebase_knowledge
+                FROM knowledge_base
                 WHERE embedding IS NOT NULL
             """
 

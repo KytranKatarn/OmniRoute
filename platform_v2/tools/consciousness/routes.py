@@ -5059,6 +5059,7 @@ def generate_terminal_token():
 
 @consciousness_bp.route("/api/claude/chat", methods=["POST"])
 @login_required
+@admin_required
 def claude_side_chat():
     """
     Send a message to Claude via the CLI proxy (side-by-side mode).

@@ -24,7 +24,7 @@ class KnowledgeEmbeddingGenerator:
 
     def __init__(
         self,
-        ollama_url: str = "http://localhost:11434",
+        ollama_url: str = os.environ.get("OLLAMA_HOST", "http://host.docker.internal:11434"),
         model: str = "arctic-embed-cpu",
         dimension: int = 768,
     ):

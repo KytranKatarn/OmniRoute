@@ -363,7 +363,7 @@ def get_recent_knowledge(days: int = 7, limit: int = 20) -> List[Dict[str, Any]]
                 importance_score,
                 created_at
             FROM knowledge_base
-            WHERE created_at > NOW() - INTERVAL '%s days'
+            WHERE created_at > NOW() - INTERVAL '1 day' * %s
             ORDER BY created_at DESC
             LIMIT %s
         """,

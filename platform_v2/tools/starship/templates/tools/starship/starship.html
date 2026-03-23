@@ -134,20 +134,24 @@
 
                 <!-- Docker-Only Deployment -->
                 <div class="cn-panel">
-                    <h3 class="cn-section-title">Step 1: Install Docker Desktop</h3>
-                    <a href="https://www.docker.com/products/docker-desktop/" target="_blank" class="cn-download-btn" style="background:#1e293b;border:1px solid #00e5ff;">
-                        Get Docker Desktop (Windows / Mac / Linux)
+                    <h3 class="cn-section-title">Option A: One-Click Installer (Recommended)</h3>
+                    <a href="/static/downloads/ARCHIE-Node-Setup.exe" class="cn-download-btn">
+                        Download ARCHIE Node Setup (.exe)
                     </a>
-                    <p class="cn-note">Free download. Install and start Docker Desktop before proceeding.</p>
+                    <p class="cn-note">Branded Kytran Empowerment installer. Installs Docker Desktop, registers with hub, starts everything. Just double-click.</p>
 
-                    <h3 class="cn-section-title">Step 2: Download Node Package</h3>
-                    <a id="cn-zip-download" href="#" class="cn-download-btn" download>
+                    <h3 class="cn-section-title">Option B: Linux One-Command Install</h3>
+                    <div class="cn-cmd-box" style="margin:8px 0;">
+                        <code id="cn-linux-cmd" style="font-size:0.7rem;word-break:break-all;">curl -fsSL https://raw.githubusercontent.com/KytranKatarn/archie-platform/main/node_client/install.sh | bash</code>
+                        <button onclick="copyConnectCmd('cn-linux-cmd')" class="cn-copy-btn">COPY</button>
+                    </div>
+                    <p class="cn-note">Installs Docker, NVIDIA toolkit (if GPU), registers with hub, starts everything.</p>
+
+                    <h3 class="cn-section-title">Option C: ZIP Package (Docker already installed)</h3>
+                    <a id="cn-zip-download" href="#" class="cn-download-btn" style="background:#1e293b;border:1px solid #00e5ff;" download>
                         Download Node ZIP
                     </a>
-                    <p class="cn-note">Contains docker-compose.yml, start/stop/update scripts, and pre-configured credentials. Extract anywhere.</p>
-
-                    <h3 class="cn-section-title">Step 3: Start</h3>
-                    <p class="cn-note">Double-click <strong>start.bat</strong> (Windows) or <strong>start.command</strong> (Mac). Docker pulls all images automatically. Node appears in fleet within 2 minutes.</p>
+                    <p class="cn-note">For machines with Docker already installed. Extract, double-click <strong>start.bat</strong> (Windows) or <strong>start.command</strong> (Mac).</p>
                 </div>
                 </div>
 

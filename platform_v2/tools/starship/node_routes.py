@@ -865,8 +865,15 @@ def register_node_routes(bp, auth_decorator):
                 cur.fetchone()
 
             if os_type == "windows":
-                # Prefer the pre-built GUI installer .exe if available
-                exe_path = os.path.join(NODE_CLIENT_DIR, "installer", "dist", "ARCHIE-Node-Setup.exe")
+                # Prefer the pre-built GUI installer .exe — check static/downloads first, then installer/dist
+                exe_path = os.path.join(
+                    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                    "static",
+                    "downloads",
+                    "ARCHIE-Node-Setup.exe",
+                )
+                if not os.path.isfile(exe_path):
+                    exe_path = os.path.join(NODE_CLIENT_DIR, "installer", "dist", "ARCHIE-Node-Setup.exe")
                 if os.path.isfile(exe_path):
                     logger.info("Serving pre-built ARCHIE-Node-Setup.exe installer")
                     return send_file(

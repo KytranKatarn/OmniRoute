@@ -112,3 +112,4 @@ host_commands/
 /*.html
 .worktrees/
 repos/
+platform_v2/static/downloads/*.exe

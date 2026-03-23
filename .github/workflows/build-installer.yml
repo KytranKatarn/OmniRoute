@@ -5,20 +5,14 @@ on:
   push:
     paths:
       - 'node_client/installer/**'
+      - 'node_client/docker-compose.node.yml'
+      - 'node_client/*.bat'
 
 jobs:
   build-installer:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install PyInstaller
-        run: pip install pyinstaller
 
       - name: Install ImageMagick
         run: choco install imagemagick -y
@@ -29,10 +23,6 @@ jobs:
 
       - name: Install Inno Setup
         run: choco install innosetup -y
-
-      - name: Build app with PyInstaller
-        working-directory: node_client/installer
-        run: python build_installer.py
 
       - name: Build installer with Inno Setup
         working-directory: node_client/installer

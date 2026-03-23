@@ -272,19 +272,21 @@ function Step-Hardware {
     Write-Log "[OK] RAM: $ramGb GB" $Colors.Green
     $script:HwInfo.ram_gb = $ramGb
 
-    # GPU (with registry VRAM fix for >4GB)
+    # GPU — detect ALL discrete GPUs (NVIDIA, AMD, Intel Arc)
+    # Skip integrated/virtual: Microsoft Basic, VMware, VirtualBox, Intel UHD/HD Graphics
     $gpuAvailable = $false
     $gpuModel = $null
     $gpuVramGb = $null
-    $gpus = Get-CimInstance Win32_VideoController | Where-Object { $_.Name -match "NVIDIA" }
-    if ($gpus) {
-        $gpu = $gpus | Select-Object -First 1
-        $gpuAvailable = $true
-        $gpuModel = $gpu.Name
+    $allGpus = @()
+    $gpus = Get-CimInstance Win32_VideoController | Where-Object {
+        $_.Name -and
+        $_.Name -notmatch "Microsoft Basic|VMware|VirtualBox|Remote Desktop" -and
+        $_.AdapterRAM -gt 0
+    }
+    $regPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
+    foreach ($gpu in $gpus) {
         $vram = $gpu.AdapterRAM
-
         # Registry fix for VRAM >4GB (uint32 overflow)
-        $regPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
         Get-ChildItem $regPath -ErrorAction SilentlyContinue | ForEach-Object {
             $driverDesc = (Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue).'DriverDesc'
             if ($driverDesc -eq $gpu.Name) {
@@ -292,16 +294,36 @@ function Step-Hardware {
                 if ($qwMem -and $qwMem -gt $vram) { $vram = $qwMem }
             }
         }
-        $gpuVramGb = [math]::Round($vram / 1GB, 1)
-        Set-HwLabel "GPU" "$gpuModel ($($gpuVramGb)GB)"
-        Write-Log "[OK] GPU: $gpuModel ($gpuVramGb GB VRAM)" $Colors.Green
+        $vramGb = [math]::Round($vram / 1GB, 1)
+        $isDiscrete = $gpu.Name -match "NVIDIA|AMD|Radeon RX|Intel Arc|GeForce|Quadro|RTX|Tesla"
+        $allGpus += @{ Name = $gpu.Name; VramGb = $vramGb; Discrete = $isDiscrete }
+        Write-Log "[OK] GPU: $($gpu.Name) ($vramGb GB VRAM)$(if($isDiscrete){' [DISCRETE]'})" $Colors.Green
+    }
+    # Pick best discrete GPU for primary assignment (prefer NVIDIA for CUDA, then AMD, then Intel)
+    $discrete = $allGpus | Where-Object { $_.Discrete } | Sort-Object { $_.VramGb } -Descending
+    if ($discrete) {
+        $best = $discrete[0]
+        $gpuAvailable = $true
+        $gpuModel = $best.Name
+        $gpuVramGb = $best.VramGb
+        $displayGpu = if ($gpuModel.Length -gt 25) { $gpuModel.Substring(0, 25) + "..." } else { $gpuModel }
+        Set-HwLabel "GPU" "$displayGpu ($($gpuVramGb)GB)"
+        if ($discrete.Count -gt 1) {
+            Write-Log "[OK] $($discrete.Count) discrete GPUs found — primary: $gpuModel" $Colors.Green
+        }
+    } elseif ($allGpus.Count -gt 0) {
+        # Only integrated GPU found
+        $igpu = $allGpus[0]
+        Set-HwLabel "GPU" "$($igpu.Name) (integrated)"
+        Write-Log "[~] Only integrated GPU found — CPU-only mode for LLM" $Colors.Yellow
     } else {
-        Set-HwLabel "GPU" "None (CPU-only)"
-        Write-Log "[~] No NVIDIA GPU detected — CPU-only mode" $Colors.Yellow
+        Set-HwLabel "GPU" "None detected"
+        Write-Log "[~] No GPU detected — CPU-only mode" $Colors.Yellow
     }
     $script:HwInfo.gpu_available = $gpuAvailable
     $script:HwInfo.gpu_model = $gpuModel
     $script:HwInfo.gpu_vram_gb = $gpuVramGb
+    $script:HwInfo.all_gpus = $allGpus | ForEach-Object { @{ name = $_.Name; vram_gb = $_.VramGb } }
 
     # Disk
     $disk = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'"
@@ -422,6 +444,7 @@ function Step-Register {
         gpu_available  = $script:HwInfo.gpu_available
         gpu_model      = $script:HwInfo.gpu_model
         gpu_vram_gb    = $script:HwInfo.gpu_vram_gb
+        all_gpus       = $script:HwInfo.all_gpus
         cpu_cores      = $script:HwInfo.cpu_cores
         cpu_model      = $script:HwInfo.cpu_model
         ram_gb         = $script:HwInfo.ram_gb

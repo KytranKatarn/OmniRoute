@@ -34,6 +34,43 @@ def register_ops_routes(bp, admin_required):
     """Register Ops Center API routes on the autonomy blueprint."""
 
     # ------------------------------------------------------------------
+    # 0a. GET /api/ops-server-loop/status — server loop states
+    # ------------------------------------------------------------------
+    @bp.route("/api/ops-server-loop/status", methods=["GET"])
+    @login_required
+    @admin_required
+    def ops_server_loop_status():
+        """Get server loop states."""
+        try:
+            from services.loop_service import get_server_loops
+
+            loops = get_server_loops()
+            return jsonify({"success": True, "loops": loops})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # ------------------------------------------------------------------
+    # 0b. POST /api/ops-server-loop/toggle — toggle a server loop
+    # ------------------------------------------------------------------
+    @bp.route("/api/ops-server-loop/toggle", methods=["POST"])
+    @login_required
+    @admin_required
+    def ops_server_loop_toggle():
+        """Toggle a server loop on/off."""
+        try:
+            from services.loop_service import get_server_loops, set_server_loop, VALID_LOOP_OPS
+
+            data = request.get_json() or {}
+            op = data.get("op", "")
+            if op not in VALID_LOOP_OPS:
+                return jsonify({"success": False, "error": f"Invalid op: {op}. Valid: {VALID_LOOP_OPS}"}), 400
+            enabled = data.get("enabled", True)
+            loops = set_server_loop(op, enabled)
+            return jsonify({"success": True, "loops": loops, "toggled": op, "enabled": enabled})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # ------------------------------------------------------------------
     # 1. GET /api/ops-summary — lightweight counts for alert bar
     # ------------------------------------------------------------------
     @bp.route("/api/ops-summary")

@@ -119,6 +119,9 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
 .au-loop-toggle .toggle-switch.on { background: rgba(0,255,65,0.15); border-color: var(--au-green); box-shadow: 0 0 8px rgba(0,255,65,0.2); }
 .au-loop-toggle .toggle-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--au-muted); transition: all 0.3s; }
 .au-loop-toggle .toggle-switch.on::after { left: 22px; background: var(--au-green); box-shadow: 0 0 6px var(--au-green); }
+.au-loop-toggle .loop-status { font-family: 'Antonio', sans-serif; font-size: 0.72rem; font-weight: 600; letter-spacing: 1.5px; padding: 0.15rem 0.6rem; border-radius: 2px 8px 8px 2px; margin-right: 0.5rem; }
+.au-loop-toggle .loop-status.on { color: var(--au-green); background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.25); }
+.au-loop-toggle .loop-status.off { color: var(--au-muted); background: rgba(139,148,158,0.08); border: 1px solid rgba(139,148,158,0.2); }
 
 /* ── Health Grid ── */
 .au-health-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
@@ -773,6 +776,11 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
                 lbl.textContent = op.charAt(0).toUpperCase() + op.slice(1);
                 row.appendChild(lbl);
 
+                var status = document.createElement('span');
+                status.className = 'loop-status ' + (enabled ? 'on' : 'off');
+                status.textContent = enabled ? 'ON' : 'OFF';
+                row.appendChild(status);
+
                 var toggle = document.createElement('div');
                 toggle.className = 'toggle-switch' + (enabled ? ' on' : '');
                 toggle.title = enabled ? 'Disable ' + op : 'Enable ' + op;
@@ -874,7 +882,7 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
 
     async function toggleServerLoop(op, enabled) {
         try {
-            await fetch('/tools/consciousness/api/processing/server-loop/toggle', {
+            await fetch('/tools/autonomy/api/ops-server-loop/toggle', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({op: op, enabled: enabled})

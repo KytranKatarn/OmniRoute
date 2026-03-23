@@ -56,18 +56,29 @@ class ArchieChatUI {
 
   async chatApi(endpoint, options) {
     try {
+      // Use AbortController for 3-minute timeout (orchestration can be slow)
+      var controller = new AbortController();
+      var timeoutId = setTimeout(function() { controller.abort(); }, 180000);
+
       var resp = await fetch('/tools/archie-chat' + endpoint, {
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         ...options
       });
+      clearTimeout(timeoutId);
+
       var data = await resp.json();
       if (!resp.ok) {
         console.error('Chat API error:', data);
-        return { error: data.error || 'Request failed' };
+        var errMsg = (data.error && data.error.message) ? data.error.message : (data.error || 'Request failed');
+        return { error: errMsg };
       }
       return data;
     } catch (err) {
       console.error('Chat API fetch error:', err);
+      if (err.name === 'AbortError') {
+        return { error: 'Request timed out. ARCHIE may still be processing — try again in a moment.' };
+      }
       return { error: err.message || 'Network error' };
     }
   }
@@ -119,11 +130,13 @@ class ArchieChatUI {
     } else {
       if (data.conversation_id) this.conversationId = data.conversation_id;
 
+      // Agent info comes as nested object: data.agent = {name, display_name, station}
+      var agent = data.agent || {};
       this.renderMessage({
         role: 'assistant',
         content: data.response || data.content || '',
-        agent_display_name: data.agent_display_name || data.agent_name || 'ARCHIE',
-        station_code: data.station_code || 'COMMAND',
+        agent_display_name: agent.display_name || agent.name || 'ARCHIE',
+        station_code: agent.station || 'COMMAND',
         created_at: data.created_at || new Date().toISOString()
       });
 
@@ -156,8 +169,9 @@ class ArchieChatUI {
       bubble.appendChild(text);
       div.appendChild(bubble);
     } else {
+      // Handle both new message format (agent_display_name) and history format (agent_used)
       var station = msg.station_code || 'COMMAND';
-      var name = msg.agent_display_name || 'ARCHIE';
+      var name = msg.agent_display_name || msg.agent_used || 'ARCHIE';
       var initials = this.getAgentInitials(name);
       var color = this.getStationColor(station);
 

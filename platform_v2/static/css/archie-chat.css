@@ -21,7 +21,7 @@
 .ac-app {
     display: flex;
     flex-direction: row;
-    height: calc(100vh - 120px);  /* Account for nav + ops-alert-bar */
+    height: calc(100vh - 160px);  /* Account for nav + ops-alert-bar + footer */
     position: relative;  /* Needed for absolute toggle button */
     background: #0d0d0f;
     overflow: hidden;
@@ -713,7 +713,7 @@
     }
 
     .ac-flight-deck-toggle {
-        display: flex;
+        display: flex !important;  /* Always show toggle on small screens */
     }
 
     /* When explicitly shown on tablet, overlay it */

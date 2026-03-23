@@ -270,9 +270,15 @@ class ArchieChatUI {
 
     // Show flight deck
     var deck = document.getElementById('ac-flight-deck');
-    if (deck) deck.classList.remove('ac-hidden');
     var toggle = document.getElementById('ac-flight-deck-toggle');
-    if (toggle) toggle.classList.add('ac-hidden');
+    if (deck) {
+      if (window.innerWidth <= 1024) {
+        deck.classList.add('ac-force-show');
+      } else {
+        deck.classList.remove('ac-hidden');
+      }
+    }
+    if (toggle) toggle.style.display = 'none';
   }
 
   /* ── Conversations ─────────────────────────────────── */
@@ -367,10 +373,21 @@ class ArchieChatUI {
     var deck = document.getElementById('ac-flight-deck');
     var toggle = document.getElementById('ac-flight-deck-toggle');
     if (!deck) return;
-    var isHidden = deck.classList.toggle('ac-hidden');
-    // Toggle button: show (flex) when deck hidden, hide when deck visible
+
+    // On small screens (<= 1024px), use ac-force-show to overlay
+    var isSmallScreen = window.innerWidth <= 1024;
+    var isVisible;
+
+    if (isSmallScreen) {
+      isVisible = deck.classList.toggle('ac-force-show');
+    } else {
+      var isHidden = deck.classList.toggle('ac-hidden');
+      isVisible = !isHidden;
+    }
+
+    // Toggle button: show when deck hidden, hide when deck visible
     if (toggle) {
-      toggle.style.display = isHidden ? 'flex' : 'none';
+      toggle.style.display = isVisible ? 'none' : 'flex';
     }
   }
 

@@ -26,12 +26,14 @@ class ArchieChatUI {
     var targetSelect = document.getElementById('ac-target-select');
     var flightToggle = document.getElementById('ac-flight-deck-toggle');
     var flightClose = document.getElementById('ac-flight-deck-close');
+    var sidebarToggle = document.getElementById('ac-sidebar-toggle');
 
     if (sendBtn) sendBtn.addEventListener('click', function() { self.sendMessage(); });
     if (newChatBtn) newChatBtn.addEventListener('click', function() { self.newConversation(); });
     if (targetSelect) targetSelect.addEventListener('change', function() { self.setAgentTarget(); });
     if (flightToggle) flightToggle.addEventListener('click', function() { self.toggleFlightDeck(); });
     if (flightClose) flightClose.addEventListener('click', function() { self.toggleFlightDeck(); });
+    if (sidebarToggle) sidebarToggle.addEventListener('click', function() { self.toggleSidebar(); });
 
     if (input) {
       input.addEventListener('keydown', function(e) {
@@ -303,7 +305,7 @@ class ArchieChatUI {
 
     for (var i = 0; i < conversations.length; i++) {
       var c = conversations[i];
-      var id = c.uuid || c.id;
+      var id = c.conversation_uuid || c.uuid || c.id;
       var active = (id === this.conversationId) ? ' ac-conversation-active' : '';
       var title = c.title || c.summary || 'Untitled';
 
@@ -388,6 +390,21 @@ class ArchieChatUI {
     // Toggle button: show when deck hidden, hide when deck visible
     if (toggle) {
       toggle.style.display = isVisible ? 'none' : 'flex';
+    }
+  }
+
+  toggleSidebar() {
+    var sidebar = document.getElementById('ac-sidebar');
+    if (!sidebar) return;
+    var isVisible = sidebar.classList.toggle('ac-force-show');
+    // Close sidebar when a conversation is clicked (bind once)
+    if (isVisible && !sidebar._closeHandler) {
+      sidebar._closeHandler = function(e) {
+        if (e.target.closest('.ac-conversation-item')) {
+          sidebar.classList.remove('ac-force-show');
+        }
+      };
+      sidebar.addEventListener('click', sidebar._closeHandler);
     }
   }
 

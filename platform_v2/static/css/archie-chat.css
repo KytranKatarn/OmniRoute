@@ -389,6 +389,27 @@
     letter-spacing: 0.06em;
 }
 
+/* ── Sidebar Toggle (in input bar, hidden on desktop) ──── */
+.ac-sidebar-toggle {
+    display: none;  /* Hidden on desktop — sidebar always visible */
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    background: rgba(139, 92, 246, 0.12);
+    border: 1px solid #8b5cf6;
+    border-radius: 8px;
+    color: #8b5cf6;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    align-items: center;
+    justify-content: center;
+}
+
+.ac-sidebar-toggle:hover {
+    background: rgba(139, 92, 246, 0.25);
+}
+
 /* ── Input Area ────────────────────────────────────────── */
 .ac-input-area {
     border-top: 1px solid #333;
@@ -728,21 +749,11 @@
     }
 }
 
-/* ── Responsive: 768px — hide sidebar ──────────────────── */
+/* ── Responsive: 768px — narrower sidebar ──────────────── */
 @media (max-width: 768px) {
     .ac-sidebar {
-        display: none;
-    }
-
-    /* When explicitly shown on mobile, overlay it */
-    .ac-sidebar.ac-force-show {
-        display: flex;
-        position: absolute;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        z-index: 100;
-        box-shadow: 4px 0 20px rgba(0, 0, 0, 0.4);
+        width: 200px;
+        min-width: 200px;
     }
 
     .ac-messages {
@@ -759,6 +770,29 @@
 
     .ac-message-assistant {
         max-width: 90%;
+    }
+}
+
+/* ── Responsive: 600px — hide sidebar, show toggle ─────── */
+@media (max-width: 600px) {
+    .ac-sidebar {
+        display: none;
+    }
+
+    .ac-sidebar-toggle {
+        display: flex !important;  /* Show hamburger in input bar */
+    }
+
+    /* When explicitly shown on mobile, overlay it */
+    .ac-sidebar.ac-force-show {
+        display: flex;
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 260px;
+        z-index: 100;
+        box-shadow: 4px 0 20px rgba(0, 0, 0, 0.4);
     }
 }
 

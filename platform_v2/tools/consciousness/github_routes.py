@@ -987,7 +987,11 @@ def register_github_routes(bp, admin_required):
                             continue
 
                         try:
-                            file_response = requests.get(file_url, timeout=30)
+                            try:
+                                file_response = requests.get(file_url, timeout=30)
+                            except requests.exceptions.Timeout:
+                                errors.append(f"Timeout downloading {item.get('name', file_url)} (30s limit)")
+                                continue
                             if file_response.status_code != 200:
                                 continue
 
@@ -1103,6 +1107,22 @@ def register_github_routes(bp, admin_required):
 
             conn = _get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # ── Duplicate job prevention ──────────────────
+            cur.execute(
+                "SELECT id FROM bridge_jobs WHERE job_type = 'github_reindex' AND status = 'running' AND created_at > NOW() - INTERVAL '1 hour'"
+            )
+            if cur.fetchone():
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": "Reindex already in progress",
+                            "duplicate": True,
+                        }
+                    ),
+                    409,
+                )
 
             if force:
                 cur.execute("SELECT id, repo_name, repo_type, max_files FROM github_repositories ORDER BY id")

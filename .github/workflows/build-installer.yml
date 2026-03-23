@@ -30,14 +30,6 @@ jobs:
       - name: Install Inno Setup
         run: choco install innosetup -y
 
-      - name: Download NSSM
-        working-directory: node_client/installer
-        run: |
-          Invoke-WebRequest -Uri "https://nssm.cc/release/nssm-2.24.zip" -OutFile nssm.zip
-          Expand-Archive nssm.zip -DestinationPath nssm-temp
-          Copy-Item nssm-temp/nssm-2.24/win64/nssm.exe .
-          Remove-Item -Recurse nssm-temp, nssm.zip
-
       - name: Build app with PyInstaller
         working-directory: node_client/installer
         run: python build_installer.py

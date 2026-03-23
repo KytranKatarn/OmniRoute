@@ -10,6 +10,6 @@ def register_routes(bp, _admin_required):
 
     @bp.route("/")
     @login_required
-    def chat_page():
+    def index():
         # Blueprint has template_folder="templates", so path is relative
         return render_template("archie_chat.html")

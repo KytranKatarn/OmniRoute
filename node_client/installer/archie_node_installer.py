@@ -258,8 +258,8 @@ class ArchieInstaller(tk.Tk):
         tk.Frame(header, bg=CYAN, height=2).pack(fill="x", pady=(4, 0))
 
         # ── Hub URL input ─────────────────────────────────────────────────
-        url_frame = tk.Frame(self, bg=BG_DARK, padx=20, pady=(8, 4))
-        url_frame.pack(fill="x")
+        url_frame = tk.Frame(self, bg=BG_DARK)
+        url_frame.pack(fill="x", padx=20, pady=(8, 4))
 
         lbl_font = tkfont.Font(family=FONT_MONO, size=9)
         tk.Label(
@@ -313,8 +313,8 @@ class ArchieInstaller(tk.Tk):
         hw_grid.columnconfigure(3, weight=1)
 
         # ── Progress Bar ──────────────────────────────────────────────────
-        prog_frame = tk.Frame(self, bg=BG_DARK, padx=20, pady=(8, 2))
-        prog_frame.pack(fill="x")
+        prog_frame = tk.Frame(self, bg=BG_DARK)
+        prog_frame.pack(fill="x", padx=20, pady=(8, 2))
 
         self.progress_canvas = tk.Canvas(
             prog_frame, height=16, bg=BG_PANEL, highlightthickness=0, bd=0,
@@ -351,8 +351,8 @@ class ArchieInstaller(tk.Tk):
         self.log_text.tag_configure("yellow", foreground=YELLOW)
 
         # ── Button Row ───────────────────────────────────────────────────
-        btn_frame = tk.Frame(self, bg=BG_DARK, padx=20, pady=(0, 10))
-        btn_frame.pack(fill="x")
+        btn_frame = tk.Frame(self, bg=BG_DARK)
+        btn_frame.pack(fill="x", padx=20, pady=(0, 10))
 
         btn_font = tkfont.Font(family=FONT_MONO, size=11, weight="bold")
 

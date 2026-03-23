@@ -689,6 +689,15 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Job #55 — Daily Code Health Scan (2:00 AM, before 8 AM digest)
+        self.scheduler.add_job(
+            with_app_context(self._daily_code_health_scan),
+            trigger=CronTrigger(hour=2, minute=0),
+            id="agent_code_health_scan",
+            name="Agent Loop: Daily Code Health Scan",
+            replace_existing=True,
+        )
+
         # Job #52 — Competitor landscape auto-scan (every 2 weeks)
         self.scheduler.add_job(
             with_app_context(self._competitor_landscape_scan),
@@ -1020,6 +1029,7 @@ class AgentLoop:
             "module_docs_updater",
             "git_change_tracker",
             "agent_code_health_digest",
+            "agent_code_health_scan",
             "agent_competitor_scan",
         ]:
             try:
@@ -4286,6 +4296,32 @@ class AgentLoop:
             logger.warning(f"Code health digest failed: {e}")
             self._log_cycle("code_health_digest", 0, 1, int((time.time() - start) * 1000),
                             error_message=str(e))
+
+    def _daily_code_health_scan(self):
+        """Job #55: Run codebase scan daily at 2:00 AM. Saves snapshot for Code Health tab."""
+        start = time.time()
+        try:
+            from services.code_metrics_service import scan_codebase, save_snapshot
+
+            logger.info("[CodeHealthScan] Starting daily codebase scan")
+            metrics = scan_codebase()
+            snapshot_id = save_snapshot(metrics)
+            logger.info(
+                "[CodeHealthScan] Complete: %d files, %d lines, snapshot #%s",
+                metrics.get("total_files", 0),
+                metrics.get("total_lines", 0),
+                snapshot_id,
+            )
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("code_health_scan", 1, 0, duration_ms)
+
+        except Exception as e:
+            logger.warning(f"Code health scan failed: {e}")
+            self._log_cycle(
+                "code_health_scan", 0, 1,
+                int((time.time() - start) * 1000),
+                error_message=str(e),
+            )
 
     def _competitor_landscape_scan(self):
         """Job #52: Scan AI competitor landscape every 2 weeks, update knowledge_base, notify via Telegram."""

@@ -24,7 +24,16 @@ param(
     [string]$InstallDir = "C:\ARCHIE-Node"
 )
 
-$ErrorActionPreference = "Stop"
+# Global error trap — show MessageBox instead of silently crashing
+trap {
+    Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+    [System.Windows.Forms.MessageBox]::Show(
+        "A.R.C.H.I.E. Node Setup Error:`n`n$($_.Exception.Message)`n`nAt: $($_.InvocationInfo.ScriptLineNumber)`n`nPlease screenshot this and report to your administrator.",
+        "Setup Error", "OK", "Error") | Out-Null
+    exit 1
+}
+
+$ErrorActionPreference = "Continue"
 $ClientVersion = "4.0.0"
 $TotalSteps = 10
 $ResumeFile = Join-Path $InstallDir "resume_state.json"

@@ -41,16 +41,16 @@ Source: "..\heartbeat.sh"; DestDir: "{app}"; Flags: ignoreversion
 Source: "archie_icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\A.R.C.H.I.E. Node Setup"; Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -File ""{app}\setup.ps1"""; IconFilename: "{app}\archie_icon.ico"; WorkingDir: "{app}"
+Name: "{group}\A.R.C.H.I.E. Node Setup"; Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\setup.ps1"""; IconFilename: "{app}\archie_icon.ico"; WorkingDir: "{app}"
 Name: "{group}\Start Node"; Filename: "{app}\start.bat"; IconFilename: "{app}\archie_icon.ico"
 Name: "{group}\Stop Node"; Filename: "{app}\stop.bat"; IconFilename: "{app}\archie_icon.ico"
 Name: "{group}\Update Node"; Filename: "{app}\update.bat"; IconFilename: "{app}\archie_icon.ico"
 Name: "{group}\Uninstall A.R.C.H.I.E. Node"; Filename: "{uninstallexe}"
-Name: "{commondesktop}\A.R.C.H.I.E. Node"; Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -File ""{app}\setup.ps1"""; IconFilename: "{app}\archie_icon.ico"; WorkingDir: "{app}"
+Name: "{commondesktop}\A.R.C.H.I.E. Node"; Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\setup.ps1"""; IconFilename: "{app}\archie_icon.ico"; WorkingDir: "{app}"
 
 [Run]
 ; Launch the PowerShell setup GUI after Inno Setup finishes
-Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -File ""{app}\setup.ps1"""; Description: "Launch A.R.C.H.I.E. Node Setup"; Flags: nowait postinstall skipifsilent runascurrentuser; WorkingDir: "{app}"
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\setup.ps1"""; Description: "Launch A.R.C.H.I.E. Node Setup"; Flags: nowait postinstall skipifsilent runascurrentuser; WorkingDir: "{app}"
 
 [UninstallRun]
 ; Stop Docker containers on uninstall

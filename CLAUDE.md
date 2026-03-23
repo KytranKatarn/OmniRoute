@@ -24,6 +24,7 @@ Every new session MUST begin with one of:
 1. **Read before modify** - Check existing code patterns first
 2. **Test in Docker** - `docker exec archie_platform python3 script.py`
 3. **Two .env files** - Root `.env` and `platform_v2/.env` must match
+6. **Keep indexes in sync** - When creating/updating/deleting memory files, update MEMORY.md. When architecture changes, update rules files + CLAUDE.md. See `session-protocol.md` for full rules.
 4. **Module perms** - Add to BOTH `rbac.py` AND `module_registry.py`
 5. **Dev HQ is the source of truth** - After every commit+push, update Dev HQ:
    - `mcp create_project` / `create_task` for new work

@@ -19,6 +19,36 @@
 - `mcp__archie__update_project_understanding` after working on a project
 - `mcp__archie__store_memory` for important learnings (use knowledge_type='mistake_learned' for errors)
 
+## Keeping Memory & Index in Sync (MANDATORY)
+
+### Claude Memory Files (`~/.claude/projects/-mnt-archie-brain/memory/`)
+When you **create** a new memory file:
+- Add it to MEMORY.md in the correct section with a one-line description
+- Follow the naming convention: `{type}_{topic}.md` (e.g., `feedback_no-mocking-db.md`)
+
+When you **update** an existing memory file:
+- If the description changed, update the corresponding line in MEMORY.md
+- If the memory is now stale/irrelevant, add `archived: true` to frontmatter and move to Archived section
+
+When you **delete** a memory file:
+- Remove its line from MEMORY.md
+
+### Knowledge Base (DB)
+When you learn something important during a session:
+- Store it via `mcp__archie__store_memory` (persists across sessions for ALL tools, not just Claude)
+- Use `mistake_learned` for errors (1.3x search weight), `vault_note` for docs (1.2x weight)
+
+### Platform State Changes
+When modules, agents, stations, or architecture changes:
+- Update the relevant `.claude/rules/` file if patterns changed
+- Update CLAUDE.md if key files, module counts, or architecture sections are affected
+- Run `mcp__archie__update_project_understanding` for the affected project
+
+### MEMORY.md Staleness Check
+At session start, if MEMORY.md references counts or statuses (agent count, KB size, node status):
+- Verify against current DB state before trusting the numbers
+- Update MEMORY.md if numbers are stale (>1 week old or visibly wrong)
+
 ## Agent Coordination
 - `mcp__archie__get_quick_summary` for platform health and agent status
 - `mcp__archie__list_agents` to see who's available and their capabilities

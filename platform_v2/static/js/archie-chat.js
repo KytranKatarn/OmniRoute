@@ -222,14 +222,18 @@ class ArchieChatUI {
 
     for (var i = 0; i < steps.length; i++) {
       var step = steps[i];
-      var station = step.station || 'COMMAND';
-      var color = this.getStationColor(station);
       var dur = step.duration_ms || 0;
       totalMs += dur;
 
+      // Determine color based on step type
+      var stepType = step.step_type || step.label || '';
+      var color = this._stepColor(stepType);
+
+      // Format data object into a readable summary
+      var dataSummary = this._formatStepData(step.data, stepType);
+
       var card = document.createElement('div');
       card.className = 'ac-step-card';
-      card.setAttribute('data-station', station);
 
       var border = document.createElement('div');
       border.className = 'ac-step-border';
@@ -239,20 +243,28 @@ class ArchieChatUI {
       var content = document.createElement('div');
       content.className = 'ac-step-content';
 
-      var stepName = document.createElement('div');
+      var header = document.createElement('div');
+      header.className = 'ac-step-header';
+
+      var stepName = document.createElement('span');
       stepName.className = 'ac-step-name';
-      stepName.textContent = step.name || step.step || 'Step';
-      content.appendChild(stepName);
+      stepName.style.color = color;
+      stepName.textContent = step.label || stepType || 'Step';
+      header.appendChild(stepName);
 
-      var stepData = document.createElement('div');
-      stepData.className = 'ac-step-data';
-      stepData.textContent = step.data || step.summary || '';
-      content.appendChild(stepData);
-
-      var stepDur = document.createElement('div');
+      var stepDur = document.createElement('span');
       stepDur.className = 'ac-step-duration';
       stepDur.textContent = this.formatDuration(dur);
-      content.appendChild(stepDur);
+      header.appendChild(stepDur);
+
+      content.appendChild(header);
+
+      if (dataSummary) {
+        var stepData = document.createElement('div');
+        stepData.className = 'ac-step-data';
+        stepData.textContent = dataSummary;
+        content.appendChild(stepData);
+      }
 
       card.appendChild(content);
       stepsEl.appendChild(card);
@@ -503,6 +515,55 @@ class ArchieChatUI {
 
   getStationColor(stationCode) {
     return STATION_COLORS[stationCode] || '#00e5ff';
+  }
+
+  _stepColor(stepType) {
+    var colors = {
+      'intent_parse': '#00e5ff',
+      'language_detect': '#22d3ee',
+      'iaae_check': '#10b981',
+      'route_decision': '#fbbf24',
+      'gpu_check': '#f97316',
+      'agent_select': '#8b5cf6',
+      'welfare_check': '#f472b6',
+      'execute': '#a3e635',
+      'fallback': '#ef4444',
+      'translate_response': '#818cf8'
+    };
+    return colors[stepType] || '#00e5ff';
+  }
+
+  _formatStepData(data, stepType) {
+    if (!data) return '';
+    if (typeof data === 'string') return data;
+    // Extract the most useful info from the data object
+    var parts = [];
+    if (data.intent_type || data.intent) parts.push(data.intent_type || data.intent);
+    if (data.confidence) parts.push(Math.round(data.confidence * 100) + '%');
+    if (data.detected_lang) parts.push(data.detected_lang);
+    if (data.preferred_lang) parts.push('pref: ' + data.preferred_lang);
+    if (data.approved !== undefined) parts.push(data.approved ? 'approved' : 'blocked');
+    if (data.provider) parts.push(data.provider);
+    if (data.model_name || data.model) parts.push(data.model_name || data.model);
+    if (data.tier) parts.push(data.tier);
+    if (data.agent_name) parts.push(data.agent_name);
+    if (data.station) parts.push(data.station);
+    if (data.score) parts.push('score: ' + (typeof data.score === 'number' ? data.score.toFixed(2) : data.score));
+    if (data.healthy !== undefined) parts.push(data.healthy ? 'healthy' : 'stressed');
+    if (data.vram_free) parts.push(data.vram_free);
+    if (data.station_override) parts.push('→ ' + data.station_override);
+    if (data.agent_override) parts.push('→ ' + data.agent_override);
+    if (parts.length === 0) {
+      // Fallback: show first few key-value pairs
+      var keys = Object.keys(data).slice(0, 3);
+      for (var k = 0; k < keys.length; k++) {
+        var v = data[keys[k]];
+        if (v !== null && v !== undefined && typeof v !== 'object') {
+          parts.push(keys[k] + ': ' + String(v).substring(0, 30));
+        }
+      }
+    }
+    return parts.join(' · ');
   }
 }
 

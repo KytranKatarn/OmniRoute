@@ -522,7 +522,7 @@
     padding: 10px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 4px;
 }
 
 .ac-flight-deck-steps::-webkit-scrollbar {
@@ -566,47 +566,42 @@
 }
 
 .ac-step-content {
-    padding: 8px 10px;
+    padding: 5px 8px;
     flex: 1;
     min-width: 0;
 }
 
-.ac-step-name {
-    font-family: 'Antonio', sans-serif;
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    color: #e0e0e0;
+.ac-step-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 6px;
 }
 
-/* Step name color by station */
-.ac-step-card[data-station="COMMAND"] .ac-step-name      { color: #00e5ff; }
-.ac-step-card[data-station="ANALYTICS"] .ac-step-name    { color: #8b5cf6; }
-.ac-step-card[data-station="CREATIVE"] .ac-step-name     { color: #f472b6; }
-.ac-step-card[data-station="ENGINEERING"] .ac-step-name  { color: #fbbf24; }
-.ac-step-card[data-station="COMMUNICATIONS"] .ac-step-name { color: #22d3ee; }
-.ac-step-card[data-station="RESEARCH"] .ac-step-name     { color: #10b981; }
-.ac-step-card[data-station="SECURITY"] .ac-step-name     { color: #ef4444; }
-.ac-step-card[data-station="LOGISTICS"] .ac-step-name    { color: #f97316; }
-.ac-step-card[data-station="DIPLOMATIC"] .ac-step-name   { color: #818cf8; }
-.ac-step-card[data-station="OPERATIONS"] .ac-step-name   { color: #a3e635; }
-
-.ac-step-data {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.65rem;
-    color: #888;
-    margin-top: 3px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+.ac-step-name {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    /* Color set inline by JS per step type */
 }
 
 .ac-step-duration {
-    font-family: 'Antonio', sans-serif;
-    font-size: 0.58rem;
-    color: #555;
-    margin-top: 2px;
-    letter-spacing: 0.04em;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    color: #666;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.ac-step-data {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    color: #777;
+    margin-top: 1px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .ac-flight-deck-total {

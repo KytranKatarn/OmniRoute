@@ -1,8 +1,20 @@
 """Page routes for ARCHIE Chat module."""
 
-from flask import render_template
-from flask_login import login_required
-from rbac import admin_required  # noqa: F401 — exported for ADR-045 pattern
+from functools import wraps
+from flask import render_template, request, redirect, url_for
+from flask_login import login_required, current_user
+
+
+def admin_required(f):
+    """Decorator to require admin access (local definition, matches other modules)."""
+
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_admin:
+            return redirect(url_for("login"))
+        return f(*args, **kwargs)
+
+    return decorated_function
 
 
 def register_routes(bp, _admin_required):

@@ -424,9 +424,10 @@ def register_routes(bp, admin_required):
     # ------------------------------------------------------------------
     @bp.route("/api/v1/chat/keys", methods=["POST"])
     @chat_auth_required
-    @admin_required
     def create_api_key():
         user = get_chat_user()
+        if not user.get("is_admin"):
+            return _error("AUTH_FAILED", "Admin access required", 403)
         body = request.get_json(silent=True) or {}
         name = (body.get("name") or "").strip()
         if not name:

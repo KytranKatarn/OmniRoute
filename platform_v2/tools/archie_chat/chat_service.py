@@ -19,15 +19,24 @@ ALLOWED_TIERS = {"kytran", "enterprise", "pro"}
 def check_chat_access(user_id):
     """Check if user's subscription tier allows chat access.
 
+    Admin users always get access. Otherwise checks subscription tier.
+
     Returns:
         dict: {"allowed": bool, "tier": str or None, "reason": str}
     """
     with get_db_cursor(commit=False) as (conn, cur):
+        # Check if user is admin (always allowed)
+        cur.execute("SELECT is_admin FROM users WHERE id = %s", (user_id,))
+        user_row = cur.fetchone()
+        if user_row and user_row["is_admin"]:
+            return {"allowed": True, "tier": "kytran", "reason": "Admin access"}
+
+        # Check subscription tier (status column, not is_active)
         cur.execute(
             """
             SELECT st.name as tier_name
             FROM users u
-            JOIN user_subscriptions us ON us.user_id = u.id AND us.is_active = TRUE
+            JOIN user_subscriptions us ON us.user_id = u.id AND us.status = 'active'
             JOIN subscription_tiers st ON st.id = us.tier_id
             WHERE u.id = %s
             ORDER BY us.created_at DESC LIMIT 1

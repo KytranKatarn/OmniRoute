@@ -1,0 +1,24 @@
+name: Python CI
+
+on:
+  push:
+    paths: ['archie_engine/**']
+  pull_request:
+    paths: ['archie_engine/**']
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: pip install aiosqlite websockets aiohttp pyyaml pytest pytest-asyncio
+      - name: Run tests
+        run: python -m pytest archie_engine/tests/ -v --tb=short

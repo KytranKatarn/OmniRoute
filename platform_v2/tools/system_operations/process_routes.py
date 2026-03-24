@@ -79,6 +79,18 @@ def register_process_routes(bp, admin_required_decorator):
     def api_kill_process(pid):
         """Kill a process"""
         try:
+            # Reject system-critical PIDs
+            if pid <= 2:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": "Cannot kill system-critical processes (PID 0-2)",
+                        }
+                    ),
+                    403,
+                )
+
             data = request.get_json() or {}
 
             # Require confirmation

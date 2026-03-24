@@ -980,15 +980,29 @@ def register_stack_routes(bp, admin_required_decorator):
             compose_dir = stack["compose_directory"]
             compose_file = os.path.join(compose_dir, "docker-compose.yml")
 
+            # Security: verify resolved path is within stack directory
+            real_compose = os.path.realpath(compose_file)
+            real_compose_dir = os.path.realpath(compose_dir)
+            if not real_compose.startswith(real_compose_dir + os.sep) and real_compose != real_compose_dir:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": "Invalid file path - directory traversal not allowed",
+                        }
+                    ),
+                    403,
+                )
+
             # Create backup with timestamp
-            backup_file = f"{compose_file}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            if os.path.exists(compose_file):
+            backup_file = f"{real_compose}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            if os.path.exists(real_compose):
                 import shutil
 
-                shutil.copy2(compose_file, backup_file)
+                shutil.copy2(real_compose, backup_file)
 
             # Write new content
-            with open(compose_file, "w") as f:
+            with open(real_compose, "w") as f:
                 f.write(content)
 
             audit_log(

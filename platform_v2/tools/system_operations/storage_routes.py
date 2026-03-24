@@ -173,6 +173,20 @@ def register_storage_routes(bp, admin_required_decorator):
     def api_extend_lvm(vg_name, lv_name):
         """Extend an LVM logical volume via host command queue"""
         try:
+            import re
+
+            # Validate LVM names — alphanumeric, underscore, hyphen only
+            if not re.match(r"^[a-zA-Z0-9_\-]+$", vg_name):
+                return (
+                    jsonify({"success": False, "error": "Invalid volume group name"}),
+                    400,
+                )
+            if not re.match(r"^[a-zA-Z0-9_\-]+$", lv_name):
+                return (
+                    jsonify({"success": False, "error": "Invalid logical volume name"}),
+                    400,
+                )
+
             data = request.get_json() or {}
 
             # Require confirmation

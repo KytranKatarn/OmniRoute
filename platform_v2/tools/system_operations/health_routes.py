@@ -427,6 +427,7 @@ def register_health_routes(bp, admin_required_decorator):
 
     @bp.route("/api/system-health-full")
     @login_required
+    @admin_required_decorator
     def api_system_health_full():
         """Full system health check (moved from Blueprint/Mission Control)."""
         if not BLUEPRINT_HEALTH_AVAILABLE:

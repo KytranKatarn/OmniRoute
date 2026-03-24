@@ -21,7 +21,7 @@ A compliance scanning and evidence collection system that:
 | # | Decision | Choice |
 |---|----------|--------|
 | 1 | Audience | Both: internal (A.R.C.H.I.E.) + external (Kytran Server Manager) |
-| 2 | STIG scope | Ubuntu 22.04 + Docker + Network (~510 rules) |
+| 2 | STIG scope | Ubuntu 22.04 + Docker + Network (~510 rules) + HIPAA Security (~80 rules, Phase 11) |
 | 3 | Rule architecture | Modular JSON rule packs — engine loads any pack |
 | 4 | SOC 2 scope | Technical controls + evidence collection (auditor prep toolkit) |
 | 5 | Remediation | One-click with LCARS confirmation modal; auto-remediation as future phase |
@@ -451,6 +451,9 @@ GET /api/public/compliance/badge/soc2.svg
 
 GET /api/public/compliance/badge/ubuntu.svg
 → SVG shield badge: "Ubuntu STIG | 96% | green"
+
+GET /api/public/compliance/badge/hipaa.svg
+→ SVG shield badge: "HIPAA | 91% | green"
 ```
 
 ### Grade Scale
@@ -600,6 +603,54 @@ compliance/
 - Bundle rule packs
 - Add Compliance + Hardening tabs to standalone dashboard
 - Add badge API to standalone app
+
+### Phase 11: HIPAA Security Rule Pack
+- Create `hipaa-security.json` rule pack (~80 rules)
+- Technical safeguards: access control, audit controls, integrity, transmission security, authentication
+- PHI-specific controls: access logging for health modules (Therapy, V.I.T.A.L.), encryption at rest verification
+- Extend SOC 2 matrix: map HIPAA controls to Privacy (P1-P8) and Security (CC6) categories
+- New evidence artifact types: PHI access logs, encryption status, BAA tracking, risk assessment docs
+- Manual attestation items: Business Associate Agreements, annual risk assessment, breach notification plan, workforce training
+- Add HIPAA badge to public API: `GET /api/public/compliance/badge/hipaa.svg`
+- Add "HIPAA Controls Implemented" badge to website
+
+#### HIPAA Rule Pack Categories (~80 rules)
+
+| Category | Example Rules | Count |
+|----------|--------------|-------|
+| Access Control (164.312(a)) | Unique user IDs, emergency access, auto-logoff, encryption/decryption | ~15 |
+| Audit Controls (164.312(b)) | Audit log enabled, log retention, PHI access tracking, log integrity | ~12 |
+| Integrity (164.312(c)) | ePHI integrity verification, checksums, tamper detection | ~10 |
+| Transmission Security (164.312(e)) | TLS 1.2+, encrypted channels, no plaintext PHI in transit | ~10 |
+| Authentication (164.312(d)) | Multi-factor, password policy, session management, unique IDs | ~10 |
+| Administrative Safeguards (164.308) | Risk assessment (manual), workforce training (manual), contingency plan (manual) | ~15 (mostly manual attestation) |
+| Physical Safeguards (164.310) | Workstation security (manual), device controls (manual) | ~8 (manual attestation) |
+
+#### PHI Access Logging (New Feature)
+
+For modules handling protected health information (Therapy, V.I.T.A.L.):
+- Dedicated `phi_access_log` table tracking: who, what record, when, action (view/edit/export)
+- Auto-logged via decorator on PHI-touching endpoints
+- Evidence artifact: exportable PHI access report for auditors
+- Retention: minimum 6 years per HIPAA requirement
+
+```sql
+CREATE TABLE IF NOT EXISTS phi_access_log (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id),
+    module VARCHAR(50) NOT NULL,
+    record_type VARCHAR(50) NOT NULL,
+    record_id INTEGER,
+    action VARCHAR(20) NOT NULL CHECK (action IN ('view', 'create', 'edit', 'delete', 'export', 'print')),
+    ip_address VARCHAR(50),
+    details JSONB,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_phi_access_user ON phi_access_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_phi_access_module ON phi_access_log(module);
+CREATE INDEX IF NOT EXISTS idx_phi_access_date ON phi_access_log(created_at);
+```
 
 ### Future: Auto-Remediation
 - Scheduled compliance scan via agent loop job

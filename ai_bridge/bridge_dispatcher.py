@@ -117,6 +117,122 @@ CAPABILITY_STATION_MAP = {
     "json": "ANALYTICS",
 }
 
+# ============================================================================
+# CAPABILITY → DEPARTMENT MAPPING
+# Maps what kind of work → which department handles it (rebrand Phase 2.2)
+# Used by department-aware routing; falls back to station map when needed.
+# ============================================================================
+
+CAPABILITY_DEPARTMENT_MAP = {
+    # Executive Office
+    "conversation": "Executive Office",
+    "dispatch": "Executive Office",
+    "governance": "Executive Office",
+    "orchestration": "Executive Office",
+    "general": "Executive Office",
+    # Analytics & Intelligence
+    "classify": "Analytics & Intelligence",
+    "sentiment": "Analytics & Intelligence",
+    "tagging": "Analytics & Intelligence",
+    "anomaly_detection": "Analytics & Intelligence",
+    "pattern_recognition": "Analytics & Intelligence",
+    "embedding": "Analytics & Intelligence",
+    "vision": "Analytics & Intelligence",
+    "translate": "Analytics & Intelligence",
+    "detect_language": "Analytics & Intelligence",
+    "analysis": "Analytics & Intelligence",
+    "json": "Analytics & Intelligence",
+    # Engineering & Technology
+    "code": "Engineering & Technology",
+    "code_analysis": "Engineering & Technology",
+    "code_review": "Engineering & Technology",
+    "testing": "Engineering & Technology",
+    "debugging": "Engineering & Technology",
+    "schema_design": "Engineering & Technology",
+    "api_design": "Engineering & Technology",
+    "deployment": "Engineering & Technology",
+    # Operations & Infrastructure
+    "operations": "Operations & Infrastructure",
+    "system_monitoring": "Operations & Infrastructure",
+    "backup": "Operations & Infrastructure",
+    "health_check": "Operations & Infrastructure",
+    "telegram": "Operations & Infrastructure",
+    "email": "Operations & Infrastructure",
+    "notification": "Operations & Infrastructure",
+    "webhook": "Operations & Infrastructure",
+    "ha_integration": "Operations & Infrastructure",
+    "automation": "Operations & Infrastructure",
+    # Security & Compliance
+    "security_analysis": "Security & Compliance",
+    "vulnerability_scan": "Security & Compliance",
+    "threat_analysis": "Security & Compliance",
+    "device_audit": "Security & Compliance",
+    "dns_report": "Security & Compliance",
+    "network_scan": "Security & Compliance",
+    "camera_check": "Security & Compliance",
+    "filter_review": "Security & Compliance",
+    "ssl_check": "Security & Compliance",
+    "incident_response": "Security & Compliance",
+    "policy_review": "Security & Compliance",
+    "ssh_audit": "Security & Compliance",
+    # Creative & Design
+    "content_writing": "Creative & Design",
+    "email_composition": "Creative & Design",
+    "chat_styling": "Creative & Design",
+    "voice": "Creative & Design",
+    "ux_writing": "Creative & Design",
+    "social_media": "Creative & Design",
+    "image_generation": "Creative & Design",
+    "video_generation": "Creative & Design",
+    "audio_generation": "Creative & Design",
+    "audio_tts": "Creative & Design",
+    "audio_music": "Creative & Design",
+    "media_editing": "Creative & Design",
+    # Research & Development
+    "knowledge_analysis": "Research & Development",
+    "summarize": "Research & Development",
+    "document_analysis": "Research & Development",
+    "fact_checking": "Research & Development",
+    "semantic_search": "Research & Development",
+    "context_retrieval": "Research & Development",
+}
+
+# Reverse lookup: department → legacy station code (for backward compat)
+DEPARTMENT_TO_STATION = {
+    "Executive Office": "COMMAND",
+    "Analytics & Intelligence": "ANALYTICS",
+    "Engineering & Technology": "ENGINEERING",
+    "Operations & Infrastructure": "OPERATIONS",
+    "Security & Compliance": "SECURITY",
+    "Creative & Design": "CREATIVE",
+    "Research & Development": "RESEARCH",
+    "Marketing & Communications": "COMMUNICATIONS",
+    "Logistics & Supply Chain": "LOGISTICS",
+    "Diplomatic & External Relations": "DIPLOMATIC",
+    "Documentation & Knowledge": "RESEARCH",
+    "Customer Success & Support": "OPERATIONS",
+    "Finance & Accounting": "ANALYTICS",
+    "Human Resources & Culture": "COMMAND",
+    "Legal & Regulatory": "SECURITY",
+    "Medical & Wellness": "RESEARCH",
+}
+
+# Forward lookup: station code → department name
+STATION_TO_DEPARTMENT = {v: k for k, v in DEPARTMENT_TO_STATION.items()
+                         if v not in ("RESEARCH", "OPERATIONS", "ANALYTICS", "SECURITY", "COMMAND")}
+STATION_TO_DEPARTMENT.update({
+    "COMMAND": "Executive Office",
+    "ANALYTICS": "Analytics & Intelligence",
+    "ENGINEERING": "Engineering & Technology",
+    "OPERATIONS": "Operations & Infrastructure",
+    "SECURITY": "Security & Compliance",
+    "CREATIVE": "Creative & Design",
+    "RESEARCH": "Research & Development",
+    "COMMUNICATIONS": "Marketing & Communications",
+    "LOGISTICS": "Logistics & Supply Chain",
+    "DIPLOMATIC": "Diplomatic & External Relations",
+})
+
 # Capabilities that require explicit agent skill (no generous 0.3 default).
 # If no agent at the mapped station has the skill, cross-station dispatch
 # finds an agent elsewhere who does.
@@ -291,6 +407,7 @@ class BridgeDispatcher:
                        a.max_tokens, a.status, a.shift_state,
                        a.first_name, a.last_name, a.title,
                        a.display_name, a.image_model,
+                       a.department, a.is_department_ai,
                        bs.station_code, bs.default_llm
                 FROM agents a
                 LEFT JOIN station_assignments sa ON a.id = sa.agent_id AND sa.is_active = TRUE
@@ -304,6 +421,10 @@ class BridgeDispatcher:
 
             self._agent_cache = {}
             for agent in agents:
+                # Resolve department: prefer DB column, fall back from station
+                _dept = agent.get("department") or STATION_TO_DEPARTMENT.get(
+                    agent.get("station_code", ""), "Executive Office"
+                )
                 self._agent_cache[agent["name"]] = {
                     "id": agent["id"],
                     "model": agent["model"],
@@ -314,6 +435,8 @@ class BridgeDispatcher:
                     "max_tokens": agent["max_tokens"] or 4096,
                     "station_code": agent["station_code"],
                     "station_llm": agent["default_llm"],
+                    "department": _dept,
+                    "is_department_ai": bool(agent.get("is_department_ai")),
                     "first_name": agent.get("first_name") or "",
                     "last_name": agent.get("last_name") or "",
                     "display_name": agent.get("display_name") or "",
@@ -1307,6 +1430,170 @@ class BridgeDispatcher:
         except Exception as e:
             logger.warning("Capability routing override failed for %s: %s", capability, e)
         return CAPABILITY_STATION_MAP.get(capability, "COMMAND")
+
+    # ------------------------------------------------------------------
+    # Department-based routing (rebrand Phase 2.2)
+    # ------------------------------------------------------------------
+
+    def _resolve_department(self, capability: str) -> str:
+        """Resolve department for a capability.
+
+        Uses CAPABILITY_DEPARTMENT_MAP with fallback to station→department
+        translation via STATION_TO_DEPARTMENT.
+        """
+        dept = CAPABILITY_DEPARTMENT_MAP.get(capability)
+        if dept:
+            return dept
+        # Fallback: resolve station, then map to department
+        station = CAPABILITY_STATION_MAP.get(capability, "COMMAND")
+        return STATION_TO_DEPARTMENT.get(station, "Executive Office")
+
+    def _select_agent_by_department(
+        self,
+        capability: str,
+        department: str,
+        skip_busy_refresh: bool = False,
+        recommended_tier: Optional[str] = None,
+    ) -> Optional[Dict]:
+        """Select the best agent for a capability within a department.
+
+        Prefers the department AI coordinator (is_department_ai=True),
+        then falls back to highest-scoring agent in the department.
+        Uses the same multi-factor scoring as _select_agent().
+
+        This is the department equivalent of _select_agent() and can
+        be used as a drop-in replacement in the dispatch flow.
+        """
+        self._refresh_agent_cache()
+        self._refresh_welfare_cache(skip_busy_refresh=skip_busy_refresh)
+
+        # Gather all candidates in this department
+        candidates = []
+        coordinator = None
+        for name, info in self._agent_cache.items():
+            agent_dept = info.get("department", "")
+            if agent_dept != department:
+                continue
+            candidates.append((name, info))
+            if info.get("is_department_ai"):
+                coordinator = (name, info)
+
+        if not candidates:
+            # Fallback: try mapping department to station for backward compat
+            fallback_station = DEPARTMENT_TO_STATION.get(department)
+            if fallback_station:
+                logger.info(
+                    f"[BridgeDispatcher] No agents in department='{department}', "
+                    f"falling back to station={fallback_station}"
+                )
+                return self._select_agent(
+                    capability, fallback_station,
+                    skip_busy_refresh=skip_busy_refresh,
+                    recommended_tier=recommended_tier,
+                )
+            logger.warning(
+                f"[BridgeDispatcher] No agents in department='{department}' "
+                f"for capability='{capability}'"
+            )
+            return None
+
+        # Try coordinator first (department AI) — if available and not blocked
+        if coordinator:
+            coord_name, coord_info = coordinator
+            # Use legacy station_code for scoring (scoring uses station context)
+            _station = coord_info.get("station_code") or DEPARTMENT_TO_STATION.get(
+                department, "COMMAND"
+            )
+            score, block_reason = self._score_agent(
+                coord_name, coord_info, capability, _station,
+                recommended_tier=recommended_tier,
+            )
+            if score > 0:
+                logger.info(
+                    f"[BridgeDispatcher] Department coordinator {coord_name} "
+                    f"(score={score}) selected for capability='{capability}' "
+                    f"department='{department}'"
+                )
+                return coord_info
+
+        # Score all candidates (same logic as _select_agent)
+        scored = []
+        blocked = []
+        for name, info in candidates:
+            _station = info.get("station_code") or DEPARTMENT_TO_STATION.get(
+                department, "COMMAND"
+            )
+            score, block_reason = self._score_agent(
+                name, info, capability, _station,
+                recommended_tier=recommended_tier,
+            )
+            if score > 0:
+                scored.append((score, name, info))
+            else:
+                blocked.append((name, block_reason))
+
+        if not scored:
+            reasons = "; ".join(f"{n}: {r}" for n, r in blocked)
+            logger.warning(
+                f"[BridgeDispatcher] All {len(blocked)} agent(s) blocked for "
+                f"capability='{capability}' department='{department}': {reasons}"
+            )
+            return None
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        best_score, best_name, best_info = scored[0]
+
+        logger.info(
+            f"[BridgeDispatcher] Selected {best_name} (score={best_score}) for "
+            f"capability='{capability}' department='{department}' "
+            f"({len(scored)} eligible, {len(blocked)} blocked)"
+        )
+        return best_info
+
+    def _find_cross_department_agent(
+        self,
+        capability: str,
+        blocked_department: str,
+    ) -> Optional[Dict]:
+        """Find an agent in another department that has the requested skill.
+
+        Department equivalent of the cross-station fallback in request_work().
+        Returns the agent info dict or None.
+        """
+        self._refresh_agent_cache()
+
+        # Collect all departments that have agents
+        all_departments = set(
+            info.get("department")
+            for info in self._agent_cache.values()
+            if info.get("department")
+        )
+        tried = {blocked_department, "Executive Office"}  # Don't pull from exec
+
+        for other_dept in sorted(all_departments - tried):
+            for agent_name, info in self._agent_cache.items():
+                if info.get("department") != other_dept:
+                    continue
+                # Must have the skill explicitly
+                if capability not in (info.get("skills") or {}):
+                    continue
+                _station = info.get("station_code") or DEPARTMENT_TO_STATION.get(
+                    other_dept, "COMMAND"
+                )
+                score, block_reason = self._score_agent(
+                    agent_name, info, capability, _station
+                )
+                if score <= 0:
+                    continue
+
+                logger.info(
+                    f"[BridgeDispatcher] Cross-department fallback: "
+                    f"'{blocked_department}' exhausted → '{other_dept}' "
+                    f"({agent_name}) for '{capability}'"
+                )
+                return info
+
+        return None
 
     def _resolve_module_station(self, module_id: str) -> Optional[str]:
         """Look up the home station for a module from bridge_stations.modules."""
@@ -3573,15 +3860,6 @@ class BridgeDispatcher:
         Returns:
             New agent_id on success, None on failure.
         """
-        _STATION_DEPARTMENT = {
-            "COMMAND": "Command",
-            "ANALYTICS": "Analytics",
-            "ENGINEERING": "Engineering",
-            "OPERATIONS": "Operations",
-            "CREATIVE": "Creative",
-            "RESEARCH": "Research",
-        }
-
         capability = approval_data.get("capability", "general")
         station_code = approval_data.get("station_code", "COMMAND")
         suggested_name = approval_data.get("suggested_name", f"Auto-{capability}")
@@ -3596,7 +3874,8 @@ class BridgeDispatcher:
         parts = suggested_name.split("-", 1)
         first_name = parts[0] if parts else suggested_name
         last_name = parts[1] if len(parts) > 1 else ""
-        department = _STATION_DEPARTMENT.get(station_code, station_code)
+        # Use module-level mapping (replaces old inline _STATION_DEPARTMENT)
+        department = STATION_TO_DEPARTMENT.get(station_code, station_code)
 
         try:
             conn = self._get_db()
@@ -3945,12 +4224,14 @@ class BridgeDispatcher:
         except Exception as sr_err:
             logger.debug(f"[BridgeDispatcher] SmartRouter advisory skipped: {sr_err}")
 
-        # 1. Map capability → station (home-first, mission-profile-aware)
+        # 1. Map capability → department (primary) and station (fallback)
+        capability_department = self._resolve_department(capability)
         capability_station = self._resolve_station(capability)
         home_station = self._resolve_module_station(module_id)
 
         agent = None
         dispatch_station = capability_station
+        dispatch_department = capability_department
         is_cross_station = False
 
         # skip_busy_refresh=True: request_work() already set _busy_agents
@@ -3963,27 +4244,44 @@ class BridgeDispatcher:
         if prefer_agent and prefer_agent in self._agent_cache:
             agent = self._agent_cache[prefer_agent]
             dispatch_station = agent.get("station_code", capability_station)
-        elif home_station:
-            agent = self._select_agent(
-                capability, home_station, skip_busy_refresh=_sbr,
+            dispatch_department = agent.get("department", capability_department)
+        else:
+            # 1b. Department-based routing (primary path)
+            agent = self._select_agent_by_department(
+                capability, capability_department, skip_busy_refresh=_sbr,
                 recommended_tier=recommended_tier,
             )
             if agent:
-                dispatch_station = home_station
+                dispatch_department = capability_department
+                dispatch_station = agent.get("station_code") or DEPARTMENT_TO_STATION.get(
+                    capability_department, capability_station
+                )
+            elif home_station:
+                # 1c. Fallback: try home station (legacy path)
+                agent = self._select_agent(
+                    capability, home_station, skip_busy_refresh=_sbr,
+                    recommended_tier=recommended_tier,
+                )
+                if agent:
+                    dispatch_station = home_station
+                    dispatch_department = agent.get("department", capability_department)
+                else:
+                    # Home station can't handle — fall to capability station
+                    agent = self._select_agent(
+                        capability, capability_station, skip_busy_refresh=_sbr,
+                        recommended_tier=recommended_tier,
+                    )
+                    dispatch_station = capability_station
+                    dispatch_department = agent.get("department", capability_department) if agent else capability_department
+                    is_cross_station = home_station != capability_station
             else:
-                # Home station can't handle — fall to capability station
+                # 1d. No department match, no home station — try capability station
                 agent = self._select_agent(
                     capability, capability_station, skip_busy_refresh=_sbr,
                     recommended_tier=recommended_tier,
                 )
                 dispatch_station = capability_station
-                is_cross_station = home_station != capability_station
-        else:
-            agent = self._select_agent(
-                capability, capability_station, skip_busy_refresh=_sbr,
-                recommended_tier=recommended_tier,
-            )
-            dispatch_station = capability_station
+                dispatch_department = agent.get("department", capability_department) if agent else capability_department
 
         station_code = dispatch_station
 
@@ -4710,6 +5008,10 @@ class BridgeDispatcher:
             "capability_station": capability_station,
             "agent_station": agent.get("station_code") if agent else None,
             "module_station": home_station,
+            # Department routing metadata (Phase 2.2)
+            "department": dispatch_department,
+            "capability_department": capability_department,
+            "agent_department": agent.get("department") if agent else None,
         }
         # Merge SmartRouter advisory info for observability
         if smart_route_info:
@@ -6448,6 +6750,10 @@ class BridgeDispatcher:
                         "id": agent_id,
                         "agent_id": agent_id,
                         "station": info.get("station_code", "COMMAND"),
+                        "department": info.get("department", STATION_TO_DEPARTMENT.get(
+                            info.get("station_code", "COMMAND"), "Executive Office"
+                        )),
+                        "is_department_ai": info.get("is_department_ai", False),
                         "station_codes": station_codes_map.get(agent_id, []),
                         "shift_state": _shift,
                         "model": model,

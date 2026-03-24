@@ -126,6 +126,42 @@ def register_ha_routes(bp):
             conn = _get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
+            # --- Build user context (emotional enrichment) ---
+            user_context = {"username": "Kytran"}
+
+            # User's emotional relationship with ARCHIE
+            cur.execute(
+                """
+                SELECT relationship_strength, current_mood
+                FROM archie_emotional_state
+                WHERE user_id = %s
+                ORDER BY timestamp DESC LIMIT 1
+                """,
+                (KYTRAN_USER_ID,),
+            )
+            emotional = cur.fetchone()
+            if emotional:
+                user_context["relationship_strength"] = float(emotional["relationship_strength"])
+                user_context["current_mood"] = emotional["current_mood"]
+
+            # ARCHIE's own emotional state
+            cur.execute(
+                """
+                SELECT current_mood, mood_intensity, energy_level, stress_level
+                FROM agent_emotional_state
+                ORDER BY timestamp DESC LIMIT 1
+                """
+            )
+            archie_state = cur.fetchone()
+            if archie_state:
+                user_context["archie_mood"] = archie_state["current_mood"]
+                user_context["archie_mood_intensity"] = float(archie_state.get("mood_intensity") or 0.5)
+                user_context["archie_energy"] = float(archie_state.get("energy_level") or 0.8)
+            else:
+                user_context["archie_mood"] = "curious"
+                user_context["archie_mood_intensity"] = 0.7
+                user_context["archie_energy"] = 0.8
+
             # --- Build conversation history for context ---
             cur.execute(
                 """
@@ -155,22 +191,21 @@ def register_ha_routes(bp):
                 if row["response"]:
                     conversation_history.append({"role": "assistant", "content": row["response"]})
 
-            # --- Call ARCHIE via OrchestrationEngine (ADR-013) ---
-            try:
-                from ai_bridge.orchestration_engine import OrchestrationEngine
+            # --- Call ARCHIE via Bridge dispatcher (ADR-013) ---
+            user_context["voice_mode"] = True
+            user_context["conversation_history"] = conversation_history
+            user_context["chat_mode"] = "home_assistant"
 
-                engine = OrchestrationEngine()
-                result = engine.orchestrate(
-                    message=query,
+            try:
+                from ai_bridge.bridge_dispatcher import get_dispatcher
+
+                dispatcher = get_dispatcher()
+                result = dispatcher.dispatch(
+                    prompt=query,
                     user_id=KYTRAN_USER_ID,
                     conversation_id=conversation_id,
                     agent_target="ARCHIE",
-                    user_context={
-                        "username": "Kytran",
-                        "voice_mode": True,
-                        "conversation_history": conversation_history,
-                        "chat_mode": "home_assistant",
-                    },
+                    user_context=user_context,
                 )
             except Exception as orch_err:
                 logger.error(f"HA orchestration failed: {orch_err}")

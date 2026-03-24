@@ -33,4 +33,12 @@ register_network_routes(system_operations_bp, admin_required)
 register_firewall_routes(system_operations_bp, admin_required)
 register_health_routes(system_operations_bp, admin_required)
 
+
+@system_operations_bp.record_once
+def on_registered(state):
+    from .theme import init_theme
+
+    init_theme(state.app)
+
+
 __all__ = ["system_operations_bp"]

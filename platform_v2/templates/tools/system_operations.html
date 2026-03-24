@@ -1,10 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}System Operations - A.R.C.H.I.E.{% endblock %}
+{% block title %}{{ sysops_theme.product_name if sysops_theme else 'System Operations' }} - A.R.C.H.I.E.{% endblock %}
 {% block module_name %}system-operations{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="/static/css/lcars-frames.css">
+<link rel="stylesheet" href="/static/css/system-operations-theme-vars.css">
+{% if sysops_theme and sysops_theme.custom_css %}
+<link rel="stylesheet" href="{{ sysops_theme.custom_css }}">
+{% endif %}
 <link rel="stylesheet" href="/static/css/system-operations.css">
 {% endblock %}
 

@@ -1,0 +1,1 @@
+# Tool registry — implemented in Task 2.3

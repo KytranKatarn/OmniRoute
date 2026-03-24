@@ -49,6 +49,10 @@ class ArchieChatUI {
       });
     }
 
+    // Restore last active conversation from localStorage
+    var savedConv = localStorage.getItem('archie-chat-conversation');
+    if (savedConv) this.conversationId = savedConv;
+
     this.loadConversations();
   }
 
@@ -128,7 +132,10 @@ class ArchieChatUI {
         created_at: new Date().toISOString()
       });
     } else {
-      if (data.conversation_id) this.conversationId = data.conversation_id;
+      if (data.conversation_id) {
+        this.conversationId = data.conversation_id;
+        localStorage.setItem('archie-chat-conversation', data.conversation_id);
+      }
 
       // Agent info comes as nested object: data.agent = {name, display_name, station}
       var agent = data.agent || {};
@@ -399,10 +406,17 @@ class ArchieChatUI {
 
       list.appendChild(item);
     }
+
+    // Auto-load saved conversation on first load
+    if (this.conversationId && !this._initialLoaded) {
+      this._initialLoaded = true;
+      this.switchConversation(this.conversationId);
+    }
   }
 
   async switchConversation(uuid) {
     this.conversationId = uuid;
+    localStorage.setItem('archie-chat-conversation', uuid);
 
     // Highlight in sidebar
     document.querySelectorAll('.ac-conversation-item').forEach(function(el) {
@@ -427,6 +441,7 @@ class ArchieChatUI {
 
   newConversation() {
     this.conversationId = null;
+    localStorage.removeItem('archie-chat-conversation');
 
     var container = document.getElementById('ac-messages');
     if (container) container.textContent = '';

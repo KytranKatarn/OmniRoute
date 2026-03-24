@@ -21,29 +21,34 @@ from database import get_db
 
 
 def get_firewall_status() -> Dict[str, Any]:
-    """Get firewall status by checking iptables/ufw"""
+    """Get firewall status via host_command_client (UFW owned by System Operations).
+
+    Uses the same ``submit_and_wait("firewall_status", ...)`` command that
+    System Operations' firewall_routes.py uses, keeping a clean boundary:
+    Security Network reads status but does NOT duplicate the Docker/iptables
+    logic or import System Operations internals.
+    """
     try:
-        import docker
+        from tools.system_operations.host_command_client import (
+            submit_and_wait,
+            is_queue_available,
+        )
 
-        client = docker.from_env()
+        if not is_queue_available():
+            return {"enabled": False, "rules": [], "status": "unknown"}
 
-        # Get host firewall status by running commands in a privileged container
-        # or checking from the archie_platform container
-        result = {"enabled": False, "rules": [], "status": "unknown"}
+        result_data = submit_and_wait("firewall_status", {}, timeout=10, submitted_by="security_network")
+        cmd_result = result_data.get("result", {})
 
-        # Try to check ufw status via host commands (if available)
-        try:
-            container = client.containers.get("archie_platform")
-            exec_result = container.exec_run(["cat", "/proc/net/ip_tables_names"], demux=True)
-            if exec_result.exit_code == 0 and exec_result.output[0]:
-                result["enabled"] = True
-                result["status"] = "active"
-        except Exception:
-            pass
-
-        return result
+        if cmd_result.get("success"):
+            return {
+                "enabled": cmd_result.get("active", False),
+                "rules": [],
+                "status": "active" if cmd_result.get("active") else "inactive",
+            }
+        return {"enabled": False, "rules": [], "status": "unknown"}
     except Exception as e:
-        return {"enabled": False, "status": "error", "error": str(e)}
+        return {"enabled": False, "rules": [], "status": "error", "error": str(e)}
 
 
 def get_active_connections() -> List[Dict[str, Any]]:

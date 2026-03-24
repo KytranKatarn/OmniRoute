@@ -144,6 +144,67 @@
 }
 .dir-filter-select:focus { border-color: #00e5ff; }
 
+/* ---------- TYPE FILTER BUTTONS ---------- */
+.dir-type-filter {
+    display: flex;
+    gap: 4px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 3px;
+    align-items: center;
+}
+.dir-type-btn {
+    padding: 7px 16px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: #94a3b8;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+.dir-type-btn:hover {
+    color: #f1f5f9;
+    background: rgba(148, 163, 184, 0.1);
+}
+.dir-type-btn.active {
+    background: rgba(0, 229, 255, 0.15);
+    color: #00e5ff;
+    font-weight: 600;
+}
+.dir-type-btn[data-filter="ai"].active {
+    background: rgba(139, 92, 246, 0.15);
+    color: #a78bfa;
+}
+
+/* ---------- AI BADGE ---------- */
+.dir-ai-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 8px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #a78bfa;
+    background: rgba(139, 92, 246, 0.12);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: 20px;
+    vertical-align: middle;
+    margin-left: 6px;
+    line-height: 1;
+    box-shadow: 0 0 6px rgba(139, 92, 246, 0.15);
+}
+
+/* ---------- STAT VALUE AI ACCENT ---------- */
+.dir-stat-value--ai {
+    color: #a78bfa;
+}
+
 /* ==========================================================================
    LEADERSHIP BANNER
    ========================================================================== */

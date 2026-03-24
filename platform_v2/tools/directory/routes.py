@@ -93,6 +93,7 @@ def api_directory():
         search = request.args.get("search", "")
         department = request.args.get("department", "")
         employee_type = request.args.get("type", "")
+        agent_type = request.args.get("agent_type", "all")
 
         where_clauses = ["status = 'active'"]
         params = []
@@ -112,12 +113,17 @@ def api_directory():
         elif employee_type == "human":
             where_clauses.append("worker_type = 'human'")
 
+        if agent_type == "ai":
+            where_clauses.append("is_department_ai = true")
+        elif agent_type == "human":
+            where_clauses.append("(is_department_ai = false OR is_department_ai IS NULL)")
+
         with get_db_cursor() as (conn, cur):
             cur.execute(
                 f"""SELECT id, name, first_name, last_name,
                        COALESCE(first_name || ' ' || last_name, name) as full_name,
                        email, phone, title, department, pronouns, bio,
-                       avatar_url, tier,
+                       avatar_url, tier, is_department_ai,
                        CASE WHEN worker_type IN ('internal','contract')
                             THEN 'AI' ELSE 'Human' END as employee_type,
                        worker_type, capabilities
@@ -151,13 +157,14 @@ def api_directory():
             dept = md["department"] or "General"
             by_department.setdefault(dept, []).append(md)
 
+        ai_count = sum(1 for m in members if dict(m).get("is_department_ai"))
+        human_count = len(members) - ai_count
         stats = {
             "total_members": len(members),
             "total_departments": len(by_department),
+            "ai_count": ai_count,
+            "human_count": human_count,
         }
-        if authenticated:
-            stats["ai_count"] = sum(1 for m in members if dict(m).get("employee_type") == "AI")
-            stats["human_count"] = sum(1 for m in members if dict(m).get("employee_type") == "Human")
 
         return jsonify(
             {
@@ -183,6 +190,7 @@ def api_directory_employee(employee_id):
                       COALESCE(first_name || ' ' || last_name, name) as full_name,
                       email, phone, title, department, pronouns, bio,
                       avatar_url, performance_score, reports_to_agent_id,
+                      is_department_ai,
                       CASE WHEN worker_type IN ('internal','contract')
                            THEN 'AI' ELSE 'Human' END as employee_type,
                       capabilities
@@ -304,7 +312,7 @@ def api_directory_org_chart():
             cur.execute(
                 """SELECT a.id, a.name, a.first_name, a.last_name,
                       a.display_name, a.title, a.department,
-                      a.avatar_url, a.reports_to_agent_id,
+                      a.avatar_url, a.reports_to_agent_id, a.is_department_ai,
                       CASE WHEN a.worker_type IN ('internal','contract')
                            THEN 'AI' ELSE 'Human' END as employee_type,
                       a.worker_type,

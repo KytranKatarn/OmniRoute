@@ -11,8 +11,12 @@
             <p class="dir-hero-tagline">The AI-powered professionals building the future of business intelligence, creative solutions, and enterprise technology.</p>
             <div class="dir-hero-stats">
                 <div class="dir-stat">
-                    <span class="dir-stat-value" id="statTotalMembers">--</span>
-                    <span class="dir-stat-label">Total Members</span>
+                    <span class="dir-stat-value" id="statHumanCount">--</span>
+                    <span class="dir-stat-label">Staff</span>
+                </div>
+                <div class="dir-stat">
+                    <span class="dir-stat-value dir-stat-value--ai" id="statAiCount">--</span>
+                    <span class="dir-stat-label">AI Directors</span>
                 </div>
                 {% if authenticated %}
                 <div class="dir-stat">
@@ -39,6 +43,11 @@
         <div class="dir-filters-inner">
             <input type="text" class="dir-search-input" id="dirSearch"
                    placeholder="Search by name, role, expertise..." autocomplete="off">
+            <div class="dir-type-filter" id="dirTypeFilter">
+                <button class="dir-type-btn active" data-filter="all">All</button>
+                <button class="dir-type-btn" data-filter="human">Staff</button>
+                <button class="dir-type-btn" data-filter="ai">AI Directors</button>
+            </div>
             <select class="dir-filter-select" id="dirDeptFilter">
                 <option value="all">All Departments</option>
             </select>

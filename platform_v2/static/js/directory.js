@@ -102,7 +102,8 @@ function updateHeroOnlineCount() {
 
 function renderHeroStats(stats) {
     const el = (id) => document.getElementById(id);
-    if (el('statTotalMembers')) el('statTotalMembers').textContent = stats.total_members || 0;
+    if (el('statHumanCount')) el('statHumanCount').textContent = stats.human_count || 0;
+    if (el('statAiCount')) el('statAiCount').textContent = stats.ai_count || 0;
     if (el('statDepartments')) el('statDepartments').textContent = stats.total_departments || 0;
     if (el('statOnlineNow')) el('statOnlineNow').textContent = '--';
 }
@@ -372,6 +373,12 @@ function expandDepartment(deptName, members, color, cardEl) {
         headBadge.style.color = color;
         headBadge.style.borderColor = color + '66';
         headNameRow.appendChild(headBadge);
+        if (head.is_department_ai) {
+            const aiBadge = document.createElement('span');
+            aiBadge.className = 'dir-ai-badge';
+            aiBadge.textContent = 'AI';
+            headNameRow.appendChild(aiBadge);
+        }
         headInfo.appendChild(headNameRow);
 
         const headTitle = document.createElement('div');
@@ -426,6 +433,12 @@ function expandDepartment(deptName, members, color, cardEl) {
                 memberName.appendChild(dot);
             }
             memberName.appendChild(document.createTextNode(mName));
+            if (member.is_department_ai) {
+                const aiBadge = document.createElement('span');
+                aiBadge.className = 'dir-ai-badge';
+                aiBadge.textContent = 'AI';
+                memberName.appendChild(aiBadge);
+            }
             memberEl.appendChild(memberName);
 
             const memberTitle = document.createElement('div');
@@ -475,12 +488,23 @@ function setupFilters() {
     if (search) search.addEventListener('input', debounce(applyFilters, 250));
     if (deptFilter) deptFilter.addEventListener('change', applyFilters);
     if (statusFilter) statusFilter.addEventListener('change', applyFilters);
+
+    // Type filter buttons (All / Staff / AI Directors)
+    document.querySelectorAll('.dir-type-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.dir-type-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            applyFilters();
+        });
+    });
 }
 
 function applyFilters() {
     const searchVal = (document.getElementById('dirSearch')?.value || '').toLowerCase().trim();
     const deptVal = document.getElementById('dirDeptFilter')?.value || 'all';
-    const hasFilter = searchVal || deptVal !== 'all';
+    const typeBtn = document.querySelector('.dir-type-btn.active');
+    const typeVal = typeBtn ? typeBtn.dataset.filter : 'all';
+    const hasFilter = searchVal || deptVal !== 'all' || typeVal !== 'all';
 
     // Close any expanded department when filters change
     const existing = document.querySelector('.dir-dept-expanded');
@@ -490,16 +514,21 @@ function applyFilters() {
 
     if (!orgChartNodes) return;
 
-    // Build a set of matching department names for search
-    let searchMatchDepts = null;
-    if (searchVal) {
-        searchMatchDepts = new Set();
+    // Build a set of matching department names for search + type filter
+    let filteredMatchDepts = null;
+    if (searchVal || typeVal !== 'all') {
+        filteredMatchDepts = new Set();
         orgChartNodes.forEach(n => {
-            const name = (n.full_name || n.display_name || n.name || '').toLowerCase();
-            const title = (n.title || '').toLowerCase();
-            if (name.includes(searchVal) || title.includes(searchVal)) {
-                searchMatchDepts.add(n.department || 'Unassigned');
+            // Type filter
+            if (typeVal === 'ai' && !n.is_department_ai) return;
+            if (typeVal === 'human' && n.is_department_ai) return;
+            // Search filter
+            if (searchVal) {
+                const name = (n.full_name || n.display_name || n.name || '').toLowerCase();
+                const title = (n.title || '').toLowerCase();
+                if (!name.includes(searchVal) && !title.includes(searchVal)) return;
             }
+            filteredMatchDepts.add(n.department || 'Unassigned');
         });
     }
 
@@ -513,15 +542,15 @@ function applyFilters() {
             visible = false;
         }
 
-        // Search filter: show card if any member name/title matches
-        if (visible && searchVal && searchMatchDepts && !searchMatchDepts.has(dept)) {
+        // Search + type filter: show card if any matching member exists in this dept
+        if (visible && filteredMatchDepts && !filteredMatchDepts.has(dept)) {
             visible = false;
         }
 
         card.style.display = visible ? '' : 'none';
 
-        // Auto-expand matching department on search
-        if (visible && searchVal && searchMatchDepts && searchMatchDepts.has(dept)) {
+        // Auto-expand matching department on search or type filter
+        if (visible && filteredMatchDepts && filteredMatchDepts.has(dept) && (searchVal || typeVal !== 'all')) {
             // Find the members for this dept from orgChartNodes
             const archie = orgChartNodes.find(n =>
                 (n.reports_to === null || n.reports_to === undefined) &&
@@ -540,13 +569,19 @@ function applyFilters() {
 
     // Filter leader cards
     document.querySelectorAll('.dir-leader-card').forEach(card => {
-        if (!searchVal) {
-            card.style.display = '';
-            return;
+        let show = true;
+        const isCeo = card.classList.contains('dir-leader-card--ceo');
+        const isAi = card.classList.contains('dir-leader-card--ai');
+        // Type filter: CEO is human, ARCHIE/VIGIL are AI
+        if (typeVal === 'ai' && isCeo) show = false;
+        if (typeVal === 'human' && isAi) show = false;
+        // Search filter
+        if (show && searchVal) {
+            const name = (card.querySelector('.dir-leader-name')?.textContent || '').toLowerCase();
+            const title = (card.querySelector('.dir-leader-title')?.textContent || '').toLowerCase();
+            if (!name.includes(searchVal) && !title.includes(searchVal)) show = false;
         }
-        const name = (card.querySelector('.dir-leader-name')?.textContent || '').toLowerCase();
-        const title = (card.querySelector('.dir-leader-title')?.textContent || '').toLowerCase();
-        card.style.display = (name.includes(searchVal) || title.includes(searchVal)) ? '' : 'none';
+        card.style.display = show ? '' : 'none';
     });
 }
 
@@ -671,6 +706,13 @@ function _populateProfile(emp) {
         pName.className = 'dir-profile-id-name';
         pName.textContent = name;
         nameRow.appendChild(pName);
+
+        if (emp.is_department_ai) {
+            var profileAiBadge = document.createElement('span');
+            profileAiBadge.className = 'dir-ai-badge';
+            profileAiBadge.textContent = 'AI';
+            nameRow.appendChild(profileAiBadge);
+        }
 
         // Performance score hidden from public directory (internal metric only)
         identityEl.appendChild(nameRow);

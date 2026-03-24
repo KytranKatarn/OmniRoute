@@ -1560,6 +1560,7 @@ function loadGitHub() {
     setHtml("ghRepoGrid", html);
     refreshIcons();
     loadGitHubEmbedStats();
+    loadSkillPipeline();
   }).catch(function(err) {
     console.error("loadGitHub error:", err);
     setHtml("ghRepoGrid", '<div class="cs-empty">Error loading repos</div>');
@@ -1576,6 +1577,70 @@ function loadGitHubEmbedStats() {
     }
   }).catch(function(err) {
     console.error("API error:", err);
+  });
+}
+
+function loadSkillPipeline() {
+  api("/github/skills/stats").then(function(data) {
+    if (!data.success) return;
+    var p = data.pipeline || {};
+    setHtml("ghSkillTotal", data.total_skills || 0);
+    setHtml("ghSkillDiscovered", p.discovered || 0);
+    setHtml("ghSkillAnalyzed", (p.analyzed || 0) + (p.analyzing || 0));
+    setHtml("ghSkillRegistered", p.registered || 0);
+    setHtml("ghSkillAdapted", p.adapted || 0);
+
+    var ac = data.agent_coverage || {};
+    setHtml("ghSkillAgents", ac.agents || 0);
+
+    // Render recently analyzed skill cards
+    var recent = data.recent_analyzed || [];
+    if (!recent.length) {
+      setHtml("ghSkillCards",
+        '<div style="grid-column:1/-1; text-align:center; padding:24px; color:rgba(255,255,255,0.25);">' +
+        '<div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:1px;">Skills will appear here after analysis (Job #56, every 6h)</div></div>');
+      return;
+    }
+
+    var html = '';
+    recent.forEach(function(s) {
+      var caps = s.capabilities || [];
+      var capHtml = caps.slice(0, 4).map(function(c) {
+        return '<span style="display:inline-block; padding:1px 6px; border-radius:3px; font-size:0.6rem; ' +
+          'background:rgba(139,92,246,0.15); border:1px solid rgba(139,92,246,0.3); color:#c4b5fd; margin:2px 2px 0 0;">' +
+          escHtml(c) + '</span>';
+      }).join('');
+
+      var qualityColor = '#ef4444';
+      if (s.quality_score >= 4) qualityColor = '#22c55e';
+      else if (s.quality_score >= 3) qualityColor = '#fbbf24';
+      else if (s.quality_score >= 2) qualityColor = '#f97316';
+
+      var statusColor = '#22d3ee';
+      if (s.status === 'registered') statusColor = '#22c55e';
+      else if (s.status === 'adapted') statusColor = '#8b5cf6';
+
+      html += '<div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); ' +
+        'border-radius:8px; padding:12px; transition:border-color 0.2s;" ' +
+        'onmouseover="this.style.borderColor=\'rgba(139,92,246,0.4)\'" ' +
+        'onmouseout="this.style.borderColor=\'rgba(255,255,255,0.08)\'">' +
+        '<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">' +
+          '<div style="font-family:Antonio,sans-serif; font-size:0.8rem; color:#e2e8f0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:70%;" title="' + escHtml(s.skill_name || '') + '">' +
+            escHtml((s.skill_name || '').split('/').pop()) + '</div>' +
+          '<div style="display:flex; gap:6px; align-items:center;">' +
+            '<span style="font-family:Orbitron,sans-serif; font-size:0.75rem; color:' + qualityColor + ';">' + (s.quality_score || '?') + '/5</span>' +
+            '<span style="font-size:0.6rem; padding:1px 5px; border-radius:3px; text-transform:uppercase; letter-spacing:0.5px; ' +
+              'background:rgba(255,255,255,0.05); border:1px solid ' + statusColor + '; color:' + statusColor + ';">' + escHtml(s.status || '') + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<div style="font-size:0.65rem; color:rgba(255,255,255,0.3); margin-bottom:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' + escHtml(s.repo_name || '') + '">' +
+          escHtml(s.repo_name || '') + '</div>' +
+        '<div>' + capHtml + '</div>' +
+      '</div>';
+    });
+    setHtml("ghSkillCards", html);
+  }).catch(function(err) {
+    console.error("loadSkillPipeline error:", err);
   });
 }
 

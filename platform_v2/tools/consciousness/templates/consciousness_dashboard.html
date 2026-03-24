@@ -2736,7 +2736,46 @@
                 <div class="cs-loading">Loading repositories...</div>
             </div>
 
-            <!-- Zone 3: Discovery Console -->
+            <!-- Zone 3: Skill Pipeline -->
+            <div class="gh-cards-header" style="margin-top:24px;">
+                <div class="gh-cards-header-cap" style="background:#8b5cf6;"></div>
+                <div class="gh-cards-header-title">Skill Pipeline</div>
+                <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+                    <span id="ghSkillTotal" style="font-family:Orbitron,sans-serif; font-size:0.85rem; color:#8b5cf6;">--</span>
+                    <span style="font-size:0.65rem; color:rgba(255,255,255,0.35); text-transform:uppercase; letter-spacing:1px;">skills</span>
+                </div>
+            </div>
+
+            <!-- Pipeline Status Bars -->
+            <div id="ghSkillPipeline" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; margin:12px 0;">
+                <div class="cs-gh-strip blue" style="padding:10px 12px;">
+                    <div style="font-size:0.65rem; text-transform:uppercase; letter-spacing:1px; color:rgba(255,255,255,0.4);">Discovered</div>
+                    <div id="ghSkillDiscovered" style="font-family:Orbitron,sans-serif; font-size:1.1rem; color:#22d3ee;">--</div>
+                </div>
+                <div class="cs-gh-strip amber" style="padding:10px 12px;">
+                    <div style="font-size:0.65rem; text-transform:uppercase; letter-spacing:1px; color:rgba(255,255,255,0.4);">Analyzed</div>
+                    <div id="ghSkillAnalyzed" style="font-family:Orbitron,sans-serif; font-size:1.1rem; color:#fbbf24;">--</div>
+                </div>
+                <div class="cs-gh-strip green" style="padding:10px 12px;">
+                    <div style="font-size:0.65rem; text-transform:uppercase; letter-spacing:1px; color:rgba(255,255,255,0.4);">Registered</div>
+                    <div id="ghSkillRegistered" style="font-family:Orbitron,sans-serif; font-size:1.1rem; color:#22c55e;">--</div>
+                </div>
+                <div class="cs-gh-strip purple" style="padding:10px 12px;">
+                    <div style="font-size:0.65rem; text-transform:uppercase; letter-spacing:1px; color:rgba(255,255,255,0.4);">Adapted</div>
+                    <div id="ghSkillAdapted" style="font-family:Orbitron,sans-serif; font-size:1.1rem; color:#8b5cf6;">--</div>
+                </div>
+                <div class="cs-gh-strip blue" style="padding:10px 12px;">
+                    <div style="font-size:0.65rem; text-transform:uppercase; letter-spacing:1px; color:rgba(255,255,255,0.4);">Agents</div>
+                    <div id="ghSkillAgents" style="font-family:Orbitron,sans-serif; font-size:1.1rem; color:#22d3ee;">--</div>
+                </div>
+            </div>
+
+            <!-- Recently Analyzed Skills -->
+            <div id="ghSkillCards" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:10px; margin:12px 0;">
+                <div class="cs-loading">Skill data loads after first analysis cycle...</div>
+            </div>
+
+            <!-- Zone 4: Discovery Console -->
             <div class="gh-discovery">
                 <div class="gh-discovery-title">Discovery</div>
                 <input type="text" class="gh-discovery-input" id="ghDiscoveryInput"

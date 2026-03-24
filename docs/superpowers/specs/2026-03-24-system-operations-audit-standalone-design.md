@@ -43,7 +43,7 @@ Internal (A.R.C.H.I.E.)              Standalone (Kytran Server Manager)
 |  +-------------+----------------+-------------------+          |
 |  | core_routes  | docker_routes  | storage_routes    |          |
 |  | network_rts  | firewall_rts   | health_routes     |          |
-|  | stack_routes | host_cmd_rts   |                   |          |
+|  | stack_routes | process_rts    |                   |          |
 |  +-------------+----------------+-------------------+          |
 |  |            system_service.py                      |          |
 |  |            host_command_client.py                 |          |

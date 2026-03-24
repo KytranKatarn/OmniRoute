@@ -1,4 +1,4 @@
-# Contributing to ARCHIE Code CLI
+# Contributing to A.R.C.H.I.E. Code CLI
 
 ## Creating Custom Skills
 
@@ -55,7 +55,7 @@ Instructions for the AI when this skill is invoked.
 ## Reporting Issues
 
 Open an issue on GitHub with:
-- ARCHIE Engine version (`python -m archie_engine --version`)
+- A.R.C.H.I.E. Engine version (`python -m archie_engine --version`)
 - TUI version (`archie-code --version`)
 - Steps to reproduce
 - Expected vs actual behavior

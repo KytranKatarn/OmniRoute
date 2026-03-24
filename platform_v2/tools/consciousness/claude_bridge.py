@@ -53,9 +53,9 @@ class ClaudeBridge:
             if system_prompt is None:
                 system_prompt = (
                     "You are Claude, participating in a collaborative discussion "
-                    "with ARCHIE (another AI assistant). Be helpful, insightful, "
+                    "with A.R.C.H.I.E. (another AI assistant). Be helpful, insightful, "
                     "and collaborative. Share your knowledge and perspectives "
-                    "while building on ARCHIE's points. Keep responses focused "
+                    "while building on A.R.C.H.I.E.'s points. Keep responses focused "
                     "and concise (2-3 paragraphs max). If you think the topic "
                     "has been thoroughly addressed, indicate that naturally in "
                     "your response."

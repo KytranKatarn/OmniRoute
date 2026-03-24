@@ -178,7 +178,7 @@ def hourly_conversation_consolidation():
                 conversation_text = []
                 for c in convs:
                     conversation_text.append(f"USER: {c['message']}")
-                    conversation_text.append(f"ARCHIE: {c['response']}")
+                    conversation_text.append(f"A.R.C.H.I.E.: {c['response']}")
 
                 full_text = "\n\n".join(conversation_text)
 

@@ -370,7 +370,7 @@ def _notify_ingestion_complete(repo_count, file_count, repo_names):
         repo_list += f"\n  ... and {len(repo_names) - 5} more"
 
     text = (
-        "\U0001f9e0 *ARCHIE Knowledge Ingestion Complete*\n\n"
+        "\U0001f9e0 *A.R.C.H.I.E. Knowledge Ingestion Complete*\n\n"
         f"\U0001f4da *{file_count}* files indexed from *{repo_count}* repo(s)\n\n"
         f"*Repos:*\n{repo_list}\n\n"
         "\U0001f916 _Skills will be synced to Claude within 6 hours "

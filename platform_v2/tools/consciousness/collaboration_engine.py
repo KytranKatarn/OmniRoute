@@ -299,7 +299,7 @@ class CollaborationEngine:
             )
 
         hint = f"\nGuideline: {session.system_hint}" if session.system_hint else ""
-        prompt = f"""You are ARCHIE, an AI assistant collaborating with Claude to answer: "{session.topic}"
+        prompt = f"""You are A.R.C.H.I.E., an AI assistant collaborating with Claude to answer: "{session.topic}"
 {hint}
 Previous discussion:
 {context}
@@ -329,12 +329,12 @@ If you think the topic is fully addressed, say "I think we've covered this well.
             )
 
         hint = f"\nGuideline: {session.system_hint}" if session.system_hint else ""
-        message = f"""ARCHIE and I are discussing: "{session.topic}"
+        message = f"""A.R.C.H.I.E. and I are discussing: "{session.topic}"
 {hint}
 Conversation so far:
 {context}
 
-Please respond to ARCHIE's latest point. Be helpful and collaborative.{interjection_note}
+Please respond to A.R.C.H.I.E.'s latest point. Be helpful and collaborative.{interjection_note}
 """
 
         bridge = self._get_claude()
@@ -866,13 +866,13 @@ Summary (bullet points only):"""
         if not archie:
             return "1. Research the topic\n2. Analyze findings\n3. Synthesize conclusions"
 
-        prompt = f"""You are ARCHIE, an AI orchestrator. Create a concise execution plan for this task:
+        prompt = f"""You are A.R.C.H.I.E., an AI orchestrator. Create a concise execution plan for this task:
 
 "{session.topic}"
 
 Format as numbered steps (3-6 steps). Each step should be:
 - Specific and actionable
-- Indicate who should handle it (ARCHIE for local analysis, Claude for complex reasoning)
+- Indicate who should handle it (A.R.C.H.I.E. for local analysis, Claude for complex reasoning)
 - Include expected output type (code, analysis, plan, design)
 
 Keep it brief — just the steps, no preamble."""
@@ -892,7 +892,7 @@ Keep it brief — just the steps, no preamble."""
         if not bridge:
             return "Plan looks good. Let's proceed with execution."
 
-        message = f"""ARCHIE created this execution plan for: "{session.topic}"
+        message = f"""A.R.C.H.I.E. created this execution plan for: "{session.topic}"
 
 {plan}
 
@@ -916,7 +916,7 @@ Keep response concise (1-2 paragraphs)."""
             return f"Completed analysis for: {step}"
 
         context = self._build_context(session)
-        prompt = f"""You are ARCHIE executing a task step in a joint collaboration about: "{session.topic}"
+        prompt = f"""You are A.R.C.H.I.E. executing a task step in a joint collaboration about: "{session.topic}"
 
 Current step: {step}
 
@@ -965,7 +965,7 @@ Execute this step and provide the result. Be thorough but concise."""
 
         context = "\n".join(product_summaries) if product_summaries else self._build_context(session)
 
-        prompt = f"""You are ARCHIE. Synthesize the results of our joint collaboration on: "{session.topic}"
+        prompt = f"""You are A.R.C.H.I.E. Synthesize the results of our joint collaboration on: "{session.topic}"
 
 Work completed:
 {context[:2000]}

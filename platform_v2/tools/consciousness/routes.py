@@ -5179,7 +5179,7 @@ def claude_side_chat():
                     message,
                     system_prompt=(
                         "You are Claude, chatting directly with a human user in a side-by-side "
-                        "interface alongside ARCHIE (another AI). Be helpful, concise, and friendly. "
+                        "interface alongside A.R.C.H.I.E. (another AI). Be helpful, concise, and friendly. "
                         "Answer the user's questions directly."
                     ),
                 )
@@ -5471,7 +5471,7 @@ def voice_preview():
     """Generate preview audio with custom params (no save to profile)"""
     try:
         data = request.get_json()
-        text = data.get("text", "Hello, I am ARCHIE. How can I help you today?")
+        text = data.get("text", "Hello, I am A.R.C.H.I.E. How can I help you today?")
         speaker = data.get("speaker", "af_heart")
         speed = float(data.get("speed", 1.0))
         pitch_shift = float(data.get("pitch_shift", 1.0))

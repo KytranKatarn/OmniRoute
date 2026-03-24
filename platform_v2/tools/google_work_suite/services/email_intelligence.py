@@ -477,7 +477,7 @@ Body:
 {content}
 
 Write a concise, professional reply. Include a greeting and sign-off.
-Sign as "ARCHIE" (AI Assistant for Kytran Empowerment).
+Sign as "A.R.C.H.I.E." (AI Assistant for Kytran Empowerment).
 Respond with ONLY the email body text, no JSON."""
 
         try:

@@ -4998,15 +4998,15 @@ Respond with ONLY a JSON object (no markdown, no explanation):
   "quality_score": <1-5 integer, 5=production-ready, 4=good, 3=decent, 2=basic, 1=stub>,
   "summary": "<1-2 sentence description of what this skill does>",
   "capabilities": [<list of capability tags like "code-review", "testing", "debugging", "deployment", "documentation", "refactoring", "security", "monitoring", "data-processing", "ai-prompting", "automation">],
-  "target_stations": [<which ARCHIE stations could use this: "ENGINEERING", "RESEARCH", "ANALYTICS", "CREATIVE", "SECURITY", "OPERATIONS", "COMMUNICATIONS", "LOGISTICS", "COMMAND", "DIPLOMATIC">],
-  "adaptation_value": "<high/medium/low - how valuable would it be to adapt this for ARCHIE>",
-  "adaptation_notes": "<what would need to change to make it ARCHIE-native>"
+  "target_stations": [<which A.R.C.H.I.E. stations could use this: "ENGINEERING", "RESEARCH", "ANALYTICS", "CREATIVE", "SECURITY", "OPERATIONS", "COMMUNICATIONS", "LOGISTICS", "COMMAND", "DIPLOMATIC">],
+  "adaptation_value": "<high/medium/low - how valuable would it be to adapt this for A.R.C.H.I.E.>",
+  "adaptation_notes": "<what would need to change to make it A.R.C.H.I.E.-native>"
 }}"""
 
                 system_prompt = (
                     "You are a skill analyst for the A.R.C.H.I.E. platform. "
                     "Evaluate external skills for quality, capabilities, and "
-                    "potential adaptation into ARCHIE's agent workforce. "
+                    "potential adaptation into A.R.C.H.I.E.'s agent workforce. "
                     "Respond with valid JSON only."
                 )
 

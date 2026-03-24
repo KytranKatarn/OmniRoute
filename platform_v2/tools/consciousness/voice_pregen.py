@@ -212,7 +212,7 @@ ARCHIE_PHRASES = [
     "Working on it",
     "All systems operational",
     "Task completed successfully",
-    "I'm ARCHIE",
+    "I'm A.R.C.H.I.E.",
     "Autonomous Resource and Coordination Hub",
     "Let me think about that",
     "Good morning",

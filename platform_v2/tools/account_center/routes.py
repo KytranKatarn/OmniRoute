@@ -2178,7 +2178,7 @@ def api_toggle_2fa(user_id):
         # Generate QR code if we have a new secret (outside DB context)
         if totp_secret:
             totp = pyotp.TOTP(totp_secret)
-            provisioning_uri = totp.provisioning_uri(name=username, issuer_name="ARCHIE")
+            provisioning_uri = totp.provisioning_uri(name=username, issuer_name="A.R.C.H.I.E.")
 
             # Generate QR code as base64 PNG
             qr = qrcode.QRCode(

@@ -95,7 +95,7 @@ def generate_link_code():
                     "success": True,
                     "code": code,
                     "expires_in": "15 minutes",
-                    "instructions": f"Send '/link {code}' to the ARCHIE Telegram bot",
+                    "instructions": f"Send '/link {code}' to the A.R.C.H.I.E. Telegram bot",
                 }
             )
         return jsonify({"success": False, "error": "Failed to generate code"}), 500

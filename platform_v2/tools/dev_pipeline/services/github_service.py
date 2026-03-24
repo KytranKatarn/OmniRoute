@@ -302,31 +302,23 @@ def get_pr_status(pr_number: int) -> Dict:
 
 
 def merge_pr(pr_number: int, method: str = "squash") -> Dict:
-    """Merge a pull request."""
-    ok, data = _api_patch(
-        f"/repos/{REPO_FULL}/pulls/{pr_number}/merge",
-        {"merge_method": method},
-        timeout=30,
-    )
-    # GitHub uses PUT for merge, not PATCH
-    if not ok:
-        try:
-            resp = requests.put(
-                f"{API_BASE}/repos/{REPO_FULL}/pulls/{pr_number}/merge",
-                headers=_api_headers(),
-                json={"merge_method": method},
-                timeout=30,
-            )
-            if resp.status_code < 300:
-                data = resp.json()
-                ok = True
-            else:
-                return {
-                    "success": False,
-                    "error": f"Merge failed: HTTP {resp.status_code}",
-                }
-        except Exception as e:
-            return {"success": False, "error": str(e)}
+    """Merge a pull request via PUT (GitHub requires PUT for merges)."""
+    try:
+        resp = requests.put(
+            f"{API_BASE}/repos/{REPO_FULL}/pulls/{pr_number}/merge",
+            headers=_api_headers(),
+            json={"merge_method": method},
+            timeout=30,
+        )
+        if resp.status_code >= 300:
+            return {
+                "success": False,
+                "error": f"Merge failed: HTTP {resp.status_code} - {resp.text[:200]}",
+            }
+        ok = True
+        data = resp.json()
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
     # Delete the branch after merge
     if ok:
@@ -437,7 +429,7 @@ def find_existing_issue(file_path: str, issue_type: str) -> Optional[int]:
         {
             "labels": SCAN_LABEL,
             "state": "open",
-            "per_page": 20,
+            "per_page": 100,
         },
     )
     if not ok or not isinstance(data, list):

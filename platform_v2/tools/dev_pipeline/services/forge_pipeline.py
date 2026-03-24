@@ -315,22 +315,23 @@ def deploy_via_merge(pr_number: int, proposal_id: int = None) -> Dict:
                 password=os.getenv("DB_PASSWORD"),
             )
             cur = conn.cursor()
-            cur.execute(
-                """UPDATE improvement_proposals
-                   SET status = 'deployed'
-                   WHERE id = %s""",
-                (proposal_id,),
-            )
-            # Also update the deployment record
-            cur.execute(
-                """UPDATE improvement_deployments
-                   SET status = 'deployed', completed_at = NOW()
-                   WHERE proposal_id = %s AND status = 'deploying'""",
-                (proposal_id,),
-            )
-            conn.commit()
-            cur.close()
-            conn.close()
+            try:
+                cur.execute(
+                    """UPDATE improvement_proposals
+                       SET status = 'deployed'
+                       WHERE id = %s""",
+                    (proposal_id,),
+                )
+                cur.execute(
+                    """UPDATE improvement_deployments
+                       SET status = 'deployed', completed_at = NOW()
+                       WHERE proposal_id = %s AND status = 'deploying'""",
+                    (proposal_id,),
+                )
+                conn.commit()
+            finally:
+                cur.close()
+                conn.close()
         except Exception as db_err:
             logger.warning(f"[FORGE] DB update after merge failed: {db_err}")
 
@@ -357,17 +358,19 @@ def deploy_via_merge(pr_number: int, proposal_id: int = None) -> Dict:
                 password=os.getenv("DB_PASSWORD"),
             )
             tg_cur = tg_conn.cursor()
-            tg_cur.execute(
-                "SELECT telegram_id FROM telegram_users " "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
-            )
-            for row in tg_cur.fetchall():
-                _req.post(
-                    f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                    json={"chat_id": row[0], "text": text, "parse_mode": "Markdown"},
-                    timeout=15,
+            try:
+                tg_cur.execute(
+                    "SELECT telegram_id FROM telegram_users " "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
                 )
-            tg_cur.close()
-            tg_conn.close()
+                for row in tg_cur.fetchall():
+                    _req.post(
+                        f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                        json={"chat_id": row[0], "text": text, "parse_mode": "Markdown"},
+                        timeout=15,
+                    )
+            finally:
+                tg_cur.close()
+                tg_conn.close()
     except Exception as tg_err:
         logger.warning(f"[FORGE] Telegram notification failed: {tg_err}")
 

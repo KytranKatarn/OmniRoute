@@ -43,21 +43,21 @@ async def forge_stats_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             password=os.getenv("DB_PASSWORD"),
         )
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute("SELECT status, COUNT(*) as count FROM improvement_proposals GROUP BY status")
+            proposals = {r["status"]: r["count"] for r in cur.fetchall()}
 
-        cur.execute("SELECT status, COUNT(*) as count FROM improvement_proposals GROUP BY status")
-        proposals = {r["status"]: r["count"] for r in cur.fetchall()}
+            cur.execute("SELECT COUNT(*) as count FROM forge_reviews")
+            review_count = cur.fetchone()["count"]
 
-        cur.execute("SELECT COUNT(*) as count FROM forge_reviews")
-        review_count = cur.fetchone()["count"]
-
-        cur.execute(
-            """SELECT COUNT(*) as count FROM governance_audit_log
-               WHERE event_category = 'forge_self_heal'"""
-        )
-        heal_actions = cur.fetchone()["count"]
-
-        cur.close()
-        conn.close()
+            cur.execute(
+                """SELECT COUNT(*) as count FROM governance_audit_log
+                   WHERE event_category = 'forge_self_heal'"""
+            )
+            heal_actions = cur.fetchone()["count"]
+        finally:
+            cur.close()
+            conn.close()
 
         return {
             "success": True,

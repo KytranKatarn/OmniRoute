@@ -268,21 +268,23 @@ def register_github_routes(bp, admin_required):
         - pull_request_review_comment: individual review comments
         - pull_request: PR state changes (merged, closed)
         """
-        # Verify webhook signature if secret is configured
+        # Verify webhook signature — reject if misconfigured or unsigned
         webhook_secret = os.getenv("GITHUB_WEBHOOK_SECRET", "")
-        if webhook_secret:
-            signature = request.headers.get("X-Hub-Signature-256", "")
-            if signature:
-                expected = (
-                    "sha256="
-                    + hmac.new(
-                        webhook_secret.encode(),
-                        request.data,
-                        hashlib.sha256,
-                    ).hexdigest()
-                )
-                if not hmac.compare_digest(signature, expected):
-                    return jsonify({"error": "Invalid signature"}), 401
+        if not webhook_secret:
+            return jsonify({"error": "Webhook secret not configured"}), 500
+        signature = request.headers.get("X-Hub-Signature-256", "")
+        if not signature:
+            return jsonify({"error": "Missing webhook signature"}), 401
+        expected = (
+            "sha256="
+            + hmac.new(
+                webhook_secret.encode(),
+                request.data,
+                hashlib.sha256,
+            ).hexdigest()
+        )
+        if not hmac.compare_digest(signature, expected):
+            return jsonify({"error": "Invalid signature"}), 401
 
         event_type = request.headers.get("X-GitHub-Event", "")
         payload = request.get_json(silent=True) or {}

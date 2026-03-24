@@ -50,25 +50,27 @@ def _log_autonomy_action(
     try:
         conn = _get_db()
         cur = conn.cursor()
-        cur.execute(
-            """INSERT INTO governance_audit_log
-                   (timestamp, event_category, event_type, details, agent_name)
-               VALUES (NOW(), 'forge_self_heal', %s, %s, 'F.O.R.G.E.')""",
-            (
-                action_type,
-                json.dumps(
-                    {
-                        "proposal_id": proposal_id,
-                        "attempt": attempt,
-                        "success": success,
-                        **details,
-                    }
+        try:
+            cur.execute(
+                """INSERT INTO governance_audit_log
+                       (timestamp, event_category, event_type, details, agent_name)
+                   VALUES (NOW(), 'forge_self_heal', %s, %s, 'F.O.R.G.E.')""",
+                (
+                    action_type,
+                    json.dumps(
+                        {
+                            "proposal_id": proposal_id,
+                            "attempt": attempt,
+                            "success": success,
+                            **details,
+                        }
+                    ),
                 ),
-            ),
-        )
-        conn.commit()
-        cur.close()
-        conn.close()
+            )
+            conn.commit()
+        finally:
+            cur.close()
+            conn.close()
     except Exception as e:
         logger.warning(f"[FORGE] Autonomy log failed: {e}")
 
@@ -83,15 +85,19 @@ def _send_telegram(text: str):
             return
         conn = _get_db()
         cur = conn.cursor()
-        cur.execute("SELECT telegram_id FROM telegram_users " "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL")
-        for row in cur.fetchall():
-            requests.post(
-                f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                json={"chat_id": row[0], "text": text, "parse_mode": "Markdown"},
-                timeout=15,
+        try:
+            cur.execute(
+                "SELECT telegram_id FROM telegram_users " "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
             )
-        cur.close()
-        conn.close()
+            for row in cur.fetchall():
+                requests.post(
+                    f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                    json={"chat_id": row[0], "text": text, "parse_mode": "Markdown"},
+                    timeout=15,
+                )
+        finally:
+            cur.close()
+            conn.close()
     except Exception as e:
         logger.warning(f"[FORGE] Telegram failed: {e}")
 
@@ -151,8 +157,8 @@ def check_circuit_breaker(proposal_id: int) -> Dict:
         return {"allowed": True, "attempts": total}
 
     except Exception as e:
-        logger.warning(f"[FORGE] Circuit breaker check failed: {e}")
-        return {"allowed": True, "attempts": 0}
+        logger.warning(f"[FORGE] Circuit breaker check failed — failing CLOSED: {e}")
+        return {"allowed": False, "reason": f"Circuit breaker unavailable: {e}", "attempts": 0}
 
 
 def escalate_to_human(proposal_id: int, reason: str, context: Dict):
@@ -465,9 +471,10 @@ Generate ONLY a corrected unified diff patch that addresses ALL review comments.
                 # Push the fix to the same branch
                 try:
                     from .github_service import push_changes
+                    from .forge_pipeline import proposal_to_branch_name
 
                     file_path = proposal.get("file_path", "")
-                    branch = f"archie/forge/{proposal_id}"
+                    branch = proposal_to_branch_name(proposal)
                     # Apply patch and push
                     push_result = push_changes(
                         branch,

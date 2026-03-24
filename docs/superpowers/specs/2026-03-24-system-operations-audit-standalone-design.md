@@ -59,34 +59,61 @@ Internal (A.R.C.H.I.E.)              Standalone (Kytran Server Manager)
 - **Standalone** runs its own Flask app with built-in auth and standalone base template
 - **Starship** fetches node health data via the same API endpoints running on remote nodes
 
+### Code Sharing Strategy
+
+The route files and service layer are **the same Python files** used in both contexts. The `kytran-server-manager` PyPI package contains the canonical source. The A.R.C.H.I.E. platform installs it as a pip dependency (`pip install kytran-server-manager`) and registers the Blueprint with its own auth wrappers.
+
+```
+A.R.C.H.I.E. platform (consumer):
+  platform_v2/tools/system_operations/__init__.py
+    → imports from kytran_server_manager.routes
+    → wraps with platform @admin_required + @login_required
+    → registers under /tools/system-operations
+
+Standalone (self-contained):
+  kytran_server_manager/app.py
+    → imports from kytran_server_manager.routes
+    → wraps with its own @auth_required
+    → registers under /
+
+Development workflow:
+  1. Edit code in kytran-server-manager/ (canonical source)
+  2. pip install -e kytran-server-manager/ (editable install)
+  3. Both platform and standalone pick up changes
+```
+
+No symlinks, no copying, no drift. One source of truth.
+
 ## 4. Route Split (ADR-045)
 
 Current `routes.py` (5,194 lines) splits into:
 
 | File | Endpoints | ~Lines | Description |
 |------|-----------|--------|-------------|
-| `routes.py` | Index, overview, CPU, memory, hardware, history, audit, auth verify, health check | ~800 | Core monitoring + dashboard |
+| `routes.py` | Index, overview, CPU, memory, hardware, history, audit, auth verify, health check, host command submit/status/result | ~1000 | Core monitoring + dashboard + host commands |
 | `docker_routes.py` | Containers, actions, logs, health, compose editor, env editor | ~500 | Container lifecycle |
 | `stack_routes.py` | List/create/delete/action stacks, compose/env per stack, stack logs, stack status | ~900 | Multi-stack orchestration |
 | `storage_routes.py` | Disks, mounts, LVM extend, filesystem resize, LVM info, drives, preflight, browse, docker mounts, register mount | ~700 | Disk + LVM + file browser |
 | `network_routes.py` | Interfaces, port map, bandwidth, port usage | ~400 | Network monitoring |
 | `firewall_routes.py` | UFW status, rules, enable, disable, allow, deny, update, delete | ~600 | Full UFW management |
 | `health_routes.py` | Alerts CRUD, health config, webhooks CRUD, system health full | ~400 | Alerting + webhooks |
-| `host_command_routes.py` | Submit, status, result | ~200 | Host command queue interface |
+| `process_routes.py` | Process list, kill process, services list, service action | ~300 | Process + systemd management |
 
 `__init__.py` updated to `register_*_routes(bp, admin_required)` pattern matching Starbase/Consciousness.
 
-### Shared Helpers
+### Shared Helpers → `helpers.py`
 
-Functions that stay in `routes.py` or move to a `helpers.py`:
+Module-specific helpers move to `helpers.py`:
 - `load_host_monitor_data()` — reads host monitor JSON
-- `admin_required()` — decorator
-- `get_db()` — DB connection
-- `audit_log()` — audit trail logging
+- `audit_log()` — audit trail logging (module-level, wraps platform audit)
 - `record_metric()` — metric recording
 - `require_reauth()` — re-authentication check
 - `parse_compose_host_port()` — port parsing
 - `find_compose_file()` — compose file discovery
+
+**Platform-wide utilities stay where they are:**
+- `admin_required()` → platform uses `rbac.py`, standalone uses its own `auth.py`
+- `get_db()` → platform uses `database.py`, standalone uses its own `db.py` (SQLite for audit/alerts/webhooks)
 
 ## 5. Template Extraction
 
@@ -131,9 +158,17 @@ CSS class prefix: `sysops-` (already partially in use).
     "heading": "Inter",
     "body": "Inter",
     "mono": "JetBrains Mono"
-  }
+  },
+  "layout": {
+    "border_radius": "8px",
+    "nav_position": "top",
+    "sidebar_width": "240px"
+  },
+  "custom_css": null
 }
 ```
+
+**Fallback behavior:** Missing keys in a theme file fall back to the default Kytran theme values. Themes are merged, not replaced — only override what you need.
 
 ### LCARS Override (internal)
 
@@ -148,15 +183,28 @@ CSS class prefix: `sysops-` (already partially in use).
     "accent_bright": "#4df0ff",
     "accent_rgb": "0, 229, 255",
     "danger": "#ef4444",
+    "success": "#22c55e",
+    "warning": "#f59e0b",
     "bg_void": "#000000",
     "bg_primary": "#0a0a1a",
-    "text_primary": "#e0e0e0"
+    "bg_secondary": "#1a1a2e",
+    "bg_tertiary": "#2a2a3e",
+    "text_primary": "#e0e0e0",
+    "text_secondary": "#b0b0b0",
+    "text_muted": "#808080",
+    "border_default": "#2a2a3e"
   },
   "fonts": {
     "heading": "Orbitron",
     "body": "IBM Plex Mono",
     "mono": "IBM Plex Mono"
-  }
+  },
+  "layout": {
+    "border_radius": "20px",
+    "nav_position": "top",
+    "sidebar_width": "240px"
+  },
+  "custom_css": "/static/css/lcars-frames.css"
 }
 ```
 
@@ -166,6 +214,8 @@ CSS class prefix: `sysops-` (already partially in use).
 - CSS variables generated from theme.json at startup, served via `/static/css/theme-vars.css`
 - `frame_style` controls whether LCARS frames or modern card frames render
 - Jinja2 conditionals: `{% if theme.frame_style == 'lcars' %}` for frame-specific markup
+- `custom_css` allows injecting an additional stylesheet (LCARS frames, etc.)
+- Theme merging: `default_theme.update(override_theme)` — partial overrides are valid
 
 ## 7. Standalone Package Structure
 
@@ -185,7 +235,7 @@ kytran-server-manager/
 │   │   ├── network_routes.py    # Interfaces, ports, bandwidth
 │   │   ├── firewall_routes.py   # UFW management
 │   │   ├── health_routes.py     # Alerts, webhooks
-│   │   └── host_command_routes.py
+│   │   └── process_routes.py    # Process + systemd management
 │   ├── services/
 │   │   ├── system_service.py    # Core system data collection
 │   │   └── host_command_client.py
@@ -211,6 +261,26 @@ kytran-server-manager/
 ├── README.md
 └── LICENSE                      # Apache 2.0
 ```
+
+### Standalone Auth
+
+`auth.py` provides two auth modes:
+
+1. **Local users** — stored in SQLite (`~/.kytran-server-manager/data.db`). Bcrypt-hashed passwords. First-run setup wizard creates admin account. Session-based with Flask-Login.
+2. **API keys** — stored in same SQLite DB. Scoped: `read-only` (monitoring) or `admin` (full access). Passed via `X-API-Key` header. Used by Starship node health polling and automation.
+
+No external auth dependencies. Self-contained.
+
+### Standalone Storage
+
+The standalone product uses SQLite (`~/.kytran-server-manager/data.db`) for:
+- User accounts and API keys
+- Audit log entries
+- Health alert history
+- Webhook configurations
+- Health check thresholds
+
+No PostgreSQL dependency. The A.R.C.H.I.E. platform version uses its own PostgreSQL tables instead — the route files accept a `db_adapter` interface that abstracts this.
 
 ### Distribution
 
@@ -243,7 +313,13 @@ When clicking a node in Starship, a panel shows:
 - Default: hub (192.168.1.200)
 - Selecting a node: all API calls proxy through hub to `http://{node_ip}:{agent_port}/api/*`
 - Proxy endpoint: `/tools/system-operations/api/proxy/<node_id>/<path:endpoint>`
-- Auth: hub validates session, signs request to node with shared secret
+
+**Proxy Security:**
+- **Auth signing:** HMAC-SHA256 using a shared secret stored in `remote_nodes.auth_token`. Hub signs `timestamp + node_id + endpoint` and sends as `X-Hub-Signature` header. Node verifies signature and rejects if >60s stale.
+- **Endpoint allowlist:** Proxy only forwards to a hardcoded set of read-only endpoints: `overview`, `cpu`, `memory`, `disks`, `docker`, `network`, `processes`, `services`. Write operations (kill, firewall, LVM, compose) are NOT proxied — they require direct node access or explicit per-node admin auth.
+- **Response limits:** Proxy enforces 5MB max response size, 30s timeout.
+- **Rate limiting:** 60 requests/minute per node per session to prevent abuse.
+- **No path traversal:** `endpoint` parameter validated against allowlist, not passed as raw path.
 
 ## 9. Security Audit Checklist
 
@@ -263,6 +339,9 @@ When clicking a node in Starship, a panel shows:
 | 12 | Network data | No write operations exposed (read-only monitoring) — verify | Low |
 | 13 | Bandwidth data | Rate limit to prevent DoS from polling | Low |
 | 14 | Re-auth for destructive ops | `require_reauth()` on kill, LVM extend, firewall changes, stack delete | High |
+| 15 | Node proxy | Endpoint allowlist (read-only only), HMAC-SHA256 signing, 5MB response limit, 30s timeout, 60req/min rate limit | Critical |
+| 16 | Host command whitelist | Whitelist defined in `host_monitor.py` config: `lvm_extend`, `filesystem_resize`, `mount`, `unmount`, `ufw_*`. Standalone ships with same whitelist in `host_monitor/config.json`. Users can add custom commands but must explicitly opt-in. | High |
+| 17 | Docker socket exposure | Standalone Docker image mounts `/var/run/docker.sock` — document container escape risk. Recommend running with `--read-only` flag and dropping capabilities where possible. | Medium |
 
 ## 10. Firewall Boundary Cleanup
 
@@ -291,7 +370,7 @@ Security Network's existing redirect to System Ops stack status (`/tools/system-
 | Inline JS lines | ~8,500 | 0 | 0 |
 | Static CSS extracted | No | Yes | Required |
 | Static JS extracted | No | Yes | Required |
-| ADR-045 route split | No | Yes (8 files) | Required |
+| ADR-045 route split | No | Yes (8 files: core + 7 domain) | Required |
 | Health check endpoint | Yes | Yes | Required |
 | Service layer | Yes (1,314 lines) | Yes (unchanged) | < 1,500 |
 
@@ -336,6 +415,7 @@ Security Network's existing redirect to System Ops stack status (`/tools/system-
 - Build node health panel component in Starship
 - Add host selector dropdown to System Ops
 - Implement proxy endpoint for node API calls
+- **Security review of proxy endpoint** — verify HMAC signing, endpoint allowlist, response limits, rate limiting before merge
 
 ### Phase 7: Firewall Boundary Cleanup
 - Remove `get_firewall_status` import from Security Network

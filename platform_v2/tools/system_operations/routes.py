@@ -5,7 +5,6 @@ API endpoints for system monitoring and management
 
 from flask import render_template, jsonify, request, redirect, url_for, flash
 from flask_login import login_required, current_user
-from functools import wraps
 import psycopg2
 from psycopg2.extras import RealDictCursor, Json
 import os
@@ -36,24 +35,10 @@ import json as json_lib
 import time as time_mod
 
 
-# ============================================================================
-# DECORATORS
-# ============================================================================
+# admin_required via rbac (ADR-045 — same decorator used in __init__.py)
+from rbac import require_permission, Permission
 
-
-def admin_required(f):
-    """Decorator to require admin access"""
-
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated:
-            return redirect(url_for("login"))
-        if not getattr(current_user, "is_admin", False):
-            flash("Admin access required", "error")
-            return redirect(url_for("dashboard"))
-        return f(*args, **kwargs)
-
-    return decorated_function
+admin_required = require_permission(Permission.ADMIN_ACCESS)
 
 
 # ============================================================================
@@ -1086,24 +1071,6 @@ def health_check():
     return jsonify({"healthy": True, "module": "system_operations"})
 
 
-# Temporary registration until __init__.py is updated (Task 9)
-from .process_routes import register_process_routes
-from .docker_routes import register_docker_routes
-from .stack_routes import register_stack_routes
-from .storage_routes import register_storage_routes
-from .network_routes import register_network_routes
-from .firewall_routes import register_firewall_routes
-from .health_routes import register_health_routes
-
-register_process_routes(system_operations_bp, admin_required)
-register_docker_routes(system_operations_bp, admin_required)
-register_stack_routes(system_operations_bp, admin_required)
-register_storage_routes(system_operations_bp, admin_required)
-register_network_routes(system_operations_bp, admin_required)
-register_firewall_routes(system_operations_bp, admin_required)
-register_health_routes(system_operations_bp, admin_required)
-
-
-# --- REMOVED: Health alerts, firewall, and system-health-full endpoints ---
-# Moved to health_routes.py, firewall_routes.py (ADR-045 steps 5-7)
-REMOVED_MARKER = True  # noqa: prevent accidental re-paste below
+# --- Route files registered via __init__.py (ADR-045) ---
+# process_routes, docker_routes, stack_routes, storage_routes,
+# network_routes, firewall_routes, health_routes

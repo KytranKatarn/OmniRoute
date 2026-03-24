@@ -10,10 +10,37 @@ logger = logging.getLogger(__name__)
 
 
 class CommandRouter:
-    def __init__(self, tools: ToolRegistry, inference: InferenceClient, default_model: str = "qwen2.5:7b"):
+    def __init__(self, tools: ToolRegistry, inference: InferenceClient, default_model: str = "qwen2.5:7b", hub_connector=None):
         self.tools = tools
         self.inference = inference
         self.default_model = default_model
+        self.hub_connector = hub_connector  # Set when hub is connected
+
+    async def _infer(self, messages: list[dict], system: str | None = None) -> dict:
+        """Route inference through hub (if connected) or local Ollama."""
+        if self.hub_connector:
+            # Hub mode — use Bridge dispatcher
+            prompt = messages[-1]["content"] if messages else ""
+            result = await self.hub_connector.dispatch(
+                prompt=prompt,
+                model=self.default_model,
+                agent_target="ARCHIE",
+                user_context={"messages": messages, "system": system},
+            )
+            if "error" not in result:
+                return {
+                    "message": {"role": "assistant", "content": result.get("response", "")},
+                    "model": result.get("model_used", self.default_model),
+                }
+            # Fall through to local on hub error
+            logger.warning("Hub dispatch failed, falling back to local: %s", result.get("error"))
+
+        # Community mode — direct Ollama
+        return await self.inference.chat(
+            messages=messages,
+            model=self.default_model,
+            system=system,
+        )
 
     async def route(self, intent: dict, context: dict) -> dict:
         """Route an intent to the appropriate handler. Returns response dict."""
@@ -122,11 +149,7 @@ class CommandRouter:
         history = context.get("history", [])
         messages = list(history) + [{"role": "user", "content": raw_input}]
 
-        resp = await self.inference.chat(
-            messages=messages,
-            model=self.default_model,
-            system=system_prompt,
-        )
+        resp = await self._infer(messages=messages, system=system_prompt)
 
         content = _extract_content(resp)
         model_used = resp.get("model", self.default_model)
@@ -147,11 +170,7 @@ class CommandRouter:
         history = context.get("history", [])
         messages = list(history) + [{"role": "user", "content": raw_input}]
 
-        resp = await self.inference.chat(
-            messages=messages,
-            model=self.default_model,
-            system=system_prompt,
-        )
+        resp = await self._infer(messages=messages, system=system_prompt)
 
         content = _extract_content(resp)
         model_used = resp.get("model", self.default_model)
@@ -168,10 +187,7 @@ class CommandRouter:
         history = context.get("history", [])
         messages = list(history) + [{"role": "user", "content": raw_input}]
 
-        resp = await self.inference.chat(
-            messages=messages,
-            model=self.default_model,
-        )
+        resp = await self._infer(messages=messages)
 
         content = _extract_content(resp)
         model_used = resp.get("model", self.default_model)

@@ -87,6 +87,8 @@ class Engine:
             self.hub_sync = HubSync(
                 connector=self.hub_connector, cache_dir=config.hub_skills_cache_dir
             )
+            # Route inference through hub Bridge when connected
+            self.router.hub_connector = self.hub_connector
 
     @property
     def hub_status(self) -> HubStatus:

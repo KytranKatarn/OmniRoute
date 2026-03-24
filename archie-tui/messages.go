@@ -19,6 +19,7 @@ type Skill struct {
 
 type ConnectedMsg struct {
 	SessionID string
+	Client    *Client
 }
 
 type DisconnectedMsg struct {

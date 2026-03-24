@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -17,6 +18,7 @@ type model struct {
 	statusBar   *views.StatusBar
 	skillPicker *views.SkillPicker
 	client      *Client
+	msgChan     chan EngineResponseMsg
 	sessionID   string
 	width       int
 	height      int
@@ -33,12 +35,15 @@ func initialModel(wsURL string) model {
 	ti.Prompt = "❯ "
 	ti.PromptStyle = InputPromptStyle
 
+	ch := make(chan EngineResponseMsg, 64)
+
 	return model{
 		input:       ti,
 		chat:        views.NewChatView(),
 		statusBar:   views.NewStatusBar(),
 		skillPicker: views.NewSkillPicker(),
 		client:      NewClient(wsURL),
+		msgChan:     ch,
 	}
 }
 
@@ -49,22 +54,73 @@ func (m model) Init() tea.Cmd {
 	)
 }
 
-func (m model) connectCmd() tea.Cmd {
+// waitForEngine listens on the channel for incoming WebSocket messages
+// and converts them into Bubble Tea messages. Re-queues itself after each.
+func waitForEngine(ch chan EngineResponseMsg) tea.Cmd {
 	return func() tea.Msg {
-		err := m.client.Connect()
+		return <-ch
+	}
+}
+
+func (m model) connectCmd() tea.Cmd {
+	ch := m.msgChan
+	return func() tea.Msg {
+		client := NewClient(m.client.url)
+
+		// Wire onMessage to push into the channel
+		client.SetOnMessage(func(raw map[string]interface{}) {
+			data, _ := json.Marshal(raw)
+			var msg EngineResponseMsg
+			_ = json.Unmarshal(data, &msg)
+			// Also grab type from raw since it might not map cleanly
+			if t, ok := raw["type"].(string); ok {
+				msg.Type = t
+			}
+			if c, ok := raw["content"].(string); ok {
+				msg.Content = c
+			}
+			if s, ok := raw["session_id"].(string); ok {
+				msg.SessionID = s
+			}
+			if h, ok := raw["hub_status"].(string); ok {
+				msg.HubStatus = h
+			}
+			if n, ok := raw["node_id"].(string); ok {
+				msg.NodeID = n
+			}
+			// Handle skills_list
+			if skills, ok := raw["skills"].([]interface{}); ok {
+				for _, s := range skills {
+					if sm, ok := s.(map[string]interface{}); ok {
+						msg.Skills = append(msg.Skills, Skill{
+							Name:        fmt.Sprintf("%v", sm["name"]),
+							Description: fmt.Sprintf("%v", sm["description"]),
+						})
+					}
+				}
+			}
+			ch <- msg
+		})
+
+		err := client.Connect()
 		if err != nil {
 			return DisconnectedMsg{Err: err}
 		}
+
+		// Store the connected client
+		m.client = client
+
 		// Create session
-		_ = m.client.Send(map[string]interface{}{
+		_ = client.Send(map[string]interface{}{
 			"type":        "session_create",
 			"working_dir": ".",
 		})
 		// Request skills
-		_ = m.client.Send(map[string]interface{}{"type": "list_skills"})
+		_ = client.Send(map[string]interface{}{"type": "list_skills"})
 		// Request hub status
-		_ = m.client.Send(map[string]interface{}{"type": "hub_status"})
-		return ConnectedMsg{}
+		_ = client.Send(map[string]interface{}{"type": "hub_status"})
+
+		return ConnectedMsg{Client: client}
 	}
 }
 
@@ -132,10 +188,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ConnectedMsg:
 		m.connected = true
-		m.chat.AddMessage("system", "Connected to ARCHIE Engine")
-		if msg.SessionID != "" {
-			m.sessionID = msg.SessionID
+		if msg.Client != nil {
+			m.client = msg.Client
 		}
+		m.chat.AddMessage("system", "Connected to ARCHIE Engine")
+		// Start listening for engine responses
+		return m, waitForEngine(m.msgChan)
 
 	case DisconnectedMsg:
 		m.connected = false
@@ -164,6 +222,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "error":
 			m.chat.AddMessage("system", fmt.Sprintf("Error: %s", msg.Content))
 		}
+		// Keep listening for more messages
+		return m, waitForEngine(m.msgChan)
 	}
 
 	var cmd tea.Cmd

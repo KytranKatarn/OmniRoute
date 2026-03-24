@@ -37,6 +37,13 @@ class EngineConfig:
     hub_api_key: str = field(default_factory=lambda: os.environ.get(
         "ARCHIE_HUB_API_KEY", ""
     ))
+    hub_heartbeat_interval: int = field(default_factory=lambda: int(os.environ.get(
+        "ARCHIE_HUB_HEARTBEAT", "30"
+    )))
+    hub_timeout: int = field(default_factory=lambda: int(os.environ.get(
+        "ARCHIE_HUB_TIMEOUT", "10"
+    )))
+    hub_retry_max: int = 3
 
     # Safety
     shell_denylist: list[str] = field(default_factory=lambda: [
@@ -47,6 +54,10 @@ class EngineConfig:
     @property
     def db_path(self) -> Path:
         return self.data_dir / "engine.db"
+
+    @property
+    def hub_skills_cache_dir(self) -> Path:
+        return self.data_dir / "skills_cache"
 
     def ensure_dirs(self) -> None:
         """Create data directory if it doesn't exist."""

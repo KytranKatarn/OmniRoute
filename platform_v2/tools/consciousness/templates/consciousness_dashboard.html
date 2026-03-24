@@ -2047,7 +2047,7 @@
 .cs-voice-engine { font-size: 0.72rem; color: #8b5cf6; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
 .cs-voice-detail { font-size: 0.78rem; color: rgba(255,255,255,0.5); margin-bottom: 4px; }
 
-/* LCARS Operations Terminal — now in shared station-ops.css */
+/* LCARS Operations Terminal — now in shared department-ops.css */
 
 /* --- Responsive --- */
 @media (max-width: 768px) {
@@ -2519,7 +2519,7 @@
               <div id="langOpsAgents"></div>
               <div id="langOpsJobs"></div>
               <div class="cs-ops-commands" id="langOpsCommands"></div>
-              <!-- Job progress rendered by StationOps in langOpsJobs above -->
+              <!-- Job progress rendered by DepartmentOps in langOpsJobs above -->
               <div id="langScanStatus" style="display:none; margin-top:8px; font-size:0.82rem; color:rgba(255,255,255,0.6);"></div>
             </div>
           </div>
@@ -3015,7 +3015,7 @@
 <script src="{{ url_for('static', filename='js/neural-core.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pixel-crew.js') }}"></script>
 <script src="{{ url_for('static', filename='js/glass-nav.js') }}"></script>
-<script src="{{ url_for('static', filename='js/station-ops.js') }}"></script>
+<script src="{{ url_for('static', filename='js/department-ops.js') }}"></script>
 
 <!-- Consciousness Module JS -->
 <script src="{{ url_for('static', filename='js/consciousness.js') }}"></script>

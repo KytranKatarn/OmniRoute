@@ -5,7 +5,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/google-work-suite.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/station-ops.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/department-ops.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -391,7 +391,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/station-ops.js') }}"></script>
+<script src="{{ url_for('static', filename='js/department-ops.js') }}"></script>
 <script src="{{ url_for('static', filename='js/google-work-suite.js') }}"></script>
 <script>
   if (typeof lucide !== 'undefined') { lucide.createIcons(); }
@@ -401,8 +401,8 @@
   var _gwsStationAtCapacity = false;
 
   function _getGwsOps() {
-    if (!_gwsOps && typeof StationOps !== 'undefined') {
-      _gwsOps = new StationOps({
+    if (!_gwsOps && typeof DepartmentOps !== 'undefined') {
+      _gwsOps = new DepartmentOps({
         stationCode: "OPERATIONS",
         moduleSource: "google_work_suite",
         agentsElId: "gwsOpsAgents",

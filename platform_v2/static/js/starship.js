@@ -1261,9 +1261,9 @@ function renderDetail(data) {
     }
 }
 
-// ── Node STATIONS tab — StationOps terminals per node station ──
+// ── Node STATIONS tab — DepartmentOps terminals per node station ──
 var _nodeStationsLoaded = {};
-var _nodeStationOps = {};
+var _nodeDepartmentOps = {};
 
 // Station color map for LCARS terminals
 var _stationColorMap = {
@@ -1310,8 +1310,8 @@ async function loadNodeStations(nodeDbId) {
             return;
         }
 
-        // Create StationOps terminal HTML + instances for each station
-        _nodeStationOps[nodeDbId] = {};
+        // Create DepartmentOps terminal HTML + instances for each station
+        _nodeDepartmentOps[nodeDbId] = {};
         codes.forEach(function(code) {
             var colors = _stationColorMap[code] || {hex: '#00e5ff', rgb: '0,229,255'};
             var termId = 'node-stn-' + nodeDbId + '-' + code;
@@ -1338,7 +1338,7 @@ async function loadNodeStations(nodeDbId) {
                 '</div>';
             grid.appendChild(terminal);
 
-            // Create StationOps instance — uses NODE stations endpoint, not hub
+            // Create DepartmentOps instance — uses NODE stations endpoint, not hub
             var stationConfig = {
                 stationCode: code,
                 moduleSource: 'starship',
@@ -1353,7 +1353,7 @@ async function loadNodeStations(nodeDbId) {
                 stationConfig.maxPrimary = 1;
                 stationConfig.maxAux = 0;
             }
-            _nodeStationOps[nodeDbId][code] = new StationOps(stationConfig);
+            _nodeDepartmentOps[nodeDbId][code] = new DepartmentOps(stationConfig);
         });
 
         _nodeStationsLoaded[nodeDbId] = true;
@@ -1365,7 +1365,7 @@ async function loadNodeStations(nodeDbId) {
 }
 
 function _refreshNodeStations(nodeDbId) {
-    var ops = _nodeStationOps[nodeDbId];
+    var ops = _nodeDepartmentOps[nodeDbId];
     if (!ops) return;
     fetch('/tools/starbase/api/bridge/jobs?status=running')
         .then(function(r) { return r.json(); })
@@ -2078,9 +2078,9 @@ function switchSbTab(tabId) {
     if (tabId === 'sb-agents') renderStarbaseCrew();
 }
 
-// ── Stations tab — use shared StationOps component ──
+// ── Stations tab — use shared DepartmentOps component ──
 var _sbStationsLoaded = false;
-var _sbStationOps = {};
+var _sbDepartmentOps = {};
 var _sbStationsData = null;
 
 var _stationConfigs = [
@@ -2102,9 +2102,9 @@ function loadStarbaseStations() {
     if (_sbStationsLoaded) return;
     _sbStationsLoaded = true;
 
-    // Create StationOps instances for all 10 stations
+    // Create DepartmentOps instances for all 10 stations
     _stationConfigs.forEach(function(cfg) {
-        _sbStationOps[cfg.code] = new StationOps({
+        _sbDepartmentOps[cfg.code] = new DepartmentOps({
             stationCode: cfg.code,
             moduleSource: 'starship',
             agentsElId: 'sb-stn-' + cfg.code + '-agents',
@@ -2127,14 +2127,14 @@ function _refreshStarbaseStations() {
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var allJobs = (data.success && data.jobs) ? data.jobs : [];
-            Object.keys(_sbStationOps).forEach(function(code) {
-                _sbStationOps[code].render(allJobs);
+            Object.keys(_sbDepartmentOps).forEach(function(code) {
+                _sbDepartmentOps[code].render(allJobs);
             });
         })
         .catch(function() {
             // Still render agents even if jobs fetch fails
-            Object.keys(_sbStationOps).forEach(function(code) {
-                _sbStationOps[code].render([]);
+            Object.keys(_sbDepartmentOps).forEach(function(code) {
+                _sbDepartmentOps[code].render([]);
             });
         });
 }

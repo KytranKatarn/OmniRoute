@@ -3194,7 +3194,7 @@ body.font-large .messages-container{font-size:1.05rem}
 
     <!-- Main Chat Area -->
     <main class="chat-main">
-        <!-- COMMAND Station Panel (shared station-ops component) -->
+        <!-- COMMAND Station Panel (shared department-ops component) -->
         <div class="stn-ops-terminal cs-ops-terminal" id="cmdOpsTerminal">
             <div class="stn-ops-header cs-ops-header">
                 <div class="stn-ops-elbow cs-ops-elbow"></div>
@@ -5306,11 +5306,11 @@ function clearSearchResults() {
     if (container) container.textContent = '';
 }
 </script>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/station-ops.css') }}">
-<script src="{{ url_for('static', filename='js/station-ops.js') }}"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/department-ops.css') }}">
+<script src="{{ url_for('static', filename='js/department-ops.js') }}"></script>
 <script>
-// COMMAND Station Ops (shared StationOps component)
-var _cmdOps = new StationOps({
+// COMMAND Station Ops (shared DepartmentOps component)
+var _cmdOps = new DepartmentOps({
     stationCode: 'COMMAND',
     moduleSource: 'archie_chat',
     agentsElId: 'cmdOpsAgents',

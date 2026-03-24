@@ -1,0 +1,290 @@
+/* department-ops.css — Shared LCARS Department Operations Terminal
+ *
+ * Theme via CSS custom properties on the terminal container:
+ *   --stn-accent        (default: #8b5cf6 purple)
+ *   --stn-accent-rgb    (default: 139,92,246)
+ */
+
+/* ── Terminal Container ──────────────────────────────── */
+.stn-ops-terminal {
+    --stn-accent: #8b5cf6;
+    --stn-accent-rgb: 139,92,246;
+    background: rgba(255,255,255,0.03);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(var(--stn-accent-rgb),0.15);
+    border-left: 3px solid rgba(var(--stn-accent-rgb),0.4);
+    border-radius: 2px 10px 10px 2px;
+    margin-bottom: 14px;
+    overflow: hidden;
+}
+
+/* ── Header ──────────────────────────────────────────── */
+.stn-ops-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(var(--stn-accent-rgb),0.12);
+    position: relative;
+}
+
+.stn-ops-elbow {
+    width: 36px; height: 30px;
+    border-top: 3px solid var(--stn-accent);
+    border-left: 3px solid var(--stn-accent);
+    border-top-left-radius: 14px;
+    opacity: 0.7;
+    flex-shrink: 0;
+}
+
+.stn-ops-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.75rem; font-weight: 700;
+    color: var(--stn-accent);
+    letter-spacing: 2px; text-transform: uppercase;
+    text-shadow: 0 0 12px rgba(var(--stn-accent-rgb),0.3);
+}
+
+.stn-ops-status {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.65rem; color: rgba(255,255,255,0.5);
+    letter-spacing: 0.1em;
+}
+
+.stn-ops-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 4px #22c55e;
+}
+
+/* ── Body ────────────────────────────────────────────── */
+.stn-ops-body {
+    padding: 12px 16px;
+}
+
+/* ── Section Labels ──────────────────────────────────── */
+.stn-ops-section-label {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.65rem; font-weight: 600; letter-spacing: 0.12em;
+    text-transform: uppercase; color: rgba(255,255,255,0.35);
+    margin-bottom: 6px; margin-top: 10px;
+}
+.stn-ops-section-label:first-child {
+    margin-top: 0;
+}
+
+/* ── Agent Rows ──────────────────────────────────────── */
+.stn-ops-agent-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 8px; border-radius: 6px;
+    border-left: 3px solid var(--stn-accent);
+    background: rgba(255,255,255,0.02);
+    margin-bottom: 4px;
+}
+
+.stn-ops-agent-name {
+    font-family: 'Antonio', sans-serif;
+    font-weight: 600; font-size: 0.85rem; color: rgba(255,255,255,0.9);
+}
+
+.stn-ops-agent-busy {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.6rem; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; padding: 2px 7px; border-radius: 3px;
+    background: rgba(245,158,11,0.15); color: #f59e0b;
+    animation: stn-ops-pulse 2s ease-in-out infinite;
+}
+
+.stn-ops-agent-role {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.6rem; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; padding: 2px 6px; border-radius: 3px;
+    background: rgba(var(--stn-accent-rgb),0.2); color: var(--stn-accent);
+    margin-left: auto;
+}
+
+.stn-ops-agent-badge {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.58rem; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; padding: 1px 6px; border-radius: 3px;
+    flex-shrink: 0;
+}
+.stn-ops-agent-badge.working {
+    background: rgba(16,185,129,0.15); color: #10b981;
+}
+
+/* ── Job Rows ────────────────────────────────────────── */
+.stn-ops-job-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 8px; border-radius: 6px;
+    background: rgba(16,185,129,0.06);
+    border: 1px solid rgba(16,185,129,0.15);
+    margin-bottom: 4px;
+}
+
+.stn-ops-job-info {
+    flex: 1; min-width: 0;
+}
+
+.stn-ops-job-desc {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.82rem; color: rgba(255,255,255,0.7);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.stn-ops-job-agent {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.7rem; color: var(--stn-accent); margin-top: 2px;
+}
+
+.stn-ops-job-bar {
+    width: 80px; height: 4px; border-radius: 2px;
+    background: rgba(255,255,255,0.08);
+    overflow: hidden; flex-shrink: 0;
+}
+
+.stn-ops-job-fill {
+    height: 100%; border-radius: 2px;
+    background: #10b981;
+    transition: width 0.3s ease;
+}
+
+.stn-ops-job-count {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.65rem; color: var(--stn-accent);
+    flex-shrink: 0; letter-spacing: 0.05em; white-space: nowrap;
+}
+
+.stn-ops-job-pct {
+    font-size: 0.65rem; color: rgba(255,255,255,0.5);
+    flex-shrink: 0; width: 30px; text-align: right;
+}
+
+/* ── Command Buttons ─────────────────────────────────── */
+.stn-ops-commands {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+.stn-ops-cmd {
+    padding: 7px 14px;
+    border-radius: 2px 8px 8px 2px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    display: flex; align-items: center; gap: 6px;
+    transition: all 0.15s ease;
+}
+.stn-ops-cmd:hover {
+    filter: brightness(1.2); box-shadow: 0 0 10px rgba(var(--stn-accent-rgb),0.15);
+}
+
+.stn-ops-cmd.purple {
+    background: rgba(139,92,246,0.15); border: 1px solid rgba(139,92,246,0.3);
+    border-left: 3px solid rgba(139,92,246,0.6); color: #8b5cf6;
+}
+.stn-ops-cmd.amber {
+    background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.25);
+    border-left: 3px solid rgba(245,158,11,0.5); color: #f59e0b;
+}
+.stn-ops-cmd.green {
+    background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.25);
+    border-left: 3px solid rgba(34,197,94,0.5); color: #22c55e;
+}
+.stn-ops-cmd.cyan {
+    background: rgba(0,255,255,0.08); border: 1px solid rgba(0,255,255,0.2);
+    border-left: 3px solid rgba(0,255,255,0.4); color: #00ffff;
+}
+.stn-ops-cmd:disabled {
+    opacity: 0.4; cursor: not-allowed; filter: none;
+}
+
+/* ── Capacity Banner ─────────────────────────────────── */
+.stn-ops-capacity-banner {
+    margin-top: 8px;
+    padding: 5px 10px;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #f59e0b;
+    background: rgba(245,158,11,0.06);
+    border: 1px solid rgba(245,158,11,0.15);
+    border-left: 3px solid rgba(245,158,11,0.4);
+    border-radius: 2px 6px 6px 2px;
+    text-align: center;
+}
+
+/* ── Loop Button States ──────────────────────────────── */
+.stn-ops-cmd.stn-loop-idle {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.35);
+    font-size: 0.65rem;
+    padding: 5px 10px;
+}
+.stn-ops-cmd.stn-loop-idle:hover {
+    color: rgba(255,255,255,0.6);
+    border-color: rgba(255,255,255,0.25);
+}
+.stn-ops-cmd.stn-loop-active {
+    background: rgba(239,68,68,0.25);
+    border: 1px solid rgba(239,68,68,0.5);
+    color: #ef4444;
+    font-size: 0.7rem;
+    padding: 5px 10px;
+    animation: stn-ops-loop-pulse 1.5s ease-in-out infinite;
+}
+
+/* ── Animations ──────────────────────────────────────── */
+@keyframes stn-ops-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.6; }
+}
+
+@keyframes status-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.6; }
+}
+
+@keyframes stn-ops-loop-pulse {
+    0%, 100% { border-color: rgba(239,68,68,0.5); box-shadow: none; }
+    50%      { border-color: rgba(239,68,68,0.8); box-shadow: 0 0 8px rgba(239,68,68,0.3); }
+}
+
+/* ── Empty/Loading State ─────────────────────────────── */
+.stn-ops-loading {
+    font-size: 0.72rem;
+    color: rgba(255,255,255,0.3);
+    font-style: italic;
+    padding: 3px 8px;
+}
+
+/* ── Responsive ──────────────────────────────────────── */
+@media (max-width: 768px) {
+    .stn-ops-header { padding: 8px 12px; gap: 8px; }
+    .stn-ops-title { font-size: 0.65rem; letter-spacing: 1px; }
+    .stn-ops-body { padding: 10px 12px; }
+    .stn-ops-agent-row { gap: 6px; padding: 5px 6px; }
+    .stn-ops-agent-name { font-size: 0.75rem; }
+    .stn-ops-agent-role { font-size: 0.55rem; }
+    .stn-ops-job-bar { width: 50px; }
+    .stn-ops-commands { gap: 6px; }
+    .stn-ops-cmd { font-size: 0.65rem; padding: 5px 10px; }
+}
+
+@media (max-width: 480px) {
+    .stn-ops-elbow { display: none; }
+    .stn-ops-title { font-size: 0.6rem; }
+    .stn-ops-agent-row { flex-wrap: wrap; }
+    .stn-ops-agent-role { margin-left: 0; }
+    .stn-ops-job-bar { width: 40px; }
+    .stn-ops-job-desc { font-size: 0.72rem; }
+    .stn-ops-commands { flex-direction: column; }
+    .stn-ops-cmd { width: 100%; justify-content: center; }
+}

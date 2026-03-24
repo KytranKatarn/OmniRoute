@@ -4441,8 +4441,8 @@ var _secOps = null;
 
 function _getSecOps() {
     if (!_secOps) {
-        if (typeof StationOps === 'undefined') return null;
-        _secOps = new StationOps({
+        if (typeof DepartmentOps === 'undefined') return null;
+        _secOps = new DepartmentOps({
             stationCode: 'SECURITY',
             moduleSource: 'security_network',
             agentsElId: 'secOpsAgents',

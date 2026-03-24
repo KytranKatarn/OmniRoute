@@ -744,7 +744,7 @@
     color: var(--archie-text-muted);
 }
 
-/* Station Crew Panel — now uses shared station-ops.css */
+/* Station Crew Panel — now uses shared department-ops.css */
 /* ENGINEERING station accent override */
 #engOpsTerminal {
     --stn-accent: #00d4ff;
@@ -897,7 +897,7 @@
         </div>
     </div>
 
-    <!-- Station Crew Panel (shared station-ops component) -->
+    <!-- Station Crew Panel (shared department-ops component) -->
     <div class="stn-ops-terminal cs-ops-terminal" id="engOpsTerminal">
         <div class="stn-ops-header cs-ops-header">
             <div class="stn-ops-elbow cs-ops-elbow"></div>
@@ -1216,7 +1216,7 @@
     </div>
 </div>
 
-<script src="{{ url_for('static', filename='js/station-ops.js') }}"></script>
+<script src="{{ url_for('static', filename='js/department-ops.js') }}"></script>
 <script>
 var API = '/tools/dev-pipeline/api';
 var _selectedFiles = [];
@@ -2746,13 +2746,13 @@ window.addEventListener('hashchange', function() {
 });
 
 // ============================================================
-// STATION INTEGRATION (shared StationOps component)
+// STATION INTEGRATION (shared DepartmentOps component)
 // ============================================================
 var _stationPollInterval = null;
 var _stationFailCount = 0;
 var _stationMaxFails = 3;
 
-var _engOps = new StationOps({
+var _engOps = new DepartmentOps({
     stationCode: 'ENGINEERING',
     moduleSource: 'dev_pipeline',
     agentsElId: 'engOpsAgents',

@@ -547,7 +547,7 @@ var _kbEntries = [];
 /* ── Knowledge LCARS Operations Terminal ─────────── */
 
 function renderKnowledgeOps(agentData, jobData) {
-  /* Agents, jobs, and commands all rendered by shared StationOps component */
+  /* Agents, jobs, and commands all rendered by shared DepartmentOps component */
   _renderOpsAgents("kbOpsAgents", "ANALYTICS", jobData);
 }
 
@@ -714,7 +714,7 @@ function loadEmbeddingStatus() {
 /* _renderJobProgress removed — replaced by _renderBridgeJob (uses Bridge as source of truth) */
 
 function _pollJobStatus(jobId, el, onComplete) {
-  /* Delegate to shared StationOps component */
+  /* Delegate to shared DepartmentOps component */
   var ops = _kbOps || _getOpsInstance("kbOpsAgents");
   ops.pollJob(jobId, el, onComplete);
 }
@@ -842,7 +842,7 @@ function checkActiveJobs() {
       }
     });
 
-    /* ── Languages tab — job progress rendered by StationOps, but track
+    /* ── Languages tab — job progress rendered by DepartmentOps, but track
      *    completion here for continuous-loop auto-restart logic ── */
     var langJobs = myJobs.filter(function(j) {
       return (j.job_type || "").indexOf("translate") > -1;
@@ -882,19 +882,19 @@ function _renderStationStatus(allJobs, myJobs) {
 }
 
 function _buildJobHtml(job) {
-  /* Delegate to shared StationOps component */
+  /* Delegate to shared DepartmentOps component */
   var ops = _kbOps || _getOpsInstance("kbOpsAgents");
   return ops.buildJobHtml(job);
 }
 
 function _renderBridgeJob(job, el) {
-  /* Delegate to shared StationOps component */
+  /* Delegate to shared DepartmentOps component */
   var ops = _kbOps || _getOpsInstance("kbOpsAgents");
   ops.renderJob(job, el);
 }
 
 function _renderBridgeJobs(jobs, el, prefix) {
-  /* Delegate to shared StationOps component */
+  /* Delegate to shared DepartmentOps component */
   var ops = _kbOps || _getOpsInstance("kbOpsAgents");
   ops.renderBridgeJobs(jobs, el, prefix);
 }
@@ -1037,7 +1037,7 @@ var _langGenRunning = false;
 /* ── Languages LCARS Operations Terminal ───────────── */
 
 function renderLangOps(agentData, jobData) {
-  /* Agents, jobs, and commands all rendered by shared StationOps component */
+  /* Agents, jobs, and commands all rendered by shared DepartmentOps component */
   _renderOpsAgents("langOpsAgents", "ANALYTICS", jobData);
 }
 
@@ -1249,7 +1249,7 @@ function _startLangJobPoll(jobId, onDone) {
   var pollKey = "lang_" + jobId;
   if (_activeJobPolls[pollKey]) return;
   _activeJobPolls[pollKey] = true;
-  /* Progress rendered by StationOps — just track completion for refresh + loop */
+  /* Progress rendered by DepartmentOps — just track completion for refresh + loop */
   _pollJobStatus(jobId, null, function(completedJob) {
     _activeJobPolls[pollKey] = false;
     _cache.languages = false;
@@ -1645,22 +1645,22 @@ function loadSkillPipeline() {
 }
 
 /* ── Shared: Render station crew + cross-station assists ─── */
-/* Delegates to shared StationOps component (station-ops.js) */
+/* Delegates to shared DepartmentOps component (department-ops.js) */
 
-/* Track station capacity — updated by StationOps onCapacityChange */
+/* Track station capacity — updated by DepartmentOps onCapacityChange */
 var _stationAtCapacity = false;
 
-/* Per-tab StationOps instances — all point to ANALYTICS station,
+/* Per-tab DepartmentOps instances — all point to ANALYTICS station,
    each rendering into its own ops terminal element IDs */
 var _kbOps = null;
 var _ghOps = null;
 var _langOps = null;
 
 function _getOpsInstance(elId) {
-  /* Return (or create) the StationOps instance for the given agents element */
+  /* Return (or create) the DepartmentOps instance for the given agents element */
   if (elId === "kbOpsAgents") {
     if (!_kbOps) {
-      _kbOps = new StationOps({
+      _kbOps = new DepartmentOps({
         stationCode: "ANALYTICS",
         moduleSource: "consciousness",
         agentsElId: "kbOpsAgents",
@@ -1678,7 +1678,7 @@ function _getOpsInstance(elId) {
   }
   if (elId === "ghOpsAgents") {
     if (!_ghOps) {
-      _ghOps = new StationOps({
+      _ghOps = new DepartmentOps({
         stationCode: "ANALYTICS",
         moduleSource: "consciousness",
         agentsElId: "ghOpsAgents",
@@ -1698,7 +1698,7 @@ function _getOpsInstance(elId) {
   }
   if (elId === "langOpsAgents") {
     if (!_langOps) {
-      _langOps = new StationOps({
+      _langOps = new DepartmentOps({
         stationCode: "ANALYTICS",
         moduleSource: "consciousness",
         agentsElId: "langOpsAgents",
@@ -1720,7 +1720,7 @@ function _getOpsInstance(elId) {
 }
 
 function _renderOpsAgents(elId, homeStationCode, jobData) {
-  /* Delegate to shared StationOps component — renders agents + jobs + commands */
+  /* Delegate to shared DepartmentOps component — renders agents + jobs + commands */
   var ops = _getOpsInstance(elId);
   if (ops) {
     ops.render(jobData);
@@ -1762,7 +1762,7 @@ function _applyStationCapacity(atCapacity) {
 /* ── GitHub LCARS Operations Terminal ─────────────── */
 
 function renderGitHubOps(agentData, jobData) {
-  /* Agents, jobs, and commands all rendered by shared StationOps component */
+  /* Agents, jobs, and commands all rendered by shared DepartmentOps component */
   _renderOpsAgents("ghOpsAgents", "ANALYTICS", jobData);
 }
 

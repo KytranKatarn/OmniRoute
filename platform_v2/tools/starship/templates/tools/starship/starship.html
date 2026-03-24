@@ -6,7 +6,7 @@
 {% include 'includes/admin_ops_nav.html' %}
 
 <link rel="stylesheet" href="{{ url_for('static', filename='css/starship.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/station-ops.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/department-ops.css') }}">
 
 <div class="sc-container" data-hub-url="{{ hub_url }}">
     <div class="sc-header">
@@ -497,7 +497,7 @@
             </div>
         </div>
 
-        <!-- STATIONS TAB — StationOps terminals, populated dynamically per node -->
+        <!-- STATIONS TAB — DepartmentOps terminals, populated dynamically per node -->
         <div class="sc-panel" id="panel-stations">
             <div id="d-node-stations-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;padding:12px;"></div>
         </div>
@@ -830,7 +830,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/station-ops.js') }}"></script>
+<script src="{{ url_for('static', filename='js/department-ops.js') }}"></script>
 <script src="{{ url_for('static', filename='js/agent-profile.js') }}"></script>
 <script src="{{ url_for('static', filename='js/starship.js') }}"></script>
 {% endblock %}

@@ -3,7 +3,7 @@
 {% block title %}[MODULE_NAME] — A.R.C.H.I.E.{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/station-ops.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/department-ops.css') }}">
 <style>
 /* ── Module-specific styles ── */
 .scaffold-container { padding: 1.5rem; }
@@ -93,12 +93,12 @@
     </div>
 
     <!-- ══════════════════════════════════════════════════════════ -->
-    <!-- TAB 3: Station (StationOps integration)                   -->
+    <!-- TAB 3: Station (DepartmentOps integration)                   -->
     <!-- ══════════════════════════════════════════════════════════ -->
     <div id="tab-station" class="tab-panel">
         <div class="scaffold-card">
             <h3>Station Panel</h3>
-            <!-- StationOps mounts here -->
+            <!-- DepartmentOps mounts here -->
             <div id="so-agents"></div>
             <div id="so-jobs"></div>
             <div id="so-commands"></div>
@@ -111,7 +111,7 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/archie-time.js') }}"></script>
-<script src="{{ url_for('static', filename='js/station-ops.js') }}"></script>
+<script src="{{ url_for('static', filename='js/department-ops.js') }}"></script>
 <script>
 // ── Tab Switching ──
 function switchTab(name) {
@@ -142,12 +142,12 @@ async function loadStatus() {
     }
 }
 
-// ── StationOps Integration (uncomment and configure) ──
+// ── DepartmentOps Integration (uncomment and configure) ──
 // Replace STATION_CODE with one of: COMMAND, ANALYTICS, CREATIVE,
 // ENGINEERING, COMMUNICATIONS, RESEARCH, SECURITY, LOGISTICS,
 // DIPLOMATIC, OPERATIONS
 //
-// const stationOps = new StationOps({
+// const stationOps = new DepartmentOps({
 //     stationCode: 'ENGINEERING',
 //     moduleSource: 'scaffold',
 //     agentsElId: 'so-agents',

@@ -1454,7 +1454,7 @@ body.light-mode .bridge-ops-status-value {
 .lcars-tab-panel { display: none; }
 .lcars-tab-panel.active { display: block; }
 
-/* Actions tab — uses stn-ops-terminal pattern from station-ops.css */
+/* Actions tab — uses stn-ops-terminal pattern from department-ops.css */
 .actn-params {
     padding: 6px 0 2px 0;
     display: none;

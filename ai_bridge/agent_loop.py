@@ -725,8 +725,17 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Job #56 — Skill analyzer: AI-powered quality scoring for discovered skills
+        self.scheduler.add_job(
+            with_app_context(self._analyze_discovered_skills),
+            trigger=IntervalTrigger(hours=6, start_date="2026-01-01 01:00:00"),
+            id="agent_skill_analyzer",
+            name="Agent Loop: Skill Analyzer (Bridge AI)",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 56 jobs")
+        logger.info("Agent loop started with 57 jobs")
 
     def _update_stock_prices(self):
         """Job #27: Refresh cached stock prices, check price alerts, and auto-scan watchlist every 5 minutes."""
@@ -4550,6 +4559,49 @@ class AgentLoop:
                     AND knowledge_type = 'vault_note'
                 """, (content,))
 
+            # Register newly discovered skills in github_skills table
+            try:
+                with get_db_cursor(commit=True) as (conn3, cur3):
+                    new_registered = 0
+                    for repo, skills_list in repos.items():
+                        for skill_item in skills_list:
+                            title = skill_item["title"]
+                            # Get KB entry ID for this skill
+                            cur3.execute(
+                                """SELECT id, file_path FROM knowledge_base
+                                   WHERE title = %s AND knowledge_type = 'github_file'
+                                   LIMIT 1""",
+                                (title,),
+                            )
+                            kb_row = cur3.fetchone()
+                            if not kb_row:
+                                continue
+                            # Upsert into github_skills
+                            skill_name = title.split(": ", 1)[-1] if ": " in title else title
+                            cur3.execute(
+                                """INSERT INTO github_skills
+                                       (kb_entry_id, repo_name, skill_name,
+                                        description, file_path, status)
+                                   VALUES (%s, %s, %s, %s, %s, 'discovered')
+                                   ON CONFLICT (repo_name, file_path) DO NOTHING""",
+                                (
+                                    kb_row["id"],
+                                    repo,
+                                    skill_name,
+                                    (skill_item.get("preview") or "")[:300],
+                                    kb_row["file_path"],
+                                ),
+                            )
+                            if cur3.rowcount > 0:
+                                new_registered += 1
+                    if new_registered > 0:
+                        logger.info(
+                            f"[SkillSync] Registered {new_registered} new skills "
+                            f"in github_skills table"
+                        )
+            except Exception as reg_err:
+                logger.warning(f"[SkillSync] Skill registration failed: {reg_err}")
+
             # Try writing to host filesystem (may fail if .claude not mounted)
             try:
                 os.makedirs(os.path.dirname(rules_path), exist_ok=True)
@@ -4859,6 +4911,219 @@ class AgentLoop:
             logger.warning(f"[GitPull] Auto-pull failed: {e}")
             self._log_cycle(
                 "github_auto_pull",
+                0,
+                1,
+                int((time.time() - start) * 1000),
+                error_message=str(e),
+            )
+
+    def _analyze_discovered_skills(self):
+        """Job #56: AI-analyze discovered skills from GitHub repos.
+
+        Picks up skills with status='discovered' from github_skills table,
+        sends each to Bridge for analysis (quality, capabilities, use cases),
+        updates the skill record with results.
+
+        Processes up to 10 skills per run to avoid overloading the Bridge.
+        Runs every 6 hours, offset from skill sync.
+        """
+        start = time.time()
+        analyzed = 0
+        errors_count = 0
+
+        try:
+            from database import get_db_cursor
+            from bridge_dispatcher import dispatch_json
+
+            # Fetch up to 10 unanalyzed skills
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT gs.id, gs.repo_name, gs.skill_name, gs.file_path,
+                              gs.description, kb.content
+                       FROM github_skills gs
+                       LEFT JOIN knowledge_base kb ON kb.id = gs.kb_entry_id
+                       WHERE gs.status = 'discovered'
+                       ORDER BY gs.created_at ASC
+                       LIMIT 10"""
+                )
+                skills = cur.fetchall()
+
+            if not skills:
+                logger.info("[SkillAnalyzer] No discovered skills to analyze")
+                self._log_cycle(
+                    "skill_analyzer", 1, 0, int((time.time() - start) * 1000)
+                )
+                return
+
+            logger.info(f"[SkillAnalyzer] Analyzing {len(skills)} skills")
+
+            for skill in skills:
+                skill_id = skill["id"]
+                content = skill.get("content") or skill.get("description") or ""
+                if not content or len(content.strip()) < 20:
+                    # Too little content to analyze — mark as analyzed with low score
+                    with get_db_cursor(commit=True) as (conn2, cur2):
+                        cur2.execute(
+                            """UPDATE github_skills
+                               SET status = 'analyzed', quality_score = 1,
+                                   analysis = %s, updated_at = NOW()
+                               WHERE id = %s""",
+                            (
+                                json.dumps({"note": "Insufficient content for analysis"}),
+                                skill_id,
+                            ),
+                        )
+                    analyzed += 1
+                    continue
+
+                # Mark as analyzing
+                with get_db_cursor(commit=True) as (conn2, cur2):
+                    cur2.execute(
+                        "UPDATE github_skills SET status = 'analyzing', updated_at = NOW() WHERE id = %s",
+                        (skill_id,),
+                    )
+
+                # Build analysis prompt
+                truncated = content[:3000]
+                prompt = f"""Analyze this skill/tool from the GitHub repository "{skill['repo_name']}".
+File: {skill['skill_name']}
+
+Content:
+---
+{truncated}
+---
+
+Respond with ONLY a JSON object (no markdown, no explanation):
+{{
+  "quality_score": <1-5 integer, 5=production-ready, 4=good, 3=decent, 2=basic, 1=stub>,
+  "summary": "<1-2 sentence description of what this skill does>",
+  "capabilities": [<list of capability tags like "code-review", "testing", "debugging", "deployment", "documentation", "refactoring", "security", "monitoring", "data-processing", "ai-prompting", "automation">],
+  "target_stations": [<which ARCHIE stations could use this: "ENGINEERING", "RESEARCH", "ANALYTICS", "CREATIVE", "SECURITY", "OPERATIONS", "COMMUNICATIONS", "LOGISTICS", "COMMAND", "DIPLOMATIC">],
+  "adaptation_value": "<high/medium/low - how valuable would it be to adapt this for ARCHIE>",
+  "adaptation_notes": "<what would need to change to make it ARCHIE-native>"
+}}"""
+
+                system_prompt = (
+                    "You are a skill analyst for the A.R.C.H.I.E. platform. "
+                    "Evaluate external skills for quality, capabilities, and "
+                    "potential adaptation into ARCHIE's agent workforce. "
+                    "Respond with valid JSON only."
+                )
+
+                try:
+                    result = dispatch_json(
+                        capability="code_analysis",
+                        prompt=prompt,
+                        module_id="skill_analyzer",
+                        system_prompt=system_prompt,
+                    )
+
+                    if result and isinstance(result, dict):
+                        quality = min(5, max(1, int(result.get("quality_score", 2))))
+                        capabilities = result.get("capabilities", [])
+                        summary = result.get("summary", "")
+                        target_stations = result.get("target_stations", [])
+
+                        with get_db_cursor(commit=True) as (conn2, cur2):
+                            cur2.execute(
+                                """UPDATE github_skills
+                                   SET status = 'analyzed',
+                                       quality_score = %s,
+                                       description = %s,
+                                       capabilities = %s,
+                                       analysis = %s,
+                                       updated_at = NOW()
+                                   WHERE id = %s""",
+                                (
+                                    quality,
+                                    summary[:500] if summary else skill.get("description"),
+                                    json.dumps(capabilities),
+                                    json.dumps(result),
+                                    skill_id,
+                                ),
+                            )
+                        analyzed += 1
+                        logger.info(
+                            f"[SkillAnalyzer] Analyzed {skill['skill_name']} "
+                            f"from {skill['repo_name']}: quality={quality}, "
+                            f"caps={capabilities[:3]}"
+                        )
+                    else:
+                        # Bridge returned nothing — reset to discovered for retry
+                        with get_db_cursor(commit=True) as (conn2, cur2):
+                            cur2.execute(
+                                """UPDATE github_skills
+                                   SET status = 'discovered', updated_at = NOW()
+                                   WHERE id = %s""",
+                                (skill_id,),
+                            )
+                        errors_count += 1
+
+                except Exception as dispatch_err:
+                    logger.warning(
+                        f"[SkillAnalyzer] Dispatch failed for skill #{skill_id}: "
+                        f"{str(dispatch_err)[:80]}"
+                    )
+                    # Reset to discovered for retry
+                    with get_db_cursor(commit=True) as (conn2, cur2):
+                        cur2.execute(
+                            """UPDATE github_skills
+                               SET status = 'discovered', updated_at = NOW()
+                               WHERE id = %s""",
+                            (skill_id,),
+                        )
+                    errors_count += 1
+
+            # Send Telegram summary if skills were analyzed
+            if analyzed > 0:
+                try:
+                    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+                    if bot_token:
+                        import requests as _req
+
+                        text = (
+                            f"🔬 *Skill Analysis Complete*\n\n"
+                            f"*{analyzed}* skills analyzed, *{errors_count}* errors\n"
+                            f"_{len(skills)} skills processed this cycle_\n\n"
+                            f"[View Skills](http://192.168.1.200:3000/tools/consciousness?tab=github)"
+                        )
+
+                        from db import get_db
+
+                        tg_conn = get_db()
+                        tg_cur = tg_conn.cursor()
+                        tg_cur.execute(
+                            "SELECT telegram_id FROM telegram_users "
+                            "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
+                        )
+                        for row in tg_cur.fetchall():
+                            _req.post(
+                                f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                                json={
+                                    "chat_id": row[0],
+                                    "text": text,
+                                    "parse_mode": "Markdown",
+                                },
+                                timeout=15,
+                            )
+                        tg_cur.close()
+                        tg_conn.close()
+                except Exception as tg_err:
+                    logger.warning(
+                        f"[SkillAnalyzer] Telegram notification failed: {tg_err}"
+                    )
+
+            logger.info(
+                f"[SkillAnalyzer] Done: {analyzed} analyzed, {errors_count} errors"
+            )
+            self._log_cycle(
+                "skill_analyzer", 1, 0, int((time.time() - start) * 1000)
+            )
+
+        except Exception as e:
+            logger.warning(f"[SkillAnalyzer] Job failed: {e}")
+            self._log_cycle(
+                "skill_analyzer",
                 0,
                 1,
                 int((time.time() - start) * 1000),

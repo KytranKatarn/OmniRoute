@@ -137,12 +137,10 @@ class ArchieChatUI {
         content: data.response || data.content || '',
         agent_display_name: agent.display_name || agent.name || 'ARCHIE',
         station_code: agent.station || 'COMMAND',
+        thinking_steps: data.thinking_steps || [],
+        duration_ms: data.duration_ms || 0,
         created_at: data.created_at || new Date().toISOString()
       });
-
-      if (data.thinking_steps && data.thinking_steps.length > 0) {
-        this.renderThinkingSteps(data.thinking_steps);
-      }
 
       this.loadConversations();
     }
@@ -211,6 +209,66 @@ class ArchieChatUI {
       text2.className = 'ac-message-text';
       text2.textContent = msg.content;
       bubble2.appendChild(text2);
+
+      // Inline flight deck icon + expandable steps (per message)
+      var steps = msg.thinking_steps || [];
+      if (steps.length > 0) {
+        var totalMs = 0;
+        for (var s = 0; s < steps.length; s++) totalMs += (steps[s].duration_ms || 0);
+
+        var fdBtn = document.createElement('button');
+        fdBtn.className = 'ac-inline-fd-btn';
+        fdBtn.title = 'Flight Deck — ' + steps.length + ' steps, ' + this.formatDuration(totalMs);
+        fdBtn.textContent = '\u26A1 ' + this.formatDuration(totalMs);
+
+        var fdPanel = document.createElement('div');
+        fdPanel.className = 'ac-inline-fd-panel ac-hidden';
+
+        var self = this;
+        for (var s = 0; s < steps.length; s++) {
+          var step = steps[s];
+          var stepType = step.step_type || step.label || '';
+          var sColor = this._stepColor(stepType);
+          var dur = step.duration_ms || 0;
+          var dataSummary = this._formatStepData(step.data, stepType);
+
+          var row = document.createElement('div');
+          row.className = 'ac-inline-fd-row';
+
+          var dot = document.createElement('span');
+          dot.className = 'ac-inline-fd-dot';
+          dot.style.background = sColor;
+          row.appendChild(dot);
+
+          var lbl = document.createElement('span');
+          lbl.className = 'ac-inline-fd-label';
+          lbl.style.color = sColor;
+          lbl.textContent = step.label || stepType;
+          row.appendChild(lbl);
+
+          var durEl = document.createElement('span');
+          durEl.className = 'ac-inline-fd-dur';
+          durEl.textContent = this.formatDuration(dur);
+          row.appendChild(durEl);
+
+          if (dataSummary) {
+            var dataEl = document.createElement('span');
+            dataEl.className = 'ac-inline-fd-data';
+            dataEl.textContent = dataSummary;
+            row.appendChild(dataEl);
+          }
+
+          fdPanel.appendChild(row);
+        }
+
+        fdBtn.addEventListener('click', function() {
+          fdPanel.classList.toggle('ac-hidden');
+        });
+
+        bubble2.appendChild(fdBtn);
+        bubble2.appendChild(fdPanel);
+      }
+
       div.appendChild(bubble2);
     }
 
@@ -296,17 +354,8 @@ class ArchieChatUI {
       totalEl.appendChild(durSpan);
     }
 
-    // Show flight deck
-    var deck = document.getElementById('ac-flight-deck');
-    var toggle = document.getElementById('ac-flight-deck-toggle');
-    if (deck) {
-      if (window.innerWidth <= 1024) {
-        deck.classList.add('ac-force-show');
-      } else {
-        deck.classList.remove('ac-hidden');
-      }
-    }
-    if (toggle) toggle.style.display = 'none';
+    // Flight deck panel no longer auto-opens — steps are shown inline per message
+    // The panel still works via the yellow toggle button for a full overview
   }
 
   /* ── Conversations ─────────────────────────────────── */

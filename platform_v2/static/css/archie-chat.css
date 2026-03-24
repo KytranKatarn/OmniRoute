@@ -792,6 +792,67 @@
     40%           { transform: scale(1.0); opacity: 1; }
 }
 
+/* ── Markdown in messages ──────────────────────────────── */
+.ac-message-text p { margin: 0 0 0.5em 0; }
+.ac-message-text p:last-child { margin-bottom: 0; }
+.ac-message-text strong { color: #e0e0e0; }
+.ac-message-text em { color: #bbb; font-style: italic; }
+.ac-md-h2, .ac-md-h3, .ac-md-h4 {
+    font-family: 'Antonio', sans-serif;
+    color: #00e5ff;
+    margin: 0.8em 0 0.3em;
+}
+.ac-md-h2 { font-size: 1.1rem; }
+.ac-md-h3 { font-size: 0.95rem; }
+.ac-md-h4 { font-size: 0.85rem; }
+.ac-md-list {
+    margin: 0.3em 0;
+    padding-left: 1.2em;
+    list-style: disc;
+}
+.ac-md-li { margin: 0.15em 0; }
+.ac-code-block {
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin: 0.5em 0;
+    overflow-x: auto;
+    font-size: 0.8rem;
+    color: #a3e635;
+}
+.ac-code-inline {
+    background: rgba(163, 230, 53, 0.1);
+    border: 1px solid rgba(163, 230, 53, 0.2);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-size: 0.82em;
+    color: #a3e635;
+}
+
+/* ── Voice Mode Toggle ────────────────────────────────── */
+.ac-voice-btn {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    background: transparent;
+    border: 1px solid #444;
+    border-radius: 8px;
+    color: #888;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.ac-voice-btn:hover { border-color: #666; color: #ccc; }
+.ac-voice-btn.ac-voice-active {
+    border-color: #fbbf24;
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.08);
+}
+
 /* ── Responsive: 1024px — hide flight deck ─────────────── */
 @media (max-width: 1024px) {
     .ac-flight-deck {

@@ -7,6 +7,7 @@
 {% endblock %}
 
 {% block content %}
+{% include "includes/admin_ops_nav.html" %}
 <div id="ac-app" class="ac-app">
 
   <!-- ═══════════════════════════════════════════════════════════════
@@ -99,6 +100,9 @@
         ></textarea>
         <button id="ac-send-btn" class="ac-send-btn" title="Send" disabled>
           <span class="ac-send-icon">&#9654;</span>
+        </button>
+        <button id="ac-voice-btn" class="ac-voice-btn" title="Toggle concise mode (shorter responses)">
+          <span class="ac-voice-icon">💬</span>
         </button>
       </div>
     </div>

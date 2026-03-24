@@ -14,6 +14,7 @@ class ArchieChatUI {
     this.conversationId = null;
     this.agentTarget = 'auto';
     this.sending = false;
+    this.voiceMode = false;
   }
 
   /* ── Init ──────────────────────────────────────────── */
@@ -34,6 +35,8 @@ class ArchieChatUI {
     if (flightToggle) flightToggle.addEventListener('click', function() { self.toggleFlightDeck(); });
     if (flightClose) flightClose.addEventListener('click', function() { self.toggleFlightDeck(); });
     if (sidebarToggle) sidebarToggle.addEventListener('click', function() { self.toggleSidebar(); });
+    var voiceBtn = document.getElementById('ac-voice-btn');
+    if (voiceBtn) voiceBtn.addEventListener('click', function() { self.toggleVoiceMode(); });
 
     if (input) {
       input.addEventListener('keydown', function(e) {
@@ -113,7 +116,8 @@ class ArchieChatUI {
       message: message,
       conversation_id: this.conversationId,
       agent_target: this.agentTarget,
-      include_thinking: true
+      include_thinking: true,
+      voice_mode: this.voiceMode
     };
 
     var data = await this.chatApi('/api/v1/chat/message', {
@@ -211,10 +215,10 @@ class ArchieChatUI {
       meta.appendChild(badge);
       bubble2.appendChild(meta);
 
-      // Text content
+      // Text content (markdown rendered for assistant messages)
       var text2 = document.createElement('div');
       text2.className = 'ac-message-text';
-      text2.textContent = msg.content;
+      text2.innerHTML = this._renderMarkdown(msg.content);
       bubble2.appendChild(text2);
 
       // Inline flight deck icon + expandable steps (per message)
@@ -566,6 +570,50 @@ class ArchieChatUI {
       requestAnimationFrame(function() {
         container.scrollTop = container.scrollHeight;
       });
+    }
+  }
+
+  /* ── Markdown Rendering ───────────────────────────── */
+
+  _renderMarkdown(text) {
+    if (!text) return '';
+    var html = text
+        // Escape HTML first
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        // Code blocks (```)
+        .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre class="ac-code-block"><code>$2</code></pre>')
+        // Inline code
+        .replace(/`([^`]+)`/g, '<code class="ac-code-inline">$1</code>')
+        // Bold
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        // Italic
+        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+        // Headers
+        .replace(/^### (.+)$/gm, '<h4 class="ac-md-h4">$1</h4>')
+        .replace(/^## (.+)$/gm, '<h3 class="ac-md-h3">$1</h3>')
+        .replace(/^# (.+)$/gm, '<h2 class="ac-md-h2">$1</h2>')
+        // Numbered lists
+        .replace(/^\d+\.\s+(.+)$/gm, '<li class="ac-md-li">$1</li>')
+        // Bullet lists
+        .replace(/^[-*]\s+(.+)$/gm, '<li class="ac-md-li">$1</li>')
+        // Wrap consecutive li elements in ul/ol
+        .replace(/(<li class="ac-md-li">[\s\S]*?<\/li>\n?)+/g, '<ul class="ac-md-list">$&</ul>')
+        // Paragraphs (double newlines)
+        .replace(/\n\n/g, '</p><p>')
+        // Single newlines within paragraphs
+        .replace(/\n/g, '<br>');
+    return '<p>' + html + '</p>';
+  }
+
+  /* ── Voice Mode ──────────────────────────────────── */
+
+  toggleVoiceMode() {
+    this.voiceMode = !this.voiceMode;
+    var btn = document.getElementById('ac-voice-btn');
+    if (btn) {
+        btn.classList.toggle('ac-voice-active', this.voiceMode);
+        btn.title = this.voiceMode ? 'Concise mode ON (click to turn off)' : 'Toggle concise mode';
+        btn.querySelector('.ac-voice-icon').textContent = this.voiceMode ? '⚡' : '💬';
     }
   }
 

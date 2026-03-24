@@ -333,6 +333,39 @@ def register_scan_routes(bp, admin_required):
                     "UPDATE code_issues SET proposal_id = %s WHERE id = ANY(%s)",
                     (proposal_id, issue_ids),
                 )
+
+                # F.O.R.G.E.: Auto-create GitHub issue for critical/high severity
+                max_severity = max_sev.get("severity", "medium")
+                if max_severity in ("critical", "high"):
+                    try:
+                        from .services.github_service import (
+                            create_issue as gh_create_issue,
+                            find_existing_issue,
+                        )
+
+                        existing = find_existing_issue(file_path, category)
+                        if not existing:
+                            gh_body = (
+                                f"## F.O.R.G.E. Scan Finding\n\n"
+                                f"**File**: `{file_path}`\n"
+                                f"**Category**: {category}\n"
+                                f"**Severity**: {max_severity}\n"
+                                f"**Issues Found**: {count}\n"
+                                f"**Proposal**: #{proposal_id}\n\n"
+                                f"### Details\n{description[:2000]}\n\n"
+                                f"---\n"
+                                f"*Auto-created by F.O.R.G.E. scan pipeline*\n"
+                                f"*Platform: http://192.168.1.200:3000/tools/dev-pipeline*"
+                            )
+                            gh_create_issue(
+                                title=f"[SCAN] {title}",
+                                body=gh_body,
+                                severity=max_severity,
+                            )
+                            logger.info(f"[FORGE] GitHub issue created for {file_path} ({max_severity})")
+                    except Exception as gh_err:
+                        logger.warning(f"[FORGE] GitHub issue creation failed: {gh_err}")
+
                 created += 1
 
             conn.commit()

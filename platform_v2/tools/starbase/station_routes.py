@@ -65,7 +65,7 @@ def register_station_routes(bp, admin_required):
             "color": "#00FFFF",
             "icon": "🎯",
             "default_llm": "dolphin3-8k:latest",
-            "modules": ["archie_core", "archie_chat", "bridge", "team_management", "security_network"],
+            "modules": ["archie_chat", "bridge", "team_management", "security_network"],
         },
         "ANALYTICS": {
             "station_name": "Analytics",

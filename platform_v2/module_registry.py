@@ -38,7 +38,7 @@ class ModuleCategory(Enum):
 
     # New category structure from consolidation plan (2026-02-03)
     ADMIN_OPERATIONS = "admin_operations"  # backup_manager, security_network, account_center, system_ops
-    AI_COMMAND = "ai_command"  # blueprint, consciousness, team_management, bridge, archie_core, dev_pipeline
+    AI_COMMAND = "ai_command"  # blueprint, consciousness, team_management, bridge, dev_pipeline
     SAAS_SERVICES = "saas_services"  # crm, website_studio, store_builder, call_center, etc.
     PROJECT_KNOWLEDGE = "project_knowledge"  # project_manager, obsidian_vault, api_docs
     MEDIA_HOME = "media_home"  # media_hub
@@ -432,7 +432,7 @@ MODULES: List[ModuleDefinition] = [
     # ============================================
     # AI COMMAND (3 modules)
     # ============================================
-    # consciousness, team_management, starbase, archie_core
+    # consciousness, team_management, starbase
     # NOTE: blueprint (Mission Control) removed from grid 2026-02-04
     # Blueprint Flask routes still registered manually in app.py for Dev HQ API access
     ModuleDefinition(

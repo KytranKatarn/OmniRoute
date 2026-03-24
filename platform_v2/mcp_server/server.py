@@ -341,9 +341,28 @@ class ArchieMCPServer:
                     "message": f"Tool '{name}' has no handler configured",
                 }
 
-            # Log successful call
+            # Log successful call with output info
             execution_time = (datetime.now() - start_time).total_seconds() * 1000
-            self._log_tool_usage(name, tool.category, params, True, execution_time)
+            result_str = json.dumps(result) if result else ""
+            output_size = len(result_str)
+            # Build a short summary from result keys or message
+            output_summary = None
+            if isinstance(result, dict):
+                if result.get("message"):
+                    output_summary = str(result["message"])[:200]
+                elif result.get("summary"):
+                    output_summary = str(result["summary"])[:200]
+                else:
+                    output_summary = f"keys={list(result.keys())[:5]}"
+            self._log_tool_usage(
+                name,
+                tool.category,
+                params,
+                True,
+                execution_time,
+                output_summary=output_summary,
+                output_size=output_size,
+            )
 
             return {
                 "success": True,
@@ -357,7 +376,14 @@ class ArchieMCPServer:
             error_msg = str(e)
 
             # Log failed call
-            self._log_tool_usage(name, tool.category, params, False, execution_time, error_msg)
+            self._log_tool_usage(
+                name,
+                tool.category,
+                params,
+                False,
+                execution_time,
+                error_msg=error_msg,
+            )
 
             logger.error(f"Tool '{name}' failed: {error_msg}\n{traceback.format_exc()}")
 
@@ -413,20 +439,30 @@ class ArchieMCPServer:
         success: bool,
         execution_time_ms: float,
         error_msg: str = None,
+        output_summary: str = None,
+        output_size: int = None,
     ):
-        """Log tool usage to database"""
+        """Log tool usage to database with full audit trail."""
         conn = self._get_db_connection()
         if not conn:
             return
 
         try:
+            # Build client info from session context
+            client_info = {
+                "client": "claude-code",
+                "session": self.session_id,
+                "pid": os.getpid(),
+            }
+
             cur = conn.cursor()
             cur.execute(
                 """
                 INSERT INTO mcp_tool_usage
                 (session_id, tool_name, tool_category, input_params, success,
-                 execution_time_ms, error_message, created_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
+                 execution_time_ms, error_message, output_summary,
+                 output_size_bytes, client_info, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
             """,
                 (
                     self.session_id,
@@ -436,6 +472,9 @@ class ArchieMCPServer:
                     success,
                     int(execution_time_ms),
                     error_msg,
+                    output_summary,
+                    output_size,
+                    json.dumps(client_info),
                 ),
             )
             conn.commit()

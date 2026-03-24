@@ -113,3 +113,4 @@ host_commands/
 .worktrees/
 repos/
 platform_v2/static/downloads/*.exe
+.superpowers/

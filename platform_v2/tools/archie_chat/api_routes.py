@@ -166,6 +166,13 @@ def register_routes(bp, admin_required):
         # Default to ARCHIE when no agent targeted (she's primary on COMMAND)
         effective_target = agent_target if agent_target and agent_target != "auto" else "ARCHIE"
 
+        # Build conversation history for context (last 10 messages)
+        recent_messages = get_conversation_messages(conv["id"], include_thinking=False, limit=10)
+        conversation_history = []
+        for m in recent_messages:
+            if m["role"] in ("user", "assistant") and m.get("content"):
+                conversation_history.append({"role": m["role"], "content": m["content"][:500]})
+
         # Call orchestration engine
         try:
             from ai_bridge.orchestration_engine import OrchestrationEngine
@@ -176,7 +183,10 @@ def register_routes(bp, admin_required):
                 user_id=user_id,
                 conversation_id=str(conv.get("conversation_uuid")),
                 agent_target=effective_target,
-                user_context={"username": user.get("username", "")},
+                user_context={
+                    "username": user.get("username", ""),
+                    "conversation_history": conversation_history,
+                },
             )
         except Exception as exc:
             log.exception("Orchestration failed: %s", exc)

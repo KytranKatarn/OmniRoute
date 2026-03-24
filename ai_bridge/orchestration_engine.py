@@ -810,7 +810,7 @@ class OrchestrationEngine:
                 ai = ArchieAI_cls()
                 system_prompt = ai._build_system_prompt(user_context or {})
 
-            history = self._load_conversation_history(user_id, conversation_id)
+            history = self._load_conversation_history(user_id, conversation_id, user_context)
 
             messages = [{"role": "system", "content": system_prompt}]
             messages.extend(history)
@@ -2411,7 +2411,7 @@ You can ask me to:
                 context["voice_mode"] = True
 
             # Load conversation history
-            history = self._load_conversation_history(user_id, conversation_id)
+            history = self._load_conversation_history(user_id, conversation_id, user_context)
 
             result = ai.chat(message, context, history)
             if result.get("success"):
@@ -2543,8 +2543,17 @@ You can ask me to:
             pass
         return None
 
-    def _load_conversation_history(self, user_id: int, conversation_id: str) -> list:
-        """Load recent conversation history for context"""
+    def _load_conversation_history(self, user_id: int, conversation_id: str, user_context: Optional[Dict] = None) -> list:
+        """Load recent conversation history for context.
+
+        Checks user_context['conversation_history'] first (from chat module),
+        then falls back to ai_conversations table (legacy).
+        """
+        # Prefer chat module history (already formatted as role/content dicts)
+        if user_context and user_context.get("conversation_history"):
+            return user_context["conversation_history"]
+
+        # Fallback: legacy ai_conversations table
         try:
             conn = get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)

@@ -404,6 +404,174 @@ def _notify_ingestion_complete(repo_count, file_count, repo_names):
         logger.warning(f"[GitHub] Telegram ingestion notification failed: {e}")
 
 
+def _incremental_reindex_from_disk(owner, repo, repo_type, local_path, changed_files, importance=0.85):
+    """Incrementally re-index only changed files from a locally cloned repo.
+
+    Reads files from disk (no GitHub API calls). Upserts into knowledge_base.
+    Deletes KB entries for files that were removed from the repo.
+
+    Args:
+        owner: GitHub owner (e.g., 'NousResearch')
+        repo: GitHub repo name (e.g., 'hermes-agent')
+        repo_type: Category string for the repo
+        local_path: Absolute path to the local clone
+        changed_files: List of relative file paths that changed (from git diff)
+        importance: Importance score for indexed entries
+
+    Returns:
+        (indexed_count, deleted_count, skipped_count, errors)
+    """
+    repo_full = f"{owner}/{repo}"
+    indexed_count = 0
+    deleted_count = 0
+    skipped_count = 0
+    errors = []
+
+    conn = None
+    cur = None
+    try:
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        for rel_path in changed_files:
+            filename = os.path.basename(rel_path)
+            ext = os.path.splitext(filename)[1].lower()
+
+            # Skip non-indexable extensions
+            if ext not in INDEXABLE_EXT:
+                skipped_count += 1
+                continue
+
+            # Skip by directory
+            path_parts = rel_path.split("/")
+            if any(part in SKIP_DIRS for part in path_parts[:-1]):
+                skipped_count += 1
+                continue
+
+            # Skip by filename
+            if filename in SKIP_FILES:
+                skipped_count += 1
+                continue
+
+            abs_path = os.path.join(local_path, rel_path)
+            title = f"{owner}/{repo}: {rel_path}"
+            file_path_db = f"{owner}/{repo}/{rel_path}"
+
+            # If file was deleted, remove from KB
+            if not os.path.isfile(abs_path):
+                try:
+                    cur.execute("SAVEPOINT sp_del")
+                    cur.execute(
+                        """DELETE FROM memory_embeddings WHERE source_type = 'knowledge_base'
+                           AND source_id IN (
+                               SELECT id FROM knowledge_base
+                               WHERE knowledge_type = 'github_file'
+                                 AND file_path = %s
+                           )""",
+                        (file_path_db,),
+                    )
+                    cur.execute(
+                        """DELETE FROM knowledge_base
+                           WHERE knowledge_type = 'github_file'
+                             AND file_path = %s""",
+                        (file_path_db,),
+                    )
+                    cur.execute("RELEASE SAVEPOINT sp_del")
+                    deleted_count += cur.rowcount
+                except Exception:
+                    cur.execute("ROLLBACK TO SAVEPOINT sp_del")
+                continue
+
+            # Read file from disk
+            try:
+                with open(abs_path, "r", encoding="utf-8", errors="replace") as f:
+                    content = f.read(MAX_FILE_SIZE)
+                if len(content) < 10:  # Too small to be useful
+                    skipped_count += 1
+                    continue
+            except Exception as read_err:
+                errors.append(f"Read error: {rel_path}: {str(read_err)[:60]}")
+                skipped_count += 1
+                continue
+
+            # Determine file type flags
+            is_code = ext in INDEXABLE_CODE_EXT
+            is_doc = ext in INDEXABLE_DOC_EXT
+
+            # Upsert into knowledge_base
+            try:
+                cur.execute("SAVEPOINT sp_file")
+                cur.execute(
+                    """
+                    INSERT INTO knowledge_base (
+                        knowledge_type, title, content, category, file_path,
+                        importance_score, source_type, file_name, file_extension,
+                        memory_metadata, tags, repo_type, is_code, is_documentation,
+                        created_at
+                    ) VALUES (
+                        'github_file', %s, %s, 'github', %s,
+                        %s, 'github_tree', %s, %s,
+                        %s, %s, %s, %s, %s,
+                        NOW()
+                    )
+                    ON CONFLICT (repo_type, file_path) DO UPDATE SET
+                        title = EXCLUDED.title,
+                        content = EXCLUDED.content,
+                        importance_score = EXCLUDED.importance_score,
+                        file_name = EXCLUDED.file_name,
+                        memory_metadata = EXCLUDED.memory_metadata,
+                        created_at = NOW()
+                    RETURNING id
+                    """,
+                    (
+                        title,
+                        content[:MAX_CONTENT_STORE],
+                        file_path_db,
+                        importance,
+                        filename,
+                        ext,
+                        json.dumps({"repo": repo_full, "incremental": True}),
+                        ["github", owner, repo, repo_type],
+                        repo_type,
+                        is_code,
+                        is_doc,
+                    ),
+                )
+                cur.execute("RELEASE SAVEPOINT sp_file")
+                indexed_count += 1
+            except Exception as db_err:
+                cur.execute("ROLLBACK TO SAVEPOINT sp_file")
+                errors.append(f"DB error: {rel_path}: {str(db_err)[:60]}")
+                skipped_count += 1
+
+        conn.commit()
+
+        # Update github_repositories counts
+        cur.execute(
+            """
+            UPDATE github_repositories
+            SET indexed_files = COALESCE((
+                    SELECT count(*) FROM knowledge_base
+                    WHERE knowledge_type = 'github_file'
+                      AND memory_metadata->>'repo' = %s
+                ), 0),
+                indexed_at = NOW(),
+                updated_at = NOW()
+            WHERE repo_name = %s
+            """,
+            (repo_full, repo_full),
+        )
+        conn.commit()
+
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+    return indexed_count, deleted_count, skipped_count, errors
+
+
 def _reindex_repo_via_tree(owner, repo, repo_type, importance=0.85, max_files=None):
     """
     Recursively index a GitHub repo using the Tree API (1 API call for full tree).

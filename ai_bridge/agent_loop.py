@@ -4753,38 +4753,43 @@ class AgentLoop:
                             for f in diff_result.stdout.strip().split("\n")
                             if f.strip()
                         ]
+                        # Incremental re-index: only changed files, from disk
+                        try:
+                            from tools.consciousness.github_routes import (
+                                _incremental_reindex_from_disk,
+                            )
+
+                            owner_part, repo_part = repo_name.split("/", 1)
+                            idx_count, del_count, skip_count, idx_errors = (
+                                _incremental_reindex_from_disk(
+                                    owner_part,
+                                    repo_part,
+                                    repo_type,
+                                    local_path,
+                                    changed_files,
+                                    importance=0.85,
+                                )
+                            )
+                            logger.info(
+                                f"[GitPull] Incremental re-index for {repo_name}: "
+                                f"{idx_count} indexed, {del_count} deleted, "
+                                f"{skip_count} skipped"
+                            )
+                        except Exception as idx_err:
+                            logger.warning(
+                                f"[GitPull] Incremental re-index failed for "
+                                f"{repo_name}: {idx_err}"
+                            )
+                            idx_count = 0
+
                         changed_repos.append(
                             {
                                 "name": repo_name,
                                 "type": repo_type,
                                 "changed_files": len(changed_files),
+                                "indexed": idx_count,
                             }
                         )
-
-                        # Trigger re-index via internal API
-                        try:
-                            import requests as _req
-
-                            api_key = os.getenv(
-                                "ARCHIE_API_KEY", "dev-api-key-change-in-production"
-                            )
-                            _req.post(
-                                f"http://localhost:{os.getenv('PLATFORM_PORT', '3000')}/tools/consciousness/github/index-selective",
-                                json={
-                                    "repo_url": f"https://github.com/{repo_name}",
-                                    "priority": "medium",
-                                },
-                                headers={"Authorization": f"Bearer {api_key}"},
-                                timeout=10,
-                            )
-                            logger.info(
-                                f"[GitPull] Re-index triggered for {repo_name} "
-                                f"({len(changed_files)} files changed)"
-                            )
-                        except Exception as idx_err:
-                            logger.warning(
-                                f"[GitPull] Re-index trigger failed for {repo_name}: {idx_err}"
-                            )
 
                 except subprocess.TimeoutExpired:
                     errors.append(f"{repo_name}: timeout")
@@ -4802,14 +4807,17 @@ class AgentLoop:
                             f"*{len(changed_repos)}* repos updated, "
                             f"*{total_changed}* files changed\n"
                         )
+                        total_indexed = sum(r.get("indexed", 0) for r in changed_repos)
                         for r in changed_repos[:10]:
+                            idx = r.get("indexed", 0)
                             lines.append(
-                                f"• `{r['name']}` — {r['changed_files']} files"
+                                f"• `{r['name']}` — {r['changed_files']} changed, {idx} re-indexed"
                             )
                         if len(changed_repos) > 10:
                             lines.append(f"• ...and {len(changed_repos) - 10} more")
                         lines.append(
-                            "\n_Re-index triggered. Skill sync will run next cycle._"
+                            f"\n*{total_indexed}* files re-indexed from disk. "
+                            f"Skill sync will run next cycle."
                         )
                         text = "\n".join(lines)
 

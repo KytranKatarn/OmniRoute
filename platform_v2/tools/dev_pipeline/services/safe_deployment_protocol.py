@@ -374,13 +374,11 @@ class SafeDeploymentProtocol:
 
     def _apply_changes_to_production(self, proposal: Dict, deployment_id: int) -> Dict:
         """
-        Apply code changes to production environment.
+        Apply code changes via F.O.R.G.E. — creates a GitHub branch + PR
+        instead of modifying production directly.
 
-        This is a placeholder that would integrate with:
-        - Git commits
-        - File system changes
-        - Database migrations
-        - Service restarts
+        The PR gets auto-reviewed by CodeRabbit. Merge is a separate step
+        (Phase 6) requiring human approval.
 
         Args:
             proposal: Improvement proposal dict
@@ -389,26 +387,78 @@ class SafeDeploymentProtocol:
         Returns:
             {
                 'success': True,
-                'changes_applied': ['file1.py', 'file2.py']
+                'changes_applied': ['file1.py'],
+                'pr_url': 'https://github.com/...',
+                'pr_number': 123,
+                'method': 'forge_pr'
             }
         """
         try:
-            # TODO: Implement actual deployment logic
-            # This would typically:
-            # 1. Apply code changes from proposal.code_diff
-            # 2. Run database migrations if any
-            # 3. Restart services if needed
-            # 4. Update configuration files
+            from .forge_pipeline import deploy_via_forge
 
-            # For now, just mark as successful
-            # In production, this would use code_diff_engine.apply_diff_to_file()
+            # Get sandbox results for PR body
+            sandbox_results = None
+            conn = self.get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cur.execute(
+                    """SELECT test_results FROM sandbox_instances
+                       WHERE proposal_id = %s AND status = 'tested'
+                       ORDER BY created_at DESC LIMIT 1""",
+                    (proposal["id"],),
+                )
+                row = cur.fetchone()
+                if row:
+                    sandbox_results = row.get("test_results")
+            finally:
+                cur.close()
+                conn.close()
 
+            result = deploy_via_forge(
+                proposal=proposal,
+                deployment_id=deployment_id,
+                sandbox_results=sandbox_results,
+            )
+
+            if result.get("success"):
+                # Store PR info in deployment metadata
+                conn2 = self.get_db()
+                cur2 = conn2.cursor()
+                try:
+                    import json as _json
+
+                    cur2.execute(
+                        """UPDATE improvement_deployments
+                           SET post_deployment_metrics = %s
+                           WHERE id = %s""",
+                        (
+                            _json.dumps(
+                                {
+                                    "forge": True,
+                                    "pr_url": result.get("pr_url"),
+                                    "pr_number": result.get("pr_number"),
+                                    "branch": result.get("branch"),
+                                    "sha": result.get("sha"),
+                                    "method": result.get("method"),
+                                }
+                            ),
+                            deployment_id,
+                        ),
+                    )
+                    conn2.commit()
+                finally:
+                    cur2.close()
+                    conn2.close()
+
+            return result
+
+        except ImportError:
+            logger.warning("[FORGE] forge_pipeline not available, using placeholder")
             return {
                 "success": True,
                 "changes_applied": [],
-                "message": "Deployment logic placeholder - integrate with actual deployment system",
+                "message": "F.O.R.G.E. not available — no changes applied",
             }
-
         except Exception as e:
             return {"success": False, "error": str(e)}
 

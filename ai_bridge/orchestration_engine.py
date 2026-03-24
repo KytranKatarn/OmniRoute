@@ -1075,77 +1075,98 @@ class OrchestrationEngine:
     def _step_select_agent(
         self, message: str, intent: Dict, steps: List[ThinkingStep]
     ) -> Optional[Dict]:
-        """Step 6: Select the best agent via Bridge stations, then delegation, then ARCHIE fallback"""
+        """Step 6: Select the best agent via department, then floor fallback, then ARCHIE fallback"""
         t0 = time.time()
         agent = None
         source = "default"
 
         intent_type = intent.get("type", "conversation")
 
-        # Map intent to Bridge station codes
-        station_map = {
-            "code_task": ["ENGINEERING", "ENGINEERING_CODE", "ENGINEERING_BUILD"],
-            "team_task": ["OPERATIONS", "OPERATIONS_CORE", "HR"],
-            "team_management": ["HR", "OPERATIONS", "COMMAND"],
-            "station_management": ["COMMAND", "OPERATIONS"],
-            "status_query": ["COMMAND", "OPERATIONS"],
-            "dev_hq_status": ["COMMAND", "OPERATIONS"],
-            "business_task": ["OPERATIONS", "FINANCE"],
-            "knowledge_query": ["CONSCIOUSNESS", "RND", "RND_AI"],
-            "creative_task": ["CREATIVE", "CREATIVE_MEDIA", "CREATIVE_CONTENT"],
-            "system_status": ["OPERATIONS", "INFRASTRUCTURE", "SECURITY"],
-            "conversation": ["COMMAND"],
+        # Map intent to department names
+        department_map = {
+            "code_task": ["Engineering & Technology"],
+            "code_generation": ["Engineering & Technology"],
+            "code_review": ["Engineering & Technology"],
+            "team_task": ["Operations & Infrastructure", "Human Resources & Culture"],
+            "team_management": ["Human Resources & Culture", "Operations & Infrastructure", "Executive Office"],
+            "station_management": ["Executive Office"],
+            "status_query": ["Executive Office", "Operations & Infrastructure"],
+            "dev_hq_status": ["Executive Office", "Operations & Infrastructure"],
+            "business_task": ["Operations & Infrastructure", "Finance & Accounting"],
+            "knowledge_query": ["Documentation & Knowledge", "Research & Development"],
+            "data_analysis": ["Analytics & Intelligence"],
+            "creative_task": ["Creative & Design"],
+            "content_creation": ["Creative & Design"],
+            "system_status": ["Operations & Infrastructure", "Security & Compliance"],
+            "research": ["Research & Development"],
+            "security": ["Security & Compliance"],
+            "operations": ["Operations & Infrastructure"],
+            "logistics": ["Logistics & Supply Chain"],
+            "finance": ["Finance & Accounting"],
+            "hr": ["Human Resources & Culture"],
+            "legal": ["Legal & Regulatory"],
+            "medical": ["Medical & Wellness"],
+            "diplomatic": ["Diplomatic & External Relations"],
+            "marketing": ["Marketing & Communications"],
+            "documentation": ["Documentation & Knowledge"],
+            "customer_support": ["Customer Success & Support"],
+            "conversation": ["Executive Office"],
+            "general": ["Executive Office"],
         }
-        preferred_stations = station_map.get(intent_type, ["COMMAND"])
+        preferred_departments = department_map.get(intent_type, ["Executive Office"])
 
-        # Try 1: Find agent assigned to a matching Bridge station
+        # Try 1: Find active agent in a matching department
         try:
             conn = get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(
                 """
                 SELECT a.id as agent_id, a.name, a.department, a.worker_type,
-                       a.model, a.tier, bs.station_code
-                FROM station_assignments sa
-                JOIN bridge_stations bs ON sa.station_id = bs.id
-                JOIN agents a ON sa.agent_id = a.id
-                WHERE sa.is_active = true
+                       a.model, a.tier
+                FROM agents a
+                WHERE a.department = ANY(%s)
                   AND a.status = 'active'
-                  AND bs.station_code = ANY(%s)
-                ORDER BY sa.priority ASC, sa.assignment_type = 'primary' DESC
+                ORDER BY a.is_department_ai DESC, a.tier DESC
                 LIMIT 1
             """,
-                (preferred_stations,),
+                (preferred_departments,),
             )
             row = cur.fetchone()
             if row:
                 agent = dict(row)
-                source = "station"
+                source = "department"
             cur.close()
             conn.close()
         except Exception as e:
-            logger.warning(f"Station assignment lookup error: {e}")
+            logger.warning(f"Department agent lookup error: {e}")
 
-        # Try 2: Fall back to agent_delegation department match
+        # Try 2: Fall back to agents on the same floor, then other floors
         if not agent:
             try:
-                from agent_delegation import select_best_agent_for_task
-
-                dept_map = {
-                    "code_task": "Engineering",
-                    "team_task": "Operations",
-                    "business_task": "Strategy",
-                    "knowledge_query": "Research",
-                    "creative_task": "Creative",
-                    "system_status": "Operations",
-                }
-                dept = dept_map.get(intent_type)
-                result = select_best_agent_for_task(message, department_preference=dept)
-                if result and result.get("agent_id"):
-                    agent = result
-                    source = "delegation"
+                fallback_depts = self._get_floor_fallback_departments(preferred_departments[0])
+                if fallback_depts:
+                    conn = get_db()
+                    cur = conn.cursor(cursor_factory=RealDictCursor)
+                    cur.execute(
+                        """
+                        SELECT a.id as agent_id, a.name, a.department, a.worker_type,
+                               a.model, a.tier
+                        FROM agents a
+                        WHERE a.department = ANY(%s)
+                          AND a.status = 'active'
+                        ORDER BY a.is_department_ai DESC, a.tier DESC
+                        LIMIT 1
+                    """,
+                        (fallback_depts,),
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        agent = dict(row)
+                        source = "floor_fallback"
+                    cur.close()
+                    conn.close()
             except Exception as e:
-                logger.warning(f"Agent delegation fallback error: {e}")
+                logger.warning(f"Floor fallback agent lookup error: {e}")
 
         # Try 3: Always fall back to ARCHIE (agent_id=2)
         if not agent or not agent.get("agent_id"):
@@ -1171,7 +1192,7 @@ class OrchestrationEngine:
                     "worker_type": agent.get("worker_type"),
                     "tier": agent.get("tier"),
                     "source": source,
-                    "station": agent.get("station_code"),
+                    "department": agent.get("department"),
                 },
                 duration_ms=duration,
                 agent_id=agent.get("agent_id"),
@@ -1179,6 +1200,41 @@ class OrchestrationEngine:
         )
 
         return agent
+
+    def _get_floor_fallback_departments(self, target_dept: str) -> List[str]:
+        """Get fallback departments ordered by floor proximity."""
+        conn = None
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            # Find the floor containing the target department
+            cur.execute(
+                "SELECT code, departments FROM floors WHERE %s = ANY(departments)",
+                (target_dept,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return []
+            # Same-floor departments first (excluding target)
+            same_floor = [d for d in row["departments"] if d != target_dept]
+            # Then departments from other floors ordered by deck number
+            cur.execute(
+                "SELECT departments FROM floors WHERE code != %s ORDER BY deck_number",
+                (row["code"],),
+            )
+            other = [
+                d
+                for floor_row in cur.fetchall()
+                for d in floor_row["departments"]
+            ]
+            cur.close()
+            return same_floor + other
+        except Exception as e:
+            logger.error(f"Floor fallback lookup failed: {e}")
+            return []
+        finally:
+            if conn:
+                conn.close()
 
     def _step_welfare_check(
         self,

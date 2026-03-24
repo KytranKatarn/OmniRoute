@@ -21,6 +21,9 @@ from archie_engine.hub.heartbeat import Heartbeat
 from archie_engine.hub.sync import HubSync
 from archie_engine.skills import SkillRegistry
 from archie_engine.skills.executor import SkillExecutor
+from archie_engine.claude.context_bridge import ContextBridge
+from archie_engine.claude.escalation import EscalationDetector
+from archie_engine.claude.mcp_server import MCPToolServer
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +55,18 @@ class Engine:
         if custom_skill_dirs:
             skill_dirs.extend(custom_skill_dirs)  # User custom skills
         self.skill_registry = SkillRegistry(skill_dirs=skill_dirs, executor=skill_executor)
+
+        # Claude collaboration
+        self.context_bridge = ContextBridge(working_dir=str(Path.cwd()))
+        self.escalation_detector = EscalationDetector()
+        self.mcp_server = MCPToolServer(tools=[
+            {"name": "file_read", "description": "Read a file", "parameters": {"path": {"type": "string"}}},
+            {"name": "file_write", "description": "Write a file", "parameters": {"path": {"type": "string"}, "content": {"type": "string"}}},
+            {"name": "git_status", "description": "Git repository status", "parameters": {}},
+            {"name": "git_diff", "description": "Git diff of changes", "parameters": {}},
+            {"name": "shell_exec", "description": "Execute shell command", "parameters": {"command": {"type": "string"}}},
+            {"name": "search_knowledge", "description": "Search ARCHIE knowledge base", "parameters": {"query": {"type": "string"}}},
+        ])
 
         # Hub connectivity (optional)
         self.hub_connector: HubConnector | None = None

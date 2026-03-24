@@ -636,7 +636,7 @@ function loadVigilLogPage() {
                 return;
             }
             var sevColors = { critical: '#ff4444', warning: '#ffaa00', info: '#00ff41' };
-            var catLabels = { welfare: 'Welfare', governance: 'Governance', autonomy: 'Autonomy', archie_wellness: 'ARCHIE', dispatch: 'Dispatch' };
+            var catLabels = { welfare: 'Welfare', governance: 'Governance', autonomy: 'Autonomy', archie_wellness: 'A.R.C.H.I.E.', dispatch: 'Dispatch' };
 
             var table = document.createElement('table');
             table.className = 'vigil-log-table';
@@ -9321,7 +9321,7 @@ function renderCrewManifest(crew, capacity, nodeCapacities) {
 
     // === HUB SECTION — purple border, collapsible ===
     var hubAgentCount = gpuAgents.length + cpuAgents.length + cloudAgents.length + swapAgents.length;
-    var hubSec = _createCollapsibleSection('\u2B50 ARCHIE STARBASE', hubAgentCount, '#8b5cf6', true);
+    var hubSec = _createCollapsibleSection('\u2B50 A.R.C.H.I.E. STARBASE', hubAgentCount, '#8b5cf6', true);
     var hubBody = hubSec.body;
     hubBody.style.cssText += 'display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;';
 
@@ -9516,7 +9516,7 @@ function _showModelControlModal(agent, action, nodeDbId, onConfirm) {
     var body = document.getElementById('model-control-body');
     var actions = document.getElementById('model-control-actions');
     var model = (agent.model || '').replace(':latest', '');
-    var target = nodeDbId ? (agent.node_name || 'Fleet Node') : 'ARCHIE Starbase';
+    var target = nodeDbId ? (agent.node_name || 'Fleet Node') : 'A.R.C.H.I.E. Starbase';
     var isLoad = action === 'load';
 
     title.textContent = isLoad ? 'LOAD MODEL' : 'UNLOAD MODEL';

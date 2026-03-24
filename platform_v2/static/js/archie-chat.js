@@ -84,7 +84,7 @@ class ArchieChatUI {
     } catch (err) {
       console.error('Chat API fetch error:', err);
       if (err.name === 'AbortError') {
-        return { error: 'Request timed out. ARCHIE may still be processing — try again in a moment.' };
+        return { error: 'Request timed out. A.R.C.H.I.E. may still be processing — try again in a moment.' };
       }
       return { error: err.message || 'Network error' };
     }
@@ -146,7 +146,7 @@ class ArchieChatUI {
       this.renderMessage({
         role: 'assistant',
         content: data.response || data.content || '',
-        agent_display_name: agent.display_name || agent.name || 'ARCHIE',
+        agent_display_name: agent.display_name || agent.name || 'A.R.C.H.I.E.',
         station_code: agent.station || 'COMMAND',
         thinking_steps: data.thinking_steps || [],
         duration_ms: data.duration_ms || 0,
@@ -180,7 +180,7 @@ class ArchieChatUI {
     } else {
       // Handle both new message format (agent_display_name) and history format (agent_used)
       var station = msg.station_code || 'COMMAND';
-      var name = msg.agent_display_name || msg.agent_used || 'ARCHIE';
+      var name = msg.agent_display_name || msg.agent_used || 'A.R.C.H.I.E.';
       var initials = this.getAgentInitials(name);
       var color = this.getStationColor(station);
 

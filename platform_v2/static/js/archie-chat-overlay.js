@@ -22,7 +22,7 @@ class ArchieOverlay {
         this.bubble = document.createElement('button');
         this.bubble.className = 'ac-overlay-bubble';
         this.bubble.textContent = '\u{1F4AC}';
-        this.bubble.title = 'Chat with ARCHIE';
+        this.bubble.title = 'Chat with A.R.C.H.I.E.';
         document.body.appendChild(this.bubble);
 
         // Chat window
@@ -41,7 +41,7 @@ class ArchieOverlay {
 
         const label = document.createElement('span');
         label.style.cssText = "font-family:'Orbitron',sans-serif;font-size:0.85rem;color:#00e5ff;font-weight:700;letter-spacing:1px;";
-        label.textContent = 'ARCHIE';
+        label.textContent = 'A.R.C.H.I.E.';
 
         headerLeft.appendChild(statusDot);
         headerLeft.appendChild(label);
@@ -78,7 +78,7 @@ class ArchieOverlay {
         this.inputEl = document.createElement('input');
         this.inputEl.className = 'ac-overlay-input';
         this.inputEl.type = 'text';
-        this.inputEl.placeholder = 'Message ARCHIE...';
+        this.inputEl.placeholder = 'Message A.R.C.H.I.E. ...';
         this.inputEl.style.cssText = 'flex:1;background:#1a1a1e;border:1px solid #333;border-radius:6px;padding:8px 10px;color:#e0e0e0;font-size:0.85rem;outline:none;';
 
         this.sendBtn = document.createElement('button');
@@ -159,7 +159,7 @@ class ArchieOverlay {
         // Show typing indicator
         const typingEl = document.createElement('div');
         typingEl.style.cssText = 'color:#666;font-size:0.8rem;font-style:italic;padding:4px 0;';
-        typingEl.textContent = 'ARCHIE is thinking...';
+        typingEl.textContent = 'A.R.C.H.I.E. is thinking...';
         this.messagesEl.appendChild(typingEl);
         this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
 

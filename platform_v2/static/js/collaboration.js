@@ -314,7 +314,7 @@ function renderCollabMessage(msg) {
     // Add thinking indicator if session is still active
     if (collabSession && collabSession.status === 'active') {
         var waitingFor = msg.role === 'archie' ? '\u{1F916} Claude is thinking' :
-                        msg.role === 'claude' ? '\u{1F9E0} ARCHIE is thinking' :
+                        msg.role === 'claude' ? '\u{1F9E0} A.R.C.H.I.E. is thinking' :
                         'AIs are collaborating';
         var thinkingEl = document.createElement('div');
         thinkingEl.className = 'thinking-indicator';
@@ -454,7 +454,7 @@ function updateCollabUI(session) {
         var waitingFor = 'AIs are collaborating';
         if (lastMsg) {
             if (lastMsg.role === 'user' || lastMsg.role === 'claude') {
-                waitingFor = '\u{1F9E0} ARCHIE is thinking';
+                waitingFor = '\u{1F9E0} A.R.C.H.I.E. is thinking';
             } else if (lastMsg.role === 'archie') {
                 waitingFor = '\u{1F916} Claude is thinking';
             }

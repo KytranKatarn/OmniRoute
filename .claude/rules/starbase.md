@@ -32,7 +32,7 @@ globs: ["platform_v2/tools/starbase/**", "ai_bridge/bridge_dispatcher.py", "plat
 - `agents` table is single source of truth — 50 agents
 - 1 agent = 1 station (DB constraint `idx_station_assignments_one_per_agent`)
 - Shift states: active (hub), deployed (on node), barracked (reserve), off_duty, winding_down, cooldown
-- ARCHIE = primary on COMMAND, Vigil = secondary (always)
+- A.R.C.H.I.E. = primary on COMMAND, V.I.G.I.L. = secondary (always)
 - Starship COMMAND = solo captain (maxPrimary=1, maxAux=0)
 - Deployed agents excluded from hub hardware groups — show only in node section
 - Advisory notification when barracked ≤ 5 (no auto-creation — Decision #229)

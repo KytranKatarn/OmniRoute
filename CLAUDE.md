@@ -138,7 +138,7 @@ ai_bridge/embedding_service.py    - Vector embeddings
 - `agents` table = single source of truth (107 agents)
 - 1 agent = 1 station (DB constraint)
 - Shift states: active, deployed, barracked, off_duty, winding_down, cooldown
-- ARCHIE + Vigil always on COMMAND
+- A.R.C.H.I.E. + V.I.G.I.L. always on COMMAND
 
 ### UI
 - Live glow: `sc-live` (pulsing teal) vs `sc-static` (dim)

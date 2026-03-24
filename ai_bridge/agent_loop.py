@@ -716,8 +716,17 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Job #55 — GitHub auto-pull: refresh tracked repos and re-index changed files
+        self.scheduler.add_job(
+            with_app_context(self._github_auto_pull),
+            trigger=IntervalTrigger(hours=12),
+            id="agent_github_auto_pull",
+            name="Agent Loop: GitHub Auto-Pull & Re-Index",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 55 jobs")
+        logger.info("Agent loop started with 56 jobs")
 
     def _update_stock_prices(self):
         """Job #27: Refresh cached stock prices, check price alerts, and auto-scan watchlist every 5 minutes."""
@@ -4556,12 +4565,297 @@ class AgentLoop:
                     f"Stored {len(repos)} repos, {skill_count} skills in KB only."
                 )
 
+            # Telegram notification if new skills discovered
+            try:
+                prev_count = getattr(self, "_last_skill_count", 0)
+                new_skills = skill_count - prev_count if prev_count > 0 else 0
+                self._last_skill_count = skill_count
+
+                if new_skills > 0:
+                    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+                    if bot_token:
+                        import requests as _req
+
+                        # Build notification
+                        tg_lines = ["🧠 *New Skills Discovered*\n"]
+                        tg_lines.append(
+                            f"*{new_skills}* new skill files found across "
+                            f"*{len(repos)}* repos\n"
+                        )
+                        tg_lines.append(f"Total skills indexed: *{skill_count}*\n")
+                        # Show repos with most skills
+                        top_repos = sorted(
+                            repos.items(), key=lambda x: len(x[1]), reverse=True
+                        )[:5]
+                        for rname, rskills in top_repos:
+                            tg_lines.append(
+                                f"• `{rname}` — {len(rskills)} skills"
+                            )
+                        tg_lines.append(
+                            "\n[View in Consciousness]"
+                            "(http://192.168.1.200:3000/tools/consciousness?tab=github)"
+                        )
+                        text = "\n".join(tg_lines)
+
+                        from db import get_db
+
+                        tg_conn = get_db()
+                        tg_cur = tg_conn.cursor()
+                        tg_cur.execute(
+                            "SELECT telegram_id FROM telegram_users "
+                            "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
+                        )
+                        for row in tg_cur.fetchall():
+                            _req.post(
+                                f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                                json={
+                                    "chat_id": row[0],
+                                    "text": text,
+                                    "parse_mode": "Markdown",
+                                },
+                                timeout=15,
+                            )
+                        tg_cur.close()
+                        tg_conn.close()
+                        logger.info(
+                            f"[SkillSync] Telegram sent: {new_skills} new skills"
+                        )
+                elif prev_count == 0:
+                    # First run — just store baseline, don't notify
+                    self._last_skill_count = skill_count
+                    logger.info(
+                        f"[SkillSync] Baseline set: {skill_count} skills"
+                    )
+            except Exception as tg_err:
+                logger.warning(f"[SkillSync] Telegram notification failed: {tg_err}")
+
             self._log_cycle("skill_sync", 1, 0, int((time.time() - start) * 1000))
 
         except Exception as e:
             logger.warning(f"[SkillSync] Skill sync failed: {e}")
             self._log_cycle("skill_sync", 0, 1, int((time.time() - start) * 1000),
                             error_message=str(e))
+
+    def _github_auto_pull(self):
+        """Job #55: Auto-pull tracked GitHub repos and re-index changed files.
+
+        Every 12 hours:
+        1. Iterate all repos in github_repositories with a local_path
+        2. Git pull each one, detect new commits via rev comparison
+        3. For repos with changes, trigger re-index of changed files only
+        4. Send Telegram notification summarizing what was refreshed
+        """
+        import subprocess
+
+        start = time.time()
+        pulled = 0
+        changed_repos = []
+        errors = []
+
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT id, repo_name, repo_type, local_path, status
+                       FROM github_repositories
+                       WHERE status IN ('cloned', 'indexed')
+                       ORDER BY repo_name"""
+                )
+                repos = cur.fetchall()
+
+            if not repos:
+                logger.info("[GitPull] No tracked repos to pull")
+                self._log_cycle(
+                    "github_auto_pull", 1, 0, int((time.time() - start) * 1000)
+                )
+                return
+
+            for repo_row in repos:
+                repo_name = repo_row["repo_name"]
+                local_path = repo_row["local_path"]
+                repo_type = repo_row["repo_type"]
+
+                # Skip if not actually cloned on disk
+                git_dir = os.path.join(local_path, ".git")
+                if not os.path.isdir(git_dir):
+                    continue
+
+                try:
+                    # Get current rev before pull
+                    rev_before = subprocess.run(
+                        ["git", "-C", local_path, "rev-parse", "HEAD"],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    old_rev = rev_before.stdout.strip() if rev_before.returncode == 0 else None
+
+                    # Pull
+                    result = subprocess.run(
+                        ["git", "-C", local_path, "pull", "--ff-only"],
+                        capture_output=True,
+                        text=True,
+                        timeout=120,
+                    )
+                    if result.returncode != 0:
+                        # Try fetch + reset if ff-only fails
+                        subprocess.run(
+                            ["git", "-C", local_path, "fetch", "origin"],
+                            capture_output=True,
+                            text=True,
+                            timeout=120,
+                        )
+                        subprocess.run(
+                            ["git", "-C", local_path, "reset", "--hard", "origin/HEAD"],
+                            capture_output=True,
+                            text=True,
+                            timeout=60,
+                        )
+
+                    pulled += 1
+
+                    # Get new rev after pull
+                    rev_after = subprocess.run(
+                        ["git", "-C", local_path, "rev-parse", "HEAD"],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    new_rev = rev_after.stdout.strip() if rev_after.returncode == 0 else None
+
+                    # Update last_pull timestamp
+                    with get_db_cursor(commit=True) as (conn2, cur2):
+                        cur2.execute(
+                            "UPDATE github_repositories SET last_pull = NOW(), updated_at = NOW() WHERE id = %s",
+                            (repo_row["id"],),
+                        )
+
+                    # Check if anything changed
+                    if old_rev and new_rev and old_rev != new_rev:
+                        # Count changed files
+                        diff_result = subprocess.run(
+                            [
+                                "git",
+                                "-C",
+                                local_path,
+                                "diff",
+                                "--name-only",
+                                old_rev,
+                                new_rev,
+                            ],
+                            capture_output=True,
+                            text=True,
+                            timeout=30,
+                        )
+                        changed_files = [
+                            f
+                            for f in diff_result.stdout.strip().split("\n")
+                            if f.strip()
+                        ]
+                        changed_repos.append(
+                            {
+                                "name": repo_name,
+                                "type": repo_type,
+                                "changed_files": len(changed_files),
+                            }
+                        )
+
+                        # Trigger re-index via internal API
+                        try:
+                            import requests as _req
+
+                            api_key = os.getenv(
+                                "ARCHIE_API_KEY", "dev-api-key-change-in-production"
+                            )
+                            _req.post(
+                                f"http://localhost:{os.getenv('PLATFORM_PORT', '3000')}/tools/consciousness/github/index-selective",
+                                json={
+                                    "repo_url": f"https://github.com/{repo_name}",
+                                    "priority": "medium",
+                                },
+                                headers={"Authorization": f"Bearer {api_key}"},
+                                timeout=10,
+                            )
+                            logger.info(
+                                f"[GitPull] Re-index triggered for {repo_name} "
+                                f"({len(changed_files)} files changed)"
+                            )
+                        except Exception as idx_err:
+                            logger.warning(
+                                f"[GitPull] Re-index trigger failed for {repo_name}: {idx_err}"
+                            )
+
+                except subprocess.TimeoutExpired:
+                    errors.append(f"{repo_name}: timeout")
+                except Exception as pull_err:
+                    errors.append(f"{repo_name}: {str(pull_err)[:80]}")
+
+            # Send Telegram notification if repos changed
+            if changed_repos:
+                try:
+                    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+                    if bot_token:
+                        lines = ["🔄 *GitHub Auto-Pull Complete*\n"]
+                        total_changed = sum(r["changed_files"] for r in changed_repos)
+                        lines.append(
+                            f"*{len(changed_repos)}* repos updated, "
+                            f"*{total_changed}* files changed\n"
+                        )
+                        for r in changed_repos[:10]:
+                            lines.append(
+                                f"• `{r['name']}` — {r['changed_files']} files"
+                            )
+                        if len(changed_repos) > 10:
+                            lines.append(f"• ...and {len(changed_repos) - 10} more")
+                        lines.append(
+                            "\n_Re-index triggered. Skill sync will run next cycle._"
+                        )
+                        text = "\n".join(lines)
+
+                        from db import get_db
+
+                        tg_conn = get_db()
+                        tg_cur = tg_conn.cursor()
+                        tg_cur.execute(
+                            "SELECT telegram_id FROM telegram_users "
+                            "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
+                        )
+                        for row in tg_cur.fetchall():
+                            _req.post(
+                                f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                                json={
+                                    "chat_id": row[0],
+                                    "text": text,
+                                    "parse_mode": "Markdown",
+                                },
+                                timeout=15,
+                            )
+                        tg_cur.close()
+                        tg_conn.close()
+                except Exception as tg_err:
+                    logger.warning(f"[GitPull] Telegram notification failed: {tg_err}")
+
+            logger.info(
+                f"[GitPull] Pulled {pulled} repos, "
+                f"{len(changed_repos)} had changes, {len(errors)} errors"
+            )
+            self._log_cycle(
+                "github_auto_pull",
+                1,
+                0,
+                int((time.time() - start) * 1000),
+            )
+
+        except Exception as e:
+            logger.warning(f"[GitPull] Auto-pull failed: {e}")
+            self._log_cycle(
+                "github_auto_pull",
+                0,
+                1,
+                int((time.time() - start) * 1000),
+                error_message=str(e),
+            )
 
     def _check_fleet_health(self):
         """Job #45: Monitor fleet node heartbeats — return agents to barracks if offline."""

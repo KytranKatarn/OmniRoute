@@ -1341,6 +1341,378 @@ def health():
 
 
 # ============================================================================
+# EXTERNAL API ENDPOINTS (/api/archie/*)
+# Migrated from tools/archie_core/api.py (archie_api_bp removed)
+# HA bridge routes (/api/archie/ha/*) are registered via archie_chat blueprint
+# ============================================================================
+
+
+def require_api_key(f):
+    """Decorator to require API key authentication for external API endpoints"""
+
+    def decorated_function(*args, **kwargs):
+        api_key = request.headers.get("Authorization")
+
+        if not api_key:
+            return jsonify({"error": "No API key provided"}), 401
+
+        # Remove 'Bearer ' prefix if present
+        if api_key.startswith("Bearer "):
+            api_key = api_key[7:]
+
+        # Verify API key against environment variable
+        valid_key = os.getenv("ARCHIE_API_KEY", "dev-api-key-change-in-production")
+
+        if api_key != valid_key:
+            return jsonify({"error": "Invalid API key"}), 401
+
+        return f(*args, **kwargs)
+
+    decorated_function.__name__ = f.__name__
+    return decorated_function
+
+
+@app.route("/api/archie/health", methods=["GET"])
+def archie_api_health():
+    """Health check endpoint for external monitoring"""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT 1")
+        db_healthy = True
+        cur.close()
+        conn.close()
+    except Exception:
+        db_healthy = False
+
+    status = "healthy" if db_healthy else "degraded"
+    return (
+        jsonify(
+            {
+                "status": status,
+                "timestamp": datetime.now().isoformat(),
+                "components": {
+                    "database": {"status": "operational" if db_healthy else "error"},
+                },
+            }
+        ),
+        200 if db_healthy else 500,
+    )
+
+
+@app.route("/api/archie/search", methods=["POST"])
+@require_api_key
+def archie_api_search():
+    """Search A.R.C.H.I.E.'s knowledge base"""
+    try:
+        data = request.get_json()
+
+        if not data or "query" not in data:
+            return jsonify({"success": False, "error": "No query provided"}), 400
+
+        query = data["query"]
+        category = data.get("category")
+        limit = data.get("limit", 5)
+        min_confidence = data.get("min_confidence", 0.7)
+
+        search_start = time.time()
+
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        search_query = """
+            SELECT
+                id,
+                content as title,
+                content,
+                memory_type as category,
+                importance_score as confidence,
+                source,
+                created_at as last_updated
+            FROM long_term_memory
+            WHERE
+                (content ILIKE %s OR tags::text ILIKE %s)
+                AND importance_score >= %s
+        """
+
+        params = [f"%{query}%", f"%{query}%", min_confidence]
+
+        if category:
+            search_query += " AND memory_type = %s"
+            params.append(category)
+
+        search_query += " ORDER BY importance_score DESC LIMIT %s"
+        params.append(limit)
+
+        cur.execute(search_query, params)
+        results = cur.fetchall()
+
+        cur.execute(
+            """
+            SELECT DISTINCT ON (message)
+                id,
+                message as title,
+                response as content,
+                0.8 as confidence,
+                'conversation_history' as source,
+                created_at as last_updated
+            FROM ai_conversations
+            WHERE message ILIKE %s OR response ILIKE %s
+            ORDER BY message, created_at DESC
+            LIMIT %s
+        """,
+            (f"%{query}%", f"%{query}%", limit),
+        )
+
+        conversation_results = cur.fetchall()
+
+        all_results = []
+
+        for r in results:
+            all_results.append(
+                {
+                    "id": str(r["id"]),
+                    "title": r["title"][:100] if r["title"] else "Knowledge Entry",
+                    "content": r["content"],
+                    "confidence": float(r["confidence"]) if r["confidence"] else 0.8,
+                    "source": r.get("source", "internal_kb"),
+                    "last_updated": (r["last_updated"].isoformat() if r["last_updated"] else None),
+                    "category": r.get("category", "general"),
+                }
+            )
+
+        for r in conversation_results:
+            all_results.append(
+                {
+                    "id": str(r["id"]),
+                    "title": r["title"][:100],
+                    "content": r["content"],
+                    "confidence": 0.75,
+                    "source": "conversation_history",
+                    "last_updated": (r["last_updated"].isoformat() if r["last_updated"] else None),
+                    "category": "support_history",
+                }
+            )
+
+        all_results.sort(key=lambda x: x["confidence"], reverse=True)
+        all_results = all_results[:limit]
+
+        query_time = int((time.time() - search_start) * 1000)
+
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "results": all_results,
+                    "query_time_ms": query_time,
+                    "total_results": len(all_results),
+                }
+            ),
+            200,
+        )
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
+
+
+@app.route("/api/archie/learn", methods=["POST"])
+@require_api_key
+def archie_api_learn():
+    """Submit learning/feedback data to A.R.C.H.I.E."""
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({"success": False, "error": "No data provided"}), 400
+
+        conversation_id = data.get("conversation_id")
+        insights = data.get("insights", {})
+        outcome = data.get("outcome", "unknown")
+        feedback = data.get("feedback", {})
+
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        learning_content = {
+            "conversation_id": conversation_id,
+            "insights": insights,
+            "outcome": outcome,
+            "feedback": feedback,
+        }
+
+        importance_score = 0.5
+        if outcome == "success":
+            importance_score = 0.8
+        elif outcome == "failed":
+            importance_score = 0.9
+
+        cur.execute(
+            """
+            INSERT INTO long_term_memory
+            (content, memory_type, importance_score, source, metadata, tags)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """,
+            (
+                json.dumps(learning_content),
+                "learning_data",
+                importance_score,
+                "call_system",
+                json.dumps(feedback),
+                json.dumps(["call_handling", outcome]),
+            ),
+        )
+
+        learning_id = cur.fetchone()["id"]
+
+        if insights:
+            for key, value in insights.items():
+                if value and (isinstance(value, list) and len(value) > 0):
+                    cur.execute(
+                        """
+                        INSERT INTO long_term_memory
+                        (content, memory_type, importance_score, source, tags)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """,
+                        (
+                            json.dumps({key: value}),
+                            "insight",
+                            0.7,
+                            "call_system",
+                            json.dumps([key, "call_handling"]),
+                        ),
+                    )
+
+        conn.commit()
+
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "learning_job_id": str(learning_id),
+                    "status": "completed",
+                    "message": "Learning data stored successfully",
+                }
+            ),
+            202,
+        )
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
+
+
+@app.route("/api/archie/learn/batch", methods=["POST"])
+@require_api_key
+def archie_api_learn_batch():
+    """Submit batch learning data"""
+    try:
+        data = request.get_json()
+
+        if not data or "conversations" not in data:
+            return (
+                jsonify({"success": False, "error": "No conversations provided"}),
+                400,
+            )
+
+        conversations = data["conversations"]
+        learning_mode = data.get("learning_mode", "incremental")
+
+        conn = get_db()
+        cur = conn.cursor()
+
+        processed_count = 0
+        for conv in conversations:
+            learning_data = {
+                "conversation_id": conv.get("id"),
+                "outcome": conv.get("outcome"),
+                "satisfaction": conv.get("satisfaction"),
+                "insights": conv.get("insights", {}),
+            }
+
+            cur.execute(
+                """
+                INSERT INTO long_term_memory
+                (content, memory_type, importance_score, source, tags)
+                VALUES (%s, %s, %s, %s, %s)
+            """,
+                (
+                    json.dumps(learning_data),
+                    "batch_learning",
+                    0.7,
+                    "call_system_batch",
+                    json.dumps(["batch_learning", learning_mode]),
+                ),
+            )
+
+            processed_count += 1
+
+        conn.commit()
+
+        job_id = str(datetime.now().timestamp()).replace(".", "")
+
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "job_id": job_id,
+                    "conversations_queued": processed_count,
+                    "estimated_completion": datetime.now().isoformat(),
+                    "status": "completed",
+                }
+            ),
+            202,
+        )
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
+
+
+@app.route("/api/archie/learn/status/<job_id>", methods=["GET"])
+@require_api_key
+def archie_api_learn_status(job_id):
+    """Check the status of a learning job"""
+    return (
+        jsonify(
+            {
+                "success": True,
+                "job_id": job_id,
+                "status": "completed",
+                "progress_percent": 100,
+                "improvements_detected": ["Learning data processed successfully"],
+            }
+        ),
+        200,
+    )
+
+
+# ============================================================================
 # MODULE REGISTRY - Dynamic Blueprint Loading
 # ============================================================================
 
@@ -1380,7 +1752,7 @@ app.config["MODULE_REGISTRY_FAILED"] = failed_modules
 
 # Import additional blueprints not yet in module registry
 # NOTE: consciousness_bp and backup_manager_bp are now loaded via module_registry
-from tools.archie_core.api import archie_api_bp  # noqa: E402
+# NOTE: archie_api_bp removed — endpoints migrated directly into app.py above
 from tools.github_integration.github_routes import github_bp  # noqa: E402
 from tools.dev_pipeline.services.sandbox_routes import sandbox_bp  # noqa: E402
 
@@ -1397,7 +1769,6 @@ logger.info("OAuth initialized with Google provider")
 
 # Register additional blueprints
 # Note: app_builder_bp, archie_chat_bp, consciousness_bp, backup_manager_bp, dev_pipeline_bp loaded via module_registry
-app.register_blueprint(archie_api_bp)
 app.register_blueprint(github_bp)
 app.register_blueprint(sandbox_bp)  # Sandbox environment for testing proposals
 app.register_blueprint(cursor_bp)  # Cursor IDE integration API

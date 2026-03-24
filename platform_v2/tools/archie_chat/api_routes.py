@@ -139,7 +139,7 @@ def register_routes(bp, admin_required):
 
         conversation_id_param = body.get("conversation_id")  # UUID string or None
         agent_target = body.get("agent_target")
-        include_thinking = bool(body.get("include_thinking", False))
+        include_thinking = bool(body.get("include_thinking", True))
 
         # Rate limit for API key users
         if user.get("auth_method") == "api_key":
@@ -359,7 +359,7 @@ def register_routes(bp, admin_required):
         if not conv:
             return _error("NOT_FOUND", "Conversation not found or access denied", 404)
 
-        include_thinking = request.args.get("include_thinking", "false").lower() == "true"
+        include_thinking = request.args.get("include_thinking", "true").lower() != "false"
         limit = request.args.get("limit", 50, type=int)
         before_id = request.args.get("before", None, type=int)
 

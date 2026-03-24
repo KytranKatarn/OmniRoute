@@ -606,3 +606,93 @@ compliance/
 - Low-risk fixes auto-applied (Tier 1 auto-approval)
 - Medium/high-risk fixes queued for human approval via Telegram (Tier 2)
 - Compliance score tracking over time with alerting on regression
+
+---
+
+## Appendix A: .ckl Export Format Reference
+
+STIG Viewer uses XML-based `.ckl` (checklist) files. Minimal structure:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<CHECKLIST>
+  <ASSET>
+    <ROLE>None</ROLE>
+    <ASSET_TYPE>Computing</ASSET_TYPE>
+    <HOST_NAME>archie-hub</HOST_NAME>
+    <HOST_IP>192.168.1.200</HOST_IP>
+    <HOST_FQDN>archie.local</HOST_FQDN>
+    <TARGET_KEY>4072</TARGET_KEY>
+    <WEB_OR_DATABASE>false</WEB_OR_DATABASE>
+  </ASSET>
+  <STIGS>
+    <iSTIG>
+      <STIG_INFO>
+        <SI_DATA><SID_NAME>title</SID_NAME><SID_DATA>Ubuntu 22.04 STIG</SID_DATA></SI_DATA>
+        <SI_DATA><SID_NAME>version</SID_NAME><SID_DATA>V1R1</SID_DATA></SI_DATA>
+      </STIG_INFO>
+      <VULN>
+        <STIG_DATA><VULN_ATTRIBUTE>Vuln_Num</VULN_ATTRIBUTE><ATTRIBUTE_DATA>V-238196</ATTRIBUTE_DATA></STIG_DATA>
+        <STIG_DATA><VULN_ATTRIBUTE>Severity</VULN_ATTRIBUTE><ATTRIBUTE_DATA>high</ATTRIBUTE_DATA></STIG_DATA>
+        <STIG_DATA><VULN_ATTRIBUTE>Rule_Title</VULN_ATTRIBUTE><ATTRIBUTE_DATA>SSH FIPS MACs</ATTRIBUTE_DATA></STIG_DATA>
+        <STATUS>NotAFinding</STATUS>
+        <FINDING_DETAILS>Automated check: PASS. MACs set to hmac-sha2-256,hmac-sha2-512</FINDING_DETAILS>
+        <COMMENTS>Scanned by Kytran Server Manager</COMMENTS>
+      </VULN>
+    </iSTIG>
+  </STIGS>
+</CHECKLIST>
+```
+
+Status values: `NotAFinding` (pass), `Open` (fail), `Not_Applicable`, `Not_Reviewed` (manual).
+
+Reference: DISA STIG Viewer 2.x format specification.
+
+## Appendix B: Evidence Artifact Types
+
+| Type Key | Description | Collection Source |
+|----------|-------------|-------------------|
+| `firewall_config` | UFW rules + status snapshot | System Ops firewall API |
+| `audit_log_export` | Last 90 days of audit entries | audit_log table |
+| `ssl_cert_status` | All monitored cert statuses + expiry | SSL monitors |
+| `access_control_config` | RBAC roles, permissions, user list | RBAC + users table |
+| `docker_config` | daemon.json + container security audit | System Ops docker API |
+| `password_policy` | PAM config + login.defs | host_command_client |
+| `service_inventory` | Running/enabled services | System Ops services API |
+| `sysctl_dump` | All kernel parameters | host_command_client |
+| `package_list` | Installed packages with versions | host_command_client |
+| `network_listeners` | Listening ports + owning processes | System Ops network API |
+| `user_accounts` | Active users, roles, last login dates | users table |
+| `backup_status` | Last backup run + verification | Backup Manager API |
+| `vulnerability_scan` | Latest Nmap/Nuclei results | Security Network scans |
+
+## Appendix C: SQLite Schema Translation (Standalone)
+
+| PostgreSQL | SQLite Equivalent |
+|------------|-------------------|
+| `SERIAL PRIMARY KEY` | `INTEGER PRIMARY KEY AUTOINCREMENT` |
+| `UUID` | `TEXT` (store as string) |
+| `JSONB` | `TEXT` (store as JSON string, parse in Python) |
+| `TEXT[]` | `TEXT` (store as comma-separated or JSON array) |
+| `TIMESTAMP DEFAULT NOW()` | `TIMESTAMP DEFAULT CURRENT_TIMESTAMP` |
+| `DECIMAL(5,2)` | `REAL` |
+| `VARCHAR(N)` | `TEXT` (SQLite ignores length) |
+| `REFERENCES table(col)` | Supported (enable with `PRAGMA foreign_keys = ON`) |
+| `CHECK constraints` | Supported natively |
+
+## Appendix D: Batch Remediation Safety
+
+- **Max per batch:** 10 fixes
+- **Confirmation required:** Always, even for low-risk
+- **If > 5 fixes in batch:** Extra warning: "You are about to apply N fixes. Review each one below."
+- **Execution order:** Low-risk first, then medium (high-risk never batched)
+- **Rollback:** Before-values stored in `compliance_remediations` for manual rollback reference
+- **No auto-batch for services that require restart** — each restart is a separate confirmation
+
+## Appendix E: Fleet Compliance Aggregation
+
+- Each node scanned independently (scan has `node_id` column in `compliance_scans`)
+- Hub Compliance tab shows: hub score + per-node scores in a fleet summary card
+- Clicking a node shows that node's findings (via proxy, same as Starship health panels)
+- Badge API returns hub scores by default; `?node_id=xxx` parameter for node-specific scores
+- Fleet-wide score = weighted average by rule count across all online nodes

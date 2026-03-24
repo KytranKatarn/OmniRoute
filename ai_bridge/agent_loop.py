@@ -5024,10 +5024,13 @@ Respond with ONLY a JSON object (no markdown, no explanation):
                         summary = result.get("summary", "")
                         target_stations = result.get("target_stations", [])
 
+                        # Determine final status based on quality
+                        new_status = "registered" if quality >= 3 else "analyzed"
+
                         with get_db_cursor(commit=True) as (conn2, cur2):
                             cur2.execute(
                                 """UPDATE github_skills
-                                   SET status = 'analyzed',
+                                   SET status = %s,
                                        quality_score = %s,
                                        description = %s,
                                        capabilities = %s,
@@ -5035,6 +5038,7 @@ Respond with ONLY a JSON object (no markdown, no explanation):
                                        updated_at = NOW()
                                    WHERE id = %s""",
                                 (
+                                    new_status,
                                     quality,
                                     summary[:500] if summary else skill.get("description"),
                                     json.dumps(capabilities),
@@ -5042,6 +5046,83 @@ Respond with ONLY a JSON object (no markdown, no explanation):
                                     skill_id,
                                 ),
                             )
+
+                            # Auto-assign to agents if quality >= 3
+                            if quality >= 3 and target_stations:
+                                # Map station names to skill_category values
+                                station_to_category = {
+                                    "ENGINEERING": "engineering",
+                                    "RESEARCH": "research",
+                                    "ANALYTICS": "analytics",
+                                    "CREATIVE": "creative",
+                                    "SECURITY": "security",
+                                    "OPERATIONS": "operations",
+                                    "COMMUNICATIONS": "communications",
+                                    "LOGISTICS": "logistics",
+                                    "COMMAND": "operations",
+                                    "DIPLOMATIC": "diplomacy",
+                                }
+                                categories = [
+                                    station_to_category.get(s.upper(), s.lower())
+                                    for s in target_stations
+                                ]
+
+                                # Find agents on target stations
+                                cur2.execute(
+                                    """SELECT DISTINCT a.id, a.name
+                                       FROM agents a
+                                       JOIN station_assignments sa ON sa.agent_id = a.id
+                                       WHERE sa.is_active = true
+                                         AND a.shift_state IN ('active', 'deployed')
+                                         AND EXISTS (
+                                             SELECT 1 FROM agent_skills ask
+                                             WHERE ask.agent_id = a.id
+                                               AND ask.skill_category = ANY(%s)
+                                         )""",
+                                    (categories,),
+                                )
+                                target_agents = cur2.fetchall()
+
+                                assigned_ids = []
+                                for agent_row in target_agents:
+                                    # Use first capability as skill name
+                                    gh_skill_name = (
+                                        f"gh:{capabilities[0]}"
+                                        if capabilities
+                                        else f"gh:{skill['skill_name'][:50]}"
+                                    )
+                                    cur2.execute(
+                                        """INSERT INTO agent_skills
+                                               (agent_id, skill_name, skill_category,
+                                                proficiency_level, notes)
+                                           VALUES (%s, %s, %s, %s, %s)
+                                           ON CONFLICT (agent_id, skill_name)
+                                           DO NOTHING""",
+                                        (
+                                            agent_row["id"],
+                                            gh_skill_name,
+                                            categories[0] if categories else "general",
+                                            min(quality, 3),
+                                            f"Auto-assigned from {skill['repo_name']}",
+                                        ),
+                                    )
+                                    if cur2.rowcount > 0:
+                                        assigned_ids.append(agent_row["id"])
+
+                                # Update github_skills with assigned agent IDs
+                                if assigned_ids:
+                                    cur2.execute(
+                                        """UPDATE github_skills
+                                           SET agent_ids = %s
+                                           WHERE id = %s""",
+                                        (json.dumps(assigned_ids), skill_id),
+                                    )
+                                    logger.info(
+                                        f"[SkillAnalyzer] Assigned skill to "
+                                        f"{len(assigned_ids)} agents: "
+                                        f"{[a['name'] for a in target_agents[:3]]}"
+                                    )
+
                         analyzed += 1
                         logger.info(
                             f"[SkillAnalyzer] Analyzed {skill['skill_name']} "

@@ -165,31 +165,21 @@ class OrchestrationEngine:
         """Lazy-load intent parser"""
         if self._intent_parser is None:
             try:
-                # Try package import first (when /mnt/archie_brain is on sys.path)
-                from platform_v2.tools.archie_core.intent_parser import (
-                    get_intent_parser,
-                )
+                # New location: archie_engine_staging (Task 1.5+)
+                from archie_engine_staging.intent_parser import IntentParser
 
-                self._intent_parser = get_intent_parser()
+                self._intent_parser = IntentParser()
             except ImportError:
                 try:
-                    # Try direct import (when archie_core is on sys.path)
-                    from tools.archie_core.intent_parser import get_intent_parser
+                    # Legacy location: archie_core (pre-migration)
+                    from platform_v2.tools.archie_core.intent_parser import (
+                        get_intent_parser,
+                    )
 
                     self._intent_parser = get_intent_parser()
                 except ImportError:
                     try:
-                        # Fallback: add to path directly
-                        parser_path = os.path.join(
-                            os.path.dirname(__file__),
-                            "..",
-                            "platform_v2",
-                            "tools",
-                            "archie_core",
-                        )
-                        if parser_path not in sys.path:
-                            sys.path.insert(0, parser_path)
-                        from intent_parser import get_intent_parser
+                        from tools.archie_core.intent_parser import get_intent_parser
 
                         self._intent_parser = get_intent_parser()
                     except ImportError as e:
@@ -795,15 +785,10 @@ class OrchestrationEngine:
                 }
 
             # --- Build messages list ---
-            ArchieAI_cls = None
-            for path in [
-                "/app/tools/archie_core",
-                os.path.join(os.path.dirname(__file__), "..", "platform_v2", "tools", "archie_core"),
-            ]:
-                if os.path.exists(os.path.join(path, "ai_chat.py")):
-                    sys.path.insert(0, path)
-                    from ai_chat import ArchieAI as ArchieAI_cls
-                    break
+            try:
+                from tools.archie_core.ai_chat import ArchieAI as ArchieAI_cls
+            except ImportError:
+                ArchieAI_cls = None  # archie_core migrated — use fallback prompting
 
             system_prompt = "You are A.R.C.H.I.E., a helpful AI assistant."
             if ArchieAI_cls:
@@ -2383,24 +2368,10 @@ You can ask me to:
         """Execute via local Ollama (dolphin3 or whatever is loaded)"""
         try:
             # Use ArchieAI for personality-enriched responses
-            # Try multiple import paths: /app/tools/archie_core (container)
-            # or relative from ai_bridge (host dev)
-            ArchieAI = None
-            for path in [
-                "/app/tools/archie_core",
-                os.path.join(
-                    os.path.dirname(__file__),
-                    "..",
-                    "platform_v2",
-                    "tools",
-                    "archie_core",
-                ),
-            ]:
-                if os.path.exists(os.path.join(path, "ai_chat.py")):
-                    sys.path.insert(0, path)
-                    from ai_chat import ArchieAI
-
-                    break
+            try:
+                from tools.archie_core.ai_chat import ArchieAI
+            except ImportError:
+                ArchieAI = None  # archie_core migrated — use fallback prompting
 
             if ArchieAI is None:
                 raise ImportError("Could not find ai_chat module")

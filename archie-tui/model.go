@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -12,8 +14,24 @@ import (
 	"github.com/KytranKatarn/archie-tui/views"
 )
 
+const asciiBanner = `
+   ╔═══════════════════════════════════════════════════════════╗
+   ║                                                           ║
+   ║    █████╗ ██████╗  ██████╗██╗  ██╗██╗███████╗            ║
+   ║   ██╔══██╗██╔══██╗██╔════╝██║  ██║██║██╔════╝            ║
+   ║   ███████║██████╔╝██║     ███████║██║█████╗              ║
+   ║   ██╔══██║██╔══██╗██║     ██╔══██║██║██╔══╝              ║
+   ║   ██║  ██║██║  ██║╚██████╗██║  ██║██║███████╗            ║
+   ║   ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═╝╚══════╝            ║
+   ║                                                           ║
+   ║          C O D E   C L I   v0.1.0                         ║
+   ║          AI-Powered Development Terminal                  ║
+   ║                                                           ║
+   ╚═══════════════════════════════════════════════════════════╝`
+
 type model struct {
 	input       textinput.Model
+	spinner     spinner.Model
 	chat        *views.ChatView
 	statusBar   *views.StatusBar
 	skillPicker *views.SkillPicker
@@ -23,6 +41,8 @@ type model struct {
 	width       int
 	height      int
 	connected   bool
+	thinking    bool
+	booting     bool
 	err         error
 }
 
@@ -35,27 +55,36 @@ func initialModel(wsURL string) model {
 	ti.Prompt = "❯ "
 	ti.PromptStyle = InputPromptStyle
 
+	sp := spinner.New()
+	sp.Spinner = spinner.Spinner{
+		Frames: []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
+		FPS:    80 * time.Millisecond,
+	}
+	sp.Style = lipgloss.NewStyle().Foreground(ColorCyan)
+
 	ch := make(chan EngineResponseMsg, 64)
 
 	return model{
 		input:       ti,
+		spinner:     sp,
 		chat:        views.NewChatView(),
 		statusBar:   views.NewStatusBar(),
 		skillPicker: views.NewSkillPicker(),
 		client:      NewClient(wsURL),
 		msgChan:     ch,
+		booting:     true,
 	}
 }
 
 func (m model) Init() tea.Cmd {
 	return tea.Batch(
 		textinput.Blink,
+		m.spinner.Tick,
 		m.connectCmd(),
 	)
 }
 
 // waitForEngine listens on the channel for incoming WebSocket messages
-// and converts them into Bubble Tea messages. Re-queues itself after each.
 func waitForEngine(ch chan EngineResponseMsg) tea.Cmd {
 	return func() tea.Msg {
 		return <-ch
@@ -72,7 +101,6 @@ func (m model) connectCmd() tea.Cmd {
 			data, _ := json.Marshal(raw)
 			var msg EngineResponseMsg
 			_ = json.Unmarshal(data, &msg)
-			// Also grab type from raw since it might not map cleanly
 			if t, ok := raw["type"].(string); ok {
 				msg.Type = t
 			}
@@ -88,7 +116,6 @@ func (m model) connectCmd() tea.Cmd {
 			if n, ok := raw["node_id"].(string); ok {
 				msg.NodeID = n
 			}
-			// Handle skills_list
 			if skills, ok := raw["skills"].([]interface{}); ok {
 				for _, s := range skills {
 					if sm, ok := s.(map[string]interface{}); ok {
@@ -107,17 +134,11 @@ func (m model) connectCmd() tea.Cmd {
 			return DisconnectedMsg{Err: err}
 		}
 
-		// Store the connected client
-		m.client = client
-
-		// Create session
 		_ = client.Send(map[string]interface{}{
 			"type":        "session_create",
 			"working_dir": ".",
 		})
-		// Request skills
 		_ = client.Send(map[string]interface{}{"type": "list_skills"})
-		// Request hub status
 		_ = client.Send(map[string]interface{}{"type": "hub_status"})
 
 		return ConnectedMsg{Client: client}
@@ -148,6 +169,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.chat.AddMessage("user", val)
 			m.input.SetValue("")
 			if m.connected {
+				m.thinking = true
 				_ = m.client.SendMessage(val, m.sessionID)
 			} else {
 				m.chat.AddMessage("system", "Not connected to engine")
@@ -181,28 +203,35 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.input.Width = msg.Width - 4
 		m.chat.Width = msg.Width
-		m.chat.Height = msg.Height - 5
+		m.chat.Height = msg.Height - 6
 		m.statusBar.Width = msg.Width
 		m.skillPicker.Width = msg.Width
 		m.skillPicker.Height = msg.Height / 2
 
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+
 	case ConnectedMsg:
 		m.connected = true
+		m.booting = false
 		if msg.Client != nil {
 			m.client = msg.Client
 		}
 		m.chat.AddMessage("system", "Connected to ARCHIE Engine")
-		// Start listening for engine responses
 		return m, waitForEngine(m.msgChan)
 
 	case DisconnectedMsg:
 		m.connected = false
+		m.booting = false
 		if msg.Err != nil {
 			m.chat.AddMessage("system", fmt.Sprintf("Engine not running: %v", msg.Err))
 			m.chat.AddMessage("system", "Start engine: python -m archie_engine")
 		}
 
 	case EngineResponseMsg:
+		m.thinking = false
 		switch msg.Type {
 		case "response":
 			m.chat.AddMessage("assistant", msg.Content)
@@ -222,7 +251,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "error":
 			m.chat.AddMessage("system", fmt.Sprintf("Error: %s", msg.Content))
 		}
-		// Keep listening for more messages
 		return m, waitForEngine(m.msgChan)
 	}
 
@@ -238,23 +266,44 @@ func (m model) View() string {
 
 	var sections []string
 
-	banner := BannerStyle.Render("  A.R.C.H.I.E. Code CLI")
-	sections = append(sections, banner, "")
+	// Show ASCII banner when booting or at start with few messages
+	if m.booting || len(m.chat.Messages) == 0 {
+		bannerStyle := lipgloss.NewStyle().Foreground(ColorCyan)
+		sections = append(sections, bannerStyle.Render(asciiBanner))
+		sections = append(sections, "")
+	} else {
+		banner := BannerStyle.Render("  A.R.C.H.I.E. Code CLI")
+		sections = append(sections, banner, "")
+	}
 
+	// Chat area
 	chatContent := m.chat.Render()
 	sections = append(sections, chatContent)
 
+	// Thinking indicator
+	if m.thinking {
+		thinkStyle := lipgloss.NewStyle().Foreground(ColorCyan).Italic(true)
+		sections = append(sections, thinkStyle.Render(
+			fmt.Sprintf("  %s ARCHIE is thinking...", m.spinner.View()),
+		))
+	}
+
+	// Skill picker overlay
 	if m.skillPicker.Visible {
 		sections = append(sections, m.skillPicker.Render())
 	}
 
+	// Fill remaining space
 	mainContent := strings.Join(sections, "\n")
 	mainLines := strings.Count(mainContent, "\n") + 1
 	if mainLines < m.height-3 {
 		mainContent += strings.Repeat("\n", m.height-3-mainLines)
 	}
 
+	// Input line
 	inputLine := lipgloss.NewStyle().Padding(0, 1).Render(m.input.View())
+
+	// Status bar
 	status := m.statusBar.Render()
 
 	return mainContent + "\n" + inputLine + "\n" + status

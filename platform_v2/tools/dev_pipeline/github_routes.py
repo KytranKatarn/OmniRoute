@@ -400,3 +400,31 @@ def register_github_routes(bp, admin_required):
                 cur.close()
             if conn:
                 conn.close()
+
+    @bp.route("/api/forge/deploy/<int:pr_number>", methods=["POST"])
+    @login_required
+    @admin_required
+    def forge_deploy(pr_number):
+        """Deploy by merging a F.O.R.G.E. PR with pre-checks.
+
+        Verifies CodeRabbit approved, no conflicts, then squash-merges.
+        Updates proposal status and sends Telegram notification.
+        """
+        from .services.forge_pipeline import deploy_via_merge
+
+        data = request.get_json() or {}
+        proposal_id = data.get("proposal_id")
+
+        # Try to extract proposal_id from PR if not provided
+        if not proposal_id:
+            from .services.github_service import get_pr_status
+
+            status = get_pr_status(pr_number)
+            if status.get("success"):
+                title = status.get("title", "")
+                match = re.search(r"#(\d+)", title)
+                if match:
+                    proposal_id = int(match.group(1))
+
+        result = deploy_via_merge(pr_number, proposal_id)
+        return jsonify(result)

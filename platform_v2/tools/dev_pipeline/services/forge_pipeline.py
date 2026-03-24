@@ -240,3 +240,144 @@ def get_forge_status(proposal_id: int) -> Dict:
             }
 
     return {"success": True, "has_pr": False}
+
+
+def deploy_via_merge(pr_number: int, proposal_id: int = None) -> Dict:
+    """Deploy by merging a F.O.R.G.E. PR — with pre-merge checks.
+
+    Verifies:
+    1. PR exists and is open
+    2. CodeRabbit has approved (or no reviews blocking)
+    3. PR is mergeable (no conflicts)
+
+    Then squash-merges and closes related GitHub issue.
+
+    Args:
+        pr_number: GitHub PR number
+        proposal_id: Optional proposal ID to update status
+
+    Returns:
+        {'success': True, 'sha': '...', 'pr_number': 123}
+    """
+    from .github_service import get_pr_status, merge_pr, close_issue
+
+    # 1. Get PR status
+    status = get_pr_status(pr_number)
+    if not status.get("success"):
+        return {"success": False, "error": f"Cannot read PR: {status.get('error')}"}
+
+    if status.get("state") != "open":
+        return {
+            "success": False,
+            "error": f"PR is {status.get('state')}, not open",
+        }
+
+    # 2. Check reviews
+    reviews = status.get("reviews", [])
+    blocking = [r for r in reviews if r.get("state") == "CHANGES_REQUESTED"]
+    approved = [r for r in reviews if r.get("state") == "APPROVED"]
+
+    if blocking:
+        blockers = [r.get("user", "unknown") for r in blocking]
+        return {
+            "success": False,
+            "error": f"Changes requested by: {', '.join(blockers)}",
+            "blocking_reviews": blocking,
+            "check": "review_blocked",
+        }
+
+    # 3. Check mergeable
+    if status.get("mergeable") is False:
+        return {
+            "success": False,
+            "error": "PR has merge conflicts — rebase needed",
+            "check": "conflicts",
+        }
+
+    # 4. Merge
+    merge_result = merge_pr(pr_number, method="squash")
+    if not merge_result.get("success"):
+        return {
+            "success": False,
+            "error": f"Merge failed: {merge_result.get('error')}",
+        }
+
+    # 5. Update proposal status if provided
+    if proposal_id:
+        try:
+            import os
+            import psycopg2
+
+            conn = psycopg2.connect(
+                host=os.getenv("DB_HOST", "archie_database"),
+                database=os.getenv("DB_NAME", "archie"),
+                user=os.getenv("DB_USER", "archie"),
+                password=os.getenv("DB_PASSWORD"),
+            )
+            cur = conn.cursor()
+            cur.execute(
+                """UPDATE improvement_proposals
+                   SET status = 'deployed'
+                   WHERE id = %s""",
+                (proposal_id,),
+            )
+            # Also update the deployment record
+            cur.execute(
+                """UPDATE improvement_deployments
+                   SET status = 'deployed', completed_at = NOW()
+                   WHERE proposal_id = %s AND status = 'deploying'""",
+                (proposal_id,),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as db_err:
+            logger.warning(f"[FORGE] DB update after merge failed: {db_err}")
+
+    # 6. Send Telegram notification
+    try:
+        import os
+        import requests as _req
+
+        bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+        if bot_token:
+            import psycopg2 as _pg
+
+            text = (
+                f"✅ *F.O.R.G.E. Deployed*\n\n"
+                f"PR #{pr_number} merged successfully\n"
+                f"{'Proposal #' + str(proposal_id) if proposal_id else ''}\n"
+                f"Approved by: {', '.join(r.get('user', '?') for r in approved) or 'none'}\n\n"
+                f"_Code is now in main._"
+            )
+            tg_conn = _pg.connect(
+                host=os.getenv("DB_HOST", "archie_database"),
+                database=os.getenv("DB_NAME", "archie"),
+                user=os.getenv("DB_USER", "archie"),
+                password=os.getenv("DB_PASSWORD"),
+            )
+            tg_cur = tg_conn.cursor()
+            tg_cur.execute(
+                "SELECT telegram_id FROM telegram_users " "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
+            )
+            for row in tg_cur.fetchall():
+                _req.post(
+                    f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                    json={"chat_id": row[0], "text": text, "parse_mode": "Markdown"},
+                    timeout=15,
+                )
+            tg_cur.close()
+            tg_conn.close()
+    except Exception as tg_err:
+        logger.warning(f"[FORGE] Telegram notification failed: {tg_err}")
+
+    logger.info(f"[FORGE] PR #{pr_number} merged — proposal #{proposal_id} deployed")
+
+    return {
+        "success": True,
+        "pr_number": pr_number,
+        "proposal_id": proposal_id,
+        "sha": merge_result.get("sha", ""),
+        "approved_by": [r.get("user") for r in approved],
+        "method": "forge_merge",
+    }

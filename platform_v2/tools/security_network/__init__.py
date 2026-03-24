@@ -10,6 +10,20 @@ security_network_bp = Blueprint("security_network", __name__, url_prefix="/tools
 
 from . import routes  # noqa: E402
 
+# Register compliance routes
+from .routes import admin_required as _admin_required
+from .compliance_routes import register_compliance_routes
+
+register_compliance_routes(security_network_bp, _admin_required)
+
+# Load rule packs on startup
+try:
+    from .compliance_service import load_all_packs as _load_all_packs
+
+    _load_all_packs()
+except Exception:
+    pass  # DB may not be ready during initial import
+
 # Register station actions with Bridge dispatcher
 try:
     from services.action_registry import register_station_actions

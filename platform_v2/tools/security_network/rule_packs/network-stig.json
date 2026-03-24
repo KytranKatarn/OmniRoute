@@ -1,0 +1,516 @@
+{
+  "pack_id": "network-stig",
+  "name": "Network Security STIG",
+  "description": "Security Technical Implementation Guide for network configuration, firewall, ports, and TLS",
+  "version": "1.0",
+  "category": "network",
+  "rules": [
+    {
+      "rule_id": "N-238001",
+      "severity": "high",
+      "title": "UFW must be active with default deny incoming",
+      "description": "A default deny policy ensures only explicitly allowed traffic is permitted.",
+      "check": {
+        "type": "command_output",
+        "command": "ufw status verbose 2>/dev/null | head -5",
+        "expected": "Default: deny (incoming)",
+        "match_pattern": "Default: deny \\(incoming\\)"
+      },
+      "fix": {
+        "type": "command",
+        "command": "ufw default deny incoming && ufw --force enable",
+        "risk": "high"
+      },
+      "soc2_mapping": ["CC6.1", "CC6.6"],
+      "cci": "CCI-000366"
+    },
+    {
+      "rule_id": "N-238002",
+      "severity": "medium",
+      "title": "UFW must allow SSH (port 22)",
+      "description": "SSH access must be allowed for remote management.",
+      "check": {
+        "type": "firewall_rule",
+        "pattern": "22/tcp.*ALLOW",
+        "expected": "ALLOW",
+        "should_exist": true
+      },
+      "fix": {
+        "type": "command",
+        "command": "ufw allow 22/tcp comment 'SSH access'",
+        "risk": "low"
+      },
+      "soc2_mapping": ["CC6.1"],
+      "cci": "CCI-000366"
+    },
+    {
+      "rule_id": "N-238003",
+      "severity": "medium",
+      "title": "UFW must allow HTTP (port 80) if web server active",
+      "description": "HTTP traffic should be explicitly allowed only if a web server is running.",
+      "check": {
+        "type": "firewall_rule",
+        "pattern": "80/tcp.*ALLOW",
+        "expected": "ALLOW",
+        "should_exist": true
+      },
+      "fix": {
+        "type": "command",
+        "command": "ufw allow 80/tcp comment 'HTTP access'",
+        "risk": "low"
+      },
+      "soc2_mapping": ["CC6.6"],
+      "cci": "CCI-000366"
+    },
+    {
+      "rule_id": "N-238004",
+      "severity": "medium",
+      "title": "UFW must allow HTTPS (port 443)",
+      "description": "HTTPS traffic must be explicitly allowed for encrypted web services.",
+      "check": {
+        "type": "firewall_rule",
+        "pattern": "443/tcp.*ALLOW",
+        "expected": "ALLOW",
+        "should_exist": true
+      },
+      "fix": {
+        "type": "command",
+        "command": "ufw allow 443/tcp comment 'HTTPS access'",
+        "risk": "low"
+      },
+      "soc2_mapping": ["CC6.6", "CC6.7"],
+      "cci": "CCI-000366"
+    },
+    {
+      "rule_id": "N-238005",
+      "severity": "high",
+      "title": "Telnet port (23) must not be open",
+      "description": "Telnet transmits credentials in cleartext and must be blocked.",
+      "check": {
+        "type": "port_listening",
+        "port": "23",
+        "should_listen": false
+      },
+      "fix": {
+        "type": "command",
+        "command": "ufw deny 23/tcp comment 'Block telnet' && apt-get remove -y telnetd 2>/dev/null; true",
+        "risk": "low"
+      },
+      "soc2_mapping": ["CC6.1", "CC6.7"],
+      "cci": "CCI-000381"
+    },
+    {
+      "rule_id": "N-238006",
+      "severity": "high",
+      "title": "FTP port (21) must not be open",
+      "description": "FTP transmits credentials in cleartext and should be replaced with SFTP.",
+      "check": {
+        "type": "port_listening",
+        "port": "21",
+        "should_listen": false
+      },
+      "fix": {
+        "type": "command",
+        "command": "ufw deny 21/tcp comment 'Block FTP' && systemctl stop vsftpd 2>/dev/null; systemctl disable vsftpd 2>/dev/null; true",
+        "risk": "low"
+      },
+      "soc2_mapping": ["CC6.1", "CC6.7"],
+      "cci": "CCI-000381"
+    },
+    {
+      "rule_id": "N-238007",
+      "severity": "medium",
+      "title": "SNMP v1/v2c port (161) must not be externally accessible",
+      "description": "SNMP v1/v2c use community strings in cleartext and should not be exposed.",
+      "check": {
+        "type": "port_listening",
+        "port": "161",
+        "should_listen": false
+      },
+      "fix": {
+        "type": "command",
+        "command": "ufw deny 161/udp comment 'Block SNMP' && systemctl stop snmpd 2>/dev/null; true",
+        "risk": "low"
+      },
+      "soc2_mapping": ["CC6.1", "CC6.7"],
+      "cci": "CCI-000366"
+    },
+    {
+      "rule_id": "N-238008",
+      "severity": "high",
+      "title": "RDP port (3389) must not be open on Linux",
+      "description": "RDP is not standard on Linux and if present may indicate unauthorized remote access software.",
+      "check": {
+        "type": "port_listening",
+        "port": "3389",
+        "should_listen": false
+      },
+      "fix": {
+        "type": "command",
+        "command": "ufw deny 3389/tcp comment 'Block RDP'",
+        "risk": "low"
+      },
+      "soc2_mapping": ["CC6.1"],
+      "cci": "CCI-000366"
+    },
+    {
+      "rule_id": "N-238009",
+      "severity": "medium",
+      "title": "NetBIOS ports (137-139) must not be listening",
+      "description": "NetBIOS services expose system information and are common attack vectors.",
+      "check": {
+        "type": "port_listening",
+        "port": "139",
+        "should_listen": false
+      },
+      "fix": {
+        "type": "command",
+        "command": "ufw deny 137:139/tcp comment 'Block NetBIOS' && ufw deny 137:139/udp comment 'Block NetBIOS'",
+        "risk": "low"
+      },
+      "soc2_mapping": ["CC6.1", "CC6.6"],
+      "cci": "CCI-000366"
+    },
+    {
+      "rule_id": "N-238010",
+      "severity": "medium",
+      "title": "SMB port (445) must not be externally accessible",
+      "description": "SMB has a history of critical vulnerabilities and should not be exposed to untrusted networks.",
+      "check": {
+        "type": "port_listening",
+        "port": "445",
+        "should_listen": false
+      },
+      "fix": {
+        "type": "command",
+        "command": "ufw deny 445/tcp comment 'Block SMB'",
+        "risk": "medium"
+      },
+      "soc2_mapping": ["CC6.1", "CC6.6"],
+      "cci": "CCI-000366"
+    },
+    {
+      "rule_id": "N-238011",
+      "severity": "medium",
+      "title": "UFW logging must be enabled",
+      "description": "Firewall logging is essential for detecting and investigating security events.",
+      "check": {
+        "type": "command_output",
+        "command": "ufw status verbose 2>/dev/null | grep -i logging",
+        "expected": "Logging: on",
+        "match_pattern": "Logging: on"
+      },
+      "fix": {
+        "type": "command",
+        "command": "ufw logging on",
+        "risk": "low"
+      },
+      "soc2_mapping": ["CC6.6", "CC7.2"],
+      "cci": "CCI-000366"
+    },
+    {
+      "rule_id": "N-238012",
+      "severity": "medium",
+      "title": "Only approved services should be listening on public interfaces",
+      "description": "Unauthorized listening services increase the attack surface.",
+      "check": {
+        "type": "command_output",
+        "command": "ss -tlnp | grep -v '127.0.0.1' | grep -v '::1' | wc -l",
+        "expected": "",
+        "match_pattern": "^[0-9]+$"
+      },
+      "fix": {
+        "type": "command",
+        "command": "echo 'Review output of ss -tlnp and disable unnecessary services'",
+        "risk": "medium"
+      },
+      "soc2_mapping": ["CC6.1", "CC6.6"],
+      "cci": "CCI-000382"
+    },
+    {
+      "rule_id": "N-238013",
+      "severity": "medium",
+      "title": "IPv6 must be disabled if not required",
+      "description": "If IPv6 is not used, it should be disabled to reduce attack surface.",
+      "check": {
+        "type": "sysctl_value",
+        "param": "net.ipv6.conf.all.disable_ipv6",
+        "expected": "1"
+      },
+      "fix": {
+        "type": "sysctl",
+        "param": "net.ipv6.conf.all.disable_ipv6",
+        "value": "1",
+        "risk": "medium"
+      },
+      "soc2_mapping": ["CC6.6"],
+      "cci": "CCI-000366"
+    },
+    {
+      "rule_id": "N-238014",
+      "severity": "medium",
+      "title": "TCP keepalive must be configured",
+      "description": "Proper TCP keepalive settings prevent stale connections from consuming resources.",
+      "check": {
+        "type": "sysctl_value",
+        "param": "net.ipv4.tcp_keepalive_time",
+        "expected": "600"
+      },
+      "fix": {
+        "type": "sysctl",
+        "param": "net.ipv4.tcp_keepalive_time",
+        "value": "600",
+        "risk": "low"
+      },
+      "soc2_mapping": ["CC7.1"],
+      "cci": "CCI-000366"
+    },
+    {
+      "rule_id": "N-238015",
+      "severity": "medium",
+      "title": "Reverse path filtering must be enabled",
+      "description": "Reverse path filtering prevents IP spoofing by validating source addresses.",
+      "check": {
+        "type": "sysctl_value",
+        "param": "net.ipv4.conf.all.rp_filter",
+        "expected": "1"
+      },
+      "fix": {
+        "type": "sysctl",
+        "param": "net.ipv4.conf.all.rp_filter",
+        "value": "1",
+        "risk": "low"
+      },
+      "soc2_mapping": ["CC6.6"],
+      "cci": "CCI-000366"
+    },
+    {
+      "rule_id": "N-238016",
+      "severity": "medium",
+      "title": "UFW must have rate limiting on SSH",
+      "description": "Rate limiting SSH connections helps prevent brute force attacks.",
+      "check": {
+        "type": "command_output",
+        "command": "ufw status 2>/dev/null | grep -E '22.*LIMIT' || echo 'no limit'",
+        "expected": "LIMIT",
+        "match_pattern": "LIMIT"
+      },
+      "fix": {
+        "type": "command",
+        "command": "ufw delete allow 22/tcp 2>/dev/null; ufw limit 22/tcp comment 'Rate limited SSH'",
+        "risk": "medium"
+      },
+      "soc2_mapping": ["CC6.1"],
+      "cci": "CCI-000044"
+    },
+    {
+      "rule_id": "N-238020",
+      "severity": "high",
+      "title": "SSL/TLS must use TLS 1.2 or higher",
+      "description": "TLS versions below 1.2 have known vulnerabilities and must be disabled.",
+      "check": {
+        "type": "command_output",
+        "command": "openssl s_client -connect 127.0.0.1:443 -tls1 </dev/null 2>&1 | grep -c 'alert protocol version\\|no protocols available\\|wrong version' || echo '0'",
+        "expected": "",
+        "match_pattern": "[1-9]"
+      },
+      "fix": {
+        "type": "command",
+        "command": "echo 'Disable TLSv1.0 and TLSv1.1 in web server configuration (nginx: ssl_protocols TLSv1.2 TLSv1.3;)'",
+        "risk": "medium"
+      },
+      "soc2_mapping": ["CC6.1", "CC6.7"],
+      "cci": "CCI-001453"
+    },
+    {
+      "rule_id": "N-238021",
+      "severity": "high",
+      "title": "SSL/TLS must not use SSLv3",
+      "description": "SSLv3 is vulnerable to the POODLE attack and must be disabled.",
+      "check": {
+        "type": "command_output",
+        "command": "openssl s_client -connect 127.0.0.1:443 -ssl3 </dev/null 2>&1 | grep -c 'alert protocol version\\|no protocols available\\|wrong version\\|ssl handshake failure' || echo '0'",
+        "expected": "",
+        "match_pattern": "[1-9]"
+      },
+      "fix": {
+        "type": "command",
+        "command": "echo 'Ensure SSLv3 is disabled in all TLS-terminating services'",
+        "risk": "low"
+      },
+      "soc2_mapping": ["CC6.1", "CC6.7"],
+      "cci": "CCI-001453"
+    },
+    {
+      "rule_id": "N-238022",
+      "severity": "medium",
+      "title": "SSL certificates must not be expired",
+      "description": "Expired certificates cause service disruptions and indicate poor security hygiene.",
+      "check": {
+        "type": "command_output",
+        "command": "find /etc/ssl/certs /etc/letsencrypt/live -name '*.pem' -type f 2>/dev/null | head -5 | while read cert; do openssl x509 -checkend 0 -noout -in \"$cert\" 2>/dev/null || echo \"EXPIRED: $cert\"; done; echo 'check_done'",
+        "expected": "check_done",
+        "match_pattern": "^(?!.*EXPIRED)"
+      },
+      "fix": {
+        "type": "command",
+        "command": "echo 'Renew expired certificates using certbot renew or manual renewal process'",
+        "risk": "low"
+      },
+      "soc2_mapping": ["CC6.1", "CC6.7"],
+      "cci": "CCI-000366"
+    },
+    {
+      "rule_id": "N-238023",
+      "severity": "medium",
+      "title": "SSL certificates must have at least 30 days before expiry",
+      "description": "Certificates expiring within 30 days need immediate renewal attention.",
+      "check": {
+        "type": "command_output",
+        "command": "find /etc/ssl/certs /etc/letsencrypt/live -name '*.pem' -type f 2>/dev/null | head -5 | while read cert; do openssl x509 -checkend 2592000 -noout -in \"$cert\" 2>/dev/null || echo \"EXPIRING_SOON: $cert\"; done; echo 'check_done'",
+        "expected": "check_done",
+        "match_pattern": "^(?!.*EXPIRING_SOON)"
+      },
+      "fix": {
+        "type": "command",
+        "command": "certbot renew --dry-run && certbot renew",
+        "risk": "low"
+      },
+      "soc2_mapping": ["CC6.1", "CC6.7"],
+      "cci": "CCI-000366"
+    },
+    {
+      "rule_id": "N-238024",
+      "severity": "high",
+      "title": "SSL must use strong cipher suites only",
+      "description": "Weak cipher suites can be exploited to decrypt intercepted communications.",
+      "check": {
+        "type": "command_output",
+        "command": "openssl ciphers -v 'ALL:!HIGH:!MEDIUM' 2>/dev/null | wc -l",
+        "expected": "",
+        "match_pattern": "^[0-9]+$"
+      },
+      "fix": {
+        "type": "command",
+        "command": "echo 'Configure web server cipher suite: ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384'",
+        "risk": "medium"
+      },
+      "soc2_mapping": ["CC6.1", "CC6.7"],
+      "cci": "CCI-001453"
+    },
+    {
+      "rule_id": "N-238025",
+      "severity": "medium",
+      "title": "HSTS header must be configured for web services",
+      "description": "HTTP Strict Transport Security prevents protocol downgrade attacks.",
+      "check": {
+        "type": "command_output",
+        "command": "curl -sI https://127.0.0.1 -k 2>/dev/null | grep -i strict-transport-security || echo 'not_found'",
+        "expected": "strict-transport-security",
+        "match_pattern": "(?i)strict-transport-security"
+      },
+      "fix": {
+        "type": "command",
+        "command": "echo 'Add to nginx: add_header Strict-Transport-Security \"max-age=63072000; includeSubDomains; preload\";'",
+        "risk": "low"
+      },
+      "soc2_mapping": ["CC6.7"],
+      "cci": "CCI-000366"
+    },
+    {
+      "rule_id": "N-238026",
+      "severity": "medium",
+      "title": "DNS must use secure resolvers",
+      "description": "DNS queries should use encrypted DNS (DoH/DoT) or trusted resolvers.",
+      "check": {
+        "type": "file_content",
+        "path": "/etc/resolv.conf",
+        "pattern": "^nameserver",
+        "expected": "nameserver"
+      },
+      "fix": {
+        "type": "command",
+        "command": "echo 'Configure DNS-over-TLS or DNS-over-HTTPS with trusted resolvers (1.1.1.1, 8.8.8.8, or local AdGuard)'",
+        "risk": "medium"
+      },
+      "soc2_mapping": ["CC6.7"],
+      "cci": "CCI-000366"
+    },
+    {
+      "rule_id": "N-238027",
+      "severity": "medium",
+      "title": "ARP spoofing protection must be configured",
+      "description": "Static ARP entries for critical hosts prevent ARP spoofing attacks on the local network.",
+      "check": {
+        "type": "command_output",
+        "command": "ip neigh show | grep -c PERMANENT 2>/dev/null || echo '0'",
+        "expected": "",
+        "match_pattern": "^[0-9]+$"
+      },
+      "fix": {
+        "type": "command",
+        "command": "echo 'Add static ARP entries for gateway: ip neigh add <gateway_ip> lladdr <mac> dev <interface> nud permanent'",
+        "risk": "low"
+      },
+      "soc2_mapping": ["CC6.6"],
+      "cci": "CCI-000366"
+    },
+    {
+      "rule_id": "N-238028",
+      "severity": "medium",
+      "title": "Network interfaces must not be in promiscuous mode",
+      "description": "Promiscuous mode allows capturing all network traffic, indicating possible packet sniffing.",
+      "check": {
+        "type": "command_output",
+        "command": "ip link show | grep -c PROMISC || echo '0'",
+        "expected": "0",
+        "match_pattern": "^0$"
+      },
+      "fix": {
+        "type": "command",
+        "command": "for iface in $(ip -o link show | grep PROMISC | awk -F: '{print $2}'); do ip link set $iface promisc off; done",
+        "risk": "medium"
+      },
+      "soc2_mapping": ["CC6.1"],
+      "cci": "CCI-000366"
+    },
+    {
+      "rule_id": "N-238029",
+      "severity": "medium",
+      "title": "TCP timestamps must be enabled",
+      "description": "TCP timestamps help protect against wrapped sequence numbers and improve RTT estimation.",
+      "check": {
+        "type": "sysctl_value",
+        "param": "net.ipv4.tcp_timestamps",
+        "expected": "1"
+      },
+      "fix": {
+        "type": "sysctl",
+        "param": "net.ipv4.tcp_timestamps",
+        "value": "1",
+        "risk": "low"
+      },
+      "soc2_mapping": ["CC6.6"],
+      "cci": "CCI-000366"
+    },
+    {
+      "rule_id": "N-238030",
+      "severity": "high",
+      "title": "Database port (5432) must only listen on localhost or private network",
+      "description": "PostgreSQL should not be exposed to public networks to prevent unauthorized access.",
+      "check": {
+        "type": "command_output",
+        "command": "ss -tlnp | grep ':5432' | grep -v '127.0.0.1' | grep -v '192.168.' | grep -v '10.' | grep -v '172.1[6-9]\\|172.2[0-9]\\|172.3[0-1]' | wc -l",
+        "expected": "0",
+        "match_pattern": "^0$"
+      },
+      "fix": {
+        "type": "command",
+        "command": "echo 'Set listen_addresses in postgresql.conf to localhost or specific private IPs'",
+        "risk": "high"
+      },
+      "soc2_mapping": ["CC6.1", "CC6.6"],
+      "cci": "CCI-000366"
+    }
+  ]
+}

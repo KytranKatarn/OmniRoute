@@ -1785,6 +1785,11 @@ from tools.iaae.routes import iaae_public_bp  # noqa: E402
 
 app.register_blueprint(iaae_public_bp)
 
+# Products Showcase (public — no login required)
+from tools.products.routes import products_bp  # noqa: E402
+
+app.register_blueprint(products_bp)
+
 # Public API — unauthenticated, read-only endpoints for kytranempowerment.com
 from public_api import public_api_bp  # noqa: E402
 

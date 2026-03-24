@@ -495,3 +495,70 @@ def register_github_routes(bp, admin_required):
 
         result = deploy_via_merge(pr_number, proposal_id)
         return jsonify(result)
+
+    # ==================================================================
+    # SELF-HEALING ROUTES (Phases 9-14)
+    # ==================================================================
+
+    @bp.route("/api/forge/self-heal/<int:proposal_id>", methods=["POST"])
+    @login_required
+    @admin_required
+    def forge_self_heal(proposal_id):
+        """Trigger a full self-healing cycle for a proposal."""
+        from .services.forge_self_heal import run_self_heal_cycle
+
+        return jsonify(run_self_heal_cycle(proposal_id))
+
+    @bp.route("/api/forge/self-heal/<int:proposal_id>/retry-test", methods=["POST"])
+    @login_required
+    @admin_required
+    def forge_retry_test(proposal_id):
+        """Retry fix after sandbox test failure."""
+        from .services.forge_self_heal import retry_after_test_failure
+
+        data = request.get_json() or {}
+        test_output = data.get("test_output", "")
+        current_patch = data.get("current_patch", "")
+        return jsonify(retry_after_test_failure(proposal_id, test_output, current_patch))
+
+    @bp.route("/api/forge/self-heal/<int:proposal_id>/retry-review", methods=["POST"])
+    @login_required
+    @admin_required
+    def forge_retry_review(proposal_id):
+        """Retry fix after CodeRabbit review feedback."""
+        from .services.forge_self_heal import retry_after_review_feedback
+
+        data = request.get_json() or {}
+        pr_number = data.get("pr_number", 0)
+        comments = data.get("comments", [])
+        return jsonify(retry_after_review_feedback(proposal_id, pr_number, comments))
+
+    @bp.route("/api/forge/self-heal/<int:proposal_id>/regression", methods=["POST"])
+    @login_required
+    @admin_required
+    def forge_regression_check(proposal_id):
+        """Run regression check before merge."""
+        from .services.forge_self_heal import run_regression_check
+
+        return jsonify(run_regression_check(proposal_id))
+
+    @bp.route("/api/forge/self-heal/stats", methods=["GET"])
+    @login_required
+    @admin_required
+    def forge_self_heal_stats():
+        """Self-healing pipeline statistics."""
+        from .services.forge_self_heal import get_self_heal_stats
+
+        return jsonify(get_self_heal_stats())
+
+    @bp.route("/api/forge/self-heal/<int:proposal_id>/escalate", methods=["POST"])
+    @login_required
+    @admin_required
+    def forge_escalate(proposal_id):
+        """Manually escalate a proposal to human review."""
+        from .services.forge_self_heal import escalate_to_human
+
+        data = request.get_json() or {}
+        reason = data.get("reason", "Manual escalation by admin")
+        escalate_to_human(proposal_id, reason, {"manual": True})
+        return jsonify({"success": True, "proposal_id": proposal_id, "status": "escalated"})

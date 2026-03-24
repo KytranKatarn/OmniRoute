@@ -497,17 +497,21 @@ def _reindex_repo_via_tree(owner, repo, repo_type, importance=0.85, max_files=No
     try:
         conn = _get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        repo_full = f"{owner}/{repo}"
         cur.execute(
             """DELETE FROM memory_embeddings WHERE source_type = 'knowledge_base'
                AND source_id IN (
                    SELECT id FROM knowledge_base
-                   WHERE knowledge_type = 'github_file' AND repo_type = %s
+                   WHERE knowledge_type = 'github_file'
+                     AND memory_metadata->>'repo' = %s
                )""",
-            (repo_type,),
+            (repo_full,),
         )
         cur.execute(
-            "DELETE FROM knowledge_base WHERE knowledge_type = 'github_file' AND repo_type = %s",
-            (repo_type,),
+            """DELETE FROM knowledge_base
+               WHERE knowledge_type = 'github_file'
+                 AND memory_metadata->>'repo' = %s""",
+            (repo_full,),
         )
         deleted = cur.rowcount
         conn.commit()
@@ -635,26 +639,44 @@ def _reindex_repo_via_tree(owner, repo, repo_type, importance=0.85, max_files=No
             # 6c. Batch commit + update progress
             conn.commit()
             cur.execute(
-                "UPDATE github_repositories SET indexed_files = %s WHERE repo_type = %s",
-                (indexed_count, repo_type),
+                "UPDATE github_repositories SET indexed_files = %s WHERE repo_name = %s",
+                (indexed_count, repo_full),
             )
             conn.commit()
 
-        # 7. Update github_repositories row — sync indexed_files from actual KB count
+        # 7. Upsert github_repositories row — creates tracking row for new repos,
+        #    updates existing ones. Uses repo_name (unique) not repo_type (shared).
         cur.execute(
             """
-            UPDATE github_repositories r
-            SET indexed = true,
+            INSERT INTO github_repositories
+                (repo_name, repo_type, local_path, status, indexed, indexed_files,
+                 indexed_at, github_url, created_at, updated_at)
+            VALUES (%s, %s, %s, 'indexed', true,
+                COALESCE((
+                    SELECT count(*) FROM knowledge_base
+                    WHERE knowledge_type = 'github_file'
+                      AND memory_metadata->>'repo' = %s
+                ), 0),
+                NOW(), %s, NOW(), NOW()
+            )
+            ON CONFLICT (repo_name) DO UPDATE SET
+                indexed = true,
                 indexed_files = COALESCE((
                     SELECT count(*) FROM knowledge_base
                     WHERE knowledge_type = 'github_file'
-                      AND memory_metadata->>'repo' = r.repo_name
+                      AND memory_metadata->>'repo' = EXCLUDED.repo_name
                 ), 0),
                 indexed_at = NOW(),
-                status = 'indexed', updated_at = NOW()
-            WHERE r.repo_type = %s
+                status = 'indexed',
+                updated_at = NOW()
             """,
-            (repo_type,),
+            (
+                repo_full,
+                repo_type,
+                f"/mnt/archie_brain/repos/{repo_type}/{repo}",
+                repo_full,
+                f"https://github.com/{owner}/{repo}",
+            ),
         )
         conn.commit()
 
@@ -771,6 +793,28 @@ def _store_dependency_scan(cursor, scan_result):
 def register_github_routes(bp, admin_required):
     """Register all GitHub-related routes on the consciousness blueprint."""
 
+    # Helper: accept either Flask-Login session (admin) or Bearer API key
+    def login_or_api_key(f):
+        """Allow access via Flask-Login session OR Bearer API key."""
+        from functools import wraps
+
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            api_key = request.headers.get("Authorization", "")
+            if api_key.startswith("Bearer "):
+                valid_key = os.getenv("ARCHIE_API_KEY", "dev-api-key-change-in-production")
+                if api_key[7:] == valid_key:
+                    return f(*args, **kwargs)
+                return jsonify({"error": "Invalid API key"}), 401
+            # Fall back to Flask-Login session
+            if not current_user.is_authenticated:
+                return jsonify({"error": "Authentication required"}), 401
+            if not getattr(current_user, "is_admin", False):
+                return jsonify({"error": "Admin access required"}), 403
+            return f(*args, **kwargs)
+
+        return decorated
+
     # ==================================================================
     # AUTH STATUS
     # ==================================================================
@@ -821,8 +865,7 @@ def register_github_routes(bp, admin_required):
     # ==================================================================
 
     @bp.route("/github/index-selective", methods=["POST"])
-    @login_required
-    @admin_required
+    @login_or_api_key
     def github_index_selective():
         """
         Index specific files/folders from a GitHub repo with semantic embeddings

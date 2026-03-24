@@ -765,12 +765,15 @@ async def github_index_repo_handler(arguments: Dict[str, Any]) -> Dict[str, Any]
         body = {"repo_url": repo_url, "priority": priority}
         if max_files is not None:
             body["max_files"] = int(max_files)
-        # Use internal API key auth
+        # Use Bearer API key auth (matches login_or_api_key decorator)
+        api_key = os.getenv("ARCHIE_API_KEY", "dev-api-key-change-in-production")
         resp = http_requests.post(
             platform_url,
             json=body,
-            headers={"Content-Type": "application/json"},
-            cookies={"session": "mcp-internal"},
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}",
+            },
             timeout=300,
         )
         if resp.status_code == 200:

@@ -4,6 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 var version = "0.1.0"
@@ -18,7 +20,13 @@ func main() {
 		os.Exit(0)
 	}
 
-	_ = wsURL
-	fmt.Printf("ARCHIE Code CLI v%s\n", version)
-	fmt.Println("(TUI not yet wired)")
+	p := tea.NewProgram(
+		initialModel(*wsURL),
+		tea.WithAltScreen(),
+	)
+
+	if _, err := p.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
 }

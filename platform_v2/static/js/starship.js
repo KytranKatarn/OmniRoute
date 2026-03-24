@@ -1119,6 +1119,8 @@ async function selectNode(nodeId) {
         selectedNodeDbId = data.node.db_id || null;
         window._lastNodeData = data;
         renderDetail(data);
+        // Load live health gauges from System Ops
+        showNodeHealth(nodeId);
         if (selectedNodeDbId) {
             loadRecommendations(selectedNodeDbId);
             loadSyncLog(selectedNodeDbId);
@@ -2495,6 +2497,88 @@ function switchSetupCmdTab(os) {
     document.getElementById('setup-cmd-tab-linux').classList.toggle('active', os === 'linux');
     document.getElementById('setup-cmd-panel-win').style.display = os === 'win' ? '' : 'none';
     document.getElementById('setup-cmd-panel-linux').style.display = os === 'linux' ? '' : 'none';
+}
+
+// ══════════════════════════════════════════════════════════════
+// NODE HEALTH PANEL — live CPU/RAM/Disk from System Ops
+// ══════════════════════════════════════════════════════════════
+
+function showNodeHealth(nodeId) {
+    var panel = document.getElementById('node-health-panel');
+    if (!panel) return;
+
+    panel.textContent = '';
+    var loadMsg = document.createElement('div');
+    loadMsg.style.cssText = 'color:#666;font-size:12px;text-align:center;padding:8px;';
+    loadMsg.textContent = 'Loading health data...';
+    panel.appendChild(loadMsg);
+
+    fetch('/tools/starship/api/nodes/' + encodeURIComponent(nodeId) + '/health')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        panel.textContent = '';
+        if (!data.success || !data.health) {
+            var errMsg = document.createElement('div');
+            errMsg.style.cssText = 'color:#ef4444;font-size:12px;text-align:center;padding:8px;';
+            errMsg.textContent = 'Health data unavailable';
+            panel.appendChild(errMsg);
+            return;
+        }
+        var h = data.health;
+
+        // Build gauges row
+        var row = document.createElement('div');
+        row.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;';
+
+        row.appendChild(_buildHealthGauge('CPU', h.cpu_percent, null, null));
+        row.appendChild(_buildHealthGauge('RAM', h.memory_percent, h.memory_used_gb, h.memory_total_gb));
+        row.appendChild(_buildHealthGauge('DISK', h.disk_percent, h.disk_used_gb, h.disk_total_gb));
+
+        panel.appendChild(row);
+    })
+    .catch(function() {
+        panel.textContent = '';
+        var errMsg = document.createElement('div');
+        errMsg.style.cssText = 'color:#ef4444;font-size:12px;text-align:center;padding:8px;';
+        errMsg.textContent = 'Failed to fetch health';
+        panel.appendChild(errMsg);
+    });
+}
+
+function _buildHealthGauge(label, pct, usedGb, totalGb) {
+    pct = pct || 0;
+    var color = pct >= 90 ? '#ef4444' : pct >= 70 ? '#fbbf24' : '#22c55e';
+
+    var box = document.createElement('div');
+    box.style.cssText = 'background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.12);border-radius:4px;padding:8px;text-align:center;';
+
+    var lbl = document.createElement('div');
+    lbl.style.cssText = 'font-family:Antonio,sans-serif;font-size:10px;color:#888;letter-spacing:1px;margin-bottom:4px;';
+    lbl.textContent = label;
+    box.appendChild(lbl);
+
+    var val = document.createElement('div');
+    val.style.cssText = 'font-family:Orbitron,monospace;font-size:18px;color:' + color + ';font-weight:bold;';
+    val.textContent = Math.round(pct) + '%';
+    box.appendChild(val);
+
+    // Progress bar
+    var barBg = document.createElement('div');
+    barBg.style.cssText = 'height:3px;background:rgba(255,255,255,0.08);border-radius:2px;margin-top:4px;overflow:hidden;';
+    var barFill = document.createElement('div');
+    barFill.style.cssText = 'height:100%;width:' + Math.min(pct, 100) + '%;background:' + color + ';border-radius:2px;transition:width 0.3s;';
+    barBg.appendChild(barFill);
+    box.appendChild(barBg);
+
+    // Sub-label (e.g. "45.2 / 128 GB")
+    if (usedGb !== null && usedGb !== undefined && totalGb) {
+        var sub = document.createElement('div');
+        sub.style.cssText = 'font-size:9px;color:#666;margin-top:3px;';
+        sub.textContent = usedGb + ' / ' + totalGb + ' GB';
+        box.appendChild(sub);
+    }
+
+    return box;
 }
 
 // Copy one-liner to clipboard

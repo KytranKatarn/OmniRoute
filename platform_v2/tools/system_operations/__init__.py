@@ -24,6 +24,7 @@ from .storage_routes import register_storage_routes  # noqa: E402
 from .network_routes import register_network_routes  # noqa: E402
 from .firewall_routes import register_firewall_routes  # noqa: E402
 from .health_routes import register_health_routes  # noqa: E402
+from .proxy_routes import register_proxy_routes  # noqa: E402
 
 register_process_routes(system_operations_bp, admin_required)
 register_docker_routes(system_operations_bp, admin_required)
@@ -32,6 +33,7 @@ register_storage_routes(system_operations_bp, admin_required)
 register_network_routes(system_operations_bp, admin_required)
 register_firewall_routes(system_operations_bp, admin_required)
 register_health_routes(system_operations_bp, admin_required)
+register_proxy_routes(system_operations_bp, admin_required)
 
 
 @system_operations_bp.record_once

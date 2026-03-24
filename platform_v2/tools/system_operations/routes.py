@@ -1061,6 +1061,44 @@ def api_host_data():
 
 
 # ============================================================================
+# NODE HEALTH SUMMARY (compact — used by Starship node panels)
+# ============================================================================
+
+
+@system_operations_bp.route("/api/node-health")
+@login_required
+@admin_required
+def api_node_health_summary():
+    """Compact health summary — used by Starship node panels."""
+    try:
+        svc = get_system_service()
+        cpu = svc.get_cpu_info()
+        mem = svc.get_memory_info()
+        disk = svc.get_disk_info()
+        return jsonify(
+            {
+                "success": True,
+                "health": {
+                    "cpu_percent": cpu.get("usage_percent", 0),
+                    "memory_percent": mem.get("usage_percent", 0),
+                    "memory_used_gb": mem.get("used_gb", 0),
+                    "memory_total_gb": mem.get("total_gb", 0),
+                    "disk_percent": (
+                        round((disk.get("used_gb", 0) / disk.get("total_gb", 1)) * 100, 1)
+                        if disk.get("total_gb")
+                        else 0
+                    ),
+                    "disk_used_gb": disk.get("used_gb", 0),
+                    "disk_total_gb": disk.get("total_gb", 0),
+                    "uptime": "",
+                },
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
 # HEALTH CHECK
 # ============================================================================
 

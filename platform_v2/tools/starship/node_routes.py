@@ -1058,6 +1058,60 @@ def register_node_routes(bp, auth_decorator):
             logger.error("SSH toggle failed for node %s: %s", node_id, e)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
+    # ========================================================================
+    # NODE HEALTH (live metrics via System Ops proxy)
+    # ========================================================================
+
+    @bp.route("/api/nodes/<node_id>/health")
+    @auth_decorator
+    def api_node_health(node_id):
+        """Get live health data for a node via System Ops proxy."""
+        import requests as req_lib
+
+        try:
+            # For hub, call System Ops service directly
+            if node_id == "hub":
+                from tools.system_operations.system_service import get_system_service
+
+                svc = get_system_service()
+                cpu = svc.get_cpu_info()
+                mem = svc.get_memory_info()
+                disk = svc.get_disk_info()
+                return jsonify(
+                    {
+                        "success": True,
+                        "node_id": "hub",
+                        "health": {
+                            "cpu_percent": cpu.get("usage_percent", 0),
+                            "memory_percent": mem.get("usage_percent", 0),
+                            "memory_used_gb": mem.get("used_gb", 0),
+                            "memory_total_gb": mem.get("total_gb", 0),
+                            "disk_percent": (
+                                round(
+                                    (disk.get("used_gb", 0) / disk.get("total_gb", 1)) * 100,
+                                    1,
+                                )
+                                if disk.get("total_gb")
+                                else 0
+                            ),
+                            "disk_used_gb": disk.get("used_gb", 0),
+                            "disk_total_gb": disk.get("total_gb", 0),
+                        },
+                    }
+                )
+
+            # For remote nodes, proxy through System Ops
+            base_url = request.host_url.rstrip("/")
+            resp = req_lib.get(
+                f"{base_url}/tools/system-operations/api/proxy/{node_id}/node-health",
+                cookies={"session": request.cookies.get("session", "")},
+                timeout=10,
+            )
+            return resp.json(), resp.status_code
+        except Exception as e:
+            logger.error("Node health fetch failed for %s: %s", node_id, e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
 
 # ============================================================================
 # PRIVATE HELPERS (installer generators)

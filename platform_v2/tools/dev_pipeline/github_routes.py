@@ -173,20 +173,87 @@ def register_github_routes(bp, admin_required):
     @login_required
     @admin_required
     def forge_stats():
-        """F.O.R.G.E. pipeline statistics."""
-        from .services.github_service import list_pipeline_prs
+        """F.O.R.G.E. comprehensive pipeline statistics."""
+        from .services.github_service import list_pipeline_prs, health_check
 
-        open_prs = list_pipeline_prs("open")
-        merged_prs = list_pipeline_prs("merged")
+        conn = None
+        cur = None
+        try:
+            # GitHub PR stats
+            open_prs = list_pipeline_prs("open")
+            merged_prs = list_pipeline_prs("merged")
+            gh_health = health_check()
 
-        return jsonify(
-            {
-                "success": True,
-                "open_prs": open_prs.get("count", 0),
-                "merged_prs": merged_prs.get("count", 0),
-                "total_prs": open_prs.get("count", 0) + merged_prs.get("count", 0),
-            }
-        )
+            conn = _get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Proposal stats
+            cur.execute(
+                """SELECT status, COUNT(*) as count
+                   FROM improvement_proposals
+                   GROUP BY status ORDER BY count DESC"""
+            )
+            proposal_stats = {r["status"]: r["count"] for r in cur.fetchall()}
+
+            # Review stats
+            cur.execute(
+                """SELECT review_status, review_source, COUNT(*) as count
+                   FROM forge_reviews
+                   GROUP BY review_status, review_source
+                   ORDER BY count DESC"""
+            )
+            review_stats = [dict(r) for r in cur.fetchall()]
+
+            # Recent activity (last 7 days)
+            cur.execute(
+                """SELECT DATE(created_at) as day, COUNT(*) as reviews
+                   FROM forge_reviews
+                   WHERE created_at > NOW() - interval '7 days'
+                   GROUP BY DATE(created_at) ORDER BY day"""
+            )
+            daily_reviews = [dict(r) for r in cur.fetchall()]
+
+            # Deployment stats
+            cur.execute(
+                """SELECT status, COUNT(*) as count
+                   FROM improvement_deployments
+                   GROUP BY status"""
+            )
+            deploy_stats = {r["status"]: r["count"] for r in cur.fetchall()}
+
+            # Self-healing stats (from agent loop cycles)
+            cur.execute(
+                """SELECT cycle_type, SUM(success_count) as successes,
+                          SUM(error_count) as errors
+                   FROM agent_loop_cycles
+                   WHERE cycle_type IN ('skill_analyzer', 'github_auto_pull', 'forge_self_heal')
+                     AND timestamp > NOW() - interval '7 days'
+                   GROUP BY cycle_type"""
+            )
+            healing_stats = {r["cycle_type"]: dict(r) for r in cur.fetchall()}
+
+            return jsonify(
+                {
+                    "success": True,
+                    "github": {
+                        "authenticated": gh_health.get("authenticated", False),
+                        "open_prs": open_prs.get("count", 0),
+                        "merged_prs": merged_prs.get("count", 0),
+                    },
+                    "proposals": proposal_stats,
+                    "reviews": review_stats,
+                    "daily_activity": daily_reviews,
+                    "deployments": deploy_stats,
+                    "self_healing": healing_stats,
+                }
+            )
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
 
     # ==================================================================
     # WEBHOOK — receives GitHub/CodeRabbit review events

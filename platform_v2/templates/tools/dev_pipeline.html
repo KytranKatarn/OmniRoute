@@ -1143,10 +1143,11 @@
             </div>
         </div>
 
-        <!-- Sub-tabs: Ready | History -->
+        <!-- Sub-tabs: Ready | History | F.O.R.G.E. -->
         <div class="dp-subtabs">
             <button class="dp-subtab active" data-subtab="ready" onclick="switchSubTab('deploy', 'ready')">Ready to Deploy</button>
             <button class="dp-subtab" data-subtab="deployed" onclick="switchSubTab('deploy', 'deployed')">Deployment History</button>
+            <button class="dp-subtab" data-subtab="forge" onclick="switchSubTab('deploy', 'forge'); loadForgeStats();" style="color:#8b5cf6;">F.O.R.G.E.</button>
         </div>
 
         <!-- Ready sub-tab -->
@@ -1160,6 +1161,56 @@
         <div id="deploy-subtab-deployed" class="dp-subtab-content">
             <div id="deployHistoryList" class="dp-history-list">
                 <div class="dp-empty" style="padding:40px;"><div class="dp-empty-desc">Loading deployment history...</div></div>
+            </div>
+        </div>
+
+        <!-- F.O.R.G.E. sub-tab -->
+        <div id="deploy-subtab-forge" class="dp-subtab-content">
+            <!-- Header -->
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+                <div style="font-family:Orbitron,sans-serif; font-size:1.1rem; color:#8b5cf6; letter-spacing:2px;">F.O.R.G.E.</div>
+                <div style="font-size:0.7rem; color:rgba(255,255,255,0.35); text-transform:uppercase; letter-spacing:1px;">Full-cycle Optimization & Regenerative GitHub Engine</div>
+                <div id="forgeHealthBadge" style="margin-left:auto; padding:2px 8px; border-radius:3px; font-size:0.6rem; text-transform:uppercase; letter-spacing:1px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:rgba(255,255,255,0.3);">Checking...</div>
+            </div>
+
+            <!-- Pipeline Stats -->
+            <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:8px; margin-bottom:16px;">
+                <div class="dp-stat-card" style="--card-accent:#8b5cf6;">
+                    <div class="dp-stat-label">Open PRs</div>
+                    <div class="dp-stat-value" id="forgeOpenPRs">--</div>
+                </div>
+                <div class="dp-stat-card" style="--card-accent:#22c55e;">
+                    <div class="dp-stat-label">Merged</div>
+                    <div class="dp-stat-value" id="forgeMergedPRs">--</div>
+                </div>
+                <div class="dp-stat-card" style="--card-accent:#22d3ee;">
+                    <div class="dp-stat-label">Reviews</div>
+                    <div class="dp-stat-value" id="forgeReviewCount">--</div>
+                </div>
+                <div class="dp-stat-card" style="--card-accent:#fbbf24;">
+                    <div class="dp-stat-label">Proposals</div>
+                    <div class="dp-stat-value" id="forgeProposalCount">--</div>
+                </div>
+                <div class="dp-stat-card" style="--card-accent:#ef4444;">
+                    <div class="dp-stat-label">Self-Heal Cycles</div>
+                    <div class="dp-stat-value" id="forgeHealCycles">--</div>
+                </div>
+            </div>
+
+            <!-- Open PRs List -->
+            <div style="margin-bottom:12px;">
+                <div style="font-family:Antonio,sans-serif; font-size:0.85rem; color:#8b5cf6; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Open Pipeline PRs</div>
+                <div id="forgePRList" style="display:flex; flex-direction:column; gap:6px;">
+                    <div style="text-align:center; padding:20px; color:rgba(255,255,255,0.25); font-size:0.75rem;">Loading...</div>
+                </div>
+            </div>
+
+            <!-- Recent Reviews -->
+            <div>
+                <div style="font-family:Antonio,sans-serif; font-size:0.85rem; color:#22d3ee; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Recent Reviews</div>
+                <div id="forgeReviewList" style="display:flex; flex-direction:column; gap:6px;">
+                    <div style="text-align:center; padding:20px; color:rgba(255,255,255,0.25); font-size:0.75rem;">No reviews yet</div>
+                </div>
             </div>
         </div>
     </div>
@@ -2560,6 +2611,96 @@ function loadDeployHistory() {
         err.textContent = 'Error loading deployment history';
         el.appendChild(err);
     });
+}
+
+// F.O.R.G.E. Dashboard
+function loadForgeStats() {
+    fetch(API + '/forge/stats').then(function(r){return r.json();}).then(function(data) {
+        if (!data.success) return;
+        var gh = data.github || {};
+        var proposals = data.proposals || {};
+        var reviews = data.reviews || [];
+        var healing = data.self_healing || {};
+
+        var badge = document.getElementById('forgeHealthBadge');
+        if (gh.authenticated) {
+            badge.textContent = 'CONNECTED';
+            badge.style.borderColor = '#22c55e';
+            badge.style.color = '#22c55e';
+        } else {
+            badge.textContent = 'OFFLINE';
+            badge.style.borderColor = '#ef4444';
+            badge.style.color = '#ef4444';
+        }
+
+        document.getElementById('forgeOpenPRs').textContent = gh.open_prs || 0;
+        document.getElementById('forgeMergedPRs').textContent = gh.merged_prs || 0;
+        var totalReviews = reviews.reduce(function(sum, r) { return sum + (r.count || 0); }, 0);
+        document.getElementById('forgeReviewCount').textContent = totalReviews;
+        var totalProposals = Object.values(proposals).reduce(function(s, v) { return s + v; }, 0);
+        document.getElementById('forgeProposalCount').textContent = totalProposals;
+        var healCycles = Object.values(healing).reduce(function(s, v) { return s + (v.successes || 0) + (v.errors || 0); }, 0);
+        document.getElementById('forgeHealCycles').textContent = healCycles;
+    }).catch(function() {
+        document.getElementById('forgeHealthBadge').textContent = 'ERROR';
+        document.getElementById('forgeHealthBadge').style.color = '#ef4444';
+    });
+
+    fetch(API + '/forge/prs?state=open').then(function(r){return r.json();}).then(function(data) {
+        var el = document.getElementById('forgePRList');
+        el.textContent = '';
+        var prs = (data.prs || []);
+        if (!prs.length) {
+            var empty = document.createElement('div');
+            empty.style.cssText = 'text-align:center; padding:20px; color:rgba(255,255,255,0.25); font-size:0.75rem;';
+            empty.textContent = 'No open F.O.R.G.E. PRs';
+            el.appendChild(empty);
+            return;
+        }
+        prs.forEach(function(pr) {
+            var row = document.createElement('div');
+            row.style.cssText = 'display:flex; align-items:center; gap:10px; padding:8px 12px; background:rgba(255,255,255,0.03); border:1px solid rgba(139,92,246,0.2); border-radius:6px;';
+
+            var num = document.createElement('span');
+            num.style.cssText = 'font-family:Orbitron,sans-serif; font-size:0.8rem; color:#8b5cf6;';
+            num.textContent = '#' + pr.number;
+
+            var title = document.createElement('span');
+            title.style.cssText = 'flex:1; font-size:0.75rem; color:#e2e8f0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
+            title.textContent = pr.title || '';
+
+            var link = document.createElement('a');
+            link.href = pr.url || '#';
+            link.target = '_blank';
+            link.style.cssText = 'font-size:0.65rem; color:#22d3ee; text-decoration:none;';
+            link.textContent = 'View';
+
+            var mergeBtn = document.createElement('button');
+            mergeBtn.style.cssText = 'font-size:0.6rem; padding:2px 8px; background:rgba(34,197,94,0.15); border:1px solid rgba(34,197,94,0.4); color:#22c55e; border-radius:3px; cursor:pointer;';
+            mergeBtn.textContent = 'Merge';
+            mergeBtn.setAttribute('data-pr', pr.number);
+            mergeBtn.onclick = function() { forgeDeployPR(parseInt(this.getAttribute('data-pr'))); };
+
+            row.appendChild(num);
+            row.appendChild(title);
+            row.appendChild(link);
+            row.appendChild(mergeBtn);
+            el.appendChild(row);
+        });
+    }).catch(function() {});
+}
+
+function forgeDeployPR(prNumber) {
+    if (!confirm('Merge F.O.R.G.E. PR #' + prNumber + '? This will deploy to main.')) return;
+    fetch(API + '/forge/deploy/' + prNumber, {method:'POST', headers:{'Content-Type':'application/json'}})
+        .then(function(r){return r.json();}).then(function(data) {
+            if (data.success) {
+                alert('PR #' + prNumber + ' merged successfully!');
+                loadForgeStats();
+            } else {
+                alert('Merge failed: ' + (data.error || 'Unknown error'));
+            }
+        }).catch(function() { alert('Merge request failed'); });
 }
 
 // Tab switching with hash navigation

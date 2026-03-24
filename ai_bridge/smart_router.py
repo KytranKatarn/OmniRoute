@@ -998,6 +998,61 @@ Original task:
         )
 
 
+def get_department_escalation_chain(department: str) -> List[str]:
+    """Get ordered list of departments to try, based on floor proximity.
+
+    Order: target dept -> same-floor depts (alphabetical) -> other floors (by deck) -> cloud fallback.
+    Used by the orchestration engine / dispatcher when selecting which agent
+    (and therefore which department) should handle a task.  The smart router
+    itself deals with *model* selection; this helper is complementary.
+
+    Args:
+        department: Department code to start from (e.g. 'ENGINEERING')
+
+    Returns:
+        Ordered list of department codes to attempt.
+    """
+    conn = None
+    try:
+        if get_db is None:
+            return [department]
+
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Find the floor for this department
+        cur.execute(
+            "SELECT code, departments FROM floors WHERE %s = ANY(departments)",
+            (department,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return [department]  # unknown dept, just try it
+
+        same_floor = sorted(d for d in row["departments"] if d != department)
+
+        # Get other floors ordered by deck_number
+        cur.execute(
+            "SELECT departments FROM floors WHERE code != %s ORDER BY deck_number",
+            (row["code"],),
+        )
+        other_floors = [
+            d
+            for floor_row in cur.fetchall()
+            for d in sorted(floor_row["departments"])
+        ]
+
+        cur.close()
+        return [department] + same_floor + other_floors
+
+    except Exception as e:
+        logger.error(f"Department escalation chain lookup failed: {e}")
+        return [department]
+    finally:
+        if conn:
+            conn.close()
+
+
 # Singleton instance
 _router_instance = None
 
@@ -1034,3 +1089,8 @@ def get_loaded_model() -> Optional[str]:
 def suggest_model_with_hardware(task_type: str, **kwargs) -> RoutingRecommendation:
     """Convenience function for GPU-aware model suggestion"""
     return get_router().suggest_model_with_hardware(task_type, **kwargs)
+
+
+def department_escalation_chain(department: str) -> List[str]:
+    """Convenience function to get floor-aware department escalation order"""
+    return get_department_escalation_chain(department)

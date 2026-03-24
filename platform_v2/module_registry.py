@@ -504,11 +504,11 @@ MODULES: List[ModuleDefinition] = [
         priority=1,
         tags=["ai", "assistant", "chat", "voice", "vision", "ai-command"],
     ),
-    # dev_pipeline (consolidated from code_sentinel + sandbox_manager + improvements_lab)
+    # F.O.R.G.E. — Full-cycle Optimization & Regenerative GitHub Engine
     ModuleDefinition(
         id="dev_pipeline",
-        name="Dev Pipeline",
-        description="Unified development tools<br>Scan \u2022 Proposals \u2022 Sandbox \u2022 Deploy",
+        name="F.O.R.G.E.",
+        description="Self-healing code pipeline<br>Scan \u2022 Fix \u2022 Test \u2022 PR \u2022 Review \u2022 Deploy",
         icon="git-branch",
         category=ModuleCategory.AI_COMMAND,
         route="/tools/dev-pipeline",

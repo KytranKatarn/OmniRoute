@@ -16,8 +16,9 @@ Tools are organized by category:
 - consciousness: Self-awareness & processing tools (5 tools)
 - work: Work session context tracking (6 tools)
 - ai_command: AI Command operations - performance, ethics, health (6 tools)
+- forge: F.O.R.G.E. self-healing pipeline - health, stats, self-heal, PRs, deploy (5 tools)
 
-Total: 80 tools
+Total: 85 tools
 """
 
 from typing import Dict, List, Callable, Any
@@ -94,3 +95,6 @@ from . import project_tools
 
 # P1: AI Command tools
 from . import ai_command_tools
+
+# F.O.R.G.E.: Self-healing code pipeline tools
+from . import forge_tools

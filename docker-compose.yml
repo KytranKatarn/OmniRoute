@@ -67,6 +67,8 @@ services:
       OLLAMA_MODELS: /mnt/llm_drive/ollama/models
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       COMFYUI_HOST: http://archie_comfyui:8188
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_USERNAME: ${GITHUB_USERNAME:-KytranKatarn}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -105,6 +107,7 @@ services:
       - ./.git:/mnt/archie_brain/.git:rw
       # GitHub repo clones — ARCHIE's local copies for reading/modifying/sharing
       - ./repos:/mnt/archie_brain/repos:rw
+      - ./secrets:/mnt/archie_brain/secrets:ro
       # Mount node client package for remote node deployment
       - ./node_client:/mnt/archie_brain/node_client:ro
       # Host command queue (shared with host_monitor.py for storage operations)

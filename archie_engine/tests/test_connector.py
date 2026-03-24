@@ -60,3 +60,51 @@ async def test_server_error_returns_error(connector):
         result = await connector.get("/api/health")
     assert "error" in result
     assert result["status"] == 500
+
+
+@pytest.mark.asyncio
+async def test_register_node(connector):
+    mock_resp = _mock_response(200, {"node_id": "abc-123", "status": "registered"})
+    with patch("aiohttp.ClientSession.post", return_value=mock_resp):
+        result = await connector.register_node(hostname="my-machine", gpu_model="RTX 3070", ram_gb=32)
+    assert result.get("node_id") == "abc-123"
+
+
+@pytest.mark.asyncio
+async def test_health_check(connector):
+    mock_resp = _mock_response(200, {"status": "ok", "version": "5.32.0"})
+    with patch("aiohttp.ClientSession.get", return_value=mock_resp):
+        result = await connector.health_check()
+    assert result.get("status") == "ok"
+
+
+@pytest.mark.asyncio
+async def test_search_knowledge(connector):
+    mock_resp = _mock_response(200, {"results": [{"content": "test"}]})
+    with patch("aiohttp.ClientSession.post", return_value=mock_resp):
+        result = await connector.search_knowledge("auth middleware")
+    assert len(result.get("results", [])) > 0
+
+
+@pytest.mark.asyncio
+async def test_dispatch(connector):
+    mock_resp = _mock_response(200, {"response": "Here's the fix", "agent_used": "ARCHIE"})
+    with patch("aiohttp.ClientSession.post", return_value=mock_resp):
+        result = await connector.dispatch(prompt="fix the bug", model="qwen2.5:7b", agent_target="ARCHIE")
+    assert "response" in result
+
+
+@pytest.mark.asyncio
+async def test_list_agents(connector):
+    mock_resp = _mock_response(200, {"agents": [{"name": "ARCHIE"}]})
+    with patch("aiohttp.ClientSession.get", return_value=mock_resp):
+        result = await connector.list_agents()
+    assert len(result.get("agents", [])) > 0
+
+
+@pytest.mark.asyncio
+async def test_get_skills(connector):
+    mock_resp = _mock_response(200, {"skills": [{"name": "commit"}]})
+    with patch("aiohttp.ClientSession.get", return_value=mock_resp):
+        result = await connector.get_skills()
+    assert len(result.get("skills", [])) > 0

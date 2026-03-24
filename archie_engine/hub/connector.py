@@ -42,3 +42,56 @@ class HubConnector:
         except Exception as e:
             logger.warning("Hub POST %s failed: %s", path, e)
             return {"error": str(e), "status": 0}
+
+    # --- Hub Endpoint Methods ---
+
+    async def health_check(self) -> dict:
+        """Check hub health."""
+        return await self.get("/api/archie/health")
+
+    async def register_node(self, hostname: str, gpu_model: str | None = None,
+                            ram_gb: int | None = None, engine_version: str = "0.1.0") -> dict:
+        """Register this engine as a node on the hub."""
+        return await self.post("/api/starbase/nodes/register", data={
+            "hostname": hostname,
+            "gpu_model": gpu_model,
+            "ram_gb": ram_gb,
+            "engine_version": engine_version,
+        })
+
+    async def send_heartbeat(self, node_id: str, metrics: dict | None = None) -> dict:
+        """Send heartbeat to keep node registration alive."""
+        return await self.post(f"/api/starbase/nodes/{node_id}/heartbeat", data={
+            "metrics": metrics or {},
+        })
+
+    async def search_knowledge(self, query: str, types: list[str] | None = None,
+                               limit: int = 10) -> dict:
+        """Search the hub knowledge base."""
+        return await self.post("/api/archie/search", data={
+            "query": query,
+            "types": types,
+            "limit": limit,
+        })
+
+    async def dispatch(self, prompt: str, model: str | None = None,
+                       agent_target: str | None = None, user_context: dict | None = None) -> dict:
+        """Dispatch a task through the hub's Bridge."""
+        return await self.post("/api/archie/chat", data={
+            "prompt": prompt,
+            "model": model,
+            "agent_target": agent_target,
+            "user_context": user_context or {},
+        })
+
+    async def list_agents(self) -> dict:
+        """List available agents on the hub."""
+        return await self.get("/api/starbase/agents")
+
+    async def get_skills(self) -> dict:
+        """Get available skills from the hub."""
+        return await self.get("/api/starbase/skills")
+
+    async def get_model_state(self) -> dict:
+        """Get current model load state from the hub."""
+        return await self.get("/api/starbase/models")

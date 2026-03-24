@@ -307,13 +307,38 @@ def _register_check(check_type):
     return decorator
 
 
-def _run_host_cmd(command, timeout=30):
-    """Run a shell command via host_command_client, return stdout string."""
+def _run_host_cmd(command_type, params, timeout=30):
+    """Run a command via host_command_client with a whitelisted command type."""
     hc = _get_host_client()
-    result = hc["run"]("shell_command", {"command": command}, timeout=timeout)
-    if result.get("status") == "error":
-        raise RuntimeError(result.get("error", "host command failed"))
-    return result.get("output", result.get("stdout", "")).strip()
+    result_data = hc["run"](command_type, params, timeout=timeout)
+    cmd_result = result_data.get("result", result_data)
+    if not cmd_result.get("success", False):
+        raise RuntimeError(cmd_result.get("error", "host command failed"))
+    return cmd_result
+
+
+def _read_host_file(path, timeout=15):
+    """Read a file on the host via compliance_read_file command."""
+    result = _run_host_cmd("compliance_read_file", {"path": path}, timeout=timeout)
+    if not result.get("exists", False):
+        return None
+    return result.get("content", "")
+
+
+def _check_sysctl(param, timeout=10):
+    """Read a sysctl parameter on the host."""
+    result = _run_host_cmd("compliance_check_sysctl", {"param": param}, timeout=timeout)
+    return result.get("value", "")
+
+
+def _run_compliance_check(check_type, target, timeout=15):
+    """Run a compliance_run_check on the host."""
+    result = _run_host_cmd(
+        "compliance_run_check",
+        {"check_type": check_type, "target": target},
+        timeout=timeout,
+    )
+    return result
 
 
 # ============================================================================
@@ -328,29 +353,37 @@ def _check_file_content(check):
     pattern = check.get("pattern", "")
     expected = check.get("expected", "")
     try:
-        # Escape single quotes in pattern for shell
-        safe_pattern = pattern.replace("'", "'\\''")
-        output = _run_host_cmd(f"grep -E '{safe_pattern}' {path} 2>/dev/null || echo ''")
-        actual = output.strip()
-        if not actual:
+        content = _read_host_file(path)
+        if content is None:
+            return {
+                "status": "fail",
+                "actual": "(file not found)",
+                "expected": expected,
+                "details": f"{path} does not exist",
+            }
+        # Search for pattern in file content
+        matched_lines = []
+        for line in content.splitlines():
+            if re.search(pattern, line):
+                matched_lines.append(line.strip())
+        actual = "\n".join(matched_lines)
+        if not matched_lines:
             return {
                 "status": "fail",
                 "actual": "(not found)",
                 "expected": expected,
                 "details": f"Pattern '{pattern}' not found in {path}",
             }
-        # Check if expected value is present in the matched line(s)
         if expected and expected in actual:
             return {"status": "pass", "actual": actual, "expected": expected, "details": ""}
         elif not expected:
-            # Just checking pattern exists
             return {"status": "pass", "actual": actual, "expected": pattern, "details": ""}
         else:
             return {
                 "status": "fail",
                 "actual": actual,
                 "expected": expected,
-                "details": f"Pattern found but value mismatch",
+                "details": "Pattern found but value mismatch",
             }
     except Exception as exc:
         return {"status": "error", "actual": "", "expected": expected, "details": str(exc)}
@@ -365,18 +398,11 @@ def _check_file_permission(check):
     expected_group = check.get("expected_group", "")
     expected = check.get("expected", f"{expected_mode} {expected_owner} {expected_group}".strip())
     try:
-        output = _run_host_cmd(f"stat -c '%a %U %G' {path} 2>/dev/null || echo 'NOT_FOUND'")
-        if "NOT_FOUND" in output:
-            return {
-                "status": "fail",
-                "actual": "file not found",
-                "expected": expected,
-                "details": f"{path} does not exist",
-            }
-        parts = output.split()
-        mode = parts[0] if len(parts) > 0 else ""
-        owner = parts[1] if len(parts) > 1 else ""
-        group = parts[2] if len(parts) > 2 else ""
+        result = _run_compliance_check("file_permission", path)
+        mode = result.get("mode", "")
+        owner = result.get("owner", "")
+        group = result.get("group", "")
+        actual = f"{mode} {owner} {group}"
 
         ok = True
         issues = []
@@ -392,7 +418,7 @@ def _check_file_permission(check):
 
         return {
             "status": "pass" if ok else "fail",
-            "actual": output,
+            "actual": actual,
             "expected": expected,
             "details": "; ".join(issues) if issues else "",
         }
@@ -407,8 +433,8 @@ def _check_file_exists(check):
     should_exist = check.get("should_exist", True)
     expected = "exists" if should_exist else "missing"
     try:
-        output = _run_host_cmd(f"test -f {path} && echo 'exists' || echo 'missing'")
-        actual = output.strip()
+        content = _read_host_file(path)
+        actual = "exists" if content is not None else "missing"
         ok = (actual == "exists") == should_exist
         return {
             "status": "pass" if ok else "fail",
@@ -427,8 +453,13 @@ def _check_command_output(check):
     expected = check.get("expected", "")
     match_pattern = check.get("match_pattern", "")
     try:
-        output = _run_host_cmd(command, timeout=check.get("timeout", 30))
-        actual = output.strip()
+        # Map known commands to safe command_safe targets
+        result = _run_host_cmd(
+            "compliance_run_check",
+            {"check_type": "command_safe", "target": command},
+            timeout=check.get("timeout", 30),
+        )
+        actual = result.get("output", "").strip()
 
         if match_pattern:
             ok = bool(re.search(match_pattern, actual))
@@ -460,8 +491,9 @@ def _check_service_status(check):
     expected_active = check.get("expected_active", True)
     expected = check.get("expected", "enabled/active" if expected_enabled and expected_active else "")
     try:
-        enabled = _run_host_cmd(f"systemctl is-enabled {service} 2>/dev/null || echo 'unknown'")
-        active = _run_host_cmd(f"systemctl is-active {service} 2>/dev/null || echo 'unknown'")
+        result = _run_compliance_check("service_status", service)
+        enabled = result.get("enabled", "unknown")
+        active = result.get("active", "unknown")
         actual = f"{enabled}/{active}"
 
         ok = True
@@ -471,13 +503,13 @@ def _check_service_status(check):
             issues.append(f"not enabled ({enabled})")
         if not expected_enabled and enabled == "enabled":
             ok = False
-            issues.append(f"should not be enabled")
+            issues.append("should not be enabled")
         if expected_active and active != "active":
             ok = False
             issues.append(f"not active ({active})")
         if not expected_active and active == "active":
             ok = False
-            issues.append(f"should not be active")
+            issues.append("should not be active")
 
         return {
             "status": "pass" if ok else "fail",
@@ -495,7 +527,7 @@ def _check_sysctl_value(check):
     param = check.get("param", "")
     expected = check.get("expected", "")
     try:
-        actual = _run_host_cmd(f"sysctl -n {param} 2>/dev/null || echo 'NOT_FOUND'")
+        actual = _check_sysctl(param)
         ok = actual.strip() == expected.strip()
         return {
             "status": "pass" if ok else "fail",
@@ -514,8 +546,8 @@ def _check_package_installed(check):
     should_be_installed = check.get("should_be_installed", True)
     expected = "installed" if should_be_installed else "not installed"
     try:
-        output = _run_host_cmd(f"dpkg-query -W -f='${{Status}}' {package} 2>/dev/null || echo 'not-installed'")
-        is_installed = "install ok installed" in output
+        result = _run_compliance_check("package_installed", package)
+        is_installed = result.get("installed", False)
         ok = is_installed == should_be_installed
         return {
             "status": "pass" if ok else "fail",
@@ -532,33 +564,32 @@ def _check_docker_config(check):
     """Check Docker daemon.json or container config."""
     config_key = check.get("config_key", "")
     expected = check.get("expected", "")
-    container = check.get("container", "")
-    inspect_format = check.get("inspect_format", "")
     try:
-        if container and inspect_format:
-            actual = _run_host_cmd(
-                f"docker inspect --format '{inspect_format}' {container} 2>/dev/null || echo 'NOT_FOUND'"
-            )
-        else:
-            # Read daemon.json
-            output = _run_host_cmd("cat /etc/docker/daemon.json 2>/dev/null || echo '{}'")
-            try:
-                daemon_cfg = json.loads(output)
-            except json.JSONDecodeError:
-                return {
-                    "status": "error",
-                    "actual": output[:200],
-                    "expected": expected,
-                    "details": "Failed to parse daemon.json",
-                }
-            actual = str(daemon_cfg.get(config_key, "(not set)"))
+        content = _read_host_file("/etc/docker/daemon.json")
+        if content is None:
+            return {
+                "status": "error",
+                "actual": "(daemon.json not found)",
+                "expected": expected,
+                "details": "/etc/docker/daemon.json does not exist",
+            }
+        try:
+            daemon_cfg = json.loads(content)
+        except json.JSONDecodeError:
+            return {
+                "status": "error",
+                "actual": content[:200],
+                "expected": expected,
+                "details": "Failed to parse daemon.json",
+            }
+        actual = str(daemon_cfg.get(config_key, "(not set)"))
 
         ok = expected in actual if expected else actual != "(not set)"
         return {
             "status": "pass" if ok else "fail",
             "actual": actual[:500],
             "expected": expected,
-            "details": "" if ok else f"Docker config mismatch for {config_key or container}",
+            "details": "" if ok else f"Docker config mismatch for {config_key}",
         }
     except Exception as exc:
         return {"status": "error", "actual": "", "expected": expected, "details": str(exc)}
@@ -571,10 +602,15 @@ def _check_firewall_rule(check):
     expected = check.get("expected", "ALLOW")
     should_exist = check.get("should_exist", True)
     try:
-        safe_pattern = pattern.replace("'", "'\\''")
-        output = _run_host_cmd(f"ufw status verbose 2>/dev/null | grep -E '{safe_pattern}' || echo ''")
-        actual = output.strip()
-        found = len(actual) > 0
+        result = _run_host_cmd(
+            "compliance_run_check",
+            {"check_type": "command_safe", "target": "ufw status"},
+        )
+        output = result.get("output", "")
+        # Search for pattern in UFW output
+        matched = [line for line in output.splitlines() if re.search(pattern, line)]
+        actual = "\n".join(matched).strip()
+        found = len(matched) > 0
 
         ok = found == should_exist
         if found and expected:
@@ -593,17 +629,20 @@ def _check_firewall_rule(check):
 @_register_check("port_listening")
 def _check_port_listening(check):
     """Check if port is listening (or not)."""
-    port = check.get("port", "")
+    port = str(check.get("port", ""))
     should_listen = check.get("should_listen", True)
     expected = f"port {port} {'listening' if should_listen else 'not listening'}"
     try:
-        output = _run_host_cmd(f"ss -tlnp 2>/dev/null | grep ':{port} ' || echo ''")
-        actual = output.strip()
-        is_listening = len(actual) > 0
+        result = _run_compliance_check("port_listening", port)
+        is_listening = result.get("listening", False)
+        actual_output = result.get("output", "")
+        # Extract the matching line for context
+        matched = [l for l in actual_output.splitlines() if f":{port} " in l or f":{port}\t" in l]
+        actual = matched[0].strip() if matched else f"port {port} not listening"
         ok = is_listening == should_listen
         return {
             "status": "pass" if ok else "fail",
-            "actual": actual if actual else f"port {port} not listening",
+            "actual": actual,
             "expected": expected,
             "details": "",
         }

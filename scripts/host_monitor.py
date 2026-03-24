@@ -2756,6 +2756,26 @@ COMMAND_REGISTRY = {
         "handler": "handle_nginx_reload",
         "params": {},
     },
+    # Compliance scanning — read-only checks
+    "compliance_read_file": {
+        "handler": "handle_compliance_read_file",
+        "params": {
+            "path": {"required": True, "regex": r"^/[a-zA-Z0-9_/.\-]+$"},
+        },
+    },
+    "compliance_check_sysctl": {
+        "handler": "handle_compliance_check_sysctl",
+        "params": {
+            "param": {"required": True, "regex": r"^[a-zA-Z0-9_.]+$"},
+        },
+    },
+    "compliance_run_check": {
+        "handler": "handle_compliance_run_check",
+        "params": {
+            "check_type": {"required": True, "regex": r"^(file_permission|service_status|package_installed|port_listening|command_safe)$"},
+            "target": {"required": True, "regex": r"^[a-zA-Z0-9_/.\-:]+$"},
+        },
+    },
 }
 
 
@@ -5378,6 +5398,97 @@ def handle_nginx_reload(params):
     return {"success": True, "message": "Nginx reloaded successfully"}
 
 
+# ============================================================================
+# COMPLIANCE CHECK HANDLERS (read-only)
+# ============================================================================
+
+# Safe paths for compliance file reads — no /proc, /dev, or sensitive dirs
+_COMPLIANCE_SAFE_PREFIXES = (
+    "/etc/", "/var/log/", "/usr/", "/lib/", "/opt/",
+)
+
+
+def handle_compliance_read_file(params):
+    """Read a file for compliance checking (read-only, path-restricted)."""
+    path = params["path"]
+    if not any(path.startswith(p) for p in _COMPLIANCE_SAFE_PREFIXES):
+        return {"success": False, "error": f"Path not allowed: {path}"}
+    if ".." in path:
+        return {"success": False, "error": "Path traversal not allowed"}
+    if not os.path.exists(path):
+        return {"success": True, "exists": False, "content": ""}
+    try:
+        with open(path, "r") as f:
+            content = f.read(64 * 1024)  # Max 64KB
+        return {"success": True, "exists": True, "content": content}
+    except PermissionError:
+        return {"success": False, "error": f"Permission denied: {path}"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def handle_compliance_check_sysctl(params):
+    """Read a kernel sysctl parameter."""
+    param = params["param"]
+    result = run_command_full(["sysctl", "-n", param], timeout=10)
+    if result["returncode"] != 0:
+        return {"success": False, "error": result["stderr"] or f"sysctl {param} not found"}
+    return {"success": True, "param": param, "value": result["stdout"].strip()}
+
+
+def handle_compliance_run_check(params):
+    """Run a specific compliance check type."""
+    check_type = params["check_type"]
+    target = params["target"]
+
+    if check_type == "file_permission":
+        result = run_command_full(["stat", "-c", "%a %U %G", target], timeout=10)
+        if result["returncode"] != 0:
+            return {"success": False, "error": result["stderr"] or f"Cannot stat {target}"}
+        parts = result["stdout"].strip().split()
+        return {
+            "success": True,
+            "mode": parts[0] if len(parts) > 0 else "",
+            "owner": parts[1] if len(parts) > 1 else "",
+            "group": parts[2] if len(parts) > 2 else "",
+        }
+
+    elif check_type == "service_status":
+        enabled = run_command_full(["systemctl", "is-enabled", target], timeout=10)
+        active = run_command_full(["systemctl", "is-active", target], timeout=10)
+        return {
+            "success": True,
+            "enabled": enabled["stdout"].strip(),
+            "active": active["stdout"].strip(),
+        }
+
+    elif check_type == "package_installed":
+        result = run_command_full(
+            ["dpkg-query", "-W", "-f=${Status}", target], timeout=10
+        )
+        installed = "install ok installed" in result["stdout"]
+        return {"success": True, "installed": installed, "status": result["stdout"].strip()}
+
+    elif check_type == "port_listening":
+        result = run_command_full(["ss", "-tlnp"], timeout=10)
+        listening = f":{target} " in result["stdout"] or f":{target}\t" in result["stdout"]
+        return {"success": True, "listening": listening, "output": result["stdout"][:4096]}
+
+    elif check_type == "command_safe":
+        # Only allow a small set of safe read-only commands
+        safe_commands = {
+            "auditctl -l": ["auditctl", "-l"],
+            "docker info": ["docker", "info", "--format", "json"],
+            "ufw status": ["sudo", "-n", "ufw", "status", "verbose"],
+        }
+        if target not in safe_commands:
+            return {"success": False, "error": f"Command not in safe list: {target}"}
+        result = run_command_full(safe_commands[target], timeout=30)
+        return {"success": True, "output": result["stdout"][:8192], "returncode": result["returncode"]}
+
+    return {"success": False, "error": f"Unknown check type: {check_type}"}
+
+
 # Handler dispatch table
 _HANDLER_MAP = {
     "handle_service_control": handle_service_control,
@@ -5416,6 +5527,10 @@ _HANDLER_MAP = {
     "handle_nginx_get_config": handle_nginx_get_config,
     "handle_nginx_test": handle_nginx_test,
     "handle_nginx_reload": handle_nginx_reload,
+    # Compliance check handlers (read-only)
+    "handle_compliance_read_file": handle_compliance_read_file,
+    "handle_compliance_check_sysctl": handle_compliance_check_sysctl,
+    "handle_compliance_run_check": handle_compliance_run_check,
 }
 
 

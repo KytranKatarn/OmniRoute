@@ -4,6 +4,11 @@ Embedding Service for ARCHIE Consciousness Intelligence
 Generates semantic embeddings using Ollama's arctic-embed-cpu model (768 dimensions).
 Used for vector similarity search in knowledge retrieval.
 
+Note: This service calls Ollama /api/embed directly (ADR-013 exception).
+Embeddings are a utility operation (vector generation), not chat/completion inference.
+Routing through Bridge dispatch would add overhead with no routing/escalation benefit.
+Called thousands of times during KB indexing — direct call is intentional.
+
 Usage:
     from ai_bridge.embedding_service import generate_embedding, get_embedding_service
 

@@ -19,12 +19,14 @@ from archie_engine.hub.auth import HubAuth
 from archie_engine.hub.connector import HubConnector
 from archie_engine.hub.heartbeat import Heartbeat
 from archie_engine.hub.sync import HubSync
+from archie_engine.skills import SkillRegistry
+from archie_engine.skills.executor import SkillExecutor
 
 logger = logging.getLogger(__name__)
 
 
 class Engine:
-    def __init__(self, config: EngineConfig):
+    def __init__(self, config: EngineConfig, custom_skill_dirs: list[Path] | None = None):
         self.config = config
         self.db = Database(config.db_path)
         self.sessions = SessionManager(self.db)
@@ -37,6 +39,19 @@ class Engine:
             default_model=config.default_model,
         )
         self.server = EngineServer(config.ws_host, config.ws_port)
+
+        # Skills
+        skill_executor = SkillExecutor(
+            inference=self.inference, tools=self.tools, default_model=config.default_model
+        )
+        skill_dirs = [
+            Path(__file__).parent / "skills" / "community",  # Built-in community skills
+        ]
+        if config.hub_skills_cache_dir.exists():
+            skill_dirs.append(config.hub_skills_cache_dir / "skills")  # Hub-synced skills
+        if custom_skill_dirs:
+            skill_dirs.extend(custom_skill_dirs)  # User custom skills
+        self.skill_registry = SkillRegistry(skill_dirs=skill_dirs, executor=skill_executor)
 
         # Hub connectivity (optional)
         self.hub_connector: HubConnector | None = None
@@ -85,6 +100,7 @@ class Engine:
             await self.hub_heartbeat.start()
             if self.hub_sync and self.hub_heartbeat.status == HubStatus.CONNECTED:
                 await self.hub_sync.sync_all()
+        self.skill_registry.load()
         logger.info("ARCHIE Engine started")
 
     async def stop(self) -> None:
@@ -117,6 +133,12 @@ class Engine:
                 return {"type": "session_resumed", "session_id": session["id"]}
             return {"type": "error", "error": f"Session not found: {session_id}"}
 
+        if msg_type == "list_skills":
+            return {
+                "type": "skills_list",
+                "skills": self.skill_registry.list_skills(),
+            }
+
         if msg_type == "message":
             return await self._process_chat_message(msg)
 
@@ -133,6 +155,26 @@ class Engine:
 
         # Record user message
         await self.sessions.add_message(session_id, "user", content)
+
+        # Check for slash command
+        if content.startswith("/"):
+            name, raw_args = self.skill_registry.parse_command(content)
+            skill = self.skill_registry.get(name)
+            if skill:
+                args = {}
+                if raw_args:
+                    args["input"] = raw_args
+                context = await self.sessions.build_context(session_id)
+                result = await self.skill_registry.execute(name, args=args, context=context)
+                response_text = result.get("response", "")
+                await self.sessions.add_message(session_id, "assistant", response_text)
+                return {
+                    "type": "response",
+                    "session_id": session_id,
+                    "content": response_text,
+                    "intent": f"skill:{name}",
+                    "tool_calls": result.get("tool_calls", []),
+                }
 
         # Classify intent
         intent = self.intent_parser.classify(content)

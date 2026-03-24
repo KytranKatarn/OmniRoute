@@ -163,6 +163,9 @@ def register_routes(bp, admin_required):
         if not conversation_id_param:
             auto_title_conversation(conv["id"], message)
 
+        # Default to ARCHIE when no agent targeted (she's primary on COMMAND)
+        effective_target = agent_target if agent_target and agent_target != "auto" else "ARCHIE"
+
         # Call orchestration engine
         try:
             from ai_bridge.orchestration_engine import OrchestrationEngine
@@ -172,7 +175,7 @@ def register_routes(bp, admin_required):
                 message=message,
                 user_id=user_id,
                 conversation_id=str(conv.get("conversation_uuid")),
-                agent_target=agent_target,
+                agent_target=effective_target,
                 user_context={"username": user.get("username", "")},
             )
         except Exception as exc:

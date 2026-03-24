@@ -6,14 +6,15 @@ BEGIN;
 
 -- Step 1: Flag existing AI agents as department AIs
 UPDATE agents SET is_department_ai = true, worker_type = 'ai'
-WHERE name IN ('ARCHIE', 'Vigil');
+WHERE name IN ('ARCHIE', 'VIGIL') OR name = 'Vigil';
 
--- Step 2: Update VIGIL branding (name stays as-is for FK compatibility, update display fields)
+-- Step 2: Update VIGIL branding + correct department
 UPDATE agents SET
+    name = 'VIGIL',
     first_name = 'V.I.G.I.L.',
     display_name = 'V.I.G.I.L.',
-    department = 'Executive Office'
-WHERE name = 'Vigil';
+    department = 'Security & Compliance'
+WHERE name IN ('Vigil', 'VIGIL');
 
 -- Step 3: Create 14 new department AI agents
 -- Note: specializations stored in capabilities (JSONB), backstory stored in bio (TEXT)

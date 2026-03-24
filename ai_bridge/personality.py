@@ -7,9 +7,12 @@ Manages ARCHIE's personality traits and relationship tracking with users.
 DB tables: archie_personality, archie_relationships, archie_scripts
 """
 
+import logging
 import re
 
 from psycopg2.extras import RealDictCursor
+
+logger = logging.getLogger(__name__)
 
 try:
     from db import get_db  # works when ai_bridge/ is on sys.path directly
@@ -29,7 +32,8 @@ def get_personality_trait(trait_name: str) -> str:
         result = cur.fetchone()
         cur.close()
         return result["trait_value"] if result else None
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to get personality trait '%s': %s", trait_name, e)
         return None
     finally:
         conn.close()
@@ -60,7 +64,8 @@ def get_relationship(user_id: int) -> dict:
 
         cur.close()
         return dict(relationship) if relationship else None
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to get relationship for user %s: %s", user_id, e)
         return None
     finally:
         conn.close()
@@ -83,8 +88,8 @@ def update_relationship(user_id: int) -> None:
         )
         conn.commit()
         cur.close()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Failed to update relationship for user %s: %s", user_id, e)
     finally:
         conn.close()
 

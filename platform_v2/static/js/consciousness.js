@@ -2659,12 +2659,16 @@ function loadCodeHealth() {
     Object.keys(allModules).forEach(function(key) {
         if (key.startsWith('standalone_')) {
             standaloneModules[key] = allModules[key];
+            // Add friendly display name for chart
+            if (!moduleDisplayNames[key]) {
+                moduleDisplayNames[key] = key.replace('standalone_', '').replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+            }
         } else {
             platformModules[key] = allModules[key];
         }
     });
 
-    _renderModuleChart(platformModules, moduleDisplayNames);
+    _renderModuleChart(allModules, moduleDisplayNames);
     _renderModuleTable(platformModules, auditedModules, moduleStatusMap, moduleDisplayNames);
     _renderStandaloneTable(standaloneModules);
     _renderOrphanTable(d.orphans || {});

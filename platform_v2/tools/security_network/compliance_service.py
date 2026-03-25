@@ -1150,7 +1150,7 @@ def get_latest_scores():
             name = (pr.get("name") or pr["pack_id"]).lower()
             # Map pack names to short keys for dashboard
             key = name
-            for k in ("ubuntu", "docker", "network"):
+            for k in ("ubuntu", "docker", "network", "cis"):
                 if k in name:
                     key = k
                     break

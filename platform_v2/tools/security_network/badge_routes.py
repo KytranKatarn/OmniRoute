@@ -216,6 +216,21 @@ def badge_network_svg():
     )
 
 
+@badge_bp.route("/badge/cis.svg")
+def badge_cis_svg():
+    """SVG badge: CIS Benchmark | score%"""
+    data = _get_latest_scan()
+    pack = (data or {}).get("packs", {}).get("cis-ubuntu-22.04", {})
+    score = pack.get("score", 0)
+    color = _badge_color(score)
+    svg = _render_svg_badge("CIS Benchmark", f"{score}%", color)
+    return Response(
+        svg,
+        mimetype="image/svg+xml",
+        headers={"Cache-Control": "public, max-age=300"},
+    )
+
+
 @badge_bp.route("/badge/hipaa.svg")
 def badge_hipaa_svg():
     """Placeholder for HIPAA -- Phase 11"""

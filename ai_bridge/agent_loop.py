@@ -743,8 +743,17 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Job #58 — Auto-remediation: fix low-risk compliance failures 30min after scan
+        self.scheduler.add_job(
+            with_app_context(self._run_auto_remediation),
+            trigger=IntervalTrigger(hours=6, start_date="2026-01-01 02:30:00"),
+            id="agent_auto_remediation",
+            name="Agent Loop: Compliance Auto-Remediation",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 58 jobs")
+        logger.info("Agent loop started with 59 jobs")
 
     def _update_stock_prices(self):
         """Job #27: Refresh cached stock prices, check price alerts, and auto-scan watchlist every 5 minutes."""
@@ -3935,6 +3944,81 @@ class AgentLoop:
             )
         except Exception as e:
             logger.error("Scheduled compliance scan failed: %s", e)
+
+    def _run_auto_remediation(self):
+        """Job #58: Auto-fix low-risk compliance failures from the latest scan."""
+        try:
+            import json as _json
+            from tools.security_network.compliance_service import (
+                get_latest_scores,
+                get_scan_results,
+                apply_fix,
+            )
+
+            scores = get_latest_scores()
+            if not scores or not scores.get("scan_id"):
+                return
+
+            scan_id = scores["scan_id"]
+            results = get_scan_results(scan_id, status="fail")
+
+            if not results:
+                return
+
+            # Build a lookup of rule_id -> fix risk from loaded rule packs
+            from database import get_db_cursor
+
+            risk_lookup = {}
+            with get_db_cursor(commit=False) as (conn, cur):
+                cur.execute("SELECT pack_id, rules FROM compliance_rule_packs")
+                for pack_row in cur.fetchall():
+                    rules = (
+                        pack_row["rules"]
+                        if isinstance(pack_row["rules"], list)
+                        else _json.loads(pack_row["rules"])
+                    )
+                    for rule in rules:
+                        rid = rule.get("rule_id", "")
+                        fix = rule.get("fix", {})
+                        risk_lookup[rid] = fix.get("risk", "high")
+
+            fixed = 0
+            skipped = 0
+            for result in results:
+                rule_id = result.get("rule_id", "")
+                risk = risk_lookup.get(rule_id, "high")
+
+                # Only auto-fix low-risk rules (Tier 1 auto-approvable)
+                if risk != "low":
+                    skipped += 1
+                    continue
+
+                try:
+                    fix_result = apply_fix(scan_id, rule_id, user_id=0)
+                    if fix_result.get("success"):
+                        fixed += 1
+                        logger.info(
+                            "Auto-remediation: fixed %s (risk=%s)", rule_id, risk
+                        )
+                    else:
+                        logger.warning(
+                            "Auto-remediation: failed to fix %s: %s",
+                            rule_id,
+                            fix_result.get("error", "unknown"),
+                        )
+                except Exception as fix_err:
+                    logger.warning(
+                        "Auto-remediation: error fixing %s: %s", rule_id, fix_err
+                    )
+
+            if fixed > 0 or skipped > 0:
+                logger.info(
+                    "Auto-remediation complete: %d fixed, %d skipped (non-low risk)",
+                    fixed,
+                    skipped,
+                )
+        except Exception as e:
+            logger.error("Auto-remediation failed: %s", e)
 
     def _check_ssl_expiry(self):
         """Check SSL certificates for upcoming expiry (daily)."""

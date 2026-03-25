@@ -1,0 +1,18 @@
+[Unit]
+Description=Kytran Server Manager — Self-hosted compliance dashboard
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/mnt/archie_brain/kytran-server-manager
+Environment=KSM_PORT=8085
+Environment=KSM_THEME=kytran
+Environment=KSM_HOST=0.0.0.0
+Environment=KSM_DATA_DIR=/var/lib/kytran-server-manager
+ExecStart=/usr/bin/python3 -m kytran_server_manager.app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

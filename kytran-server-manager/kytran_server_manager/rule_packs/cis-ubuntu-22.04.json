@@ -184,7 +184,8 @@
       "check": {
         "type": "command_output",
         "command": "sysctl -n net.ipv4.ip_forward",
-        "expected": "^[01]$",
+        "match_pattern": "^[01]$",
+        "expected": "0 or 1 (1 required for Docker hosts)",
         "docker_exception": true
       },
       "fix": {
@@ -599,9 +600,8 @@
       "title": "Ensure sudo log file exists",
       "description": "A custom log file for sudo provides additional audit trail for privileged commands.",
       "check": {
-        "type": "file_content",
-        "path": "/etc/sudoers",
-        "pattern": "Defaults\\s+logfile",
+        "type": "command_output",
+        "command": "grep -r 'Defaults.*logfile' /etc/sudoers /etc/sudoers.d/ 2>/dev/null | head -1",
         "expected": "logfile"
       },
       "fix": {

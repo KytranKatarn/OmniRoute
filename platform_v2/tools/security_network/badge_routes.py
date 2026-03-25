@@ -239,8 +239,12 @@ def badge_cis_svg():
 
 @badge_bp.route("/badge/hipaa.svg")
 def badge_hipaa_svg():
-    """Placeholder for HIPAA -- Phase 11"""
-    svg = _render_svg_badge("HIPAA", "pending", "#94a3b8")
+    """SVG badge: HIPAA | score%"""
+    data = _get_latest_scan()
+    pack = (data or {}).get("packs", {}).get("hipaa-security", {})
+    score = pack.get("score", 0)
+    color = _badge_color(score)
+    svg = _render_svg_badge("HIPAA", f"{score}%", color)
     return Response(
         svg,
         mimetype="image/svg+xml",

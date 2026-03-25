@@ -1127,12 +1127,20 @@ def get_latest_scores():
         row = cur.fetchone()
         if not row:
             return None
-        for key in ("started_at", "completed_at"):
-            if row.get(key) and hasattr(row[key], "isoformat"):
-                row[key] = row[key].isoformat()
 
-        # Per-pack score breakdown
-        scan_id = row["scan_id"]
+        # Convert types for JSON serialization
+        result = dict(row)
+        for key in ("started_at", "completed_at"):
+            if result.get(key) and hasattr(result[key], "isoformat"):
+                result[key] = result[key].isoformat()
+        if result.get("score") is not None:
+            result["score"] = float(result["score"])
+        for int_key in ("total_rules", "passed", "failed", "errors"):
+            if result.get(int_key) is not None:
+                result[int_key] = int(result[int_key])
+
+        # Per-pack score breakdown (full format for dashboard)
+        scan_id = result["scan_id"]
         cur.execute(
             """
             SELECT r.pack_id, p.name,
@@ -1146,21 +1154,35 @@ def get_latest_scores():
             (scan_id,),
         )
         packs = {}
+        pack_scores = {}
         for pr in cur.fetchall():
-            name = (pr.get("name") or pr["pack_id"]).lower()
-            # Map pack names to short keys for dashboard
-            key = name
-            for k in ("ubuntu", "docker", "network", "cis"):
-                if k in name:
-                    key = k
-                    break
-            pt = pr["total"] or 0
-            pp = pr["passed"] or 0
-            packs[key] = round((pp / pt) * 100, 1) if pt > 0 else 0
+            pack_id = pr["pack_id"]
+            pack_name = pr.get("name") or pack_id
+            pt = int(pr["total"] or 0)
+            pp = int(pr["passed"] or 0)
+            score = round((pp / pt) * 100, 1) if pt > 0 else 0
 
-        row["packs"] = packs
-        row["last_scan"] = row.get("completed_at") or row.get("started_at")
-        return row
+            # Short key for dashboard widgets
+            short_key = pack_name.lower()
+            for k in ("ubuntu", "docker", "network", "hipaa", "cis"):
+                if k in short_key:
+                    short_key = k
+                    break
+            packs[short_key] = score
+
+            # Full format for score cards and frameworks
+            pack_scores[pack_id] = {
+                "name": pack_name,
+                "score": score,
+                "passed": pp,
+                "total": pt,
+            }
+
+        result["packs"] = packs
+        result["pack_scores"] = pack_scores
+        result["last_scan"] = result.get("completed_at") or result.get("started_at")
+        result["latest_scan_id"] = scan_id  # alias for JS compatibility
+        return result
 
 
 def generate_ckl(scan_id):

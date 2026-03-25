@@ -5631,8 +5631,10 @@ function onHardeningTabShown() {
     fetch('/tools/security-network/api/compliance/scores')
         .then(r => r.json())
         .then(data => {
-            if (data.success && data.latest_scan_id) {
-                loadHardeningContent(data.latest_scan_id);
+            const sid = data.latest_scan_id || data.scan_id;
+            if (sid) {
+                _lastScanId = sid;
+                loadHardeningContent(sid);
             }
         })
         .catch(function() {});

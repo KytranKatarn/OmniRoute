@@ -524,9 +524,18 @@ def _check_file_permission(check):
         ok = True
         issues = []
         # Compare modes flexibly — strip leading zeros (0755 == 755)
-        if expected_mode and mode.lstrip("0") != expected_mode.lstrip("0"):
-            ok = False
-            issues.append(f"mode {mode} != {expected_mode}")
+        allow_more_restrictive = check.get("allow_more_restrictive", False)
+        if expected_mode:
+            actual_int = int(mode.lstrip("0") or "0", 8)
+            expected_int = int(expected_mode.lstrip("0") or "0", 8)
+            if allow_more_restrictive:
+                # More restrictive = lower numeric mode value (fewer permissions)
+                if actual_int > expected_int:
+                    ok = False
+                    issues.append(f"mode {mode} is less restrictive than {expected_mode}")
+            elif mode.lstrip("0") != expected_mode.lstrip("0"):
+                ok = False
+                issues.append(f"mode {mode} != {expected_mode}")
         if expected_owner and owner != expected_owner:
             ok = False
             issues.append(f"owner {owner} != {expected_owner}")

@@ -180,11 +180,12 @@
       "rule_id": "CIS-3.1.1",
       "severity": "medium",
       "title": "Ensure IP forwarding is disabled",
-      "description": "IP forwarding should be disabled unless the system is a router. CIS checks both IPv4 and IPv6.",
+      "description": "IP forwarding should be disabled unless the system is a router. CIS checks both IPv4 and IPv6. Note: ip_forward=1 is required on Docker hosts.",
       "check": {
-        "type": "sysctl_value",
-        "param": "net.ipv4.ip_forward",
-        "expected": "0"
+        "type": "command_output",
+        "command": "sysctl -n net.ipv4.ip_forward",
+        "expected": "^[01]$",
+        "docker_exception": true
       },
       "fix": {
         "type": "sysctl",

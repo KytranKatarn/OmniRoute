@@ -760,14 +760,15 @@
     {
       "rule_id": "V-238240",
       "severity": "high",
-      "title": "/etc/shadow must have permissions 0640 or more restrictive",
+      "title": "/etc/shadow must have permissions 0640 or more restrictive or more restrictive",
       "description": "The shadow file contains password hashes and must be protected from unauthorized access.",
       "check": {
         "type": "file_permission",
         "path": "/etc/shadow",
         "expected_mode": "640",
         "expected_owner": "root",
-        "expected_group": "shadow"
+        "expected_group": "shadow",
+        "allow_more_restrictive": true
       },
       "fix": {
         "type": "command",
@@ -826,14 +827,15 @@
     {
       "rule_id": "V-238243",
       "severity": "medium",
-      "title": "/etc/gshadow must have permissions 0640 or more restrictive",
+      "title": "/etc/gshadow must have permissions 0640 or more restrictive or more restrictive",
       "description": "The gshadow file contains group password hashes and must be protected.",
       "check": {
         "type": "file_permission",
         "path": "/etc/gshadow",
         "expected_mode": "640",
         "expected_owner": "root",
-        "expected_group": "shadow"
+        "expected_group": "shadow",
+        "allow_more_restrictive": true
       },
       "fix": {
         "type": "command",

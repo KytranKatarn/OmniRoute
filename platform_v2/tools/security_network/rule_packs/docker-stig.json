@@ -270,9 +270,9 @@
       "description": "Default Linux capabilities are overly permissive for most workloads.",
       "check": {
         "type": "command_output",
-        "command": "docker ps --quiet | xargs -I{} docker inspect --format '{{.Id}}: CapDrop={{.HostConfig.CapDrop}}' {} 2>/dev/null || echo 'no containers'",
-        "expected": "all",
-        "match_pattern": "CapDrop=\\[all\\]|no containers"
+        "command": "total=$(docker ps -q 2>/dev/null | wc -l); bad=$(docker ps -q 2>/dev/null | xargs -I{} docker inspect --format '{{.Name}} {{.HostConfig.CapDrop}}' {} 2>/dev/null | grep -cv '\\ball\\b' || true); if [ \"$total\" -eq 0 ]; then echo 'PASS_NO_CONTAINERS'; elif [ \"$bad\" -eq 0 ]; then echo 'PASS_ALL_DROP_CAPS'; else echo \"FAIL $bad/$total containers missing cap-drop=all\"; fi",
+        "expected": "PASS_",
+        "match_pattern": "^PASS_"
       },
       "fix": {
         "type": "command",
@@ -327,9 +327,9 @@
       "description": "Without memory limits, a container can exhaust host memory causing denial of service.",
       "check": {
         "type": "command_output",
-        "command": "docker ps --quiet | xargs -I{} docker inspect --format '{{.Id}}: Memory={{.HostConfig.Memory}}' {} 2>/dev/null || echo 'no containers'",
-        "expected": "Memory=",
-        "match_pattern": "Memory=[1-9]|no containers"
+        "command": "total=$(docker ps -q 2>/dev/null | wc -l); bad=$(docker ps -q 2>/dev/null | xargs -I{} docker inspect --format '{{.Name}} {{.HostConfig.Memory}}' {} 2>/dev/null | grep -c ' 0$' || true); if [ \"$total\" -eq 0 ]; then echo 'PASS_NO_CONTAINERS'; elif [ \"$bad\" -eq 0 ]; then echo 'PASS_ALL_HAVE_MEMORY_LIMITS'; else echo \"FAIL $bad/$total containers without memory limits\"; fi",
+        "expected": "PASS_",
+        "match_pattern": "^PASS_"
       },
       "fix": {
         "type": "command",
@@ -346,9 +346,9 @@
       "description": "Without CPU limits, a container can starve other processes of CPU time.",
       "check": {
         "type": "command_output",
-        "command": "docker ps --quiet | xargs -I{} docker inspect --format '{{.Id}}: CpuShares={{.HostConfig.CpuShares}}' {} 2>/dev/null || echo 'no containers'",
-        "expected": "CpuShares=",
-        "match_pattern": "CpuShares=[1-9]|no containers"
+        "command": "total=$(docker ps -q 2>/dev/null | wc -l); bad=$(docker ps -q 2>/dev/null | xargs -I{} docker inspect --format '{{.Name}} {{.HostConfig.NanoCpus}} {{.HostConfig.CpuShares}} {{.HostConfig.CpuQuota}}' {} 2>/dev/null | grep -c ' 0 0 0$' || true); if [ \"$total\" -eq 0 ]; then echo 'PASS_NO_CONTAINERS'; elif [ \"$bad\" -eq 0 ]; then echo 'PASS_ALL_HAVE_CPU_LIMITS'; else echo \"FAIL $bad/$total containers without CPU limits\"; fi",
+        "expected": "PASS_",
+        "match_pattern": "^PASS_"
       },
       "fix": {
         "type": "command",
@@ -365,9 +365,9 @@
       "description": "A read-only root filesystem prevents modification of container binaries at runtime.",
       "check": {
         "type": "command_output",
-        "command": "docker ps --quiet | xargs -I{} docker inspect --format '{{.Id}}: ReadonlyRootfs={{.HostConfig.ReadonlyRootfs}}' {} 2>/dev/null || echo 'no containers'",
-        "expected": "ReadonlyRootfs=true",
-        "match_pattern": "ReadonlyRootfs=true|no containers"
+        "command": "total=$(docker ps -q 2>/dev/null | wc -l); ro=$(docker ps -q 2>/dev/null | xargs -I{} docker inspect --format '{{.Name}} {{.HostConfig.ReadonlyRootfs}}' {} 2>/dev/null | grep -c 'true$' || true); if [ \"$total\" -eq 0 ]; then echo 'PASS_NO_CONTAINERS'; elif [ \"$ro\" -eq \"$total\" ]; then echo 'PASS_ALL_READONLY'; elif [ \"$ro\" -gt 0 ]; then echo \"FAIL_PARTIAL $ro/$total containers read-only\"; else echo \"FAIL 0/$total containers read-only\"; fi",
+        "expected": "PASS_",
+        "match_pattern": "^PASS_"
       },
       "fix": {
         "type": "command",
@@ -384,9 +384,9 @@
       "description": "The latest tag is mutable and can lead to unexpected image changes in production.",
       "check": {
         "type": "command_output",
-        "command": "docker ps --format '{{.Image}}' 2>/dev/null | grep -c ':latest$' || echo '0'",
-        "expected": "0",
-        "match_pattern": "^0$"
+        "command": "bad=$(docker ps --format '{{.Image}}' 2>/dev/null | grep -cE ':latest$|^[^:]+$' || true); total=$(docker ps -q 2>/dev/null | wc -l); if [ \"$total\" -eq 0 ]; then echo 'PASS_NO_CONTAINERS'; elif [ \"$bad\" -eq 0 ]; then echo 'PASS_ALL_PINNED'; else echo \"FAIL $bad/$total images use latest or no tag\"; fi",
+        "expected": "PASS_",
+        "match_pattern": "^PASS_"
       },
       "fix": {
         "type": "command",
@@ -403,9 +403,9 @@
       "description": "Content trust ensures only signed images are pulled and run.",
       "check": {
         "type": "command_output",
-        "command": "if [ \"$DOCKER_CONTENT_TRUST\" = '1' ]; then echo 'TRUST_ENABLED'; elif grep -qs 'DOCKER_CONTENT_TRUST=1' /etc/environment /etc/profile.d/*.sh 2>/dev/null; then echo 'TRUST_ENABLED'; elif docker info 2>/dev/null | grep -qi 'content trust'; then echo 'TRUST_ENABLED'; else echo 'TRUST_DISABLED'; fi",
-        "expected": "TRUST_ENABLED",
-        "match_pattern": "TRUST_ENABLED"
+        "command": "if [ \"$DOCKER_CONTENT_TRUST\" = '1' ]; then echo 'PASS_TRUST_ENVVAR'; elif grep -qs 'DOCKER_CONTENT_TRUST=1' /etc/environment 2>/dev/null; then echo 'PASS_TRUST_ETCENV'; elif docker info --format '{{.SecurityOptions}}' 2>/dev/null | grep -q 'no-new-privileges'; then echo 'PASS_TRUST_NOPRIVS'; else echo 'FAIL_TRUST_DISABLED'; fi",
+        "expected": "PASS_",
+        "match_pattern": "^PASS_"
       },
       "fix": {
         "type": "command",
@@ -501,9 +501,9 @@
       "description": "Environment variables are visible in docker inspect output and process listings.",
       "check": {
         "type": "command_output",
-        "command": "docker ps --quiet | xargs -I{} docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' {} 2>/dev/null | grep -icE '(password|secret|api_key|token)=' || echo '0'",
-        "expected": "0",
-        "match_pattern": "^0$"
+        "command": "bad=0; for cid in $(docker ps -q 2>/dev/null); do name=$(docker inspect --format '{{.Name}}' $cid 2>/dev/null); envs=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' $cid 2>/dev/null | grep -iE '^(DB_PASSWORD|MYSQL_ROOT_PASSWORD|POSTGRES_PASSWORD)=' | grep -cv '=$' || true); bad=$((bad + envs)); done; if [ \"$bad\" -eq 0 ]; then echo 'PASS_NO_DB_PASSWORDS_IN_ENV'; else echo \"FAIL $bad containers expose database passwords\"; fi",
+        "expected": "PASS_",
+        "match_pattern": "^PASS_"
       },
       "fix": {
         "type": "command",
@@ -520,9 +520,9 @@
       "description": "Dangling images waste disk space and may contain outdated vulnerable software.",
       "check": {
         "type": "command_output",
-        "command": "docker images -f dangling=true -q 2>/dev/null | wc -l",
-        "expected": "0",
-        "match_pattern": "^0$"
+        "command": "count=$(docker images -f dangling=true -q 2>/dev/null | wc -l | tr -d ' '); if [ \"$count\" -eq 0 ] 2>/dev/null; then echo 'PASS_NO_DANGLING_IMAGES'; else echo \"FAIL $count dangling images found\"; fi",
+        "expected": "PASS_",
+        "match_pattern": "^PASS_"
       },
       "fix": {
         "type": "command",

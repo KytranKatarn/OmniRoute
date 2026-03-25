@@ -116,16 +116,6 @@ services:
       - ./migrations:/mnt/archie_brain/migrations:ro
       # Docker stacks directory for System Operations stack management
       - /mnt/stacks:/mnt/stacks:ro
-      # Host config files for STIG compliance scanning (read-only)
-      - /etc/ssh:/etc/ssh:ro
-      - /etc/docker:/etc/docker:ro
-      - /etc/security:/etc/security:ro
-      - /etc/pam.d:/etc/pam.d:ro
-      - /etc/audit:/etc/audit:ro
-      - /etc/login.defs:/etc/login.defs:ro
-      - /etc/modprobe.d:/etc/modprobe.d:ro
-      - /etc/sysctl.conf:/etc/sysctl.conf:ro
-      - /etc/ufw:/etc/ufw:ro
       # Media stack configs for Media Hub service discovery (API keys, etc.)
       - /mnt/Plex/config:/mnt/Plex/config:ro
       # Ollama model storage on LLM SSD

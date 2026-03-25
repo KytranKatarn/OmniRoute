@@ -371,13 +371,34 @@ def _check_sysctl(param, timeout=10):
 
 
 def _check_port_direct(port):
-    """Check if port is listening using ss inside the container (shared network namespace)."""
+    """Check if port is listening using ss or /proc/net/tcp* (works inside Docker)."""
+    port_int = int(port)
+    # Try ss first
     try:
         out = _subprocess.run(["ss", "-tlnp"], capture_output=True, text=True, timeout=5)
-        output = out.stdout
-        listening = f":{port} " in output or f":{port}\t" in output
-        matched = [l for l in output.splitlines() if f":{port} " in l or f":{port}\t" in l]
-        return listening, matched[0].strip() if matched else ""
+        if out.returncode == 0 and out.stdout.strip():
+            output = out.stdout
+            listening = f":{port} " in output or f":{port}\t" in output
+            matched = [l for l in output.splitlines() if f":{port} " in l or f":{port}\t" in l]
+            return listening, matched[0].strip() if matched else ""
+    except (FileNotFoundError, _subprocess.TimeoutExpired, OSError):
+        pass
+
+    # Fallback: parse /proc/net/tcp and /proc/net/tcp6 (always available in Linux)
+    try:
+        hex_port = f"{port_int:04X}"
+        for proc_path in ["/proc/net/tcp", "/proc/net/tcp6"]:
+            try:
+                with open(proc_path, "r") as f:
+                    for line in f:
+                        parts = line.strip().split()
+                        if len(parts) >= 4 and parts[3] == "0A":  # 0A = LISTEN state
+                            local_port = parts[1].split(":")[1]
+                            if local_port == hex_port:
+                                return True, f"port {port} listening (from {proc_path})"
+            except (FileNotFoundError, PermissionError):
+                continue
+        return False, ""
     except Exception:
         return None, ""  # None means fallback to host_command
 
@@ -501,8 +522,31 @@ def _check_file_permission(check):
             ok = False
             issues.append(f"owner {owner} != {expected_owner}")
         if expected_group and group != expected_group:
-            ok = False
-            issues.append(f"group {group} != {expected_group}")
+            # If group is a numeric GID, try to resolve the expected group name to GID
+            # e.g., GID 988 == "docker" on the host even if container lacks the mapping
+            group_match = False
+            if group.isdigit():
+                try:
+                    resolved = grp.getgrnam(expected_group)
+                    group_match = str(resolved.gr_gid) == group
+                except KeyError:
+                    pass
+                if not group_match:
+                    # Also accept if the GID matches a well-known docker GID range
+                    # or the host group file confirms it
+                    try:
+                        host_group = _read_host_file("/etc/group")
+                        if host_group:
+                            for gl in host_group.splitlines():
+                                parts = gl.split(":")
+                                if len(parts) >= 3 and parts[0] == expected_group and parts[2] == group:
+                                    group_match = True
+                                    break
+                    except Exception:
+                        pass
+            if not group_match:
+                ok = False
+                issues.append(f"group {group} != {expected_group}")
 
         return {
             "status": "pass" if ok else "fail",
@@ -571,6 +615,14 @@ def _check_command_output(check):
             "who",
             "last",
             "loginctl",
+            "docker",
+            "echo",
+            "openssl",
+            "curl",
+            "ip",
+            "findmnt",
+            "apt-config",
+            "wc",
         }
         cmd_base = command.split()[0].split("/")[-1] if command else ""
         if cmd_base in _SAFE_LOCAL:
@@ -745,9 +797,19 @@ def _check_docker_config(check):
                 "expected": expected,
                 "details": "Failed to parse daemon.json",
             }
-        actual = str(daemon_cfg.get(config_key, "(not set)"))
+        raw_val = daemon_cfg.get(config_key, "(not set)")
+        actual = str(raw_val)
+
+        # For boolean/numeric values, normalize comparison
+        if isinstance(raw_val, bool):
+            actual = str(raw_val)  # "True" / "False"
+        elif isinstance(raw_val, (dict, list)):
+            actual = json.dumps(raw_val)
 
         ok = expected in actual if expected else actual != "(not set)"
+        # Also match case-insensitively for booleans
+        if not ok and expected:
+            ok = expected.lower() in actual.lower()
         return {
             "status": "pass" if ok else "fail",
             "actual": actual[:500],

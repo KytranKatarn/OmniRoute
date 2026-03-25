@@ -305,7 +305,7 @@
       "description": "Default Linux capabilities are overly permissive for most workloads.",
       "check": {
         "type": "command_output",
-        "command": "total=$(docker ps -q 2>/dev/null | wc -l); bad=$(docker ps -q 2>/dev/null | xargs -I{} docker inspect --format '{{.Name}} {{.HostConfig.CapDrop}}' {} 2>/dev/null | grep -cv '\\ball\\b' || true); if [ \"$total\" -eq 0 ]; then echo 'PASS_NO_CONTAINERS'; elif [ \"$bad\" -eq 0 ]; then echo 'PASS_ALL_DROP_CAPS'; else echo \"FAIL $bad/$total containers missing cap-drop=all\"; fi",
+        "command": "total=$(docker ps -q 2>/dev/null | wc -l); bad=$(docker ps -q 2>/dev/null | xargs -I{} docker inspect --format '{{.Name}} {{.HostConfig.CapDrop}}' {} 2>/dev/null | grep -cv '\\[ALL\\]' || true); if [ \"$total\" -eq 0 ]; then echo 'PASS_NO_CONTAINERS'; elif [ \"$bad\" -eq 0 ]; then echo 'PASS_ALL_DROP_CAPS'; else echo \"FAIL $bad/$total containers missing cap-drop=all\"; fi",
         "expected": "PASS_",
         "match_pattern": "^PASS_"
       },

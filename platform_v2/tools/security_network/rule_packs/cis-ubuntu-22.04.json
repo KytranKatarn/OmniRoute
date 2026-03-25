@@ -514,9 +514,8 @@
       "title": "Ensure remote logging is configured",
       "description": "System logs should be sent to a remote log host to preserve evidence and ensure availability.",
       "check": {
-        "type": "file_content",
-        "path": "/etc/rsyslog.conf",
-        "pattern": "^\\*\\.\\*\\s+@@",
+        "type": "command_output",
+        "command": "grep -r '^*.*@@' /etc/rsyslog.conf /etc/rsyslog.d/ 2>/dev/null | head -1 || echo 'not found'",
         "expected": "@@"
       },
       "fix": {
@@ -790,9 +789,9 @@
       "description": "World-writable files can be modified by any user, which is a security risk.",
       "check": {
         "type": "command_output",
-        "command": "find / -xdev -type f -perm -0002 2>/dev/null | wc -l | tr -d ' '",
-        "match_pattern": "^0$",
-        "expected": "0"
+        "command": "count=$(find / -xdev -not -path '/tmp/*' -not -path '/proc/*' -not -path '/sys/*' -not -path '/run/*' -type f -perm -0002 2>/dev/null | wc -l); echo $count",
+        "expected": "0",
+        "match": "exact"
       },
       "fix": {
         "type": "command",

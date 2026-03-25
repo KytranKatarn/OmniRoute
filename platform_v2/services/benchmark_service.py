@@ -274,7 +274,7 @@ def _run_benchmark_thread(
             port=__import__("os").getenv("DB_PORT", "5432"),
             database=__import__("os").getenv("DB_NAME", "archie"),
             user=__import__("os").getenv("DB_USER", "archie"),
-            password=__import__("os").getenv("DB_PASSWORD", ""),
+            password=__import__("database")._get_db_password(),
         )
         db_conn.autocommit = True
     except Exception as e:
@@ -541,7 +541,7 @@ def _run_image_benchmark_thread(
             port=__import__("os").getenv("DB_PORT", "5432"),
             database=__import__("os").getenv("DB_NAME", "archie"),
             user=__import__("os").getenv("DB_USER", "archie"),
-            password=__import__("os").getenv("DB_PASSWORD", ""),
+            password=__import__("database")._get_db_password(),
         )
         db_conn.autocommit = True
     except Exception as e:

@@ -31,6 +31,7 @@ async def forge_stats_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
         import psycopg2
         from psycopg2.extras import RealDictCursor
         import os
+        from database import _get_db_password
 
         gh = health_check()
         open_prs = list_pipeline_prs("open")
@@ -40,7 +41,7 @@ async def forge_stats_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             host=os.getenv("DB_HOST", "archie_database"),
             database=os.getenv("DB_NAME", "archie"),
             user=os.getenv("DB_USER", "archie"),
-            password=os.getenv("DB_PASSWORD"),
+            password=_get_db_password(),
         )
         cur = conn.cursor(cursor_factory=RealDictCursor)
         try:

@@ -27,7 +27,20 @@ class Config:
     DB_PORT = os.getenv("DB_PORT", "5432")
     DB_NAME = os.getenv("DB_NAME", "archie")
     DB_USER = os.getenv("DB_USER", "archie")
-    DB_PASSWORD = os.getenv("DB_PASSWORD", "")
+
+    @staticmethod
+    def _read_db_password():
+        secret_file = os.getenv("DB_PASSWORD_FILE", "/run/secrets/db_password")
+        try:
+            with open(secret_file, "r") as f:
+                pw = f.read().strip()
+                if pw:
+                    return pw
+        except (FileNotFoundError, PermissionError):
+            pass
+        return os.getenv("DB_PASSWORD", "")
+
+    DB_PASSWORD = _read_db_password.__func__()
 
     SQLALCHEMY_DATABASE_URI = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     SQLALCHEMY_TRACK_MODIFICATIONS = False

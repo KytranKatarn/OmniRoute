@@ -16,7 +16,7 @@ from psycopg2.extras import RealDictCursor
 sys.path.insert(0, "/app")
 from consciousness.memory_manager import get_memory_context, learn_from_conversation
 from consciousness.archie_tools import read_file, edit_file, write_file
-from db import get_db
+from db import get_db, _get_db_password
 
 # Import new learning loop modules
 sys.path.insert(0, "/app/ai_bridge")
@@ -1723,7 +1723,7 @@ def _parse_bridge_intent(prompt, original_prompt, user_id, enable_memory, try_lo
                 port=os.getenv("DB_PORT", "5432"),
                 database=os.getenv("DB_NAME", "archie"),
                 user=os.getenv("DB_USER", "archie"),
-                password=os.getenv("DB_PASSWORD", ""),
+                password=_get_db_password(),
             )
             cur = conn.cursor()
             cur.execute(

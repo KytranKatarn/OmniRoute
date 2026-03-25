@@ -4,6 +4,7 @@ Tools that A.R.C.H.I.E. can use to interact with her own codebase and improve he
 """
 
 import os
+from database import _get_db_password
 import re
 import json
 import subprocess
@@ -583,7 +584,7 @@ def query_knowledge(search_term, knowledge_type=None, limit=10):
             port=os.getenv("DB_PORT", "5432"),
             database=os.getenv("DB_NAME", "archie"),
             user=os.getenv("DB_USER", "archie"),
-            password=os.getenv("DB_PASSWORD", ""),
+            password=_get_db_password(),
         )
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
@@ -665,7 +666,7 @@ def add_knowledge(
             port=os.getenv("DB_PORT", "5432"),
             database=os.getenv("DB_NAME", "archie"),
             user=os.getenv("DB_USER", "archie"),
-            password=os.getenv("DB_PASSWORD", ""),
+            password=_get_db_password(),
         )
         cur = conn.cursor()
 
@@ -810,7 +811,7 @@ def create_improvement_proposal(title, description, category="general", priority
             port=os.getenv("DB_PORT", "5432"),
             database=os.getenv("DB_NAME", "archie"),
             user=os.getenv("DB_USER", "archie"),
-            password=os.getenv("DB_PASSWORD", ""),
+            password=_get_db_password(),
         )
         cur = conn.cursor()
 
@@ -887,7 +888,7 @@ def query_database(query, description=None):
             port=os.getenv("DB_PORT", "5432"),
             database=os.getenv("DB_NAME", "archie"),
             user=os.getenv("DB_USER", "archie"),
-            password=os.getenv("DB_PASSWORD", ""),
+            password=_get_db_password(),
         )
         cur = conn.cursor(cursor_factory=RealDictCursor)
 

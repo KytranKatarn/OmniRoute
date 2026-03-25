@@ -9,6 +9,7 @@ Supports:
 """
 
 import os
+from database import _get_db_password
 import json
 import subprocess
 from typing import Dict, List, Optional
@@ -99,7 +100,7 @@ class SandboxCodeApplicator:
                 port=os.getenv("DB_PORT", "5432"),
                 database=os.getenv("DB_NAME", "archie"),
                 user=os.getenv("DB_USER", "archie"),
-                password=os.getenv("DB_PASSWORD", ""),
+                password=_get_db_password(),
             )
             cur = conn.cursor()
 
@@ -288,7 +289,7 @@ class SandboxCodeApplicator:
                 port=os.getenv("DB_PORT", "5432"),
                 database=os.getenv("DB_NAME", "archie"),
                 user=os.getenv("DB_USER", "archie"),
-                password=os.getenv("DB_PASSWORD", ""),
+                password=_get_db_password(),
             )
             cur = conn.cursor()
 

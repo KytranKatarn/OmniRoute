@@ -116,7 +116,7 @@ try:
         host=os.getenv('DB_HOST', 'archie_database'),
         database=os.getenv('DB_NAME', 'archie'),
         user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD')
+        password=(lambda: (open(os.getenv('DB_PASSWORD_FILE','/run/secrets/db_password')).read().strip() or os.getenv('DB_PASSWORD','')) if os.path.exists(os.getenv('DB_PASSWORD_FILE','/run/secrets/db_password')) else os.getenv('DB_PASSWORD',''))()
     )
     cur = conn.cursor()
 

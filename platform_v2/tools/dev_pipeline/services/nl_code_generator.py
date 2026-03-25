@@ -14,6 +14,7 @@ Date: 2026-01-19
 """
 
 import os
+from database import _get_db_password
 import sys
 import json
 import re
@@ -45,7 +46,7 @@ def get_db():
         host=os.getenv("DB_HOST", "archie_database"),
         database=os.getenv("DB_NAME", "archie"),
         user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", "archie_secure_2024"),
+        password=_get_db_password(),
     )
 
 

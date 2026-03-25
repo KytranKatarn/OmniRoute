@@ -10,6 +10,7 @@ Uses PostgreSQL schema separation to create lightweight sandboxes:
 """
 
 import os
+from database import _get_db_password
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from psycopg2 import sql
@@ -46,7 +47,7 @@ class SchemaSandboxManager:
             port=os.getenv("DB_PORT", "5432"),
             database=os.getenv("DB_NAME", "archie"),
             user=os.getenv("DB_USER", "archie"),
-            password=os.getenv("DB_PASSWORD", ""),
+            password=_get_db_password(),
         )
 
     def create_schema(

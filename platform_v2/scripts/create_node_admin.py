@@ -8,6 +8,18 @@ import bcrypt
 import psycopg2
 
 
+def _get_db_password():
+    secret_file = os.getenv("DB_PASSWORD_FILE", "/run/secrets/db_password")
+    try:
+        with open(secret_file, "r") as f:
+            pw = f.read().strip()
+            if pw:
+                return pw
+    except (FileNotFoundError, PermissionError):
+        pass
+    return os.getenv("DB_PASSWORD", "")
+
+
 def main():
     print("=== A.R.C.H.I.E. Node Admin Setup ===")
 
@@ -25,7 +37,7 @@ def main():
         port=os.environ.get("DB_PORT", "5432"),
         database=os.environ.get("DB_NAME", "archie_node"),
         user=os.environ.get("DB_USER", "archie"),
-        password=os.environ.get("DB_PASSWORD", ""),
+        password=_get_db_password(),
     )
     cur = conn.cursor()
     cur.execute(

@@ -7,6 +7,7 @@ Analyzes collaboration sessions and saves learnings to knowledge base.
 import json
 import logging
 import os
+from database import _get_db_password
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +137,7 @@ def get_learning_stats() -> dict:
             host=os.getenv("DB_HOST", "archie_database"),
             database=os.getenv("DB_NAME", "archie"),
             user=os.getenv("DB_USER", "archie"),
-            password=os.getenv("DB_PASSWORD"),
+            password=_get_db_password(),
         )
         cur = conn.cursor()
 
@@ -219,7 +220,7 @@ def get_collaboration_history() -> list:
             host=os.getenv("DB_HOST", "archie_database"),
             database=os.getenv("DB_NAME", "archie"),
             user=os.getenv("DB_USER", "archie"),
-            password=os.getenv("DB_PASSWORD"),
+            password=_get_db_password(),
         )
         cur = conn.cursor()
 

@@ -9,6 +9,7 @@ Instead of applying changes directly, pushes to a branch and opens a PR.
 import json
 import logging
 import os
+from database import _get_db_password
 import re
 import time
 from typing import Dict, List, Optional
@@ -312,7 +313,7 @@ def deploy_via_merge(pr_number: int, proposal_id: int = None) -> Dict:
                 host=os.getenv("DB_HOST", "archie_database"),
                 database=os.getenv("DB_NAME", "archie"),
                 user=os.getenv("DB_USER", "archie"),
-                password=os.getenv("DB_PASSWORD"),
+                password=_get_db_password(),
             )
             cur = conn.cursor()
             try:
@@ -355,7 +356,7 @@ def deploy_via_merge(pr_number: int, proposal_id: int = None) -> Dict:
                 host=os.getenv("DB_HOST", "archie_database"),
                 database=os.getenv("DB_NAME", "archie"),
                 user=os.getenv("DB_USER", "archie"),
-                password=os.getenv("DB_PASSWORD"),
+                password=_get_db_password(),
             )
             tg_cur = tg_conn.cursor()
             try:

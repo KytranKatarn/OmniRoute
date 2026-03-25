@@ -2,6 +2,7 @@
 
 import json
 import os
+from database import _get_db_password
 import time
 import logging
 from typing import List
@@ -629,7 +630,7 @@ def register_station_routes(bp, admin_required):
                 port=os.environ.get("DB_PORT", "5432"),
                 database=os.environ.get("DB_NAME", "archie"),
                 user=os.environ.get("DB_USER", "archie"),
-                password=os.environ.get("DB_PASSWORD", ""),
+                password=_get_db_password(),
             )
             cur = conn.cursor()
             cur.execute(

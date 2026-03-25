@@ -12,6 +12,7 @@ Specialized tools for Claude Code integration:
 """
 
 import os
+from database import _get_db_password
 import json
 import logging
 import subprocess
@@ -30,7 +31,7 @@ DB_CONFIG = {
     "host": os.getenv("DB_HOST", "192.168.1.200"),
     "database": os.getenv("DB_NAME", "archie"),
     "user": os.getenv("DB_USER", "archie"),
-    "password": os.getenv("DB_PASSWORD", "archie_secure_2024"),
+    "password": _get_db_password(),
 }
 
 PLATFORM_URL = os.getenv("ARCHIE_PLATFORM_URL", "http://localhost:3000")

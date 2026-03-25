@@ -16,6 +16,7 @@ Uses hybrid keyword (30%) + semantic (70%) search when embeddings available
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
+from database import _get_db_password
 from typing import List, Dict, Any
 import re
 
@@ -26,7 +27,7 @@ def get_db_connection():
         host=os.getenv("DB_HOST", "archie_database"),
         database=os.getenv("DB_NAME", "archie"),
         user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD"),
+        password=_get_db_password(),
     )
 
 

@@ -10,6 +10,7 @@ Created: 2026-02-17
 import json
 import logging
 import os
+from database import _get_db_password
 import sys
 import time
 
@@ -32,7 +33,7 @@ def get_db():
         host=os.getenv("DB_HOST", "archie_database"),
         database=os.getenv("DB_NAME", "archie"),
         user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD"),
+        password=_get_db_password(),
     )
 
 

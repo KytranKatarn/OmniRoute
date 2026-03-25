@@ -13,6 +13,7 @@ Phoneme-Based Caching Strategy:
 """
 
 import os
+from db import _get_db_password
 import io
 import base64
 import hashlib
@@ -759,7 +760,7 @@ class VoiceSynthesizer:
             port=os.getenv("DB_PORT", "5432"),
             database=os.getenv("DB_NAME", "archie"),
             user=os.getenv("DB_USER", "archie"),
-            password=os.getenv("DB_PASSWORD", ""),
+            password=_get_db_password(),
         )
 
     def get_archie_emotional_state(self, user_id: int) -> str:

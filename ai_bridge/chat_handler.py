@@ -14,6 +14,7 @@ Date: 2026-01-14
 """
 
 import os
+from db import _get_db_password
 import sys
 import json
 import logging
@@ -66,7 +67,7 @@ class ProposalChatHandler:
             "port": os.getenv("DB_PORT", "5432"),
             "database": os.getenv("DB_NAME", "archie"),
             "user": os.getenv("DB_USER", "archie"),
-            "password": os.getenv("DB_PASSWORD", ""),
+            "password": _get_db_password(),
         }
 
     def get_db(self):

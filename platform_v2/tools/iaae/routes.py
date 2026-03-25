@@ -12,6 +12,7 @@ Pulls live data from:
 """
 
 import os
+from database import _get_db_password
 import json
 import logging
 import psycopg2
@@ -34,7 +35,7 @@ def get_db():
         port=os.getenv("DB_PORT", "5432"),
         database=os.getenv("DB_NAME", "archie"),
         user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", ""),
+        password=_get_db_password(),
     )
 
 

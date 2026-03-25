@@ -19,6 +19,7 @@ Usage:
 
 import json
 import os
+from db import _get_db_password
 import logging
 import re
 import psycopg2
@@ -55,7 +56,7 @@ def _get_db():
         port=os.environ.get("DB_PORT", "5432"),
         database=os.environ.get("DB_NAME", "archie"),
         user=os.environ.get("DB_USER", "archie"),
-        password=os.environ.get("DB_PASSWORD", ""),
+        password=_get_db_password(),
     )
 
 

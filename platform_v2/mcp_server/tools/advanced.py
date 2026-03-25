@@ -7,6 +7,7 @@ via Model Context Protocol.
 """
 
 import os
+from database import _get_db_password
 import json
 import logging
 import psycopg2
@@ -25,7 +26,7 @@ DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "database": os.getenv("DB_NAME", "archie"),
     "user": os.getenv("DB_USER", "archie"),
-    "password": os.getenv("DB_PASSWORD", "archie_secure_2024"),
+    "password": _get_db_password(),
 }
 
 

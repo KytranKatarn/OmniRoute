@@ -9,6 +9,7 @@ from flask_login import current_user
 from psycopg2.extras import Json
 import psycopg2
 import os
+from database import _get_db_password
 import json as json_lib
 import time as time_mod
 
@@ -49,7 +50,7 @@ def get_db():
         port=os.getenv("DB_PORT", "5432"),
         database=os.getenv("DB_NAME", "archie"),
         user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", ""),
+        password=_get_db_password(),
     )
 
 

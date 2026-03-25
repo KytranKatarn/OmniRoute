@@ -233,13 +233,14 @@ def log_user_activity(
         import psycopg2
         from psycopg2.extras import Json
         import os
+        from database import _get_db_password
 
         conn = psycopg2.connect(
             host=os.getenv("DB_HOST", "archie_database"),
             port=os.getenv("DB_PORT", "5432"),
             database=os.getenv("DB_NAME", "archie"),
             user=os.getenv("DB_USER", "archie"),
-            password=os.getenv("DB_PASSWORD", ""),
+            password=_get_db_password(),
         )
         cur = conn.cursor()
 
@@ -320,7 +321,7 @@ def check_resource_limit(resource_type: str, current_count: int = None) -> dict:
             port=os.getenv("DB_PORT", "5432"),
             database=os.getenv("DB_NAME", "archie"),
             user=os.getenv("DB_USER", "archie"),
-            password=os.getenv("DB_PASSWORD", ""),
+            password=_get_db_password(),
         )
         cur = conn.cursor(cursor_factory=RealDictCursor)
 

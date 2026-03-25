@@ -12,6 +12,7 @@ import asyncio
 import json
 import logging
 import os
+from db import _get_db_password
 import secrets
 import threading
 import time
@@ -506,7 +507,7 @@ class TelegramGateway:
                 port=int(os.getenv("DB_PORT", "5432")),
                 dbname=os.getenv("DB_NAME", "archie"),
                 user=os.getenv("DB_USER", "archie"),
-                password=os.getenv("DB_PASSWORD", ""),
+                password=_get_db_password(),
                 cursor_factory=RealDictCursor,
             )
             try:

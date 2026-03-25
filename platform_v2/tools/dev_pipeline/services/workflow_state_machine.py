@@ -7,6 +7,7 @@ Date: 2026-01-05
 """
 
 import os
+from database import _get_db_password
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from typing import Dict, Optional, List
@@ -48,7 +49,7 @@ class WorkflowStateMachine:
             port=os.getenv("DB_PORT", "5432"),
             database=os.getenv("DB_NAME", "archie"),
             user=os.getenv("DB_USER", "archie"),
-            password=os.getenv("DB_PASSWORD", ""),
+            password=_get_db_password(),
         )
 
     def transition_state(

@@ -15,6 +15,7 @@ Date: 2026-03-14
 """
 
 import os
+from database import _get_db_password
 import json
 import subprocess
 import logging
@@ -32,7 +33,7 @@ DB_CONFIG = {
     "host": os.environ.get("DB_HOST", "192.168.1.200"),
     "dbname": os.environ.get("DB_NAME", "archie"),
     "user": os.environ.get("DB_USER", "archie"),
-    "password": os.environ.get("DB_PASSWORD", ""),
+    "password": _get_db_password(),
 }
 
 

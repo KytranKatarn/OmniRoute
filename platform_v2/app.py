@@ -422,7 +422,7 @@ def ai_preferences():
                 port=os.getenv("DB_PORT", "5432"),
                 database=os.getenv("DB_NAME", "archie"),
                 user=os.getenv("DB_USER", "archie"),
-                password=os.getenv("DB_PASSWORD", ""),
+                password=app.config["DB_PASSWORD"],
             )
             cur = conn.cursor()
 
@@ -3276,7 +3276,7 @@ def init_consciousness_scheduler(flask_app):
                         host=os.getenv("DB_HOST", "archie_database"),
                         database=os.getenv("DB_NAME", "archie"),
                         user=os.getenv("DB_USER", "archie"),
-                        password=os.getenv("DB_PASSWORD"),
+                        password=app.config["DB_PASSWORD"],
                     )
                     cur = conn.cursor(cursor_factory=RealDictCursor)
 

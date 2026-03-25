@@ -16,7 +16,21 @@ DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
 DB_NAME = os.getenv("DB_NAME", "archie")
 DB_USER = os.getenv("DB_USER", "archie")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "")
+
+
+def _get_db_password():
+    secret_file = os.getenv("DB_PASSWORD_FILE", "/run/secrets/db_password")
+    try:
+        with open(secret_file, "r") as f:
+            pw = f.read().strip()
+            if pw:
+                return pw
+    except (FileNotFoundError, PermissionError):
+        pass
+    return os.getenv("DB_PASSWORD", "")
+
+
+DB_PASSWORD = _get_db_password()
 
 # Admin configuration
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")

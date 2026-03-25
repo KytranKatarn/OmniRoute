@@ -7,6 +7,7 @@ Supports stdio transport for Claude Code and other MCP clients.
 """
 
 import os
+from database import _get_db_password
 import sys
 import json
 import asyncio
@@ -46,7 +47,7 @@ DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "database": os.getenv("DB_NAME", "archie"),
     "user": os.getenv("DB_USER", "archie"),
-    "password": os.getenv("DB_PASSWORD", "archie_secure_2024"),
+    "password": _get_db_password(),
 }
 
 # A.R.C.H.I.E. Platform base URL

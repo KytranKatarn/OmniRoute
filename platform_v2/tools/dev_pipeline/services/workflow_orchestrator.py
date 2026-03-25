@@ -7,6 +7,7 @@ Date: 2026-01-05
 """
 
 import os
+from database import _get_db_password
 import sys
 from typing import Dict, Optional
 from datetime import datetime
@@ -35,7 +36,7 @@ class WorkflowOrchestrator:
             port=os.getenv("DB_PORT", "5432"),
             database=os.getenv("DB_NAME", "archie"),
             user=os.getenv("DB_USER", "archie"),
-            password=os.getenv("DB_PASSWORD", ""),
+            password=_get_db_password(),
         )
 
     def execute_full_workflow(self, proposal_id: int) -> Dict:

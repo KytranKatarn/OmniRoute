@@ -97,6 +97,7 @@ from flask import Blueprint, render_template, jsonify, request, send_file, curre
 from functools import wraps
 from flask_login import current_user
 import os
+from database import _get_db_password
 import subprocess
 import json
 from datetime import datetime, timedelta
@@ -958,7 +959,7 @@ def get_db_connection():
     db_host = os.environ.get("DB_HOST", "archie_db")
     db_name = os.environ.get("DB_NAME", "archie")
     db_user = os.environ.get("DB_USER", "archie")
-    db_pass = os.environ.get("DB_PASSWORD", "archie")
+    db_pass = _get_db_password()
     db_port = os.environ.get("DB_PORT", "5432")
 
     return psycopg2.connect(host=db_host, database=db_name, user=db_user, password=db_pass, port=db_port)

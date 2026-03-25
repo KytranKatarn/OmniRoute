@@ -14,6 +14,7 @@ Date: 2026-01-16
 """
 
 import os
+from database import _get_db_password
 import re
 import json
 import subprocess
@@ -576,7 +577,7 @@ def save_chat_history(project_id: int, history: List[Dict]) -> bool:
             port=os.getenv("DB_PORT", "5432"),
             database=os.getenv("DB_NAME", "archie"),
             user=os.getenv("DB_USER", "archie"),
-            password=os.getenv("DB_PASSWORD", ""),
+            password=_get_db_password(),
         )
         cur = conn.cursor()
         cur.execute(
@@ -622,7 +623,7 @@ def load_chat_history(project_id: int) -> List[Dict]:
             port=os.getenv("DB_PORT", "5432"),
             database=os.getenv("DB_NAME", "archie"),
             user=os.getenv("DB_USER", "archie"),
-            password=os.getenv("DB_PASSWORD", ""),
+            password=_get_db_password(),
         )
         cur = conn.cursor()
         cur.execute(

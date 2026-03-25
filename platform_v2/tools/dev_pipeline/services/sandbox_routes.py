@@ -160,12 +160,13 @@ def api_status():
     import psycopg2
     from psycopg2.extras import RealDictCursor
     import os
+    from database import _get_db_password
 
     conn = psycopg2.connect(
         host=os.getenv("DB_HOST", "archie_database"),
         database=os.getenv("DB_NAME", "archie"),
         user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", "password"),
+        password=_get_db_password(),
     )
     cur = conn.cursor(cursor_factory=RealDictCursor)
 

@@ -15,6 +15,7 @@ from psycopg2.extras import RealDictCursor
 from datetime import datetime
 from typing import Dict, Optional, List, Tuple
 import os
+from database import _get_db_password
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -29,7 +30,7 @@ class SandboxQueue:
             "host": os.getenv("DB_HOST", "archie_database"),
             "database": os.getenv("DB_NAME", "archie"),
             "user": os.getenv("DB_USER", "archie"),
-            "password": os.getenv("DB_PASSWORD", "password"),
+            "password": _get_db_password(),
         }
 
     def get_db(self):
@@ -272,7 +273,7 @@ class ProposalQueueManager:
             "host": os.getenv("DB_HOST", "archie_database"),
             "database": os.getenv("DB_NAME", "archie"),
             "user": os.getenv("DB_USER", "archie"),
-            "password": os.getenv("DB_PASSWORD", "password"),
+            "password": _get_db_password(),
         }
 
     def get_db(self):

@@ -8,6 +8,7 @@ Date: 2026-01-07
 
 import sys
 import os
+from database import _get_db_password
 from flask import Blueprint, request, jsonify, render_template, session
 from flask_login import login_required, current_user
 from datetime import datetime
@@ -41,7 +42,7 @@ def get_db():
         port=os.getenv("DB_PORT", "5432"),
         database=os.getenv("DB_NAME", "archie"),
         user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", ""),
+        password=_get_db_password(),
     )
 
 

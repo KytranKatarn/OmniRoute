@@ -442,22 +442,59 @@ def _check_file_content(check):
 
 @_register_check("file_permission")
 def _check_file_permission(check):
-    """Check file owner/group/mode."""
+    """Check file owner/group/mode. Tries os.stat first, falls back to host_command."""
+    import pwd
+    import grp
+
     path = check.get("path", "")
     expected_mode = check.get("expected_mode", "")
     expected_owner = check.get("expected_owner", "")
     expected_group = check.get("expected_group", "")
     expected = check.get("expected", f"{expected_mode} {expected_owner} {expected_group}".strip())
     try:
-        result = _run_compliance_check("file_permission", path)
-        mode = result.get("mode", "")
-        owner = result.get("owner", "")
-        group = result.get("group", "")
+        mode = ""
+        owner = ""
+        group = ""
+
+        # Try direct os.stat first (works for volume-mounted files)
+        try:
+            if os.path.exists(path):
+                st = os.stat(path)
+                mode = oct(st.st_mode & 0o7777).replace("0o", "")
+                # Zero-pad to 4 digits (e.g. "644" -> "0644")
+                mode = mode.zfill(4)
+                try:
+                    owner = pwd.getpwuid(st.st_uid).pw_name
+                except KeyError:
+                    owner = str(st.st_uid)
+                try:
+                    group = grp.getgrgid(st.st_gid).gr_name
+                except KeyError:
+                    group = str(st.st_gid)
+        except (PermissionError, OSError):
+            pass
+
+        # Fall back to host_command if we couldn't stat the file
+        if not mode:
+            try:
+                result = _run_compliance_check("file_permission", path, timeout=5)
+                mode = result.get("mode", "")
+                owner = result.get("owner", "")
+                group = result.get("group", "")
+            except Exception:
+                return {
+                    "status": "error",
+                    "actual": "(file not accessible)",
+                    "expected": expected,
+                    "details": f"Cannot stat {path}",
+                }
+
         actual = f"{mode} {owner} {group}"
 
         ok = True
         issues = []
-        if expected_mode and mode != expected_mode:
+        # Compare modes flexibly — strip leading zeros (0755 == 755)
+        if expected_mode and mode.lstrip("0") != expected_mode.lstrip("0"):
             ok = False
             issues.append(f"mode {mode} != {expected_mode}")
         if expected_owner and owner != expected_owner:
@@ -499,18 +536,68 @@ def _check_file_exists(check):
 
 @_register_check("command_output")
 def _check_command_output(check):
-    """Run command, match output against pattern."""
+    """Run command, match output against pattern.
+    Tries local subprocess first, falls back to host_command queue."""
     command = check.get("command", "")
     expected = check.get("expected", "")
     match_pattern = check.get("match_pattern", "")
     try:
-        # Map known commands to safe command_safe targets
-        result = _run_host_cmd(
-            "compliance_run_check",
-            {"check_type": "command_safe", "target": command},
-            timeout=check.get("timeout", 30),
-        )
-        actual = result.get("output", "").strip()
+        actual = None
+
+        # Try local subprocess first (works for most commands inside Docker)
+        # Whitelist of safe commands that can run locally
+        _SAFE_LOCAL = {
+            "ufw",
+            "ss",
+            "sysctl",
+            "cat",
+            "grep",
+            "awk",
+            "stat",
+            "dpkg-query",
+            "dpkg",
+            "systemctl",
+            "find",
+            "ls",
+            "id",
+            "getent",
+            "passwd",
+            "auditctl",
+            "ausearch",
+            "iptables",
+            "ip6tables",
+            "mount",
+            "df",
+            "who",
+            "last",
+            "loginctl",
+        }
+        cmd_base = command.split()[0].split("/")[-1] if command else ""
+        if cmd_base in _SAFE_LOCAL:
+            try:
+                proc = _subprocess.run(
+                    command,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                actual = (proc.stdout + proc.stderr).strip()
+            except (_subprocess.TimeoutExpired, FileNotFoundError, OSError):
+                pass  # Fall through to host_command
+
+        # Fall back to host_command queue if local didn't work
+        if actual is None:
+            try:
+                result = _run_host_cmd(
+                    "compliance_run_check",
+                    {"check_type": "command_safe", "target": command},
+                    timeout=check.get("timeout", 10),
+                )
+                actual = result.get("output", "").strip()
+            except Exception:
+                # Host command also failed — return error with short message
+                actual = ""
 
         if match_pattern:
             ok = bool(re.search(match_pattern, actual))
@@ -673,16 +760,38 @@ def _check_docker_config(check):
 
 @_register_check("firewall_rule")
 def _check_firewall_rule(check):
-    """Check UFW rule exists."""
+    """Check UFW rule exists. Tries local subprocess first, falls back to host_command."""
     pattern = check.get("pattern", "")
     expected = check.get("expected", "ALLOW")
     should_exist = check.get("should_exist", True)
     try:
-        result = _run_host_cmd(
-            "compliance_run_check",
-            {"check_type": "command_safe", "target": "ufw status"},
-        )
-        output = result.get("output", "")
+        output = None
+
+        # Try local subprocess first
+        try:
+            proc = _subprocess.run(
+                ["ufw", "status"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if proc.returncode == 0:
+                output = proc.stdout
+        except (FileNotFoundError, _subprocess.TimeoutExpired, OSError):
+            pass
+
+        # Fall back to host_command
+        if output is None:
+            try:
+                result = _run_host_cmd(
+                    "compliance_run_check",
+                    {"check_type": "command_safe", "target": "ufw status"},
+                    timeout=5,
+                )
+                output = result.get("output", "")
+            except Exception:
+                output = ""
+
         # Search for pattern in UFW output
         matched = [line for line in output.splitlines() if re.search(pattern, line)]
         actual = "\n".join(matched).strip()

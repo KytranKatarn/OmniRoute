@@ -1183,6 +1183,142 @@ def generate_evidence_zip(scan_id):
     return zip_buffer.read()
 
 
+def collect_evidence(scan_id=None):
+    """Auto-collect SOC 2 evidence artifacts from platform systems."""
+    evidence = []
+
+    # Security: Firewall config
+    try:
+        hc = _get_host_client()
+        if hc["available"]():
+            fw = hc["run"]("firewall_status", {}, timeout=15)
+            evidence.append(
+                {
+                    "control_id": "CC6.6",
+                    "artifact_type": "firewall_config",
+                    "artifact_name": "UFW Firewall Status",
+                    "artifact_data": fw.get("result", {}),
+                }
+            )
+    except Exception as e:
+        logger.warning("Evidence: firewall collection failed: %s", e)
+
+    # Security: Access control (RBAC)
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute("SELECT id, username, role, is_admin, created_at FROM users ORDER BY id")
+            users = [dict(r) for r in cur.fetchall()]
+            for u in users:
+                if u.get("created_at"):
+                    u["created_at"] = u["created_at"].isoformat()
+            evidence.append(
+                {
+                    "control_id": "CC6.1",
+                    "artifact_type": "access_control_config",
+                    "artifact_name": "User Accounts & Roles",
+                    "artifact_data": {"users": users, "count": len(users)},
+                }
+            )
+    except Exception as e:
+        logger.warning("Evidence: access control failed: %s", e)
+
+    # Security: Audit log (last 90 days)
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT COUNT(*) as total,
+                    COUNT(DISTINCT user_id) as unique_users,
+                    MIN(created_at) as earliest,
+                    MAX(created_at) as latest
+                FROM audit_log
+                WHERE created_at > NOW() - INTERVAL '90 days'
+            """
+            )
+            row = cur.fetchone()
+            evidence.append(
+                {
+                    "control_id": "CC7.2",
+                    "artifact_type": "audit_log_export",
+                    "artifact_name": "Audit Log Summary (90 days)",
+                    "artifact_data": {
+                        "total_entries": row["total"],
+                        "unique_users": row["unique_users"],
+                        "period_start": row["earliest"].isoformat() if row["earliest"] else None,
+                        "period_end": row["latest"].isoformat() if row["latest"] else None,
+                    },
+                }
+            )
+    except Exception as e:
+        logger.warning("Evidence: audit log failed: %s", e)
+
+    # Security: SSL certificates
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute("SELECT domain, issuer, valid_until, days_until_expiry, grade " "FROM security_ssl_monitors")
+            certs = [dict(r) for r in cur.fetchall()]
+            for c in certs:
+                c["is_valid"] = (c.get("days_until_expiry") or 0) > 0
+                if c.get("valid_until"):
+                    c["valid_until"] = c["valid_until"].isoformat()
+            evidence.append(
+                {
+                    "control_id": "CC6.7",
+                    "artifact_type": "ssl_cert_status",
+                    "artifact_name": "SSL Certificate Status",
+                    "artifact_data": {"certificates": certs, "count": len(certs)},
+                }
+            )
+    except Exception as e:
+        logger.warning("Evidence: SSL failed: %s", e)
+
+    # Availability: Service status
+    try:
+        from tools.system_operations.system_service import get_system_service
+
+        svc = get_system_service()
+        overview = svc.get_overview()
+        evidence.append(
+            {
+                "control_id": "A1.2",
+                "artifact_type": "service_inventory",
+                "artifact_name": "System Health Overview",
+                "artifact_data": overview,
+            }
+        )
+    except Exception as e:
+        logger.warning("Evidence: service inventory failed: %s", e)
+
+    # Store evidence in DB
+    stored = 0
+    for e in evidence:
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    INSERT INTO compliance_evidence
+                        (control_id, artifact_type, artifact_name, artifact_data, scan_id)
+                    VALUES (%s, %s, %s, %s, %s)
+                    """,
+                    (
+                        e["control_id"],
+                        e["artifact_type"],
+                        e["artifact_name"],
+                        Json(e["artifact_data"]),
+                        scan_id,
+                    ),
+                )
+                stored += 1
+        except Exception as exc:
+            logger.warning("Evidence store failed for %s: %s", e["artifact_type"], exc)
+
+    return {
+        "collected": len(evidence),
+        "stored": stored,
+        "artifacts": [e["artifact_type"] for e in evidence],
+    }
+
+
 def get_loaded_packs():
     """List all loaded rule packs."""
     with get_db_cursor(commit=False) as (conn, cur):

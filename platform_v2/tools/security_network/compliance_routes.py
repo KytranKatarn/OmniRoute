@@ -146,6 +146,44 @@ def register_compliance_routes(bp, admin_required_decorator):
             logger.error("Evidence export failed: %s", exc)
             return jsonify({"error": str(exc)}), 500
 
+    @bp.route("/api/compliance/evidence/collect", methods=["POST"])
+    @login_required
+    @admin_required_decorator
+    def api_collect_evidence():
+        """Trigger evidence collection for SOC 2."""
+        scan_id = request.json.get("scan_id") if request.is_json else None
+        try:
+            result = compliance_service.collect_evidence(scan_id=scan_id)
+            return jsonify({"success": True, **result})
+        except Exception as exc:
+            logger.error("Evidence collection failed: %s", exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
+    @bp.route("/api/compliance/evidence", methods=["GET"])
+    @login_required
+    @admin_required_decorator
+    def api_list_evidence():
+        """List collected evidence artifacts."""
+        from database import get_db_cursor
+
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT id, control_id, artifact_type, artifact_name, collected_at
+                    FROM compliance_evidence
+                    ORDER BY collected_at DESC LIMIT 50
+                """
+                )
+                evidence = [dict(r) for r in cur.fetchall()]
+                for e in evidence:
+                    if e.get("collected_at"):
+                        e["collected_at"] = e["collected_at"].isoformat()
+            return jsonify({"success": True, "evidence": evidence})
+        except Exception as exc:
+            logger.error("Evidence list failed: %s", exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
     @bp.route("/api/compliance/packs/reload", methods=["POST"])
     @login_required
     @admin_required_decorator

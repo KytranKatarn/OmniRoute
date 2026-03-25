@@ -5488,8 +5488,8 @@ async function loadEvidenceStatus() {
         }
 
         el.innerHTML = items.map(i => {
-            const collected = i.status === 'collected' || i.collected_at || i.data;
-            const name = i.evidence_type || i.name || i.type || 'Unknown';
+            const collected = i.status === 'collected' || !!i.collected_at || !!i.data;
+            const name = i.artifact_name || i.artifact_type || i.evidence_type || i.name || 'Unknown';
             return _renderEvidenceItem(name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), collected);
         }).join('');
     } catch (e) {

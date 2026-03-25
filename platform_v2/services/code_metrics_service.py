@@ -38,6 +38,17 @@ EXT_MAP = {
     ".json": "json",
 }
 
+# Standalone products tracked in Code Health (see .claude/rules/standalone-extraction.md)
+STANDALONE_PRODUCTS = [
+    {
+        "name": "Kytran System Operations",
+        "path": "/mnt/archie_brain/kytran-server-manager",
+        "module_key": "standalone_kytran_system_operations",
+        "tier": 1,
+        "compliance_packs": ["ubuntu-stig", "docker-stig", "network-stig", "cis-ubuntu", "hipaa"],
+    }
+]
+
 
 def _count_lines(filepath):
     """Count non-empty lines in a file."""
@@ -356,6 +367,55 @@ def _get_module_stats():
     return modules
 
 
+def _get_standalone_stats():
+    """Scan registered standalone products and return metrics."""
+    standalone_metrics = {}
+    for product in STANDALONE_PRODUCTS:
+        path = product["path"]
+        if not os.path.isdir(path):
+            continue
+        stats = {"files": 0, "lines": 0, "folders": 0, "by_type": {}}
+        type_map = {
+            ".py": "python",
+            ".js": "js",
+            ".css": "css",
+            ".html": "html",
+            ".sql": "sql",
+            ".sh": "shell",
+            ".json": "json",
+        }
+        seen_dirs = set()
+        for root, dirs, files in os.walk(path):
+            dirs[:] = [
+                d
+                for d in dirs
+                if not d.startswith(".") and d not in ("__pycache__", "node_modules", ".git", "venv", ".venv")
+            ]
+            for f in files:
+                ext = os.path.splitext(f)[1].lower()
+                lang = type_map.get(ext)
+                if lang is None:
+                    continue
+                filepath = os.path.join(root, f)
+                try:
+                    with open(filepath, "r", errors="ignore") as fh:
+                        line_count = sum(1 for _ in fh)
+                except Exception:
+                    line_count = 0
+                stats["files"] += 1
+                stats["lines"] += line_count
+                if lang not in stats["by_type"]:
+                    stats["by_type"][lang] = {"files": 0, "lines": 0}
+                stats["by_type"][lang]["files"] += 1
+                stats["by_type"][lang]["lines"] += line_count
+                parent = os.path.dirname(filepath)
+                if parent not in seen_dirs:
+                    seen_dirs.add(parent)
+                    stats["folders"] += 1
+        standalone_metrics[product["module_key"]] = stats
+    return standalone_metrics
+
+
 def scan_codebase():
     """
     Full codebase scan. Returns comprehensive metrics dict.
@@ -429,6 +489,14 @@ def scan_codebase():
             "folders": 0,
             "by_type": shared_by_type,
         }
+
+    # Scan standalone products
+    standalone_stats = _get_standalone_stats()
+    for key, stats in standalone_stats.items():
+        result["modules"][key] = stats
+        result["total_files"] += stats["files"]
+        result["total_lines"] += stats["lines"]
+        result["total_folders"] += stats["folders"]
 
     return result
 

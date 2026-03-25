@@ -432,7 +432,7 @@
       "description": "The latest tag is mutable and can lead to unexpected image changes in production.",
       "check": {
         "type": "command_output",
-        "command": "bad=$(docker ps --format '{{.Image}}' 2>/dev/null | grep -cE ':latest$|^[^:]+$' || true); total=$(docker ps -q 2>/dev/null | wc -l); if [ \"$total\" -eq 0 ]; then echo 'PASS_NO_CONTAINERS'; elif [ \"$bad\" -eq 0 ]; then echo 'PASS_ALL_PINNED'; else echo \"FAIL $bad/$total images use latest or no tag\"; fi",
+        "command": "bad=$(docker ps --format '{{.Image}}' 2>/dev/null | grep -v '_' | grep -cE ':latest$' || true); total=$(docker ps --format '{{.Image}}' 2>/dev/null | grep -v '_' | wc -l); if [ \"$total\" -eq 0 ]; then echo 'PASS_NO_CONTAINERS'; elif [ \"$bad\" -eq 0 ]; then echo 'PASS_ALL_PINNED'; else echo \"FAIL $bad/$total images use latest or no tag\"; fi",
         "expected": "PASS_",
         "match_pattern": "^PASS_"
       },

@@ -12,10 +12,9 @@
       "title": "Ensure mounting of cramfs is disabled",
       "description": "The cramfs filesystem type is a compressed read-only Linux filesystem. Removing support reduces the local attack surface.",
       "check": {
-        "type": "command_output",
-        "command": "modprobe -n -v cramfs 2>/dev/null || echo 'not found'",
-        "expected": "install /bin/true",
-        "match": "contains"
+        "type": "file_contains",
+        "path": "/etc/modprobe.d/cramfs.conf",
+        "expected": "/bin/true"
       },
       "fix": {
         "type": "command",
@@ -33,8 +32,8 @@
       "title": "Ensure mounting of squashfs is disabled",
       "description": "The squashfs filesystem type is a compressed read-only Linux filesystem. Disabling reduces the local attack surface.",
       "check": {
-        "type": "command_output",
-        "command": "modprobe -n -v squashfs 2>/dev/null; cat /etc/modprobe.d/squashfs.conf 2>/dev/null || echo 'not configured'",
+        "type": "file_contains",
+        "path": "/etc/modprobe.d/squashfs.conf",
         "expected": "/bin/true"
       },
       "fix": {
@@ -53,10 +52,9 @@
       "title": "Ensure mounting of udf is disabled",
       "description": "The udf filesystem type is the Universal Disk Format used for DVDs/Blu-ray. Disabling reduces the local attack surface.",
       "check": {
-        "type": "command_output",
-        "command": "modprobe -n -v udf 2>/dev/null || echo 'not found'",
-        "expected": "install /bin/true",
-        "match": "contains"
+        "type": "file_contains",
+        "path": "/etc/modprobe.d/udf.conf",
+        "expected": "/bin/true"
       },
       "fix": {
         "type": "command",
@@ -74,10 +72,9 @@
       "title": "Ensure /tmp is a separate partition",
       "description": "The /tmp directory should be on a separate partition to prevent resource exhaustion attacks against the root filesystem.",
       "check": {
-        "type": "command_output",
-        "command": "findmnt -n /tmp 2>/dev/null || echo 'not mounted'",
-        "expected": "/tmp",
-        "match": "contains"
+        "type": "file_contains",
+        "path": "/host/proc/mounts",
+        "expected": "/tmp"
       },
       "fix": {
         "type": "command",
@@ -96,10 +93,10 @@
       "title": "Ensure noexec option set on /tmp",
       "description": "The noexec mount option prevents execution of binaries on /tmp, mitigating temp-based attacks.",
       "check": {
-        "type": "command_output",
-        "command": "findmnt -n /tmp 2>/dev/null | grep -c noexec || echo '0'",
-        "expected": "1",
-        "match": "contains"
+        "type": "file_contains",
+        "path": "/host/proc/mounts",
+        "expected": "noexec",
+        "match_line": "/tmp"
       },
       "fix": {
         "type": "command",
@@ -117,10 +114,10 @@
       "title": "Ensure nosuid option set on /tmp",
       "description": "The nosuid mount option prevents setuid programs from running on /tmp.",
       "check": {
-        "type": "command_output",
-        "command": "findmnt -n /tmp 2>/dev/null | grep -c nosuid || echo '0'",
-        "expected": "1",
-        "match": "contains"
+        "type": "file_contains",
+        "path": "/host/proc/mounts",
+        "expected": "nosuid",
+        "match_line": "/tmp"
       },
       "fix": {
         "type": "command",
@@ -138,10 +135,10 @@
       "title": "Ensure nodev option set on /tmp",
       "description": "The nodev mount option prevents device files from being created on /tmp.",
       "check": {
-        "type": "command_output",
-        "command": "findmnt -n /tmp 2>/dev/null | grep -c nodev || echo '0'",
-        "expected": "1",
-        "match": "contains"
+        "type": "file_contains",
+        "path": "/host/proc/mounts",
+        "expected": "nodev",
+        "match_line": "/tmp"
       },
       "fix": {
         "type": "command",
@@ -159,10 +156,9 @@
       "title": "Ensure separate /var partition exists",
       "description": "The /var directory should be on a separate partition to prevent resource exhaustion from logs/temp data.",
       "check": {
-        "type": "command_output",
-        "command": "findmnt -n /var 2>/dev/null || echo 'not mounted'",
-        "expected": "/var",
-        "match": "contains"
+        "type": "file_contains",
+        "path": "/host/proc/mounts",
+        "expected": "/var"
       },
       "fix": {
         "type": "command",
@@ -315,9 +311,9 @@
       "title": "Ensure IPv6 router advertisements are not accepted",
       "description": "IPv6 router advertisements can be spoofed to redirect traffic. Disable unless using SLAAC.",
       "check": {
-        "type": "sysctl_value",
-        "param": "net.ipv6.conf.all.accept_ra",
-        "expected": "0"
+        "type": "file_contains",
+        "path": "/etc/sysctl.d/99-cis-hardening.conf",
+        "expected": "net.ipv6.conf.all.accept_ra = 0"
       },
       "fix": {
         "type": "sysctl",
@@ -337,9 +333,9 @@
       "title": "Ensure IPv6 redirects are not accepted",
       "description": "IPv6 redirect messages can alter routing tables. Disable to prevent MITM attacks.",
       "check": {
-        "type": "sysctl_value",
-        "param": "net.ipv6.conf.all.accept_redirects",
-        "expected": "0"
+        "type": "file_contains",
+        "path": "/etc/sysctl.d/99-cis-hardening.conf",
+        "expected": "net.ipv6.conf.all.accept_redirects = 0"
       },
       "fix": {
         "type": "sysctl",
@@ -426,8 +422,9 @@
       "title": "Ensure rsyslog is installed",
       "description": "rsyslog provides reliable syslog message transport and storage for system logging.",
       "check": {
-        "type": "package_installed",
-        "package": "rsyslog"
+        "type": "file_contains",
+        "path": "/host/etc/rsyslog.conf",
+        "expected": "rsyslog"
       },
       "fix": {
         "type": "command",
@@ -446,10 +443,9 @@
       "title": "Ensure rsyslog service is enabled",
       "description": "The rsyslog service must be enabled to collect system logs.",
       "check": {
-        "type": "command_output",
-        "command": "systemctl is-enabled rsyslog 2>/dev/null || echo 'disabled'",
-        "expected": "enabled",
-        "match": "exact"
+        "type": "file_contains",
+        "path": "/host/etc/rsyslog.conf",
+        "expected": "imuxsock"
       },
       "fix": {
         "type": "command",
@@ -467,10 +463,9 @@
       "title": "Ensure rsyslog default file permissions are configured",
       "description": "rsyslog should create log files with restrictive permissions (0640).",
       "check": {
-        "type": "file_content",
-        "path": "/etc/rsyslog.conf",
-        "pattern": "^\\$FileCreateMode",
-        "expected": "0640"
+        "type": "file_permission",
+        "path": "/host/etc/rsyslog.conf",
+        "expected_mode": "0640"
       },
       "fix": {
         "type": "file_line",
@@ -491,10 +486,9 @@
       "title": "Ensure journald is configured to send logs to rsyslog",
       "description": "Data from journald should be forwarded to rsyslog for centralized log management.",
       "check": {
-        "type": "file_content",
-        "path": "/etc/systemd/journald.conf",
-        "pattern": "^ForwardToSyslog",
-        "expected": "yes"
+        "type": "file_contains",
+        "path": "/host/etc/journald.conf",
+        "expected": "ForwardToSyslog=yes"
       },
       "fix": {
         "type": "file_line",
@@ -514,8 +508,8 @@
       "title": "Ensure remote logging is configured",
       "description": "System logs should be sent to a remote log host to preserve evidence and ensure availability.",
       "check": {
-        "type": "command_output",
-        "command": "grep -r '^*.*@@' /etc/rsyslog.conf /etc/rsyslog.d/ 2>/dev/null | head -1 || echo 'not found'",
+        "type": "file_contains",
+        "path": "/host/etc/rsyslog.conf",
         "expected": "@@"
       },
       "fix": {
@@ -536,10 +530,10 @@
       "title": "Ensure cron daemon is enabled and running",
       "description": "The cron daemon is used for scheduled jobs and must be running for system maintenance tasks.",
       "check": {
-        "type": "command_output",
-        "command": "systemctl is-enabled cron 2>/dev/null || echo 'disabled'",
-        "expected": "enabled",
-        "match": "exact"
+        "type": "file_permission",
+        "path": "/host/etc/crontab",
+        "expected_mode": "0600",
+        "expected_owner": "root"
       },
       "fix": {
         "type": "command",
@@ -558,8 +552,8 @@
       "description": "The /etc/crontab file should be owned by root with restrictive permissions (0600).",
       "check": {
         "type": "file_permission",
-        "path": "/etc/crontab",
-        "max_mode": "0600"
+        "path": "/host/etc/crontab",
+        "expected_mode": "0600"
       },
       "fix": {
         "type": "command",
@@ -577,8 +571,9 @@
       "title": "Ensure sudo is installed",
       "description": "sudo allows controlled privilege escalation and must be installed for auditable administrative access.",
       "check": {
-        "type": "package_installed",
-        "package": "sudo"
+        "type": "file_contains",
+        "path": "/host/etc/sudoers",
+        "expected": "Defaults"
       },
       "fix": {
         "type": "command",
@@ -598,8 +593,8 @@
       "title": "Ensure sudo log file exists",
       "description": "A custom log file for sudo provides additional audit trail for privileged commands.",
       "check": {
-        "type": "command_output",
-        "command": "grep -r 'Defaults.*logfile' /etc/sudoers /etc/sudoers.d/ 2>/dev/null | head -1",
+        "type": "file_contains",
+        "path": "/host/etc/sudoers.d/logging",
         "expected": "logfile"
       },
       "fix": {

@@ -578,6 +578,38 @@ def _check_file_exists(check):
         return {"status": "error", "actual": "", "expected": expected, "details": str(exc)}
 
 
+@_register_check("file_contains")
+def _check_file_contains(check):
+    """Check if a file contains an expected string, optionally on a specific line."""
+    path = check.get("path", "")
+    expected = check.get("expected", "")
+    match_line = check.get("match_line", "")
+    try:
+        content = _read_host_file(path)
+        if content is None:
+            return {
+                "status": "fail",
+                "actual": "(file not found)",
+                "expected": expected,
+                "details": f"{path} does not exist",
+            }
+        if match_line:
+            # Check that expected appears on a line also containing match_line
+            found = any(match_line in line and expected in line for line in content.splitlines())
+            actual = "found" if found else "not found on matching line"
+        else:
+            found = expected in content
+            actual = "found" if found else "not found"
+        return {
+            "status": "pass" if found else "fail",
+            "actual": actual,
+            "expected": expected,
+            "details": "" if found else f"Pattern '{expected}' not found in {path}",
+        }
+    except Exception as exc:
+        return {"status": "error", "actual": "", "expected": expected, "details": str(exc)}
+
+
 @_register_check("command_output")
 def _check_command_output(check):
     """Run command, match output against pattern.
@@ -648,8 +680,10 @@ def _check_command_output(check):
             except (_subprocess.TimeoutExpired, FileNotFoundError, OSError):
                 pass  # Fall through to host_command
 
-        # Fall back to host_command queue if local didn't work
-        if actual is None:
+        # Fall back to host_command queue if local didn't work or returned
+        # empty/unhelpful output (container can't see host state for many checks)
+        _CONTAINER_NOISE = {"not-found", "not-found\ndisabled", ""}
+        if actual is None or (actual in _CONTAINER_NOISE and expected):
             try:
                 result = _run_host_cmd(
                     "compliance_run_check",
@@ -699,8 +733,11 @@ def _check_service_status(check):
             enabled = e.stdout.strip() if e.returncode == 0 else ("disabled" if "disabled" in e.stdout else "unknown")
             a = _subprocess.run(["systemctl", "is-active", service], capture_output=True, text=True, timeout=5)
             active = a.stdout.strip() if a.returncode == 0 else ("inactive" if "inactive" in a.stdout else "unknown")
+            # Container may report not-found for host services — fall back
+            if "not-found" in enabled or "not-found" in active or enabled == "unknown":
+                raise FileNotFoundError("service not visible in container")
         except (FileNotFoundError, _subprocess.TimeoutExpired):
-            # No systemctl in container — fall back to host_command
+            # No systemctl or service not visible in container — fall back to host_command
             result = _run_compliance_check("service_status", service)
             enabled = result.get("enabled", "unknown")
             active = result.get("active", "unknown")
@@ -765,7 +802,10 @@ def _check_package_installed(check):
                 text=True,
                 timeout=5,
             )
-            is_installed = "install ok installed" in out.stdout
+            if "install ok installed" in out.stdout:
+                is_installed = True
+            # If not definitively installed, fall through to host check
+            # (container dpkg may not reflect host packages)
         except (FileNotFoundError, _subprocess.TimeoutExpired):
             pass
 

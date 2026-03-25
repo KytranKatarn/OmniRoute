@@ -153,6 +153,14 @@ services:
       - /etc/login.defs:/etc/login.defs:ro
       - /etc/modprobe.d:/etc/modprobe.d:ro
       - /etc/sysctl.conf:/etc/sysctl.conf:ro
+      - /etc/sysctl.d:/etc/sysctl.d:ro
+      - /etc/rsyslog.conf:/host/etc/rsyslog.conf:ro
+      - /etc/rsyslog.d:/host/etc/rsyslog.d:ro
+      - /etc/crontab:/host/etc/crontab:ro
+      - /etc/sudoers.d:/host/etc/sudoers.d:ro
+      - /etc/sudoers:/host/etc/sudoers:ro
+      - /etc/systemd/journald.conf:/host/etc/journald.conf:ro
+      - /proc/1/mounts:/host/proc/mounts:ro
       - /etc/ufw:/etc/ufw:ro
       # Media stack configs for Media Hub service discovery (API keys, etc.)
       - /mnt/Plex/config:/mnt/Plex/config:ro

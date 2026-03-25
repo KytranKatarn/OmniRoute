@@ -5,6 +5,13 @@ services:
     image: 'jc21/nginx-proxy-manager:2.14.0'
     container_name: nginx-proxy-manager
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /run:exec,size=32m
+      - /tmp:size=128m
+      - /var/log:size=64m
+      - /var/cache/nginx:size=64m
+      - /var/lib/nginx:size=32m
     mem_limit: 1g
     cpus: 1.0
     cap_drop:

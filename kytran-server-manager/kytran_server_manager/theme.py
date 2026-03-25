@@ -7,7 +7,7 @@ import json
 import os
 
 THEMES_DIR = os.path.join(os.path.dirname(__file__), "themes")
-DEFAULT_THEME = "lcars"
+DEFAULT_THEME = "kytran"
 
 _DEFAULT_CONFIG = {
     "product_name": "Kytran System Operations",

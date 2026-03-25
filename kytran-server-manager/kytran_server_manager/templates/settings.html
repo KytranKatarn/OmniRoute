@@ -32,12 +32,14 @@
                 <div class="theme-name">Kytran Modern</div>
                 <div class="theme-desc">Clean, professional blue theme</div>
             </div>
-            <div class="theme-card {% if current_theme == 'lcars' %}active{% endif %}" onclick="setTheme('lcars')">
-                <div class="theme-preview" style="background: linear-gradient(135deg, #000000, #0a0a1a); border: 1px solid #00e5ff;">
+            <div class="theme-card {% if current_theme == 'lcars' %}active{% endif %}" onclick="setTheme('lcars')" style="position: relative;">
+                <div style="position: absolute; top: 8px; right: 8px; background: linear-gradient(135deg, #00e5ff, #8b5cf6); color: #000; font-size: 0.6rem; font-weight: 800; padding: 2px 8px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Premium</div>
+                <div class="theme-preview" style="background: linear-gradient(135deg, #000000, #0a0a1a); border: 2px solid #00e5ff; box-shadow: 0 0 12px rgba(0,229,255,0.3);">
                     <span style="color: #00e5ff; font-family: 'Orbitron', monospace; font-weight: 700;">LCARS</span>
                 </div>
-                <div class="theme-name">LCARS Sci-Fi</div>
-                <div class="theme-desc">Star Trek-inspired interface</div>
+                <div class="theme-name">LCARS Command <span style="color: #00e5ff; font-size: 0.7rem;">by Kytran</span></div>
+                <div class="theme-desc">Exclusive sci-fi command center interface</div>
+                <a href="https://kytranempowerment.com" target="_blank" style="font-size: 0.7rem; color: #00e5ff; text-decoration: none; margin-top: 4px; display: inline-block;">kytranempowerment.com &rarr;</a>
             </div>
             <div class="theme-card {% if current_theme == 'midnight' %}active{% endif %}" onclick="setTheme('midnight')">
                 <div class="theme-preview" style="background: linear-gradient(135deg, #09090b, #18181b); border: 1px solid #8b5cf6;">

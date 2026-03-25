@@ -167,15 +167,9 @@ def run_scan(pack_ids=None, triggered_by="manual"):
             rule_id = rule.get("rule_id", f"unknown-{total}")
 
             try:
-                if not host_available:
-                    result = {
-                        "status": "error",
-                        "actual": "",
-                        "expected": rule.get("check", {}).get("expected", ""),
-                        "details": "Host command queue unavailable — host_monitor.py may not be running",
-                    }
-                else:
-                    result = _execute_check(rule.get("check", {}))
+                # Always try the check — handlers now try direct methods first,
+                # only falling back to host_command queue if needed
+                result = _execute_check(rule.get("check", {}))
             except Exception as exc:
                 logger.error("Check %s failed: %s", rule_id, exc)
                 result = {
@@ -319,7 +313,7 @@ def _clear_file_cache():
     _file_cache.clear()
 
 
-def _run_host_cmd(command_type, params, timeout=15):
+def _run_host_cmd(command_type, params, timeout=10):
     """Run a command via host_command_client with a whitelisted command type."""
     hc = _get_host_client()
     result_data = hc["run"](command_type, params, timeout=timeout)
@@ -330,25 +324,65 @@ def _run_host_cmd(command_type, params, timeout=15):
 
 
 def _read_host_file(path, timeout=15):
-    """Read a file on the host via compliance_read_file command. Results are cached."""
+    """Read a file on the host. Tries direct read first, falls back to host_command queue.
+    Results are cached per-scan to avoid re-reading the same config file."""
     if path in _file_cache:
         return _file_cache[path]
-    result = _run_host_cmd("compliance_read_file", {"path": path}, timeout=timeout)
-    if not result.get("exists", False):
+
+    # Try direct filesystem read first (works for files visible inside Docker)
+    try:
+        if os.path.exists(path):
+            with open(path, "r") as f:
+                content = f.read(64 * 1024)  # Max 64KB
+            _file_cache[path] = content
+            return content
+    except (PermissionError, OSError):
+        pass  # Fall through to host_command
+
+    # Fall back to host_command queue (for files only on the host)
+    try:
+        result = _run_host_cmd("compliance_read_file", {"path": path}, timeout=timeout)
+        if not result.get("exists", False):
+            _file_cache[path] = None
+            return None
+        content = result.get("content", "")
+        _file_cache[path] = content
+        return content
+    except Exception:
         _file_cache[path] = None
         return None
-    content = result.get("content", "")
-    _file_cache[path] = content
-    return content
+
+
+import subprocess as _subprocess
 
 
 def _check_sysctl(param, timeout=10):
-    """Read a sysctl parameter on the host."""
+    """Read a sysctl parameter — try /proc/sys first (works inside Docker), fall back to host_command."""
+    # Direct read via /proc/sys (no queue needed)
+    proc_path = "/proc/sys/" + param.replace(".", "/")
+    try:
+        with open(proc_path, "r") as f:
+            return f.read().strip()
+    except (FileNotFoundError, PermissionError):
+        pass
+    # Fall back to host_command
     result = _run_host_cmd("compliance_check_sysctl", {"param": param}, timeout=timeout)
     return result.get("value", "")
 
 
-def _run_compliance_check(check_type, target, timeout=15):
+def _check_port_direct(port):
+    """Check if port is listening using ss inside the container (shared network namespace)."""
+    try:
+        out = _subprocess.run(["ss", "-tlnp"], capture_output=True, text=True, timeout=5)
+        output = out.stdout
+        listening = f":{port} " in output or f":{port}\t" in output
+        matched = [l for l in output.splitlines() if f":{port} " in l or f":{port}\t" in l]
+        return listening, matched[0].strip() if matched else ""
+    except Exception:
+        return None, ""  # None means fallback to host_command
+
+
+def _run_compliance_check(check_type, target, timeout=10):
     """Run a compliance_run_check on the host."""
     result = _run_host_cmd(
         "compliance_run_check",
@@ -502,15 +536,25 @@ def _check_command_output(check):
 
 @_register_check("service_status")
 def _check_service_status(check):
-    """Check systemd service state."""
+    """Check systemd service state. Tries direct systemctl first, falls back to host_command."""
     service = check.get("service", "")
     expected_enabled = check.get("expected_enabled", True)
     expected_active = check.get("expected_active", True)
     expected = check.get("expected", "enabled/active" if expected_enabled and expected_active else "")
     try:
-        result = _run_compliance_check("service_status", service)
-        enabled = result.get("enabled", "unknown")
-        active = result.get("active", "unknown")
+        # Try direct subprocess first (works if systemctl is available in container)
+        enabled = "unknown"
+        active = "unknown"
+        try:
+            e = _subprocess.run(["systemctl", "is-enabled", service], capture_output=True, text=True, timeout=5)
+            enabled = e.stdout.strip() if e.returncode == 0 else ("disabled" if "disabled" in e.stdout else "unknown")
+            a = _subprocess.run(["systemctl", "is-active", service], capture_output=True, text=True, timeout=5)
+            active = a.stdout.strip() if a.returncode == 0 else ("inactive" if "inactive" in a.stdout else "unknown")
+        except (FileNotFoundError, _subprocess.TimeoutExpired):
+            # No systemctl in container — fall back to host_command
+            result = _run_compliance_check("service_status", service)
+            enabled = result.get("enabled", "unknown")
+            active = result.get("active", "unknown")
         actual = f"{enabled}/{active}"
 
         ok = True
@@ -558,13 +602,28 @@ def _check_sysctl_value(check):
 
 @_register_check("package_installed")
 def _check_package_installed(check):
-    """Check if package is installed."""
+    """Check if package is installed. Tries direct dpkg first, falls back to host_command."""
     package = check.get("package", "")
     should_be_installed = check.get("should_be_installed", True)
     expected = "installed" if should_be_installed else "not installed"
     try:
-        result = _run_compliance_check("package_installed", package)
-        is_installed = result.get("installed", False)
+        # Try direct dpkg-query first
+        is_installed = None
+        try:
+            out = _subprocess.run(
+                ["dpkg-query", "-W", "-f=${Status}", package],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            is_installed = "install ok installed" in out.stdout
+        except (FileNotFoundError, _subprocess.TimeoutExpired):
+            pass
+
+        if is_installed is None:
+            # Fall back to host_command
+            result = _run_compliance_check("package_installed", package)
+            is_installed = result.get("installed", False)
         ok = is_installed == should_be_installed
         return {
             "status": "pass" if ok else "fail",
@@ -645,17 +704,22 @@ def _check_firewall_rule(check):
 
 @_register_check("port_listening")
 def _check_port_listening(check):
-    """Check if port is listening (or not)."""
+    """Check if port is listening (or not). Uses direct ss inside container first."""
     port = str(check.get("port", ""))
     should_listen = check.get("should_listen", True)
     expected = f"port {port} {'listening' if should_listen else 'not listening'}"
     try:
-        result = _run_compliance_check("port_listening", port)
-        is_listening = result.get("listening", False)
-        actual_output = result.get("output", "")
-        # Extract the matching line for context
-        matched = [l for l in actual_output.splitlines() if f":{port} " in l or f":{port}\t" in l]
-        actual = matched[0].strip() if matched else f"port {port} not listening"
+        # Try direct check first (instant, no queue)
+        is_listening, matched_line = _check_port_direct(port)
+        if is_listening is None:
+            # Fallback to host_command
+            result = _run_compliance_check("port_listening", port)
+            is_listening = result.get("listening", False)
+            actual_output = result.get("output", "")
+            ml = [l for l in actual_output.splitlines() if f":{port} " in l or f":{port}\t" in l]
+            matched_line = ml[0].strip() if ml else ""
+
+        actual = matched_line if matched_line else f"port {port} not listening"
         ok = is_listening == should_listen
         return {
             "status": "pass" if ok else "fail",

@@ -86,6 +86,7 @@
         "risk": "low"
       },
       "soc2_mapping": [
+        "C1.1",
         "CC6.6",
         "CC6.7"
       ],
@@ -234,7 +235,8 @@
       },
       "soc2_mapping": [
         "CC6.6",
-        "CC7.2"
+        "CC7.2",
+        "P1.2"
       ],
       "cci": "CCI-000366"
     },
@@ -300,7 +302,8 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "CC7.1"
+        "CC7.1",
+        "P1.1"
       ],
       "cci": "CCI-000366"
     },
@@ -363,6 +366,7 @@
         "risk": "medium"
       },
       "soc2_mapping": [
+        "C1.1",
         "CC6.1",
         "CC6.7"
       ],
@@ -385,6 +389,7 @@
         "risk": "low"
       },
       "soc2_mapping": [
+        "C1.1",
         "CC6.1",
         "CC6.7"
       ],
@@ -407,8 +412,10 @@
         "risk": "low"
       },
       "soc2_mapping": [
+        "C1.1",
         "CC6.1",
-        "CC6.7"
+        "CC6.7",
+        "P1.1"
       ],
       "cci": "CCI-000366"
     },
@@ -429,8 +436,10 @@
         "risk": "low"
       },
       "soc2_mapping": [
+        "C1.1",
         "CC6.1",
-        "CC6.7"
+        "CC6.7",
+        "P1.1"
       ],
       "cci": "CCI-000366"
     },
@@ -451,6 +460,7 @@
         "risk": "medium"
       },
       "soc2_mapping": [
+        "C1.1",
         "CC6.1",
         "CC6.7"
       ],

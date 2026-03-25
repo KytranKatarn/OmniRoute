@@ -45,7 +45,9 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "CC6.1"
+        "CC6.1",
+        "P1.1",
+        "P1.2"
       ],
       "hipaa_ref": "164.312(a)(2)(iii)"
     },
@@ -89,7 +91,8 @@
       },
       "soc2_mapping": [
         "CC6.1",
-        "CC6.3"
+        "CC6.3",
+        "P1.1"
       ],
       "hipaa_ref": "164.312(a)(1)"
     },
@@ -110,7 +113,8 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "CC6.1"
+        "CC6.1",
+        "P1.1"
       ],
       "hipaa_ref": "164.312(a)(2)(iii)"
     },
@@ -154,8 +158,10 @@
         "risk": "high"
       },
       "soc2_mapping": [
+        "C1.2",
         "CC6.1",
-        "CC6.3"
+        "CC6.3",
+        "P1.2"
       ],
       "hipaa_ref": "164.312(a)(1)"
     },
@@ -197,7 +203,8 @@
       },
       "soc2_mapping": [
         "CC7.1",
-        "CC7.2"
+        "CC7.2",
+        "P1.2"
       ],
       "hipaa_ref": "164.312(b)"
     },
@@ -221,7 +228,9 @@
       },
       "soc2_mapping": [
         "CC7.1",
-        "CC7.2"
+        "CC7.2",
+        "P1.1",
+        "P1.2"
       ],
       "hipaa_ref": "164.312(b)"
     },
@@ -242,7 +251,9 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "CC7.1"
+        "C1.2",
+        "CC7.1",
+        "P1.2"
       ],
       "hipaa_ref": "164.312(b)"
     },
@@ -263,7 +274,8 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "CC7.2"
+        "CC7.2",
+        "P1.2"
       ],
       "hipaa_ref": "164.312(b)"
     },
@@ -284,7 +296,8 @@
         "risk": "medium"
       },
       "soc2_mapping": [
-        "CC7.1"
+        "CC7.1",
+        "P1.2"
       ],
       "hipaa_ref": "164.312(b)"
     },
@@ -305,7 +318,8 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "CC7.1"
+        "CC7.1",
+        "P1.2"
       ],
       "hipaa_ref": "164.312(b)"
     },
@@ -327,6 +341,7 @@
       },
       "soc2_mapping": [
         "CC6.1",
+        "P1.2",
         "PI1.3"
       ],
       "hipaa_ref": "164.312(c)(2)"
@@ -349,6 +364,7 @@
         "risk": "medium"
       },
       "soc2_mapping": [
+        "C1.1",
         "CC6.1"
       ],
       "hipaa_ref": "164.312(c)(1)"
@@ -412,6 +428,7 @@
         "risk": "medium"
       },
       "soc2_mapping": [
+        "C1.1",
         "CC6.1",
         "CC6.7"
       ],
@@ -457,6 +474,7 @@
         "risk": "medium"
       },
       "soc2_mapping": [
+        "C1.1",
         "CC6.7"
       ],
       "hipaa_ref": "164.312(e)(1)"

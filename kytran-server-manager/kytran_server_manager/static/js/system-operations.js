@@ -3,6 +3,31 @@ if (typeof Chart === 'undefined') {
     console.error('Chart.js failed to load from primary CDN');
 }
 
+// Standalone shim: ArchieTime (platform uses archie-time.js for timezone formatting)
+if (typeof ArchieTime === 'undefined') {
+    var ArchieTime = {
+        format: function(date, opts) {
+            if (!date) return '--';
+            try {
+                const d = new Date(date);
+                if (isNaN(d.getTime())) return String(date);
+                return d.toLocaleString();
+            } catch(e) { return String(date); }
+        },
+        formatShort: function(date) {
+            if (!date) return '--';
+            try {
+                const d = new Date(date);
+                return d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+            } catch(e) { return String(date); }
+        },
+        formatDate: function(date) {
+            if (!date) return '--';
+            try { return new Date(date).toLocaleDateString(); } catch(e) { return String(date); }
+        }
+    };
+}
+
 // State
 let autoRefreshEnabled = true;
 let refreshInterval = null;

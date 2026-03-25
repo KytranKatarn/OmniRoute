@@ -1612,76 +1612,193 @@
 
     <!-- ═══════ COMPLIANCE TAB ═══════ -->
     <div id="tab-compliance" class="tab-content">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h3 style="color: var(--archie-text-primary); margin: 0;">STIG Compliance Scanner</h3>
-            <div style="display: flex; gap: 10px; align-items: center;">
-                <span id="compliance-scan-status" style="color: var(--archie-text-muted); font-size: 0.85rem;"></span>
-                <button onclick="runComplianceScan()" class="action-btn" style="background: var(--archie-accent); color: #000; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
-                    <i class="fas fa-play"></i> Run Scan
-                </button>
+        <style>
+            /* ═══════ VANTA-STYLE COMPLIANCE DASHBOARD ═══════ */
+            .comp-dash { font-family: 'IBM Plex Mono', 'Segoe UI', sans-serif; }
+            .comp-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }
+            .comp-header h3 { color: #f0f0f0; margin: 0; font-family: 'Orbitron', sans-serif; font-size: 1.15rem; letter-spacing: 1.5px; text-transform: uppercase; }
+            .comp-header-actions { display: flex; gap: 10px; align-items: center; }
+            .comp-btn { padding: 9px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.82rem; letter-spacing: 0.5px; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 7px; }
+            .comp-btn-primary { background: linear-gradient(135deg, var(--archie-accent), #ff6b6b); color: #fff; box-shadow: 0 2px 12px rgba(239,68,68,0.3); }
+            .comp-btn-primary:hover { box-shadow: 0 4px 20px rgba(239,68,68,0.5); transform: translateY(-1px); }
+            .comp-btn-secondary { background: rgba(255,255,255,0.06); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(8px); }
+            .comp-btn-secondary:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); }
+            .comp-status-badge { font-size: 0.78rem; color: var(--archie-text-muted); padding: 5px 12px; border-radius: 20px; background: rgba(255,255,255,0.04); }
+
+            /* Score Ring Cards */
+            .comp-rings { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 16px; margin-bottom: 32px; }
+            .comp-ring-card { background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 24px 16px 20px; text-align: center; backdrop-filter: blur(12px); transition: all 0.3s ease; position: relative; overflow: hidden; }
+            .comp-ring-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--ring-color, #22c55e), transparent); opacity: 0.6; }
+            .comp-ring-card:hover { border-color: rgba(255,255,255,0.15); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+            .comp-ring-card .ring-label { font-size: 0.7rem; color: #94a3b8; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 16px; font-weight: 600; }
+            .comp-ring-card svg.compliance-ring { width: 90px; height: 90px; }
+            .comp-ring-card .ring-grade { font-size: 0.9rem; font-weight: 700; margin-top: 10px; letter-spacing: 1px; }
+            .comp-ring-card .ring-count { font-size: 0.72rem; color: #64748b; margin-top: 4px; }
+
+            /* Section Headers */
+            .comp-section { margin-bottom: 28px; }
+            .comp-section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+            .comp-section-title { font-family: 'Orbitron', sans-serif; font-size: 0.72rem; letter-spacing: 2px; text-transform: uppercase; color: #64748b; }
+            .comp-section-actions { display: flex; gap: 8px; }
+
+            /* Framework Cards */
+            .comp-framework { background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 18px 20px; margin-bottom: 10px; transition: all 0.2s ease; cursor: default; }
+            .comp-framework:hover { border-color: rgba(255,255,255,0.12); background: rgba(15, 23, 42, 0.8); }
+            .comp-framework-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+            .comp-framework-name { font-weight: 700; color: #e2e8f0; font-size: 0.92rem; }
+            .comp-framework-score { font-weight: 700; font-size: 0.92rem; display: flex; align-items: center; gap: 10px; }
+            .comp-framework-bar { height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; flex: 1; min-width: 120px; }
+            .comp-framework-bar-fill { height: 100%; border-radius: 3px; transition: width 0.8s ease; }
+            .comp-framework-meta { font-size: 0.75rem; color: #64748b; margin-top: 2px; }
+
+            /* Findings */
+            .comp-findings-filters { display: flex; gap: 8px; flex-wrap: wrap; }
+            .comp-filter-select { background: rgba(15, 23, 42, 0.8); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 7px 12px; font-size: 0.8rem; cursor: pointer; appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px; }
+            .comp-filter-select:focus { outline: none; border-color: var(--archie-accent); }
+
+            .comp-sev-group { margin-bottom: 6px; border-radius: 10px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05); }
+            .comp-sev-header { display: flex; align-items: center; gap: 10px; padding: 10px 16px; cursor: pointer; user-select: none; transition: background 0.15s; }
+            .comp-sev-header:hover { background: rgba(255,255,255,0.03); }
+            .comp-sev-header .sev-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+            .comp-sev-header .sev-label { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+            .comp-sev-header .sev-count { font-size: 0.72rem; color: #64748b; margin-left: auto; }
+            .comp-sev-header .sev-chevron { color: #475569; font-size: 0.7rem; transition: transform 0.2s; margin-left: 8px; }
+            .comp-sev-header.expanded .sev-chevron { transform: rotate(90deg); }
+            .comp-sev-body { display: none; }
+            .comp-sev-body.show { display: block; }
+
+            .comp-finding-row { display: flex; align-items: center; gap: 12px; padding: 10px 16px 10px 36px; border-top: 1px solid rgba(255,255,255,0.03); font-size: 0.82rem; transition: background 0.15s; }
+            .comp-finding-row:hover { background: rgba(255,255,255,0.02); }
+            .comp-finding-icon { width: 18px; text-align: center; flex-shrink: 0; }
+            .comp-finding-id { color: #94a3b8; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; min-width: 85px; flex-shrink: 0; }
+            .comp-finding-desc { color: #cbd5e1; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .comp-finding-pack { color: #64748b; font-size: 0.72rem; flex-shrink: 0; }
+            .comp-finding-fix { padding: 3px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); color: #94a3b8; transition: all 0.15s; text-decoration: none; flex-shrink: 0; }
+            .comp-finding-fix:hover { background: rgba(var(--archie-accent-rgb, 239,68,68), 0.15); border-color: var(--archie-accent); color: #e2e8f0; }
+
+            /* Evidence */
+            .comp-evidence-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+            .comp-evidence-item { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; font-size: 0.82rem; color: #94a3b8; transition: all 0.2s; }
+            .comp-evidence-item.collected { color: #cbd5e1; border-color: rgba(34,197,94,0.2); }
+            .comp-evidence-item .ev-icon { width: 20px; text-align: center; font-size: 0.85rem; }
+            .comp-evidence-item.collected .ev-icon { color: #22c55e; }
+            .comp-evidence-item.pending .ev-icon { color: #475569; }
+
+            /* Scan History Chart */
+            .comp-chart-wrap { background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 20px; height: 200px; position: relative; }
+
+            /* Ring animation */
+            @keyframes comp-ring-draw { from { stroke-dasharray: 0, 100; } }
+            .compliance-ring .ring-progress { animation: comp-ring-draw 1s ease-out forwards; }
+
+            /* Responsive */
+            @media (max-width: 768px) {
+                .comp-rings { grid-template-columns: repeat(2, 1fr); }
+                .comp-header { flex-direction: column; gap: 12px; align-items: flex-start; }
+                .comp-finding-row { padding-left: 20px; }
+                .comp-finding-pack { display: none; }
+            }
+        </style>
+
+        <div class="comp-dash">
+            <!-- Header -->
+            <div class="comp-header">
+                <div>
+                    <h3>Compliance Dashboard</h3>
+                    <span id="compliance-scan-status" class="comp-status-badge"></span>
+                </div>
+                <div class="comp-header-actions">
+                    <button onclick="exportCkl()" class="comp-btn comp-btn-secondary"><i class="fas fa-file-export"></i> Export</button>
+                    <button onclick="exportEvidence()" class="comp-btn comp-btn-secondary"><i class="fas fa-file-archive"></i> Evidence ZIP</button>
+                    <button onclick="runComplianceScan()" class="comp-btn comp-btn-primary" id="comp-scan-btn"><i class="fas fa-radar"></i> Run Scan</button>
+                </div>
             </div>
-        </div>
 
-        <!-- Score Cards -->
-        <div id="compliance-scores" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px;">
-            <!-- Populated by JS -->
-        </div>
+            <!-- Score Rings -->
+            <div id="compliance-scores" class="comp-rings">
+                <div class="comp-ring-card" style="--ring-color: #475569;">
+                    <div class="ring-label">Overall</div>
+                    <svg viewBox="0 0 36 36" class="compliance-ring">
+                        <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="2.5"/>
+                        <text x="18" y="21.5" text-anchor="middle" fill="#475569" font-size="8.5" font-weight="700">--</text>
+                    </svg>
+                    <div class="ring-grade" style="color: #475569;">NO DATA</div>
+                    <div class="ring-count">Run a scan to begin</div>
+                </div>
+            </div>
 
-        <!-- Filter Bar -->
-        <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
-            <select id="compliance-pack-filter" onchange="filterComplianceResults()" style="background: var(--archie-bg-tertiary); color: var(--archie-text-primary); border: 1px solid var(--archie-border-default); border-radius: 4px; padding: 6px 10px;">
-                <option value="">All Packs</option>
-                <option value="ubuntu-22.04-stig">Ubuntu 22.04</option>
-                <option value="docker-stig">Docker</option>
-                <option value="network-stig">Network</option>
-            </select>
-            <select id="compliance-severity-filter" onchange="filterComplianceResults()" style="background: var(--archie-bg-tertiary); color: var(--archie-text-primary); border: 1px solid var(--archie-border-default); border-radius: 4px; padding: 6px 10px;">
-                <option value="">All Severity</option>
-                <option value="critical">Critical</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-            </select>
-            <select id="compliance-status-filter" onchange="filterComplianceResults()" style="background: var(--archie-bg-tertiary); color: var(--archie-text-primary); border: 1px solid var(--archie-border-default); border-radius: 4px; padding: 6px 10px;">
-                <option value="">All Status</option>
-                <option value="pass">Pass</option>
-                <option value="fail">Fail</option>
-                <option value="error">Error</option>
-            </select>
-        </div>
+            <!-- Frameworks Section -->
+            <div class="comp-section">
+                <div class="comp-section-header">
+                    <span class="comp-section-title">Frameworks</span>
+                </div>
+                <div id="compliance-frameworks">
+                    <div class="comp-framework" style="opacity: 0.5;">
+                        <div class="comp-framework-top">
+                            <span class="comp-framework-name" style="color: #475569;">Awaiting scan data...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-        <!-- Results Table -->
-        <div style="overflow-x: auto;">
-            <table class="data-table" id="compliance-results-table">
-                <thead>
-                    <tr>
-                        <th>Rule ID</th>
-                        <th>Severity</th>
-                        <th>Pack</th>
-                        <th>Status</th>
-                        <th>Details</th>
-                    </tr>
-                </thead>
-                <tbody id="compliance-results-body">
-                    <tr><td colspan="5" style="text-align: center; color: var(--archie-text-muted); padding: 40px;">Click "Run Scan" to check compliance</td></tr>
-                </tbody>
-            </table>
-        </div>
+            <!-- Findings Section -->
+            <div class="comp-section">
+                <div class="comp-section-header">
+                    <span class="comp-section-title">Findings</span>
+                    <div class="comp-findings-filters">
+                        <select id="compliance-pack-filter" onchange="filterComplianceResults()" class="comp-filter-select">
+                            <option value="">All Packs</option>
+                            <option value="ubuntu-22.04-stig">Ubuntu 22.04</option>
+                            <option value="docker-stig">Docker</option>
+                            <option value="network-stig">Network</option>
+                            <option value="hipaa-security">HIPAA</option>
+                        </select>
+                        <select id="compliance-severity-filter" onchange="filterComplianceResults()" class="comp-filter-select">
+                            <option value="">All Severity</option>
+                            <option value="critical">Critical</option>
+                            <option value="high">High</option>
+                            <option value="medium">Medium</option>
+                            <option value="low">Low</option>
+                        </select>
+                        <select id="compliance-status-filter" onchange="filterComplianceResults()" class="comp-filter-select">
+                            <option value="">All Status</option>
+                            <option value="pass">Pass</option>
+                            <option value="fail">Fail</option>
+                            <option value="error">Error</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="compliance-findings">
+                    <div style="text-align: center; color: #475569; padding: 40px 0; font-size: 0.85rem;">
+                        <i class="fas fa-shield-alt" style="font-size: 2rem; margin-bottom: 12px; display: block; opacity: 0.3;"></i>
+                        Run a compliance scan to see findings
+                    </div>
+                </div>
+            </div>
 
-        <!-- Scan History -->
-        <div style="margin-top: 30px;">
-            <h4 style="color: var(--archie-text-primary); margin-bottom: 10px;">Scan History</h4>
-            <div id="compliance-history" style="color: var(--archie-text-muted);">No scan history yet</div>
-        </div>
+            <!-- Evidence Collection -->
+            <div class="comp-section">
+                <div class="comp-section-header">
+                    <span class="comp-section-title">Evidence Collection</span>
+                    <button onclick="collectEvidence()" class="comp-btn comp-btn-secondary" style="font-size: 0.75rem; padding: 6px 14px;" id="comp-collect-btn">
+                        <i class="fas fa-download"></i> Collect Evidence
+                    </button>
+                </div>
+                <div id="compliance-evidence" class="comp-evidence-grid">
+                    <div class="comp-evidence-item pending"><span class="ev-icon"><i class="far fa-circle"></i></span> Loading...</div>
+                </div>
+            </div>
 
-        <!-- Export Actions -->
-        <div style="margin-top: 30px; display: flex; gap: 12px; flex-wrap: wrap;">
-            <button onclick="exportCkl()" class="action-btn" style="background: var(--archie-bg-secondary); color: var(--archie-text-primary); border: 1px solid var(--archie-border-default); padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600;">
-                <i class="fas fa-file-code"></i> Export .ckl
-            </button>
-            <button onclick="exportEvidence()" class="action-btn" style="background: var(--archie-bg-secondary); color: var(--archie-text-primary); border: 1px solid var(--archie-border-default); padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600;">
-                <i class="fas fa-file-archive"></i> Export Evidence ZIP
-            </button>
+            <!-- Scan History Chart -->
+            <div class="comp-section">
+                <div class="comp-section-header">
+                    <span class="comp-section-title">Scan History</span>
+                </div>
+                <div class="comp-chart-wrap">
+                    <canvas id="compliance-history-chart"></canvas>
+                </div>
+                <div id="compliance-history" style="display:none;"></div>
+            </div>
         </div>
     </div>
 
@@ -2221,6 +2338,7 @@
 
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script>
 const API = '/tools/security-network/api';
 
@@ -5071,11 +5189,19 @@ document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ closeMod
 // ═══════ COMPLIANCE TAB ═══════
 let _complianceResults = [];
 let _lastScanId = null;
+let _compHistoryChart = null;
+
+function _compScoreColor(score) { return score >= 80 ? '#22c55e' : score >= 50 ? '#f59e0b' : '#ef4444'; }
+function _compGrade(score) { return score >= 95 ? 'A+' : score >= 90 ? 'A' : score >= 85 ? 'B+' : score >= 80 ? 'B' : score >= 70 ? 'C' : score >= 60 ? 'D' : 'F'; }
+function _compEsc(s) { return (s || '').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
 async function runComplianceScan() {
     const statusEl = document.getElementById('compliance-scan-status');
-    statusEl.textContent = 'Scanning 108 rules...';
+    const btn = document.getElementById('comp-scan-btn');
+    statusEl.textContent = 'Scanning all frameworks...';
     statusEl.style.color = 'var(--archie-accent)';
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scanning...';
 
     try {
         const resp = await fetch('/tools/security-network/api/compliance/scan', {
@@ -5087,12 +5213,14 @@ async function runComplianceScan() {
 
         if (data.scan_id) {
             _lastScanId = data.scan_id;
-            statusEl.textContent = `Score: ${data.score}% | ${data.passed} pass, ${data.failed} fail, ${data.errors} error`;
-            statusEl.style.color = data.score >= 80 ? 'var(--archie-green)' : data.score >= 50 ? '#f59e0b' : '#ef4444';
+            statusEl.textContent = 'Last scan: ' + data.score + '% \u2022 ' + data.passed + ' passed \u2022 ' + data.failed + ' failed';
+            statusEl.style.color = _compScoreColor(data.score);
 
-            loadComplianceResults(data.scan_id);
             renderScoreCards(data);
+            renderFrameworks(data);
+            loadComplianceResults(data.scan_id);
             loadScanHistory();
+            loadEvidenceStatus();
             loadHardeningContent(data.scan_id);
         } else {
             statusEl.textContent = 'Scan failed: ' + (data.error || 'Unknown error');
@@ -5101,7 +5229,19 @@ async function runComplianceScan() {
     } catch (e) {
         statusEl.textContent = 'Error: ' + e.message;
         statusEl.style.color = '#ef4444';
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-radar"></i> Run Scan';
     }
+}
+
+function _buildRingSvg(score, color, size) {
+    const dash = Math.round(score);
+    return '<svg viewBox="0 0 36 36" class="compliance-ring" style="width:' + (size||90) + 'px;height:' + (size||90) + 'px;">'
+        + '<path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="2.5" stroke-linecap="round"/>'
+        + '<path class="ring-progress" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="' + color + '" stroke-width="2.5" stroke-dasharray="' + dash + ', 100" stroke-linecap="round"/>'
+        + '<text x="18" y="20" text-anchor="middle" fill="' + color + '" font-size="8" font-weight="700">' + score + '%</text>'
+        + '</svg>';
 }
 
 function renderScoreCards(data) {
@@ -5109,18 +5249,58 @@ function renderScoreCards(data) {
     if (!data.pack_scores) return;
 
     const overall = { name: 'Overall', score: data.score, passed: data.passed, total: data.total };
-    const packs = [overall, ...Object.entries(data.pack_scores).map(([id, p]) => ({ name: p.name, score: p.score, passed: p.passed, total: p.total }))];
+    const packs = [overall, ...Object.entries(data.pack_scores).map(([id, p]) => ({
+        name: p.name, score: p.score, passed: p.passed, total: p.total
+    }))];
 
     el.innerHTML = packs.map(p => {
-        const color = p.score >= 80 ? '#22c55e' : p.score >= 50 ? '#f59e0b' : '#ef4444';
-        const grade = p.score >= 95 ? 'A+' : p.score >= 90 ? 'A' : p.score >= 85 ? 'B+' : p.score >= 80 ? 'B' : p.score >= 70 ? 'C' : p.score >= 60 ? 'D' : 'F';
-        return '<div style="background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default); border-radius: 8px; padding: 15px; text-align: center;">'
-            + '<div style="font-size: 0.8rem; color: var(--archie-text-muted); margin-bottom: 5px;">' + p.name + '</div>'
-            + '<div style="font-size: 2rem; font-weight: 700; color: ' + color + ';">' + p.score + '%</div>'
-            + '<div style="font-size: 0.75rem; color: var(--archie-text-muted);">' + p.passed + '/' + p.total + ' passed</div>'
-            + '<div style="font-size: 0.85rem; font-weight: 600; color: ' + color + '; margin-top: 4px;">Grade: ' + grade + '</div>'
+        const color = _compScoreColor(p.score);
+        const grade = _compGrade(p.score);
+        return '<div class="comp-ring-card" style="--ring-color: ' + color + ';">'
+            + '<div class="ring-label">' + _compEsc(p.name) + '</div>'
+            + _buildRingSvg(p.score, color, 90)
+            + '<div class="ring-grade" style="color: ' + color + ';">Grade: ' + grade + '</div>'
+            + '<div class="ring-count">' + p.passed + ' / ' + p.total + ' passed</div>'
             + '</div>';
     }).join('');
+}
+
+function renderFrameworks(data) {
+    const el = document.getElementById('compliance-frameworks');
+    if (!data.pack_scores) return;
+
+    const frameworkMeta = {
+        'ubuntu-22.04-stig': { icon: 'fab fa-ubuntu', desc: 'Ubuntu 22.04 Server STIG' },
+        'docker-stig': { icon: 'fab fa-docker', desc: 'Docker Enterprise STIG' },
+        'network-stig': { icon: 'fas fa-network-wired', desc: 'Network Infrastructure STIG' },
+        'hipaa-security': { icon: 'fas fa-hospital', desc: '\u00A7164.312 Technical Safeguards' },
+    };
+
+    const entries = Object.entries(data.pack_scores);
+    el.innerHTML = entries.map(([id, p]) => {
+        const color = _compScoreColor(p.score);
+        const meta = frameworkMeta[id] || { icon: 'fas fa-shield-alt', desc: id };
+        return '<div class="comp-framework">'
+            + '<div class="comp-framework-top">'
+            + '<span class="comp-framework-name"><i class="' + meta.icon + '" style="color:' + color + '; margin-right: 8px;"></i>' + _compEsc(p.name) + '</span>'
+            + '<span class="comp-framework-score" style="color:' + color + ';">'
+            + '<span class="comp-framework-bar"><span class="comp-framework-bar-fill" style="width:' + p.score + '%; background:' + color + ';"></span></span>'
+            + p.score + '%</span>'
+            + '</div>'
+            + '<div class="comp-framework-meta">' + p.total + ' rules \u00B7 ' + meta.desc + '</div>'
+            + '</div>';
+    }).join('');
+
+    /* SOC 2 placeholder if not in data */
+    if (!data.pack_scores['soc2']) {
+        el.innerHTML += '<div class="comp-framework" style="opacity: 0.5;">'
+            + '<div class="comp-framework-top">'
+            + '<span class="comp-framework-name"><i class="fas fa-clipboard-check" style="color: #3b82f6; margin-right: 8px;"></i>SOC 2 Type II</span>'
+            + '<span class="comp-framework-score" style="color: #3b82f6;"><i class="fas fa-sync fa-spin" style="font-size: 0.7rem;"></i> Collecting</span>'
+            + '</div>'
+            + '<div class="comp-framework-meta">Evidence collection \u00B7 5 Trust Service Criteria</div>'
+            + '</div>';
+    }
 }
 
 async function loadComplianceResults(scanId) {
@@ -5138,55 +5318,212 @@ function filterComplianceResults() {
     const pack = document.getElementById('compliance-pack-filter').value;
     const severity = document.getElementById('compliance-severity-filter').value;
     const status = document.getElementById('compliance-status-filter').value;
+    const container = document.getElementById('compliance-findings');
 
     let filtered = _complianceResults;
     if (pack) filtered = filtered.filter(r => r.pack_id === pack);
     if (severity) filtered = filtered.filter(r => r.severity === severity);
     if (status) filtered = filtered.filter(r => r.status === status);
 
-    const tbody = document.getElementById('compliance-results-body');
+    if (filtered.length === 0 && _complianceResults.length === 0) {
+        container.innerHTML = '<div style="text-align: center; color: #475569; padding: 40px 0; font-size: 0.85rem;">'
+            + '<i class="fas fa-shield-alt" style="font-size: 2rem; margin-bottom: 12px; display: block; opacity: 0.3;"></i>'
+            + 'Run a compliance scan to see findings</div>';
+        return;
+    }
     if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--archie-text-muted); padding: 20px;">No results match filters</td></tr>';
+        container.innerHTML = '<div style="text-align: center; color: #475569; padding: 30px 0; font-size: 0.85rem;">No results match current filters</div>';
         return;
     }
 
-    tbody.innerHTML = filtered.map(r => {
-        const statusColor = r.status === 'pass' ? '#22c55e' : r.status === 'fail' ? '#ef4444' : '#f59e0b';
-        const statusIcon = r.status === 'pass' ? 'check-circle' : r.status === 'fail' ? 'times-circle' : 'exclamation-triangle';
-        const sevColor = r.severity === 'high' || r.severity === 'critical' ? '#ef4444' : r.severity === 'medium' ? '#f59e0b' : '#94a3b8';
-        const detailText = (r.details || r.actual_value || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const titleText = detailText.replace(/"/g, '&quot;');
-        return '<tr>'
-            + '<td class="mono" style="font-size: 0.8rem;">' + r.rule_id + '</td>'
-            + '<td><span style="color: ' + sevColor + '; font-weight: 600; text-transform: uppercase; font-size: 0.75rem;">' + (r.severity || 'med') + '</span></td>'
-            + '<td style="font-size: 0.8rem;">' + (r.pack_id || '').replace('-stig', '') + '</td>'
-            + '<td><span style="color: ' + statusColor + ';"><i class="fas fa-' + statusIcon + '"></i> ' + r.status.toUpperCase() + '</span></td>'
-            + '<td style="font-size: 0.8rem; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + titleText + '">' + detailText + '</td>'
-            + '</tr>';
-    }).join('');
+    const sevOrder = ['critical', 'high', 'medium', 'low'];
+    const sevColors = { critical: '#dc2626', high: '#ef4444', medium: '#f59e0b', low: '#94a3b8' };
+    const sevIcons = { critical: 'fas fa-skull-crossbones', high: 'fas fa-exclamation-triangle', medium: 'fas fa-exclamation-circle', low: 'fas fa-info-circle' };
+
+    /* Group by severity, only show fails/errors by default (pass hidden unless filter says pass) */
+    const showFails = !status || status === 'fail' || status === 'error';
+    const groups = {};
+    filtered.forEach(r => {
+        const sev = r.severity || 'medium';
+        if (!groups[sev]) groups[sev] = { pass: [], fail: [] };
+        if (r.status === 'pass') groups[sev].pass.push(r);
+        else groups[sev].fail.push(r);
+    });
+
+    let html = '';
+    for (const sev of sevOrder) {
+        if (!groups[sev]) continue;
+        const items = status === 'pass' ? groups[sev].pass : (status === 'fail' || status === 'error') ? groups[sev].fail : [...groups[sev].fail, ...groups[sev].pass];
+        if (items.length === 0) continue;
+
+        const failCount = groups[sev].fail.length;
+        const passCount = groups[sev].pass.length;
+        const color = sevColors[sev] || '#94a3b8';
+        const expanded = sev === 'critical' || sev === 'high';
+
+        html += '<div class="comp-sev-group">'
+            + '<div class="comp-sev-header' + (expanded ? ' expanded' : '') + '" onclick="this.classList.toggle(\'expanded\'); this.nextElementSibling.classList.toggle(\'show\');">'
+            + '<span class="sev-dot" style="background:' + color + ';"></span>'
+            + '<span class="sev-label" style="color:' + color + ';">' + sev + '</span>'
+            + '<span class="sev-count">' + failCount + ' fail \u00B7 ' + passCount + ' pass</span>'
+            + '<i class="fas fa-chevron-right sev-chevron"></i>'
+            + '</div>'
+            + '<div class="comp-sev-body' + (expanded ? ' show' : '') + '">';
+
+        for (const r of items) {
+            const isPass = r.status === 'pass';
+            const icon = isPass ? 'fas fa-check-circle' : (sevIcons[sev] || 'fas fa-exclamation-circle');
+            const iconColor = isPass ? '#22c55e' : color;
+            const detailText = _compEsc(r.details || r.actual_value || r.rule_id);
+
+            html += '<div class="comp-finding-row">'
+                + '<span class="comp-finding-icon" style="color:' + iconColor + ';"><i class="' + icon + '"></i></span>'
+                + '<span class="comp-finding-id">' + _compEsc(r.rule_id) + '</span>'
+                + '<span class="comp-finding-desc" title="' + detailText.replace(/"/g, '&quot;') + '">' + detailText + '</span>'
+                + '<span class="comp-finding-pack">' + _compEsc((r.pack_id || '').replace('-stig', '').replace('-security', '')) + '</span>'
+                + (!isPass ? '<a class="comp-finding-fix" onclick="switchTab(\'hardening\');return false;" href="#">Fix \u25B6</a>' : '')
+                + '</div>';
+        }
+
+        html += '</div></div>';
+    }
+
+    container.innerHTML = html;
 }
 
 async function loadScanHistory() {
     try {
         const resp = await fetch('/tools/security-network/api/compliance/scans');
         const data = await resp.json();
-        const scans = data.scans || [];
-        const el = document.getElementById('compliance-history');
-        if (scans.length === 0) { el.innerHTML = 'No scan history'; return; }
+        const scans = (data.scans || []).slice(0, 20).reverse();
+        if (scans.length === 0) return;
 
-        el.innerHTML = '<table class="data-table"><thead><tr><th>Date</th><th>Score</th><th>Pass</th><th>Fail</th><th>Errors</th></tr></thead><tbody>' +
-            scans.slice(0, 10).map(s => {
-                const color = s.score >= 80 ? '#22c55e' : s.score >= 50 ? '#f59e0b' : '#ef4444';
-                const date = s.completed_at ? new Date(s.completed_at).toLocaleString() : 'In progress...';
-                return '<tr>'
-                    + '<td style="font-size: 0.8rem;">' + date + '</td>'
-                    + '<td style="color: ' + color + '; font-weight: 600;">' + (s.score != null ? s.score + '%' : '...') + '</td>'
-                    + '<td style="color: #22c55e;">' + s.passed + '</td>'
-                    + '<td style="color: #ef4444;">' + s.failed + '</td>'
-                    + '<td style="color: #f59e0b;">' + s.errors + '</td>'
-                    + '</tr>';
-            }).join('') + '</tbody></table>';
+        const canvas = document.getElementById('compliance-history-chart');
+        if (!canvas) return;
+
+        const labels = scans.map(s => {
+            if (!s.completed_at) return '...';
+            const d = new Date(s.completed_at);
+            return (d.getMonth()+1) + '/' + d.getDate() + ' ' + d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
+        });
+        const scores = scans.map(s => s.score != null ? s.score : null);
+
+        if (_compHistoryChart) { _compHistoryChart.destroy(); }
+
+        _compHistoryChart = new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Compliance Score',
+                    data: scores,
+                    borderColor: '#22c55e',
+                    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                    borderWidth: 2,
+                    pointBackgroundColor: scores.map(s => _compScoreColor(s || 0)),
+                    pointBorderColor: scores.map(s => _compScoreColor(s || 0)),
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    fill: true,
+                    tension: 0.3,
+                    spanGaps: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                        titleColor: '#e2e8f0',
+                        bodyColor: '#cbd5e1',
+                        borderColor: 'rgba(255,255,255,0.1)',
+                        borderWidth: 1,
+                        cornerRadius: 8,
+                        padding: 10,
+                        callbacks: {
+                            label: function(ctx) { return 'Score: ' + ctx.parsed.y + '%'; }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        min: 0, max: 100,
+                        grid: { color: 'rgba(255,255,255,0.04)' },
+                        ticks: { color: '#475569', font: { size: 10 }, callback: function(v) { return v + '%'; } }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: '#475569', font: { size: 9 }, maxRotation: 45 }
+                    }
+                }
+            }
+        });
     } catch (e) { console.error(e); }
+}
+
+async function loadEvidenceStatus() {
+    const el = document.getElementById('compliance-evidence');
+    try {
+        const resp = await fetch('/tools/security-network/api/compliance/evidence');
+        const data = await resp.json();
+        const items = data.evidence || data.items || [];
+
+        if (items.length === 0) {
+            /* Show default evidence categories */
+            const defaults = [
+                { name: 'Access Control Config', collected: false },
+                { name: 'Audit Log (90 days)', collected: false },
+                { name: 'SSL Certificate Status', collected: false },
+                { name: 'System Health', collected: false },
+                { name: 'Firewall Config', collected: false },
+                { name: 'Docker Config', collected: false },
+                { name: 'User Permissions', collected: false },
+                { name: 'Network Config', collected: false },
+            ];
+            el.innerHTML = defaults.map(d => _renderEvidenceItem(d.name, d.collected)).join('');
+            return;
+        }
+
+        el.innerHTML = items.map(i => {
+            const collected = i.status === 'collected' || i.collected_at || i.data;
+            const name = i.evidence_type || i.name || i.type || 'Unknown';
+            return _renderEvidenceItem(name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), collected);
+        }).join('');
+    } catch (e) {
+        /* Show defaults on error */
+        const defaults = ['Access Control', 'Audit Logs', 'SSL Certs', 'System Health', 'Firewall', 'Docker', 'Users', 'Network'];
+        el.innerHTML = defaults.map(d => _renderEvidenceItem(d, false)).join('');
+    }
+}
+
+function _renderEvidenceItem(name, collected) {
+    const cls = collected ? 'collected' : 'pending';
+    const icon = collected ? '<i class="fas fa-check-circle"></i>' : '<i class="far fa-circle"></i>';
+    return '<div class="comp-evidence-item ' + cls + '"><span class="ev-icon">' + icon + '</span> ' + _compEsc(name) + '</div>';
+}
+
+async function collectEvidence() {
+    const btn = document.getElementById('comp-collect-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Collecting...';
+    try {
+        const resp = await fetch('/tools/security-network/api/compliance/evidence/collect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}'
+        });
+        const data = await resp.json();
+        if (data.success || data.evidence) {
+            loadEvidenceStatus();
+        }
+    } catch (e) {
+        console.error('Evidence collection error:', e);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-download"></i> Collect Evidence';
+    }
 }
 
 // ═══════ HARDENING TAB ═══════
@@ -5250,6 +5587,7 @@ async function loadHardeningContent(scanId) {
 
 function onComplianceTabShown() {
     loadScanHistory();
+    loadEvidenceStatus();
     fetch('/tools/security-network/api/compliance/scores')
         .then(r => r.json())
         .then(data => {
@@ -5257,9 +5595,10 @@ function onComplianceTabShown() {
             if (data.success && sid) {
                 _lastScanId = sid;
                 const statusEl = document.getElementById('compliance-scan-status');
-                statusEl.textContent = 'Last scan: ' + data.score + '% (' + data.passed + '/' + data.total + ')';
-                statusEl.style.color = data.score >= 80 ? 'var(--archie-green)' : data.score >= 50 ? '#f59e0b' : '#ef4444';
+                statusEl.textContent = 'Last scan: ' + data.score + '% \u2022 ' + data.passed + ' passed \u2022 ' + data.failed + ' failed';
+                statusEl.style.color = _compScoreColor(data.score);
                 renderScoreCards(data);
+                renderFrameworks(data);
                 loadComplianceResults(sid);
             }
         })

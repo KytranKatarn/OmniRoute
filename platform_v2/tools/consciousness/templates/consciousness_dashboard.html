@@ -2941,21 +2941,64 @@
                 </div>
                 <div class="cs-card">
                     <div class="cs-card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-                        <span>Lines Over Time</span>
-                        <div style="display:flex;gap:4px;align-items:center;">
-                            <button onclick="chFilterHistory('1w')" class="ch-range-btn" data-range="1w" style="padding:3px 10px;border:1px solid rgba(139,92,246,0.4);background:transparent;color:#8b5cf6;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;">1W</button>
-                            <button onclick="chFilterHistory('1m')" class="ch-range-btn" data-range="1m" style="padding:3px 10px;border:1px solid rgba(139,92,246,0.4);background:transparent;color:#8b5cf6;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;">1M</button>
-                            <button onclick="chFilterHistory('3m')" class="ch-range-btn" data-range="3m" style="padding:3px 10px;border:1px solid rgba(139,92,246,0.4);background:transparent;color:#8b5cf6;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;">3M</button>
-                            <button onclick="chFilterHistory('all')" class="ch-range-btn active" data-range="all" style="padding:3px 10px;border:1px solid #8b5cf6;background:rgba(139,92,246,0.2);color:#8b5cf6;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;">ALL</button>
-                            <span style="width:1px;height:16px;background:rgba(255,255,255,0.15);margin:0 4px;"></span>
-                            <button id="chMilestoneToggle" onclick="chToggleMilestones()" style="padding:3px 10px;border:1px solid rgba(245,158,11,0.4);background:transparent;color:#f59e0b;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;" title="Toggle milestone markers">Milestones</button>
-                            <button onclick="chResetZoom()" style="padding:3px 10px;border:1px solid rgba(255,255,255,0.2);background:transparent;color:rgba(255,255,255,0.5);border-radius:4px;cursor:pointer;font-size:11px;" title="Reset zoom">&#x21ba;</button>
+                        <span style="display:flex;align-items:center;gap:8px;">
+                            Lines Over Time
+                            <span style="font-size:10px;color:rgba(255,255,255,0.3);font-weight:400;letter-spacing:0;">Drag to zoom &middot; Pinch on mobile</span>
+                        </span>
+                        <div class="ch-controls" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+                            <button onclick="chFilterHistory('1w')" class="ch-range-btn" data-range="1w">1W</button>
+                            <button onclick="chFilterHistory('1m')" class="ch-range-btn" data-range="1m">1M</button>
+                            <button onclick="chFilterHistory('3m')" class="ch-range-btn" data-range="3m">3M</button>
+                            <button onclick="chFilterHistory('all')" class="ch-range-btn active" data-range="all">ALL</button>
+                            <span class="ch-divider"></span>
+                            <button id="chMilestoneToggle" onclick="chToggleMilestones()" class="ch-milestone-btn" title="Toggle milestone markers">Milestones</button>
+                            <button onclick="chResetZoom()" class="ch-reset-btn" title="Reset zoom">&#x21ba;</button>
                         </div>
                     </div>
-                    <div style="font-size:10px;color:rgba(255,255,255,0.35);padding:0 4px 4px;">Drag to zoom &middot; Scroll to pan &middot; Double-click to reset</div>
-                    <div style="position:relative; height:400px;">
+                    <div class="ch-chart-container" style="position:relative;height:420px;border-radius:8px;background:linear-gradient(180deg,rgba(15,23,42,0.6) 0%,rgba(2,6,23,0.8) 100%);padding:12px 8px 8px;margin-top:8px;">
                         <canvas id="chHistoryChart"></canvas>
                     </div>
+                    <style>
+                        .ch-range-btn {
+                            min-width:36px;min-height:36px;padding:6px 12px;
+                            border:1px solid rgba(139,92,246,0.3);background:rgba(139,92,246,0.05);
+                            color:#8b5cf6;border-radius:8px;cursor:pointer;
+                            font-size:11px;font-weight:600;letter-spacing:0.03em;
+                            transition:all 0.2s ease;
+                        }
+                        .ch-range-btn:hover { background:rgba(139,92,246,0.15);border-color:rgba(139,92,246,0.6); }
+                        .ch-range-btn.active {
+                            background:rgba(139,92,246,0.2);border-color:#8b5cf6;
+                            box-shadow:0 0 8px rgba(139,92,246,0.3);
+                        }
+                        .ch-milestone-btn {
+                            min-height:36px;padding:6px 12px;
+                            border:1px solid rgba(245,158,11,0.3);background:rgba(245,158,11,0.05);
+                            color:#f59e0b;border-radius:8px;cursor:pointer;
+                            font-size:11px;font-weight:600;transition:all 0.2s ease;
+                        }
+                        .ch-milestone-btn:hover { background:rgba(245,158,11,0.15);border-color:rgba(245,158,11,0.6); }
+                        .ch-milestone-btn.active {
+                            background:rgba(245,158,11,0.2);border-color:#f59e0b;
+                            box-shadow:0 0 8px rgba(245,158,11,0.3);
+                        }
+                        .ch-reset-btn {
+                            min-width:36px;min-height:36px;padding:6px 10px;
+                            border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.03);
+                            color:rgba(255,255,255,0.5);border-radius:8px;cursor:pointer;
+                            font-size:14px;transition:all 0.2s ease;
+                        }
+                        .ch-reset-btn:hover { background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.8); }
+                        .ch-divider { width:1px;height:20px;background:rgba(255,255,255,0.1);margin:0 4px; }
+                        .ch-chart-container { box-shadow:inset 0 1px 0 rgba(255,255,255,0.03),0 4px 20px rgba(0,0,0,0.3); }
+                        @media (max-width:768px) {
+                            .ch-controls { gap:3px; }
+                            .ch-range-btn,.ch-milestone-btn,.ch-reset-btn { min-height:44px;min-width:44px;padding:8px 12px;font-size:12px; }
+                        }
+                        @media (max-width:480px) {
+                            .ch-controls { justify-content:center;width:100%; }
+                        }
+                    </style>
                 </div>
             </div>
 

@@ -23,8 +23,19 @@ def create_app(config=None):
     login_manager.init_app(app)
     register_auth_routes(app)
 
-    # Initialize theme
-    os.environ["SYSOPS_THEME"] = app.config.get("THEME", "kytran")
+    # Load saved theme preference from DB, fall back to config
+    saved_theme = app.config.get("THEME", "kytran")
+    try:
+        from .db import get_db
+        db = get_db()
+        db.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+        row = db.execute("SELECT value FROM settings WHERE key = 'theme'").fetchone()
+        if row:
+            saved_theme = row["value"]
+        db.close()
+    except Exception:
+        pass
+    os.environ["SYSOPS_THEME"] = saved_theme
     init_theme(app)
 
     # Register routes

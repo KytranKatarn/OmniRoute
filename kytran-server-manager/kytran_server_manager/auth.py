@@ -1,4 +1,5 @@
 """Authentication for standalone deployment."""
+import os
 import bcrypt
 from flask import request, redirect, render_template, flash, jsonify
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -94,5 +95,61 @@ def register_auth_routes(app):
             flash("Admin account created. Please log in.", "success")
             return redirect("/login")
         return render_template("setup.html")
+
+    @app.route("/settings")
+    @login_required
+    def settings():
+        current_theme = os.environ.get("SYSOPS_THEME", "kytran")
+        return render_template("settings.html", current_theme=current_theme)
+
+    @app.route("/settings/theme", methods=["POST"])
+    @login_required
+    def set_theme():
+        theme = request.json.get("theme", "kytran")
+        if theme not in ("kytran", "lcars"):
+            return jsonify({"success": False, "error": "Invalid theme"}), 400
+
+        # Update the theme and regenerate CSS
+        os.environ["SYSOPS_THEME"] = theme
+        from .theme import load_theme, write_theme_css
+        theme_data = load_theme(theme)
+        css_path = os.path.join(app.static_folder, "css", "system-operations-theme-vars.css")
+        write_theme_css(theme_data, css_path)
+
+        # Refresh the context processor with new theme
+        app.jinja_env.globals["sysops_theme"] = theme_data
+
+        # Store preference in DB
+        db = get_db()
+        db.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+        db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('theme', ?)", (theme,))
+        db.commit()
+        db.close()
+
+        return jsonify({"success": True, "theme": theme})
+
+    @app.route("/settings/password", methods=["POST"])
+    @login_required
+    def change_password():
+        current_pw = request.form.get("current_password", "")
+        new_pw = request.form.get("new_password", "")
+
+        if len(new_pw) < 8:
+            flash("New password must be at least 8 characters", "error")
+            return redirect("/settings")
+
+        db = get_db()
+        row = db.execute("SELECT password_hash FROM users WHERE id = ?", (current_user.id,)).fetchone()
+        if not row or not bcrypt.checkpw(current_pw.encode(), row["password_hash"].encode()):
+            db.close()
+            flash("Current password is incorrect", "error")
+            return redirect("/settings")
+
+        new_hash = bcrypt.hashpw(new_pw.encode(), bcrypt.gensalt()).decode()
+        db.execute("UPDATE users SET password_hash = ? WHERE id = ?", (new_hash, current_user.id))
+        db.commit()
+        db.close()
+        flash("Password updated successfully", "success")
+        return redirect("/settings")
 
     login_manager.login_view = "login"

@@ -20,7 +20,10 @@
         </div>
         <div class="ksm-nav-links">
             {% if current_user.is_authenticated %}
-            <span class="ksm-nav-user"><i class="fas fa-user"></i> {{ current_user.username }}</span>
+            <a href="/settings" class="ksm-nav-user" style="text-decoration: none; cursor: pointer;">
+                <i class="fas fa-user-circle" style="font-size: 1.3rem;"></i>
+                <span>{{ current_user.username }}</span>
+            </a>
             <a href="{{ url_for('logout') }}" class="ksm-nav-link">Logout</a>
             {% endif %}
         </div>

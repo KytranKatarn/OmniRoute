@@ -5,6 +5,16 @@ services:
     image: 'jc21/nginx-proxy-manager:latest'
     container_name: nginx-proxy-manager
     restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1.0
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - DAC_OVERRIDE
+      - CHOWN
+      - SETGID
+      - SETUID
     ports:
       - '80:80'
       - '443:443'

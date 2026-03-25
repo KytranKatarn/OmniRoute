@@ -181,6 +181,8 @@ services:
     restart: unless-stopped
     mem_limit: 96g
     cpus: 8.0
+    cap_drop:
+      - ALL
     deploy:
       resources:
         reservations:
@@ -295,6 +297,8 @@ services:
     restart: unless-stopped
     mem_limit: 8g
     cpus: 2.0
+    cap_drop:
+      - ALL
     deploy:
       resources:
         reservations:

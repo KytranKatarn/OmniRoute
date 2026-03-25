@@ -2670,7 +2670,7 @@ function loadCodeHealth() {
 
     _renderModuleChart(allModules, moduleDisplayNames);
     _renderModuleTable(platformModules, auditedModules, moduleStatusMap, moduleDisplayNames);
-    _renderStandaloneTable(standaloneModules);
+    _renderStandaloneTable(standaloneModules, moduleStatusMap);
     _renderOrphanTable(d.orphans || {});
     _renderAuditTable(entries);
   }).catch(function(err) {
@@ -2871,9 +2871,10 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
   setHtml(el, html);
 }
 
-function _renderStandaloneTable(modules) {
+function _renderStandaloneTable(modules, moduleStatusMap) {
     var el = document.getElementById("chStandaloneTable");
     if (!el) return;
+    moduleStatusMap = moduleStatusMap || {};
     var keys = Object.keys(modules);
     if (keys.length === 0) {
         el.textContent = "No standalone products registered";
@@ -2887,8 +2888,22 @@ function _renderStandaloneTable(modules) {
         var js = (m.by_type && m.by_type.js) || {files: 0, lines: 0};
         var ht = (m.by_type && m.by_type.html) || {files: 0, lines: 0};
         var cs = (m.by_type && m.by_type.css) || {files: 0, lines: 0};
+        // Audit status badge (same logic as module table)
+        var healthStatus = moduleStatusMap[key] || "red";
+        var badgeDot, badgeLabel, badgeColor;
+        if (healthStatus === "green") {
+            badgeDot = "#22c55e"; badgeLabel = "CLEAN"; badgeColor = "#22c55e";
+        } else if (healthStatus === "yellow") {
+            badgeDot = "#f59e0b"; badgeLabel = "STALE"; badgeColor = "#f59e0b";
+        } else {
+            badgeDot = "#ef4444"; badgeLabel = "UNAUDITED"; badgeColor = "#ef4444";
+        }
+        var badgeHtml = '<span style="display:inline-flex;align-items:center;gap:0.3rem;font-size:0.7rem;font-weight:600;letter-spacing:0.03em;">'
+            + '<span style="width:6px;height:6px;border-radius:50%;background:' + badgeDot + ';display:inline-block;"></span>'
+            + '<span style="color:' + badgeColor + ';">' + badgeLabel + '</span></span>';
         return '<tr style="border-bottom:1px solid #333;">'
             + '<td style="padding:8px;color:#f59e0b;font-weight:bold;">' + escHtml(displayName) + '</td>'
+            + '<td style="text-align:center;padding:8px;">' + badgeHtml + '</td>'
             + '<td style="text-align:right;padding:8px;">' + (m.files || 0) + '</td>'
             + '<td style="text-align:right;padding:8px;">' + (m.lines || 0).toLocaleString() + '</td>'
             + '<td style="text-align:right;padding:8px;">' + py.lines.toLocaleString() + '</td>'
@@ -2901,6 +2916,7 @@ function _renderStandaloneTable(modules) {
     var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
         + '<thead><tr style="border-bottom:2px solid #f59e0b;">'
         + '<th style="text-align:left;padding:8px;color:#f59e0b;">Standalone Product</th>'
+        + '<th style="text-align:center;padding:8px;">Status</th>'
         + '<th style="text-align:right;padding:8px;">Files</th>'
         + '<th style="text-align:right;padding:8px;">Lines</th>'
         + '<th style="text-align:right;padding:8px;">Python</th>'

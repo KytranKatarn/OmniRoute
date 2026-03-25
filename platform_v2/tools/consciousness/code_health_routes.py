@@ -68,6 +68,12 @@ def register_code_health_routes(bp, admin_required):
             }
         )
 
+        # Add standalone product display names
+        from services.code_metrics_service import STANDALONE_PRODUCTS
+
+        for product in STANDALONE_PRODUCTS:
+            display_names[product["module_key"]] = product["name"]
+
         with get_db_cursor() as (conn, cur):
             # Get module list from latest code_metrics_snapshot per_module JSONB
             cur.execute(

@@ -804,8 +804,9 @@ def _check_package_installed(check):
             )
             if "install ok installed" in out.stdout:
                 is_installed = True
-            # If not definitively installed, fall through to host check
-            # (container dpkg may not reflect host packages)
+            elif out.returncode != 0 or "not-installed" in out.stdout or "no packages found" in out.stderr:
+                # Package definitively not installed
+                is_installed = False
         except (FileNotFoundError, _subprocess.TimeoutExpired):
             pass
 

@@ -376,9 +376,12 @@ services:
     mem_limit: 512m
     cpus: 0.5
     hostname: archie-hub
+    cap_drop:
+      - ALL
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
+      - NET_RAW
     environment:
       TS_AUTHKEY: ${HEADSCALE_HUB_AUTHKEY:-}
       TS_STATE_DIR: /var/lib/tailscale

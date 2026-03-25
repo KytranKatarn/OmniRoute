@@ -2096,27 +2096,305 @@
 .admin-ops-nav { --cat-accent: #8b5cf6; --cat-accent-light: #6d28d9; }
 
 /* ── Code Health Tab ─────────────────────────────────────── */
-.ch-stats-row { grid-template-columns: repeat(9, 1fr); gap: 10px; }
-.ch-stats-row .cs-stat-card { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 18px 12px; border: 1px solid rgba(139, 92, 246, 0.2); border-radius: 8px; background: rgba(139, 92, 246, 0.04); border-left: 3px solid rgba(139, 92, 246, 0.5); }
-.ch-stats-row .cs-stat-value { font-size: 1.8rem; }
-.ch-stats-row .cs-stat-label { font-size: 0.65rem; letter-spacing: 1.5px; margin-top: 4px; }
+
+/* Stats Row — glass cards grid */
+.ch-stats-row {
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    gap: 10px;
+}
+.ch-stats-row .ch-stat-card {
+    position: relative;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px 12px 16px;
+    border: 1px solid rgba(139, 92, 246, 0.15);
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.7) 0%, rgba(2, 6, 23, 0.8) 100%);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    overflow: hidden;
+}
+.ch-stats-row .ch-stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.4), transparent);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+.ch-stats-row .ch-stat-card:hover {
+    border-color: rgba(139, 92, 246, 0.35);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 0 20px rgba(139, 92, 246, 0.08);
+}
+.ch-stats-row .ch-stat-card:hover::before { opacity: 1; }
+
+/* Hero cards — Total Files & Total Lines */
+.ch-stats-row .ch-stat-card.ch-hero {
+    grid-column: span 1;
+    padding: 24px 16px 20px;
+    border-color: rgba(139, 92, 246, 0.3);
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(2, 6, 23, 0.85) 100%);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(139, 92, 246, 0.1);
+}
+.ch-stats-row .ch-stat-card.ch-hero::before { opacity: 1; background: linear-gradient(90deg, transparent, #8b5cf6, transparent); }
+.ch-stats-row .ch-stat-card.ch-hero .ch-stat-value { font-size: 2.2rem; color: #F8FAFC; }
+
+/* Language color indicator bar */
+.ch-stat-indicator {
+    width: 24px;
+    height: 3px;
+    border-radius: 2px;
+    margin-bottom: 10px;
+    opacity: 0.8;
+}
+
+/* Stat value & label */
+.ch-stat-value {
+    font-size: 1.7rem;
+    font-weight: 700;
+    font-family: 'Orbitron', 'IBM Plex Mono', monospace;
+    color: rgba(248, 250, 252, 0.9);
+    line-height: 1.2;
+}
+.ch-stat-label {
+    font-size: 0.6rem;
+    letter-spacing: 1.8px;
+    margin-top: 6px;
+    color: rgba(255, 255, 255, 0.45);
+    text-transform: uppercase;
+    font-weight: 500;
+}
+
+/* Actions row */
 .ch-actions { display: flex; gap: 8px; margin: 16px 0; flex-wrap: wrap; justify-content: center; }
+
+/* Charts row */
 .ch-charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
 
+/* Section dividers */
+.ch-section-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.2), transparent);
+    margin: 24px 0;
+}
+
+/* ── Code Health Tables ────────────────────────────────── */
+.ch-table-card {
+    position: relative;
+    border: 1px solid rgba(139, 92, 246, 0.12);
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.6) 0%, rgba(2, 6, 23, 0.7) 100%);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    overflow: hidden;
+    margin-top: 20px;
+}
+.ch-table-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.3), transparent);
+}
+.ch-table-card.ch-accent-amber { border-color: rgba(245, 158, 11, 0.15); }
+.ch-table-card.ch-accent-amber::before { background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.3), transparent); }
+.ch-table-card.ch-accent-red { border-color: rgba(239, 68, 68, 0.12); }
+.ch-table-card.ch-accent-red::before { background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.25), transparent); }
+.ch-table-card.ch-accent-cyan { border-color: rgba(34, 211, 238, 0.12); }
+.ch-table-card.ch-accent-cyan::before { background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.25), transparent); }
+
+.ch-table-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(248, 250, 252, 0.85);
+}
+.ch-table-header .ch-header-icon {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+.ch-table-header.ch-amber { color: #f59e0b; }
+.ch-table-header.ch-amber .ch-header-icon { background: #f59e0b; box-shadow: 0 0 6px rgba(245, 158, 11, 0.4); }
+.ch-table-header.ch-red { color: rgba(239, 68, 68, 0.85); }
+.ch-table-header.ch-red .ch-header-icon { background: #ef4444; box-shadow: 0 0 6px rgba(239, 68, 68, 0.4); }
+.ch-table-header.ch-purple { color: rgba(139, 92, 246, 0.85); }
+.ch-table-header.ch-purple .ch-header-icon { background: #8b5cf6; box-shadow: 0 0 6px rgba(139, 92, 246, 0.4); }
+.ch-table-header.ch-cyan { color: rgba(34, 211, 238, 0.85); }
+.ch-table-header.ch-cyan .ch-header-icon { background: #22d3ee; box-shadow: 0 0 6px rgba(34, 211, 238, 0.4); }
+
+.ch-table-body {
+    max-height: 420px;
+    overflow-y: auto;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(139, 92, 246, 0.3) transparent;
+}
+.ch-table-body::-webkit-scrollbar { width: 5px; height: 5px; }
+.ch-table-body::-webkit-scrollbar-track { background: transparent; }
+.ch-table-body::-webkit-scrollbar-thumb { background: rgba(139, 92, 246, 0.25); border-radius: 3px; }
+.ch-table-body::-webkit-scrollbar-thumb:hover { background: rgba(139, 92, 246, 0.4); }
+
+/* Table styles */
+.ch-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    line-height: 1.6;
+}
+.ch-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding: 10px 12px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+    background: rgba(2, 6, 23, 0.95);
+    border-bottom: 1px solid rgba(139, 92, 246, 0.15);
+    white-space: nowrap;
+    backdrop-filter: blur(4px);
+}
+.ch-table tbody tr {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    transition: background 0.15s ease;
+}
+.ch-table tbody tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.015);
+}
+.ch-table tbody tr:hover {
+    background: rgba(139, 92, 246, 0.06);
+}
+.ch-table td {
+    padding: 9px 12px;
+    color: rgba(248, 250, 252, 0.75);
+    white-space: nowrap;
+}
+.ch-table td.center, .ch-table th.center { text-align: center; }
+.ch-table td.right, .ch-table th.right { text-align: right; }
+.ch-table td strong { color: rgba(248, 250, 252, 0.95); }
+
+/* Status badges with glow */
+.ch-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 3px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+}
+.ch-badge-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.ch-badge.ch-badge-green { color: #22c55e; background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.15); }
+.ch-badge.ch-badge-green .ch-badge-dot { background: #22c55e; box-shadow: 0 0 6px rgba(34, 197, 94, 0.5); }
+.ch-badge.ch-badge-amber { color: #f59e0b; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.15); }
+.ch-badge.ch-badge-amber .ch-badge-dot { background: #f59e0b; box-shadow: 0 0 6px rgba(245, 158, 11, 0.4); }
+.ch-badge.ch-badge-red { color: #ef4444; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.15); }
+.ch-badge.ch-badge-red .ch-badge-dot { background: #ef4444; box-shadow: 0 0 6px rgba(239, 68, 68, 0.4); }
+.ch-badge.ch-badge-purple { color: #a78bfa; background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.15); }
+.ch-badge.ch-badge-purple .ch-badge-dot { background: #a78bfa; box-shadow: 0 0 6px rgba(139, 92, 246, 0.4); }
+.ch-badge.ch-badge-cyan { color: #22d3ee; background: rgba(34, 211, 238, 0.08); border: 1px solid rgba(34, 211, 238, 0.15); }
+
+/* Tier badge (standalone) */
+.ch-tier-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 5px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(245, 158, 11, 0.08));
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+/* Module name colors */
+.ch-module-name { font-weight: 600; color: rgba(248, 250, 252, 0.9); }
+.ch-module-name.ch-name-clean { color: #4ade80; }
+.ch-module-name.ch-name-amber { color: #f59e0b; }
+.ch-module-name.ch-name-gold { color: #f59e0b; font-weight: 700; }
+
+/* Audit clickable badge */
+.ch-audit-btn {
+    cursor: pointer;
+    padding: 4px 14px;
+    min-width: 70px;
+    display: inline-block;
+    text-align: center;
+    touch-action: manipulation;
+    transition: background 0.15s ease;
+}
+.ch-audit-btn:hover { filter: brightness(1.2); }
+
+/* Chart card header */
+.ch-chart-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.ch-chart-card-header .ch-header-icon {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: #8b5cf6;
+    box-shadow: 0 0 6px rgba(139, 92, 246, 0.4);
+    flex-shrink: 0;
+}
+
+/* Empty states */
+.ch-empty {
+    text-align: center;
+    padding: 24px 16px;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.8rem;
+    letter-spacing: 0.03em;
+}
+.ch-empty.ch-empty-success { color: rgba(34, 197, 94, 0.7); }
+
+/* Responsive */
 @media (max-width: 768px) {
-    .ch-stats-row { grid-template-columns: repeat(4, 1fr); }
-    .ch-stats-row .cs-stat-value { font-size: 1.4rem; }
+    .ch-stats-row { grid-template-columns: repeat(3, 1fr); }
+    .ch-stat-value { font-size: 1.4rem; }
+    .ch-stats-row .ch-stat-card.ch-hero .ch-stat-value { font-size: 1.8rem; }
     .ch-charts-row { grid-template-columns: 1fr; }
+    .ch-table { font-size: 0.75rem; }
+    .ch-table thead th { font-size: 0.6rem; padding: 8px 8px; }
+    .ch-table td { padding: 7px 8px; }
 }
 
 @media (max-width: 480px) {
     .ch-stats-row { grid-template-columns: repeat(2, 1fr); }
-    .ch-stats-row .cs-stat-value { font-size: 1.2rem; }
+    .ch-stat-value { font-size: 1.2rem; }
+    .ch-stats-row .ch-stat-card.ch-hero .ch-stat-value { font-size: 1.5rem; }
     .ch-charts-row { grid-template-columns: 1fr; }
     .ch-actions { flex-direction: column; }
-    #chModuleTable table, #chAuditTable table, #chOrphanTable table { font-size: 0.7rem; white-space: nowrap; }
-    #chModuleTable table th, #chAuditTable table th { font-size: 0.6rem; padding: 4px 6px; }
-    #chModuleTable table td, #chAuditTable table td { padding: 3px 6px; }
+    .ch-table { font-size: 0.7rem; }
+    .ch-table thead th { font-size: 0.55rem; padding: 4px 6px; }
+    .ch-table td { padding: 3px 6px; }
 }
 </style>
 
@@ -2892,50 +3170,64 @@
             <div id="chStatusSummary"></div>
 
             <!-- Stats Row -->
-            <div class="cs-stats ch-stats-row">
-                <div class="cs-stat-card">
-                    <div class="cs-stat-value" id="chTotalFiles">—</div>
-                    <div class="cs-stat-label">TOTAL FILES</div>
+            <div class="ch-stats-row">
+                <div class="ch-stat-card ch-hero">
+                    <div class="ch-stat-indicator" style="background:#22d3ee;"></div>
+                    <div class="ch-stat-value" id="chTotalFiles">—</div>
+                    <div class="ch-stat-label">TOTAL FILES</div>
                 </div>
-                <div class="cs-stat-card">
-                    <div class="cs-stat-value" id="chTotalLines">—</div>
-                    <div class="cs-stat-label">TOTAL LINES</div>
+                <div class="ch-stat-card ch-hero">
+                    <div class="ch-stat-indicator" style="background:#8b5cf6;"></div>
+                    <div class="ch-stat-value" id="chTotalLines">—</div>
+                    <div class="ch-stat-label">TOTAL LINES</div>
                 </div>
-                <div class="cs-stat-card">
-                    <div class="cs-stat-value" id="chPythonLines">—</div>
-                    <div class="cs-stat-label">PYTHON</div>
+                <div class="ch-stat-card">
+                    <div class="ch-stat-indicator" style="background:#3b82f6;"></div>
+                    <div class="ch-stat-value" id="chPythonLines">—</div>
+                    <div class="ch-stat-label">PYTHON</div>
                 </div>
-                <div class="cs-stat-card">
-                    <div class="cs-stat-value" id="chJsLines">—</div>
-                    <div class="cs-stat-label">JAVASCRIPT</div>
+                <div class="ch-stat-card">
+                    <div class="ch-stat-indicator" style="background:#f59e0b;"></div>
+                    <div class="ch-stat-value" id="chJsLines">—</div>
+                    <div class="ch-stat-label">JAVASCRIPT</div>
                 </div>
-                <div class="cs-stat-card">
-                    <div class="cs-stat-value" id="chHtmlLines">—</div>
-                    <div class="cs-stat-label">HTML</div>
+                <div class="ch-stat-card">
+                    <div class="ch-stat-indicator" style="background:#ef4444;"></div>
+                    <div class="ch-stat-value" id="chHtmlLines">—</div>
+                    <div class="ch-stat-label">HTML</div>
                 </div>
-                <div class="cs-stat-card">
-                    <div class="cs-stat-value" id="chCssLines">—</div>
-                    <div class="cs-stat-label">CSS</div>
+                <div class="ch-stat-card">
+                    <div class="ch-stat-indicator" style="background:#22d3ee;"></div>
+                    <div class="ch-stat-value" id="chCssLines">—</div>
+                    <div class="ch-stat-label">CSS</div>
                 </div>
-                <div class="cs-stat-card">
-                    <div class="cs-stat-value" id="chSqlLines">—</div>
-                    <div class="cs-stat-label">SQL</div>
+                <div class="ch-stat-card">
+                    <div class="ch-stat-indicator" style="background:#a78bfa;"></div>
+                    <div class="ch-stat-value" id="chSqlLines">—</div>
+                    <div class="ch-stat-label">SQL</div>
                 </div>
-                <div class="cs-stat-card">
-                    <div class="cs-stat-value" id="chShellLines">—</div>
-                    <div class="cs-stat-label">SHELL</div>
+                <div class="ch-stat-card">
+                    <div class="ch-stat-indicator" style="background:#22c55e;"></div>
+                    <div class="ch-stat-value" id="chShellLines">—</div>
+                    <div class="ch-stat-label">SHELL</div>
                 </div>
-                <div class="cs-stat-card">
-                    <div class="cs-stat-value" id="chJsonLines">—</div>
-                    <div class="cs-stat-label">JSON</div>
+                <div class="ch-stat-card">
+                    <div class="ch-stat-indicator" style="background:#f97316;"></div>
+                    <div class="ch-stat-value" id="chJsonLines">—</div>
+                    <div class="ch-stat-label">JSON</div>
                 </div>
             </div>
+
+            <div class="ch-section-divider"></div>
 
             <!-- Charts Row -->
             <div class="ch-charts-row">
                 <div class="cs-card">
-                    <div class="cs-card-title">Lines by Module / Standalone</div>
-                    <div style="position:relative; height:400px; overflow-y:auto;">
+                    <div class="cs-card-title" style="display:flex;align-items:center;gap:8px;">
+                        <span class="ch-chart-card-header"><span class="ch-header-icon"></span></span>
+                        Lines by Module / Standalone
+                    </div>
+                    <div class="ch-chart-container" style="position:relative;height:420px;border-radius:8px;background:linear-gradient(180deg,rgba(15,23,42,0.6) 0%,rgba(2,6,23,0.8) 100%);padding:12px 8px 8px;margin-top:8px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.03),0 4px 20px rgba(0,0,0,0.3);overflow-y:auto;">
                         <canvas id="chModuleChart"></canvas>
                     </div>
                 </div>
@@ -3002,30 +3294,46 @@
                 </div>
             </div>
 
+            <div class="ch-section-divider"></div>
+
             <!-- Module Breakdown Table -->
-            <div class="cs-card" style="margin-top:16px;">
-                <div class="cs-card-title">Module Breakdown</div>
-                <div id="chModuleTable" style="max-height:400px; overflow:auto; -webkit-overflow-scrolling:touch;"></div>
+            <div class="ch-table-card">
+                <div class="ch-table-header ch-purple">
+                    <span class="ch-header-icon"></span>
+                    Module Breakdown
+                </div>
+                <div class="ch-table-body" id="chModuleTable"></div>
             </div>
 
+            <div class="ch-section-divider"></div>
+
             <!-- Standalone Products -->
-            <div class="cs-card" style="margin-top:20px;">
-                <div class="cs-card-title" style="color:#f59e0b;">
-                    <i class="fas fa-rocket"></i> Standalone Products
+            <div class="ch-table-card ch-accent-amber">
+                <div class="ch-table-header ch-amber">
+                    <span class="ch-header-icon"></span>
+                    Standalone Products
                 </div>
-                <div id="chStandaloneTable"></div>
+                <div class="ch-table-body" id="chStandaloneTable"></div>
             </div>
 
             <!-- Orphan Files -->
-            <div class="cs-card" style="margin-top:16px;">
-                <div class="cs-card-title">Orphan Files (unmapped to any module)</div>
-                <div id="chOrphanTable" style="overflow-x:auto; -webkit-overflow-scrolling:touch;"></div>
+            <div class="ch-table-card ch-accent-red" style="margin-top:16px;">
+                <div class="ch-table-header ch-red">
+                    <span class="ch-header-icon"></span>
+                    Orphan Files (unmapped)
+                </div>
+                <div class="ch-table-body" id="chOrphanTable"></div>
             </div>
 
+            <div class="ch-section-divider"></div>
+
             <!-- Audit Progress -->
-            <div class="cs-card" style="margin-top:16px;">
-                <div class="cs-card-title">Audit Progress</div>
-                <div id="chAuditTable" style="overflow-x:auto; -webkit-overflow-scrolling:touch;"></div>
+            <div class="ch-table-card ch-accent-cyan">
+                <div class="ch-table-header ch-cyan">
+                    <span class="ch-header-icon"></span>
+                    Audit Progress
+                </div>
+                <div class="ch-table-body" id="chAuditTable"></div>
             </div>
 
         </div>

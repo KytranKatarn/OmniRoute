@@ -2825,7 +2825,7 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
     return (modules[b].lines || 0) - (modules[a].lines || 0);
   });
 
-  var html = '<table class="cs-table"><thead><tr>' +
+  var html = '<table class="ch-table"><thead><tr>' +
     '<th>Module</th><th class="center">Status</th><th class="center">Files</th><th class="center">Lines</th>' +
     '<th class="center">Python</th><th class="center">JS</th><th class="center">HTML</th><th class="center">CSS</th><th class="center">SQL</th><th class="center">Shell</th><th class="center">JSON</th>' +
     '</tr></thead><tbody>';
@@ -2836,25 +2836,24 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
     var status = auditedModules[name];
     var isCompleted = status === "completed";
     var isAudited = !!status;
-    var rowStyle = isCompleted ? "background:rgba(74,222,128,0.06);" : isAudited ? "background:rgba(245,158,11,0.04);" : "";
-    var nameStyle = isCompleted ? "color:#4ade80; font-weight:600;" : isAudited ? "color:#f59e0b;" : "";
 
     // Status badge from module-status endpoint
     var healthStatus = moduleStatusMap[name] || "red";
-    var badgeDot, badgeLabel, badgeColor;
+    var badgeClass, badgeLabel;
     if (healthStatus === "green") {
-      badgeDot = "#22c55e"; badgeLabel = "CLEAN"; badgeColor = "#22c55e";
+      badgeClass = "ch-badge-green"; badgeLabel = "CLEAN";
     } else if (healthStatus === "yellow") {
-      badgeDot = "#f59e0b"; badgeLabel = "STALE"; badgeColor = "#f59e0b";
+      badgeClass = "ch-badge-amber"; badgeLabel = "STALE";
     } else {
-      badgeDot = "#ef4444"; badgeLabel = "UNAUDITED"; badgeColor = "#ef4444";
+      badgeClass = "ch-badge-red"; badgeLabel = "UNAUDITED";
     }
-    var badgeHtml = '<span style="display:inline-flex;align-items:center;gap:0.3rem;font-size:0.7rem;font-weight:600;letter-spacing:0.03em;">' +
-      '<span style="width:6px;height:6px;border-radius:50%;background:' + badgeDot + ';display:inline-block;' + (healthStatus === "green" ? 'box-shadow:0 0 4px ' + badgeDot + ';' : '') + '"></span>' +
-      '<span style="color:' + badgeColor + ';">' + badgeLabel + '</span></span>';
+    var badgeHtml = '<span class="ch-badge ' + badgeClass + '">' +
+      '<span class="ch-badge-dot"></span>' + badgeLabel + '</span>';
 
-    html += '<tr style="' + rowStyle + '">' +
-      '<td style="' + nameStyle + '">' + escHtml(moduleDisplayNames[name] || name) + (isCompleted ? ' <span style="font-size:0.6rem; opacity:0.6;">&#x2713;</span>' : '') + '</td>' +
+    var nameClass = "ch-module-name" + (isCompleted ? " ch-name-clean" : isAudited ? " ch-name-amber" : "");
+
+    html += '<tr>' +
+      '<td><span class="' + nameClass + '">' + escHtml(moduleDisplayNames[name] || name) + '</span>' + (isCompleted ? ' <span style="font-size:0.6rem;opacity:0.5;">&#x2713;</span>' : '') + '</td>' +
       '<td class="center">' + badgeHtml + '</td>' +
       '<td class="center">' + (m.files || 0) + '</td>' +
       '<td class="center"><strong>' + (m.lines || 0).toLocaleString() + '</strong></td>' +
@@ -2878,8 +2877,7 @@ function _renderStandaloneTable(modules, moduleStatusMap) {
     moduleStatusMap = moduleStatusMap || {};
     var keys = Object.keys(modules);
     if (keys.length === 0) {
-        el.textContent = "No standalone products registered";
-        el.style.cssText = "color:#888;text-align:center;padding:20px;";
+        setHtml(el, '<div class="ch-empty">No standalone products registered.</div>');
         return;
     }
     var rows = keys.map(function(key) {
@@ -2889,42 +2887,40 @@ function _renderStandaloneTable(modules, moduleStatusMap) {
         var js = (m.by_type && m.by_type.js) || {files: 0, lines: 0};
         var ht = (m.by_type && m.by_type.html) || {files: 0, lines: 0};
         var cs = (m.by_type && m.by_type.css) || {files: 0, lines: 0};
-        // Audit status badge (same logic as module table)
+        // Audit status badge
         var healthStatus = moduleStatusMap[key] || "red";
-        var badgeDot, badgeLabel, badgeColor;
+        var badgeClass, badgeLabel;
         if (healthStatus === "green") {
-            badgeDot = "#22c55e"; badgeLabel = "CLEAN"; badgeColor = "#22c55e";
+            badgeClass = "ch-badge-green"; badgeLabel = "CLEAN";
         } else if (healthStatus === "yellow") {
-            badgeDot = "#f59e0b"; badgeLabel = "STALE"; badgeColor = "#f59e0b";
+            badgeClass = "ch-badge-amber"; badgeLabel = "STALE";
         } else {
-            badgeDot = "#ef4444"; badgeLabel = "UNAUDITED"; badgeColor = "#ef4444";
+            badgeClass = "ch-badge-red"; badgeLabel = "UNAUDITED";
         }
-        var badgeHtml = '<span style="display:inline-flex;align-items:center;gap:0.3rem;font-size:0.7rem;font-weight:600;letter-spacing:0.03em;">'
-            + '<span style="width:6px;height:6px;border-radius:50%;background:' + badgeDot + ';display:inline-block;"></span>'
-            + '<span style="color:' + badgeColor + ';">' + badgeLabel + '</span></span>';
-        return '<tr style="border-bottom:1px solid #333;">'
-            + '<td style="padding:8px;color:#f59e0b;font-weight:bold;">' + escHtml(displayName) + '</td>'
-            + '<td style="text-align:center;padding:8px;">' + badgeHtml + '</td>'
-            + '<td style="text-align:right;padding:8px;">' + (m.files || 0) + '</td>'
-            + '<td style="text-align:right;padding:8px;">' + (m.lines || 0).toLocaleString() + '</td>'
-            + '<td style="text-align:right;padding:8px;">' + py.lines.toLocaleString() + '</td>'
-            + '<td style="text-align:right;padding:8px;">' + js.lines.toLocaleString() + '</td>'
-            + '<td style="text-align:right;padding:8px;">' + ht.lines.toLocaleString() + '</td>'
-            + '<td style="text-align:right;padding:8px;">' + cs.lines.toLocaleString() + '</td>'
-            + '<td style="text-align:center;padding:8px;"><span style="background:#f59e0b;color:#000;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:bold;">TIER 1</span></td>'
+        var badgeHtml = '<span class="ch-badge ' + badgeClass + '"><span class="ch-badge-dot"></span>' + badgeLabel + '</span>';
+        return '<tr>'
+            + '<td><span class="ch-module-name ch-name-gold">' + escHtml(displayName) + '</span></td>'
+            + '<td class="center">' + badgeHtml + '</td>'
+            + '<td class="center">' + (m.files || 0) + '</td>'
+            + '<td class="center"><strong>' + (m.lines || 0).toLocaleString() + '</strong></td>'
+            + '<td class="center">' + py.lines.toLocaleString() + '</td>'
+            + '<td class="center">' + js.lines.toLocaleString() + '</td>'
+            + '<td class="center">' + ht.lines.toLocaleString() + '</td>'
+            + '<td class="center">' + cs.lines.toLocaleString() + '</td>'
+            + '<td class="center"><span class="ch-tier-badge">TIER 1</span></td>'
             + '</tr>';
     });
-    var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
-        + '<thead><tr style="border-bottom:2px solid #f59e0b;">'
-        + '<th style="text-align:left;padding:8px;color:#f59e0b;">Standalone Product</th>'
-        + '<th style="text-align:center;padding:8px;">Status</th>'
-        + '<th style="text-align:right;padding:8px;">Files</th>'
-        + '<th style="text-align:right;padding:8px;">Lines</th>'
-        + '<th style="text-align:right;padding:8px;">Python</th>'
-        + '<th style="text-align:right;padding:8px;">JS</th>'
-        + '<th style="text-align:right;padding:8px;">HTML</th>'
-        + '<th style="text-align:right;padding:8px;">CSS</th>'
-        + '<th style="text-align:center;padding:8px;">Tier</th>'
+    var html = '<table class="ch-table">'
+        + '<thead><tr>'
+        + '<th>Standalone Product</th>'
+        + '<th class="center">Status</th>'
+        + '<th class="center">Files</th>'
+        + '<th class="center">Lines</th>'
+        + '<th class="center">Python</th>'
+        + '<th class="center">JS</th>'
+        + '<th class="center">HTML</th>'
+        + '<th class="center">CSS</th>'
+        + '<th class="center">Tier</th>'
         + '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
     setHtml(el, html);
 }
@@ -2939,17 +2935,18 @@ function _renderOrphanTable(orphans) {
   (orphans.css || []).forEach(function(o) { all.push({type: "CSS", file: o.file, lines: o.lines}); });
 
   if (!all.length) {
-    setHtml(el, '<div class="cs-empty" style="color:#22c55e;">All files mapped to modules — no orphans found.</div>');
+    setHtml(el, '<div class="ch-empty ch-empty-success">All files mapped to modules — no orphans found.</div>');
     return;
   }
 
-  var html = '<table class="cs-table"><thead><tr>' +
+  var html = '<table class="ch-table"><thead><tr>' +
     '<th>Type</th><th>File</th><th class="center">Lines</th>' +
     '</tr></thead><tbody>';
   all.forEach(function(o) {
+    var typeClass = o.type === "HTML" ? "ch-badge-red" : o.type === "JS" ? "ch-badge-amber" : "ch-badge-cyan";
     html += '<tr>' +
-      '<td><span class="cs-badge amber">' + o.type + '</span></td>' +
-      '<td>' + escHtml(o.file) + '</td>' +
+      '<td><span class="ch-badge ' + typeClass + '"><span class="ch-badge-dot"></span>' + o.type + '</span></td>' +
+      '<td style="font-size:0.75rem;">' + escHtml(o.file) + '</td>' +
       '<td class="center">' + (o.lines || 0).toLocaleString() + '</td>' +
       '</tr>';
   });
@@ -3236,11 +3233,11 @@ function _renderAuditTable(entries) {
   if (!el) return;
 
   if (!entries.length) {
-    setHtml(el, '<div class="cs-empty">No audit entries yet. Start auditing modules to see progress here.</div>');
+    setHtml(el, '<div class="ch-empty">No audit entries yet. Start auditing modules to see progress here.</div>');
     return;
   }
 
-  var html = '<table class="cs-table"><thead><tr>' +
+  var html = '<table class="ch-table"><thead><tr>' +
     '<th>Module</th><th>Category</th><th class="center">Files</th>' +
     '<th class="center">Before</th><th class="center">After</th><th class="center">\u0394</th>' +
     '<th class="center">Issues</th><th class="center">Fixed</th><th>Status</th><th>Date</th>' +
@@ -3248,20 +3245,20 @@ function _renderAuditTable(entries) {
 
   entries.forEach(function(e) {
     var delta = (e.lines_after || 0) - (e.lines_before || 0);
-    var deltaClass = delta > 0 ? "color:#22c55e" : delta < 0 ? "color:#ef4444" : "";
-    var statusClass = e.status === "completed" ? "green" : e.status === "in_progress" ? "amber" : e.status === "known_issues" ? "amber" : e.status === "violations_found" ? "purple" : "";
-    var rowStyle = e.status === "completed" ? "background:rgba(74,222,128,0.06);" : e.status === "known_issues" ? "background:rgba(245,158,11,0.06);" : "";
-    html += '<tr style="touch-action:manipulation;' + rowStyle + '" data-audit-id="' + e.id + '">' +
-      '<td style="' + (e.status === "completed" ? "color:#4ade80;font-weight:600;" : "") + '">' + escHtml(window._chDisplayNames && window._chDisplayNames[e.module_name] || e.module_name) + '</td>' +
-      '<td style="font-size:0.75rem; color:rgba(255,255,255,0.4);">' + escHtml(e.category || "") + '</td>' +
+    var deltaColor = delta > 0 ? "color:#22c55e" : delta < 0 ? "color:#ef4444" : "";
+    var badgeClass = e.status === "completed" ? "ch-badge-green" : e.status === "in_progress" ? "ch-badge-amber" : e.status === "known_issues" ? "ch-badge-amber" : e.status === "violations_found" ? "ch-badge-purple" : "ch-badge-red";
+    var nameClass = e.status === "completed" ? " ch-name-clean" : "";
+    html += '<tr data-audit-id="' + e.id + '">' +
+      '<td><span class="ch-module-name' + nameClass + '">' + escHtml(window._chDisplayNames && window._chDisplayNames[e.module_name] || e.module_name) + '</span></td>' +
+      '<td style="font-size:0.7rem;color:rgba(255,255,255,0.4);">' + escHtml(e.category || "") + '</td>' +
       '<td class="center">' + (e.files_reviewed || 0) + '</td>' +
       '<td class="center">' + (e.lines_before || 0).toLocaleString() + '</td>' +
       '<td class="center">' + (e.lines_after || 0).toLocaleString() + '</td>' +
-      '<td class="center" style="' + deltaClass + ';">' + (delta > 0 ? "+" : "") + delta.toLocaleString() + '</td>' +
+      '<td class="center" style="' + deltaColor + ';">' + (delta > 0 ? "+" : "") + delta.toLocaleString() + '</td>' +
       '<td class="center">' + (e.issues_found || 0) + '</td>' +
       '<td class="center">' + (e.issues_fixed || 0) + '</td>' +
-      '<td><span class="cs-badge ' + statusClass + '" style="cursor:pointer;padding:4px 12px;min-width:60px;display:inline-block;text-align:center;touch-action:manipulation;" data-audit-btn="' + e.id + '">' + escHtml(e.status || "pending") + ' &#9654;</span></td>' +
-      '<td style="font-size:0.75rem; white-space:nowrap;">' + formatAge(e.audited_at) + '</td>' +
+      '<td><span class="ch-badge ' + badgeClass + ' ch-audit-btn" data-audit-btn="' + e.id + '"><span class="ch-badge-dot"></span>' + escHtml(e.status || "pending") + ' &#9654;</span></td>' +
+      '<td style="font-size:0.7rem;white-space:nowrap;color:rgba(255,255,255,0.5);">' + formatAge(e.audited_at) + '</td>' +
       '</tr>';
   });
 

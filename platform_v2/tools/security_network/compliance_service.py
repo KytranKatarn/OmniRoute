@@ -623,8 +623,18 @@ def _check_command_output(check):
             "findmnt",
             "apt-config",
             "wc",
+            "if",
+            "test",
+            "bash",
+            "sh",
+            "[",
+            "ssh",
+            "sshd",
         }
         cmd_base = command.split()[0].split("/")[-1] if command else ""
+        # Also allow shell variable assignments (val=..., count=...) and subshells
+        if "=" in cmd_base and "$(" in command:
+            cmd_base = "sh"  # Treat as shell builtin
         if cmd_base in _SAFE_LOCAL:
             try:
                 proc = _subprocess.run(

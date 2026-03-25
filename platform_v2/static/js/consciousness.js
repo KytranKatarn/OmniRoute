@@ -2652,8 +2652,21 @@ function loadCodeHealth() {
     window._chDisplayNames = moduleDisplayNames;
     _renderCodeHealthSummaryBar(statusData.summary || {});
     _renderCodeHealthStats(d);
-    _renderModuleChart(d.modules || {}, moduleDisplayNames);
-    _renderModuleTable(d.modules || {}, auditedModules, moduleStatusMap, moduleDisplayNames);
+    // Separate standalone products from platform modules
+    var allModules = d.modules || {};
+    var standaloneModules = {};
+    var platformModules = {};
+    Object.keys(allModules).forEach(function(key) {
+        if (key.startsWith('standalone_')) {
+            standaloneModules[key] = allModules[key];
+        } else {
+            platformModules[key] = allModules[key];
+        }
+    });
+
+    _renderModuleChart(platformModules, moduleDisplayNames);
+    _renderModuleTable(platformModules, auditedModules, moduleStatusMap, moduleDisplayNames);
+    _renderStandaloneTable(standaloneModules);
     _renderOrphanTable(d.orphans || {});
     _renderAuditTable(entries);
   }).catch(function(err) {
@@ -2852,6 +2865,47 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
 
   html += '</tbody></table>';
   setHtml(el, html);
+}
+
+function _renderStandaloneTable(modules) {
+    var el = document.getElementById("chStandaloneTable");
+    if (!el) return;
+    var keys = Object.keys(modules);
+    if (keys.length === 0) {
+        el.textContent = "No standalone products registered";
+        el.style.cssText = "color:#888;text-align:center;padding:20px;";
+        return;
+    }
+    var rows = keys.map(function(key) {
+        var m = modules[key];
+        var displayName = key.replace('standalone_', '').replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+        var py = (m.by_type && m.by_type.python) || {files: 0, lines: 0};
+        var js = (m.by_type && m.by_type.js) || {files: 0, lines: 0};
+        var ht = (m.by_type && m.by_type.html) || {files: 0, lines: 0};
+        var cs = (m.by_type && m.by_type.css) || {files: 0, lines: 0};
+        return '<tr style="border-bottom:1px solid #333;">'
+            + '<td style="padding:8px;color:#f59e0b;font-weight:bold;">' + escHtml(displayName) + '</td>'
+            + '<td style="text-align:right;padding:8px;">' + (m.files || 0) + '</td>'
+            + '<td style="text-align:right;padding:8px;">' + (m.lines || 0).toLocaleString() + '</td>'
+            + '<td style="text-align:right;padding:8px;">' + py.lines.toLocaleString() + '</td>'
+            + '<td style="text-align:right;padding:8px;">' + js.lines.toLocaleString() + '</td>'
+            + '<td style="text-align:right;padding:8px;">' + ht.lines.toLocaleString() + '</td>'
+            + '<td style="text-align:right;padding:8px;">' + cs.lines.toLocaleString() + '</td>'
+            + '<td style="text-align:center;padding:8px;"><span style="background:#f59e0b;color:#000;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:bold;">TIER 1</span></td>'
+            + '</tr>';
+    });
+    var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
+        + '<thead><tr style="border-bottom:2px solid #f59e0b;">'
+        + '<th style="text-align:left;padding:8px;color:#f59e0b;">Standalone Product</th>'
+        + '<th style="text-align:right;padding:8px;">Files</th>'
+        + '<th style="text-align:right;padding:8px;">Lines</th>'
+        + '<th style="text-align:right;padding:8px;">Python</th>'
+        + '<th style="text-align:right;padding:8px;">JS</th>'
+        + '<th style="text-align:right;padding:8px;">HTML</th>'
+        + '<th style="text-align:right;padding:8px;">CSS</th>'
+        + '<th style="text-align:center;padding:8px;">Tier</th>'
+        + '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
+    setHtml(el, html);
 }
 
 function _renderOrphanTable(orphans) {

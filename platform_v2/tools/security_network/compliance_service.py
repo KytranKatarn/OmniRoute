@@ -118,6 +118,7 @@ def run_scan(pack_ids=None, triggered_by="manual"):
     """
     scan_id = str(uuid.uuid4())
     started_at = datetime.utcnow()
+    _clear_file_cache()
 
     # Load rules from DB
     with get_db_cursor(commit=False) as (conn, cur):
@@ -307,7 +308,18 @@ def _register_check(check_type):
     return decorator
 
 
-def _run_host_cmd(command_type, params, timeout=30):
+import time as _time
+
+# Cache for host file reads — avoids re-reading /etc/ssh/sshd_config 10 times
+_file_cache = {}
+
+
+def _clear_file_cache():
+    """Clear file cache between scans."""
+    _file_cache.clear()
+
+
+def _run_host_cmd(command_type, params, timeout=15):
     """Run a command via host_command_client with a whitelisted command type."""
     hc = _get_host_client()
     result_data = hc["run"](command_type, params, timeout=timeout)
@@ -318,11 +330,16 @@ def _run_host_cmd(command_type, params, timeout=30):
 
 
 def _read_host_file(path, timeout=15):
-    """Read a file on the host via compliance_read_file command."""
+    """Read a file on the host via compliance_read_file command. Results are cached."""
+    if path in _file_cache:
+        return _file_cache[path]
     result = _run_host_cmd("compliance_read_file", {"path": path}, timeout=timeout)
     if not result.get("exists", False):
+        _file_cache[path] = None
         return None
-    return result.get("content", "")
+    content = result.get("content", "")
+    _file_cache[path] = content
+    return content
 
 
 def _check_sysctl(param, timeout=10):

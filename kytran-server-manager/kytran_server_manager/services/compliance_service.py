@@ -217,7 +217,7 @@ def run_scan(pack_ids=None, triggered_by="manual"):
                             result.get("actual", "")[:2000],
                             result.get("expected", "")[:2000],
                             result.get("details", ""),
-                            soc2 if soc2 else None,
+                            json.dumps(soc2) if soc2 else None,
                         ),
                     )
             except Exception as exc:

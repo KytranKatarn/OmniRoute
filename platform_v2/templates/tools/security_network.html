@@ -936,6 +936,12 @@
             <i data-lucide="file-text" style="width:16px;height:16px"></i>
             Reports
         </button>
+        <button class="tab-btn" data-tab="compliance">
+            <i class="fas fa-shield-alt"></i> <span data-i18n="security_network.compliance">Compliance</span>
+        </button>
+        <button class="tab-btn" data-tab="hardening">
+            <i class="fas fa-tools"></i> <span data-i18n="security_network.hardening">Hardening</span>
+        </button>
         <button class="tab-btn" data-tab="domains">
             <i data-lucide="globe" style="width:14px;height:14px"></i>
             <span data-i18n="security_network.domains">Domain Manager</span>
@@ -1572,6 +1578,85 @@
         </div>
     </div>
 
+    <!-- ═══════ COMPLIANCE TAB ═══════ -->
+    <div id="tab-compliance" class="tab-content">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="color: var(--archie-text-primary); margin: 0;">STIG Compliance Scanner</h3>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <span id="compliance-scan-status" style="color: var(--archie-text-muted); font-size: 0.85rem;"></span>
+                <button onclick="runComplianceScan()" class="action-btn" style="background: var(--archie-accent); color: #000; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                    <i class="fas fa-play"></i> Run Scan
+                </button>
+            </div>
+        </div>
+
+        <!-- Score Cards -->
+        <div id="compliance-scores" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px;">
+            <!-- Populated by JS -->
+        </div>
+
+        <!-- Filter Bar -->
+        <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
+            <select id="compliance-pack-filter" onchange="filterComplianceResults()" style="background: var(--archie-bg-tertiary); color: var(--archie-text-primary); border: 1px solid var(--archie-border-default); border-radius: 4px; padding: 6px 10px;">
+                <option value="">All Packs</option>
+                <option value="ubuntu-22.04-stig">Ubuntu 22.04</option>
+                <option value="docker-stig">Docker</option>
+                <option value="network-stig">Network</option>
+            </select>
+            <select id="compliance-severity-filter" onchange="filterComplianceResults()" style="background: var(--archie-bg-tertiary); color: var(--archie-text-primary); border: 1px solid var(--archie-border-default); border-radius: 4px; padding: 6px 10px;">
+                <option value="">All Severity</option>
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+            </select>
+            <select id="compliance-status-filter" onchange="filterComplianceResults()" style="background: var(--archie-bg-tertiary); color: var(--archie-text-primary); border: 1px solid var(--archie-border-default); border-radius: 4px; padding: 6px 10px;">
+                <option value="">All Status</option>
+                <option value="pass">Pass</option>
+                <option value="fail">Fail</option>
+                <option value="error">Error</option>
+            </select>
+        </div>
+
+        <!-- Results Table -->
+        <div style="overflow-x: auto;">
+            <table class="data-table" id="compliance-results-table">
+                <thead>
+                    <tr>
+                        <th>Rule ID</th>
+                        <th>Severity</th>
+                        <th>Pack</th>
+                        <th>Status</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody id="compliance-results-body">
+                    <tr><td colspan="5" style="text-align: center; color: var(--archie-text-muted); padding: 40px;">Click "Run Scan" to check compliance</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Scan History -->
+        <div style="margin-top: 30px;">
+            <h4 style="color: var(--archie-text-primary); margin-bottom: 10px;">Scan History</h4>
+            <div id="compliance-history" style="color: var(--archie-text-muted);">No scan history yet</div>
+        </div>
+    </div>
+
+    <!-- ═══════ HARDENING TAB ═══════ -->
+    <div id="tab-hardening" class="tab-content">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="color: var(--archie-text-primary); margin: 0;">System Hardening</h3>
+            <span style="color: var(--archie-text-muted); font-size: 0.85rem;">One-click fixes for compliance failures</span>
+        </div>
+
+        <div id="hardening-content">
+            <div style="text-align: center; color: var(--archie-text-muted); padding: 40px;">
+                Run a compliance scan first to see hardening recommendations.
+            </div>
+        </div>
+    </div>
+
     <!-- ==================== TAB: DOMAINS ==================== -->
     <div id="tab-domains" class="tab-content">
         <!-- Domain subtabs -->
@@ -2195,6 +2280,8 @@ function initTabs() {
             if (tab === 'scanning' && !scanTabLoaded) { scanTabLoaded = true; loadScanResults(); loadSSLMonitors(); }
             if (tab === 'access' && !accessTabLoaded) { accessTabLoaded = true; loadFirewall(); loadIPAccess(); loadAutoBlockSettings(); loadSecurityEvents(); loadConnections(); }
             if (tab === 'reports' && !reportsTabLoaded) { reportsTabLoaded = true; loadReports(); }
+            if (tab === 'compliance') { onComplianceTabShown(); }
+            if (tab === 'hardening') { onHardeningTabShown(); }
             if (tab === 'domains' && !domainsTabLoaded) { domainsTabLoaded = true; loadDomainsOverview(); }
             lucide.createIcons();
         });
@@ -4911,5 +4998,210 @@ setInterval(function(){
 }, 60000);
 
 document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ closeModal(); closeDeviceModal(); } });
+
+// ═══════ COMPLIANCE TAB ═══════
+let _complianceResults = [];
+
+async function runComplianceScan() {
+    const statusEl = document.getElementById('compliance-scan-status');
+    statusEl.textContent = 'Scanning 108 rules...';
+    statusEl.style.color = 'var(--archie-accent)';
+
+    try {
+        const resp = await fetch('/tools/security-network/api/compliance/scan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}'
+        });
+        const data = await resp.json();
+
+        if (data.scan_id) {
+            statusEl.textContent = `Score: ${data.score}% | ${data.passed} pass, ${data.failed} fail, ${data.errors} error`;
+            statusEl.style.color = data.score >= 80 ? 'var(--archie-green)' : data.score >= 50 ? '#f59e0b' : '#ef4444';
+
+            loadComplianceResults(data.scan_id);
+            renderScoreCards(data);
+            loadScanHistory();
+            loadHardeningContent(data.scan_id);
+        } else {
+            statusEl.textContent = 'Scan failed: ' + (data.error || 'Unknown error');
+            statusEl.style.color = '#ef4444';
+        }
+    } catch (e) {
+        statusEl.textContent = 'Error: ' + e.message;
+        statusEl.style.color = '#ef4444';
+    }
+}
+
+function renderScoreCards(data) {
+    const el = document.getElementById('compliance-scores');
+    if (!data.pack_scores) return;
+
+    const overall = { name: 'Overall', score: data.score, passed: data.passed, total: data.total };
+    const packs = [overall, ...Object.entries(data.pack_scores).map(([id, p]) => ({ name: p.name, score: p.score, passed: p.passed, total: p.total }))];
+
+    el.innerHTML = packs.map(p => {
+        const color = p.score >= 80 ? '#22c55e' : p.score >= 50 ? '#f59e0b' : '#ef4444';
+        const grade = p.score >= 95 ? 'A+' : p.score >= 90 ? 'A' : p.score >= 85 ? 'B+' : p.score >= 80 ? 'B' : p.score >= 70 ? 'C' : p.score >= 60 ? 'D' : 'F';
+        return '<div style="background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default); border-radius: 8px; padding: 15px; text-align: center;">'
+            + '<div style="font-size: 0.8rem; color: var(--archie-text-muted); margin-bottom: 5px;">' + p.name + '</div>'
+            + '<div style="font-size: 2rem; font-weight: 700; color: ' + color + ';">' + p.score + '%</div>'
+            + '<div style="font-size: 0.75rem; color: var(--archie-text-muted);">' + p.passed + '/' + p.total + ' passed</div>'
+            + '<div style="font-size: 0.85rem; font-weight: 600; color: ' + color + '; margin-top: 4px;">Grade: ' + grade + '</div>'
+            + '</div>';
+    }).join('');
+}
+
+async function loadComplianceResults(scanId) {
+    try {
+        const resp = await fetch('/tools/security-network/api/compliance/scans/' + scanId);
+        const data = await resp.json();
+        _complianceResults = data.results || [];
+        filterComplianceResults();
+    } catch (e) {
+        console.error('Failed to load compliance results:', e);
+    }
+}
+
+function filterComplianceResults() {
+    const pack = document.getElementById('compliance-pack-filter').value;
+    const severity = document.getElementById('compliance-severity-filter').value;
+    const status = document.getElementById('compliance-status-filter').value;
+
+    let filtered = _complianceResults;
+    if (pack) filtered = filtered.filter(r => r.pack_id === pack);
+    if (severity) filtered = filtered.filter(r => r.severity === severity);
+    if (status) filtered = filtered.filter(r => r.status === status);
+
+    const tbody = document.getElementById('compliance-results-body');
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--archie-text-muted); padding: 20px;">No results match filters</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(r => {
+        const statusColor = r.status === 'pass' ? '#22c55e' : r.status === 'fail' ? '#ef4444' : '#f59e0b';
+        const statusIcon = r.status === 'pass' ? 'check-circle' : r.status === 'fail' ? 'times-circle' : 'exclamation-triangle';
+        const sevColor = r.severity === 'high' || r.severity === 'critical' ? '#ef4444' : r.severity === 'medium' ? '#f59e0b' : '#94a3b8';
+        const detailText = (r.details || r.actual_value || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const titleText = detailText.replace(/"/g, '&quot;');
+        return '<tr>'
+            + '<td class="mono" style="font-size: 0.8rem;">' + r.rule_id + '</td>'
+            + '<td><span style="color: ' + sevColor + '; font-weight: 600; text-transform: uppercase; font-size: 0.75rem;">' + (r.severity || 'med') + '</span></td>'
+            + '<td style="font-size: 0.8rem;">' + (r.pack_id || '').replace('-stig', '') + '</td>'
+            + '<td><span style="color: ' + statusColor + ';"><i class="fas fa-' + statusIcon + '"></i> ' + r.status.toUpperCase() + '</span></td>'
+            + '<td style="font-size: 0.8rem; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + titleText + '">' + detailText + '</td>'
+            + '</tr>';
+    }).join('');
+}
+
+async function loadScanHistory() {
+    try {
+        const resp = await fetch('/tools/security-network/api/compliance/scans');
+        const data = await resp.json();
+        const scans = data.scans || [];
+        const el = document.getElementById('compliance-history');
+        if (scans.length === 0) { el.innerHTML = 'No scan history'; return; }
+
+        el.innerHTML = '<table class="data-table"><thead><tr><th>Date</th><th>Score</th><th>Pass</th><th>Fail</th><th>Errors</th></tr></thead><tbody>' +
+            scans.slice(0, 10).map(s => {
+                const color = s.score >= 80 ? '#22c55e' : s.score >= 50 ? '#f59e0b' : '#ef4444';
+                const date = s.completed_at ? new Date(s.completed_at).toLocaleString() : 'In progress...';
+                return '<tr>'
+                    + '<td style="font-size: 0.8rem;">' + date + '</td>'
+                    + '<td style="color: ' + color + '; font-weight: 600;">' + (s.score != null ? s.score + '%' : '...') + '</td>'
+                    + '<td style="color: #22c55e;">' + s.passed + '</td>'
+                    + '<td style="color: #ef4444;">' + s.failed + '</td>'
+                    + '<td style="color: #f59e0b;">' + s.errors + '</td>'
+                    + '</tr>';
+            }).join('') + '</tbody></table>';
+    } catch (e) { console.error(e); }
+}
+
+// ═══════ HARDENING TAB ═══════
+async function loadHardeningContent(scanId) {
+    const el = document.getElementById('hardening-content');
+    try {
+        const resp = await fetch('/tools/security-network/api/compliance/scans/' + scanId + '?status=fail');
+        const data = await resp.json();
+        const fails = (data.results || []).sort((a, b) => {
+            const sev = { critical: 0, high: 1, medium: 2, low: 3 };
+            return (sev[a.severity] || 2) - (sev[b.severity] || 2);
+        });
+
+        if (fails.length === 0) {
+            el.innerHTML = '<div style="text-align: center; color: #22c55e; padding: 40px;"><i class="fas fa-check-circle" style="font-size: 3rem;"></i><br><br>All checks passing!</div>';
+            return;
+        }
+
+        const groups = {};
+        fails.forEach(f => {
+            const sev = f.severity || 'medium';
+            if (!groups[sev]) groups[sev] = [];
+            groups[sev].push(f);
+        });
+
+        const sevOrder = ['critical', 'high', 'medium', 'low'];
+        const sevColors = { critical: '#dc2626', high: '#ef4444', medium: '#f59e0b', low: '#94a3b8' };
+
+        let html = '';
+        for (const sev of sevOrder) {
+            if (!groups[sev]) continue;
+            html += '<div style="margin-bottom: 20px;">'
+                + '<h4 style="color: ' + sevColors[sev] + '; text-transform: uppercase; font-size: 0.85rem; margin-bottom: 10px;">'
+                + '<i class="fas fa-exclamation-triangle"></i> ' + sev + ' (' + groups[sev].length + ' findings)'
+                + '</h4>';
+
+            for (const f of groups[sev]) {
+                const detailText = (f.details || 'No details').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const actualVal = f.actual_value ? f.actual_value.substring(0, 100).replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
+                const expectedVal = f.expected_value ? f.expected_value.substring(0, 100).replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
+                html += '<div style="background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default); border-left: 3px solid ' + sevColors[sev] + '; border-radius: 6px; padding: 12px 15px; margin-bottom: 8px;">'
+                    + '<div style="display: flex; justify-content: space-between; align-items: start;">'
+                    + '<div>'
+                    + '<span class="mono" style="font-size: 0.8rem; color: var(--archie-text-muted);">' + f.rule_id + '</span>'
+                    + '<span style="font-size: 0.8rem; color: var(--archie-text-muted); margin-left: 8px;">' + (f.pack_id || '').replace('-stig', '') + '</span>'
+                    + '</div>'
+                    + '</div>'
+                    + '<div style="font-size: 0.85rem; color: var(--archie-text-primary); margin-top: 6px;">' + detailText + '</div>'
+                    + (actualVal ? '<div style="font-size: 0.8rem; color: var(--archie-text-muted); margin-top: 4px;">Current: <code style="background: var(--archie-bg-tertiary); padding: 2px 6px; border-radius: 3px;">' + actualVal + '</code></div>' : '')
+                    + (expectedVal ? '<div style="font-size: 0.8rem; color: var(--archie-text-muted); margin-top: 2px;">Expected: <code style="background: var(--archie-bg-tertiary); padding: 2px 6px; border-radius: 3px;">' + expectedVal + '</code></div>' : '')
+                    + '</div>';
+            }
+            html += '</div>';
+        }
+
+        el.innerHTML = html;
+    } catch (e) {
+        el.textContent = 'Error loading hardening data: ' + e.message;
+    }
+}
+
+function onComplianceTabShown() {
+    loadScanHistory();
+    fetch('/tools/security-network/api/compliance/scores')
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && data.latest_scan_id) {
+                const statusEl = document.getElementById('compliance-scan-status');
+                statusEl.textContent = 'Last scan: ' + data.score + '% (' + data.passed + '/' + data.total + ')';
+                statusEl.style.color = data.score >= 80 ? 'var(--archie-green)' : data.score >= 50 ? '#f59e0b' : '#ef4444';
+                renderScoreCards(data);
+                loadComplianceResults(data.latest_scan_id);
+            }
+        })
+        .catch(function() {});
+}
+
+function onHardeningTabShown() {
+    fetch('/tools/security-network/api/compliance/scores')
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && data.latest_scan_id) {
+                loadHardeningContent(data.latest_scan_id);
+            }
+        })
+        .catch(function() {});
+}
 </script>
 {% endblock %}

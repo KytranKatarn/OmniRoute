@@ -982,6 +982,207 @@ def get_latest_scores():
         return row
 
 
+def generate_ckl(scan_id):
+    """Generate a STIG Viewer-compatible .ckl XML file for a scan.
+
+    Returns XML string.
+    """
+    import xml.etree.ElementTree as ET
+
+    # Get scan metadata
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute(
+            "SELECT scan_id, score, total_rules, passed, failed, errors, started_at, completed_at, pack_ids "
+            "FROM compliance_scans WHERE scan_id = %s",
+            (scan_id,),
+        )
+        scan = cur.fetchone()
+
+    if not scan:
+        return None
+
+    # Get all results for this scan
+    results = get_scan_results(scan_id)
+
+    # Get pack names for STIG_INFO
+    pack_names = {}
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute("SELECT pack_id, name, version FROM compliance_rule_packs")
+        for row in cur.fetchall():
+            pack_names[row["pack_id"]] = {"name": row["name"], "version": row.get("version", "V1R1")}
+
+    # Get rule titles from rule packs
+    rule_titles = {}
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute("SELECT pack_id, rules FROM compliance_rule_packs")
+        for row in cur.fetchall():
+            rules = row["rules"] if isinstance(row["rules"], list) else json.loads(row["rules"])
+            for rule in rules:
+                rule_titles[rule.get("rule_id", "")] = rule.get("title", rule.get("rule_id", ""))
+
+    # Status mapping: pass -> NotAFinding, fail -> Open, error -> Not_Reviewed, not_applicable -> Not_Applicable
+    STATUS_MAP = {
+        "pass": "NotAFinding",
+        "fail": "Open",
+        "error": "Not_Reviewed",
+        "not_applicable": "Not_Applicable",
+    }
+
+    # Build XML
+    checklist = ET.Element("CHECKLIST")
+
+    # ASSET
+    asset = ET.SubElement(checklist, "ASSET")
+    for tag, val in [
+        ("ROLE", "None"),
+        ("ASSET_TYPE", "Computing"),
+        ("HOST_NAME", "archie-hub"),
+        ("HOST_IP", "192.168.1.200"),
+        ("HOST_FQDN", "archie.local"),
+        ("TARGET_KEY", "4072"),
+        ("WEB_OR_DATABASE", "false"),
+    ]:
+        el = ET.SubElement(asset, tag)
+        el.text = val
+
+    # STIGS
+    stigs = ET.SubElement(checklist, "STIGS")
+
+    # Group results by pack_id
+    results_by_pack = {}
+    for r in results:
+        pid = r.get("pack_id", "unknown")
+        if pid not in results_by_pack:
+            results_by_pack[pid] = []
+        results_by_pack[pid].append(r)
+
+    for pack_id, pack_results in results_by_pack.items():
+        istig = ET.SubElement(stigs, "iSTIG")
+
+        # STIG_INFO
+        stig_info = ET.SubElement(istig, "STIG_INFO")
+        pinfo = pack_names.get(pack_id, {"name": pack_id, "version": "V1R1"})
+
+        si_title = ET.SubElement(stig_info, "SI_DATA")
+        ET.SubElement(si_title, "SID_NAME").text = "title"
+        ET.SubElement(si_title, "SID_DATA").text = pinfo["name"]
+
+        si_ver = ET.SubElement(stig_info, "SI_DATA")
+        ET.SubElement(si_ver, "SID_NAME").text = "version"
+        ET.SubElement(si_ver, "SID_DATA").text = pinfo.get("version", "V1R1")
+
+        # One VULN per result
+        for r in pack_results:
+            vuln = ET.SubElement(istig, "VULN")
+
+            # STIG_DATA entries
+            for attr, val in [
+                ("Vuln_Num", r.get("rule_id", "")),
+                ("Severity", r.get("severity", "medium")),
+                ("Rule_Title", rule_titles.get(r.get("rule_id", ""), r.get("rule_id", ""))),
+            ]:
+                sd = ET.SubElement(vuln, "STIG_DATA")
+                ET.SubElement(sd, "VULN_ATTRIBUTE").text = attr
+                ET.SubElement(sd, "ATTRIBUTE_DATA").text = str(val)
+
+            status_el = ET.SubElement(vuln, "STATUS")
+            status_el.text = STATUS_MAP.get(r.get("status", "error"), "Not_Reviewed")
+
+            finding_el = ET.SubElement(vuln, "FINDING_DETAILS")
+            details = r.get("details", "") or ""
+            actual = r.get("actual_value", "") or ""
+            finding_el.text = (
+                f"Automated check: {r.get('status', 'unknown').upper()}. Actual value: {actual}" if actual else details
+            )
+
+            comments_el = ET.SubElement(vuln, "COMMENTS")
+            comments_el.text = "Scanned by A.R.C.H.I.E. Compliance Engine"
+
+    # Serialize to XML string
+    xml_declaration = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    ET.indent(checklist, space="  ")
+    xml_body = ET.tostring(checklist, encoding="unicode")
+    return xml_declaration + xml_body
+
+
+def generate_evidence_zip(scan_id):
+    """Generate an evidence ZIP file containing scan summary, CSV results, and .ckl file.
+
+    Returns bytes (ZIP file content).
+    """
+    import csv
+    import io
+    import zipfile
+
+    # Get scan metadata
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute(
+            "SELECT scan_id, score, total_rules, passed, failed, errors, "
+            "started_at, completed_at, triggered_by, pack_ids "
+            "FROM compliance_scans WHERE scan_id = %s",
+            (scan_id,),
+        )
+        scan = cur.fetchone()
+
+    if not scan:
+        return None
+
+    results = get_scan_results(scan_id)
+
+    # Build ZIP in memory
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        # 1. scan-summary.json
+        summary = {
+            "scan_id": scan["scan_id"],
+            "score": float(scan["score"]) if scan.get("score") is not None else None,
+            "total_rules": scan.get("total_rules", 0),
+            "passed": scan.get("passed", 0),
+            "failed": scan.get("failed", 0),
+            "errors": scan.get("errors", 0),
+            "triggered_by": scan.get("triggered_by", "unknown"),
+            "started_at": (
+                scan["started_at"].isoformat()
+                if hasattr(scan.get("started_at"), "isoformat")
+                else str(scan.get("started_at", ""))
+            ),
+            "completed_at": (
+                scan["completed_at"].isoformat()
+                if scan.get("completed_at") and hasattr(scan["completed_at"], "isoformat")
+                else str(scan.get("completed_at", ""))
+            ),
+            "pack_ids": scan.get("pack_ids", []),
+            "generated_by": "A.R.C.H.I.E. Compliance Engine",
+        }
+        zf.writestr("scan-summary.json", json.dumps(summary, indent=2))
+
+        # 2. results.csv
+        csv_buffer = io.StringIO()
+        writer = csv.writer(csv_buffer)
+        writer.writerow(["rule_id", "pack_id", "severity", "status", "actual", "expected", "details"])
+        for r in results:
+            writer.writerow(
+                [
+                    r.get("rule_id", ""),
+                    r.get("pack_id", ""),
+                    r.get("severity", ""),
+                    r.get("status", ""),
+                    r.get("actual_value", ""),
+                    r.get("expected_value", ""),
+                    r.get("details", ""),
+                ]
+            )
+        zf.writestr("results.csv", csv_buffer.getvalue())
+
+        # 3. checklist.ckl
+        ckl_xml = generate_ckl(scan_id)
+        if ckl_xml:
+            zf.writestr("checklist.ckl", ckl_xml)
+
+    zip_buffer.seek(0)
+    return zip_buffer.read()
+
+
 def get_loaded_packs():
     """List all loaded rule packs."""
     with get_db_cursor(commit=False) as (conn, cur):

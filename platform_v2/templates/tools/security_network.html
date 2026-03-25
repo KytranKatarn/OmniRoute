@@ -1673,6 +1673,16 @@
             <h4 style="color: var(--archie-text-primary); margin-bottom: 10px;">Scan History</h4>
             <div id="compliance-history" style="color: var(--archie-text-muted);">No scan history yet</div>
         </div>
+
+        <!-- Export Actions -->
+        <div style="margin-top: 30px; display: flex; gap: 12px; flex-wrap: wrap;">
+            <button onclick="exportCkl()" class="action-btn" style="background: var(--archie-bg-secondary); color: var(--archie-text-primary); border: 1px solid var(--archie-border-default); padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                <i class="fas fa-file-code"></i> Export .ckl
+            </button>
+            <button onclick="exportEvidence()" class="action-btn" style="background: var(--archie-bg-secondary); color: var(--archie-text-primary); border: 1px solid var(--archie-border-default); padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                <i class="fas fa-file-archive"></i> Export Evidence ZIP
+            </button>
+        </div>
     </div>
 
     <!-- ═══════ HARDENING TAB ═══════ -->
@@ -5060,6 +5070,7 @@ document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ closeMod
 
 // ═══════ COMPLIANCE TAB ═══════
 let _complianceResults = [];
+let _lastScanId = null;
 
 async function runComplianceScan() {
     const statusEl = document.getElementById('compliance-scan-status');
@@ -5075,6 +5086,7 @@ async function runComplianceScan() {
         const data = await resp.json();
 
         if (data.scan_id) {
+            _lastScanId = data.scan_id;
             statusEl.textContent = `Score: ${data.score}% | ${data.passed} pass, ${data.failed} fail, ${data.errors} error`;
             statusEl.style.color = data.score >= 80 ? 'var(--archie-green)' : data.score >= 50 ? '#f59e0b' : '#ef4444';
 
@@ -5241,15 +5253,29 @@ function onComplianceTabShown() {
     fetch('/tools/security-network/api/compliance/scores')
         .then(r => r.json())
         .then(data => {
-            if (data.success && data.latest_scan_id) {
+            const sid = data.latest_scan_id || data.scan_id;
+            if (data.success && sid) {
+                _lastScanId = sid;
                 const statusEl = document.getElementById('compliance-scan-status');
                 statusEl.textContent = 'Last scan: ' + data.score + '% (' + data.passed + '/' + data.total + ')';
                 statusEl.style.color = data.score >= 80 ? 'var(--archie-green)' : data.score >= 50 ? '#f59e0b' : '#ef4444';
                 renderScoreCards(data);
-                loadComplianceResults(data.latest_scan_id);
+                loadComplianceResults(sid);
             }
         })
         .catch(function() {});
+}
+
+function exportCkl() {
+    const scanId = _lastScanId;
+    if (!scanId) { alert('Run a scan first'); return; }
+    window.open('/tools/security-network/api/compliance/export/ckl?scan_id=' + scanId);
+}
+
+function exportEvidence() {
+    const scanId = _lastScanId;
+    if (!scanId) { alert('Run a scan first'); return; }
+    window.open('/tools/security-network/api/compliance/export/evidence?scan_id=' + scanId);
 }
 
 function onHardeningTabShown() {

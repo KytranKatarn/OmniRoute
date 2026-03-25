@@ -6,7 +6,7 @@ REST endpoints for compliance scanning, results, and remediation.
 
 import logging
 
-from flask import jsonify, request
+from flask import jsonify, request, Response
 from flask_login import login_required, current_user
 
 from . import compliance_service
@@ -102,6 +102,48 @@ def register_compliance_routes(bp, admin_required_decorator):
             return jsonify(result), status_code
         except Exception as exc:
             logger.error("Fix failed: %s", exc)
+            return jsonify({"error": str(exc)}), 500
+
+    @bp.route("/api/compliance/export/ckl", methods=["GET"])
+    @login_required
+    @admin_required_decorator
+    def compliance_export_ckl():
+        """Export scan results as STIG Viewer .ckl XML file."""
+        scan_id = request.args.get("scan_id")
+        if not scan_id:
+            return jsonify({"error": "scan_id parameter required"}), 400
+        try:
+            xml_str = compliance_service.generate_ckl(scan_id)
+            if xml_str is None:
+                return jsonify({"error": "Scan not found"}), 404
+            return Response(
+                xml_str,
+                mimetype="application/xml",
+                headers={"Content-Disposition": f'attachment; filename="compliance-scan-{scan_id}.ckl"'},
+            )
+        except Exception as exc:
+            logger.error("CKL export failed: %s", exc)
+            return jsonify({"error": str(exc)}), 500
+
+    @bp.route("/api/compliance/export/evidence", methods=["GET"])
+    @login_required
+    @admin_required_decorator
+    def compliance_export_evidence():
+        """Export scan evidence as ZIP file (summary JSON + CSV + CKL)."""
+        scan_id = request.args.get("scan_id")
+        if not scan_id:
+            return jsonify({"error": "scan_id parameter required"}), 400
+        try:
+            zip_bytes = compliance_service.generate_evidence_zip(scan_id)
+            if zip_bytes is None:
+                return jsonify({"error": "Scan not found"}), 404
+            return Response(
+                zip_bytes,
+                mimetype="application/zip",
+                headers={"Content-Disposition": f'attachment; filename="compliance-evidence-{scan_id}.zip"'},
+            )
+        except Exception as exc:
+            logger.error("Evidence export failed: %s", exc)
             return jsonify({"error": str(exc)}), 500
 
     @bp.route("/api/compliance/packs/reload", methods=["POST"])

@@ -1,0 +1,60 @@
+# Standalone Extraction Playbook (Established 2026-03-25)
+
+Tiered checklist for pulling any module out of A.R.C.H.I.E. into an independent standalone product.
+Every extraction follows this playbook. No exceptions.
+
+## Tier 1 — Must Ship (Blocking Release)
+
+| # | Requirement | Verification |
+|---|-------------|-------------|
+| 1 | All features from ARCHIE module transferred and working | Side-by-side route audit, browser test every endpoint |
+| 2 | Full LCARS theme matching platform admin modules | Frame blocks with sidebar, elbow corners, accent colors, responsive (480/768/1024px) |
+| 3 | Authentication — local auth minimum, SSO-ready `/auth/sso` endpoint stubbed (returns 501) | Login flow works end-to-end |
+| 4 | Own database (SQLite default, PostgreSQL option) | Zero dependency on ARCHIE's database |
+| 5 | Own static assets (CSS/JS self-contained) | No imports from ARCHIE's shared files |
+| 6 | Docker-ready: `Dockerfile` + `docker-compose.yml` with compliance (read-only rootfs, resource limits, pinned tags) | `docker compose up` works from clean clone |
+| 7 | README with install, configure, run instructions | Someone unfamiliar can get it running in <10 min |
+| 8 | Passes Tier 1 compliance checks from `compliance-standards.md` | No hardcoded secrets, resource limits set, pinned tags |
+| 9 | Registered in Code Health scanner | Shows in Consciousness module Code Health tab |
+
+## Tier 2 — Within 30 Days of Ship
+
+| # | Requirement | Verification |
+|---|-------------|-------------|
+| 1 | Auth interconnection — "Sign in with Kytran" OAuth flow | ARCHIE login grants access to standalone |
+| 2 | Compliance scanning integrated — runs own relevant rule packs | `/api/compliance/scan` returns results |
+| 3 | Live compliance badges on standalone dashboard | SVG badges rendering with real scores |
+| 4 | Subdomain with SSL via NPM proxy | `server.kytranempowerment.com` loads over HTTPS |
+| 5 | ARCHIE dashboard module replaced with redirect/launch link | Module click opens standalone |
+| 6 | Health endpoint for ARCHIE monitoring | `/api/health` returns status + version |
+| 7 | Mobile/responsive polish at all breakpoints | Tested at 480px, 768px, 1024px |
+| 8 | Code Health shows compliance tier progress | Green/yellow/red badge in Consciousness |
+
+## Tier 3 — Roadmap (Within 90 Days)
+
+| # | Requirement | Verification |
+|---|-------------|-------------|
+| 1 | SOC 2 evidence collection + PDF reports | Generated PDF passes manual review |
+| 2 | S.H.I.E.L.D. agent integration via Bridge dispatch | AI-powered compliance analysis working |
+| 3 | Subscription-gated features (free vs paid) | Feature flags + payment flow tested |
+| 4 | Node/Starship integration — deployable on fleet nodes | Standalone runs on node hardware |
+| 5 | Agent loop job monitoring standalone health | ARCHIE alerts on standalone downtime |
+| 6 | Public product page with pricing | Page live on kytranempowerment.com |
+
+## Extraction Process
+
+1. **Audit** — Read every route, template, feature in the ARCHIE module. Document what exists.
+2. **Gap analysis** — Compare against standalone. List missing, different, extra.
+3. **Migrate** — Transfer missing features. Adapt to standalone architecture.
+4. **Theme** — Apply full LCARS frame styling (sidebar + elbows + header bar + segments).
+5. **Auth bridge** — SSO endpoint stub (Tier 1) or full OAuth (Tier 2).
+6. **Code Health** — Register in `STANDALONE_PRODUCTS` in `code_metrics_service.py`.
+7. **Compliance scan** — Run through applicable rule packs. Fix failures.
+8. **Redirect** — Replace ARCHIE module with launch link.
+9. **Verify** — Browser test all features, compliance green, badges live, Code Health reporting.
+
+## Active Standalone Products
+
+| Product | Port | Path | Tier | Status |
+|---------|------|------|------|--------|
+| Kytran System Operations | 8085 | `/mnt/archie_brain/kytran-server-manager` | 1 | In Progress |

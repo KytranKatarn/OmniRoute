@@ -1708,6 +1708,7 @@
                     <span id="compliance-scan-status" class="comp-status-badge"></span>
                 </div>
                 <div class="comp-header-actions">
+                    <button onclick="openComplianceReport()" class="comp-btn comp-btn-secondary" style="background:linear-gradient(135deg,#1e40af,#2563eb);color:#fff;border-color:#2563eb"><i class="fas fa-file-pdf"></i> PDF Report</button>
                     <button onclick="exportCkl()" class="comp-btn comp-btn-secondary"><i class="fas fa-file-export"></i> Export</button>
                     <button onclick="exportEvidence()" class="comp-btn comp-btn-secondary"><i class="fas fa-file-archive"></i> Evidence ZIP</button>
                     <button onclick="runComplianceScan()" class="comp-btn comp-btn-primary" id="comp-scan-btn"><i class="fas fa-radar"></i> Run Scan</button>
@@ -5603,6 +5604,15 @@ function onComplianceTabShown() {
             }
         })
         .catch(function() {});
+}
+
+function openComplianceReport() {
+    const scanId = _lastScanId;
+    if (!scanId) { alert('Run a scan first'); return; }
+    const client = prompt('Client name for the report:', 'System Assessment');
+    if (client !== null) {
+        window.open('/tools/security-network/api/compliance/report/' + scanId + '?client=' + encodeURIComponent(client));
+    }
 }
 
 function exportCkl() {

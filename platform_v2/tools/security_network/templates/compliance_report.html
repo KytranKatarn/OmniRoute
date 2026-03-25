@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compliance Assessment Report — {{ client_name }}</title>
+<style>
+  @page { size: A4; margin: 2cm; }
+  @media print {
+    .no-print { display: none !important; }
+    body { padding: 0; }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    color: #1e293b;
+    line-height: 1.6;
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 40px 30px;
+    background: #fff;
+  }
+
+  /* --- Header --- */
+  .header {
+    border-bottom: 3px solid #2563eb;
+    padding-bottom: 24px;
+    margin-bottom: 32px;
+  }
+  .logo-area {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+  }
+  .company-name {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #2563eb;
+    margin-bottom: 6px;
+  }
+  .report-title {
+    font-size: 26px;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.2;
+  }
+  .report-subtitle {
+    font-size: 15px;
+    color: #64748b;
+    margin-top: 4px;
+  }
+  .report-id-block {
+    text-align: right;
+    min-width: 160px;
+  }
+  .report-id-label {
+    font-size: 11px;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .report-id-value {
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    color: #475569;
+  }
+  .report-meta {
+    font-size: 13px;
+    color: #64748b;
+    margin-top: 8px;
+  }
+  .report-meta strong { color: #334155; }
+
+  /* --- Print Button --- */
+  .print-btn {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #2563eb;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    box-shadow: 0 2px 8px rgba(37,99,235,0.3);
+    transition: background 0.2s;
+    z-index: 100;
+  }
+  .print-btn:hover { background: #1d4ed8; }
+
+  /* --- Executive Summary --- */
+  .executive-summary {
+    background: #f8fafc;
+    border-left: 4px solid #2563eb;
+    padding: 20px 24px;
+    margin: 24px 0 32px;
+    border-radius: 0 8px 8px 0;
+  }
+  .executive-summary h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 10px;
+  }
+  .executive-summary p {
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+  .executive-summary p:last-child { margin-bottom: 0; }
+
+  /* --- Score Cards --- */
+  .score-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 16px;
+    margin: 28px 0;
+  }
+  .score-card {
+    text-align: center;
+    padding: 20px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #fff;
+  }
+  .score-card.overall {
+    border-color: #2563eb;
+    background: linear-gradient(135deg, #eff6ff 0%, #fff 100%);
+  }
+  .score-number {
+    font-size: 38px;
+    font-weight: 800;
+    line-height: 1;
+    margin-bottom: 2px;
+  }
+  .score-pct { font-size: 18px; font-weight: 400; }
+  .score-label {
+    font-size: 11px;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 4px;
+  }
+  .score-grade {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 2px 10px;
+    border-radius: 20px;
+    margin-top: 6px;
+  }
+
+  .grade-A  { color: #15803d; }
+  .grade-B  { color: #2563eb; }
+  .grade-C  { color: #d97706; }
+  .grade-D  { color: #ea580c; }
+  .grade-F  { color: #dc2626; }
+  .bg-A  { background: #dcfce7; color: #15803d; }
+  .bg-B  { background: #dbeafe; color: #2563eb; }
+  .bg-C  { background: #fef3c7; color: #d97706; }
+  .bg-D  { background: #ffedd5; color: #ea580c; }
+  .bg-F  { background: #fee2e2; color: #dc2626; }
+
+  /* --- Section Titles --- */
+  .section-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
+    border-bottom: 2px solid #e2e8f0;
+    padding-bottom: 8px;
+    margin: 36px 0 16px;
+  }
+
+  /* --- Tables --- */
+  .findings-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+  .findings-table th {
+    background: #f1f5f9;
+    text-align: left;
+    padding: 10px 12px;
+    font-weight: 600;
+    font-size: 12px;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid #e2e8f0;
+  }
+  .findings-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: top;
+  }
+  .findings-table tr:hover { background: #f8fafc; }
+
+  .sev-critical { color: #7f1d1d; font-weight: 700; }
+  .sev-high     { color: #dc2626; font-weight: 600; }
+  .sev-medium   { color: #d97706; }
+  .sev-low      { color: #94a3b8; }
+  .status-pass  { color: #15803d; font-weight: 600; }
+  .status-fail  { color: #dc2626; font-weight: 600; }
+  .status-error { color: #94a3b8; font-style: italic; }
+
+  /* --- Stat Row --- */
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .stat-box {
+    text-align: center;
+    padding: 12px;
+    border-radius: 8px;
+    background: #f8fafc;
+  }
+  .stat-box .num {
+    font-size: 24px;
+    font-weight: 700;
+  }
+  .stat-box .lbl {
+    font-size: 11px;
+    color: #64748b;
+    text-transform: uppercase;
+  }
+
+  /* --- Recommendations --- */
+  .recommendation {
+    background: #fffbeb;
+    border-left: 4px solid #f59e0b;
+    padding: 14px 18px;
+    margin: 10px 0;
+    border-radius: 0 6px 6px 0;
+    font-size: 13px;
+  }
+  .recommendation strong {
+    color: #92400e;
+  }
+
+  /* --- Footer --- */
+  .footer {
+    margin-top: 48px;
+    padding-top: 20px;
+    border-top: 2px solid #e2e8f0;
+    font-size: 11px;
+    color: #94a3b8;
+    text-align: center;
+    line-height: 1.8;
+  }
+  .footer .shield-badge {
+    display: inline-block;
+    background: #1e293b;
+    color: #38bdf8;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 10px;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+
+  /* --- Page break helper --- */
+  .page-break { page-break-before: always; }
+
+  /* --- Responsive for screen --- */
+  @media (max-width: 600px) {
+    .score-summary { grid-template-columns: repeat(2, 1fr); }
+    .stat-row { grid-template-columns: repeat(2, 1fr); }
+    body { padding: 20px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<button class="print-btn no-print" onclick="window.print()">&#128438; Print / Save as PDF</button>
+
+<!-- ====== HEADER ====== -->
+<div class="header">
+  <div class="logo-area">
+    <div>
+      <div class="company-name">Kytran Empowerment</div>
+      <div class="report-title">Compliance Assessment Report</div>
+      <div class="report-subtitle">Automated Security & Regulatory Compliance Analysis</div>
+    </div>
+    <div class="report-id-block">
+      <div class="report-id-label">Report ID</div>
+      <div class="report-id-value">{{ scan_id_short }}</div>
+      <div class="report-id-label" style="margin-top:8px">Generated</div>
+      <div class="report-id-value">{{ generated_at }}</div>
+    </div>
+  </div>
+  <div class="report-meta">
+    <strong>Client:</strong> {{ client_name }} &nbsp;&bull;&nbsp;
+    <strong>Scan Date:</strong> {{ scan_date }} &nbsp;&bull;&nbsp;
+    <strong>Analyst:</strong> S.H.I.E.L.D. (AI Compliance Analyst)
+  </div>
+</div>
+
+<!-- ====== EXECUTIVE SUMMARY ====== -->
+<div class="executive-summary">
+  <h3>Executive Summary</h3>
+  <p>This report presents the results of an automated compliance assessment covering
+  <strong>{{ total }}</strong> rules across <strong>{{ pack_count }}</strong> framework{{ 's' if pack_count != 1 else '' }}
+  ({{ framework_names }}). The overall compliance score is
+  <strong class="grade-{{ grade_class }}">{{ score }}% (Grade {{ grade }})</strong>.</p>
+  <p><strong>{{ passed }}</strong> rules passed verification,
+  <strong>{{ failed }}</strong> require remediation, and
+  <strong>{{ errors }}</strong> could not be evaluated.</p>
+  {% if failed > 0 %}
+  <p style="margin-top:8px">Immediate attention is recommended for <strong>{{ high_priority_count }}</strong>
+  high/critical-severity findings detailed in this report.</p>
+  {% endif %}
+</div>
+
+<!-- ====== SCORE CARDS ====== -->
+<div class="score-summary">
+  <div class="score-card overall">
+    <div class="score-number grade-{{ grade_class }}">{{ score }}<span class="score-pct">%</span></div>
+    <div class="score-label">Overall Score</div>
+    <span class="score-grade bg-{{ grade_class }}">Grade {{ grade }}</span>
+  </div>
+  {% for pack in pack_scores %}
+  <div class="score-card">
+    <div class="score-number grade-{{ pack.grade_class }}">{{ pack.score }}<span class="score-pct">%</span></div>
+    <div class="score-label">{{ pack.name }}</div>
+    <span class="score-grade bg-{{ pack.grade_class }}">Grade {{ pack.grade }}</span>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- ====== STATS ====== -->
+<div class="stat-row">
+  <div class="stat-box">
+    <div class="num" style="color:#0f172a">{{ total }}</div>
+    <div class="lbl">Total Rules</div>
+  </div>
+  <div class="stat-box">
+    <div class="num" style="color:#15803d">{{ passed }}</div>
+    <div class="lbl">Passed</div>
+  </div>
+  <div class="stat-box">
+    <div class="num" style="color:#dc2626">{{ failed }}</div>
+    <div class="lbl">Failed</div>
+  </div>
+  <div class="stat-box">
+    <div class="num" style="color:#94a3b8">{{ errors }}</div>
+    <div class="lbl">Errors</div>
+  </div>
+</div>
+
+<!-- ====== HIGH-PRIORITY FINDINGS ====== -->
+{% if high_priority_findings %}
+<h2 class="section-title">High-Priority Findings</h2>
+<p style="font-size:13px;color:#64748b;margin-bottom:12px">
+  These critical and high-severity findings require immediate remediation.
+</p>
+<table class="findings-table">
+  <thead>
+    <tr>
+      <th style="width:15%">Rule ID</th>
+      <th style="width:10%">Severity</th>
+      <th style="width:12%">Framework</th>
+      <th>Details</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for f in high_priority_findings %}
+    <tr>
+      <td><code>{{ f.rule_id }}</code></td>
+      <td class="sev-{{ f.severity }}">{{ f.severity|upper }}</td>
+      <td>{{ f.pack_id }}</td>
+      <td>
+        {{ f.details }}
+        {% if f.expected_value %}
+        <br><small style="color:#64748b">Expected: <code>{{ f.expected_value }}</code></small>
+        {% endif %}
+        {% if f.actual_value %}
+        <br><small style="color:#64748b">Actual: <code>{{ f.actual_value }}</code></small>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<!-- ====== RECOMMENDATIONS ====== -->
+{% if recommendations %}
+<h2 class="section-title">Recommendations</h2>
+{% for rec in recommendations %}
+<div class="recommendation">
+  <strong>{{ rec.title }}:</strong> {{ rec.text }}
+</div>
+{% endfor %}
+{% endif %}
+
+<!-- ====== FRAMEWORK BREAKDOWN ====== -->
+<h2 class="section-title">Framework Breakdown</h2>
+{% for pack in pack_scores %}
+<h3 style="font-size:15px;font-weight:600;margin:20px 0 10px;color:#334155">
+  {{ pack.name }} &mdash; {{ pack.score }}% ({{ pack.passed }}/{{ pack.total }})
+</h3>
+<table class="findings-table">
+  <thead>
+    <tr>
+      <th style="width:18%">Rule ID</th>
+      <th style="width:10%">Severity</th>
+      <th style="width:10%">Status</th>
+      <th>Details</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in pack.results %}
+    <tr>
+      <td><code>{{ r.rule_id }}</code></td>
+      <td class="sev-{{ r.severity }}">{{ r.severity }}</td>
+      <td class="status-{{ r.status }}">{{ r.status|upper }}</td>
+      <td>
+        {{ r.details or '' }}
+        {% if r.status == 'fail' and r.expected_value %}
+        <br><small style="color:#64748b">Expected: <code>{{ r.expected_value }}</code></small>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endfor %}
+
+<!-- ====== FULL RESULTS TABLE ====== -->
+<div class="page-break"></div>
+<h2 class="section-title">Complete Results ({{ total }} Rules)</h2>
+<table class="findings-table">
+  <thead>
+    <tr>
+      <th style="width:15%">Rule ID</th>
+      <th style="width:10%">Framework</th>
+      <th style="width:9%">Severity</th>
+      <th style="width:8%">Status</th>
+      <th>Expected</th>
+      <th>Actual</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in all_results %}
+    <tr>
+      <td><code>{{ r.rule_id }}</code></td>
+      <td>{{ r.pack_id }}</td>
+      <td class="sev-{{ r.severity }}">{{ r.severity }}</td>
+      <td class="status-{{ r.status }}">{{ r.status|upper }}</td>
+      <td><small>{{ r.expected_value or '' }}</small></td>
+      <td><small>{{ r.actual_value or '' }}</small></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<!-- ====== FOOTER ====== -->
+<div class="footer">
+  <div class="shield-badge">S.H.I.E.L.D. COMPLIANCE ENGINE</div>
+  <p>Generated by S.H.I.E.L.D. &mdash; Security Hardening, Inspection, Enforcement &amp; Liability Detection</p>
+  <p>Kytran Empowerment Inc. &bull; kytranempowerment.com &bull; security@kytranempowerment.com</p>
+  <p style="margin-top:8px">This report is <strong style="color:#64748b">CONFIDENTIAL</strong> and intended solely for the named client.
+  Unauthorized distribution is prohibited.</p>
+</div>
+
+</body>
+</html>

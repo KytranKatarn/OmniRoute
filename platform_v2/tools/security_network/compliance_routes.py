@@ -184,6 +184,21 @@ def register_compliance_routes(bp, admin_required_decorator):
             logger.error("Evidence list failed: %s", exc)
             return jsonify({"success": False, "error": str(exc)}), 500
 
+    @bp.route("/api/compliance/report/<scan_id>")
+    @login_required
+    @admin_required_decorator
+    def compliance_pdf_report(scan_id):
+        """Generate and serve a branded compliance report (print-to-PDF)."""
+        client_name = request.args.get("client", "System Assessment")
+        try:
+            html = compliance_service.generate_report_html(scan_id, client_name=client_name)
+            if html is None:
+                return jsonify({"error": "Scan not found"}), 404
+            return Response(html, mimetype="text/html")
+        except Exception as exc:
+            logger.error("Report generation failed: %s", exc)
+            return jsonify({"error": str(exc)}), 500
+
     @bp.route("/api/compliance/packs/reload", methods=["POST"])
     @login_required
     @admin_required_decorator

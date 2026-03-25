@@ -1490,6 +1490,209 @@ def collect_evidence(scan_id=None):
     }
 
 
+def _score_to_grade(score):
+    """Convert a numeric score to a letter grade and CSS class."""
+    if score >= 90:
+        return "A", "A"
+    elif score >= 80:
+        return "B", "B"
+    elif score >= 70:
+        return "C", "C"
+    elif score >= 60:
+        return "D", "D"
+    else:
+        return "F", "F"
+
+
+def generate_report_html(scan_id, client_name="System Assessment"):
+    """Generate a branded HTML compliance report for a scan.
+
+    Returns an HTML string ready to serve or print to PDF.
+    Returns None if scan not found.
+    """
+    from jinja2 import Environment, FileSystemLoader
+
+    # --- Fetch scan metadata ---
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute(
+            """
+            SELECT scan_id, score, total_rules, passed, failed, errors,
+                   started_at, completed_at, pack_ids
+            FROM compliance_scans
+            WHERE scan_id = %s
+            """,
+            (scan_id,),
+        )
+        scan = cur.fetchone()
+        if not scan:
+            return None
+
+        # --- Fetch all results for this scan ---
+        cur.execute(
+            """
+            SELECT rule_id, pack_id, severity, status,
+                   actual_value, expected_value, details
+            FROM compliance_scan_results
+            WHERE scan_id = %s
+            ORDER BY
+                CASE severity
+                    WHEN 'critical' THEN 0 WHEN 'high' THEN 1
+                    WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4
+                END,
+                rule_id
+            """,
+            (scan_id,),
+        )
+        all_results = [dict(r) for r in cur.fetchall()]
+
+        # --- Per-pack breakdown ---
+        cur.execute(
+            """
+            SELECT r.pack_id, p.name,
+                   COUNT(*) AS total,
+                   SUM(CASE WHEN r.status = 'pass' THEN 1 ELSE 0 END) AS passed
+            FROM compliance_scan_results r
+            LEFT JOIN compliance_rule_packs p ON p.pack_id = r.pack_id
+            WHERE r.scan_id = %s
+            GROUP BY r.pack_id, p.name
+            ORDER BY p.name
+            """,
+            (scan_id,),
+        )
+        pack_rows = cur.fetchall()
+
+    # --- Build pack scores with per-pack results ---
+    pack_scores = []
+    framework_names_list = []
+    for pr in pack_rows:
+        p_total = pr["total"] or 0
+        p_passed = pr["passed"] or 0
+        p_score = round((p_passed / p_total) * 100, 1) if p_total > 0 else 0
+        p_grade, p_grade_class = _score_to_grade(p_score)
+        pack_name = pr.get("name") or pr["pack_id"]
+        framework_names_list.append(pack_name)
+
+        # Filter results for this pack
+        pack_results = [r for r in all_results if r["pack_id"] == pr["pack_id"]]
+
+        pack_scores.append(
+            {
+                "pack_id": pr["pack_id"],
+                "name": pack_name,
+                "total": p_total,
+                "passed": p_passed,
+                "failed": p_total - p_passed,
+                "score": p_score,
+                "grade": p_grade,
+                "grade_class": p_grade_class,
+                "results": pack_results,
+            }
+        )
+
+    # --- Overall grade ---
+    overall_score = float(scan.get("score", 0) or 0)
+    grade, grade_class = _score_to_grade(overall_score)
+
+    # --- High-priority findings ---
+    high_priority = [r for r in all_results if r["status"] == "fail" and r["severity"] in ("critical", "high")]
+
+    # --- Generate recommendations based on findings ---
+    recommendations = []
+    sev_counts = {}
+    for r in all_results:
+        if r["status"] == "fail":
+            sev_counts[r["severity"]] = sev_counts.get(r["severity"], 0) + 1
+
+    if sev_counts.get("critical", 0) > 0:
+        recommendations.append(
+            {
+                "title": "Critical Remediation Required",
+                "text": f"{sev_counts['critical']} critical finding(s) detected. "
+                "These represent immediate security risks and must be addressed before the next audit cycle.",
+            }
+        )
+    if sev_counts.get("high", 0) > 0:
+        recommendations.append(
+            {
+                "title": "High-Priority Hardening",
+                "text": f"{sev_counts['high']} high-severity finding(s) should be remediated within 30 days. "
+                "Consider using the automated remediation tools in the Compliance Dashboard.",
+            }
+        )
+    if sev_counts.get("medium", 0) > 0:
+        recommendations.append(
+            {
+                "title": "Medium-Risk Items",
+                "text": f"{sev_counts['medium']} medium-severity item(s) should be scheduled for remediation "
+                "within the next quarterly review cycle.",
+            }
+        )
+    if overall_score >= 90:
+        recommendations.append(
+            {
+                "title": "Maintain Compliance Posture",
+                "text": "The system demonstrates strong compliance. Schedule regular scans to maintain this level "
+                "and monitor for drift after system updates.",
+            }
+        )
+    elif overall_score < 70:
+        recommendations.append(
+            {
+                "title": "Compliance Improvement Plan Needed",
+                "text": "The overall score is below acceptable thresholds. A dedicated compliance improvement "
+                "sprint is recommended, starting with critical and high-severity items.",
+            }
+        )
+
+    # --- Format dates ---
+    scan_date = ""
+    if scan.get("completed_at"):
+        dt = scan["completed_at"]
+        scan_date = dt.strftime("%Y-%m-%d %H:%M UTC") if hasattr(dt, "strftime") else str(dt)
+    elif scan.get("started_at"):
+        dt = scan["started_at"]
+        scan_date = dt.strftime("%Y-%m-%d %H:%M UTC") if hasattr(dt, "strftime") else str(dt)
+
+    generated_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+
+    # --- Truncate values for display ---
+    for r in all_results:
+        if r.get("actual_value") and len(str(r["actual_value"])) > 120:
+            r["actual_value"] = str(r["actual_value"])[:120] + "..."
+        if r.get("expected_value") and len(str(r["expected_value"])) > 120:
+            r["expected_value"] = str(r["expected_value"])[:120] + "..."
+        if r.get("details") and len(str(r["details"])) > 200:
+            r["details"] = str(r["details"])[:200] + "..."
+
+    # --- Render template ---
+    template_dir = os.path.join(os.path.dirname(__file__), "templates")
+    env = Environment(loader=FileSystemLoader(template_dir), autoescape=True)
+    template = env.get_template("compliance_report.html")
+
+    html = template.render(
+        scan_id=scan_id,
+        scan_id_short=scan_id[:8].upper(),
+        client_name=client_name,
+        scan_date=scan_date,
+        generated_at=generated_at,
+        score=overall_score,
+        grade=grade,
+        grade_class=grade_class,
+        total=scan.get("total_rules", 0) or 0,
+        passed=scan.get("passed", 0) or 0,
+        failed=scan.get("failed", 0) or 0,
+        errors=scan.get("errors", 0) or 0,
+        pack_count=len(pack_scores),
+        framework_names=", ".join(framework_names_list) or "N/A",
+        pack_scores=pack_scores,
+        high_priority_count=len(high_priority),
+        high_priority_findings=high_priority,
+        recommendations=recommendations,
+        all_results=all_results,
+    )
+    return html
+
+
 def get_loaded_packs():
     """List all loaded rule packs."""
     with get_db_cursor(commit=False) as (conn, cur):

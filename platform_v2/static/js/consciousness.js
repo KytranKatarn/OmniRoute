@@ -2659,9 +2659,10 @@ function loadCodeHealth() {
     Object.keys(allModules).forEach(function(key) {
         if (key.startsWith('standalone_')) {
             standaloneModules[key] = allModules[key];
-            // Add friendly display name for chart
+            // Add friendly display name for chart — prefix to differentiate from modules
             if (!moduleDisplayNames[key]) {
-                moduleDisplayNames[key] = key.replace('standalone_', '').replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+                var cleanName = key.replace('standalone_', '').replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+                moduleDisplayNames[key] = '\u25C6 ' + cleanName;
             }
         } else {
             platformModules[key] = allModules[key];

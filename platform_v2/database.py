@@ -15,6 +15,19 @@ _pool = None
 _pool_lock = threading.Lock()
 
 
+def _get_db_password():
+    """Read DB password from Docker secret file, fall back to env var."""
+    secret_file = os.environ.get("DB_PASSWORD_FILE", "/run/secrets/db_password")
+    try:
+        with open(secret_file, "r") as f:
+            pw = f.read().strip()
+            if pw:
+                return pw
+    except (FileNotFoundError, PermissionError):
+        pass
+    return os.environ.get("DB_PASSWORD", "")
+
+
 def _get_pool():
     """Get or create the connection pool (thread-safe singleton)"""
     global _pool
@@ -28,7 +41,7 @@ def _get_pool():
                     port=os.environ.get("DB_PORT", "5432"),
                     database=os.environ.get("DB_NAME", "archie"),
                     user=os.environ.get("DB_USER", "archie"),
-                    password=os.environ.get("DB_PASSWORD", ""),
+                    password=_get_db_password(),
                 )
     return _pool
 

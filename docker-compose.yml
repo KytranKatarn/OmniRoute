@@ -17,10 +17,12 @@ services:
     environment:
       TZ: America/Toronto
       POSTGRES_USER: archie
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
       POSTGRES_DB: archie
       # Allow all connections with password auth (pg_hba.conf equivalent)
       POSTGRES_HOST_AUTH_METHOD: md5
+    secrets:
+      - db_password
     volumes:
       - archie_db:/var/lib/postgresql/data
       - ./database/schema:/docker-entrypoint-initdb.d:ro
@@ -74,7 +76,7 @@ services:
       DB_PORT: 5432
       DB_NAME: archie
       DB_USER: archie
-      DB_PASSWORD: ${DB_PASSWORD}
+      DB_PASSWORD_FILE: /run/secrets/db_password
       OLLAMA_PRIMARY: ${OLLAMA_PRIMARY}
       CODE_SERVER_URL: ${CODE_SERVER_URL}
       OLLAMA_HOST: ${OLLAMA_PRIMARY}
@@ -94,6 +96,8 @@ services:
       GITHUB_USERNAME: ${GITHUB_USERNAME:-KytranKatarn}
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    secrets:
+      - db_password
     volumes:
       # Mount ai-bridge into container (rw for self-improvement deployments)
       - ./ai_bridge:/mnt/archie_brain/ai_bridge:rw
@@ -379,6 +383,10 @@ services:
     depends_on:
       archie_headscale:
         condition: service_healthy
+
+secrets:
+  db_password:
+    file: ./secrets/database/password.txt
 
 networks:
   archie_internal:

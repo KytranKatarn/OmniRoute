@@ -34,9 +34,8 @@
       "description": "The squashfs filesystem type is a compressed read-only Linux filesystem. Disabling reduces the local attack surface.",
       "check": {
         "type": "command_output",
-        "command": "modprobe -n -v squashfs 2>/dev/null || echo 'not found'",
-        "expected": "install /bin/true",
-        "match": "contains"
+        "command": "modprobe -n -v squashfs 2>/dev/null; cat /etc/modprobe.d/squashfs.conf 2>/dev/null || echo 'not configured'",
+        "expected": "/bin/true"
       },
       "fix": {
         "type": "command",
@@ -791,9 +790,9 @@
       "description": "World-writable files can be modified by any user, which is a security risk.",
       "check": {
         "type": "command_output",
-        "command": "find / -xdev -type f -perm -0002 2>/dev/null | head -5 | wc -l",
-        "expected": "0",
-        "match": "exact"
+        "command": "find / -xdev -type f -perm -0002 2>/dev/null | wc -l | tr -d ' '",
+        "match_pattern": "^0$",
+        "expected": "0"
       },
       "fix": {
         "type": "command",

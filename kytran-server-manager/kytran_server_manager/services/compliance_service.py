@@ -648,6 +648,11 @@ def _check_command_output(check):
             "[",
             "ssh",
             "sshd",
+            "modprobe",
+            "lsmod",
+            "journalctl",
+            "timedatectl",
+            "hostnamectl",
         }
         cmd_base = command.split()[0].split("/")[-1] if command else ""
         # Also allow shell variable assignments (val=..., count=...) and subshells

@@ -1,4 +1,4 @@
-"""Kytran Server Manager — Standalone Flask Application."""
+"""Kytran System Operations — Standalone Flask Application."""
 import os
 from flask import Flask, redirect
 from flask_login import login_required
@@ -37,6 +37,16 @@ def create_app(config=None):
         pass
     os.environ["SYSOPS_THEME"] = saved_theme
     init_theme(app)
+
+    # Load custom logo from DB if set
+    try:
+        db2 = get_db()
+        logo_row = db2.execute("SELECT value FROM settings WHERE key = 'custom_logo'").fetchone()
+        if logo_row and logo_row["value"]:
+            app.jinja_env.globals["sysops_theme"]["logo"] = logo_row["value"]
+        db2.close()
+    except Exception:
+        pass
 
     # Register routes
     from .routes import register_all_routes

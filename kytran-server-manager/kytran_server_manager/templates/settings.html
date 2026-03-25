@@ -27,7 +27,7 @@
         <div class="theme-grid">
             <div class="theme-card {% if current_theme == 'kytran' %}active{% endif %}" onclick="setTheme('kytran')">
                 <div class="theme-preview" style="background: linear-gradient(135deg, #0f172a, #1e293b); border: 1px solid #2563eb;">
-                    <span style="color: #2563eb; font-weight: 700;">KSM</span>
+                    <span style="color: #2563eb; font-weight: 700;">KSO</span>
                 </div>
                 <div class="theme-name">Kytran Modern</div>
                 <div class="theme-desc">Clean, professional blue theme</div>
@@ -38,6 +38,40 @@
                 </div>
                 <div class="theme-name">LCARS Sci-Fi</div>
                 <div class="theme-desc">Star Trek-inspired interface</div>
+            </div>
+            <div class="theme-card {% if current_theme == 'midnight' %}active{% endif %}" onclick="setTheme('midnight')">
+                <div class="theme-preview" style="background: linear-gradient(135deg, #09090b, #18181b); border: 1px solid #8b5cf6;">
+                    <span style="color: #8b5cf6; font-weight: 700;">MID</span>
+                </div>
+                <div class="theme-name">Midnight</div>
+                <div class="theme-desc">Purple-accented dark DevOps theme</div>
+            </div>
+            <div class="theme-card {% if current_theme == 'arctic' %}active{% endif %}" onclick="setTheme('arctic')">
+                <div class="theme-preview" style="background: linear-gradient(135deg, #f1f5f9, #e2e8f0); border: 1px solid #0ea5e9;">
+                    <span style="color: #0ea5e9; font-weight: 700;">ARC</span>
+                </div>
+                <div class="theme-name">Arctic</div>
+                <div class="theme-desc">Clean light theme for bright environments</div>
+            </div>
+            <div class="theme-card {% if current_theme == 'ember' %}active{% endif %}" onclick="setTheme('ember')">
+                <div class="theme-preview" style="background: linear-gradient(135deg, #0c0a09, #1c1917); border: 1px solid #f97316;">
+                    <span style="color: #f97316; font-weight: 700;">EMB</span>
+                </div>
+                <div class="theme-name">Ember</div>
+                <div class="theme-desc">Warm orange terminal aesthetic</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logo Upload -->
+    <div class="settings-section">
+        <div class="settings-title"><i class="fas fa-image"></i> Custom Logo</div>
+        <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 12px;">
+            <img id="logoPreview" src="{{ sysops_theme.logo }}" alt="Logo" style="height: 48px; width: auto; border-radius: 4px; background: var(--sysops-bg-tertiary); padding: 4px;">
+            <div>
+                <input type="file" id="logoFile" accept=".png,.jpg,.jpeg,.svg,.webp" style="display:none;">
+                <button type="button" class="ksm-btn ksm-btn-primary" onclick="document.getElementById('logoFile').click()">Upload Logo</button>
+                <div class="theme-desc" style="margin-top: 4px;">PNG, JPG, SVG, or WebP</div>
             </div>
         </div>
     </div>
@@ -82,5 +116,20 @@ function setTheme(theme) {
         }
     });
 }
+
+document.getElementById('logoFile').addEventListener('change', function() {
+    if (!this.files[0]) return;
+    const fd = new FormData();
+    fd.append('logo', this.files[0]);
+    fetch('/settings/logo', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('logoPreview').src = data.logo_url;
+            } else {
+                alert(data.error || 'Upload failed');
+            }
+        });
+});
 </script>
 {% endblock %}

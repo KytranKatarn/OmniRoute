@@ -1,6 +1,6 @@
 {
-  "product_name": "System Operations",
-  "product_short": "SYSOPS",
+  "product_name": "Kytran System Operations",
+  "product_short": "KSO",
   "logo": "/static/img/archie-logo.svg",
   "frame_style": "lcars",
   "colors": {

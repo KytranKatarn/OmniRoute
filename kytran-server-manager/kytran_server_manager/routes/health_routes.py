@@ -1,4 +1,3 @@
-# TODO: Phase 5.5 — Convert PostgreSQL SQL (%s, NOW(), INTERVAL, RETURNING) to SQLite syntax
 """
 System Operations — Health Routes
 ====================================
@@ -51,10 +50,10 @@ def register_health_routes(bp, admin_required_decorator):
                 query += " AND resolved = FALSE"
 
             if stack_name:
-                query += " AND stack_name = %s"
+                query += " AND stack_name = ?"
                 params.append(stack_name)
 
-            query += " ORDER BY created_at DESC LIMIT %s"
+            query += " ORDER BY created_at DESC LIMIT ?"
             params.append(limit)
 
             cur.execute(query, params)
@@ -105,10 +104,9 @@ def register_health_routes(bp, admin_required_decorator):
                 """
                 UPDATE stack_health_alerts
                 SET acknowledged = TRUE,
-                    acknowledged_by = %s,
+                    acknowledged_by = ?,
                     acknowledged_at = CURRENT_TIMESTAMP
-                WHERE id = %s AND acknowledged = FALSE
-                RETURNING id
+                WHERE id = ? AND acknowledged = FALSE
             """,
                 (current_user.id, alert_id),
             )
@@ -151,8 +149,7 @@ def register_health_routes(bp, admin_required_decorator):
                 UPDATE stack_health_alerts
                 SET resolved = TRUE,
                     resolved_at = CURRENT_TIMESTAMP
-                WHERE id = %s AND resolved = FALSE
-                RETURNING id
+                WHERE id = ? AND resolved = FALSE
             """,
                 (alert_id,),
             )
@@ -229,14 +226,13 @@ def register_health_routes(bp, admin_required_decorator):
                 """
                 INSERT INTO stack_health_config
                 (stack_name, metric_type, threshold_warning, threshold_critical, enabled, cooldown_minutes)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT (stack_name, metric_type)
                 DO UPDATE SET
                     threshold_warning = EXCLUDED.threshold_warning,
                     threshold_critical = EXCLUDED.threshold_critical,
                     enabled = EXCLUDED.enabled,
                     cooldown_minutes = EXCLUDED.cooldown_minutes
-                RETURNING id
             """,
                 (
                     stack_name,
@@ -314,8 +310,7 @@ def register_health_routes(bp, admin_required_decorator):
                 """
                 INSERT INTO health_alert_webhooks
                 (name, url, event_types, stack_filter, active, secret_key)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                RETURNING id
+                VALUES (?, ?, ?, ?, ?, ?)
             """,
                 (name, url, event_types, stack_filter, active, secret_key),
             )
@@ -343,7 +338,7 @@ def register_health_routes(bp, admin_required_decorator):
             cur = conn.cursor()
 
             cur.execute(
-                "DELETE FROM health_alert_webhooks WHERE id = %s RETURNING id",
+                "DELETE FROM health_alert_webhooks WHERE id = ?",
                 (webhook_id,),
             )
             result = cur.fetchone()
@@ -373,7 +368,7 @@ def register_health_routes(bp, admin_required_decorator):
             conn = get_db()
             cur = conn.cursor()
 
-            cur.execute("SELECT * FROM health_alert_webhooks WHERE id = %s", (webhook_id,))
+            cur.execute("SELECT * FROM health_alert_webhooks WHERE id = ?", (webhook_id,))
             webhook = cur.fetchone()
 
             if not webhook:
@@ -408,9 +403,9 @@ def register_health_routes(bp, admin_required_decorator):
                 """
                 UPDATE health_alert_webhooks
                 SET last_triggered = CURRENT_TIMESTAMP,
-                    last_status = %s,
-                    last_error = %s
-                WHERE id = %s
+                    last_status = ?,
+                    last_error = ?
+                WHERE id = ?
             """,
                 (status_code, error_msg, webhook_id),
             )

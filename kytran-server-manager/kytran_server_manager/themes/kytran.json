@@ -1,6 +1,6 @@
 {
-  "product_name": "Kytran Server Manager",
-  "product_short": "KSM",
+  "product_name": "Kytran System Operations",
+  "product_short": "KSO",
   "logo": "/static/img/kytran-logo.svg",
   "frame_style": "modern",
   "colors": {

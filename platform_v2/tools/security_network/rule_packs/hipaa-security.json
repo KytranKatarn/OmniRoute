@@ -1,7 +1,7 @@
 {
   "pack_id": "hipaa-security",
   "name": "HIPAA Security Rule",
-  "description": "HIPAA Security Rule technical safeguards — 45 CFR Part 164 Subpart C",
+  "description": "HIPAA Security Rule technical safeguards \u2014 45 CFR Part 164 Subpart C",
   "version": "1.0",
   "category": "healthcare",
   "rules": [
@@ -21,13 +21,15 @@
         "command": "echo 'Review /etc/passwd for duplicate user names manually'",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "hipaa_ref": "164.312(a)(2)(i)"
     },
     {
       "rule_id": "HIPAA-AC-02",
       "severity": "high",
-      "title": "Automatic Logoff — SSH ClientAliveInterval",
+      "title": "Automatic Logoff \u2014 SSH ClientAliveInterval",
       "description": "Implement electronic procedures that terminate an electronic session after a predetermined time of inactivity.",
       "check": {
         "type": "file_content",
@@ -42,13 +44,15 @@
         "restart_service": "sshd",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "hipaa_ref": "164.312(a)(2)(iii)"
     },
     {
       "rule_id": "HIPAA-AC-03",
       "severity": "high",
-      "title": "Password Complexity — PAM pwquality",
+      "title": "Password Complexity \u2014 PAM pwquality",
       "description": "Enforce password complexity via PAM pwquality module.",
       "check": {
         "type": "file_content",
@@ -61,13 +65,16 @@
         "command": "apt-get install -y libpam-pwquality && grep -q pam_pwquality /etc/pam.d/common-password || echo 'password requisite pam_pwquality.so retry=3 minlen=14 ucredit=-1 lcredit=-1 dcredit=-1 ocredit=-1' >> /etc/pam.d/common-password",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1", "CC6.3"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.3"
+      ],
       "hipaa_ref": "164.312(a)(1)"
     },
     {
       "rule_id": "HIPAA-AC-04",
       "severity": "high",
-      "title": "Account Lockout — PAM faillock",
+      "title": "Account Lockout \u2014 PAM faillock",
       "description": "Lock accounts after repeated failed login attempts.",
       "check": {
         "type": "file_content",
@@ -80,13 +87,16 @@
         "command": "grep -q pam_faillock /etc/pam.d/common-auth || echo 'auth required pam_faillock.so preauth silent deny=5 unlock_time=900' >> /etc/pam.d/common-auth",
         "risk": "high"
       },
-      "soc2_mapping": ["CC6.1", "CC6.3"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.3"
+      ],
       "hipaa_ref": "164.312(a)(1)"
     },
     {
       "rule_id": "HIPAA-AC-05",
       "severity": "medium",
-      "title": "Session Timeout — TMOUT variable",
+      "title": "Session Timeout \u2014 TMOUT variable",
       "description": "Shell session timeout must be set in /etc/profile or /etc/profile.d/.",
       "check": {
         "type": "command_output",
@@ -99,7 +109,9 @@
         "command": "echo 'export TMOUT=600' >> /etc/profile.d/timeout.sh && chmod 644 /etc/profile.d/timeout.sh",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "hipaa_ref": "164.312(a)(2)(iii)"
     },
     {
@@ -118,7 +130,9 @@
         "command": "for user in guest default; do id $user 2>/dev/null && usermod -s /usr/sbin/nologin $user; done; true",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "hipaa_ref": "164.312(a)(1)"
     },
     {
@@ -139,7 +153,10 @@
         "restart_service": "sshd",
         "risk": "high"
       },
-      "soc2_mapping": ["CC6.1", "CC6.3"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.3"
+      ],
       "hipaa_ref": "164.312(a)(1)"
     },
     {
@@ -158,7 +175,9 @@
         "command": "echo 'Review and remove NOPASSWD entries from /etc/sudoers and /etc/sudoers.d/'",
         "risk": "high"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "hipaa_ref": "164.312(a)(1)"
     },
     {
@@ -176,7 +195,10 @@
         "command": "apt-get install -y auditd && systemctl enable --now auditd",
         "risk": "low"
       },
-      "soc2_mapping": ["CC7.1", "CC7.2"],
+      "soc2_mapping": [
+        "CC7.1",
+        "CC7.2"
+      ],
       "hipaa_ref": "164.312(b)"
     },
     {
@@ -197,7 +219,10 @@
         "restart_service": "auditd",
         "risk": "low"
       },
-      "soc2_mapping": ["CC7.1", "CC7.2"],
+      "soc2_mapping": [
+        "CC7.1",
+        "CC7.2"
+      ],
       "hipaa_ref": "164.312(b)"
     },
     {
@@ -216,7 +241,9 @@
         "command": "chmod 0600 /var/log/audit/audit.log && chown root:root /var/log/audit/audit.log",
         "risk": "low"
       },
-      "soc2_mapping": ["CC7.1"],
+      "soc2_mapping": [
+        "CC7.1"
+      ],
       "hipaa_ref": "164.312(b)"
     },
     {
@@ -235,13 +262,15 @@
         "command": "echo 'Failed login logging is typically enabled by default via pam_unix'",
         "risk": "low"
       },
-      "soc2_mapping": ["CC7.2"],
+      "soc2_mapping": [
+        "CC7.2"
+      ],
       "hipaa_ref": "164.312(b)"
     },
     {
       "rule_id": "HIPAA-AU-05",
       "severity": "medium",
-      "title": "Audit Log Integrity — Immutable Attribute",
+      "title": "Audit Log Integrity \u2014 Immutable Attribute",
       "description": "Audit configuration should use immutable flag to prevent runtime changes.",
       "check": {
         "type": "command_output",
@@ -254,7 +283,9 @@
         "command": "echo '-e 2' >> /etc/audit/rules.d/99-finalize.rules && augenrules --load",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC7.1"],
+      "soc2_mapping": [
+        "CC7.1"
+      ],
       "hipaa_ref": "164.312(b)"
     },
     {
@@ -273,7 +304,9 @@
         "command": "apt-get install -y logrotate",
         "risk": "low"
       },
-      "soc2_mapping": ["CC7.1"],
+      "soc2_mapping": [
+        "CC7.1"
+      ],
       "hipaa_ref": "164.312(b)"
     },
     {
@@ -292,13 +325,16 @@
         "command": "apt-get install -y aide && aideinit && cp /var/lib/aide/aide.db.new /var/lib/aide/aide.db",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "PI1.3"],
+      "soc2_mapping": [
+        "CC6.1",
+        "PI1.3"
+      ],
       "hipaa_ref": "164.312(c)(2)"
     },
     {
       "rule_id": "HIPAA-IN-02",
       "severity": "high",
-      "title": "Password Hashing — SHA-512",
+      "title": "Password Hashing \u2014 SHA-512",
       "description": "Passwords in /etc/shadow must use SHA-512 hashing algorithm.",
       "check": {
         "type": "file_content",
@@ -312,7 +348,9 @@
         "line": "ENCRYPT_METHOD SHA512",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "hipaa_ref": "164.312(c)(1)"
     },
     {
@@ -331,13 +369,15 @@
         "command": "echo 'APT::Get::AllowUnauthenticated \"false\";' > /etc/apt/apt.conf.d/99-require-auth",
         "risk": "low"
       },
-      "soc2_mapping": ["PI1.3"],
+      "soc2_mapping": [
+        "PI1.3"
+      ],
       "hipaa_ref": "164.312(c)(1)"
     },
     {
       "rule_id": "HIPAA-IN-04",
       "severity": "medium",
-      "title": "Mount Options — noexec on /tmp",
+      "title": "Mount Options \u2014 noexec on /tmp",
       "description": "The /tmp partition must be mounted with noexec to prevent execution of arbitrary binaries.",
       "check": {
         "type": "command_output",
@@ -350,7 +390,9 @@
         "command": "echo 'Add noexec to /tmp mount in /etc/fstab: tmpfs /tmp tmpfs defaults,noexec,nosuid,nodev 0 0'",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "hipaa_ref": "164.312(c)(1)"
     },
     {
@@ -369,7 +411,10 @@
         "command": "sed -i '/\\[system_default_sect\\]/a MinProtocol = TLSv1.2' /etc/ssl/openssl.cnf",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1", "CC6.7"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.7"
+      ],
       "hipaa_ref": "164.312(e)(1)"
     },
     {
@@ -390,7 +435,10 @@
         "restart_service": "sshd",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC6.7"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.7"
+      ],
       "hipaa_ref": "164.312(e)(1)"
     },
     {
@@ -408,7 +456,9 @@
         "command": "systemctl stop vsftpd 2>/dev/null; systemctl disable vsftpd 2>/dev/null; true",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.7"],
+      "soc2_mapping": [
+        "CC6.7"
+      ],
       "hipaa_ref": "164.312(e)(1)"
     },
     {
@@ -426,7 +476,9 @@
         "command": "systemctl stop telnetd 2>/dev/null; apt-get purge -y telnetd 2>/dev/null; true",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.7"],
+      "soc2_mapping": [
+        "CC6.7"
+      ],
       "hipaa_ref": "164.312(e)(1)"
     },
     {
@@ -445,7 +497,9 @@
         "command": "echo 'Configure HTTP to redirect to HTTPS or disable port 80'",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.7"],
+      "soc2_mapping": [
+        "CC6.7"
+      ],
       "hipaa_ref": "164.312(e)(1)"
     },
     {
@@ -465,7 +519,10 @@
         "line": "    StrictHostKeyChecking ask",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC6.7"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.7"
+      ],
       "hipaa_ref": "164.312(e)(1)"
     },
     {
@@ -485,7 +542,10 @@
         "line": "minlen = 14",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC6.2"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.2"
+      ],
       "hipaa_ref": "164.312(d)"
     },
     {
@@ -504,7 +564,10 @@
         "command": "sed -i '/pam_unix.so/ s/$/ remember=5/' /etc/pam.d/common-password",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC6.2"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.2"
+      ],
       "hipaa_ref": "164.312(d)"
     },
     {
@@ -524,7 +587,10 @@
         "line": "PASS_MAX_DAYS 90",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC6.2"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.2"
+      ],
       "hipaa_ref": "164.312(d)"
     },
     {
@@ -544,7 +610,9 @@
         "line": "PASS_MIN_DAYS 1",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "hipaa_ref": "164.312(d)"
     },
     {
@@ -563,13 +631,16 @@
         "command": "apt-get install -y libpam-google-authenticator",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC6.2"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.2"
+      ],
       "hipaa_ref": "164.312(d)"
     },
     {
       "rule_id": "HIPAA-AUTH-06",
       "severity": "high",
-      "title": "Unique UIDs — No UID 0 Except Root",
+      "title": "Unique UIDs \u2014 No UID 0 Except Root",
       "description": "Only the root account should have UID 0.",
       "check": {
         "type": "command_output",
@@ -582,8 +653,23 @@
         "command": "echo 'Manually review and change UIDs of non-root accounts with UID 0'",
         "risk": "high"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "hipaa_ref": "164.312(d)"
     }
-  ]
+  ],
+  "compliance_info": {
+    "required_by": [
+      "Healthcare providers",
+      "Health plans & insurers",
+      "Business associates handling PHI",
+      "Health tech SaaS providers"
+    ],
+    "threshold_percent": 90,
+    "threshold_label": "90% minimum \u2014 HIPAA has no safe harbor for partial compliance",
+    "why": "HIPAA Security Rule (45 CFR 164) requires technical safeguards for electronic Protected Health Information (ePHI). Violations carry fines of $100\u2013$50,000 per violation (up to $1.5M/year per category). Willful neglect can trigger criminal penalties.",
+    "certification": "HIPAA Security Rule Compliance",
+    "penalty": "$100\u2013$50,000 per violation, criminal penalties for willful neglect, OCR investigations"
+  }
 }

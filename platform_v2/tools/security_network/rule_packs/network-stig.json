@@ -21,7 +21,10 @@
         "command": "ufw default deny incoming && ufw --force enable",
         "risk": "high"
       },
-      "soc2_mapping": ["CC6.1", "CC6.6"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.6"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -40,7 +43,9 @@
         "command": "ufw allow 22/tcp comment 'SSH access'",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -59,7 +64,9 @@
         "command": "ufw allow 80/tcp comment 'HTTP access'",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.6"],
+      "soc2_mapping": [
+        "CC6.6"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -78,7 +85,10 @@
         "command": "ufw allow 443/tcp comment 'HTTPS access'",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.6", "CC6.7"],
+      "soc2_mapping": [
+        "CC6.6",
+        "CC6.7"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -96,7 +106,10 @@
         "command": "ufw deny 23/tcp comment 'Block telnet' && apt-get remove -y telnetd 2>/dev/null; true",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC6.7"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.7"
+      ],
       "cci": "CCI-000381"
     },
     {
@@ -114,7 +127,10 @@
         "command": "ufw deny 21/tcp comment 'Block FTP' && systemctl stop vsftpd 2>/dev/null; systemctl disable vsftpd 2>/dev/null; true",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC6.7"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.7"
+      ],
       "cci": "CCI-000381"
     },
     {
@@ -132,7 +148,10 @@
         "command": "ufw deny 161/udp comment 'Block SNMP' && systemctl stop snmpd 2>/dev/null; true",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC6.7"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.7"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -150,7 +169,9 @@
         "command": "ufw deny 3389/tcp comment 'Block RDP'",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -168,7 +189,10 @@
         "command": "ufw deny 137:139/tcp comment 'Block NetBIOS' && ufw deny 137:139/udp comment 'Block NetBIOS'",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC6.6"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.6"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -186,7 +210,10 @@
         "command": "ufw deny 445/tcp comment 'Block SMB'",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1", "CC6.6"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.6"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -205,7 +232,10 @@
         "command": "ufw logging on",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.6", "CC7.2"],
+      "soc2_mapping": [
+        "CC6.6",
+        "CC7.2"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -224,7 +254,10 @@
         "command": "echo 'Review output of ss -tlnp and disable unnecessary services'",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1", "CC6.6"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.6"
+      ],
       "cci": "CCI-000382"
     },
     {
@@ -244,7 +277,9 @@
         "value": "1",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.6"],
+      "soc2_mapping": [
+        "CC6.6"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -264,7 +299,9 @@
         "value": "600",
         "risk": "low"
       },
-      "soc2_mapping": ["CC7.1"],
+      "soc2_mapping": [
+        "CC7.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -283,7 +320,9 @@
         "value": "1",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.6"],
+      "soc2_mapping": [
+        "CC6.6"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -302,7 +341,9 @@
         "command": "ufw delete allow 22/tcp 2>/dev/null; ufw limit 22/tcp comment 'Rate limited SSH'",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000044"
     },
     {
@@ -321,7 +362,10 @@
         "command": "echo 'Disable TLSv1.0 and TLSv1.1 in web server configuration (nginx: ssl_protocols TLSv1.2 TLSv1.3;)'",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1", "CC6.7"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.7"
+      ],
       "cci": "CCI-001453"
     },
     {
@@ -340,7 +384,10 @@
         "command": "echo 'Ensure SSLv3 is disabled in all TLS-terminating services'",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC6.7"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.7"
+      ],
       "cci": "CCI-001453"
     },
     {
@@ -359,7 +406,10 @@
         "command": "echo 'Renew expired certificates using certbot renew or manual renewal process'",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC6.7"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.7"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -378,7 +428,10 @@
         "command": "certbot renew --dry-run && certbot renew",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC6.7"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.7"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -397,7 +450,10 @@
         "command": "echo 'Configure web server cipher suite: ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384'",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1", "CC6.7"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.7"
+      ],
       "cci": "CCI-001453"
     },
     {
@@ -416,7 +472,9 @@
         "command": "echo 'Add to nginx: add_header Strict-Transport-Security \"max-age=63072000; includeSubDomains; preload\";'",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.7"],
+      "soc2_mapping": [
+        "CC6.7"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -435,7 +493,9 @@
         "command": "echo 'Configure DNS-over-TLS or DNS-over-HTTPS with trusted resolvers (1.1.1.1, 8.8.8.8, or local AdGuard)'",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.7"],
+      "soc2_mapping": [
+        "CC6.7"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -454,7 +514,9 @@
         "command": "echo 'Add static ARP entries for gateway: ip neigh add <gateway_ip> lladdr <mac> dev <interface> nud permanent'",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.6"],
+      "soc2_mapping": [
+        "CC6.6"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -473,7 +535,9 @@
         "command": "for iface in $(ip -o link show | grep PROMISC | awk -F: '{print $2}'); do ip link set $iface promisc off; done",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -492,7 +556,9 @@
         "value": "1",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.6"],
+      "soc2_mapping": [
+        "CC6.6"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -511,8 +577,24 @@
         "command": "echo 'Set listen_addresses in postgresql.conf to localhost or specific private IPs'",
         "risk": "high"
       },
-      "soc2_mapping": ["CC6.1", "CC6.6"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.6"
+      ],
       "cci": "CCI-000366"
     }
-  ]
+  ],
+  "compliance_info": {
+    "required_by": [
+      "All networked environments",
+      "PCI DSS merchants",
+      "Remote access providers",
+      "Multi-tenant infrastructure"
+    ],
+    "threshold_percent": 80,
+    "threshold_label": "80% minimum for network security baseline",
+    "why": "Network misconfigurations (open ports, weak TLS, missing firewall rules) are the most common attack vector. These checks ensure defense-in-depth at the network layer \u2014 the first line of defense before any application security matters.",
+    "certification": "Network Security STIG / CIS Network Controls",
+    "penalty": "Unauthorized access, data breaches, failed penetration tests, PCI DSS non-compliance"
+  }
 }

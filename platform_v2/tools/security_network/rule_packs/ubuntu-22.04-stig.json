@@ -23,7 +23,10 @@
         "restart_service": "sshd",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1", "CC6.7"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.7"
+      ],
       "cci": "CCI-001453"
     },
     {
@@ -44,7 +47,9 @@
         "restart_service": "sshd",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-001453"
     },
     {
@@ -65,7 +70,10 @@
         "restart_service": "sshd",
         "risk": "high"
       },
-      "soc2_mapping": ["CC6.1", "CC6.2"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.2"
+      ],
       "cci": "CCI-000770"
     },
     {
@@ -86,7 +94,9 @@
         "restart_service": "sshd",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000766"
     },
     {
@@ -107,7 +117,9 @@
         "restart_service": "sshd",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000044"
     },
     {
@@ -128,7 +140,9 @@
         "restart_service": "sshd",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-001941"
     },
     {
@@ -149,7 +163,9 @@
         "restart_service": "sshd",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -170,7 +186,9 @@
         "restart_service": "sshd",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-001133"
     },
     {
@@ -191,7 +209,9 @@
         "restart_service": "sshd",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-001133"
     },
     {
@@ -212,7 +232,9 @@
         "restart_service": "sshd",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -232,7 +254,9 @@
         "line": "minlen = 14",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000205"
     },
     {
@@ -252,7 +276,9 @@
         "line": "ucredit = -1",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000192"
     },
     {
@@ -272,7 +298,9 @@
         "line": "lcredit = -1",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000193"
     },
     {
@@ -292,7 +320,9 @@
         "line": "dcredit = -1",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000194"
     },
     {
@@ -312,7 +342,9 @@
         "line": "ocredit = -1",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-001619"
     },
     {
@@ -332,7 +364,9 @@
         "line": "difok = 8",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000195"
     },
     {
@@ -351,7 +385,9 @@
         "command": "sed -i '/pam_unix.so/ s/$/ remember=5/' /etc/pam.d/common-password",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000200"
     },
     {
@@ -370,7 +406,9 @@
         "command": "echo 'auth required pam_faillock.so preauth deny=3 unlock_time=600 audit' >> /etc/pam.d/common-auth",
         "risk": "high"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000044"
     },
     {
@@ -389,7 +427,10 @@
         "command": "echo '-w /var/log/lastlog -p wa -k logins' >> /etc/audit/rules.d/audit.rules && echo '-w /var/run/faillock -p wa -k logins' >> /etc/audit/rules.d/audit.rules && augenrules --load",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC7.2"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC7.2"
+      ],
       "cci": "CCI-000172"
     },
     {
@@ -408,7 +449,10 @@
         "command": "echo '-a always,exit -F path=/usr/bin/sudo -F perm=x -F auid>=1000 -F auid!=4294967295 -k priv_cmd' >> /etc/audit/rules.d/audit.rules && augenrules --load",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC7.2"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC7.2"
+      ],
       "cci": "CCI-000135"
     },
     {
@@ -427,7 +471,10 @@
         "command": "echo '-a always,exit -F arch=b64 -S unlink,unlinkat,rename,renameat -F auid>=1000 -F auid!=4294967295 -k delete' >> /etc/audit/rules.d/audit.rules && augenrules --load",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC7.2"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC7.2"
+      ],
       "cci": "CCI-000172"
     },
     {
@@ -446,7 +493,10 @@
         "command": "echo '-a always,exit -F arch=b64 -S chmod,fchmod,fchmodat -F auid>=1000 -F auid!=4294967295 -k perm_mod' >> /etc/audit/rules.d/audit.rules && augenrules --load",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC7.2"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC7.2"
+      ],
       "cci": "CCI-000172"
     },
     {
@@ -465,7 +515,9 @@
         "command": "chown root:root /var/log/audit && chmod 750 /var/log/audit",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000162"
     },
     {
@@ -484,7 +536,10 @@
         "action": "enable --now",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC7.2"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC7.2"
+      ],
       "cci": "CCI-000169"
     },
     {
@@ -503,7 +558,10 @@
         "command": "echo '-a always,exit -F arch=b64 -S chown,fchown,lchown,fchownat -F auid>=1000 -F auid!=4294967295 -k owner_mod' >> /etc/audit/rules.d/audit.rules && augenrules --load",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC7.2"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC7.2"
+      ],
       "cci": "CCI-000172"
     },
     {
@@ -522,7 +580,10 @@
         "command": "echo '-w /sbin/insmod -p x -k modules' >> /etc/audit/rules.d/audit.rules && echo '-w /sbin/modprobe -p x -k modules' >> /etc/audit/rules.d/audit.rules && augenrules --load",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC7.2"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC7.2"
+      ],
       "cci": "CCI-000172"
     },
     {
@@ -541,7 +602,9 @@
         "value": "0",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -560,7 +623,9 @@
         "value": "2",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -580,7 +645,9 @@
         "value": "0",
         "risk": "high"
       },
-      "soc2_mapping": ["CC6.6"],
+      "soc2_mapping": [
+        "CC6.6"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -599,7 +666,9 @@
         "value": "0",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.6"],
+      "soc2_mapping": [
+        "CC6.6"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -618,7 +687,9 @@
         "value": "0",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.6"],
+      "soc2_mapping": [
+        "CC6.6"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -637,7 +708,10 @@
         "value": "1",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.6", "CC7.1"],
+      "soc2_mapping": [
+        "CC6.6",
+        "CC7.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -656,7 +730,9 @@
         "value": "0",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.6"],
+      "soc2_mapping": [
+        "CC6.6"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -675,7 +751,10 @@
         "value": "1",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.6", "CC7.2"],
+      "soc2_mapping": [
+        "CC6.6",
+        "CC7.2"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -695,7 +774,9 @@
         "command": "chmod 640 /etc/shadow && chown root:shadow /etc/shadow",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -715,7 +796,9 @@
         "command": "chmod 644 /etc/passwd && chown root:root /etc/passwd",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -735,7 +818,9 @@
         "command": "chmod 644 /etc/group && chown root:root /etc/group",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -755,7 +840,9 @@
         "command": "chmod 640 /etc/gshadow && chown root:shadow /etc/gshadow",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -775,7 +862,9 @@
         "command": "chmod 600 /etc/ssh/sshd_config && chown root:root /etc/ssh/sshd_config",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -794,7 +883,9 @@
         "command": "chmod 600 /boot/grub/grub.cfg && chown root:root /boot/grub/grub.cfg",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -814,7 +905,9 @@
         "command": "chmod 755 /var/log && chown root:syslog /var/log",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -833,7 +926,9 @@
         "command": "chmod 600 /etc/crontab && chown root:root /etc/crontab",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -851,7 +946,10 @@
         "command": "apt-get remove -y telnetd 2>/dev/null; apt-get autoremove -y",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC6.7"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.7"
+      ],
       "cci": "CCI-000381"
     },
     {
@@ -869,7 +967,9 @@
         "command": "apt-get remove -y rsh-server 2>/dev/null; apt-get autoremove -y",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000381"
     },
     {
@@ -887,7 +987,9 @@
         "command": "apt-get remove -y nis 2>/dev/null; apt-get autoremove -y",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000381"
     },
     {
@@ -906,7 +1008,9 @@
         "command": "systemctl stop rsync 2>/dev/null; systemctl disable rsync 2>/dev/null; systemctl mask rsync",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000381"
     },
     {
@@ -925,7 +1029,9 @@
         "command": "systemctl stop avahi-daemon 2>/dev/null; systemctl disable avahi-daemon 2>/dev/null",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000381"
     },
     {
@@ -944,7 +1050,9 @@
         "command": "systemctl stop cups 2>/dev/null; systemctl disable cups 2>/dev/null",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000381"
     },
     {
@@ -963,7 +1071,10 @@
         "command": "ufw --force enable",
         "risk": "high"
       },
-      "soc2_mapping": ["CC6.1", "CC6.6"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.6"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -982,7 +1093,9 @@
         "command": "apt-get install -y chrony && systemctl enable --now chrony",
         "risk": "low"
       },
-      "soc2_mapping": ["CC7.2"],
+      "soc2_mapping": [
+        "CC7.2"
+      ],
       "cci": "CCI-001891"
     },
     {
@@ -1001,8 +1114,23 @@
         "command": "systemctl enable --now apparmor",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1", "CC6.3"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.3"
+      ],
       "cci": "CCI-001764"
     }
-  ]
+  ],
+  "compliance_info": {
+    "required_by": [
+      "DoD/Military contractors",
+      "Federal agencies (FedRAMP)",
+      "Government suppliers"
+    ],
+    "threshold_percent": 85,
+    "threshold_label": "85% minimum for ATO (Authority to Operate)",
+    "why": "DISA STIGs are mandatory for any system processing government data. Failure to comply can result in loss of contracts, denied Authority to Operate (ATO), or security incidents that lead to legal liability.",
+    "certification": "DISA STIG Compliance",
+    "penalty": "Loss of ATO, contract termination, security incident liability"
+  }
 }

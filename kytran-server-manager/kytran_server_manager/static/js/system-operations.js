@@ -1499,16 +1499,16 @@ async function loadDisks() {
     try {
         const res = await fetch('/dashboard/api/disks');
         const json = await res.json();
-        if (json.success) {
+        if (json.success && json.data) {
             // Only render container data if host monitor hasn't provided better data
             if (!hostStorageLoaded) {
-                renderPartitions(json.data.partitions || []);
-                renderRaid(json.data.raid);
-                renderLVM(json.data.lvm);
+                if (json.data.partitions) renderPartitions(json.data.partitions);
+                if (json.data.raid) renderRaid(json.data.raid);
+                if (json.data.lvm) renderLVM(json.data.lvm);
             }
         }
     } catch (e) {
-        console.error('Disks error:', e);
+        // Disk rendering is non-critical — don't spam console
     }
 }
 

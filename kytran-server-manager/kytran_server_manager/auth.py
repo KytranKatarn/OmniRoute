@@ -4,7 +4,11 @@ import bcrypt
 from flask import request, redirect, render_template, flash, jsonify
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from functools import wraps
+from werkzeug.utils import secure_filename
 from .db import get_db
+
+VALID_THEMES = ("kytran", "lcars", "midnight", "arctic", "ember")
+ALLOWED_LOGO_EXTENSIONS = {"png", "jpg", "jpeg", "svg", "webp"}
 
 login_manager = LoginManager()
 
@@ -106,7 +110,7 @@ def register_auth_routes(app):
     @login_required
     def set_theme():
         theme = request.json.get("theme", "kytran")
-        if theme not in ("kytran", "lcars"):
+        if theme not in VALID_THEMES:
             return jsonify({"success": False, "error": "Invalid theme"}), 400
 
         # Update the theme and regenerate CSS
@@ -151,5 +155,36 @@ def register_auth_routes(app):
         db.close()
         flash("Password updated successfully", "success")
         return redirect("/settings")
+
+    @app.route("/settings/logo", methods=["POST"])
+    @login_required
+    def upload_logo():
+        if "logo" not in request.files:
+            return jsonify({"success": False, "error": "No file provided"}), 400
+        file = request.files["logo"]
+        if not file.filename:
+            return jsonify({"success": False, "error": "No file selected"}), 400
+        ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+        if ext not in ALLOWED_LOGO_EXTENSIONS:
+            return jsonify({"success": False, "error": f"Invalid file type. Allowed: {', '.join(ALLOWED_LOGO_EXTENSIONS)}"}), 400
+        filename = secure_filename(f"custom-logo.{ext}")
+        logo_dir = os.path.join(app.static_folder, "img")
+        os.makedirs(logo_dir, exist_ok=True)
+        filepath = os.path.join(logo_dir, filename)
+        file.save(filepath)
+        logo_url = f"/static/img/{filename}"
+
+        # Store in DB
+        db = get_db()
+        db.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+        db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('custom_logo', ?)", (logo_url,))
+        db.commit()
+        db.close()
+
+        # Update theme context
+        if "sysops_theme" in app.jinja_env.globals:
+            app.jinja_env.globals["sysops_theme"]["logo"] = logo_url
+
+        return jsonify({"success": True, "logo_url": logo_url})
 
     login_manager.login_view = "login"

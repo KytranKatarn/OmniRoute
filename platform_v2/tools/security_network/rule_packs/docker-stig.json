@@ -21,7 +21,10 @@
         "command": "echo 'Docker daemon should only listen on unix socket. Remove -H tcp:// from daemon args.'",
         "risk": "high"
       },
-      "soc2_mapping": ["CC6.1", "CC6.7"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.7"
+      ],
       "cci": "CCI-001453"
     },
     {
@@ -39,7 +42,10 @@
         "command": "jq '. + {\"userns-remap\": \"default\"}' /etc/docker/daemon.json > /tmp/daemon.json && mv /tmp/daemon.json /etc/docker/daemon.json && systemctl restart docker",
         "risk": "high"
       },
-      "soc2_mapping": ["CC6.1", "CC6.3"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.3"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -57,7 +63,9 @@
         "command": "jq '. + {\"live-restore\": true}' /etc/docker/daemon.json > /tmp/daemon.json && mv /tmp/daemon.json /etc/docker/daemon.json && systemctl restart docker",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC7.1"],
+      "soc2_mapping": [
+        "CC7.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -75,7 +83,9 @@
         "command": "jq '. + {\"default-ulimits\": {\"nofile\": {\"Name\": \"nofile\", \"Hard\": 65536, \"Soft\": 32768}}}' /etc/docker/daemon.json > /tmp/daemon.json && mv /tmp/daemon.json /etc/docker/daemon.json && systemctl restart docker",
         "risk": "low"
       },
-      "soc2_mapping": ["CC7.1"],
+      "soc2_mapping": [
+        "CC7.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -94,7 +104,9 @@
         "command": "echo 'Create custom networks with: docker network create --driver bridge my-net'",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.6"],
+      "soc2_mapping": [
+        "CC6.6"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -112,7 +124,10 @@
         "command": "jq '. + {\"icc\": false}' /etc/docker/daemon.json > /tmp/daemon.json && mv /tmp/daemon.json /etc/docker/daemon.json && systemctl restart docker",
         "risk": "high"
       },
-      "soc2_mapping": ["CC6.1", "CC6.6"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.6"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -130,7 +145,9 @@
         "command": "jq '. + {\"log-driver\": \"json-file\"}' /etc/docker/daemon.json > /tmp/daemon.json && mv /tmp/daemon.json /etc/docker/daemon.json && systemctl restart docker",
         "risk": "low"
       },
-      "soc2_mapping": ["CC7.2"],
+      "soc2_mapping": [
+        "CC7.2"
+      ],
       "cci": "CCI-000169"
     },
     {
@@ -148,7 +165,10 @@
         "command": "jq '. + {\"log-opts\": {\"max-size\": \"50m\", \"max-file\": \"5\"}}' /etc/docker/daemon.json > /tmp/daemon.json && mv /tmp/daemon.json /etc/docker/daemon.json && systemctl restart docker",
         "risk": "low"
       },
-      "soc2_mapping": ["CC7.1", "CC7.2"],
+      "soc2_mapping": [
+        "CC7.1",
+        "CC7.2"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -166,7 +186,9 @@
         "command": "jq '. + {\"storage-driver\": \"overlay2\"}' /etc/docker/daemon.json > /tmp/daemon.json && mv /tmp/daemon.json /etc/docker/daemon.json && systemctl restart docker",
         "risk": "high"
       },
-      "soc2_mapping": ["CC7.1"],
+      "soc2_mapping": [
+        "CC7.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -184,7 +206,10 @@
         "command": "jq '. + {\"insecure-registries\": []}' /etc/docker/daemon.json > /tmp/daemon.json && mv /tmp/daemon.json /etc/docker/daemon.json && systemctl restart docker",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1", "CC6.7"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.7"
+      ],
       "cci": "CCI-001453"
     },
     {
@@ -203,7 +228,10 @@
         "command": "echo 'Review and recreate containers without --privileged. Use specific capabilities instead.'",
         "risk": "high"
       },
-      "soc2_mapping": ["CC6.1", "CC6.3"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.3"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -222,7 +250,10 @@
         "command": "echo 'Remove docker.sock mounts from container configurations. Use Docker API proxy if needed.'",
         "risk": "high"
       },
-      "soc2_mapping": ["CC6.1", "CC6.3"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.3"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -241,7 +272,9 @@
         "command": "echo 'Recreate containers with bridge or custom network instead of --network=host'",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.6"],
+      "soc2_mapping": [
+        "CC6.6"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -260,7 +293,9 @@
         "command": "echo 'Recreate containers without --pid=host'",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -279,7 +314,10 @@
         "command": "echo 'Recreate containers with --cap-drop=all --cap-add=<needed_caps>'",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1", "CC6.3"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.3"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -298,7 +336,9 @@
         "command": "echo 'Add HEALTHCHECK instructions to Dockerfiles or use --health-cmd in docker run'",
         "risk": "low"
       },
-      "soc2_mapping": ["CC7.1"],
+      "soc2_mapping": [
+        "CC7.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -317,7 +357,9 @@
         "command": "echo 'Recreate containers with --restart=unless-stopped'",
         "risk": "low"
       },
-      "soc2_mapping": ["CC7.1"],
+      "soc2_mapping": [
+        "CC7.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -336,7 +378,9 @@
         "command": "echo 'Recreate containers with --memory=<limit> (e.g., --memory=2g)'",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC7.1"],
+      "soc2_mapping": [
+        "CC7.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -355,7 +399,9 @@
         "command": "echo 'Recreate containers with --cpu-shares=<weight> (e.g., --cpu-shares=512)'",
         "risk": "low"
       },
-      "soc2_mapping": ["CC7.1"],
+      "soc2_mapping": [
+        "CC7.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -374,7 +420,9 @@
         "command": "echo 'Recreate containers with --read-only and use tmpfs for writable paths'",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -393,7 +441,10 @@
         "command": "echo 'Pin all images to specific tags or SHA256 digests in docker-compose.yml'",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC8.1"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC8.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -412,7 +463,10 @@
         "command": "echo 'DOCKER_CONTENT_TRUST=1' >> /etc/environment",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1", "CC8.1"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC8.1"
+      ],
       "cci": "CCI-001749"
     },
     {
@@ -431,7 +485,9 @@
         "command": "chmod 660 /var/run/docker.sock && chown root:docker /var/run/docker.sock",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -451,7 +507,9 @@
         "command": "chmod 755 /etc/docker && chown root:root /etc/docker",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -471,7 +529,9 @@
         "command": "chmod 644 /etc/docker/daemon.json && chown root:root /etc/docker/daemon.json",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -491,7 +551,9 @@
         "action": "enable --now",
         "risk": "low"
       },
-      "soc2_mapping": ["CC7.1"],
+      "soc2_mapping": [
+        "CC7.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -510,7 +572,10 @@
         "command": "echo 'Use Docker secrets or bind-mounted config files instead of env variables for sensitive data'",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1", "CC6.7"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.7"
+      ],
       "cci": "CCI-000196"
     },
     {
@@ -529,7 +594,9 @@
         "command": "docker image prune -f",
         "risk": "low"
       },
-      "soc2_mapping": ["CC7.1"],
+      "soc2_mapping": [
+        "CC7.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -547,7 +614,9 @@
         "command": "jq '. + {\"default-pids-limit\": 200}' /etc/docker/daemon.json > /tmp/daemon.json && mv /tmp/daemon.json /etc/docker/daemon.json && systemctl restart docker",
         "risk": "low"
       },
-      "soc2_mapping": ["CC7.1"],
+      "soc2_mapping": [
+        "CC7.1"
+      ],
       "cci": "CCI-000366"
     },
     {
@@ -566,8 +635,24 @@
         "command": "echo 'Ensure Docker is built with seccomp support and default profile is not disabled'",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1", "CC6.3"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.3"
+      ],
       "cci": "CCI-000366"
     }
-  ]
+  ],
+  "compliance_info": {
+    "required_by": [
+      "Container-based deployments",
+      "Kubernetes operators",
+      "DevSecOps teams",
+      "SOC 2 / PCI DSS environments"
+    ],
+    "threshold_percent": 75,
+    "threshold_label": "75% minimum for container security baseline",
+    "why": "Container misconfigurations are the #1 cause of cloud breaches. Docker STIGs cover resource limits, secrets management, image provenance, and network isolation. Running containers without these controls is like running servers without firewalls.",
+    "certification": "CIS Docker Benchmark / DISA Container STIG",
+    "penalty": "Container escapes, lateral movement, data exfiltration, compliance violations"
+  }
 }

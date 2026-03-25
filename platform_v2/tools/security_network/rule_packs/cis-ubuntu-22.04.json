@@ -1,7 +1,7 @@
 {
   "pack_id": "cis-ubuntu-22.04",
   "name": "CIS Ubuntu 22.04 Benchmark",
-  "description": "Center for Internet Security Benchmark for Ubuntu 22.04 LTS — enterprise-grade hardening rules",
+  "description": "Center for Internet Security Benchmark for Ubuntu 22.04 LTS \u2014 enterprise-grade hardening rules",
   "version": "1.0",
   "category": "os",
   "source": "CIS",
@@ -22,7 +22,9 @@
         "command": "echo 'install cramfs /bin/true' >> /etc/modprobe.d/CIS.conf && rmmod cramfs 2>/dev/null; true",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cis_section": "1.1.1"
     },
     {
@@ -41,7 +43,9 @@
         "command": "echo 'install squashfs /bin/true' >> /etc/modprobe.d/CIS.conf && rmmod squashfs 2>/dev/null; true",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cis_section": "1.1.2"
     },
     {
@@ -60,7 +64,9 @@
         "command": "echo 'install udf /bin/true' >> /etc/modprobe.d/CIS.conf && rmmod udf 2>/dev/null; true",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cis_section": "1.1.3"
     },
     {
@@ -79,7 +85,10 @@
         "command": "echo 'tmpfs /tmp tmpfs defaults,rw,nosuid,nodev,noexec,relatime,size=2G 0 0' >> /etc/fstab && mount -o remount /tmp 2>/dev/null; true",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1", "CC7.1"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC7.1"
+      ],
       "cis_section": "1.1.4"
     },
     {
@@ -98,7 +107,9 @@
         "command": "mount -o remount,noexec /tmp 2>/dev/null; true",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cis_section": "1.1.5"
     },
     {
@@ -117,7 +128,9 @@
         "command": "mount -o remount,nosuid /tmp 2>/dev/null; true",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cis_section": "1.1.6"
     },
     {
@@ -136,7 +149,9 @@
         "command": "mount -o remount,nodev /tmp 2>/dev/null; true",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cis_section": "1.1.7"
     },
     {
@@ -155,7 +170,10 @@
         "command": "echo 'INFO: /var partition must be configured during OS installation or via LVM migration'",
         "risk": "high"
       },
-      "soc2_mapping": ["CC6.1", "CC7.1"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC7.1"
+      ],
       "cis_section": "1.1.8"
     },
     {
@@ -174,7 +192,10 @@
         "value": "0",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC6.6"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.6"
+      ],
       "cis_section": "3.1.1"
     },
     {
@@ -193,7 +214,10 @@
         "value": "0",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC6.6"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.6"
+      ],
       "cis_section": "3.1.2"
     },
     {
@@ -212,7 +236,10 @@
         "value": "0",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC6.6"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.6"
+      ],
       "cis_section": "3.2.1"
     },
     {
@@ -231,7 +258,10 @@
         "value": "0",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC6.6"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.6"
+      ],
       "cis_section": "3.2.2"
     },
     {
@@ -250,7 +280,10 @@
         "value": "0",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC6.6"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.6"
+      ],
       "cis_section": "3.2.3"
     },
     {
@@ -269,7 +302,10 @@
         "value": "1",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC7.2"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC7.2"
+      ],
       "cis_section": "3.2.4"
     },
     {
@@ -288,7 +324,10 @@
         "value": "0",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC6.6"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.6"
+      ],
       "cis_section": "3.3.1"
     },
     {
@@ -307,7 +346,10 @@
         "value": "0",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC6.6"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.6"
+      ],
       "cis_section": "3.3.2"
     },
     {
@@ -324,7 +366,11 @@
         "command": "apt-get install -y auditd audispd-plugins",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC7.2", "CC7.3"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC7.2",
+        "CC7.3"
+      ],
       "cis_section": "4.1.1"
     },
     {
@@ -343,7 +389,10 @@
         "command": "systemctl enable --now auditd",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC7.2"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC7.2"
+      ],
       "cis_section": "4.1.2"
     },
     {
@@ -364,7 +413,10 @@
         "restart_service": "auditd",
         "risk": "low"
       },
-      "soc2_mapping": ["CC7.2", "CC7.3"],
+      "soc2_mapping": [
+        "CC7.2",
+        "CC7.3"
+      ],
       "cis_section": "4.1.3"
     },
     {
@@ -381,7 +433,10 @@
         "command": "apt-get install -y rsyslog",
         "risk": "low"
       },
-      "soc2_mapping": ["CC7.2", "CC7.3"],
+      "soc2_mapping": [
+        "CC7.2",
+        "CC7.3"
+      ],
       "cis_section": "4.2.1"
     },
     {
@@ -400,7 +455,9 @@
         "command": "systemctl enable --now rsyslog",
         "risk": "low"
       },
-      "soc2_mapping": ["CC7.2"],
+      "soc2_mapping": [
+        "CC7.2"
+      ],
       "cis_section": "4.2.2"
     },
     {
@@ -421,7 +478,10 @@
         "restart_service": "rsyslog",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC7.2"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC7.2"
+      ],
       "cis_section": "4.2.3"
     },
     {
@@ -442,7 +502,9 @@
         "restart_service": "systemd-journald",
         "risk": "low"
       },
-      "soc2_mapping": ["CC7.2"],
+      "soc2_mapping": [
+        "CC7.2"
+      ],
       "cis_section": "4.2.4"
     },
     {
@@ -458,10 +520,14 @@
       },
       "fix": {
         "type": "command",
-        "command": "echo 'INFO: Configure remote syslog destination in /etc/rsyslog.conf — *.* @@<remote-host>:514'",
+        "command": "echo 'INFO: Configure remote syslog destination in /etc/rsyslog.conf \u2014 *.* @@<remote-host>:514'",
         "risk": "high"
       },
-      "soc2_mapping": ["CC7.2", "CC7.3", "CC7.4"],
+      "soc2_mapping": [
+        "CC7.2",
+        "CC7.3",
+        "CC7.4"
+      ],
       "cis_section": "4.2.5"
     },
     {
@@ -480,7 +546,9 @@
         "command": "systemctl enable --now cron",
         "risk": "low"
       },
-      "soc2_mapping": ["CC7.1"],
+      "soc2_mapping": [
+        "CC7.1"
+      ],
       "cis_section": "5.1.1"
     },
     {
@@ -498,7 +566,9 @@
         "command": "chown root:root /etc/crontab && chmod 0600 /etc/crontab",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cis_section": "5.1.2"
     },
     {
@@ -515,7 +585,11 @@
         "command": "apt-get install -y sudo",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC6.2", "CC6.3"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.2",
+        "CC6.3"
+      ],
       "cis_section": "5.2.1"
     },
     {
@@ -534,7 +608,10 @@
         "command": "echo 'Defaults logfile=\"/var/log/sudo.log\"' >> /etc/sudoers.d/cis-logging",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC7.2"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC7.2"
+      ],
       "cis_section": "5.2.2"
     },
     {
@@ -553,7 +630,10 @@
         "command": "apt-get install -y libpam-pwquality && sed -i 's/^# minlen.*/minlen = 14/' /etc/security/pwquality.conf",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC6.2"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.2"
+      ],
       "cis_section": "5.3.1"
     },
     {
@@ -572,7 +652,10 @@
         "command": "echo 'deny = 5' >> /etc/security/faillock.conf && echo 'unlock_time = 900' >> /etc/security/faillock.conf",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC6.2"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.2"
+      ],
       "cis_section": "5.3.2"
     },
     {
@@ -591,7 +674,10 @@
         "command": "echo 'password required pam_pwhistory.so remember=24' >> /etc/pam.d/common-password",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1", "CC6.2"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.2"
+      ],
       "cis_section": "5.3.3"
     },
     {
@@ -611,7 +697,10 @@
         "line": "PASS_MAX_DAYS 365",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1", "CC6.2"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.2"
+      ],
       "cis_section": "5.4.1"
     },
     {
@@ -629,7 +718,9 @@
         "command": "chmod 644 /etc/passwd && chown root:root /etc/passwd",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cis_section": "6.1.1"
     },
     {
@@ -647,7 +738,9 @@
         "command": "chmod 640 /etc/shadow && chown root:shadow /etc/shadow",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cis_section": "6.1.2"
     },
     {
@@ -665,7 +758,9 @@
         "command": "chmod 644 /etc/group && chown root:root /etc/group",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cis_section": "6.1.3"
     },
     {
@@ -683,7 +778,9 @@
         "command": "chmod 640 /etc/gshadow && chown root:shadow /etc/gshadow",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cis_section": "6.1.4"
     },
     {
@@ -702,7 +799,9 @@
         "command": "find / -xdev -type f -perm -0002 -exec chmod o-w {} \\;",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cis_section": "6.1.5"
     },
     {
@@ -718,10 +817,13 @@
       },
       "fix": {
         "type": "command",
-        "command": "echo 'INFO: Lock accounts with empty passwords — passwd -l <username>'",
+        "command": "echo 'INFO: Lock accounts with empty passwords \u2014 passwd -l <username>'",
         "risk": "medium"
       },
-      "soc2_mapping": ["CC6.1", "CC6.2"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.2"
+      ],
       "cis_section": "6.2.1"
     },
     {
@@ -737,10 +839,14 @@
       },
       "fix": {
         "type": "command",
-        "command": "echo 'INFO: Investigate and remove additional UID 0 accounts — awk -F: ($3==0) /etc/passwd'",
+        "command": "echo 'INFO: Investigate and remove additional UID 0 accounts \u2014 awk -F: ($3==0) /etc/passwd'",
         "risk": "high"
       },
-      "soc2_mapping": ["CC6.1", "CC6.2", "CC6.3"],
+      "soc2_mapping": [
+        "CC6.1",
+        "CC6.2",
+        "CC6.3"
+      ],
       "cis_section": "6.2.2"
     },
     {
@@ -759,8 +865,23 @@
         "command": "echo 'INFO: Create missing home directories with mkhomedir_helper or mkdir -p'",
         "risk": "low"
       },
-      "soc2_mapping": ["CC6.1"],
+      "soc2_mapping": [
+        "CC6.1"
+      ],
       "cis_section": "6.2.3"
     }
-  ]
+  ],
+  "compliance_info": {
+    "required_by": [
+      "SOC 2 Type II audits",
+      "ISO 27001 certified orgs",
+      "PCI DSS merchants",
+      "Cyber insurance providers"
+    ],
+    "threshold_percent": 80,
+    "threshold_label": "80% recommended for CIS Level 1 compliance",
+    "why": "CIS Benchmarks are the industry gold standard for system hardening. Most cyber insurance policies and SOC 2 audits reference CIS controls. Scoring below 80% often triggers audit findings or increased insurance premiums.",
+    "certification": "CIS Level 1 Benchmark",
+    "penalty": "SOC 2 audit findings, insurance premium increases, failed penetration tests"
+  }
 }

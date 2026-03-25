@@ -182,6 +182,8 @@ services:
       - ./credentials:/app/credentials:rw
       # Browser automation screenshots (Project Autonomy Phase 4)
       - ./platform_v2/static/screenshots:/app/static/screenshots:rw
+      # ── Standalone Products (read-only for Code Health scanner) ──
+      - ./kytran-server-manager:/mnt/archie_brain/kytran-server-manager:ro
     ports:
       - "3000:3000"
     networks:

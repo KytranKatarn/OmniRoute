@@ -3930,18 +3930,59 @@ class AgentLoop:
             logger.warning(f"Failed: {e}")
 
     def _run_scheduled_compliance_scan(self):
-        """Job #57: Run STIG compliance scan every 6 hours."""
+        """Job #57: Run STIG compliance scan every 6 hours + auto-collect SOC 2 evidence."""
         try:
-            from tools.security_network.compliance_service import run_scan
+            from tools.security_network.compliance_service import (
+                run_scan,
+                collect_evidence,
+            )
 
             result = run_scan(triggered_by="scheduled")
             score = result.get("score", 0)
+            scan_id = result.get("scan_id")
             logger.info(
                 "Scheduled compliance scan complete: %.1f%% (%d/%d passed)",
                 score,
                 result.get("passed", 0),
                 result.get("total", 0),
             )
+
+            # Auto-collect SOC 2 evidence after each scan
+            try:
+                ev = collect_evidence(scan_id=scan_id)
+                logger.info(
+                    "SOC 2 evidence auto-collected: %d artifacts stored",
+                    ev.get("stored", 0),
+                )
+            except Exception as ev_err:
+                logger.warning("SOC 2 evidence collection failed: %s", ev_err)
+
+            # Score change detection — notify on Telegram if score changed
+            try:
+                from database import get_db_cursor
+
+                with get_db_cursor() as (conn, cur):
+                    cur.execute(
+                        """
+                        SELECT score FROM compliance_scans
+                        WHERE completed_at IS NOT NULL
+                        ORDER BY started_at DESC LIMIT 2
+                    """
+                    )
+                    rows = cur.fetchall()
+                    if len(rows) >= 2:
+                        new_score = float(rows[0]["score"])
+                        old_score = float(rows[1]["score"])
+                        if abs(new_score - old_score) >= 0.5:
+                            direction = "\u2B06" if new_score > old_score else "\u2B07"
+                            self._send_notification(
+                                f"Compliance {direction} {old_score}% \u2192 {new_score}%",
+                                "info"
+                                if new_score >= old_score
+                                else "warning",
+                            )
+            except Exception:
+                pass  # Non-critical
         except Exception as e:
             logger.error("Scheduled compliance scan failed: %s", e)
 

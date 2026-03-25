@@ -74,6 +74,22 @@ def register_compliance_routes(bp, admin_required_decorator):
             logger.error("Failed to get scores: %s", exc)
             return jsonify({"error": str(exc)}), 500
 
+    @bp.route("/api/compliance/soc2", methods=["GET"])
+    @login_required
+    @admin_required_decorator
+    def compliance_soc2_scores():
+        """Get SOC 2 Trust Service Criteria scores and evidence freshness."""
+        scan_id = request.args.get("scan_id")
+        try:
+            result = compliance_service.get_soc2_scores(scan_id=scan_id)
+            if result is None:
+                return jsonify({"success": False, "message": "No scans yet"}), 404
+            result["success"] = True
+            return jsonify(result)
+        except Exception as exc:
+            logger.error("SOC 2 scores failed: %s", exc)
+            return jsonify({"error": str(exc)}), 500
+
     @bp.route("/api/compliance/packs", methods=["GET"])
     @login_required
     @admin_required_decorator

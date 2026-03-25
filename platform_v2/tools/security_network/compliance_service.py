@@ -1223,7 +1223,115 @@ def get_latest_scores():
         result["pack_scores"] = pack_scores
         result["last_scan"] = result.get("completed_at") or result.get("started_at")
         result["latest_scan_id"] = scan_id  # alias for JS compatibility
+
+        # SOC 2 score: computed from soc2_controls mappings on scan results
+        result["soc2"] = _compute_soc2_scores(cur, scan_id)
         return result
+
+
+def _compute_soc2_scores(cur, scan_id):
+    """Compute SOC 2 Trust Service Criteria scores from soc2_controls mappings."""
+    cur.execute(
+        """
+        SELECT unnest(soc2_controls) as control,
+               COUNT(*) as total,
+               SUM(CASE WHEN status = 'pass' THEN 1 ELSE 0 END) as passed
+        FROM compliance_scan_results
+        WHERE scan_id = %s AND soc2_controls IS NOT NULL
+        GROUP BY control
+        ORDER BY control
+        """,
+        (scan_id,),
+    )
+    controls = {}
+    for row in cur.fetchall():
+        ctrl = row["control"]
+        total = int(row["total"])
+        passed = int(row["passed"])
+        controls[ctrl] = {
+            "total": total,
+            "passed": passed,
+            "score": round((passed / total) * 100, 1) if total > 0 else 0,
+        }
+
+    # Map controls to Trust Service Criteria
+    tsc_map = {
+        "Security": ["CC6.1", "CC6.2", "CC6.3", "CC6.6", "CC6.7"],
+        "Availability": ["CC7.1", "CC7.2", "CC7.3", "CC7.4", "A1.1", "A1.2"],
+        "Processing Integrity": ["CC8.1", "PI1.3"],
+        "Confidentiality": ["C1.1", "C1.2"],
+        "Privacy": ["P1.1", "P1.2"],
+    }
+
+    criteria = {}
+    total_score = 0
+    total_weight = 0
+    for tsc_name, ctrl_ids in tsc_map.items():
+        tsc_total = 0
+        tsc_passed = 0
+        for cid in ctrl_ids:
+            if cid in controls:
+                tsc_total += controls[cid]["total"]
+                tsc_passed += controls[cid]["passed"]
+        score = round((tsc_passed / tsc_total) * 100, 1) if tsc_total > 0 else None
+        criteria[tsc_name] = {
+            "score": score,
+            "passed": tsc_passed,
+            "total": tsc_total,
+            "controls": [
+                {
+                    "id": cid,
+                    **(controls[cid] if cid in controls else {"total": 0, "passed": 0, "score": 0}),
+                }
+                for cid in ctrl_ids
+            ],
+        }
+        if score is not None:
+            total_score += score
+            total_weight += 1
+
+    overall = round(total_score / total_weight, 1) if total_weight > 0 else 0
+
+    # Evidence freshness
+    cur.execute(
+        """
+        SELECT artifact_type,
+               MAX(collected_at) as last_collected
+        FROM compliance_evidence
+        GROUP BY artifact_type
+        """
+    )
+    evidence_freshness = {}
+    for row in cur.fetchall():
+        last = row["last_collected"]
+        if last:
+            age_hours = (datetime.utcnow() - last).total_seconds() / 3600
+            evidence_freshness[row["artifact_type"]] = {
+                "last_collected": last.isoformat(),
+                "age_hours": round(age_hours, 1),
+                "fresh": age_hours < 720,  # 30 days
+            }
+
+    return {
+        "score": overall,
+        "criteria": criteria,
+        "controls": controls,
+        "evidence_freshness": evidence_freshness,
+    }
+
+
+def get_soc2_scores(scan_id=None):
+    """Public wrapper for SOC 2 scores. Uses latest scan if scan_id not provided."""
+    with get_db_cursor(commit=False) as (conn, cur):
+        if not scan_id:
+            cur.execute(
+                "SELECT scan_id FROM compliance_scans WHERE completed_at IS NOT NULL ORDER BY started_at DESC LIMIT 1"
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            scan_id = row["scan_id"]
+        return _compute_soc2_scores(cur, scan_id)
 
 
 def generate_ckl(scan_id):

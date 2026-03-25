@@ -5254,7 +5254,7 @@ function renderScoreCards(data) {
         name: p.name, score: p.score, passed: p.passed, total: p.total
     }))];
 
-    el.innerHTML = packs.map(p => {
+    let html = packs.map(p => {
         const color = _compScoreColor(p.score);
         const grade = _compGrade(p.score);
         return '<div class="comp-ring-card" style="--ring-color: ' + color + ';">'
@@ -5264,6 +5264,21 @@ function renderScoreCards(data) {
             + '<div class="ring-count">' + p.passed + ' / ' + p.total + ' passed</div>'
             + '</div>';
     }).join('');
+
+    /* SOC 2 score ring */
+    if (data.soc2 && data.soc2.score != null) {
+        const s2 = data.soc2;
+        const color = _compScoreColor(s2.score);
+        const grade = _compGrade(s2.score);
+        const covered = Object.keys(s2.criteria || {}).filter(k => s2.criteria[k].score != null).length;
+        html += '<div class="comp-ring-card" style="--ring-color: ' + color + '; border-color: rgba(59,130,246,0.2);">'
+            + '<div class="ring-label">SOC 2 Type II</div>'
+            + _buildRingSvg(s2.score, color, 90)
+            + '<div class="ring-grade" style="color: ' + color + ';">Grade: ' + grade + '</div>'
+            + '<div class="ring-count">' + covered + '/5 criteria covered</div>'
+            + '</div>';
+    }
+    el.innerHTML = html;
 }
 
 function renderFrameworks(data) {
@@ -5292,14 +5307,35 @@ function renderFrameworks(data) {
             + '</div>';
     }).join('');
 
-    /* SOC 2 placeholder if not in data */
-    if (!data.pack_scores['soc2']) {
+    /* SOC 2 — show real score if available */
+    if (data.soc2 && data.soc2.score != null) {
+        const s2 = data.soc2;
+        const s2color = _compScoreColor(s2.score);
+        const criteria = s2.criteria || {};
+        const tscNames = ['Security', 'Availability', 'Processing Integrity', 'Confidentiality', 'Privacy'];
+        let tscHtml = tscNames.map(name => {
+            const c = criteria[name];
+            if (!c || c.score == null) return '<span style="color:#475569;font-size:0.75rem;">' + _compEsc(name) + ': N/A</span>';
+            const cc = _compScoreColor(c.score);
+            return '<span style="color:' + cc + ';font-size:0.75rem;">' + _compEsc(name) + ': ' + c.score + '%</span>';
+        }).join(' \u00B7 ');
+
+        el.innerHTML += '<div class="comp-framework">'
+            + '<div class="comp-framework-top">'
+            + '<span class="comp-framework-name"><i class="fas fa-clipboard-check" style="color: ' + s2color + '; margin-right: 8px;"></i>SOC 2 Type II</span>'
+            + '<span class="comp-framework-score" style="color:' + s2color + ';">'
+            + '<span class="comp-framework-bar"><span class="comp-framework-bar-fill" style="width:' + s2.score + '%; background:' + s2color + ';"></span></span>'
+            + s2.score + '%</span>'
+            + '</div>'
+            + '<div class="comp-framework-meta">' + tscHtml + '</div>'
+            + '</div>';
+    } else {
         el.innerHTML += '<div class="comp-framework" style="opacity: 0.5;">'
             + '<div class="comp-framework-top">'
             + '<span class="comp-framework-name"><i class="fas fa-clipboard-check" style="color: #3b82f6; margin-right: 8px;"></i>SOC 2 Type II</span>'
-            + '<span class="comp-framework-score" style="color: #3b82f6;"><i class="fas fa-sync fa-spin" style="font-size: 0.7rem;"></i> Collecting</span>'
+            + '<span class="comp-framework-score" style="color: #3b82f6;">Run scan first</span>'
             + '</div>'
-            + '<div class="comp-framework-meta">Evidence collection \u00B7 5 Trust Service Criteria</div>'
+            + '<div class="comp-framework-meta">5 Trust Service Criteria \u00B7 Mapped from STIG/CIS/HIPAA rules</div>'
             + '</div>';
     }
 }
@@ -5504,7 +5540,8 @@ async function loadEvidenceStatus() {
         el.innerHTML = unique.map(i => {
             const collected = i.status === 'collected' || !!i.collected_at || !!i.data;
             const name = i.artifact_name || i.artifact_type || i.evidence_type || i.name || 'Unknown';
-            return _renderEvidenceItem(name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), collected);
+            const age = i.collected_at ? _evidenceAge(i.collected_at) : null;
+            return _renderEvidenceItem(name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), collected, age);
         }).join('');
     } catch (e) {
         /* Show defaults on error */
@@ -5513,10 +5550,23 @@ async function loadEvidenceStatus() {
     }
 }
 
-function _renderEvidenceItem(name, collected) {
+function _evidenceAge(isoDate) {
+    if (!isoDate) return null;
+    const ms = Date.now() - new Date(isoDate).getTime();
+    const hours = Math.floor(ms / 3600000);
+    if (hours < 1) return 'just now';
+    if (hours < 24) return hours + 'h ago';
+    const days = Math.floor(hours / 24);
+    if (days < 30) return days + 'd ago';
+    return Math.floor(days / 30) + 'mo ago';
+}
+
+function _renderEvidenceItem(name, collected, age) {
     const cls = collected ? 'collected' : 'pending';
     const icon = collected ? '<i class="fas fa-check-circle"></i>' : '<i class="far fa-circle"></i>';
-    return '<div class="comp-evidence-item ' + cls + '"><span class="ev-icon">' + icon + '</span> ' + _compEsc(name) + '</div>';
+    const stale = age && (age.includes('mo') || (age.includes('d') && parseInt(age) > 30));
+    const ageHtml = age ? '<span style="margin-left:auto;font-size:0.7rem;color:' + (stale ? '#ef4444' : '#475569') + ';">' + _compEsc(age) + (stale ? ' \u26A0' : '') + '</span>' : '';
+    return '<div class="comp-evidence-item ' + cls + '"><span class="ev-icon">' + icon + '</span> ' + _compEsc(name) + ageHtml + '</div>';
 }
 
 async function collectEvidence() {

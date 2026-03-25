@@ -39,5 +39,12 @@ dev = [
 [project.scripts]
 archie-engine = "archie_engine.__main__:main"
 
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["archie_engine*"]
+
+[tool.setuptools.package-data]
+"archie_engine" = ["skills/community/*.md"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

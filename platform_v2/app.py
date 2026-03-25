@@ -1790,6 +1790,11 @@ from tools.products.routes import products_bp  # noqa: E402
 
 app.register_blueprint(products_bp)
 
+# Compliance Badge API (public — no login required)
+from tools.security_network.badge_routes import badge_bp as compliance_badge_bp  # noqa: E402
+
+app.register_blueprint(compliance_badge_bp)
+
 # Public API — unauthenticated, read-only endpoints for kytranempowerment.com
 from public_api import public_api_bp  # noqa: E402
 

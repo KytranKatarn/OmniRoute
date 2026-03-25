@@ -497,6 +497,11 @@ def scan_codebase():
         result["total_files"] += stats["files"]
         result["total_lines"] += stats["lines"]
         result["total_folders"] += stats["folders"]
+        # Add standalone per-language stats to top-level totals
+        for lang, lang_stats in stats.get("by_type", {}).items():
+            if lang in result:
+                result[lang]["files"] += lang_stats.get("files", 0)
+                result[lang]["lines"] += lang_stats.get("lines", 0)
 
     return result
 

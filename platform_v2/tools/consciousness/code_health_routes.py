@@ -7,6 +7,8 @@ API endpoints for codebase metrics, audit progress, and snapshots.
 from flask import jsonify
 from flask_login import login_required
 
+from database import get_db_cursor
+
 
 def register_code_health_routes(bp, admin_required):
     @bp.route("/api/code-health/scan", methods=["POST"])
@@ -50,8 +52,6 @@ def register_code_health_routes(bp, admin_required):
     @login_required
     @admin_required
     def code_health_module_status():
-        from database import get_db_cursor
-
         modules = []
         summary = {"green": 0, "yellow": 0, "red": 0, "total": 0}
 
@@ -132,3 +132,52 @@ def register_code_health_routes(bp, admin_required):
 
         result = backfill_git_history()
         return jsonify(result)
+
+    @bp.route("/api/code-health/standalone-status")
+    @login_required
+    @admin_required
+    def code_health_standalone_status():
+        """Return standalone product metrics with compliance tier info."""
+        from services.code_metrics_service import STANDALONE_PRODUCTS, _get_standalone_stats
+
+        standalone_stats = _get_standalone_stats()
+        results = []
+        for product in STANDALONE_PRODUCTS:
+            key = product["module_key"]
+            stats = standalone_stats.get(key, {})
+
+            # Check compliance scan results if available
+            compliance_score = None
+            last_scan = None
+            try:
+                with get_db_cursor() as (conn, cur):
+                    cur.execute(
+                        """SELECT overall_score, scanned_at
+                           FROM compliance_scans
+                           WHERE scan_target = %s
+                           ORDER BY scanned_at DESC LIMIT 1""",
+                        (product["name"],),
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        compliance_score = float(row["overall_score"]) if row.get("overall_score") else None
+                        last_scan = row["scanned_at"].isoformat() if row.get("scanned_at") else None
+            except Exception:
+                pass
+
+            results.append(
+                {
+                    "name": product["name"],
+                    "module_key": key,
+                    "tier": product["tier"],
+                    "path": product["path"],
+                    "files": stats.get("files", 0),
+                    "lines": stats.get("lines", 0),
+                    "by_type": stats.get("by_type", {}),
+                    "compliance_score": compliance_score,
+                    "last_compliance_scan": last_scan,
+                    "compliance_packs": product.get("compliance_packs", []),
+                }
+            )
+
+        return jsonify({"success": True, "standalones": results})

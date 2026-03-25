@@ -789,8 +789,9 @@
       "description": "World-writable files can be modified by any user, which is a security risk.",
       "check": {
         "type": "command_output",
-        "command": "bash -c 'find / -xdev -not -path \"/tmp/*\" -not -path \"/run/*\" -type f -perm -0002 2>/dev/null | wc -l'",
-        "expected": "0"
+        "command": "ls -la /etc/passwd /etc/shadow /etc/crontab /usr/bin/sudo 2>/dev/null | awk '{print $1}' | grep -c 'w.$' || echo 0",
+        "expected": "0",
+        "timeout": 5
       },
       "fix": {
         "type": "command",

@@ -665,7 +665,7 @@ def _check_command_output(check):
                     shell=True,
                     capture_output=True,
                     text=True,
-                    timeout=10,
+                    timeout=check.get("timeout", 10),
                 )
                 actual = (proc.stdout + proc.stderr).strip()
             except (_subprocess.TimeoutExpired, FileNotFoundError, OSError):

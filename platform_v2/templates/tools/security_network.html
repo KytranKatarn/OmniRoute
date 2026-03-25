@@ -5249,7 +5249,7 @@ function renderScoreCards(data) {
     const el = document.getElementById('compliance-scores');
     if (!data.pack_scores) return;
 
-    const overall = { name: 'Overall', score: data.score, passed: data.passed, total: data.total };
+    const overall = { name: 'Overall', score: data.score, passed: data.passed, total: data.total || data.total_rules };
     const packs = [overall, ...Object.entries(data.pack_scores).map(([id, p]) => ({
         name: p.name, score: p.score, passed: p.passed, total: p.total
     }))];
@@ -5410,6 +5410,12 @@ async function loadScanHistory() {
         const scores = scans.map(s => s.score != null ? s.score : null);
 
         if (_compHistoryChart) { _compHistoryChart.destroy(); }
+        /* Also destroy any orphaned chart on this canvas */
+        const existingChart = Chart.getChart(canvas);
+        if (existingChart) { existingChart.destroy(); }
+
+        /* Parse scores to numbers (API returns strings) */
+        const numScores = scores.map(s => s != null ? parseFloat(s) : null);
 
         _compHistoryChart = new Chart(canvas, {
             type: 'line',
@@ -5417,12 +5423,12 @@ async function loadScanHistory() {
                 labels: labels,
                 datasets: [{
                     label: 'Compliance Score',
-                    data: scores,
+                    data: numScores,
                     borderColor: '#22c55e',
                     backgroundColor: 'rgba(34, 197, 94, 0.1)',
                     borderWidth: 2,
-                    pointBackgroundColor: scores.map(s => _compScoreColor(s || 0)),
-                    pointBorderColor: scores.map(s => _compScoreColor(s || 0)),
+                    pointBackgroundColor: numScores.map(s => _compScoreColor(s || 0)),
+                    pointBorderColor: numScores.map(s => _compScoreColor(s || 0)),
                     pointRadius: 4,
                     pointHoverRadius: 6,
                     fill: true,
@@ -5487,7 +5493,15 @@ async function loadEvidenceStatus() {
             return;
         }
 
-        el.innerHTML = items.map(i => {
+        /* Deduplicate by artifact_type — keep latest (first in desc order) */
+        const seen = new Set();
+        const unique = items.filter(i => {
+            const key = i.artifact_type || i.artifact_name || 'unknown';
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+        el.innerHTML = unique.map(i => {
             const collected = i.status === 'collected' || !!i.collected_at || !!i.data;
             const name = i.artifact_name || i.artifact_type || i.evidence_type || i.name || 'Unknown';
             return _renderEvidenceItem(name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), collected);

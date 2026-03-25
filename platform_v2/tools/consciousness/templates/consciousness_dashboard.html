@@ -2947,6 +2947,8 @@
                             <button onclick="chFilterHistory('1m')" class="ch-range-btn" data-range="1m" style="padding:3px 10px;border:1px solid rgba(139,92,246,0.4);background:transparent;color:#8b5cf6;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;">1M</button>
                             <button onclick="chFilterHistory('3m')" class="ch-range-btn" data-range="3m" style="padding:3px 10px;border:1px solid rgba(139,92,246,0.4);background:transparent;color:#8b5cf6;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;">3M</button>
                             <button onclick="chFilterHistory('all')" class="ch-range-btn active" data-range="all" style="padding:3px 10px;border:1px solid #8b5cf6;background:rgba(139,92,246,0.2);color:#8b5cf6;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;">ALL</button>
+                            <span style="width:1px;height:16px;background:rgba(255,255,255,0.15);margin:0 4px;"></span>
+                            <button id="chMilestoneToggle" onclick="chToggleMilestones()" style="padding:3px 10px;border:1px solid rgba(245,158,11,0.4);background:transparent;color:#f59e0b;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;" title="Toggle milestone markers">Milestones</button>
                             <button onclick="chResetZoom()" style="padding:3px 10px;border:1px solid rgba(255,255,255,0.2);background:transparent;color:rgba(255,255,255,0.5);border-radius:4px;cursor:pointer;font-size:11px;" title="Reset zoom">&#x21ba;</button>
                         </div>
                     </div>
@@ -3025,6 +3027,7 @@
 <!-- External Libraries -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.2.0/dist/chartjs-plugin-zoom.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.1.0/dist/chartjs-plugin-annotation.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">

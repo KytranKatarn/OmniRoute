@@ -3007,12 +3007,83 @@ window.chLoadHistory = function() {
 };
 
 var _chAllSnapshots = [];
+var _chShowMilestones = false;
+var _chCurrentFiltered = [];
+
+// Milestone thresholds — lines and files
+var CH_LINE_MILESTONES = [1000, 10000, 50000, 100000, 200000, 300000, 400000, 500000];
+var CH_FILE_MILESTONES = [50, 100, 200, 500, 1000];
+
+function _computeMilestones(snapshots) {
+  var annotations = {};
+  var lineHit = {};
+  var fileHit = {};
+  var colors = {
+    lines: "rgba(139, 92, 246, 0.6)",
+    files: "rgba(0, 204, 255, 0.5)"
+  };
+
+  for (var i = 0; i < snapshots.length; i++) {
+    var s = snapshots[i];
+    // Line milestones
+    for (var j = 0; j < CH_LINE_MILESTONES.length; j++) {
+      var m = CH_LINE_MILESTONES[j];
+      if (!lineHit[m] && s.total_lines >= m) {
+        lineHit[m] = true;
+        var label = m >= 1000 ? (m / 1000) + "K" : m;
+        annotations["line_" + m] = {
+          type: "line",
+          xMin: i, xMax: i,
+          borderColor: colors.lines,
+          borderWidth: 1,
+          borderDash: [4, 3],
+          label: {
+            display: true,
+            content: label + " lines",
+            position: "start",
+            backgroundColor: "rgba(139, 92, 246, 0.85)",
+            color: "#fff",
+            font: { size: 9, weight: "bold" },
+            padding: { top: 2, bottom: 2, left: 4, right: 4 },
+            borderRadius: 3
+          }
+        };
+      }
+    }
+    // File milestones
+    for (var k = 0; k < CH_FILE_MILESTONES.length; k++) {
+      var fm = CH_FILE_MILESTONES[k];
+      if (!fileHit[fm] && s.total_files >= fm) {
+        fileHit[fm] = true;
+        annotations["file_" + fm] = {
+          type: "line",
+          xMin: i, xMax: i,
+          borderColor: colors.files,
+          borderWidth: 1,
+          borderDash: [2, 4],
+          label: {
+            display: true,
+            content: fm + " files",
+            position: "end",
+            backgroundColor: "rgba(0, 204, 255, 0.85)",
+            color: "#000",
+            font: { size: 9, weight: "bold" },
+            padding: { top: 2, bottom: 2, left: 4, right: 4 },
+            borderRadius: 3
+          }
+        };
+      }
+    }
+  }
+  return annotations;
+}
 
 function _renderHistoryChart(snapshots) {
   var canvas = document.getElementById("chHistoryChart");
   if (!canvas || !snapshots.length) return;
 
   _chAllSnapshots = snapshots;
+  _chCurrentFiltered = snapshots;
   _drawHistoryChart(snapshots);
 }
 
@@ -3073,6 +3144,9 @@ function _drawHistoryChart(snapshots) {
             }
           }
         },
+        annotation: {
+          annotations: _chShowMilestones ? _computeMilestones(snapshots) : {}
+        },
         zoom: {
           pan: {
             enabled: true,
@@ -3123,6 +3197,7 @@ window.chFilterHistory = function(range) {
     });
   }
   if (filtered.length === 0) filtered = _chAllSnapshots;
+  _chCurrentFiltered = filtered;
   _drawHistoryChart(filtered);
 
   // Update active button
@@ -3139,6 +3214,21 @@ window.chFilterHistory = function(range) {
 
 window.chResetZoom = function() {
   if (_chHistoryChart) _chHistoryChart.resetZoom();
+};
+
+window.chToggleMilestones = function() {
+  _chShowMilestones = !_chShowMilestones;
+  var btn = document.getElementById("chMilestoneToggle");
+  if (btn) {
+    if (_chShowMilestones) {
+      btn.style.background = "rgba(245,158,11,0.2)";
+      btn.style.borderColor = "#f59e0b";
+    } else {
+      btn.style.background = "transparent";
+      btn.style.borderColor = "rgba(245,158,11,0.4)";
+    }
+  }
+  _drawHistoryChart(_chCurrentFiltered.length ? _chCurrentFiltered : _chAllSnapshots);
 };
 
 function _renderAuditTable(entries) {

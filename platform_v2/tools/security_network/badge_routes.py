@@ -158,9 +158,15 @@ def badge_stig_svg():
 
 @badge_bp.route("/badge/soc2.svg")
 def badge_soc2_svg():
-    """SVG badge: SOC 2 | score (placeholder until SOC 2 matrix is built)"""
-    data = _get_latest_scan()
-    score = data["score"] if data else 0
+    """SVG badge: SOC 2 | score from real TSC mapping"""
+    try:
+        from tools.security_network.compliance_service import get_soc2_scores
+
+        soc2 = get_soc2_scores()
+        score = soc2["score"] if soc2 else 0
+    except Exception:
+        data = _get_latest_scan()
+        score = data["score"] if data else 0
     grade = _grade(score)
     color = _badge_color(score)
     svg = _render_svg_badge("SOC 2", f"{score}% {grade}", color)

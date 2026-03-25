@@ -346,10 +346,27 @@
             </div>
         </div>
 
+        <!-- Compliance Posture -->
+        <div class="section">
+            <h2>COMPLIANCE POSTURE</h2>
+            <p style="color: var(--text2); margin-bottom: 16px;">Live compliance scores across 6 security frameworks. Scanned every 6 hours. All checks automated.</p>
+            <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
+                <img src="/api/public/compliance/badge/stig.svg" alt="STIG Score" style="height: 20px;">
+                <img src="/api/public/compliance/badge/soc2.svg" alt="SOC 2 Score" style="height: 20px;">
+                <img src="/api/public/compliance/badge/ubuntu.svg" alt="Ubuntu STIG" style="height: 20px;">
+                <img src="/api/public/compliance/badge/docker.svg" alt="Docker STIG" style="height: 20px;">
+                <img src="/api/public/compliance/badge/hipaa.svg" alt="HIPAA" style="height: 20px;">
+                <img src="/api/public/compliance/badge/network.svg" alt="Network STIG" style="height: 20px;">
+            </div>
+            <div id="compliance-posture" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px;">
+                <div class="loading">Loading compliance data...</div>
+            </div>
+        </div>
+
         <div class="footer">
-            <p>A.R.C.H.I.E. Platform &mdash; Kytran Empowerment</p>
+            <p>A.R.C.H.I.E. Platform &mdash; Kytran Empowerment Inc.</p>
             <p>Data refreshes automatically. All governance events are immutable and auditable.</p>
-            <p><a href="https://github.com/kytranada/archie_brain" target="_blank">Open Source on GitHub</a></p>
+            <p><a href="https://github.com/KytranKatarn/archie-platform" target="_blank">Open Source on GitHub</a></p>
         </div>
     </div>
 
@@ -521,13 +538,61 @@
             } catch(e) { return isoStr; }
         }
 
+        async function loadCompliance() {
+            try {
+                var resp = await fetch('/api/public/compliance/badges');
+                var data = await resp.json();
+                var el = document.getElementById('compliance-posture');
+                if (!data.stig || !data.stig.score) { el.textContent = 'No scan data yet'; return; }
+                var s = data.stig;
+                var grade = s.grade || '?';
+                var color = s.score >= 90 ? 'var(--green)' : s.score >= 70 ? 'var(--gold)' : 'var(--red)';
+                /* Build compliance cards using safe DOM methods */
+                el.textContent = '';
+                var overall = document.createElement('div');
+                overall.className = 'stat-card green';
+                overall.style.gridColumn = 'span 2';
+                var val = document.createElement('div');
+                val.className = 'stat-value';
+                val.style.cssText = 'font-size:2.5rem;color:' + color;
+                val.textContent = s.score + '%';
+                var lbl = document.createElement('div');
+                lbl.className = 'stat-label';
+                lbl.textContent = 'Overall Score \u2014 Grade ' + grade;
+                var sub = document.createElement('div');
+                sub.style.cssText = 'color:var(--text2);font-size:0.8rem;margin-top:4px';
+                sub.textContent = s.passed + '/' + s.total + ' checks passing';
+                overall.appendChild(val);
+                overall.appendChild(lbl);
+                overall.appendChild(sub);
+                el.appendChild(overall);
+                var packNames = {'cis-ubuntu-22.04':'CIS Ubuntu','docker-stig':'Docker STIG','hipaa-security':'HIPAA','network-stig':'Network','ubuntu-22.04-stig':'Ubuntu STIG'};
+                var packs = s.packs || {};
+                for (var pid in packs) {
+                    var p = packs[pid];
+                    var card = document.createElement('div');
+                    card.className = 'stat-card ' + (p.score >= 90 ? 'green' : p.score >= 70 ? 'gold' : 'red');
+                    var pv = document.createElement('div');
+                    pv.className = 'stat-value';
+                    pv.textContent = p.score + '%';
+                    var pl = document.createElement('div');
+                    pl.className = 'stat-label';
+                    pl.textContent = packNames[pid] || pid;
+                    card.appendChild(pv);
+                    card.appendChild(pl);
+                    el.appendChild(card);
+                }
+            } catch(e) { console.error('Compliance load error:', e); }
+        }
+
         // Load everything
         loadStats();
         loadWelfare();
         loadPrinciples();
+        loadCompliance();
 
         // Auto-refresh every 60 seconds
-        setInterval(function() { loadStats(); loadWelfare(); }, 60000);
+        setInterval(function() { loadStats(); loadWelfare(); loadCompliance(); }, 60000);
     </script>
 </body>
 </html>

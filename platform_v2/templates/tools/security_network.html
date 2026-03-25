@@ -989,6 +989,38 @@
             </div>
         </div>
 
+        <!-- Compliance Summary Card -->
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title">STIG Compliance</span>
+                <button class="btn btn-sm" onclick="switchToTab('compliance')">View Details &rarr;</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:24px;padding:12px 0">
+                <div style="text-align:center;min-width:100px">
+                    <div id="compliance-dash-score" style="font-size:2.4rem;font-weight:700;font-family:'Orbitron',monospace;color:var(--archie-text-dim)">--</div>
+                    <div style="font-size:.75rem;color:var(--archie-text-dim);margin-top:2px">Grade: <span id="compliance-dash-grade" style="font-weight:600">--</span></div>
+                </div>
+                <div style="flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+                    <div style="text-align:center;padding:8px;background:rgba(255,255,255,0.03);border-radius:6px">
+                        <div style="font-size:.65rem;text-transform:uppercase;color:var(--archie-text-dim);margin-bottom:4px">Ubuntu 22.04</div>
+                        <div id="compliance-dash-ubuntu" style="font-size:1.1rem;font-weight:600;font-family:'Orbitron',monospace">--</div>
+                    </div>
+                    <div style="text-align:center;padding:8px;background:rgba(255,255,255,0.03);border-radius:6px">
+                        <div style="font-size:.65rem;text-transform:uppercase;color:var(--archie-text-dim);margin-bottom:4px">Docker</div>
+                        <div id="compliance-dash-docker" style="font-size:1.1rem;font-weight:600;font-family:'Orbitron',monospace">--</div>
+                    </div>
+                    <div style="text-align:center;padding:8px;background:rgba(255,255,255,0.03);border-radius:6px">
+                        <div style="font-size:.65rem;text-transform:uppercase;color:var(--archie-text-dim);margin-bottom:4px">Network</div>
+                        <div id="compliance-dash-network" style="font-size:1.1rem;font-weight:600;font-family:'Orbitron',monospace">--</div>
+                    </div>
+                </div>
+                <div style="text-align:right;min-width:120px">
+                    <div style="font-size:.65rem;text-transform:uppercase;color:var(--archie-text-dim)">Last Scan</div>
+                    <div id="compliance-dash-time" style="font-size:.8rem;color:var(--archie-text-dim);margin-top:2px">Never</div>
+                </div>
+            </div>
+        </div>
+
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
             <div class="card">
                 <div class="card-header">
@@ -2366,6 +2398,33 @@ async function loadDashboard() {
             showEmpty(feed, 'No recent activity');
         }
     } catch(e) { console.error('Dashboard error:', e); }
+
+    // Compliance summary
+    try {
+        const cr = await fetch(API + '/compliance/scores');
+        const cd = await cr.json();
+        if (cd.success) {
+            const score = cd.score || 0;
+            const scoreEl = document.getElementById('compliance-dash-score');
+            scoreEl.textContent = score.toFixed(1) + '%';
+            scoreEl.style.color = score >= 80 ? '#22c55e' : score >= 50 ? '#f59e0b' : '#ef4444';
+            const grade = score >= 95 ? 'A+' : score >= 90 ? 'A' : score >= 80 ? 'B' : score >= 70 ? 'C' : 'F';
+            document.getElementById('compliance-dash-grade').textContent = grade;
+            // Per-pack scores
+            const packs = cd.packs || {};
+            ['ubuntu','docker','network'].forEach(p => {
+                const el = document.getElementById('compliance-dash-' + p);
+                if (el && packs[p] !== undefined) {
+                    const ps = packs[p];
+                    el.textContent = ps.toFixed(0) + '%';
+                    el.style.color = ps >= 80 ? '#22c55e' : ps >= 50 ? '#f59e0b' : '#ef4444';
+                }
+            });
+            if (cd.last_scan) {
+                document.getElementById('compliance-dash-time').textContent = formatTime(cd.last_scan);
+            }
+        }
+    } catch(e) { console.debug('Compliance dash:', e); }
 }
 
 var _dnsProtectionOn = true;

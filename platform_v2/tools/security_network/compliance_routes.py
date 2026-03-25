@@ -67,7 +67,8 @@ def register_compliance_routes(bp, admin_required_decorator):
         try:
             scores = compliance_service.get_latest_scores()
             if scores is None:
-                return jsonify({"message": "No completed scans yet"}), 404
+                return jsonify({"success": False, "message": "No completed scans yet"}), 404
+            scores["success"] = True
             return jsonify(scores)
         except Exception as exc:
             logger.error("Failed to get scores: %s", exc)

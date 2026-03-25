@@ -734,8 +734,17 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Job #57 — Compliance scan: STIG rule evaluation every 6 hours
+        self.scheduler.add_job(
+            with_app_context(self._run_scheduled_compliance_scan),
+            trigger=IntervalTrigger(hours=6, start_date="2026-01-01 02:00:00"),
+            id="agent_compliance_scan",
+            name="Agent Loop: Compliance Scan",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 57 jobs")
+        logger.info("Agent loop started with 58 jobs")
 
     def _update_stock_prices(self):
         """Job #27: Refresh cached stock prices, check price alerts, and auto-scan watchlist every 5 minutes."""
@@ -3910,6 +3919,22 @@ class AgentLoop:
 
         except Exception as e:
             logger.warning(f"Failed: {e}")
+
+    def _run_scheduled_compliance_scan(self):
+        """Job #57: Run STIG compliance scan every 6 hours."""
+        try:
+            from tools.security_network.compliance_service import run_scan
+
+            result = run_scan(triggered_by="scheduled")
+            score = result.get("score", 0)
+            logger.info(
+                "Scheduled compliance scan complete: %.1f%% (%d/%d passed)",
+                score,
+                result.get("passed", 0),
+                result.get("total", 0),
+            )
+        except Exception as e:
+            logger.error("Scheduled compliance scan failed: %s", e)
 
     def _check_ssl_expiry(self):
         """Check SSL certificates for upcoming expiry (daily)."""

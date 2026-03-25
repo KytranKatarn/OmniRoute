@@ -931,7 +931,7 @@ def get_scan_history(limit=20):
 
 
 def get_latest_scores():
-    """Get the most recent completed scan's scores."""
+    """Get the most recent completed scan's scores with per-pack breakdown."""
     with get_db_cursor(commit=False) as (conn, cur):
         cur.execute(
             """
@@ -949,6 +949,36 @@ def get_latest_scores():
         for key in ("started_at", "completed_at"):
             if row.get(key) and hasattr(row[key], "isoformat"):
                 row[key] = row[key].isoformat()
+
+        # Per-pack score breakdown
+        scan_id = row["scan_id"]
+        cur.execute(
+            """
+            SELECT r.pack_id, p.name,
+                   COUNT(*) AS total,
+                   SUM(CASE WHEN r.status = 'pass' THEN 1 ELSE 0 END) AS passed
+            FROM compliance_scan_results r
+            LEFT JOIN compliance_rule_packs p ON p.pack_id = r.pack_id
+            WHERE r.scan_id = %s
+            GROUP BY r.pack_id, p.name
+            """,
+            (scan_id,),
+        )
+        packs = {}
+        for pr in cur.fetchall():
+            name = (pr.get("name") or pr["pack_id"]).lower()
+            # Map pack names to short keys for dashboard
+            key = name
+            for k in ("ubuntu", "docker", "network"):
+                if k in name:
+                    key = k
+                    break
+            pt = pr["total"] or 0
+            pp = pr["passed"] or 0
+            packs[key] = round((pp / pt) * 100, 1) if pt > 0 else 0
+
+        row["packs"] = packs
+        row["last_scan"] = row.get("completed_at") or row.get("started_at")
         return row
 
 

@@ -48,6 +48,15 @@ def create_app(config=None):
     except Exception:
         pass
 
+    # Load compliance rule packs
+    try:
+        from .services.compliance_service import load_all_packs
+        loaded = load_all_packs()
+        if loaded:
+            app.logger.info("Loaded %d compliance rule packs", len(loaded))
+    except Exception as e:
+        app.logger.warning("Compliance packs not loaded: %s", e)
+
     # Register routes
     from .routes import register_all_routes
     register_all_routes(app, admin_required)

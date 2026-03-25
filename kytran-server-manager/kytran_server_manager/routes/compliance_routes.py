@@ -168,18 +168,18 @@ def register_compliance_routes(bp, admin_required_decorator):
 
         try:
             db = get_db()
-            try:
-                rows = db.execute(
-                    """
-                    SELECT id, control_id, artifact_type, artifact_name, collected_at
-                    FROM compliance_evidence
-                    ORDER BY collected_at DESC LIMIT 50
+            rows = db.execute(
                 """
-                ).fetchall()
-                evidence = [dict(r) for r in rows]
-                for e in evidence:
-                    if e.get("collected_at"):
-                        e["collected_at"] = e["collected_at"].isoformat()
+                SELECT id, control_id, artifact_type, artifact_name, collected_at
+                FROM compliance_evidence
+                ORDER BY collected_at DESC LIMIT 50
+                """
+            ).fetchall()
+            db.close()
+            evidence = [dict(r) for r in rows]
+            for e in evidence:
+                if e.get("collected_at") and hasattr(e["collected_at"], "isoformat"):
+                    e["collected_at"] = e["collected_at"].isoformat()
             return jsonify({"success": True, "evidence": evidence})
         except Exception as exc:
             logger.error("Evidence list failed: %s", exc)

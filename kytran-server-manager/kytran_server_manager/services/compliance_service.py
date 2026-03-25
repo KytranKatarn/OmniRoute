@@ -133,12 +133,12 @@ def run_scan(pack_ids=None, triggered_by="manual"):
     with _db_cursor(commit=False) as (conn, cur):
         if pack_ids:
             cur.execute(
-                "SELECT pack_id, name, rules FROM compliance_rule_packs WHERE pack_id = ANY(%s)",
-                (pack_ids,),
+                "SELECT pack_id, name, rules FROM compliance_rule_packs WHERE pack_id IN (SELECT value FROM json_each(?))",
+                (json.dumps(pack_ids),),
             )
         else:
             cur.execute("SELECT pack_id, name, rules FROM compliance_rule_packs")
-        packs = cur.fetchall()
+        packs = [dict(r) for r in cur.fetchall()]
 
     if not packs:
         return {"scan_id": scan_id, "error": "No rule packs loaded"}
@@ -151,7 +151,7 @@ def run_scan(pack_ids=None, triggered_by="manual"):
                 (scan_id, triggered_by, started_at, pack_ids)
             VALUES (?, ?, ?, ?)
             """,
-            (scan_id, triggered_by, started_at, [p["pack_id"] for p in packs]),
+            (scan_id, triggered_by, started_at, json.dumps([p["pack_id"] for p in packs])),
         )
 
     # Check host_command availability once
@@ -941,7 +941,9 @@ def apply_fix(scan_id, rule_id, user_id):
             """,
             (scan_id, rule_id),
         )
-        row = cur.fetchone()
+        _raw = cur.fetchone()
+
+        row = dict(_raw) if _raw else None
 
     if not row:
         return {"success": False, "error": f"No result found for {scan_id}/{rule_id}"}
@@ -952,10 +954,12 @@ def apply_fix(scan_id, rule_id, user_id):
     # Look up fix from the rule pack JSON
     with _db_cursor(commit=False) as (conn, cur):
         cur.execute(
-            "SELECT rules FROM compliance_rule_packs WHERE pack_id = %s",
+            "SELECT rules FROM compliance_rule_packs WHERE pack_id = ?",
             (pack_id,),
         )
-        pack_row = cur.fetchone()
+        _raw = cur.fetchone()
+
+        pack_row = dict(_raw) if _raw else None
 
     if not pack_row:
         return {"success": False, "error": f"Rule pack {pack_id} not found"}
@@ -1079,24 +1083,24 @@ def apply_fix(scan_id, rule_id, user_id):
 
 def get_scan_results(scan_id, status=None, severity=None, pack_id=None):
     """Query scan results with optional filters."""
-    query = "SELECT * FROM compliance_scan_results WHERE scan_id = %s"
+    query = "SELECT * FROM compliance_scan_results WHERE scan_id = ?"
     params = [scan_id]
 
     if status:
-        query += " AND status = %s"
+        query += " AND status = ?"
         params.append(status)
     if severity:
-        query += " AND severity = %s"
+        query += " AND severity = ?"
         params.append(severity)
     if pack_id:
-        query += " AND pack_id = %s"
+        query += " AND pack_id = ?"
         params.append(pack_id)
 
     query += " ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END, rule_id"
 
     with _db_cursor(commit=False) as (conn, cur):
         cur.execute(query, params)
-        return cur.fetchall()
+        return [dict(r) for r in cur.fetchall()]
 
 
 def get_scan_history(limit=20):
@@ -1112,7 +1116,7 @@ def get_scan_history(limit=20):
             """,
             (limit,),
         )
-        rows = cur.fetchall()
+        rows = [dict(r) for r in cur.fetchall()]
         for row in rows:
             for key in ("started_at", "completed_at"):
                 if row.get(key) and hasattr(row[key], "isoformat"):
@@ -1133,7 +1137,9 @@ def get_latest_scores():
             LIMIT 1
             """
         )
-        row = cur.fetchone()
+        _raw = cur.fetchone()
+
+        row = dict(_raw) if _raw else None
         if not row:
             return None
 
@@ -1205,7 +1211,7 @@ def generate_ckl(scan_id):
     with _db_cursor(commit=False) as (conn, cur):
         cur.execute(
             "SELECT scan_id, score, total_rules, passed, failed, errors, started_at, completed_at, pack_ids "
-            "FROM compliance_scans WHERE scan_id = %s",
+            "FROM compliance_scans WHERE scan_id = ?",
             (scan_id,),
         )
         scan = cur.fetchone()
@@ -1331,7 +1337,7 @@ def generate_evidence_zip(scan_id):
         cur.execute(
             "SELECT scan_id, score, total_rules, passed, failed, errors, "
             "started_at, completed_at, triggered_by, pack_ids "
-            "FROM compliance_scans WHERE scan_id = %s",
+            "FROM compliance_scans WHERE scan_id = ?",
             (scan_id,),
         )
         scan = cur.fetchone()
@@ -1447,7 +1453,9 @@ def collect_evidence(scan_id=None):
                 WHERE created_at > datetime.utcnow().isoformat() - INTERVAL '90 days'
             """
             )
-            row = cur.fetchone()
+            _raw = cur.fetchone()
+
+            row = dict(_raw) if _raw else None
             evidence.append(
                 {
                     "control_id": "CC7.2",
@@ -1744,7 +1752,7 @@ def get_loaded_packs():
             ORDER BY name
             """
         )
-        rows = cur.fetchall()
+        rows = [dict(r) for r in cur.fetchall()]
         for row in rows:
             if row.get("updated_at") and hasattr(row["updated_at"], "isoformat"):
                 row["updated_at"] = row["updated_at"].isoformat()

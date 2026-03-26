@@ -2660,7 +2660,7 @@ function loadCodeHealth() {
     var websiteModules = {};
     var platformModules = {};
     // Website keys from registered products (avoid false matches like website_studio)
-    var websiteKeys = ['website_kytranempowerment_current', 'website_kytranempowerment', 'website_creed_ai'];
+    var websiteKeys = ['website_kytranempowerment_current', 'website_kytranempowerment', 'website_creed_ai', 'website_kytran_news'];
     Object.keys(allModules).forEach(function(key) {
         if (key.startsWith('standalone_')) {
             standaloneModules[key] = allModules[key];

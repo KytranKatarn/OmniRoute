@@ -73,6 +73,11 @@ WEBSITE_PRODUCTS = [
         "path": "/mnt/archie_brain/website/creed-ai.org",
         "module_key": "website_creed_ai",
     },
+    {
+        "name": "thenews.kytranempowerment.com",
+        "path": "/mnt/archie_brain/website/thenews.kytranempowerment.com",
+        "module_key": "website_kytran_news",
+    },
 ]
 
 

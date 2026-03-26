@@ -153,6 +153,9 @@ services:
       - ./secrets:/mnt/archie_brain/secrets:ro
       # Mount node client package for remote node deployment
       - ./node_client:/mnt/archie_brain/node_client:ro
+      # Website and standalone product sources (Code Health scanning)
+      - ./website:/mnt/archie_brain/website:ro
+      - ./kytran-server-manager:/mnt/archie_brain/kytran-server-manager:ro
       # Host command queue (shared with host_monitor.py for storage operations)
       - ./host_commands:/mnt/archie_brain/host_commands:rw
       # Migration compose files for Docker stack management

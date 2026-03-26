@@ -46,26 +46,39 @@ var Fetcher = (function () {
                 _status[sourceKey] = 'fresh';
                 return data;
             })
-            .catch(function (err) {
-                /* 3. Retry via CORS proxy */
-                if (options.useCorsProxy) {
-                    var proxyUrl = Config.CORS_PROXY + encodeURIComponent(url);
-                    return _fetchWithTimeout(proxyUrl, timeout)
-                        .then(function (r) {
-                            if (!r.ok) throw new Error('Proxy HTTP ' + r.status);
-                            return r.json();
-                        })
-                        .then(function (data) {
-                            if (options.transform) data = options.transform(data);
-                            _cache[sourceKey] = { data: data, timestamp: Date.now() };
-                            _status[sourceKey] = 'fresh';
-                            return data;
-                        })
-                        .catch(function () {
-                            return _loadFallback(options, sourceKey);
-                        });
-                }
-                return _loadFallback(options, sourceKey);
+            .catch(function () {
+                /* 3. Retry via CORS proxy (primary) */
+                if (!options.useCorsProxy) return _loadFallback(options, sourceKey);
+                var proxyUrl = Config.CORS_PROXY + encodeURIComponent(url);
+                return _fetchWithTimeout(proxyUrl, timeout)
+                    .then(function (r) {
+                        if (!r.ok) throw new Error('Proxy HTTP ' + r.status);
+                        return r.json();
+                    })
+                    .then(function (data) {
+                        if (options.transform) data = options.transform(data);
+                        _cache[sourceKey] = { data: data, timestamp: Date.now() };
+                        _status[sourceKey] = 'fresh';
+                        return data;
+                    })
+                    .catch(function () {
+                        /* 4. Retry via alt CORS proxy */
+                        var altUrl = Config.CORS_PROXY_ALT + encodeURIComponent(url);
+                        return _fetchWithTimeout(altUrl, timeout)
+                            .then(function (r) {
+                                if (!r.ok) throw new Error('Alt proxy HTTP ' + r.status);
+                                return r.json();
+                            })
+                            .then(function (data) {
+                                if (options.transform) data = options.transform(data);
+                                _cache[sourceKey] = { data: data, timestamp: Date.now() };
+                                _status[sourceKey] = 'fresh';
+                                return data;
+                            })
+                            .catch(function () {
+                                return _loadFallback(options, sourceKey);
+                            });
+                    });
             });
     }
 

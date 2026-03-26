@@ -141,11 +141,15 @@
     transition: background var(--speed-slow);
     z-index: 99;
 }
-.defcon-bar[data-level="1"] { background: var(--defcon-1); }
-.defcon-bar[data-level="2"] { background: var(--defcon-2); }
+.defcon-bar[data-level="1"] { background: var(--defcon-1); animation: defcon-pulse 1.5s ease-in-out infinite; }
+.defcon-bar[data-level="2"] { background: var(--defcon-2); animation: defcon-pulse 2s ease-in-out infinite; }
 .defcon-bar[data-level="3"] { background: var(--defcon-3); }
 .defcon-bar[data-level="4"] { background: var(--defcon-4); }
 .defcon-bar[data-level="5"] { background: var(--defcon-5); }
+@keyframes defcon-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
 
 /* --------------------------------------------------------------------------
    Sidebar
@@ -225,6 +229,12 @@
     border-radius: 50%;
     background: var(--layer-color, var(--color-primary));
     flex-shrink: 0;
+    box-shadow: 0 0 6px var(--layer-color, var(--color-primary));
+    transition: box-shadow var(--speed-fast);
+}
+.layer-toggle:not(.active) .layer-toggle__dot {
+    opacity: 0.3;
+    box-shadow: none;
 }
 
 /* Threat Index Panel */
@@ -234,9 +244,11 @@
 }
 .threat-index__level {
     font-family: var(--font-heading);
-    font-size: var(--text-2xl);
+    font-size: 2.5rem;
     font-weight: 700;
     letter-spacing: 3px;
+    text-shadow: 0 0 20px currentColor, 0 0 40px currentColor;
+    transition: color var(--speed-slow), text-shadow var(--speed-slow);
 }
 .threat-index__label {
     font-size: var(--text-xs);
@@ -269,16 +281,22 @@
     gap: var(--space-sm);
 }
 .stat-card {
-    padding: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--color-glass-border);
     border-radius: 6px;
     text-align: center;
+    border-top: 2px solid var(--color-primary);
+    transition: border-color var(--speed-fast), background var(--speed-fast);
+}
+.stat-card:hover {
+    background: rgba(255, 255, 255, 0.06);
 }
 .stat-card__value {
     font-family: var(--font-heading);
-    font-size: var(--text-lg);
+    font-size: var(--text-xl);
     color: var(--color-primary);
+    text-shadow: 0 0 8px rgba(0, 229, 255, 0.3);
 }
 .stat-card__label {
     font-size: var(--text-xs);
@@ -443,6 +461,8 @@
     flex: 1;
     overflow: hidden;
     position: relative;
+    mask-image: linear-gradient(to right, transparent 0%, black 3%, black 97%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, black 3%, black 97%, transparent 100%);
 }
 .ticker__scroll {
     display: flex;

@@ -20,6 +20,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&family=Orbitron:wght@400;500;700&display=swap" rel="stylesheet">
 
+    <!-- Preload critical libraries -->
+    <link rel="preload" href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js" as="script">
+    <link rel="preload" href="https://unpkg.com/deck.gl@8.9.35/dist.min.js" as="script">
+
     <!-- MapLibre GL CSS -->
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css">
 
@@ -201,6 +205,12 @@
                     <div class="stat-card__label">Articles</div>
                 </div>
             </div>
+        </div>
+
+        <!-- Last Updated -->
+        <div class="sidebar__section">
+            <div class="sidebar__title">Last Updated</div>
+            <div id="last-updated" style="font-size:var(--text-xs);color:var(--color-text-muted);">--</div>
         </div>
 
         <!-- Attribution -->

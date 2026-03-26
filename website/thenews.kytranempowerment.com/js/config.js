@@ -7,6 +7,7 @@ var Config = (function () {
     'use strict';
 
     var CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+    var CORS_PROXY_ALT = 'https://corsproxy.io/?';
 
     /* -- API Endpoints ---------------------------------------------------- */
     var API = {
@@ -119,6 +120,7 @@ var Config = (function () {
 
     return {
         CORS_PROXY: CORS_PROXY,
+        CORS_PROXY_ALT: CORS_PROXY_ALT,
         API: API,
         INTERVALS: INTERVALS,
         FALLBACKS: FALLBACKS,

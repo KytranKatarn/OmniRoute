@@ -9,6 +9,7 @@ var Effects = (function () {
     function init() {
         _initStatCounters();
         _initCursorGlow();
+        _initLastUpdated();
     }
 
     /* -- Animated stat counters ------------------------------------------- */
@@ -69,6 +70,30 @@ var Effects = (function () {
             else el.textContent = targetValue.toLocaleString();
         }
         requestAnimationFrame(tick);
+    }
+
+    /* -- Last updated timestamp ------------------------------------------ */
+    function _initLastUpdated() {
+        var el = document.getElementById('last-updated');
+        if (!el) return;
+
+        function update() {
+            var now = new Date();
+            el.textContent = now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) +
+                ' \u2014 ' + now.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+
+        /* Update on any data refresh */
+        var events = ['data:conflicts:updated', 'data:disasters:updated', 'data:weather:updated', 'data:cyber:updated', 'data:outages:updated'];
+        events.forEach(function (evt) { EventBus.on(evt, update); });
+
+        /* Also update news stat card */
+        EventBus.on('data:conflicts:updated', function () {
+            /* Recalculate total articles from ticker */
+            if (typeof Ticker !== 'undefined') {
+                _animateCounter('stat-news', Ticker.getData().length);
+            }
+        });
     }
 
     /* -- Subtle cursor glow on map --------------------------------------- */

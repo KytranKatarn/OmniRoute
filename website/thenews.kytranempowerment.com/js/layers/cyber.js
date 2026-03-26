@@ -100,22 +100,8 @@ var Cyber = (function () {
         return arcs;
     }
 
-    function _startAnimation() {
-        if (_animFrame) return;
-        function tick() {
-            _time += 0.005;
-            _render();
-            _animFrame = requestAnimationFrame(tick);
-        }
-        _animFrame = requestAnimationFrame(tick);
-    }
-
-    function _stopAnimation() {
-        if (_animFrame) {
-            cancelAnimationFrame(_animFrame);
-            _animFrame = null;
-        }
-    }
+    function _startAnimation() { /* no-op: arcs render on data change */ }
+    function _stopAnimation() { /* no-op */ }
 
     function _render() {
         if (!_visible || _arcs.length === 0) return;
@@ -140,7 +126,12 @@ var Cyber = (function () {
             pickable: true,
             autoHighlight: true,
             highlightColor: [255, 255, 255, 80],
-            parameters: { depthTest: false }
+            parameters: { depthTest: false },
+            transitions: {
+                getSourcePosition: 800,
+                getTargetPosition: 800,
+                getWidth: 400
+            }
         });
         KytranMap.setLayer('cyber', layer);
     }

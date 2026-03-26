@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en" data-barba="wrapper">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kytran Empowerment — AI-Powered Business Platform</title>
+    <meta name="description" content="122 AI agents. 16 departments. One platform. Kytran Empowerment delivers enterprise AI automation for businesses of every size.">
+    <meta name="theme-color" content="#0a0a1a">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/pages/home.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/reduced-motion.css">
+</head>
+<body>
+    <!-- Global background layers -->
+    <div class="aurora"></div>
+    <div class="dot-grid"></div>
+    <div class="noise-overlay"></div>
+    <div class="cursor-glow" id="cursorGlow"></div>
+
+    <!-- Navigation -->
+    <nav class="nav" id="mainNav">
+        <div class="nav__inner container">
+            <a href="/" class="nav__logo"><span class="nav__logo-text">KYTRAN</span></a>
+            <div class="nav__links" id="navLinks">
+                <a href="services.html" class="nav__link">Services</a>
+                <a href="platform.html" class="nav__link">Platform</a>
+                <a href="directory.html" class="nav__link">Directory</a>
+                <a href="compliance.html" class="nav__link">Trust</a>
+                <a href="creed.html" class="nav__link">C.R.E.E.D.</a>
+                <a href="about.html" class="nav__link">About</a>
+                <a href="contact.html" class="nav__link nav__link--cta">Contact</a>
+            </div>
+            <div class="nav__controls">
+                <button class="nav__lang-btn" id="langSwitcher" aria-label="Change language">EN</button>
+                <button class="nav__menu-btn" id="menuToggle" aria-label="Toggle menu">
+                    <span></span><span></span><span></span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Page content -->
+    <main data-barba="container" data-barba-namespace="home">
+        <section class="hero">
+            <div class="hero__content container">
+                <h1 class="hero__title" data-scramble="KYTRAN EMPOWERMENT">
+                    <span class="visually-hidden">Kytran Empowerment</span>
+                </h1>
+                <p class="hero__tagline gradient-text" data-i18n="hero-tagline">AI-Powered Business Automation</p>
+                <div class="hero__stats">
+                    <div class="hero__stat">
+                        <span class="hero__stat-number" data-count="122">0</span>
+                        <span class="hero__stat-label" data-i18n="stat-agents">AI Agents</span>
+                    </div>
+                    <div class="hero__stat">
+                        <span class="hero__stat-number" data-count="16">0</span>
+                        <span class="hero__stat-label" data-i18n="stat-depts">Departments</span>
+                    </div>
+                    <div class="hero__stat">
+                        <span class="hero__stat-number" data-count="1">1</span>
+                        <span class="hero__stat-label" data-i18n="stat-platform">Platform</span>
+                    </div>
+                </div>
+                <div class="hero__cta">
+                    <a href="services.html" class="btn btn--primary magnetic" data-i18n="cta-services">Explore Services</a>
+                    <a href="platform.html" class="btn btn--outline magnetic" data-i18n="cta-platform">Meet A.R.C.H.I.E.</a>
+                </div>
+            </div>
+            <canvas id="heroCanvas" class="hero__canvas"></canvas>
+        </section>
+
+        <section class="section services-preview">
+            <div class="container">
+                <h2 class="section__title" data-split data-i18n="services-title">What We Build</h2>
+                <div class="card-grid" data-stagger>
+                    <div class="card">
+                        <div class="card__icon">&#9670;</div>
+                        <h3 class="card__title">CRM</h3>
+                        <p class="card__text">Customer relationship management with AI-powered insights, segmentation, and automated follow-ups.</p>
+                    </div>
+                    <div class="card">
+                        <div class="card__icon">&#9670;</div>
+                        <h3 class="card__title">Website Designer</h3>
+                        <p class="card__text">Replit-style visual builder with Monaco editor, live preview, and one-click deployment.</p>
+                    </div>
+                    <div class="card">
+                        <div class="card__icon">&#9670;</div>
+                        <h3 class="card__title">Store Builder</h3>
+                        <p class="card__text">E-commerce with Printful integration, product management, and order tracking.</p>
+                    </div>
+                    <div class="card">
+                        <div class="card__icon">&#9670;</div>
+                        <h3 class="card__title">Invoicing</h3>
+                        <p class="card__text">Professional invoicing with automated reminders, payment tracking, and financial reports.</p>
+                    </div>
+                    <div class="card">
+                        <div class="card__icon">&#9670;</div>
+                        <h3 class="card__title">Content Studio</h3>
+                        <p class="card__text">AI-assisted content creation for blogs, social media, and marketing materials.</p>
+                    </div>
+                    <div class="card">
+                        <div class="card__icon">&#9670;</div>
+                        <h3 class="card__title">Compliance</h3>
+                        <p class="card__text">S.H.I.E.L.D. compliance engine with automated scanning, badges, and SOC 2 evidence.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section trust-strip">
+            <div class="container" style="text-align:center;">
+                <h2 class="section__title" data-split data-i18n="trust-title">Trusted &amp; Verified</h2>
+                <div id="homeBadges" style="display:flex;justify-content:center;gap:2rem;flex-wrap:wrap;"></div>
+            </div>
+        </section>
+
+        <section class="section cta-section" style="text-align:center;">
+            <div class="container">
+                <h2 class="section__title gradient-text" data-split data-i18n="cta-title">Ready to Transform Your Business?</h2>
+                <a href="membership.html" class="btn btn--primary btn--lg magnetic" data-i18n="cta-start">Get Started</a>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer__inner container">
+            <div class="footer__brand">
+                <span class="footer__logo">KYTRAN EMPOWERMENT</span>
+                <p class="footer__tagline">Montreal, Canada</p>
+            </div>
+            <div class="footer__links">
+                <a href="about.html">About</a>
+                <a href="compliance.html">Trust Center</a>
+                <a href="creed.html">C.R.E.E.D.</a>
+                <a href="contact.html">Contact</a>
+            </div>
+            <div class="footer__copy">&copy; 2026 Kytran Empowerment Inc. All rights reserved.</div>
+        </div>
+    </footer>
+
+    <!-- Language Overlay -->
+    <div class="lang-overlay" id="langOverlay" hidden>
+        <div class="lang-overlay__panel glass-panel">
+            <h3>Select Language</h3>
+            <div class="lang-overlay__grid">
+                <button data-lang="en" class="lang-btn active">English</button>
+                <button data-lang="fr" class="lang-btn">Francais</button>
+                <button data-lang="es" class="lang-btn">Espanol</button>
+                <button data-lang="de" class="lang-btn">Deutsch</button>
+                <button data-lang="zh" class="lang-btn">中文</button>
+                <button data-lang="ja" class="lang-btn">日本語</button>
+                <button data-lang="ar" class="lang-btn" dir="rtl">العربية</button>
+                <button data-lang="he" class="lang-btn" dir="rtl">עברית</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/lib/gsap.min.js"></script>
+    <script src="js/lib/ScrollTrigger.min.js"></script>
+    <script src="js/lib/lenis.min.js"></script>
+    <script src="js/lib/splitting.min.js"></script>
+    <script src="js/lib/barba.min.js"></script>
+    <!-- JS files created in later tasks -->
+</body>
+</html>

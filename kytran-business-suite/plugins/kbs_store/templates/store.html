@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Store — Kytran Business Suite{% endblock %}
+{% block content %}
+<div class="kbs-store">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+        <h1 style="color:var(--kbs-accent); font-family:'Orbitron',sans-serif;">Store / E-Commerce</h1>
+        <button class="kbs-btn kbs-btn-primary" id="btn-add-product">Add Product</button>
+    </div>
+    <div id="store-stats" class="kbs-stats-grid" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:1rem; margin-bottom:2rem;"></div>
+    <div id="store-products"></div>
+</div>
+<script>
+document.addEventListener("DOMContentLoaded", () => { loadStats(); loadProducts(); });
+
+async function api(path, opts={}) {
+    const resp = await fetch("/plugins/store" + path, opts);
+    if (!resp.ok) throw new Error(await resp.text());
+    return resp.json();
+}
+
+async function loadStats() {
+    try {
+        const data = await api("/api/stats");
+        const el = document.getElementById("store-stats");
+        const items = [
+            ["Total Products", data.total_products],
+            ["Active Products", data.active_products],
+            ["Total Orders", data.total_orders],
+            ["Revenue", "$" + Number(data.revenue).toFixed(2)],
+        ];
+        el.textContent = "";
+        items.forEach(([label, value]) => {
+            const card = document.createElement("div");
+            card.className = "kbs-stat-card";
+            const lEl = document.createElement("div");
+            lEl.className = "kbs-stat-label";
+            lEl.textContent = label;
+            const vEl = document.createElement("div");
+            vEl.className = "kbs-stat-value";
+            vEl.textContent = value;
+            card.appendChild(lEl);
+            card.appendChild(vEl);
+            el.appendChild(card);
+        });
+    } catch (e) {
+        console.error("Stats load error", e);
+    }
+}
+
+async function loadProducts() {
+    try {
+        const data = await api("/api/products");
+        const el = document.getElementById("store-products");
+        el.textContent = "";
+
+        const title = document.createElement("h2");
+        title.style.cssText = "color:var(--kbs-text-muted); margin-bottom:1rem;";
+        title.textContent = "Products (" + data.total + ")";
+        el.appendChild(title);
+
+        if (!data.products.length) {
+            const p = document.createElement("p");
+            p.style.color = "var(--kbs-text-muted)";
+            p.textContent = "No products yet. Add your first product.";
+            el.appendChild(p);
+            return;
+        }
+
+        const table = document.createElement("table");
+        table.className = "kbs-table";
+        const thead = document.createElement("thead");
+        const hr = document.createElement("tr");
+        ["Name", "SKU", "Price", "Inventory", "Status", "Category"].forEach(col => {
+            const th = document.createElement("th");
+            th.textContent = col;
+            hr.appendChild(th);
+        });
+        thead.appendChild(hr);
+        table.appendChild(thead);
+
+        const tbody = document.createElement("tbody");
+        data.products.forEach(p => {
+            const tr = document.createElement("tr");
+            [
+                p.name,
+                p.sku || "—",
+                "$" + Number(p.price).toFixed(2),
+                p.inventory_count,
+                p.status,
+                p.category || "—",
+            ].forEach(val => {
+                const td = document.createElement("td");
+                td.textContent = val;
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        el.appendChild(table);
+    } catch (e) {
+        console.error("Products load error", e);
+    }
+}
+</script>
+{% endblock %}

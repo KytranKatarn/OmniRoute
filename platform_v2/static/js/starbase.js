@@ -68,12 +68,12 @@ window.lcarsConfirm = function(message, opts) {
 };
 }
 
-// === IAAE Capacity Modal ===
-function showIaaeCapacityModal(level, info) {
-    var modal = document.getElementById('iaae-capacity-modal');
-    var title = document.getElementById('iaae-capacity-title');
-    var body = document.getElementById('iaae-capacity-body');
-    var actions = document.getElementById('iaae-capacity-actions');
+// === C.R.E.E.D. Capacity Modal ===
+function showCreedCapacityModal(level, info) {
+    var modal = document.getElementById('creed-capacity-modal');
+    var title = document.getElementById('creed-capacity-title');
+    var body = document.getElementById('creed-capacity-body');
+    var actions = document.getElementById('creed-capacity-actions');
 
     // Fleet mode confirmations
     if (level === 'fleet-weekend') {
@@ -92,7 +92,7 @@ function showIaaeCapacityModal(level, info) {
             '&#8226; Frees ~90GB RAM for other tasks' +
             '</div>';
         actions.innerHTML =
-            '<button class="bm-btn" onclick="closeIaaeCapacityModal()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--archie-text-secondary);">Cancel</button>' +
+            '<button class="bm-btn" onclick="closeCreedCapacityModal()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--archie-text-secondary);">Cancel</button>' +
             '<button class="bm-btn" onclick="executeFleetModeToggle(\'weekend\')" style="background:rgba(255,170,0,0.15);border:1px solid rgba(255,170,0,0.3);color:#ffaa00;">&#9790; Activate Weekend</button>';
         modal.classList.add('active');
         return;
@@ -114,7 +114,7 @@ function showIaaeCapacityModal(level, info) {
             '&#8226; Agents become available as their model loads' +
             '</div>';
         actions.innerHTML =
-            '<button class="bm-btn" onclick="closeIaaeCapacityModal()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--archie-text-secondary);">Cancel</button>' +
+            '<button class="bm-btn" onclick="closeCreedCapacityModal()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--archie-text-secondary);">Cancel</button>' +
             '<button class="bm-btn" onclick="executeFleetModeToggle(\'workday\')" style="background:rgba(0,255,65,0.15);border:1px solid rgba(0,255,65,0.3);color:#00ff41;">&#9788; Activate Workday</button>';
         modal.classList.add('active');
         return;
@@ -122,7 +122,7 @@ function showIaaeCapacityModal(level, info) {
 
     modal.style.setProperty('--bm-accent', level === 'red' ? '#FF4444' : '#ffaa00');
     modal.style.setProperty('--bm-accent-rgb', level === 'red' ? '255,68,68' : '255,170,0');
-    title.textContent = level === 'red' ? 'IAAE POLICY BLOCK' : 'IAAE CAPACITY WARNING';
+    title.textContent = level === 'red' ? 'C.R.E.E.D. POLICY BLOCK' : 'C.R.E.E.D. CAPACITY WARNING';
 
     if (level === 'red') {
         body.innerHTML =
@@ -139,7 +139,7 @@ function showIaaeCapacityModal(level, info) {
             '<div style="margin-top:12px;font-size:0.7rem;color:var(--archie-text-muted);border-top:1px solid rgba(255,255,255,0.06);padding-top:8px;">' +
             'Remove or barrack an existing agent to free capacity.' +
             '</div>';
-        actions.innerHTML = '<button class="bm-btn" onclick="closeIaaeCapacityModal()" style="background:rgba(255,68,68,0.15);border:1px solid rgba(255,68,68,0.3);color:#FF4444;">Understood</button>';
+        actions.innerHTML = '<button class="bm-btn" onclick="closeCreedCapacityModal()" style="background:rgba(255,68,68,0.15);border:1px solid rgba(255,68,68,0.3);color:#FF4444;">Understood</button>';
     } else {
         body.innerHTML =
             '<div style="background:rgba(255,170,0,0.1);border:1px solid rgba(255,170,0,0.3);border-radius:6px;padding:12px;margin-bottom:12px;">' +
@@ -156,13 +156,13 @@ function showIaaeCapacityModal(level, info) {
             'New agent LLM must fit within ' + info.swapFree + 'GB swap remaining or use a cloud model.' +
             '</div>';
         actions.innerHTML =
-            '<button class="bm-btn" onclick="closeIaaeCapacityModal()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--archie-text-secondary);">Cancel</button>' +
-            '<button class="bm-btn" onclick="closeIaaeCapacityModal();openAgentFormModal();" style="background:rgba(255,170,0,0.15);border:1px solid rgba(255,170,0,0.3);color:#ffaa00;">Continue Anyway</button>';
+            '<button class="bm-btn" onclick="closeCreedCapacityModal()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--archie-text-secondary);">Cancel</button>' +
+            '<button class="bm-btn" onclick="closeCreedCapacityModal();openAgentFormModal();" style="background:rgba(255,170,0,0.15);border:1px solid rgba(255,170,0,0.3);color:#ffaa00;">Continue Anyway</button>';
     }
     modal.classList.add('active');
 }
-function closeIaaeCapacityModal() {
-    document.getElementById('iaae-capacity-modal').classList.remove('active');
+function closeCreedCapacityModal() {
+    document.getElementById('creed-capacity-modal').classList.remove('active');
 }
 
 // === Fleet Mode Toggle (Workday / Weekend) ===
@@ -177,13 +177,13 @@ function toggleFleetMode() {
     var btn = document.getElementById('btn-fleet-mode');
     var current = btn.classList.contains('weekend') ? 'weekend' : 'workday';
     var next = current === 'workday' ? 'weekend' : 'workday';
-    showIaaeCapacityModal(next === 'weekend' ? 'fleet-weekend' : 'fleet-workday', {next: next});
+    showCreedCapacityModal(next === 'weekend' ? 'fleet-weekend' : 'fleet-workday', {next: next});
 }
 
 function executeFleetModeToggle(mode) {
     var btn = document.getElementById('btn-fleet-mode');
     btn.classList.add('transitioning');
-    closeIaaeCapacityModal();
+    closeCreedCapacityModal();
 
     fetch('/tools/starbase/api/bridge/fleet-mode', {
         method: 'POST',
@@ -335,30 +335,30 @@ function loadOverviewData() {
             }
         }).catch(function() {});
 
-    // 3. IAAE Health card (real welfare + workload data)
+    // 3. C.R.E.E.D. Health card (real welfare + workload data)
     Promise.all([
         fetch('/tools/starbase/api/agents/welfare').then(function(r) { return r.json(); }),
         fetch('/tools/starbase/api/agents/workload').then(function(r) { return r.json(); })
     ]).then(function(results) {
         var welfareData = results[0];
         var workloadData = results[1];
-        var el = document.getElementById('overviewIAAE');
-        var iaaeEl = document.getElementById('hudIAAEScore');
+        var el = document.getElementById('overviewCREED');
+        var creedEl = document.getElementById('hudCREEDScore');
         if (!el) return;
 
         if (!welfareData.success) {
             el.textContent = 'Unable to load';
-            if (iaaeEl) iaaeEl.textContent = 'N/A';
+            if (creedEl) creedEl.textContent = 'N/A';
             return;
         }
 
         var fh = welfareData.fleet_health || {};
         // HUD pod
-        if (iaaeEl) {
-            iaaeEl.textContent = fh.compliance_pct !== null && fh.compliance_pct !== undefined ? fh.compliance_pct + '%' : 'N/A';
+        if (creedEl) {
+            creedEl.textContent = fh.compliance_pct !== null && fh.compliance_pct !== undefined ? fh.compliance_pct + '%' : 'N/A';
         }
 
-        // Build rich IAAE card via DOM
+        // Build rich C.R.E.E.D. card via DOM
         el.textContent = '';
 
         // Helper: make a gauge bar
@@ -443,14 +443,14 @@ function loadOverviewData() {
             });
         }
     }).catch(function() {
-        var el = document.getElementById('overviewIAAE');
-        if (el) el.textContent = 'IAAE Governance Active';
-        var iaaeEl = document.getElementById('hudIAAEScore');
-        if (iaaeEl) iaaeEl.textContent = 'N/A';
+        var el = document.getElementById('overviewCREED');
+        if (el) el.textContent = 'C.R.E.E.D. Governance Active';
+        var creedEl = document.getElementById('hudCREEDScore');
+        if (creedEl) creedEl.textContent = 'N/A';
     });
 
     // 3b. Vigil's Log (enforcement events)
-    fetch('/tools/starbase/api/iaae/enforcement-log')
+    fetch('/tools/starbase/api/creed/enforcement-log')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var el = document.getElementById('overviewVigilLog');
@@ -507,7 +507,7 @@ function loadOverviewData() {
             }
         }).catch(function() {
             var el = document.getElementById('overviewVigilLog');
-            if (el) el.textContent = 'IAAE Governance Active';
+            if (el) el.textContent = 'C.R.E.E.D. Governance Active';
         });
 
     // 4. Mini Activity Feed (last 5 dispatches)
@@ -617,7 +617,7 @@ function loadVigilLogPage() {
     body.textContent = '';
     body.appendChild(_vigilMakeText('div', 'Loading...', 'text-align:center;color:var(--archie-text-muted);padding:2rem;'));
 
-    var url = '/tools/starbase/api/iaae/enforcement-log-full?page=' + _vigilState.page +
+    var url = '/tools/starbase/api/creed/enforcement-log-full?page=' + _vigilState.page +
               '&per_page=' + _vigilState.perPage +
               '&filter=' + _vigilState.filter;
     fetch(url)
@@ -1140,7 +1140,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     loadOverviewData();
     loadStations();
-    loadIAAEStatus();
+    loadCREEDStatus();
     loadStaffingStatus();
 
     // Mission profile banner
@@ -1156,7 +1156,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Refresh intervals
     setInterval(loadOverviewData, 60000);
     setInterval(loadStations, 30000);
-    setInterval(loadIAAEStatus, 30000);
+    setInterval(loadCREEDStatus, 30000);
     setInterval(loadStaffingStatus, 60000);
     setInterval(loadViewscreenData, 30000);
 
@@ -6198,16 +6198,16 @@ window.addEventListener('resize', function() {
 });
 
 // ============================================================================
-// IAAE STATUS
+// C.R.E.E.D. STATUS
 // ============================================================================
 
-async function loadIAAEStatus() {
+async function loadCREEDStatus() {
     try {
         const response = await fetch('/tools/starbase/api/agents/welfare');
         const data = await response.json();
 
         if (data.success) {
-            const statusEl = document.getElementById('iaae-status');
+            const statusEl = document.getElementById('creed-status');
             if (statusEl) {
                 var fh = data.fleet_health || {};
                 var atRisk = fh.agents_at_risk || 0;
@@ -6225,7 +6225,7 @@ async function loadIAAEStatus() {
             }
         }
     } catch (error) {
-        console.error('Error loading IAAE status:', error);
+        console.error('Error loading C.R.E.E.D. status:', error);
     }
 }
 
@@ -8912,7 +8912,7 @@ function renderCrewManifest(crew, capacity, nodeCapacities) {
 
         grid.parentNode.insertBefore(capWrap, grid);
 
-        // Gate the Add Agent button based on RAM budget + IAAE policy
+        // Gate the Add Agent button based on RAM budget + C.R.E.E.D. policy
         var addBtn = document.getElementById('btn-add-agent');
         if (addBtn) {
             addBtn.classList.remove('amber', 'red');
@@ -8929,12 +8929,12 @@ function renderCrewManifest(crew, capacity, nodeCapacities) {
             };
             if (ram.status === 'red') {
                 addBtn.classList.add('red');
-                addBtn.title = 'IAAE Policy: RAM reserve breached';
-                addBtn.onclick = function(e) { e.preventDefault(); showIaaeCapacityModal('red', _capInfo); };
+                addBtn.title = 'C.R.E.E.D. Policy: RAM reserve breached';
+                addBtn.onclick = function(e) { e.preventDefault(); showCreedCapacityModal('red', _capInfo); };
             } else if (ram.status === 'amber') {
                 addBtn.classList.add('amber');
                 addBtn.title = 'Limited capacity \u2014 ' + usableGB.toFixed(1) + 'GB usable';
-                addBtn.onclick = function(e) { e.preventDefault(); showIaaeCapacityModal('amber', _capInfo); };
+                addBtn.onclick = function(e) { e.preventDefault(); showCreedCapacityModal('amber', _capInfo); };
             } else {
                 addBtn.onclick = function() { openAgentFormModal(); };
             }
@@ -11404,8 +11404,8 @@ async function loadContractors() {
             if (modeData.success) routingMode = modeData.routing_mode || 'full';
         }
         renderContractors(data.providers || [], routingMode, {
-            iaae_total_24h: data.iaae_total_24h || 0,
-            iaae_blocked_24h: data.iaae_blocked_24h || 0
+            creed_total_24h: data.creed_total_24h || 0,
+            creed_blocked_24h: data.creed_blocked_24h || 0
         });
     } catch (e) {
         console.error('loadContractors error:', e);
@@ -11414,10 +11414,10 @@ async function loadContractors() {
     }
 }
 
-function renderContractors(providers, routingMode, iaaeData) {
+function renderContractors(providers, routingMode, creedData) {
     routingMode = routingMode || 'full';
-    iaaeData = iaaeData || { iaae_total_24h: 0, iaae_blocked_24h: 0 };
-    var iaaeBlocked = iaaeData.iaae_blocked_24h || 0;
+    creedData = creedData || { creed_total_24h: 0, creed_blocked_24h: 0 };
+    var creedBlocked = creedData.creed_blocked_24h || 0;
     // Dynamic cloud provider check — use is_cloud_proxy from API data
     var cloudProviders = providers.filter(function(p) { return p.is_cloud_proxy; }).map(function(p) { return p.provider; });
     var grid = document.getElementById('contractors-grid');
@@ -11579,10 +11579,10 @@ function renderContractors(providers, routingMode, iaaeData) {
                     html += '</div>';
                 }
                 html += '<div style="display:flex;align-items:center;justify-content:space-between;">';
-                if (iaaeBlocked > 0) {
-                    html += '<span class="contractor-iaae-badge" style="color:#ffaa00;border-color:#ffaa00;"><i data-lucide="shield-alert" style="width:10px;height:10px;"></i> IAAE: ' + escapeHtml(String(iaaeBlocked)) + ' blocked</span>';
+                if (creedBlocked > 0) {
+                    html += '<span class="contractor-creed-badge" style="color:#ffaa00;border-color:#ffaa00;"><i data-lucide="shield-alert" style="width:10px;height:10px;"></i> C.R.E.E.D.: ' + escapeHtml(String(creedBlocked)) + ' blocked</span>';
                 } else {
-                    html += '<span class="contractor-iaae-badge"><i data-lucide="shield-check" style="width:10px;height:10px;"></i> IAAE Compliant</span>';
+                    html += '<span class="contractor-creed-badge"><i data-lucide="shield-check" style="width:10px;height:10px;"></i> C.R.E.E.D. Compliant</span>';
                 }
                 html += '<label class="contractor-model-toggle"><input type="checkbox" ' + (modelEnabled ? 'checked' : '') + ' onchange="toggleContractorModel(\'' + providerKey + '\',\'' + escapeHtml(m.name || m.model_name || '') + '\',this.checked)"> Enabled</label>';
                 html += '</div>';

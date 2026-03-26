@@ -2490,7 +2490,7 @@ Format as JSON array with objects containing: content, hashtags (array), type"""
                 duration_ms = int((time.time() - start_time) * 1000)
 
                 if result.get("success"):
-                    # Log task execution for HR/IAAE tracking
+                    # Log task execution for HR/C.R.E.E.D. tracking
                     try:
                         log_task_execution(
                             agent_id=result.get("agent_id"),
@@ -2602,7 +2602,7 @@ Return only a JSON array of hashtag strings (without # symbol). Example: ["Marke
                 duration_ms = int((time.time() - start_time) * 1000)
 
                 if result.get("success"):
-                    # Log task execution for HR/IAAE tracking
+                    # Log task execution for HR/C.R.E.E.D. tracking
                     try:
                         log_task_execution(
                             agent_id=result.get("agent_id"),

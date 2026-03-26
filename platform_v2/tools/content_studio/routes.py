@@ -396,7 +396,7 @@ Please write engaging, well-structured content that is ready to publish."""
                 duration_ms = int((time.time() - start_time) * 1000)
 
                 if result.get("success"):
-                    # Log task execution for HR/IAAE tracking
+                    # Log task execution for HR/C.R.E.E.D. tracking
                     try:
                         log_task_execution(
                             agent_id=result.get("agent_id"),

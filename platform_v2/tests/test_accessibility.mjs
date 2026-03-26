@@ -66,7 +66,7 @@ const ALL_PAGES = [
   { name: 'email-manager',      route: '/tools/email-manager',      auth: true },
   { name: 'autonomy',           route: '/tools/autonomy',           auth: true },
   { name: 'saas-manager',       route: '/tools/saas-manager',       auth: true },
-  { name: 'iaae',               route: '/iaae',                     auth: false },
+  { name: 'creed',              route: '/creed',                    auth: false },
 ];
 
 // Filter pages if --pages flag was provided

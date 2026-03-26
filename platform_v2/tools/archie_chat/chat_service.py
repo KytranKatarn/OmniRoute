@@ -217,7 +217,7 @@ def save_message(
         agent_used: Name of the agent that handled the message.
         model_used: LLM model identifier.
         station_code: Station that handled the request.
-        governance_events: Optional JSONB list of IAAE events.
+        governance_events: Optional JSONB list of C.R.E.E.D. events.
         duration_ms: Response generation time in milliseconds.
         token_count: Number of tokens used.
 

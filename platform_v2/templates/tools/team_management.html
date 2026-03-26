@@ -180,7 +180,7 @@
             <button class="tm-tab" onclick="tmTab('stations',this)" role="tab"><span data-i18n="team_management.stations">Stations</span></button>
             <button class="tm-tab" onclick="tmTab('queue',this)" role="tab"><span data-i18n="team_management.work_queue">Work Queue</span></button>
             <button class="tm-tab" onclick="tmTab('hr',this)" role="tab"><span data-i18n="team_management.hr_dashboard">HR Dashboard</span></button>
-            <button class="tm-tab" onclick="tmTab('iaae',this)" role="tab"><span data-i18n="team_management.iaae_governance">IAAE Governance</span></button>
+            <button class="tm-tab" onclick="tmTab('creed',this)" role="tab"><span data-i18n="team_management.creed_governance">C.R.E.E.D. Governance</span></button>
             <button class="tm-tab" onclick="tmTab('perf',this)" role="tab"><span data-i18n="team_management.performance">Performance</span></button>
             <button class="tm-tab" onclick="tmTab('multiagent',this)" role="tab"><span data-i18n="team_management.multi_agent_log">Multi-Agent Log</span></button>
         </div>
@@ -229,22 +229,22 @@
             </div>
         </div>
 
-        <!-- Tab 5: IAAE Governance -->
-        <div id="pane-iaae" class="tm-pane">
+        <!-- Tab 5: C.R.E.E.D. Governance -->
+        <div id="pane-creed" class="tm-pane">
             <div class="tm-grid" style="margin-bottom:1.5rem;">
-                <div class="tm-card tm-card-top" id="iaaeCompliance">
+                <div class="tm-card tm-card-top" id="creedCompliance">
                     <h3><span data-i18n="team_management.compliance_score">Compliance Score</span></h3>
-                    <div class="val" id="iaaeScore">--</div>
-                    <div class="tm-gov-bar"><div class="tm-gov-fill" id="iaaeBar" style="width:0;background:var(--archie-green);"></div></div>
+                    <div class="val" id="creedScore">--</div>
+                    <div class="tm-gov-bar"><div class="tm-gov-fill" id="creedBar" style="width:0;background:var(--archie-green);"></div></div>
                 </div>
                 <div class="tm-card tm-card-top">
                     <h3><span data-i18n="team_management.governance_events_24h">Governance Events (24h)</span></h3>
-                    <div class="val" id="iaaeEvents">--</div>
+                    <div class="val" id="creedEvents">--</div>
                     <div class="lbl"><span data-i18n="team_management.total_logged_events">Total logged events</span></div>
                 </div>
                 <div class="tm-card tm-card-top">
                     <h3><span data-i18n="team_management.ethics_violations">Ethics Violations</span></h3>
-                    <div class="val" id="iaaeViolations" style="color:var(--archie-red);">--</div>
+                    <div class="val" id="creedViolations" style="color:var(--archie-red);">--</div>
                     <div class="lbl"><span data-i18n="team_management.active_violations">Active violations</span></div>
                 </div>
             </div>
@@ -579,23 +579,23 @@
         });
     }
 
-    /* ============ Tab 5: IAAE Governance ============ */
-    async function loadIAAE() {
+    /* ============ Tab 5: C.R.E.E.D. Governance ============ */
+    async function loadCREED() {
         var comp = await apiFetch('/api/ethics/compliance-summary');
         var welfare = await apiFetch('/api/ethics/welfare-status');
 
         if (comp) {
             var score = comp.compliance_score || comp.score || 0;
-            var scoreEl = document.getElementById('iaaeScore');
+            var scoreEl = document.getElementById('creedScore');
             if (scoreEl) scoreEl.textContent = score + '%';
-            var bar = document.getElementById('iaaeBar');
+            var bar = document.getElementById('creedBar');
             if (bar) {
                 bar.style.width = score + '%';
                 bar.style.background = score >= 80 ? 'var(--archie-green)' : score >= 50 ? 'var(--archie-orange)' : 'var(--archie-red)';
             }
-            var evEl = document.getElementById('iaaeEvents');
+            var evEl = document.getElementById('creedEvents');
             if (evEl) evEl.textContent = comp.events_24h || comp.total_events || 0;
-            var viEl = document.getElementById('iaaeViolations');
+            var viEl = document.getElementById('creedViolations');
             if (viEl) viEl.textContent = comp.violations || comp.active_violations || 0;
         }
 
@@ -1142,7 +1142,7 @@
         var loaders = {
             mission: loadMission,
             roster: loadRoster, stations: loadStations, queue: loadQueue,
-            hr: loadHR, iaae: loadIAAE, perf: loadPerformance,
+            hr: loadHR, creed: loadCREED, perf: loadPerformance,
             multiagent: loadMultiAgent
         };
         var fn = loaders[activeTab];

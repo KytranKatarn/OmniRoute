@@ -36,8 +36,8 @@
 4. **Dev HQ** - Development command center (`/dev-hq`), projects, knowledge, schema, integrations
 5. **Consciousness** - Knowledge analytics, AI processing, embedding coverage, emotional intelligence
 6. **Improvement Workflow** - Scan → Proposal → Sandbox → Deploy
-7. **Orchestration Engine** - `ai_bridge/orchestration_engine.py` (intent→route→delegate→execute pipeline, GPU-aware, IAAE-governed)
-8. **IAAE Transparency** - `/iaae` public page (no auth), live governance stats, agent welfare, ethics constraints
+7. **Orchestration Engine** - `ai_bridge/orchestration_engine.py` (intent→route→delegate→execute pipeline, GPU-aware, C.R.E.E.D.-governed)
+8. **C.R.E.E.D. Transparency** - `/creed` public page (no auth), live governance stats, agent welfare, ethics constraints
 
 ## Source of Truth
 

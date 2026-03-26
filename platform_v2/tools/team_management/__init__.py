@@ -9,7 +9,7 @@ This ADMIN-ONLY module provides:
 - Chat with team members
 - Agent details, prompts, execution history
 - Tools and performance tracking
-- IAAE compliance (ethics, welfare, audit)
+- C.R.E.E.D. compliance (ethics, welfare, audit)
 - Smart LLM routing
 
 All routes require admin authentication via @admin_required decorator.
@@ -20,4 +20,4 @@ from flask import Blueprint
 team_management_bp = Blueprint("team_management", __name__, url_prefix="/tools/team-management")
 
 from . import routes
-from .iaae_routes import iaae_bp
+from .creed_routes import creed_bp

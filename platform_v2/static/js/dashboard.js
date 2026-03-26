@@ -35,7 +35,7 @@
         { text: 'SMART ROUTER \u2014 11-TIER CASCADE...', cls: '', ok: 'READY', delay: 500 },
         { text: 'EMBEDDING SERVICE (ARCTIC-EMBED)...', cls: '', ok: 'WARM', delay: 400 },
         { text: 'SECURITY PROTOCOLS...', cls: 'warn', ok: 'ENGAGED', delay: 400 },
-        { text: 'IAAE GOVERNANCE LAYER...', cls: '', ok: 'ACTIVE', delay: 400 },
+        { text: 'C.R.E.E.D. GOVERNANCE LAYER...', cls: '', ok: 'ACTIVE', delay: 400 },
         { text: 'GPU: QUADRO M4000 (8GB VRAM)...', cls: 'system', ok: 'OK', delay: 300 },
         { text: 'ALL SUBSYSTEMS NOMINAL', cls: 'success', delay: 600 },
         { text: 'WELCOME BACK, COMMANDER', cls: 'info', delay: 400 }
@@ -1612,7 +1612,7 @@ function startShutdownSequence() {
         { text: _t('shutdown.agents', '[AGENTS] Standing down 10 agents...'), delay: 500 },
         { cls: 'archie-msg', text: '<span class="archie-name">A.R.C.H.I.E.:</span> ' + _t('shutdown.archie1', 'Already? We were just getting started.'), delay: 700 },
         { text: _t('shutdown.network', '[NETWORK] Closing secure channels...'), delay: 350 },
-        { text: _t('shutdown.iaae', '[IAAE] Governance checkpoint .......... PASSED'), delay: 400 },
+        { text: _t('shutdown.creed', '[C.R.E.E.D.] Governance checkpoint .......... PASSED'), delay: 400 },
         { cls: 'archie-msg', text: '<span class="archie-name">A.R.C.H.I.E.:</span> ' + _t('shutdown.archie2', 'Don\u2019t worry \u2014 I\u2019ll keep the lights on.'), delay: 800 },
         { text: _t('shutdown.hud', '[HUD] Powering down vitals display...'), delay: 300 },
         { text: _t('shutdown.matrix', '[MATRIX] Suspending rain animation...'), delay: 300 },

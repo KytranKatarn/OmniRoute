@@ -3435,7 +3435,7 @@ def test_proposal_in_sandbox(proposal_id):
 
 
 # ============================================================================
-# PER-AGENT MEMORY MANAGEMENT (Phase 67: IAAE-Compliant)
+# PER-AGENT MEMORY MANAGEMENT (Phase 67: C.R.E.E.D.-Compliant)
 # ============================================================================
 
 
@@ -3658,7 +3658,7 @@ def update_agent_memory(memory_id):
 @admin_required
 def soft_delete_agent_memory(memory_id):
     """
-    Soft-delete an agent memory (IAAE-compliant).
+    Soft-delete an agent memory (C.R.E.E.D.-compliant).
     Memory is marked as deleted but remains in database for audit trail.
     """
     data = request.get_json() or {}
@@ -3672,7 +3672,7 @@ def soft_delete_agent_memory(memory_id):
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Soft-delete with IAAE tracking
+        # Soft-delete with C.R.E.E.D. tracking
         cur.execute(
             """
             UPDATE agent_memory
@@ -3690,7 +3690,7 @@ def soft_delete_agent_memory(memory_id):
         conn.commit()
 
         if deleted:
-            # Log deletion for IAAE audit
+            # Log deletion for C.R.E.E.D. audit
             audit_log(
                 "AGENT_MEMORY_SOFT_DELETED",
                 {
@@ -3704,7 +3704,7 @@ def soft_delete_agent_memory(memory_id):
             return jsonify(
                 {
                     "success": True,
-                    "message": "Memory soft-deleted (IAAE-compliant)",
+                    "message": "Memory soft-deleted (C.R.E.E.D.-compliant)",
                     "memory_id": memory_id,
                     "deleted_at": datetime.now().isoformat(),
                     "can_restore": True,
@@ -3730,7 +3730,7 @@ def soft_delete_agent_memory(memory_id):
 @admin_required
 def restore_agent_memory(memory_id):
     """
-    Restore a soft-deleted agent memory (IAAE-compliant).
+    Restore a soft-deleted agent memory (C.R.E.E.D.-compliant).
     Only admin can restore memories.
     """
     conn = None
@@ -3757,7 +3757,7 @@ def restore_agent_memory(memory_id):
         conn.commit()
 
         if restored:
-            # Log restoration for IAAE audit
+            # Log restoration for C.R.E.E.D. audit
             audit_log(
                 "AGENT_MEMORY_RESTORED",
                 {
@@ -4572,7 +4572,7 @@ def approve_work_product(product_id):
             # Log governance event for approval
             try:
                 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "team_management"))
-                from iaae_routes import log_governance_event
+                from creed_routes import log_governance_event
 
                 log_governance_event(
                     event_type="work_product_approval",

@@ -472,7 +472,7 @@ MODULES: List[ModuleDefinition] = [
         enabled=False,
         health_check=lambda: default_health_check("team_management"),
         priority=3,
-        tags=["team", "agents", "management", "execution", "hr", "iaae", "ai-command"],
+        tags=["team", "agents", "management", "execution", "hr", "creed", "ai-command"],
     ),
     ModuleDefinition(
         id="consciousness",

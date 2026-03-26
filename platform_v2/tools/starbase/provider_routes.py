@@ -749,7 +749,7 @@ def register_provider_routes(bp, admin_required):
                     if row["value"].lower() == "true":
                         disabled_models.add(model_name)
 
-                # 5. IAAE governance events from last 24h
+                # 5. C.R.E.E.D. governance events from last 24h
                 cur.execute(
                     """
                     SELECT COUNT(*) as total,
@@ -758,9 +758,9 @@ def register_provider_routes(bp, admin_required):
                     WHERE timestamp >= NOW() - INTERVAL '24 hours'
                 """
                 )
-                iaae_row = cur.fetchone()
-                iaae_total_24h = iaae_row["total"] if iaae_row else 0
-                iaae_blocked_24h = iaae_row["blocked"] if iaae_row and iaae_row["blocked"] else 0
+                creed_row = cur.fetchone()
+                creed_total_24h = creed_row["total"] if creed_row else 0
+                creed_blocked_24h = creed_row["blocked"] if creed_row and creed_row["blocked"] else 0
 
                 # 6. Ollama cloud API key check
                 ollama_api_key_set = bool(os.environ.get("OLLAMA_API_KEY", "").strip())
@@ -893,8 +893,8 @@ def register_provider_routes(bp, admin_required):
                     {
                         "success": True,
                         "providers": result,
-                        "iaae_total_24h": iaae_total_24h,
-                        "iaae_blocked_24h": iaae_blocked_24h,
+                        "creed_total_24h": creed_total_24h,
+                        "creed_blocked_24h": creed_blocked_24h,
                     }
                 )
         except Exception as e:

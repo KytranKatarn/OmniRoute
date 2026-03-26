@@ -275,10 +275,10 @@ def get_live_models():
     return jsonify({"success": True, "count": count, "models": [m["name"] for m in models]})
 
 
-@starbase_bp.route("/api/iaae/overview")
+@starbase_bp.route("/api/creed/overview")
 @login_required
-def get_iaae_overview():
-    """Get real IAAE compliance and welfare metrics"""
+def get_creed_overview():
+    """Get real C.R.E.E.D. compliance and welfare metrics"""
     try:
         with get_db_cursor(commit=False) as (conn, cur):
 
@@ -339,7 +339,7 @@ def get_iaae_overview():
             )
 
     except Exception as e:
-        logger.error(f"Error getting IAAE overview: {e}")
+        logger.error(f"Error getting C.R.E.E.D. overview: {e}")
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
@@ -544,10 +544,10 @@ def get_agent_welfare():
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
-@starbase_bp.route("/api/iaae/enforcement-log")
+@starbase_bp.route("/api/creed/enforcement-log")
 @login_required
-def get_iaae_enforcement_log():
-    """Vigil's Log: governance actions, IAAE welfare checks, and agent health."""
+def get_creed_enforcement_log():
+    """Vigil's Log: governance actions, C.R.E.E.D. welfare checks, and agent health."""
     try:
         events = []
 
@@ -585,7 +585,7 @@ def get_iaae_enforcement_log():
                     }
                 )
 
-            # 2. IAAE welfare scan — check current agent states against thresholds
+            # 2. C.R.E.E.D. welfare scan — check current agent states against thresholds
             cur.execute(
                 """
                 SELECT DISTINCT ON (aes.agent_id)
@@ -601,7 +601,7 @@ def get_iaae_enforcement_log():
             )
             agent_states = cur.fetchall()
 
-            # Get IAAE thresholds
+            # Get C.R.E.E.D. thresholds
             cur.execute(
                 "SELECT threshold_type, warning_level, critical_level " "FROM iaae_thresholds WHERE is_active = true"
             )
@@ -747,13 +747,13 @@ def get_iaae_enforcement_log():
 
         return jsonify({"success": True, "events": events, "total": len(events)})
     except Exception as e:
-        logger.error("get_iaae_enforcement_log error: %s", e)
+        logger.error("get_creed_enforcement_log error: %s", e)
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
-@starbase_bp.route("/api/iaae/enforcement-log-full")
+@starbase_bp.route("/api/creed/enforcement-log-full")
 @login_required
-def get_iaae_enforcement_log_full():
+def get_creed_enforcement_log_full():
     """Vigil's Log — paginated full view with category filter."""
     try:
         page = max(1, int(request.args.get("page", 1)))
@@ -976,7 +976,7 @@ def get_iaae_enforcement_log_full():
             }
         )
     except Exception as e:
-        logger.error("get_iaae_enforcement_log_full error: %s", e)
+        logger.error("get_creed_enforcement_log_full error: %s", e)
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
 

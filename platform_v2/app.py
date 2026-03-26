@@ -1796,15 +1796,15 @@ app.register_blueprint(cursor_bp)  # Cursor IDE integration API
 app.register_blueprint(triage_bp)  # Phase 42: Conversation triage pipeline
 # OAuth authentication (Phase 6.5)
 app.register_blueprint(oauth_bp)  # OAuth authentication (Google Sign-In)
-# IAAE Compliance APIs (Phase 32-37)
-from tools.team_management.iaae_routes import iaae_bp  # noqa: E402
+# C.R.E.E.D. Compliance APIs (Phase 32-37)
+from tools.team_management.creed_routes import creed_bp  # noqa: E402
 
-app.register_blueprint(iaae_bp)
+app.register_blueprint(creed_bp)
 
-# IAAE Public Transparency Page (no login required)
-from tools.iaae.routes import iaae_public_bp  # noqa: E402
+# C.R.E.E.D. Public Transparency Page (no login required)
+from tools.creed.routes import creed_public_bp  # noqa: E402
 
-app.register_blueprint(iaae_public_bp)
+app.register_blueprint(creed_public_bp)
 
 # Products Showcase (public — no login required)
 from tools.products.routes import products_bp  # noqa: E402

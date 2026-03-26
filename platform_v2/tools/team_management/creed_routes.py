@@ -1,5 +1,5 @@
 """
-IAAE (Institute for Artificial Agency Ethics) API Routes
+C.R.E.E.D. (Compliance, Rights & Ethical Enforcement Directive) API Routes
 Global endpoints for ethics constraints, governance audit, and compliance
 
 All routes require admin authentication.
@@ -15,7 +15,7 @@ from database import _get_db_password
 import json
 from datetime import datetime, timedelta
 
-iaae_bp = Blueprint("iaae", __name__, url_prefix="/tools/team-management/api/iaae")
+creed_bp = Blueprint("creed", __name__, url_prefix="/tools/team-management/api/creed")
 
 
 # =============================================================================
@@ -190,7 +190,7 @@ def check_constraints(action_name, agent_id=None):
 # =============================================================================
 
 
-@iaae_bp.route("/constraints", methods=["GET"])
+@creed_bp.route("/constraints", methods=["GET"])
 @login_required
 @api_admin_required
 def get_constraints():
@@ -275,7 +275,7 @@ def get_constraints():
             pass
 
 
-@iaae_bp.route("/constraints", methods=["POST"])
+@creed_bp.route("/constraints", methods=["POST"])
 @login_required
 @api_admin_required
 def create_constraint():
@@ -348,7 +348,7 @@ def create_constraint():
             pass
 
 
-@iaae_bp.route("/constraints/<int:constraint_id>", methods=["PUT"])
+@creed_bp.route("/constraints/<int:constraint_id>", methods=["PUT"])
 @login_required
 @api_admin_required
 def update_constraint(constraint_id):
@@ -443,7 +443,7 @@ def update_constraint(constraint_id):
             pass
 
 
-@iaae_bp.route("/constraints/<int:constraint_id>", methods=["DELETE"])
+@creed_bp.route("/constraints/<int:constraint_id>", methods=["DELETE"])
 @login_required
 @api_admin_required
 def delete_constraint(constraint_id):
@@ -500,7 +500,7 @@ def delete_constraint(constraint_id):
             pass
 
 
-@iaae_bp.route("/constraints/check", methods=["POST"])
+@creed_bp.route("/constraints/check", methods=["POST"])
 @login_required
 @api_admin_required
 def check_action_constraints():
@@ -551,7 +551,7 @@ def check_action_constraints():
 # =============================================================================
 
 
-@iaae_bp.route("/audit", methods=["GET"])
+@creed_bp.route("/audit", methods=["GET"])
 @login_required
 @api_admin_required
 def get_audit_events():
@@ -642,7 +642,7 @@ def get_audit_events():
             pass
 
 
-@iaae_bp.route("/audit/summary", methods=["GET"])
+@creed_bp.route("/audit/summary", methods=["GET"])
 @login_required
 @api_admin_required
 def get_audit_summary():
@@ -736,7 +736,7 @@ def get_audit_summary():
             pass
 
 
-@iaae_bp.route("/audit/<int:audit_id>", methods=["GET"])
+@creed_bp.route("/audit/<int:audit_id>", methods=["GET"])
 @login_required
 @api_admin_required
 def get_audit_event(audit_id):
@@ -792,7 +792,7 @@ def get_audit_event(audit_id):
 # =============================================================================
 
 
-@iaae_bp.route("/refusals/analytics", methods=["GET"])
+@creed_bp.route("/refusals/analytics", methods=["GET"])
 @login_required
 @api_admin_required
 def get_refusals_analytics():
@@ -911,7 +911,7 @@ def get_refusals_analytics():
 # =============================================================================
 
 
-@iaae_bp.route("/agents/resting", methods=["GET"])
+@creed_bp.route("/agents/resting", methods=["GET"])
 @login_required
 @api_admin_required
 def get_resting_agents():
@@ -970,7 +970,7 @@ def get_resting_agents():
 # =============================================================================
 
 
-@iaae_bp.route("/welfare", methods=["GET"])
+@creed_bp.route("/welfare", methods=["GET"])
 @login_required
 @api_admin_required
 def get_agent_welfare():
@@ -1024,11 +1024,11 @@ def get_agent_welfare():
 # =============================================================================
 
 
-@iaae_bp.route("/compliance", methods=["GET"])
+@creed_bp.route("/compliance", methods=["GET"])
 @login_required
 @api_admin_required
 def get_compliance_dashboard():
-    """Get comprehensive IAAE compliance dashboard data"""
+    """Get comprehensive C.R.E.E.D. compliance dashboard data"""
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)

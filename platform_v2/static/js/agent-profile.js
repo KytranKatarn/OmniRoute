@@ -725,21 +725,21 @@
             bodyEl.appendChild(gaugeCard);
         }
 
-        /* ── 18. IAAE Compliance — placeholder, filled async ─────── */
-        var iaaeSection = el('div', {});
-        iaaeSection.id = 'profile-iaae-section';
-        bodyEl.appendChild(iaaeSection);
+        /* ── 18. C.R.E.E.D. Compliance — placeholder, filled async ─────── */
+        var creedSection = el('div', {});
+        creedSection.id = 'profile-creed-section';
+        bodyEl.appendChild(creedSection);
 
         /* ── 19. Work History — placeholder, filled async ────────── */
         var whSection = el('div', {});
         whSection.id = 'profile-work-history-section';
         bodyEl.appendChild(whSection);
 
-        /* ── Async: IAAE Welfare & Compliance ────────────────────── */
+        /* ── Async: C.R.E.E.D. Welfare & Compliance ────────────────────── */
         fetch('/tools/starbase/api/agents/workload')
             .then(function (r) { return r.json(); })
             .then(function (wData) {
-                var section = document.getElementById('profile-iaae-section');
+                var section = document.getElementById('profile-creed-section');
                 if (!section || !wData.success) return;
                 var me = null;
                 (wData.agents || []).forEach(function (w) { if (w.id === parseInt(agentId)) me = w; });
@@ -748,12 +748,12 @@
                 var riskColors = { healthy: '#00ff41', elevated: '#ffaa00', critical: '#ff6b6b', overloaded: '#ff0000' };
                 var riskColor = riskColors[me.risk_level] || '#888';
 
-                var iaaeCard = makeCard('IAAE Welfare & Compliance', riskColor);
+                var creedCard = makeCard('C.R.E.E.D. Welfare & Compliance', riskColor);
 
                 // Risk badge in header
-                var iaaeHeader = iaaeCard.querySelector('.profile-card-header');
+                var creedHeader = creedCard.querySelector('.profile-card-header');
                 var riskBadge = el('span', { text: me.risk_level || 'unknown', style: 'background:' + riskColor + '22;color:' + riskColor + ';padding:1px 6px;border-radius:3px;font-size:0.6rem;text-transform:uppercase;border:1px solid ' + riskColor + '44;margin-left:8px;' });
-                iaaeHeader.appendChild(riskBadge);
+                creedHeader.appendChild(riskBadge);
 
                 // Workload gauge
                 var wPct = me.workload_pct || 0;
@@ -766,7 +766,7 @@
                 var wlBar = el('div', { cls: 'crew-profile-welfare-bar' });
                 wlBar.appendChild(el('div', { cls: 'crew-profile-welfare-fill', style: 'width:' + Math.min(wPct, 100) + '%;background:' + wColor + ';' }));
                 wlBlock.appendChild(wlBar);
-                iaaeCard.appendChild(wlBlock);
+                creedCard.appendChild(wlBlock);
 
                 // Token gauge
                 var tPct = me.token_usage_pct || 0;
@@ -779,7 +779,7 @@
                 var tkBar = el('div', { cls: 'crew-profile-welfare-bar' });
                 tkBar.appendChild(el('div', { cls: 'crew-profile-welfare-fill', style: 'width:' + Math.min(tPct, 100) + '%;background:' + tColor + ';' }));
                 tkBlock.appendChild(tkBar);
-                iaaeCard.appendChild(tkBlock);
+                creedCard.appendChild(tkBlock);
 
                 // Stats row
                 var statsRow = el('div', { style: 'display:flex;gap:12px;font-size:0.7rem;margin-bottom:8px;' });
@@ -795,7 +795,7 @@
                 avgSpan.appendChild(document.createTextNode('Avg: '));
                 avgSpan.appendChild(el('span', { text: fmtDur(me.avg_duration_ms), style: 'color:#00e5ff;' }));
                 statsRow.appendChild(avgSpan);
-                iaaeCard.appendChild(statsRow);
+                creedCard.appendChild(statsRow);
 
                 // Send to rest if at risk
                 if (wPct >= 80 || (em && (em.stress_level || 0) > 0.7)) {
@@ -807,11 +807,11 @@
                             if (typeof options.onClose === 'function') options.onClose();
                             else if (typeof window[options.onClose] === 'function') window[options.onClose]();
                         });
-                        iaaeCard.appendChild(restBtn);
+                        creedCard.appendChild(restBtn);
                     }
                 }
 
-                section.appendChild(iaaeCard);
+                section.appendChild(creedCard);
             }).catch(function () { /* silently skip */ });
 
         /* ── Async: Work History ──────────────────────────────────── */

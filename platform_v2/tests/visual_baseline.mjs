@@ -60,7 +60,7 @@ if (!CONFIG.username || !CONFIG.password) {
 const ROUTES = [
   // Public (no auth)
   { name: 'login',             route: '/login',                   auth: false },
-  { name: 'iaae',              route: '/iaae',                    auth: false },
+  { name: 'creed',             route: '/creed',                   auth: false },
   // Core
   { name: 'dashboard',         route: '/dashboard',               auth: true },
   { name: 'dev-hq',            route: '/dev-hq',                  auth: true },

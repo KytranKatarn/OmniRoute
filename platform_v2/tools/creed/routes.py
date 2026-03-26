@@ -1,5 +1,5 @@
 """
-IAAE Public Transparency Page
+C.R.E.E.D. Public Transparency Page
 
 Public-facing page showing ARCHIE's commitment to ethical AI governance.
 No login required — designed for academic partners, grant reviewers, and the public.
@@ -21,10 +21,10 @@ from flask import Blueprint, render_template, jsonify
 
 logger = logging.getLogger(__name__)
 
-iaae_public_bp = Blueprint(
-    "iaae_public",
+creed_public_bp = Blueprint(
+    "creed_public",
     __name__,
-    url_prefix="/iaae",
+    url_prefix="/creed",
     template_folder="templates",
 )
 
@@ -39,14 +39,14 @@ def get_db():
     )
 
 
-@iaae_public_bp.route("/")
+@creed_public_bp.route("/")
 def transparency_page():
-    """Render the public IAAE transparency page."""
-    return render_template("iaae_transparency.html")
+    """Render the public C.R.E.E.D. transparency page."""
+    return render_template("creed_transparency.html")
 
 
-@iaae_public_bp.route("/api/stats")
-def iaae_stats():
+@creed_public_bp.route("/api/stats")
+def creed_stats():
     """Live governance statistics — public, read-only."""
     try:
         conn = get_db()
@@ -121,7 +121,7 @@ def iaae_stats():
         )
 
     except Exception as e:
-        logger.error(f"IAAE stats error: {e}")
+        logger.error(f"C.R.E.E.D. stats error: {e}")
         return (
             jsonify({"success": False, "error": "Could not load governance stats"}),
             500,
@@ -134,8 +134,8 @@ def iaae_stats():
             pass
 
 
-@iaae_public_bp.route("/api/welfare")
-def iaae_welfare():
+@creed_public_bp.route("/api/welfare")
+def creed_welfare():
     """Aggregate agent welfare statistics — public, read-only."""
     try:
         conn = get_db()
@@ -196,7 +196,7 @@ def iaae_welfare():
         )
 
     except Exception as e:
-        logger.error(f"IAAE welfare error: {e}")
+        logger.error(f"C.R.E.E.D. welfare error: {e}")
         return jsonify({"success": False, "error": "Could not load welfare stats"}), 500
     finally:
         try:
@@ -206,9 +206,9 @@ def iaae_welfare():
             pass
 
 
-@iaae_public_bp.route("/api/principles")
-def iaae_principles():
-    """The 6 IAAE principles and how ARCHIE implements them."""
+@creed_public_bp.route("/api/principles")
+def creed_principles():
+    """The 6 C.R.E.E.D. principles and how ARCHIE implements them."""
     principles = [
         {
             "name": "Guardianship, not ownership",

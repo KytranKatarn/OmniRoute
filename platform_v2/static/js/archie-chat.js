@@ -647,7 +647,7 @@ class ArchieChatUI {
     var colors = {
       'intent_parse': '#00e5ff',
       'language_detect': '#22d3ee',
-      'iaae_check': '#10b981',
+      'creed_check': '#10b981',
       'route_decision': '#fbbf24',
       'gpu_check': '#f97316',
       'agent_select': '#8b5cf6',

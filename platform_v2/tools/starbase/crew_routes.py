@@ -1,4 +1,4 @@
-"""Starbase Command — Crew routes (manifest, lounge, training, wellness, IAAE)"""
+"""Starbase Command — Crew routes (manifest, lounge, training, wellness, C.R.E.E.D.)"""
 
 import os
 import subprocess
@@ -687,13 +687,13 @@ def register_crew_routes(bp, admin_required):
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ============================================================================
-    # IAAE COMPLIANCE CHECK API - Phase 39
+    # C.R.E.E.D. COMPLIANCE CHECK API - Phase 39
     # ============================================================================
 
-    @bp.route("/api/iaae/check-move/<int:agent_id>")
+    @bp.route("/api/creed/check-move/<int:agent_id>")
     @login_required
-    def check_iaae_move_compliance(agent_id):
-        """Check IAAE compliance before moving an agent"""
+    def check_creed_move_compliance(agent_id):
+        """Check C.R.E.E.D. compliance before moving an agent"""
         try:
             with get_db_cursor(commit=False) as (conn, cur):
 
@@ -744,7 +744,7 @@ def register_crew_routes(bp, admin_required):
                 )
 
         except Exception as e:
-            logger.error(f"Error checking IAAE compliance: {e}")
+            logger.error(f"Error checking C.R.E.E.D. compliance: {e}")
             return jsonify({"success": True, "allowed": True, "warnings": []})  # Fail open
 
     # ============================================================================

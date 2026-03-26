@@ -108,7 +108,7 @@ def _fetch_platform_features():
             "icon": "target",
         },
         {
-            "title": "Agent Welfare (IAAE)",
+            "title": "Agent Welfare (C.R.E.E.D.)",
             "summary": "Stress levels, mood intensity, rest cycles, and emotional state tracked for every agent. Ethical AI governance built in.",
             "icon": "heart",
         },
@@ -184,7 +184,7 @@ def _fetch_competitors():
         "archie_unique": [
             _row("Station-based dispatch", True, False, False, False, False, False, False, False),
             _row("GPU/VRAM-aware routing", True, False, False, False, False, False, False, False),
-            _row("Agent welfare (IAAE ethics)", True, False, False, False, False, False, False, False),
+            _row("Agent welfare (C.R.E.E.D. ethics)", True, False, False, False, False, False, False, False),
             _row("Self-auditing codebase", True, False, False, False, False, False, False, False),
             _row("Code health metrics dashboard", True, False, False, False, False, False, False, False),
             _row("Warm-boot model lifecycle", True, False, False, False, False, False, False, False),
@@ -308,12 +308,12 @@ def _fetch_competitors():
             "badge": "Watch",
             "badge_type": "watch",
             "meta": "Nvidia — Enterprise OpenClaw — Guardrails — Alpha",
-            "description": "Nvidia's enterprise version of OpenClaw, announced at GTC March 2026. Adds AI guardrails, governance, and safety — features that overlap with ARCHIE's IAAE ethics system. Still alpha.",
+            "description": "Nvidia's enterprise version of OpenClaw, announced at GTC March 2026. Adds AI guardrails, governance, and safety — features that overlap with ARCHIE's C.R.E.E.D. ethics system. Still alpha.",
             "comparison": {
                 "them": "Guardrails, Governance, Alpha",
-                "archie": "IAAE live, Agent welfare, Self-auditing, Production",
+                "archie": "C.R.E.E.D. live, Agent welfare, Self-auditing, Production",
             },
-            "verdict": "The only one worth watching. Nvidia + governance is serious. But ARCHIE's IAAE is already live and production-tested.",
+            "verdict": "The only one worth watching. Nvidia + governance is serious. But ARCHIE's C.R.E.E.D. is already live and production-tested.",
         },
     ]
 

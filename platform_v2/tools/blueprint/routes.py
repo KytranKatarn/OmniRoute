@@ -145,7 +145,7 @@ def get_overview():
                 },
                 {
                     "name": "Starbase Command Center",
-                    "desc": "10-station architecture with IAAE compliance",
+                    "desc": "10-station architecture with C.R.E.E.D. compliance",
                 },
                 {
                     "name": "Conversation Triage",
@@ -1869,7 +1869,7 @@ def get_roadmap():
                             },
                         ],
                     },
-                    # ==================== IAAE GOVERNANCE PHASES ====================
+                    # ==================== C.R.E.E.D. GOVERNANCE PHASES ====================
                     {
                         "name": "Phase 31: Bridge Station Restructure",
                         "status": "complete",
@@ -1899,7 +1899,7 @@ def get_roadmap():
                         "items": [
                             {"task": "Create agent_memory table", "done": True},
                             {
-                                "task": "Implement soft-delete with IAAE compliance",
+                                "task": "Implement soft-delete with C.R.E.E.D. compliance",
                                 "done": True,
                             },
                             {
@@ -1927,7 +1927,7 @@ def get_roadmap():
                                 "done": True,
                             },
                             {
-                                "task": "Create emotional dashboard widget in IAAE tab",
+                                "task": "Create emotional dashboard widget in C.R.E.E.D. tab",
                                 "done": True,
                             },
                             {
@@ -1937,7 +1937,7 @@ def get_roadmap():
                         ],
                     },
                     {
-                        "name": "Phase 34: IAAE Ethics Constraints",
+                        "name": "Phase 34: C.R.E.E.D. Ethics Constraints",
                         "status": "complete",
                         "items": [
                             {"task": "Create ethics_constraints table", "done": True},
@@ -1948,7 +1948,7 @@ def get_roadmap():
                                 "done": True,
                             },
                             {
-                                "task": "Create IAAE_GOVERNANCE_FRAMEWORK.md",
+                                "task": "Create C.R.E.E.D._GOVERNANCE_FRAMEWORK.md",
                                 "done": True,
                             },
                             {"task": "CRUD endpoints for constraints", "done": True},
@@ -1960,7 +1960,7 @@ def get_roadmap():
                         "items": [
                             {"task": "Create governance_audit_log table", "done": True},
                             {
-                                "task": "Implement logging for all IAAE events",
+                                "task": "Implement logging for all C.R.E.E.D. events",
                                 "done": True,
                             },
                             {"task": "Create audit log viewer UI", "done": True},
@@ -1984,7 +1984,7 @@ def get_roadmap():
                                 "task": "Add rest cycle management API (start/end)",
                                 "done": True,
                             },
-                            {"task": "Create monitoring in IAAE tab", "done": True},
+                            {"task": "Create monitoring in C.R.E.E.D. tab", "done": True},
                         ],
                     },
                     {
@@ -2029,7 +2029,7 @@ def get_roadmap():
                                 "done": True,
                             },
                             {
-                                "task": "Create Ethics Monitor sub-tab in IAAE",
+                                "task": "Create Ethics Monitor sub-tab in C.R.E.E.D.",
                                 "done": True,
                             },
                             {
@@ -2059,12 +2059,12 @@ def get_roadmap():
                                 "done": True,
                             },
                             {
-                                "task": "Lounge Area integrated with IAAE rest cycles",
+                                "task": "Lounge Area integrated with C.R.E.E.D. rest cycles",
                                 "done": True,
                             },
                             {"task": "Unassigned Pool table at bottom", "done": True},
                             {
-                                "task": "IAAE compliance pre-check on all moves",
+                                "task": "C.R.E.E.D. compliance pre-check on all moves",
                                 "done": True,
                             },
                             {
@@ -2078,10 +2078,10 @@ def get_roadmap():
                         ],
                     },
                     {
-                        "name": "Phase 40: IAAE Compliance Dashboard",
+                        "name": "Phase 40: C.R.E.E.D. Compliance Dashboard",
                         "status": "complete",
                         "items": [
-                            {"task": "Add IAAE tab to Team Management", "done": True},
+                            {"task": "Add C.R.E.E.D. tab to Team Management", "done": True},
                             {
                                 "task": "Create compliance status indicators",
                                 "done": True,
@@ -2169,7 +2169,7 @@ def get_roadmap():
                                 "done": True,
                             },
                             {
-                                "task": "Create IAAE_TECHNICAL_ALIGNMENT.md documentation",
+                                "task": "Create C.R.E.E.D._TECHNICAL_ALIGNMENT.md documentation",
                                 "done": True,
                             },
                         ],

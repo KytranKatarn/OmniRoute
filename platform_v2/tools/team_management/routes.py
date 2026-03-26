@@ -4429,7 +4429,7 @@ def get_workflow_executions():
 
 
 # =============================================================================
-# IAAE COMPLIANCE APIs - Agent-Specific Endpoints (Phases 32-37)
+# C.R.E.E.D. COMPLIANCE APIs - Agent-Specific Endpoints (Phases 32-37)
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -6233,11 +6233,11 @@ def update_ethics_config():
 # Duplicates were removed to fix Flask route registration issues
 
 
-@team_management_bp.route("/api/iaae/check-move/<int:agent_id>", methods=["GET"])
+@team_management_bp.route("/api/creed/check-move/<int:agent_id>", methods=["GET"])
 @login_required
 @api_admin_required
-def check_iaae_move_compliance(agent_id):
-    """Pre-check if moving an agent would violate IAAE guidelines"""
+def check_creed_move_compliance(agent_id):
+    """Pre-check if moving an agent would violate C.R.E.E.D. guidelines"""
     try:
         _target_type = request.args.get("target_type")  # noqa: F841
         _target_id = request.args.get("target_id")  # noqa: F841
@@ -6278,7 +6278,7 @@ def check_iaae_move_compliance(agent_id):
         if rest:
             if rest["rest_type"] == "forced":
                 result["blocked"] = True
-                result["message"] = "Agent is in forced rest (IAAE mandated) and cannot be moved"
+                result["message"] = "Agent is in forced rest (C.R.E.E.D. mandated) and cannot be moved"
             else:
                 result["warnings"].append(f"Agent is in {rest['rest_type']} rest since {rest['started_at']}")
 
@@ -6650,8 +6650,8 @@ def return_agent_from_lounge(agent_id):
                 jsonify(
                     {
                         "success": False,
-                        "error": "Cannot return agent - forced rest in progress (IAAE mandated)",
-                        "iaae_blocked": True,
+                        "error": "Cannot return agent - forced rest in progress (C.R.E.E.D. mandated)",
+                        "creed_blocked": True,
                     }
                 ),
                 400,
@@ -6832,7 +6832,7 @@ def get_stations_full_layout():
 @login_required
 @api_admin_required
 def process_drag_drop():
-    """Process drag-drop move with IAAE compliance checks"""
+    """Process drag-drop move with C.R.E.E.D. compliance checks"""
     try:
         data = request.get_json()
         agent_id = data.get("agent_id")
@@ -6884,7 +6884,7 @@ def process_drag_drop():
                 400,
             )
 
-        # IAAE checks
+        # C.R.E.E.D. checks
         cur.execute(
             """
             SELECT
@@ -6898,19 +6898,19 @@ def process_drag_drop():
         """,
             (agent_id,),
         )
-        iaae = cur.fetchone()
+        creed = cur.fetchone()
 
         warnings = []
 
         # Check if agent is in forced rest
-        if iaae and iaae["rest_type"] == "forced":
+        if creed and creed["rest_type"] == "forced":
             cur.close()
             conn.close()
             return (
                 jsonify(
                     {
                         "success": False,
-                        "error": "Agent is in forced rest (IAAE mandated) and cannot be moved",
+                        "error": "Agent is in forced rest (C.R.E.E.D. mandated) and cannot be moved",
                         "blocked": True,
                         "reason": "forced_rest",
                     }
@@ -6919,16 +6919,16 @@ def process_drag_drop():
             )
 
         # Warn about voluntary rest
-        if iaae and iaae["rest_type"] == "voluntary" and target_type != "lounge":
+        if creed and creed["rest_type"] == "voluntary" and target_type != "lounge":
             warnings.append("Agent is currently resting - moving will end rest cycle")
 
         # Warn about high stress
-        if iaae and iaae.get("stress_level") and iaae["stress_level"] > 0.7:
-            warnings.append(f"Agent has high stress ({iaae['stress_level']:.0%}) - consider rest")
+        if creed and creed.get("stress_level") and creed["stress_level"] > 0.7:
+            warnings.append(f"Agent has high stress ({creed['stress_level']:.0%}) - consider rest")
 
         # Warn about low energy
-        if iaae and iaae.get("energy_level") and iaae["energy_level"] < 0.3:
-            warnings.append(f"Agent has low energy ({iaae['energy_level']:.0%}) - consider rest")
+        if creed and creed.get("energy_level") and creed["energy_level"] < 0.3:
+            warnings.append(f"Agent has low energy ({creed['energy_level']:.0%}) - consider rest")
 
         # Return warnings if not skipped
         if warnings and not skip_warnings:
@@ -7084,11 +7084,11 @@ def process_drag_drop():
             pass
 
 
-@team_management_bp.route("/api/iaae/check-move/<int:agent_id>", methods=["GET"])
+@team_management_bp.route("/api/creed/check-move/<int:agent_id>", methods=["GET"])
 @login_required
 @api_admin_required
-def iaae_check_move(agent_id):
-    """Pre-check IAAE compliance for moving an agent"""
+def creed_check_move(agent_id):
+    """Pre-check C.R.E.E.D. compliance for moving an agent"""
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -7134,7 +7134,7 @@ def iaae_check_move(agent_id):
         elif agent["rest_type"] == "forced":
             can_move = False
             blocked = True
-            block_reason = f"{agent['name']} is in IAAE-mandated forced rest"
+            block_reason = f"{agent['name']} is in C.R.E.E.D.-mandated forced rest"
 
         else:
             # Warnings (can still move with confirmation)
@@ -7207,7 +7207,7 @@ def iaae_check_move(agent_id):
                         or agent["training_skill"]
                         or ("Lounge" if agent["rest_type"] else "Unassigned"),
                     },
-                    "iaae_status": {
+                    "creed_status": {
                         "stress_level": agent["stress_level"],
                         "energy_level": agent["energy_level"],
                         "burnout_risk": agent["burnout_risk"],
@@ -8792,7 +8792,7 @@ def get_module_agents():
 def get_hr_wellness():
     """
     Get agent wellness status (energy, stress levels).
-    Used for IAAE compliance and employee wellbeing monitoring.
+    Used for C.R.E.E.D. compliance and employee wellbeing monitoring.
     """
     try:
         conn = get_db()

@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kytran News - Real-Time Global Intelligence Dashboard</title>
+    <meta name="description" content="Real-time global intelligence dashboard tracking conflicts, disasters, cyber threats, weather alerts, and breaking news worldwide.">
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Kytran News - Global Intelligence Dashboard">
+    <meta property="og:description" content="Real-time global monitoring: conflicts, disasters, cyber threats, weather, sanctions.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://thenews.kytranempowerment.com">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&family=Orbitron:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <!-- MapLibre GL CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css">
+
+    <!-- App CSS -->
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/map.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/reduced-motion.css">
+</head>
+<body>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loading-overlay">
+    <div class="loading-overlay__title">KYTRAN NEWS</div>
+    <div class="loading-overlay__bar">
+        <div class="loading-overlay__fill" id="loading-bar"></div>
+    </div>
+    <div class="loading-overlay__status" id="loading-status">Initializing...</div>
+</div>
+
+<!-- App Shell -->
+<div class="app">
+
+    <!-- Top Bar -->
+    <header class="topbar">
+        <div class="topbar__brand">
+            <div class="topbar__logo">KYTRAN <span>NEWS</span></div>
+            <span class="topbar__version">v1.0</span>
+        </div>
+
+        <div class="topbar__spacer"></div>
+
+        <!-- Search -->
+        <div class="topbar__search">
+            <svg class="topbar__search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+            </svg>
+            <input type="text" class="topbar__search-input" id="search-input" placeholder="Search events..." autocomplete="off">
+            <div class="search-results" id="search-results"></div>
+        </div>
+
+        <!-- Region Selector -->
+        <select class="topbar__select" id="region-select" aria-label="Region">
+            <option value="world">WORLD</option>
+            <option value="americas">AMERICAS</option>
+            <option value="europe">EUROPE</option>
+            <option value="asia">ASIA</option>
+            <option value="mena">MENA</option>
+            <option value="africa">AFRICA</option>
+        </select>
+
+        <!-- Time Range -->
+        <select class="topbar__select" id="time-select" aria-label="Time range">
+            <option value="1h">1H</option>
+            <option value="6h">6H</option>
+            <option value="24h" selected>24H</option>
+            <option value="48h">48H</option>
+            <option value="7d">7D</option>
+        </select>
+
+        <!-- Live Indicator -->
+        <div class="topbar__live">
+            <span class="topbar__live-dot"></span>
+            LIVE
+        </div>
+    </header>
+
+    <!-- DEFCON Bar -->
+    <div class="defcon-bar" data-level="5" aria-label="Threat level indicator"></div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+
+        <!-- Threat Index -->
+        <div class="sidebar__section">
+            <div class="sidebar__title">Kytran Threat Index</div>
+            <div class="threat-index">
+                <div class="threat-index__level" id="threat-level">5</div>
+                <div class="threat-index__label" id="threat-label">LOW</div>
+                <div class="threat-index__breakdown">
+                    <div class="threat-index__row">
+                        <span>Conflicts</span>
+                        <span class="threat-index__row-value" id="threat-conflicts">0</span>
+                    </div>
+                    <div class="threat-index__row">
+                        <span>Disasters</span>
+                        <span class="threat-index__row-value" id="threat-disasters">0</span>
+                    </div>
+                    <div class="threat-index__row">
+                        <span>Weather</span>
+                        <span class="threat-index__row-value" id="threat-weather">0</span>
+                    </div>
+                    <div class="threat-index__row">
+                        <span>Cyber</span>
+                        <span class="threat-index__row-value" id="threat-cyber">0</span>
+                    </div>
+                    <div class="threat-index__row">
+                        <span>Outages</span>
+                        <span class="threat-index__row-value" id="threat-outages">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Layer Toggles -->
+        <div class="sidebar__section">
+            <div class="sidebar__title">Data Layers</div>
+
+            <label class="layer-toggle active" data-layer="conflicts" style="--layer-color: var(--layer-conflicts)">
+                <div class="layer-toggle__dot"></div>
+                <div class="layer-toggle__switch"></div>
+                <span class="layer-toggle__label">Conflicts</span>
+                <span class="layer-toggle__count">0</span>
+            </label>
+
+            <label class="layer-toggle active" data-layer="disasters" style="--layer-color: var(--layer-disasters)">
+                <div class="layer-toggle__dot"></div>
+                <div class="layer-toggle__switch"></div>
+                <span class="layer-toggle__label">Disasters</span>
+                <span class="layer-toggle__count">0</span>
+            </label>
+
+            <label class="layer-toggle active" data-layer="weather" style="--layer-color: var(--layer-weather)">
+                <div class="layer-toggle__dot"></div>
+                <div class="layer-toggle__switch"></div>
+                <span class="layer-toggle__label">Weather</span>
+                <span class="layer-toggle__count">0</span>
+            </label>
+
+            <label class="layer-toggle active" data-layer="cyber" style="--layer-color: var(--layer-cyber)">
+                <div class="layer-toggle__dot"></div>
+                <div class="layer-toggle__switch"></div>
+                <span class="layer-toggle__label">Cyber Threats</span>
+                <span class="layer-toggle__count">0</span>
+            </label>
+
+            <label class="layer-toggle" data-layer="outages" style="--layer-color: var(--layer-outages)">
+                <div class="layer-toggle__dot"></div>
+                <div class="layer-toggle__switch"></div>
+                <span class="layer-toggle__label">Outages</span>
+                <span class="layer-toggle__count">0</span>
+            </label>
+
+            <label class="layer-toggle" data-layer="sanctions" style="--layer-color: var(--layer-sanctions)">
+                <div class="layer-toggle__dot"></div>
+                <div class="layer-toggle__switch"></div>
+                <span class="layer-toggle__label">Sanctions</span>
+                <span class="layer-toggle__count">0</span>
+            </label>
+
+            <label class="layer-toggle" data-layer="military" style="--layer-color: var(--layer-military)">
+                <div class="layer-toggle__dot"></div>
+                <div class="layer-toggle__switch"></div>
+                <span class="layer-toggle__label">Military / Nuclear</span>
+                <span class="layer-toggle__count">0</span>
+            </label>
+        </div>
+
+        <!-- Stats -->
+        <div class="sidebar__section">
+            <div class="sidebar__title">Global Stats</div>
+            <div class="sidebar__stats">
+                <div class="stat-card">
+                    <div class="stat-card__value" id="stat-events">--</div>
+                    <div class="stat-card__label">Events</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card__value" id="stat-countries">--</div>
+                    <div class="stat-card__label">Countries</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card__value" id="stat-sources">7</div>
+                    <div class="stat-card__label">Sources</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card__value" id="stat-news">--</div>
+                    <div class="stat-card__label">Articles</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Attribution -->
+        <div class="sidebar__section" style="opacity:0.4; font-size:var(--text-xs);">
+            Data: GDELT, USGS, NASA, NWS, OFAC<br>
+            Map: MapLibre + CARTO<br>
+            &copy; Kytran Empowerment Inc.
+        </div>
+    </aside>
+
+    <!-- Map Container -->
+    <div class="map-container">
+        <div id="map"></div>
+
+        <!-- View Toggle -->
+        <div class="map-view-toggle">
+            <button class="map-view-toggle__btn active" data-view="2d">2D</button>
+            <button class="map-view-toggle__btn" data-view="3d">3D</button>
+        </div>
+
+        <!-- Zoom Controls -->
+        <div class="map-controls">
+            <button class="map-controls__btn" id="zoom-in" aria-label="Zoom in">+</button>
+            <button class="map-controls__btn" id="zoom-out" aria-label="Zoom out">&minus;</button>
+        </div>
+
+        <!-- Legend -->
+        <div class="map-legend" id="map-legend">
+            <div class="map-legend__item">
+                <span class="map-legend__dot" style="background:var(--layer-conflicts)"></span> Conflict
+            </div>
+            <div class="map-legend__item">
+                <span class="map-legend__dot" style="background:var(--layer-disasters)"></span> Earthquake
+            </div>
+            <div class="map-legend__item">
+                <span class="map-legend__dot" style="background:var(--layer-weather)"></span> Weather
+            </div>
+            <div class="map-legend__item">
+                <span class="map-legend__dot" style="background:var(--layer-cyber)"></span> Cyber
+            </div>
+            <div class="map-legend__item">
+                <span class="map-legend__triangle" style="border-bottom-color:var(--layer-military)"></span> Military
+            </div>
+            <div class="map-legend__item">
+                <span class="map-legend__square" style="background:var(--layer-sanctions)"></span> Sanctions
+            </div>
+            <div class="map-legend__item">
+                <span class="map-legend__dot" style="background:var(--layer-outages)"></span> Outage
+            </div>
+        </div>
+
+        <!-- Attribution -->
+        <div class="map-attribution">
+            <a href="https://carto.com" target="_blank" rel="noopener">CARTO</a> &middot;
+            <a href="https://www.openstreetmap.org" target="_blank" rel="noopener">OpenStreetMap</a>
+        </div>
+    </div>
+
+    <!-- News Ticker -->
+    <div class="ticker">
+        <div class="ticker__label">
+            <span class="ticker__live-dot"></span>
+            LIVE NEWS
+            <span class="ticker__count" id="ticker-count">0</span>
+        </div>
+        <div class="ticker__track">
+            <div class="ticker__scroll" id="ticker-scroll">
+                <span class="ticker__item" style="color:var(--color-text-muted)">Loading headlines...</span>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Sidebar Mobile Toggle -->
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle sidebar">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 12h18M3 6h18M3 18h18"/>
+    </svg>
+</button>
+<div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+<!-- Libraries -->
+<script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/deck.gl@8.9.35/dist.min.js"></script>
+
+<!-- Core modules (load order matters) -->
+<script src="js/config.js"></script>
+<script src="js/data/fetcher.js"></script>
+<script src="js/data/scheduler.js"></script>
+<script src="js/data/transforms.js"></script>
+<script src="js/map.js"></script>
+
+<!-- Data layers -->
+<script src="js/layers/conflicts.js"></script>
+<script src="js/layers/disasters.js"></script>
+<script src="js/layers/weather.js"></script>
+<script src="js/layers/cyber.js"></script>
+<script src="js/layers/outages.js"></script>
+<script src="js/layers/sanctions.js"></script>
+<script src="js/layers/military.js"></script>
+
+<!-- Panels -->
+<script src="js/panels/ticker.js"></script>
+<script src="js/panels/defcon.js"></script>
+<script src="js/panels/search.js"></script>
+<script src="js/panels/legend.js"></script>
+<script src="js/panels/timeline.js"></script>
+<script src="js/panels/regions.js"></script>
+
+<!-- Effects -->
+<script src="js/effects.js"></script>
+
+<!-- App entry (must be last) -->
+<script defer src="js/app.js"></script>
+
+</body>
+</html>

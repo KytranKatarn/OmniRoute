@@ -1,0 +1,17 @@
+{"countries":[
+{"code":"RU","name":"Russia","lat":61.5,"lon":105.3,"severity":"comprehensive","sources":["US","EU","UK","CA","AU","JP"],"description":"Full sanctions: energy, finance, technology, trade"},
+{"code":"IR","name":"Iran","lat":32.4,"lon":53.6,"severity":"comprehensive","sources":["US","EU","UN"],"description":"Nuclear program, IRGC, oil exports"},
+{"code":"KP","name":"North Korea","lat":40.3,"lon":127.5,"severity":"comprehensive","sources":["US","EU","UN","JP","KR"],"description":"Nuclear weapons, ballistic missiles, WMD"},
+{"code":"SY","name":"Syria","lat":34.8,"lon":38.9,"severity":"comprehensive","sources":["US","EU"],"description":"Chemical weapons, human rights"},
+{"code":"CU","name":"Cuba","lat":21.5,"lon":-77.8,"severity":"comprehensive","sources":["US"],"description":"Trade embargo"},
+{"code":"VE","name":"Venezuela","lat":6.4,"lon":-66.5,"severity":"sectoral","sources":["US","EU","CA"],"description":"Government officials, oil sector"},
+{"code":"BY","name":"Belarus","lat":53.7,"lon":27.9,"severity":"sectoral","sources":["US","EU","UK"],"description":"Election fraud, Russia support"},
+{"code":"MM","name":"Myanmar","lat":21.9,"lon":95.9,"severity":"sectoral","sources":["US","EU","UK"],"description":"Military coup, human rights"},
+{"code":"CN","name":"China","lat":35.8,"lon":104.1,"severity":"targeted","sources":["US","EU"],"description":"Xinjiang entities, tech companies, military"},
+{"code":"LB","name":"Lebanon","lat":33.8,"lon":35.8,"severity":"targeted","sources":["US"],"description":"Hezbollah-related entities"},
+{"code":"YE","name":"Yemen","lat":15.5,"lon":48.5,"severity":"targeted","sources":["US","UN"],"description":"Houthi-related entities"},
+{"code":"LY","name":"Libya","lat":26.3,"lon":17.2,"severity":"targeted","sources":["UN","EU"],"description":"Arms embargo, militia leaders"},
+{"code":"SO","name":"Somalia","lat":5.1,"lon":46.1,"severity":"targeted","sources":["UN"],"description":"Al-Shabaab entities"},
+{"code":"SD","name":"Sudan","lat":12.8,"lon":30.2,"severity":"targeted","sources":["US","EU"],"description":"Darfur, military leadership"},
+{"code":"ZW","name":"Zimbabwe","lat":-19.0,"lon":29.1,"severity":"targeted","sources":["US","EU"],"description":"Government officials"}
+]}

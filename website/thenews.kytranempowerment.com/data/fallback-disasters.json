@@ -1,0 +1,6 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","id":"us1000abc1","geometry":{"type":"Point","coordinates":[-118.2,34.0,10]},"properties":{"mag":4.2,"place":"5km NE of Los Angeles, CA","time":1711411200000,"url":"https://earthquake.usgs.gov"}},
+{"type":"Feature","id":"us1000abc2","geometry":{"type":"Point","coordinates":[139.7,35.6,30]},"properties":{"mag":5.1,"place":"Near Tokyo, Japan","time":1711407600000,"url":"https://earthquake.usgs.gov"}},
+{"type":"Feature","id":"us1000abc3","geometry":{"type":"Point","coordinates":[-70.6,-33.4,50]},"properties":{"mag":6.0,"place":"Near Santiago, Chile","time":1711404000000,"url":"https://earthquake.usgs.gov"}},
+{"type":"Feature","id":"us1000abc4","geometry":{"type":"Point","coordinates":[29.0,40.7,12]},"properties":{"mag":3.8,"place":"Sea of Marmara, Turkey","time":1711400400000,"url":"https://earthquake.usgs.gov"}}
+]}

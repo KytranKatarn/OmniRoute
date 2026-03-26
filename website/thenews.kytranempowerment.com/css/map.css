@@ -1,0 +1,71 @@
+/* ==========================================================================
+   Kytran News — Map Styles
+   deck.gl + MapLibre overrides
+   ========================================================================== */
+
+/* MapLibre canvas */
+.maplibregl-map { font-family: var(--font-body); }
+.maplibregl-ctrl-attrib { display: none !important; }
+.maplibregl-canvas { outline: none; }
+
+/* deck.gl overlay canvas */
+#deck-canvas {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+}
+
+/* deck.gl tooltip override */
+.deck-tooltip {
+    font-family: var(--font-body) !important;
+    background: rgba(10, 10, 30, 0.95) !important;
+    border: 1px solid var(--color-glass-border) !important;
+    border-radius: 6px !important;
+    padding: 8px 12px !important;
+    color: var(--color-text) !important;
+    font-size: var(--text-sm) !important;
+    max-width: 300px !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
+    pointer-events: none !important;
+}
+
+/* Glow effect for active data points */
+.map-glow {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    animation: data-pulse 3s ease-in-out infinite;
+}
+@keyframes data-pulse {
+    0%, 100% { opacity: 0.6; transform: scale(1); }
+    50% { opacity: 0.3; transform: scale(1.3); }
+}
+
+/* Crosshair cursor when hovering data */
+.map-container--interactive { cursor: crosshair; }
+
+/* Data freshness indicator */
+.data-fresh-indicator {
+    position: absolute;
+    top: var(--space-md);
+    left: var(--space-md);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 10;
+}
+.data-fresh-indicator__row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    color: var(--color-text-muted);
+}
+.data-fresh-indicator__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+}
+.data-fresh-indicator__dot--fresh { background: var(--color-safe); }
+.data-fresh-indicator__dot--stale { background: var(--color-warning); }
+.data-fresh-indicator__dot--error { background: var(--color-danger); }

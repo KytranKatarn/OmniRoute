@@ -1,0 +1,96 @@
+/* ==========================================================================
+   Kytran News — Responsive Breakpoints
+   480px (mobile) / 768px (tablet) / 1024px (desktop)
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Tablet (< 1024px)
+   -------------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+    :root {
+        --sidebar-width: 240px;
+    }
+    .topbar__search { width: 180px; }
+}
+
+/* --------------------------------------------------------------------------
+   Small Tablet / Large Phone (< 768px)
+   -------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+    .app {
+        grid-template-columns: 1fr;
+        grid-template-rows: var(--topbar-height) var(--defcon-height) 1fr var(--ticker-height);
+        grid-template-areas:
+            "topbar"
+            "defcon"
+            "map"
+            "ticker";
+    }
+
+    /* Sidebar becomes overlay drawer */
+    .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 280px;
+        transform: translateX(-100%);
+        transition: transform var(--speed-medium) var(--ease-out);
+        z-index: 500;
+        box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
+    }
+    .sidebar.open {
+        transform: translateX(0);
+    }
+    .sidebar-toggle { display: flex; }
+    .sidebar-backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 499;
+    }
+    .sidebar-backdrop.open { display: block; }
+
+    /* Topbar compact */
+    .topbar__search { width: 140px; }
+    .topbar__version { display: none; }
+    .topbar__logo { font-size: var(--text-lg); }
+
+    /* Legend compact */
+    .map-legend {
+        bottom: var(--space-sm);
+        right: var(--space-sm);
+        left: var(--space-sm);
+        justify-content: center;
+        padding: 6px 10px;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Phone (< 480px)
+   -------------------------------------------------------------------------- */
+@media (max-width: 480px) {
+    :root {
+        --topbar-height: 44px;
+        --ticker-height: 32px;
+    }
+
+    .topbar__search { display: none; }
+    .topbar__logo {
+        font-size: var(--text-base);
+        letter-spacing: 1px;
+    }
+    .topbar__select {
+        padding: 4px 6px;
+        font-size: var(--text-xs);
+    }
+
+    .ticker__label { padding: 0 var(--space-sm); font-size: var(--text-xs); }
+    .ticker__count { display: none; }
+    .ticker__item { font-size: var(--text-xs); }
+    .ticker__category { font-size: 8px; }
+
+    .map-legend { font-size: 9px; gap: var(--space-xs) var(--space-sm); }
+    .map-view-toggle { display: none; }
+}

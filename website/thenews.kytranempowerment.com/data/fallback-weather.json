@@ -1,0 +1,5 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","geometry":null,"properties":{"id":"NWS-1","event":"Severe Thunderstorm Warning","headline":"Severe storms expected in central Oklahoma","severity":"Severe","urgency":"Immediate","areaDesc":"Oklahoma County, OK","onset":"2026-03-26T18:00:00Z","expires":"2026-03-26T22:00:00Z"}},
+{"type":"Feature","geometry":null,"properties":{"id":"NWS-2","event":"Winter Storm Watch","headline":"Heavy snow expected in northern Rockies","severity":"Moderate","urgency":"Expected","areaDesc":"Summit County, CO","onset":"2026-03-27T06:00:00Z","expires":"2026-03-28T06:00:00Z"}},
+{"type":"Feature","geometry":null,"properties":{"id":"NWS-3","event":"Heat Advisory","headline":"Excessive heat in Phoenix metro area","severity":"Moderate","urgency":"Expected","areaDesc":"Maricopa County, AZ","onset":"2026-03-26T12:00:00Z","expires":"2026-03-26T21:00:00Z"}}
+]}

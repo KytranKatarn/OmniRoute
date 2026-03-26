@@ -1,0 +1,119 @@
+/* ==========================================================================
+   Kytran News — Base Styles
+   Design tokens, reset, utilities
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Design Tokens
+   -------------------------------------------------------------------------- */
+:root {
+    /* Kytran Brand Colors */
+    --color-base:         #0a0a1a;
+    --color-surface:      #0d0d24;
+    --color-primary:      #00e5ff;
+    --color-secondary:    #8b5cf6;
+    --color-accent:       #f472b6;
+    --color-text:         #e0e0e0;
+    --color-text-muted:   #888;
+    --color-border:       rgba(255, 255, 255, 0.1);
+    --color-glass-bg:     rgba(10, 10, 30, 0.85);
+    --color-glass-border: rgba(255, 255, 255, 0.08);
+
+    /* Alert Colors */
+    --color-danger:       #ff3b3b;
+    --color-warning:      #ffaa00;
+    --color-caution:      #ffe44d;
+    --color-safe:         #00e676;
+    --color-info:         #40c4ff;
+
+    /* Layer Colors */
+    --layer-conflicts:    #ff3b3b;
+    --layer-weather:      #40c4ff;
+    --layer-disasters:    #ff6d00;
+    --layer-cyber:        #8b5cf6;
+    --layer-outages:      #ffaa00;
+    --layer-sanctions:    #f472b6;
+    --layer-military:     #76ff03;
+
+    /* DEFCON Levels */
+    --defcon-1:           #ff0000;
+    --defcon-2:           #ff6600;
+    --defcon-3:           #ffcc00;
+    --defcon-4:           #0088ff;
+    --defcon-5:           #00cc44;
+
+    /* Typography */
+    --font-nav:     'Antonio', sans-serif;
+    --font-heading: 'Orbitron', sans-serif;
+    --font-body:    'IBM Plex Mono', monospace;
+
+    /* Font Sizes */
+    --text-xs:   0.7rem;
+    --text-sm:   0.8rem;
+    --text-base: 0.9rem;
+    --text-lg:   1rem;
+    --text-xl:   1.125rem;
+    --text-2xl:  1.25rem;
+
+    /* Spacing */
+    --space-xs:  0.25rem;
+    --space-sm:  0.5rem;
+    --space-md:  1rem;
+    --space-lg:  1.5rem;
+    --space-xl:  2rem;
+
+    /* Dashboard Layout */
+    --sidebar-width:  280px;
+    --topbar-height:  52px;
+    --defcon-height:  6px;
+    --ticker-height:  38px;
+
+    /* Transitions */
+    --ease-out:      cubic-bezier(0.16, 1, 0.3, 1);
+    --speed-fast:    0.15s;
+    --speed-medium:  0.3s;
+    --speed-slow:    0.6s;
+}
+
+/* --------------------------------------------------------------------------
+   CSS Reset
+   -------------------------------------------------------------------------- */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html { font-size: 16px; -webkit-text-size-adjust: 100%; }
+body {
+    font-family: var(--font-body);
+    background: var(--color-base);
+    color: var(--color-text);
+    line-height: 1.5;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+}
+a { color: var(--color-primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button {
+    font-family: var(--font-body);
+    cursor: pointer;
+    border: none;
+    background: none;
+    color: inherit;
+}
+img, svg { display: block; max-width: 100%; }
+ul, ol { list-style: none; }
+
+/* --------------------------------------------------------------------------
+   Scrollbar
+   -------------------------------------------------------------------------- */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
+
+/* --------------------------------------------------------------------------
+   Utilities
+   -------------------------------------------------------------------------- */
+.visually-hidden {
+    position: absolute; width: 1px; height: 1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap;
+}
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

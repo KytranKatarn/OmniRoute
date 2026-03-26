@@ -1,27 +1,38 @@
 {% extends "base.html" %}
-
 {% block title %}Dashboard — Kytran Business Suite{% endblock %}
-
 {% block content %}
 <div class="kbs-page">
   <div class="kbs-container">
     <div class="kbs-dashboard-header">
       <h1>Dashboard</h1>
       <p>
-        Welcome back, {{ current_user.name }}
+        Welcome back, {{ current_user.name if current_user.name else current_user.email }}
         {% if g.tenant %} — {{ g.tenant.name }}{% endif %}
       </p>
     </div>
 
     <hr class="kbs-divider" />
 
-    <!-- Module grid placeholder -->
-    <div class="kbs-module-grid">
-      <div class="kbs-placeholder" style="grid-column: 1 / -1;">
-        <h2>Your Modules</h2>
-        <p>Enabled modules will appear here. Visit the <a href="{{ url_for('marketplace.index') }}">Marketplace</a> to activate modules.</p>
-      </div>
+    <h2 style="color:var(--kbs-accent); font-family:'Orbitron',sans-serif; font-size:1.1rem; margin-bottom:1rem;">Your Modules</h2>
+
+    {% if plugins %}
+    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:1rem;">
+      {% for p in plugins %}
+      <a href="{{ p.url }}" style="text-decoration:none; color:inherit;">
+        <div class="kbs-module-card"
+             onmouseover="this.style.borderColor='var(--kbs-accent)'"
+             onmouseout="this.style.borderColor='var(--kbs-border)'">
+          <div style="font-size:1.1rem; color:var(--kbs-accent); font-weight:bold; margin-bottom:0.5rem;">{{ p.name }}</div>
+          <div style="font-size:0.8rem; color:#888; line-height:1.4;">
+            {{ p.description[:80] }}{% if p.description|length > 80 %}...{% endif %}
+          </div>
+        </div>
+      </a>
+      {% endfor %}
     </div>
+    {% else %}
+    <p>No modules enabled. Visit the <a href="{{ url_for('marketplace.index') }}" style="color:var(--kbs-accent);">Marketplace</a> to activate modules.</p>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

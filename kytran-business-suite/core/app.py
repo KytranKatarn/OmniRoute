@@ -46,12 +46,35 @@ def create_app(config=None):
     @app.route("/")
     @app.route("/dashboard")
     def dashboard():
-        from flask import redirect, render_template, url_for
+        from flask import g, redirect, render_template, url_for
         from flask_login import current_user
 
         if not current_user.is_authenticated:
             return redirect(url_for("auth.login"))
-        return render_template("dashboard.html")
+
+        # Get enabled plugins for this tenant
+        enabled_plugins = []
+        if hasattr(g, "tenant_id") and g.tenant_id:
+            from core.tenant import get_enabled_modules
+
+            enabled_slugs = get_enabled_modules()
+            plugins = app.extensions.get("kbs_plugins", {})
+            for slug, meta in plugins.items():
+                if slug in enabled_slugs:
+                    manifest = meta.get("manifest", {})
+                    enabled_plugins.append(
+                        {
+                            "slug": slug,
+                            "name": meta.get("name", slug),
+                            "icon": manifest.get("icon", "box"),
+                            "description": manifest.get("description", ""),
+                            "url": f"/plugins/{slug}/",
+                            "nav_order": manifest.get("nav", {}).get("order", 99),
+                        }
+                    )
+            enabled_plugins.sort(key=lambda p: p["nav_order"])
+
+        return render_template("dashboard.html", plugins=enabled_plugins)
 
     # Register plugins
     from core.plugin_loader import register_plugins

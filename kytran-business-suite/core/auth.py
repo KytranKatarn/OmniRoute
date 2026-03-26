@@ -48,7 +48,7 @@ class User(UserMixin):
         """Load a User from the DB by primary key. Returns None if not found."""
         with get_db_cursor(commit=False, dict_cursor=True) as (conn, cur):
             cur.execute(
-                "SELECT id, email, name, is_active FROM users WHERE id = %s",
+                "SELECT id, email, username AS name, is_active FROM users WHERE id = %s",
                 (user_id,),
             )
             row = cur.fetchone()
@@ -66,7 +66,7 @@ class User(UserMixin):
         """Load a User from the DB by email. Returns None if not found."""
         with get_db_cursor(commit=False, dict_cursor=True) as (conn, cur):
             cur.execute(
-                "SELECT id, email, name, password_hash, is_active FROM users WHERE email = %s",
+                "SELECT id, email, username AS name, password_hash, is_active FROM users WHERE email = %s",
                 (email,),
             )
             row = cur.fetchone()
@@ -185,7 +185,7 @@ def signup():
                 # Create user
                 cur.execute(
                     """
-                    INSERT INTO users (email, name, password_hash, is_active)
+                    INSERT INTO users (email, username, password_hash, is_active)
                     VALUES (%s, %s, %s, TRUE)
                     RETURNING id
                     """,

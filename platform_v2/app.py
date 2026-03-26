@@ -1773,6 +1773,11 @@ from oauth_provider import init_oauth_provider  # noqa: E402
 init_oauth_provider(app)
 logger.info("OAuth provider initialized (authorize + token endpoints)")
 
+# Standalone Product API — compliance report receiver
+from api_standalone import init_standalone_api  # noqa: E402
+
+init_standalone_api(app)
+
 # Register additional blueprints
 # Note: app_builder_bp, archie_chat_bp, consciousness_bp, backup_manager_bp, dev_pipeline_bp loaded via module_registry
 app.register_blueprint(github_bp)

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en" data-barba="wrapper">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trust Center — Kytran Empowerment</title>
+    <meta name="description" content="Compliance badges, SOC 2 trust criteria, and live security posture for Kytran Empowerment.">
+    <meta name="theme-color" content="#0a0a1a">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/pages/compliance.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/reduced-motion.css">
+</head>
+<body>
+    <!-- Global background layers -->
+    <div class="aurora"></div>
+    <div class="dot-grid"></div>
+    <div class="noise-overlay"></div>
+    <div class="cursor-glow" id="cursorGlow"></div>
+
+    <!-- Navigation -->
+    <nav class="nav" id="mainNav">
+        <div class="nav__inner container">
+            <a href="/" class="nav__logo"><span class="nav__logo-text">KYTRAN</span></a>
+            <div class="nav__links" id="navLinks">
+                <a href="services.html" class="nav__link">Services</a>
+                <a href="platform.html" class="nav__link">Platform</a>
+                <a href="directory.html" class="nav__link">Directory</a>
+                <a href="compliance.html" class="nav__link active">Trust</a>
+                <a href="creed.html" class="nav__link">C.R.E.E.D.</a>
+                <a href="about.html" class="nav__link">About</a>
+                <a href="contact.html" class="nav__link nav__link--cta">Contact</a>
+            </div>
+            <div class="nav__controls">
+                <button class="nav__lang-btn" id="langSwitcher" aria-label="Change language">EN</button>
+                <button class="nav__menu-btn" id="menuToggle" aria-label="Toggle menu">
+                    <span></span><span></span><span></span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Page content -->
+    <main data-barba="container" data-barba-namespace="compliance">
+        <section class="compliance-hero">
+            <div class="container">
+                <h1 class="compliance-hero__title gradient-text" data-i18n="trust-hero-title">Trust Center</h1>
+                <p class="compliance-hero__subtitle" data-i18n="trust-hero-subtitle">Live compliance posture powered by S.H.I.E.L.D. automated scanning</p>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="container">
+                <div class="compliance-badges" id="complianceBadges"></div>
+            </div>
+        </section>
+
+        <section class="section soc2-section">
+            <div class="container">
+                <h2 class="soc2-section__title" data-i18n="soc2-title">SOC 2 Trust Service Criteria</h2>
+                <p class="soc2-section__subtitle" data-i18n="soc2-subtitle">Evidence collection mapped to all five criteria</p>
+                <div class="soc2-grid">
+                    <div class="soc2-card">
+                        <span class="soc2-card__icon">&#9670;</span>
+                        <div class="soc2-card__name">Security</div>
+                        <div class="soc2-card__desc">Protection against unauthorized access through firewall rules, encryption, and intrusion detection.</div>
+                    </div>
+                    <div class="soc2-card">
+                        <span class="soc2-card__icon">&#9670;</span>
+                        <div class="soc2-card__name">Availability</div>
+                        <div class="soc2-card__desc">Systems operational and accessible as committed, with redundancy and monitoring in place.</div>
+                    </div>
+                    <div class="soc2-card">
+                        <span class="soc2-card__icon">&#9670;</span>
+                        <div class="soc2-card__name">Processing Integrity</div>
+                        <div class="soc2-card__desc">Data processing is complete, valid, accurate, timely, and authorized.</div>
+                    </div>
+                    <div class="soc2-card">
+                        <span class="soc2-card__icon">&#9670;</span>
+                        <div class="soc2-card__name">Confidentiality</div>
+                        <div class="soc2-card__desc">Information designated as confidential is protected through encryption and access controls.</div>
+                    </div>
+                    <div class="soc2-card">
+                        <span class="soc2-card__icon">&#9670;</span>
+                        <div class="soc2-card__name">Privacy</div>
+                        <div class="soc2-card__desc">Personal information is collected, used, retained, disclosed, and disposed of in conformity with commitments.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section creed-link-section">
+            <div class="container">
+                <p class="creed-link-section__text" data-i18n="creed-link-text">Our ethical AI governance is led by the C.R.E.E.D. Institute</p>
+                <a href="creed.html" class="btn btn--outline magnetic" data-i18n="creed-link-cta">Learn About C.R.E.E.D.</a>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer__inner container">
+            <div class="footer__brand">
+                <span class="footer__logo">KYTRAN EMPOWERMENT</span>
+                <p class="footer__tagline">Montreal, Canada</p>
+            </div>
+            <div class="footer__links">
+                <a href="about.html">About</a>
+                <a href="compliance.html">Trust Center</a>
+                <a href="creed.html">C.R.E.E.D.</a>
+                <a href="contact.html">Contact</a>
+            </div>
+            <div class="footer__copy">&copy; 2026 Kytran Empowerment Inc. All rights reserved.</div>
+        </div>
+    </footer>
+
+    <!-- Language Overlay -->
+    <div class="lang-overlay" id="langOverlay" hidden>
+        <div class="lang-overlay__panel glass-panel">
+            <h3>Select Language</h3>
+            <div class="lang-overlay__grid">
+                <button data-lang="en" class="lang-btn active">English</button>
+                <button data-lang="fr" class="lang-btn">Francais</button>
+                <button data-lang="es" class="lang-btn">Espanol</button>
+                <button data-lang="de" class="lang-btn">Deutsch</button>
+                <button data-lang="zh" class="lang-btn">中文</button>
+                <button data-lang="ja" class="lang-btn">日本語</button>
+                <button data-lang="ar" class="lang-btn" dir="rtl">العربية</button>
+                <button data-lang="he" class="lang-btn" dir="rtl">עברית</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/lib/gsap.min.js"></script>
+    <script src="js/lib/ScrollTrigger.min.js"></script>
+    <script src="js/lib/lenis.min.js"></script>
+    <script src="js/lib/splitting.min.js"></script>
+    <script src="js/lib/barba.min.js"></script>
+    <script src="js/effects.js"></script>
+    <script src="js/nav.js"></script>
+    <script src="js/transitions.js"></script>
+    <script src="js/compliance.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

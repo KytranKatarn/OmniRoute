@@ -1,0 +1,198 @@
+/* Compliance / Trust Center Page Styles */
+
+.compliance-hero {
+    padding-top: 8rem;
+    padding-bottom: 3rem;
+    text-align: center;
+}
+
+.compliance-hero__title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.5rem;
+}
+
+.compliance-hero__subtitle {
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--text-muted, #94a3b8);
+    font-size: 1.1rem;
+    margin-bottom: 2rem;
+}
+
+/* Badge Grid */
+.compliance-badges {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1.5rem;
+    padding: 0 1rem;
+    margin-bottom: 4rem;
+}
+
+/* Badge Card */
+.badge-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 1.75rem;
+    text-align: center;
+    transition: border-color 0.3s, transform 0.3s;
+}
+
+.badge-card:hover {
+    border-color: rgba(0, 229, 255, 0.25);
+    transform: translateY(-2px);
+}
+
+.badge-card__grade {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 3rem;
+    font-weight: 900;
+    line-height: 1;
+    margin-bottom: 0.5rem;
+}
+
+.badge-card__grade--green { color: #22c55e; }
+.badge-card__grade--blue { color: #3b82f6; }
+.badge-card__grade--yellow { color: #eab308; }
+.badge-card__grade--red { color: #ef4444; }
+
+.badge-card__framework {
+    font-family: 'Antonio', sans-serif;
+    font-size: 1.1rem;
+    color: #e2e8f0;
+    margin-bottom: 0.25rem;
+}
+
+.badge-card__score {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.9rem;
+    color: #94a3b8;
+    margin-bottom: 1rem;
+}
+
+/* Progress Bar */
+.badge-card__progress {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+}
+
+.badge-card__progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.6s ease;
+}
+
+.badge-card__progress-fill--green { background: #22c55e; }
+.badge-card__progress-fill--blue { background: #3b82f6; }
+.badge-card__progress-fill--yellow { background: #eab308; }
+.badge-card__progress-fill--red { background: #ef4444; }
+
+.badge-card__rules {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+/* SOC 2 Section */
+.soc2-section {
+    padding: 3rem 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.soc2-section__title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-align: center;
+    margin-bottom: 0.5rem;
+}
+
+.soc2-section__subtitle {
+    font-family: 'IBM Plex Mono', monospace;
+    color: #64748b;
+    font-size: 0.9rem;
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.soc2-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1.25rem;
+    padding: 0 1rem;
+}
+
+.soc2-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 1.5rem;
+    text-align: center;
+    transition: border-color 0.3s;
+}
+
+.soc2-card:hover {
+    border-color: rgba(139, 92, 246, 0.3);
+}
+
+.soc2-card__icon {
+    font-size: 2rem;
+    margin-bottom: 0.75rem;
+    display: block;
+}
+
+.soc2-card__name {
+    font-family: 'Antonio', sans-serif;
+    font-size: 1rem;
+    color: #e2e8f0;
+    margin-bottom: 0.4rem;
+}
+
+.soc2-card__desc {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    line-height: 1.5;
+}
+
+/* C.R.E.E.D. Link */
+.creed-link-section {
+    text-align: center;
+    padding: 3rem 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.creed-link-section__text {
+    font-family: 'IBM Plex Mono', monospace;
+    color: #94a3b8;
+    font-size: 0.95rem;
+    margin-bottom: 1rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .compliance-badges {
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    }
+
+    .soc2-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .compliance-badges {
+        grid-template-columns: 1fr;
+    }
+
+    .soc2-grid {
+        grid-template-columns: 1fr;
+    }
+}

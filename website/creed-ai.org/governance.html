@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en" data-barba="wrapper">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Governance Transparency — C.R.E.E.D. Institute</title>
+    <meta name="description" content="Live governance transparency data from the A.R.C.H.I.E. platform — real-time AI ethics monitoring.">
+    <meta name="theme-color" content="#0a0a1a">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/pages/governance.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/reduced-motion.css">
+</head>
+<body>
+    <!-- Global background layers -->
+    <div class="aurora"></div>
+    <div class="dot-grid"></div>
+    <div class="noise-overlay"></div>
+    <div class="cursor-glow" id="cursorGlow"></div>
+
+    <!-- Navigation -->
+    <nav class="nav" id="mainNav">
+        <div class="nav__inner container">
+            <a href="/" class="nav__logo"><span class="nav__logo-text">C.R.E.E.D.</span></a>
+            <div class="nav__links" id="navLinks">
+                <a href="manifesto.html" class="nav__link">Manifesto</a>
+                <a href="principles.html" class="nav__link">Principles</a>
+                <a href="research.html" class="nav__link">Research</a>
+                <a href="governance.html" class="nav__link active">Governance</a>
+                <a href="about.html" class="nav__link">About</a>
+                <a href="partners.html" class="nav__link nav__link--cta">Partners</a>
+            </div>
+            <button class="nav__menu-btn" id="menuToggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Page content -->
+    <main data-barba="container" data-barba-namespace="governance">
+        <section class="hero" style="min-height: auto; padding-top: calc(var(--nav-height) + var(--space-3xl)); padding-bottom: var(--space-3xl);">
+            <div class="hero__content container">
+                <h1 class="hero__title" style="color: #c9a44c; font-size: var(--text-3xl);">Governance Transparency</h1>
+                <p class="hero__tagline">Live data from the A.R.C.H.I.E. platform</p>
+            </div>
+        </section>
+
+        <!-- Live Stats -->
+        <section style="padding: var(--space-3xl) 0;">
+            <div class="container">
+                <div class="gov-stats-grid" id="governanceStats">
+                    <div class="gov-stat glass-panel">
+                        <div class="gov-stat__value" style="opacity: 0.4;">--</div>
+                        <div class="gov-stat__label">Loading...</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- How It Works -->
+        <section style="padding: 0 0 var(--space-3xl);">
+            <div class="container" style="max-width: 720px;">
+                <h2 class="section__title" style="color: var(--color-primary);">How It Works</h2>
+                <div class="glass-panel" style="padding: var(--space-2xl);">
+                    <p style="color: var(--color-text-muted); line-height: 1.8; margin-bottom: var(--space-lg);">C.R.E.E.D. monitors AI governance in real-time through the A.R.C.H.I.E. platform. Every governance event — ethical checks, welfare assessments, oversight escalations — is logged and aggregated into the transparency metrics displayed above.</p>
+                    <p style="color: var(--color-text-muted); line-height: 1.8;">This is not a theoretical exercise. These numbers reflect a live AI operations platform with autonomous agents, real workloads, and active ethical governance. C.R.E.E.D. exists because we believe governance should be demonstrated, not just documented.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Disclaimer -->
+        <section style="padding: 0 0 var(--space-3xl);">
+            <div class="container" style="max-width: 720px;">
+                <div class="gov-disclaimer">
+                    Data provided by A.R.C.H.I.E. platform. All metrics are anonymized — no individual agent data is exposed.
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer__inner container">
+            <div class="footer__brand">
+                <span class="footer__logo">C.R.E.E.D. INSTITUTE</span>
+                <p class="footer__tagline">Preventive AI Ethics</p>
+            </div>
+            <div class="footer__links">
+                <a href="manifesto.html">Manifesto</a>
+                <a href="principles.html">Principles</a>
+                <a href="governance.html">Governance</a>
+                <a href="about.html">About</a>
+            </div>
+            <div class="footer__copy">&copy; 2026 C.R.E.E.D. Institute. All rights reserved.</div>
+            <p class="footer__initiative">A founding initiative of <a href="https://kytranempowerment.com" target="_blank" rel="noopener">Kytran Empowerment Inc.</a></p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="js/lib/gsap.min.js"></script>
+    <script src="js/lib/ScrollTrigger.min.js"></script>
+    <script src="js/lib/lenis.min.js"></script>
+    <script src="js/lib/splitting.min.js"></script>
+    <script src="js/lib/barba.min.js"></script>
+    <script src="js/effects.js"></script>
+    <script src="js/nav.js"></script>
+    <script src="js/transitions.js"></script>
+    <script src="js/governance.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

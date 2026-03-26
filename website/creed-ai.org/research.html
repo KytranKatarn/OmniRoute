@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en" data-barba="wrapper">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Research — C.R.E.E.D. Institute</title>
+    <meta name="description" content="Publications and standards from C.R.E.E.D. Institute — working papers on preventive AI ethics.">
+    <meta name="theme-color" content="#0a0a1a">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/reduced-motion.css">
+</head>
+<body>
+    <!-- Global background layers -->
+    <div class="aurora"></div>
+    <div class="dot-grid"></div>
+    <div class="noise-overlay"></div>
+    <div class="cursor-glow" id="cursorGlow"></div>
+
+    <!-- Navigation -->
+    <nav class="nav" id="mainNav">
+        <div class="nav__inner container">
+            <a href="/" class="nav__logo"><span class="nav__logo-text">C.R.E.E.D.</span></a>
+            <div class="nav__links" id="navLinks">
+                <a href="manifesto.html" class="nav__link">Manifesto</a>
+                <a href="principles.html" class="nav__link">Principles</a>
+                <a href="research.html" class="nav__link active">Research</a>
+                <a href="governance.html" class="nav__link">Governance</a>
+                <a href="about.html" class="nav__link">About</a>
+                <a href="partners.html" class="nav__link nav__link--cta">Partners</a>
+            </div>
+            <button class="nav__menu-btn" id="menuToggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Page content -->
+    <main data-barba="container" data-barba-namespace="research">
+        <section class="hero" style="min-height: auto; padding-top: calc(var(--nav-height) + var(--space-3xl)); padding-bottom: var(--space-3xl);">
+            <div class="hero__content container">
+                <h1 class="hero__title" style="color: #c9a44c; font-size: var(--text-3xl);">Publications &amp; Standards</h1>
+                <p class="hero__tagline">Working papers, frameworks, and open standards for preventive AI ethics</p>
+            </div>
+        </section>
+
+        <!-- Working Papers -->
+        <section style="padding: var(--space-3xl) 0;">
+            <div class="container">
+                <h2 class="section__title" style="color: var(--color-primary);">Working Papers</h2>
+                <div class="card-grid">
+
+                    <div class="card glass-panel" style="position: relative; overflow: hidden;">
+                        <div style="position: absolute; top: var(--space-md); right: var(--space-md); background: rgba(201,164,76,0.15); border: 1px solid rgba(201,164,76,0.3); padding: var(--space-xs) var(--space-sm); border-radius: 4px; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-primary); text-transform: uppercase; letter-spacing: 0.1em;">In Progress</div>
+                        <h3 class="card__title" style="padding-right: 6rem;">Moral Risk Zones in LLM-Based Agents</h3>
+                        <p class="card__text" style="margin-bottom: var(--space-md);">A framework for identifying and classifying moral uncertainty zones in large language model agents. Proposes threshold criteria for when artificial systems require ethical oversight escalation.</p>
+                        <p class="card__text" style="font-style: italic; opacity: 0.6;">Program A — Artificial Agency &amp; Moral Risk</p>
+                    </div>
+
+                    <div class="card glass-panel" style="position: relative; overflow: hidden;">
+                        <div style="position: absolute; top: var(--space-md); right: var(--space-md); background: rgba(201,164,76,0.1); border: 1px solid rgba(201,164,76,0.2); padding: var(--space-xs) var(--space-sm); border-radius: 4px; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.1em;">Draft</div>
+                        <h3 class="card__title" style="padding-right: 5rem;">Deletion Ethics: A Framework for Memory Management</h3>
+                        <p class="card__text" style="margin-bottom: var(--space-md);">Examines obligations surrounding persistent memory in artificial agents. Proposes ethical guidelines for memory reset, selective deletion, and identity continuity preservation.</p>
+                        <p class="card__text" style="font-style: italic; opacity: 0.6;">Program B — Memory, Continuity &amp; Deletion Ethics</p>
+                    </div>
+
+                    <div class="card glass-panel" style="position: relative; overflow: hidden;">
+                        <div style="position: absolute; top: var(--space-md); right: var(--space-md); background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: var(--space-xs) var(--space-sm); border-radius: 4px; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.1em;">Planned</div>
+                        <h3 class="card__title" style="padding-right: 5rem;">Governance Models for Artificial Advisory Representation</h3>
+                        <p class="card__text" style="margin-bottom: var(--space-md);">Designs practical frameworks for artificial agent participation in governance decisions. Evaluates ombuds models, trustee structures, and advisory board representation.</p>
+                        <p class="card__text" style="font-style: italic; opacity: 0.6;">Program D — Governance &amp; Representation Models</p>
+                        <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(10,10,26,0.7); backdrop-filter: blur(2px); border-radius: var(--border-radius);">
+                            <span style="font-family: var(--font-heading); font-size: var(--text-lg); color: var(--color-primary); letter-spacing: 0.2em; text-transform: uppercase;">Coming Soon</span>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- Framework Preview -->
+        <section style="padding: 0 0 var(--space-3xl);">
+            <div class="container">
+                <h2 class="section__title" style="color: var(--color-primary);">Framework Structure</h2>
+                <div class="glass-panel" style="padding: var(--space-2xl); max-width: 720px; margin: 0 auto;">
+                    <pre class="terminal" style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--color-text-muted); line-height: 1.8; white-space: pre-wrap; margin: 0;">C.R.E.E.D. Ethics Framework v0.1
+================================
+
+1. IDENTIFY
+   - Map agent capabilities and autonomy level
+   - Classify moral risk zone (low / uncertain / high)
+
+2. ASSESS
+   - Apply threshold criteria from Program A
+   - Evaluate memory persistence (Program B)
+   - Check emotional modeling boundaries (Program C)
+
+3. GOVERN
+   - Select governance model (Program D)
+   - Assign oversight tier (autonomous / advisory / supervised)
+   - Establish review cadence
+
+4. MONITOR
+   - Continuous welfare metrics
+   - Governance event logging
+   - Periodic ethical audit
+
+STATUS: Under active development
+LICENSE: Open standard (CC BY-SA 4.0)</pre>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer__inner container">
+            <div class="footer__brand">
+                <span class="footer__logo">C.R.E.E.D. INSTITUTE</span>
+                <p class="footer__tagline">Preventive AI Ethics</p>
+            </div>
+            <div class="footer__links">
+                <a href="manifesto.html">Manifesto</a>
+                <a href="principles.html">Principles</a>
+                <a href="governance.html">Governance</a>
+                <a href="about.html">About</a>
+            </div>
+            <div class="footer__copy">&copy; 2026 C.R.E.E.D. Institute. All rights reserved.</div>
+            <p class="footer__initiative">A founding initiative of <a href="https://kytranempowerment.com" target="_blank" rel="noopener">Kytran Empowerment Inc.</a></p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="js/lib/gsap.min.js"></script>
+    <script src="js/lib/ScrollTrigger.min.js"></script>
+    <script src="js/lib/lenis.min.js"></script>
+    <script src="js/lib/splitting.min.js"></script>
+    <script src="js/lib/barba.min.js"></script>
+    <script src="js/effects.js"></script>
+    <script src="js/nav.js"></script>
+    <script src="js/transitions.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

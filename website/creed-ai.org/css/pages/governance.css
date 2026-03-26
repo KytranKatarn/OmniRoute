@@ -2,4 +2,39 @@
    C.R.E.E.D. Institute — Governance Page Styles
    ========================================================================== */
 
-/* Placeholder — styles will be added when governance page is built */
+.gov-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin: 2rem 0;
+}
+
+.gov-stat {
+    text-align: center;
+    padding: 2rem 1rem;
+}
+
+.gov-stat__value {
+    font-family: var(--font-heading);
+    font-size: 2.5rem;
+    color: var(--color-primary);
+    margin-bottom: 0.5rem;
+}
+
+.gov-stat__label {
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.gov-disclaimer {
+    margin-top: 3rem;
+    padding: 1rem;
+    background: rgba(201, 164, 76, 0.05);
+    border: 1px solid rgba(201, 164, 76, 0.15);
+    border-radius: 8px;
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+    text-align: center;
+}

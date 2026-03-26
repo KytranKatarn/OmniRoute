@@ -2887,6 +2887,12 @@ def competitors_page():
     return render_template("competitors.html", stardate=stardate)
 
 
+@app.route("/products/system-operations")
+def product_system_operations():
+    """Public product page for Kytran System Operations."""
+    return render_template("products/system_operations.html")
+
+
 @app.errorhandler(404)
 def not_found(e):
     """Handle 404 errors — also catches blocked domain requests from AdGuard DNS."""

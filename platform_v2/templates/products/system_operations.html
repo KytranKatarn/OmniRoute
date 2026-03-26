@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kytran System Operations - Server Management + Compliance Scanning</title>
+    <meta name="description" content="Server management and compliance scanning for Linux. 178 automated checks across CIS, STIG, HIPAA, SOC 2, and Network frameworks.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@300;400;500;600&family=Antonio:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #020617;
+            --bg-card: #0f172a;
+            --bg-card-hover: #1e293b;
+            --text: #F8FAFC;
+            --text-muted: #94a3b8;
+            --purple: #8b5cf6;
+            --purple-dim: rgba(139, 92, 246, 0.15);
+            --gold: #f59e0b;
+            --gold-dim: rgba(245, 158, 11, 0.15);
+            --green: #22c55e;
+            --green-dim: rgba(34, 197, 94, 0.15);
+            --cyan: #00e5ff;
+            --border: #1e293b;
+            --radius: 8px;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'IBM Plex Mono', monospace;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── NAV ── */
+        .nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            height: 56px;
+            background: rgba(2, 6, 23, 0.92);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+        }
+        .nav-logo {
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            font-size: 1rem;
+            color: var(--purple);
+            text-decoration: none;
+            letter-spacing: 1px;
+        }
+        .nav-links { display: flex; gap: 24px; align-items: center; }
+        .nav-links a {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            padding: 8px 4px;
+            transition: color 0.2s;
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+        }
+        .nav-links a:hover { color: var(--text); }
+
+        /* ── HERO ── */
+        .hero {
+            text-align: center;
+            padding: 100px 24px 80px;
+            background: linear-gradient(180deg, rgba(139, 92, 246, 0.08) 0%, transparent 60%);
+        }
+        .hero-eyebrow {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            color: var(--purple);
+            margin-bottom: 16px;
+        }
+        .hero h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(2rem, 5vw, 3.2rem);
+            font-weight: 800;
+            line-height: 1.15;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, var(--text) 40%, var(--purple) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero-subtitle {
+            font-size: clamp(1rem, 2.5vw, 1.25rem);
+            color: var(--text-muted);
+            max-width: 600px;
+            margin: 0 auto 40px;
+        }
+
+        /* ── BUTTONS ── */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 44px;
+            min-width: 44px;
+            padding: 12px 28px;
+            border: none;
+            border-radius: var(--radius);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.2s, background 0.2s;
+            letter-spacing: 0.5px;
+        }
+        .btn:active { transform: scale(0.97); }
+        .btn-gold {
+            background: var(--gold);
+            color: #000;
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.25);
+        }
+        .btn-gold:hover {
+            background: #fbbf24;
+            box-shadow: 0 0 30px rgba(245, 158, 11, 0.4);
+        }
+        .btn-purple {
+            background: var(--purple);
+            color: #fff;
+            box-shadow: 0 0 20px rgba(139, 92, 246, 0.25);
+        }
+        .btn-purple:hover {
+            background: #a78bfa;
+            box-shadow: 0 0 30px rgba(139, 92, 246, 0.4);
+        }
+        .btn-outline {
+            background: transparent;
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+        }
+        .btn-outline:hover {
+            border-color: var(--text-muted);
+            color: var(--text);
+        }
+
+        /* ── SECTIONS ── */
+        .section {
+            padding: 80px 24px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .section-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            color: var(--purple);
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        .section-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(1.4rem, 3vw, 2rem);
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        /* ── BADGES ── */
+        .badges-section {
+            text-align: center;
+            padding: 0 24px 60px;
+        }
+        .badges-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .badges-row img {
+            height: 28px;
+            border-radius: 4px;
+        }
+        .badges-caption {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            max-width: 560px;
+            margin: 0 auto;
+        }
+
+        /* ── PRICING ── */
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+        }
+        .pricing-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 32px 24px;
+            display: flex;
+            flex-direction: column;
+            transition: border-color 0.2s, transform 0.2s;
+        }
+        .pricing-card:hover {
+            border-color: var(--purple);
+            transform: translateY(-2px);
+        }
+        .pricing-card.featured {
+            border-color: var(--gold);
+            box-shadow: 0 0 30px rgba(245, 158, 11, 0.1);
+            position: relative;
+        }
+        .pricing-card.featured::before {
+            content: 'Most Popular';
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--gold);
+            color: #000;
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            padding: 4px 14px;
+            border-radius: 100px;
+        }
+        .pricing-tier {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            color: var(--text-muted);
+        }
+        .pricing-price {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.2rem;
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+        .pricing-price span {
+            font-size: 0.85rem;
+            font-weight: 400;
+            color: var(--text-muted);
+        }
+        .pricing-desc {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 24px;
+            min-height: 40px;
+        }
+        .pricing-features {
+            list-style: none;
+            margin-bottom: 32px;
+            flex: 1;
+        }
+        .pricing-features li {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+        }
+        .pricing-features li::before {
+            content: '';
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--green);
+            flex-shrink: 0;
+            position: relative;
+            top: -1px;
+        }
+        .pricing-cta {
+            margin-top: auto;
+        }
+        .pricing-cta .btn {
+            width: 100%;
+        }
+
+        /* ── HOW IT WORKS ── */
+        .steps-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 32px;
+        }
+        .step-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 32px 24px;
+            text-align: center;
+            transition: border-color 0.2s;
+        }
+        .step-card:hover { border-color: var(--purple); }
+        .step-number {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--purple);
+            margin-bottom: 12px;
+        }
+        .step-title {
+            font-family: 'Antonio', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .step-desc {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            line-height: 1.7;
+        }
+
+        /* ── FOOTER ── */
+        .footer {
+            border-top: 1px solid var(--border);
+            padding: 40px 24px;
+            text-align: center;
+        }
+        .footer-tagline {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+        .footer-links { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; }
+        .footer-links a {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            transition: color 0.2s;
+        }
+        .footer-links a:hover { color: var(--text); }
+
+        /* ── RESPONSIVE ── */
+        @media (max-width: 1024px) {
+            .pricing-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .pricing-grid { grid-template-columns: 1fr; max-width: 420px; margin: 0 auto; }
+            .steps-grid { grid-template-columns: 1fr; max-width: 420px; margin: 0 auto; }
+            .hero { padding: 72px 20px 56px; }
+            .section { padding: 56px 20px; }
+        }
+        @media (max-width: 480px) {
+            .nav { padding: 0 16px; }
+            .nav-links { gap: 16px; }
+            .nav-links a { font-size: 0.7rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- NAV -->
+    <nav class="nav">
+        <a href="/products/system-operations" class="nav-logo">Kytran</a>
+        <div class="nav-links">
+            <a href="/iaae">Trust Center</a>
+            <a href="/competitors">Compare</a>
+        </div>
+    </nav>
+
+    <!-- HERO -->
+    <section class="hero">
+        <div class="hero-eyebrow">Kytran Empowerment Inc.</div>
+        <h1>Kytran System Operations</h1>
+        <p class="hero-subtitle">Server management and compliance scanning for Linux. One agent, zero guesswork.</p>
+        <a href="#pricing" class="btn btn-gold">Start Free</a>
+    </section>
+
+    <!-- COMPLIANCE BADGES -->
+    <div class="badges-section">
+        <div class="badges-row">
+            <img src="http://192.168.1.200:8085/dashboard/api/compliance/badge/overall.svg" alt="Overall Compliance Score">
+            <img src="http://192.168.1.200:8085/dashboard/api/compliance/badge/cis.svg" alt="CIS Compliance Score">
+            <img src="http://192.168.1.200:8085/dashboard/api/compliance/badge/stig.svg" alt="STIG Compliance Score">
+            <img src="http://192.168.1.200:8085/dashboard/api/compliance/badge/hipaa.svg" alt="HIPAA Compliance Score">
+            <img src="http://192.168.1.200:8085/dashboard/api/compliance/badge/soc2.svg" alt="SOC 2 Compliance Score">
+            <img src="http://192.168.1.200:8085/dashboard/api/compliance/badge/network.svg" alt="Network Compliance Score">
+        </div>
+        <p class="badges-caption">178 automated checks across 5 frameworks: CIS, STIG, HIPAA, SOC 2, and Network. Scores updated every 6 hours.</p>
+    </div>
+
+    <!-- PRICING -->
+    <section class="section" id="pricing">
+        <div class="section-label">Pricing</div>
+        <h2 class="section-title">Simple, Predictable Plans</h2>
+        <div class="pricing-grid">
+
+            <!-- Free -->
+            <div class="pricing-card">
+                <div class="pricing-tier">Free</div>
+                <div class="pricing-price">$0</div>
+                <div class="pricing-desc">Get started with core system management.</div>
+                <ul class="pricing-features">
+                    <li>System dashboard</li>
+                    <li>Docker management</li>
+                    <li>1 compliance pack (CIS)</li>
+                    <li>2 themes</li>
+                    <li>Community support</li>
+                </ul>
+                <div class="pricing-cta">
+                    <a href="#" class="btn btn-outline">Start Free</a>
+                </div>
+            </div>
+
+            <!-- Pro -->
+            <div class="pricing-card">
+                <div class="pricing-tier">Pro</div>
+                <div class="pricing-price">$29 <span>/mo</span></div>
+                <div class="pricing-desc">For teams that need compliance coverage.</div>
+                <ul class="pricing-features">
+                    <li>Everything in Free</li>
+                    <li>3 compliance packs</li>
+                    <li>Compliance badges</li>
+                    <li>SSO integration</li>
+                    <li>3 themes</li>
+                    <li>Email support</li>
+                </ul>
+                <div class="pricing-cta">
+                    <a href="#" class="btn btn-purple">Get Pro</a>
+                </div>
+            </div>
+
+            <!-- Business -->
+            <div class="pricing-card featured">
+                <div class="pricing-tier">Business</div>
+                <div class="pricing-price">$49 <span>/mo</span></div>
+                <div class="pricing-desc">Full compliance suite with remediation.</div>
+                <ul class="pricing-features">
+                    <li>Everything in Pro</li>
+                    <li>All 5 compliance packs</li>
+                    <li>Automated remediation</li>
+                    <li>PDF compliance reports</li>
+                    <li>SOC 2 evidence export</li>
+                    <li>All themes</li>
+                    <li>Priority support</li>
+                </ul>
+                <div class="pricing-cta">
+                    <a href="#" class="btn btn-gold">Get Business</a>
+                </div>
+            </div>
+
+            <!-- Enterprise -->
+            <div class="pricing-card">
+                <div class="pricing-tier">Enterprise</div>
+                <div class="pricing-price">$99 <span>/mo</span></div>
+                <div class="pricing-desc">Custom compliance for regulated industries.</div>
+                <ul class="pricing-features">
+                    <li>Everything in Business</li>
+                    <li>Custom compliance packs</li>
+                    <li>Dedicated SLA</li>
+                    <li>On-prem deployment</li>
+                    <li>Audit-ready documentation</li>
+                    <li>Dedicated account manager</li>
+                </ul>
+                <div class="pricing-cta">
+                    <a href="#" class="btn btn-outline">Contact Sales</a>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- HOW IT WORKS -->
+    <section class="section">
+        <div class="section-label">How It Works</div>
+        <h2 class="section-title">Three Steps to Compliance</h2>
+        <div class="steps-grid">
+            <div class="step-card">
+                <div class="step-number">01</div>
+                <div class="step-title">Install</div>
+                <p class="step-desc">Deploy the agent on any Linux server. One command, under two minutes. No dependencies, no configuration files.</p>
+            </div>
+            <div class="step-card">
+                <div class="step-number">02</div>
+                <div class="step-title">Scan</div>
+                <p class="step-desc">178 automated checks run across CIS, STIG, HIPAA, SOC 2, and Network frameworks. Results in seconds, not hours.</p>
+            </div>
+            <div class="step-card">
+                <div class="step-number">03</div>
+                <div class="step-title">Report</div>
+                <p class="step-desc">Get compliance scores, remediation steps, and exportable PDF reports. Share badges on your site to prove your posture.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="footer">
+        <p class="footer-tagline">Built on the same compliance engine that powers A.R.C.H.I.E.</p>
+        <div class="footer-links">
+            <a href="/iaae">Trust Center</a>
+            <a href="/competitors">Compare</a>
+            <a href="https://kytranempowerment.com">Kytran Empowerment Inc.</a>
+        </div>
+    </footer>
+
+</body>
+</html>

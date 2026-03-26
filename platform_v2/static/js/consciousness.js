@@ -2657,14 +2657,22 @@ function loadCodeHealth() {
     // Separate standalone products from platform modules
     var allModules = d.modules || {};
     var standaloneModules = {};
+    var websiteModules = {};
     var platformModules = {};
+    // Website keys from registered products (avoid false matches like website_studio)
+    var websiteKeys = ['website_kytranempowerment_current', 'website_kytranempowerment', 'website_creed_ai'];
     Object.keys(allModules).forEach(function(key) {
         if (key.startsWith('standalone_')) {
             standaloneModules[key] = allModules[key];
-            // Add friendly display name for chart — prefix to differentiate from modules
             if (!moduleDisplayNames[key]) {
                 var cleanName = key.replace('standalone_', '').replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
                 moduleDisplayNames[key] = '\u25C6 ' + cleanName;
+            }
+        } else if (websiteKeys.indexOf(key) !== -1) {
+            websiteModules[key] = allModules[key];
+            if (!moduleDisplayNames[key]) {
+                var cleanName = key.replace('website_', '').replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+                moduleDisplayNames[key] = '\u25C7 ' + cleanName;
             }
         } else {
             platformModules[key] = allModules[key];
@@ -2679,6 +2687,7 @@ function loadCodeHealth() {
         if (s.tier_progress) standaloneTierMap[s.module_key] = s.tier_progress;
     });
     _renderStandaloneTable(standaloneModules, moduleStatusMap, standaloneTierMap);
+    _renderWebsiteTable(websiteModules);
     _renderOrphanTable(d.orphans || {});
     _renderAuditTable(entries);
   }).catch(function(err) {
@@ -2943,6 +2952,46 @@ function _renderStandaloneTable(modules, moduleStatusMap, tierMap) {
         + '<th class="center">HTML</th>'
         + '<th class="center">CSS</th>'
         + '<th class="center">Tier</th>'
+        + '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
+    setHtml(el, html);
+}
+
+function _renderWebsiteTable(modules) {
+    var el = document.getElementById("chWebsiteTable");
+    if (!el) return;
+    var keys = Object.keys(modules);
+    if (keys.length === 0) {
+        setHtml(el, '<div class="ch-empty">No website products registered.</div>');
+        return;
+    }
+    var rows = keys.map(function(key) {
+        var m = modules[key];
+        var displayName = key.replace('website_', '').replace(/_/g, '.').replace(/\b\w/g, function(c) { return c; });
+        // Try to use the registered display name
+        var dn = (window._chDisplayNames || {})[key] || displayName;
+        var js = (m.by_type && m.by_type.js) || {files: 0, lines: 0};
+        var ht = (m.by_type && m.by_type.html) || {files: 0, lines: 0};
+        var cs = (m.by_type && m.by_type.css) || {files: 0, lines: 0};
+        var jn = (m.by_type && m.by_type.json) || {files: 0, lines: 0};
+        return '<tr>'
+            + '<td><span class="ch-module-name" style="color:#00e5ff;">' + escHtml(dn) + '</span></td>'
+            + '<td class="center">' + (m.files || 0) + '</td>'
+            + '<td class="center"><strong>' + (m.lines || 0).toLocaleString() + '</strong></td>'
+            + '<td class="center">' + ht.lines.toLocaleString() + '</td>'
+            + '<td class="center">' + js.lines.toLocaleString() + '</td>'
+            + '<td class="center">' + cs.lines.toLocaleString() + '</td>'
+            + '<td class="center">' + jn.lines.toLocaleString() + '</td>'
+            + '</tr>';
+    });
+    var html = '<table class="ch-table">'
+        + '<thead><tr>'
+        + '<th>Website</th>'
+        + '<th class="center">Files</th>'
+        + '<th class="center">Lines</th>'
+        + '<th class="center">HTML</th>'
+        + '<th class="center">JS</th>'
+        + '<th class="center">CSS</th>'
+        + '<th class="center">JSON</th>'
         + '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
     setHtml(el, html);
 }

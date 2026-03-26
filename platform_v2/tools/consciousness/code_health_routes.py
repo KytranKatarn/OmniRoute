@@ -69,10 +69,14 @@ def register_code_health_routes(bp, admin_required):
         )
 
         # Add standalone product display names
-        from services.code_metrics_service import STANDALONE_PRODUCTS
+        from services.code_metrics_service import STANDALONE_PRODUCTS, WEBSITE_PRODUCTS
 
         for product in STANDALONE_PRODUCTS:
             display_names[product["module_key"]] = product["name"]
+
+        # Add website product display names
+        for site in WEBSITE_PRODUCTS:
+            display_names[site["module_key"]] = site["name"]
 
         with get_db_cursor() as (conn, cur):
             # Get module list from latest code_metrics_snapshot per_module JSONB
@@ -201,3 +205,29 @@ def register_code_health_routes(bp, admin_required):
             )
 
         return jsonify({"success": True, "standalones": results})
+
+    @bp.route("/api/code-health/website-status")
+    @login_required
+    @admin_required
+    def code_health_website_status():
+        """Return website product metrics."""
+        from services.code_metrics_service import WEBSITE_PRODUCTS, _get_website_stats
+
+        website_stats = _get_website_stats()
+        results = []
+        for site in WEBSITE_PRODUCTS:
+            key = site["module_key"]
+            stats = website_stats.get(key, {})
+            results.append(
+                {
+                    "name": site["name"],
+                    "module_key": key,
+                    "path": site["path"],
+                    "files": stats.get("files", 0),
+                    "lines": stats.get("lines", 0),
+                    "folders": stats.get("folders", 0),
+                    "by_type": stats.get("by_type", {}),
+                }
+            )
+
+        return jsonify({"success": True, "websites": results})

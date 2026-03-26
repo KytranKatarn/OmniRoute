@@ -56,6 +56,25 @@ STANDALONE_PRODUCTS = [
     },
 ]
 
+# Website products tracked in Code Health (static sites deployed to Hostinger)
+WEBSITE_PRODUCTS = [
+    {
+        "name": "kytranempowerment.com (current)",
+        "path": "/mnt/archie_brain/repos/website/kytranempowerment-site",
+        "module_key": "website_kytranempowerment_current",
+    },
+    {
+        "name": "kytranempowerment.com",
+        "path": "/mnt/archie_brain/website/kytranempowerment.com",
+        "module_key": "website_kytranempowerment",
+    },
+    {
+        "name": "creed-ai.org",
+        "path": "/mnt/archie_brain/website/creed-ai.org",
+        "module_key": "website_creed_ai",
+    },
+]
+
 
 def _count_lines(filepath):
     """Count non-empty lines in a file."""
@@ -423,6 +442,56 @@ def _get_standalone_stats():
     return standalone_metrics
 
 
+def _get_website_stats():
+    """Scan registered website products and return metrics."""
+    website_metrics = {}
+    for site in WEBSITE_PRODUCTS:
+        path = site["path"]
+        if not os.path.isdir(path):
+            continue
+        stats = {"files": 0, "lines": 0, "folders": 0, "by_type": {}}
+        type_map = {
+            ".py": "python",
+            ".js": "js",
+            ".mjs": "js",
+            ".css": "css",
+            ".html": "html",
+            ".sql": "sql",
+            ".sh": "shell",
+            ".json": "json",
+        }
+        seen_dirs = set()
+        for root, dirs, files in os.walk(path):
+            dirs[:] = [
+                d
+                for d in dirs
+                if not d.startswith(".") and d not in ("__pycache__", "node_modules", ".git", "venv", ".venv")
+            ]
+            for f in files:
+                ext = os.path.splitext(f)[1].lower()
+                lang = type_map.get(ext)
+                if lang is None:
+                    continue
+                filepath = os.path.join(root, f)
+                try:
+                    with open(filepath, "r", errors="ignore") as fh:
+                        line_count = sum(1 for _ in fh)
+                except Exception:
+                    line_count = 0
+                stats["files"] += 1
+                stats["lines"] += line_count
+                if lang not in stats["by_type"]:
+                    stats["by_type"][lang] = {"files": 0, "lines": 0}
+                stats["by_type"][lang]["files"] += 1
+                stats["by_type"][lang]["lines"] += line_count
+                parent = os.path.dirname(filepath)
+                if parent not in seen_dirs:
+                    seen_dirs.add(parent)
+                    stats["folders"] += 1
+        website_metrics[site["module_key"]] = stats
+    return website_metrics
+
+
 def scan_codebase():
     """
     Full codebase scan. Returns comprehensive metrics dict.
@@ -505,6 +574,18 @@ def scan_codebase():
         result["total_lines"] += stats["lines"]
         result["total_folders"] += stats["folders"]
         # Add standalone per-language stats to top-level totals
+        for lang, lang_stats in stats.get("by_type", {}).items():
+            if lang in result:
+                result[lang]["files"] += lang_stats.get("files", 0)
+                result[lang]["lines"] += lang_stats.get("lines", 0)
+
+    # Scan website products
+    website_stats = _get_website_stats()
+    for key, stats in website_stats.items():
+        result["modules"][key] = stats
+        result["total_files"] += stats["files"]
+        result["total_lines"] += stats["lines"]
+        result["total_folders"] += stats["folders"]
         for lang, lang_stats in stats.get("by_type", {}).items():
             if lang in result:
                 result[lang]["files"] += lang_stats.get("files", 0)

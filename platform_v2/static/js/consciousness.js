@@ -2627,11 +2627,13 @@ function loadCodeHealth() {
   Promise.all([
     api("/api/code-health/current"),
     api("/api/code-health/audit-log"),
-    api("/api/code-health/module-status").catch(function() { return {modules: [], summary: {}}; })
+    api("/api/code-health/module-status").catch(function() { return {modules: [], summary: {}}; }),
+    api("/api/code-health/standalone-status").catch(function() { return {standalones: []}; })
   ]).then(function(results) {
     var d = results[0];
     var auditData = results[1];
     var statusData = results[2];
+    var standaloneStatusData = results[3];
     var entries = auditData.entries || [];
     window._chAuditEntries = entries;
 
@@ -2671,7 +2673,12 @@ function loadCodeHealth() {
 
     _renderModuleChart(allModules, moduleDisplayNames);
     _renderModuleTable(platformModules, auditedModules, moduleStatusMap, moduleDisplayNames);
-    _renderStandaloneTable(standaloneModules, moduleStatusMap);
+    // Build tier progress lookup from standalone-status endpoint
+    var standaloneTierMap = {};
+    (standaloneStatusData.standalones || []).forEach(function(s) {
+        if (s.tier_progress) standaloneTierMap[s.module_key] = s.tier_progress;
+    });
+    _renderStandaloneTable(standaloneModules, moduleStatusMap, standaloneTierMap);
     _renderOrphanTable(d.orphans || {});
     _renderAuditTable(entries);
   }).catch(function(err) {
@@ -2871,10 +2878,11 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
   setHtml(el, html);
 }
 
-function _renderStandaloneTable(modules, moduleStatusMap) {
+function _renderStandaloneTable(modules, moduleStatusMap, tierMap) {
     var el = document.getElementById("chStandaloneTable");
     if (!el) return;
     moduleStatusMap = moduleStatusMap || {};
+    tierMap = tierMap || {};
     var keys = Object.keys(modules);
     if (keys.length === 0) {
         setHtml(el, '<div class="ch-empty">No standalone products registered.</div>');
@@ -2898,6 +2906,20 @@ function _renderStandaloneTable(modules, moduleStatusMap) {
             badgeClass = "ch-badge-red"; badgeLabel = "UNAUDITED";
         }
         var badgeHtml = '<span class="ch-badge ' + badgeClass + '"><span class="ch-badge-dot"></span>' + badgeLabel + '</span>';
+        // Dynamic tier progress badge
+        var tierHtml;
+        var tp = tierMap[key];
+        if (tp && tp.total) {
+            var pct = Math.round(tp.completed / tp.total * 100);
+            var barColor = pct >= 75 ? '#22c55e' : pct >= 25 ? '#f59e0b' : '#ef4444';
+            tierHtml = '<div style="text-align:center;">'
+                + '<span style="font-size:10px;font-weight:600;color:' + barColor + ';">TIER ' + tp.current_tier + ': ' + tp.completed + '/' + tp.total + '</span>'
+                + '<div style="height:4px;background:rgba(255,255,255,0.1);border-radius:2px;margin-top:3px;width:60px;display:inline-block;">'
+                + '<div style="height:100%;width:' + pct + '%;background:' + barColor + ';border-radius:2px;"></div>'
+                + '</div></div>';
+        } else {
+            tierHtml = '<span class="ch-tier-badge">TIER 1</span>';
+        }
         return '<tr>'
             + '<td><span class="ch-module-name ch-name-gold">' + escHtml(displayName) + '</span></td>'
             + '<td class="center">' + badgeHtml + '</td>'
@@ -2907,7 +2929,7 @@ function _renderStandaloneTable(modules, moduleStatusMap) {
             + '<td class="center">' + js.lines.toLocaleString() + '</td>'
             + '<td class="center">' + ht.lines.toLocaleString() + '</td>'
             + '<td class="center">' + cs.lines.toLocaleString() + '</td>'
-            + '<td class="center"><span class="ch-tier-badge">TIER 1</span></td>'
+            + '<td class="center">' + tierHtml + '</td>'
             + '</tr>';
     });
     var html = '<table class="ch-table">'

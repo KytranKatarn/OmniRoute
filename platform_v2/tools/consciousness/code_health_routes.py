@@ -171,6 +171,19 @@ def register_code_health_routes(bp, admin_required):
             except Exception:
                 pass
 
+            # Fetch tier progress from standalone
+            tier_progress = None
+            try:
+                import requests as req
+                import os
+
+                standalone_url = os.getenv("STANDALONE_SYSOPS_URL", "http://192.168.1.200:8085")
+                health_resp = req.get(f"{standalone_url}/dashboard/api/health", timeout=5)
+                if health_resp.status_code == 200:
+                    tier_progress = health_resp.json().get("tier_progress")
+            except Exception:
+                pass
+
             results.append(
                 {
                     "name": product["name"],
@@ -183,6 +196,7 @@ def register_code_health_routes(bp, admin_required):
                     "compliance_score": compliance_score,
                     "last_compliance_scan": last_scan,
                     "compliance_packs": product.get("compliance_packs", []),
+                    "tier_progress": tier_progress,
                 }
             )
 

@@ -11,7 +11,6 @@ from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required
 
 from database import get_db_cursor
-from rbac import admin_required
 from services.billing_webhook import process_webhook
 from services.stripe_service import (
     create_checkout_session,
@@ -226,9 +225,10 @@ def products(module):
 
 @billing_bp.route("/events", methods=["GET"])
 @login_required
-@admin_required
 def events():
     """List recent billing webhook events (admin only, for debugging)."""
+    if getattr(current_user, "role", "") != "admin":
+        return jsonify({"error": "admin required"}), 403
     limit = min(int(request.args.get("limit", 50)), 200)
     with get_db_cursor(commit=False) as (conn, cur):
         cur.execute(

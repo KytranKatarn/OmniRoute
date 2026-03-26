@@ -4,28 +4,48 @@
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
-   Mobile Menu (< 768px)
+   1024px — Tablet
+   -------------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+    :root {
+        --space-section: 5rem;
+    }
+
+    .card-grid {
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    }
+
+    .gov-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .manifesto-content {
+        max-width: 90%;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   768px — Mobile Landscape
    -------------------------------------------------------------------------- */
 @media (max-width: 768px) {
+    /* --- Navigation: hide links, show hamburger --- */
     .nav__links {
-        position: fixed;
-        top: var(--nav-height);
-        left: 0;
-        right: 0;
-        bottom: 0;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: var(--space-2xl);
-        background: rgba(10, 10, 30, 0.95);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        transform: translateX(100%);
-        transition: transform var(--speed-medium) var(--ease-out);
+        display: none;
     }
 
     .nav__links--open {
-        transform: translateX(0);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        position: fixed;
+        inset: 0;
+        background: rgba(5, 5, 15, 0.97);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        z-index: 999;
+        gap: 2rem;
+        padding: 2rem;
     }
 
     .nav__menu-btn {
@@ -33,11 +53,25 @@
     }
 
     .nav__link {
-        font-size: var(--text-lg);
+        font-size: 1.25rem;
     }
 
+    /* --- Headings --- */
+    h1 {
+        font-size: clamp(1.75rem, 6vw, 2.5rem);
+    }
+
+    h2 {
+        font-size: clamp(1.4rem, 5vw, 2rem);
+    }
+
+    h3 {
+        font-size: clamp(1.1rem, 4vw, 1.5rem);
+    }
+
+    /* --- Hero subtitle: stack words vertically --- */
     .hero__subtitle {
-        font-size: var(--text-base);
+        font-size: var(--text-base, 1rem);
         letter-spacing: 0.15em;
     }
 
@@ -47,28 +81,155 @@
 
     .hero__subtitle .word {
         display: block;
-        margin-bottom: var(--space-xs);
+        margin-bottom: 0.25rem;
+    }
+
+    /* --- Hero CTA: stack buttons --- */
+    .hero__cta {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    /* --- Card grid: 2 columns --- */
+    .card-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    /* --- Governance stats: 2 columns --- */
+    .gov-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+
+    /* --- Manifesto content: full width --- */
+    .manifesto-content {
+        max-width: 100%;
+        padding-inline: 0;
+    }
+
+    .manifesto-section {
+        padding-block: 2rem;
+    }
+
+    .manifesto-commitments {
+        grid-template-columns: 1fr;
+    }
+
+    /* --- Research/Principles cards: single column --- */
+    .glass-panel {
+        padding: 1.5rem;
+    }
+
+    /* --- Section title --- */
+    .section__title {
+        font-size: clamp(1.4rem, 5vw, 2rem);
+    }
+
+    /* --- Footer --- */
+    .footer__inner {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 1.5rem;
+    }
+
+    .footer__links {
+        flex-wrap: wrap;
+        justify-content: center;
     }
 }
 
 /* --------------------------------------------------------------------------
-   Small screens (< 480px)
+   480px — Mobile Portrait
    -------------------------------------------------------------------------- */
 @media (max-width: 480px) {
     :root {
         --space-section: 4rem;
     }
 
-    .hero__tagline {
-        font-size: var(--text-base);
+    .container {
+        padding-inline: 1rem;
     }
 
-    .hero__cta {
-        flex-direction: column;
+    /* --- Headings further reduced --- */
+    h1 {
+        font-size: clamp(1.5rem, 8vw, 2rem);
     }
 
+    h2 {
+        font-size: clamp(1.25rem, 6vw, 1.6rem);
+    }
+
+    h3 {
+        font-size: clamp(1rem, 5vw, 1.25rem);
+    }
+
+    p, li {
+        font-size: clamp(0.875rem, 4vw, 1rem);
+    }
+
+    /* --- Nav logo --- */
+    .nav__logo {
+        font-size: 1rem;
+    }
+
+    /* --- Buttons full width --- */
+    .btn {
+        width: 100%;
+        text-align: center;
+    }
+
+    /* --- Card grid: single column --- */
+    .card-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* --- Governance stats: single column --- */
+    .gov-stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .gov-stat {
+        padding: 1rem;
+    }
+
+    .gov-stat__value {
+        font-size: clamp(1.5rem, 8vw, 2.5rem);
+    }
+
+    /* --- Manifesto hero --- */
+    .manifesto-hero__title {
+        font-size: clamp(1.5rem, 8vw, 2rem);
+    }
+
+    .manifesto-hero__subtitle {
+        font-size: clamp(0.875rem, 4vw, 1rem);
+    }
+
+    /* --- Manifesto content spacing --- */
+    .manifesto-content {
+        font-size: clamp(0.875rem, 4vw, 1rem);
+    }
+
+    .manifesto-section {
+        padding-block: 1.5rem;
+    }
+
+    /* --- Terminal block --- */
+    .terminal {
+        font-size: 0.8rem;
+        padding: 1rem;
+    }
+
+    /* --- Glass panels --- */
+    .glass-panel {
+        padding: 1rem;
+    }
+
+    /* --- Footer --- */
     .footer__inner {
         flex-direction: column;
+        align-items: center;
         text-align: center;
     }
 
@@ -84,5 +245,10 @@
 @media (min-width: 1024px) {
     .hero__title {
         letter-spacing: 0.2em;
+    }
+
+    .manifesto-content {
+        max-width: 720px;
+        margin-inline: auto;
     }
 }

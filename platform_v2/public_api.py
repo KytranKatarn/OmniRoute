@@ -11,7 +11,7 @@ Date: 2026-03-19
 import logging
 import os
 import time
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request, make_response
 from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
@@ -93,8 +93,8 @@ def _fetch_platform_features():
             )
             row = cur.fetchone()
             if row:
-                stats["total_agents"] = row[0]
-                stats["active_agents"] = row[1]
+                stats["total_agents"] = row["total"]
+                stats["active_agents"] = row["active"]
 
     except Exception as e:
         logger.warning("public_api: DB stats query failed: %s", e)
@@ -164,8 +164,6 @@ def platform_features():
         return jsonify(data[0]), data[1]
 
     response = jsonify(data)
-    # Allow cross-origin requests from the public website
-    response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Cache-Control"] = "public, max-age=300"
     return response
 
@@ -401,10 +399,331 @@ def competitors():
     return response
 
 
+ALLOWED_ORIGINS = {
+    "https://kytranempowerment.com",
+    "https://www.kytranempowerment.com",
+    "https://creed-ai.org",
+    "https://www.creed-ai.org",
+    "http://localhost:3000",
+    "http://localhost:8080",
+}
+
+
+@public_api_bp.before_request
+def handle_preflight():
+    """Handle CORS preflight OPTIONS requests."""
+    if request.method == "OPTIONS":
+        resp = make_response("", 204)
+        return resp
+
+
 @public_api_bp.after_request
 def add_cors_headers(response):
     """Ensure CORS headers on all public API responses."""
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+    origin = request.headers.get("Origin", "")
+    if origin in ALLOWED_ORIGINS:
+        response.headers["Access-Control-Allow-Origin"] = origin
+    else:
+        response.headers["Access-Control-Allow-Origin"] = "*"  # fallback for non-browser
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Endpoint 3: /directory — Agent roster from public_agent_directory view
+# ---------------------------------------------------------------------------
+
+
+def _fetch_directory(department=None, agent_type=None, search=None):
+    """Fetch agents from the public_agent_directory view with optional filters."""
+    try:
+        with get_db_cursor() as (conn, cur):
+            clauses = ["1=1"]
+            params = []
+
+            if department:
+                clauses.append("department = %s")
+                params.append(department)
+            if agent_type:
+                clauses.append("agent_type = %s")
+                params.append(agent_type)
+            if search:
+                clauses.append("(full_name ILIKE %s OR acronym ILIKE %s)")
+                params.extend([f"%{search}%", f"%{search}%"])
+
+            sql = f"SELECT id, full_name, acronym, acronym_expansion, title, department, bio, avatar_url, pronouns, status, shift_state, agent_type FROM public_agent_directory WHERE {' AND '.join(clauses)} ORDER BY department, full_name"
+            cur.execute(sql, params)
+            rows = [dict(row) for row in cur.fetchall()]
+            return {"agents": rows, "total": len(rows)}
+    except Exception as e:
+        logger.error("public_api /directory query failed: %s", e)
+        return {"agents": [], "total": 0, "error": str(e)}
+
+
+@public_api_bp.route("/directory")
+def directory():
+    """Public agent directory with optional filtering."""
+    department = request.args.get("department")
+    agent_type = request.args.get("type")
+    search = request.args.get("search")
+
+    # Build a cache key that includes filters
+    cache_key = f"directory:{department}:{agent_type}:{search}"
+    data = _get_cached(cache_key, lambda: _fetch_directory(department, agent_type, search))
+
+    response = jsonify(data)
+    response.headers["Cache-Control"] = "public, max-age=300"
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Endpoint 4: /directory/live — Real-time agent shift states
+# ---------------------------------------------------------------------------
+
+
+@public_api_bp.route("/directory/live")
+def directory_live():
+    """Real-time agent shift states — no caching."""
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute("SELECT id, shift_state FROM agents WHERE status = 'active'")
+            states = {row["id"]: row["shift_state"] for row in cur.fetchall()}
+            return jsonify({"available": True, "states": states})
+    except Exception as e:
+        logger.error("public_api /directory/live failed: %s", e)
+        return jsonify({"available": False, "states": {}, "error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# Endpoint 5: /translate — LLM translation via Bridge dispatcher
+# ---------------------------------------------------------------------------
+
+SUPPORTED_LANGS = {"en", "fr", "ar", "he", "es", "zh", "de", "ja"}
+LANG_NAMES = {
+    "en": "English",
+    "fr": "French",
+    "ar": "Arabic",
+    "he": "Hebrew",
+    "es": "Spanish",
+    "zh": "Chinese",
+    "de": "German",
+    "ja": "Japanese",
+}
+
+
+@public_api_bp.route("/translate", methods=["POST"])
+def translate():
+    """Translate text via Bridge dispatcher."""
+    body = request.get_json(silent=True) or {}
+    text = (body.get("text") or "").strip()
+    target_lang = (body.get("target_lang") or "").strip().lower()
+    source_lang = (body.get("source_lang") or "en").strip().lower()
+
+    # Validation
+    if not text:
+        return jsonify({"error": "text is required"}), 400
+    if not target_lang:
+        return jsonify({"error": "target_lang is required"}), 400
+    if target_lang not in SUPPORTED_LANGS:
+        return jsonify({"error": f"target_lang must be one of: {', '.join(sorted(SUPPORTED_LANGS))}"}), 400
+    if source_lang not in SUPPORTED_LANGS:
+        return jsonify({"error": f"source_lang must be one of: {', '.join(sorted(SUPPORTED_LANGS))}"}), 400
+    if len(text) > 5000:
+        return jsonify({"error": "text exceeds 5000 character limit"}), 400
+
+    # Same language — return unchanged
+    if source_lang == target_lang:
+        resp = jsonify({"translated_text": text, "source_lang": source_lang, "target_lang": target_lang})
+        resp.headers["Cache-Control"] = "public, max-age=3600"
+        return resp
+
+    try:
+        from ai_bridge.bridge_dispatcher import get_dispatcher
+
+        dispatcher = get_dispatcher()
+        prompt = (
+            f"Translate the following text from {LANG_NAMES.get(source_lang, source_lang)} "
+            f"to {LANG_NAMES.get(target_lang, target_lang)}. "
+            f"Return ONLY the translated text, no explanations.\n\n{text}"
+        )
+        result = dispatcher.dispatch(
+            prompt=prompt,
+            capability="translation",
+            max_tokens=len(text) * 3,
+        )
+        translated = result.get("response", "").strip() if isinstance(result, dict) else str(result).strip()
+        resp = jsonify(
+            {
+                "translated_text": translated,
+                "source_lang": source_lang,
+                "target_lang": target_lang,
+            }
+        )
+        resp.headers["Cache-Control"] = "public, max-age=3600"
+        return resp
+    except Exception as e:
+        logger.error("public_api /translate failed: %s", e)
+        return (
+            jsonify(
+                {
+                    "error": "translation service unavailable",
+                    "translated_text": text,
+                    "source_lang": source_lang,
+                    "target_lang": target_lang,
+                }
+            ),
+            502,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Endpoint 6: /compliance/badges — Compliance scan badge scores
+# ---------------------------------------------------------------------------
+
+
+def _score_to_grade(score):
+    """Convert numeric score to letter grade + color."""
+    if score >= 95:
+        return "A+", "#22c55e"
+    elif score >= 90:
+        return "A", "#22c55e"
+    elif score >= 85:
+        return "B+", "#3b82f6"
+    elif score >= 80:
+        return "B", "#3b82f6"
+    elif score >= 70:
+        return "C", "#eab308"
+    elif score >= 60:
+        return "D", "#f97316"
+    else:
+        return "F", "#ef4444"
+
+
+def _fetch_compliance_badges():
+    """Fetch compliance badge data from scan results."""
+    try:
+        with get_db_cursor() as (conn, cur):
+            # Get latest scan per rule pack with pass/fail counts
+            cur.execute(
+                """
+                SELECT
+                    rp.pack_id,
+                    rp.name AS display_name,
+                    rp.total_rules,
+                    COUNT(*) FILTER (WHERE sr.status = 'pass') AS passing_rules,
+                    COUNT(*) AS total_checked,
+                    MAX(sr.scanned_at) AS last_scan
+                FROM compliance_scan_results sr
+                JOIN compliance_rule_packs rp ON sr.pack_id = rp.pack_id
+                WHERE sr.scan_id = (
+                    SELECT scan_id FROM compliance_scans
+                    ORDER BY completed_at DESC NULLS LAST
+                    LIMIT 1
+                )
+                GROUP BY rp.pack_id, rp.name, rp.total_rules
+                ORDER BY rp.name
+            """
+            )
+            rows = [dict(row) for row in cur.fetchall()]
+
+            badges = []
+            for row in rows:
+                total = row["total_checked"] or 1
+                passing = row["passing_rules"] or 0
+                score = round(passing / total * 100, 1)
+                grade, color = _score_to_grade(score)
+                badges.append(
+                    {
+                        "framework": row["pack_id"],
+                        "display_name": row["display_name"],
+                        "score": score,
+                        "grade": grade,
+                        "color": color,
+                        "total_rules": total,
+                        "passing_rules": passing,
+                        "last_scan": row["last_scan"].isoformat() if row["last_scan"] else None,
+                    }
+                )
+
+            return {"badges": badges, "available": True}
+    except Exception as e:
+        logger.error("public_api /compliance/badges failed: %s", e)
+        return {"badges": [], "available": False}
+
+
+@public_api_bp.route("/compliance/frameworks")
+def compliance_frameworks():
+    """Public compliance badge scores per framework (detailed breakdown).
+
+    Note: /api/public/compliance/badges already exists (badge_routes.py)
+    with an aggregate view. This endpoint provides per-framework detail.
+    """
+    data = _get_cached("compliance_frameworks", _fetch_compliance_badges)
+    response = jsonify(data)
+    response.headers["Cache-Control"] = "public, max-age=600"
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Endpoint 7: /creed/stats — Governance transparency stats
+# ---------------------------------------------------------------------------
+
+
+def _fetch_creed_stats():
+    """Fetch anonymized governance/welfare stats for C.R.E.E.D. transparency."""
+    stats = {}
+    try:
+        with get_db_cursor() as (conn, cur):
+            # Active agent count
+            try:
+                cur.execute("SELECT COUNT(*) AS cnt FROM agents WHERE status = 'active'")
+                stats["agents_monitored"] = cur.fetchone()["cnt"]
+            except Exception:
+                pass
+
+            # Governance events total
+            try:
+                cur.execute("SELECT COUNT(*) AS cnt FROM governance_audit_log")
+                stats["governance_events_total"] = cur.fetchone()["cnt"]
+            except Exception:
+                pass
+
+            # Shift state distribution
+            try:
+                cur.execute(
+                    "SELECT shift_state, COUNT(*) AS cnt FROM agents " "WHERE status = 'active' GROUP BY shift_state"
+                )
+                stats["shift_distribution"] = {row["shift_state"]: row["cnt"] for row in cur.fetchall()}
+            except Exception:
+                pass
+
+            # Agent welfare averages (last 24h)
+            try:
+                cur.execute(
+                    "SELECT ROUND(AVG(stress_level)::numeric, 2) AS avg_stress, "
+                    "ROUND(AVG(mood_intensity)::numeric, 2) AS avg_mood "
+                    "FROM agent_emotional_state "
+                    "WHERE timestamp > NOW() - INTERVAL '24 hours'"
+                )
+                row = cur.fetchone()
+                if row and row["avg_stress"] is not None:
+                    stats["welfare_avg_stress"] = float(row["avg_stress"])
+                    stats["welfare_avg_mood_intensity"] = float(row["avg_mood"]) if row["avg_mood"] else None
+            except Exception:
+                pass
+
+    except Exception as e:
+        logger.error("public_api /creed/stats failed: %s", e)
+        return {"stats": {}, "available": False}
+
+    return {"stats": stats, "available": bool(stats)}
+
+
+@public_api_bp.route("/creed/stats")
+def creed_stats():
+    """Public governance transparency stats for C.R.E.E.D. institute."""
+    data = _get_cached("creed_stats", _fetch_creed_stats)
+    response = jsonify(data)
+    response.headers["Cache-Control"] = "public, max-age=300"
     return response

@@ -74,7 +74,8 @@
             {'id': 'customers', 'label': 'Customers', 'icon': 'users'},
             {'id': 'segments', 'label': 'Segments', 'icon': 'layers'},
             {'id': 'interactions', 'label': 'Activity', 'icon': 'activity'},
-            {'id': 'analytics', 'label': 'Analytics', 'icon': 'bar-chart-2'}
+            {'id': 'analytics', 'label': 'Analytics', 'icon': 'bar-chart-2'},
+            {'id': 'billing', 'label': 'Billing', 'icon': 'credit-card'}
         ], active_id='customers', onswitch='switchCRMTab') }}
 
         <!-- Customers Tab -->
@@ -313,6 +314,114 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Billing Tab -->
+        <div class="crm-tab-content" id="tab-billing">
+            <!-- Revenue Metrics Cards -->
+            <div class="crm-stats-grid" id="billing-metrics-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+                <div class="crm-stat-card" style="animation-delay: 0.1s">
+                    <div class="crm-stat-icon" style="background: rgba(139,92,246,0.1);"><i data-lucide="trending-up"></i></div>
+                    <div class="crm-stat-value" id="billing-mrr">$0</div>
+                    <div class="crm-stat-label">TOTAL MRR</div>
+                </div>
+                <div class="crm-stat-card" style="animation-delay: 0.15s">
+                    <div class="crm-stat-icon crm-stat-icon--success"><i data-lucide="credit-card"></i></div>
+                    <div class="crm-stat-value" id="billing-active-subs">0</div>
+                    <div class="crm-stat-label">ACTIVE SUBSCRIPTIONS</div>
+                </div>
+                <div class="crm-stat-card" style="animation-delay: 0.2s">
+                    <div class="crm-stat-icon crm-stat-icon--warning"><i data-lucide="user-minus"></i></div>
+                    <div class="crm-stat-value" id="billing-churn">0%</div>
+                    <div class="crm-stat-label">CHURN RATE</div>
+                </div>
+                <div class="crm-stat-card" style="animation-delay: 0.25s">
+                    <div class="crm-stat-icon crm-stat-icon--info"><i data-lucide="target"></i></div>
+                    <div class="crm-stat-value" id="billing-avg-ltv">$0</div>
+                    <div class="crm-stat-label">AVG LTV</div>
+                </div>
+                <div class="crm-stat-card" style="animation-delay: 0.3s">
+                    <div class="crm-stat-icon crm-stat-icon--success"><i data-lucide="check-circle"></i></div>
+                    <div class="crm-stat-value" id="billing-payment-success">0%</div>
+                    <div class="crm-stat-label">PAYMENT SUCCESS</div>
+                </div>
+                <div class="crm-stat-card" style="animation-delay: 0.35s">
+                    <div class="crm-stat-icon" style="background: rgba(255,105,180,0.1);"><i data-lucide="dollar-sign"></i></div>
+                    <div class="crm-stat-value" id="billing-total-revenue">$0</div>
+                    <div class="crm-stat-label">TOTAL REVENUE</div>
+                </div>
+            </div>
+
+            <!-- Charts Row -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px;">
+                <div class="crm-panel" style="padding: 20px;">
+                    <h3 class="crm-panel-title" style="margin-bottom: 16px;">
+                        <i data-lucide="line-chart"></i>
+                        Revenue Over Time
+                    </h3>
+                    <div style="position: relative; height: 280px;">
+                        <canvas id="billing-revenue-chart"></canvas>
+                    </div>
+                </div>
+                <div class="crm-panel" style="padding: 20px;">
+                    <h3 class="crm-panel-title" style="margin-bottom: 16px;">
+                        <i data-lucide="pie-chart"></i>
+                        Subscription Distribution
+                    </h3>
+                    <div style="position: relative; height: 280px;">
+                        <canvas id="billing-distribution-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Bar -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+                <div style="display: flex; gap: 10px;">
+                    <button class="crm-btn crm-btn--primary" onclick="billingAutoLink()">
+                        <i data-lucide="link"></i>
+                        Auto-Link Customers
+                    </button>
+                    <a href="/tools/crm/api/billing/export" class="crm-btn crm-btn--outline" style="text-decoration: none;">
+                        <i data-lucide="download"></i>
+                        Export CSV
+                    </a>
+                </div>
+                <div class="crm-search-bar">
+                    <div class="crm-search-input-wrap">
+                        <i data-lucide="search"></i>
+                        <input type="text" class="crm-search-input" id="billing-customer-search"
+                               placeholder="Search billing customers..." oninput="searchBillingCustomers()">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Customer Billing Table -->
+            <div class="crm-panel">
+                <div class="crm-table-wrapper">
+                    <table class="crm-table">
+                        <thead>
+                            <tr>
+                                <th>Customer</th>
+                                <th>Email</th>
+                                <th>Product</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="billing-customers-tbody">
+                            <tr>
+                                <td colspan="5" class="crm-table-empty">
+                                    <div class="crm-empty-state crm-empty-state--inline">
+                                        <i data-lucide="credit-card"></i>
+                                        <p>Loading billing data...</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="crm-pagination" id="billing-pagination"></div>
             </div>
         </div>
     </div>
@@ -1366,6 +1475,8 @@ body.light-mode .crm-toast {
     .crm-detail-grid { grid-template-columns: 1fr; }
     .crm-search-bar { width: 100%; }
     .crm-search-input { min-width: 100%; }
+    #tab-billing > div[style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+    #billing-metrics-grid { grid-template-columns: repeat(2, 1fr) !important; }
 }
 </style>
 
@@ -1380,11 +1491,16 @@ document.addEventListener('DOMContentLoaded', function() {
 // ============================================================================
 // TAB SWITCHING — uses [data-tab] attribute from theme macros
 // ============================================================================
+let billingLoaded = false;
 function switchCRMTab(tabName) {
     document.querySelectorAll('.crm-tab-content').forEach(c => c.classList.remove('active'));
     document.querySelectorAll('[data-tab]').forEach(t => t.classList.remove('active'));
     document.getElementById('tab-' + tabName).classList.add('active');
     document.querySelector('[data-tab="' + tabName + '"]').classList.add('active');
+    if (tabName === 'billing' && !billingLoaded) {
+        billingLoaded = true;
+        loadBillingTab();
+    }
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
@@ -1718,6 +1834,396 @@ async function refreshStats() {
         }
     } catch (error) {
         console.error('Error refreshing stats:', error);
+    }
+}
+
+// ============================================================================
+// BILLING TAB
+// ============================================================================
+let billingRevenueChart = null;
+let billingDistributionChart = null;
+let billingSearchTimeout;
+let billingCurrentPage = 1;
+
+async function loadBillingTab() {
+    loadBillingMetrics();
+    loadBillingCustomers();
+    loadBillingRevenueChart();
+    loadBillingDistributionChart();
+}
+
+async function loadBillingMetrics() {
+    try {
+        const response = await fetch('/tools/crm/api/billing/metrics');
+        const data = await response.json();
+        if (data.success) {
+            const m = data.metrics;
+            document.getElementById('billing-mrr').textContent = '$' + (m.total_mrr || 0).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0});
+            document.getElementById('billing-active-subs').textContent = m.active_subscriptions || 0;
+            document.getElementById('billing-churn').textContent = (m.churn_rate || 0).toFixed(1) + '%';
+            document.getElementById('billing-avg-ltv').textContent = '$' + (m.avg_ltv || 0).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0});
+            document.getElementById('billing-payment-success').textContent = (m.payment_success_rate || 0).toFixed(1) + '%';
+            document.getElementById('billing-total-revenue').textContent = '$' + (m.total_revenue || 0).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0});
+        }
+    } catch (error) {
+        console.error('Error loading billing metrics:', error);
+    }
+}
+
+async function loadBillingRevenueChart() {
+    try {
+        const response = await fetch('/tools/crm/api/billing/revenue-by-month');
+        const data = await response.json();
+        if (data.success) {
+            renderRevenueChart(data.months);
+        }
+    } catch (error) {
+        console.error('Error loading revenue chart:', error);
+    }
+}
+
+function renderRevenueChart(data) {
+    const ctx = document.getElementById('billing-revenue-chart');
+    if (!ctx) return;
+    if (billingRevenueChart) billingRevenueChart.destroy();
+
+    const labels = data.map(d => d.month);
+    const values = data.map(d => d.revenue);
+
+    billingRevenueChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Revenue',
+                data: values,
+                borderColor: '#8b5cf6',
+                backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                fill: true,
+                tension: 0.4,
+                pointBackgroundColor: '#8b5cf6',
+                pointBorderColor: '#8b5cf6',
+                pointRadius: 4,
+                pointHoverRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: 'rgba(15, 15, 25, 0.9)',
+                    titleColor: '#8b5cf6',
+                    bodyColor: '#e0e0e0',
+                    borderColor: '#8b5cf6',
+                    borderWidth: 1,
+                    callbacks: {
+                        label: function(context) { return '$' + context.parsed.y.toLocaleString(); }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { color: '#888' },
+                    grid: { color: 'rgba(255,255,255,0.05)' }
+                },
+                y: {
+                    ticks: {
+                        color: '#888',
+                        callback: function(v) { return '$' + v.toLocaleString(); }
+                    },
+                    grid: { color: 'rgba(255,255,255,0.05)' }
+                }
+            }
+        }
+    });
+}
+
+async function loadBillingDistributionChart() {
+    try {
+        const response = await fetch('/tools/crm/api/billing/distribution');
+        const data = await response.json();
+        if (data.success) {
+            renderDistributionChart(data.distribution);
+        }
+    } catch (error) {
+        console.error('Error loading distribution chart:', error);
+    }
+}
+
+function renderDistributionChart(data) {
+    const ctx = document.getElementById('billing-distribution-chart');
+    if (!ctx) return;
+    if (billingDistributionChart) billingDistributionChart.destroy();
+
+    const labels = data.map(d => d.tier || d.product || 'Unknown');
+    const values = data.map(d => d.count);
+    const colors = ['#8b5cf6', '#f472b6', '#22d3ee', '#fbbf24', '#10b981', '#ef4444', '#f97316', '#818cf8'];
+
+    billingDistributionChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: colors.slice(0, values.length),
+                borderColor: 'rgba(15, 15, 25, 0.8)',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '60%',
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: {
+                        color: '#ccc',
+                        padding: 12,
+                        usePointStyle: true,
+                        pointStyle: 'circle'
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(15, 15, 25, 0.9)',
+                    titleColor: '#8b5cf6',
+                    bodyColor: '#e0e0e0',
+                    borderColor: '#8b5cf6',
+                    borderWidth: 1
+                }
+            }
+        }
+    });
+}
+
+async function loadBillingCustomers(page) {
+    page = page || 1;
+    billingCurrentPage = page;
+    const search = document.getElementById('billing-customer-search') ? document.getElementById('billing-customer-search').value : '';
+    try {
+        const params = new URLSearchParams({ page: page, search: search });
+        const response = await fetch('/tools/crm/api/billing/customers?' + params);
+        const data = await response.json();
+        if (data.success) {
+            renderBillingCustomers(data.customers);
+            renderBillingPagination(data.page || page, data.pages || 1);
+        }
+    } catch (error) {
+        console.error('Error loading billing customers:', error);
+        const tbody = document.getElementById('billing-customers-tbody');
+        tbody.textContent = '';
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 5;
+        td.className = 'crm-table-empty';
+        td.textContent = 'Error loading billing data';
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+    }
+}
+
+function renderBillingCustomers(customers) {
+    const tbody = document.getElementById('billing-customers-tbody');
+    tbody.textContent = '';
+
+    if (!customers || customers.length === 0) {
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 5;
+        td.className = 'crm-table-empty';
+        td.textContent = 'No billing customers found';
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+        return;
+    }
+
+    customers.forEach(function(c) {
+        const name = [c.first_name, c.last_name].filter(Boolean).join(' ') || c.name || 'Unknown';
+        const email = c.email || '-';
+        const product = c.product_name || c.subscription_tier || c.plan || '-';
+        const status = c.status || c.subscription_status || 'unknown';
+        const subId = c.stripe_subscription_id || c.subscription_id || '';
+        const custId = c.id || c.customer_id || '';
+
+        const tr = document.createElement('tr');
+
+        // Name cell
+        const tdName = document.createElement('td');
+        const nameWrap = document.createElement('div');
+        nameWrap.className = 'crm-customer-cell';
+        const avatar = document.createElement('div');
+        avatar.className = 'crm-customer-avatar';
+        avatar.textContent = (name[0] || 'U').toUpperCase();
+        const nameEl = document.createElement('div');
+        nameEl.className = 'crm-customer-name';
+        nameEl.textContent = name;
+        nameWrap.appendChild(avatar);
+        nameWrap.appendChild(nameEl);
+        tdName.appendChild(nameWrap);
+        tr.appendChild(tdName);
+
+        // Email cell
+        const tdEmail = document.createElement('td');
+        tdEmail.textContent = email;
+        tr.appendChild(tdEmail);
+
+        // Product cell
+        const tdProduct = document.createElement('td');
+        tdProduct.textContent = product;
+        tr.appendChild(tdProduct);
+
+        // Status cell
+        const tdStatus = document.createElement('td');
+        const badge = document.createElement('span');
+        if (status === 'active') { badge.className = 'crm-badge crm-badge--success'; badge.textContent = 'Active'; }
+        else if (status === 'cancelled' || status === 'canceled') { badge.className = 'crm-badge crm-badge--danger'; badge.textContent = 'Cancelled'; }
+        else if (status === 'past_due') { badge.className = 'crm-badge crm-badge--warning'; badge.textContent = 'Past Due'; }
+        else if (status === 'trialing') { badge.className = 'crm-badge crm-badge--info'; badge.textContent = 'Trial'; }
+        else { badge.className = 'crm-badge crm-badge--muted'; badge.textContent = status; }
+        tdStatus.appendChild(badge);
+        tr.appendChild(tdStatus);
+
+        // Actions cell
+        const tdActions = document.createElement('td');
+        const actionsWrap = document.createElement('div');
+        actionsWrap.className = 'crm-action-btns';
+
+        const btnView = document.createElement('button');
+        btnView.className = 'crm-btn crm-btn--sm crm-btn--outline';
+        btnView.title = 'View Detail';
+        btnView.onclick = function() { viewCustomer(custId); };
+        btnView.innerHTML = '<i data-lucide="eye"></i>';
+        actionsWrap.appendChild(btnView);
+
+        const btnCreate = document.createElement('button');
+        btnCreate.className = 'crm-btn crm-btn--sm crm-btn--outline';
+        btnCreate.title = 'Create Subscription';
+        btnCreate.onclick = function() { billingCreateSub(custId); };
+        btnCreate.innerHTML = '<i data-lucide="plus-circle"></i>';
+        actionsWrap.appendChild(btnCreate);
+
+        if (subId) {
+            const btnCancel = document.createElement('button');
+            btnCancel.className = 'crm-btn crm-btn--sm crm-btn--outline';
+            btnCancel.title = 'Cancel Subscription';
+            btnCancel.onclick = function() { billingCancel(subId); };
+            btnCancel.innerHTML = '<i data-lucide="x-circle"></i>';
+            actionsWrap.appendChild(btnCancel);
+
+            const btnTier = document.createElement('button');
+            btnTier.className = 'crm-btn crm-btn--sm crm-btn--outline';
+            btnTier.title = 'Change Tier';
+            btnTier.onclick = function() { billingChangeTier(subId); };
+            btnTier.innerHTML = '<i data-lucide="arrow-up-circle"></i>';
+            actionsWrap.appendChild(btnTier);
+        }
+
+        tdActions.appendChild(actionsWrap);
+        tr.appendChild(tdActions);
+        tbody.appendChild(tr);
+    });
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function renderBillingPagination(currentPage, totalPages) {
+    const container = document.getElementById('billing-pagination');
+    if (totalPages <= 1) { container.textContent = ''; return; }
+    container.textContent = '';
+    for (let i = 1; i <= Math.min(totalPages, 10); i++) {
+        const btn = document.createElement('button');
+        btn.className = 'crm-page-btn' + (i === currentPage ? ' active' : '');
+        btn.textContent = i;
+        btn.onclick = (function(p) { return function() { loadBillingCustomers(p); }; })(i);
+        container.appendChild(btn);
+    }
+}
+
+function searchBillingCustomers() {
+    clearTimeout(billingSearchTimeout);
+    billingSearchTimeout = setTimeout(function() { loadBillingCustomers(1); }, 300);
+}
+
+async function billingCreateSub(customerId) {
+    const priceId = prompt('Enter Stripe Price ID (e.g., price_xxx):');
+    if (!priceId) return;
+    try {
+        const response = await fetch('/tools/crm/api/billing/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ customer_id: customerId, price_id: priceId })
+        });
+        const data = await response.json();
+        if (data.success) {
+            showToast('Subscription created successfully!', 'success');
+            loadBillingTab();
+        } else {
+            showToast('Error: ' + (data.error || 'Failed to create subscription'), 'error');
+        }
+    } catch (error) {
+        showToast('Error: ' + error.message, 'error');
+    }
+}
+
+async function billingCancel(subscriptionId) {
+    if (!confirm('Are you sure you want to cancel this subscription?')) return;
+    try {
+        const response = await fetch('/tools/crm/api/billing/cancel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subscription_id: subscriptionId })
+        });
+        const data = await response.json();
+        if (data.success) {
+            showToast('Subscription cancelled.', 'success');
+            loadBillingTab();
+        } else {
+            showToast('Error: ' + (data.error || 'Failed to cancel'), 'error');
+        }
+    } catch (error) {
+        showToast('Error: ' + error.message, 'error');
+    }
+}
+
+async function billingChangeTier(subscriptionId) {
+    const newPriceId = prompt('Enter new Stripe Price ID for the tier change:');
+    if (!newPriceId) return;
+    try {
+        const response = await fetch('/tools/crm/api/billing/change-tier', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subscription_id: subscriptionId, new_price_id: newPriceId })
+        });
+        const data = await response.json();
+        if (data.success) {
+            showToast('Tier changed successfully!', 'success');
+            loadBillingTab();
+        } else {
+            showToast('Error: ' + (data.error || 'Failed to change tier'), 'error');
+        }
+    } catch (error) {
+        showToast('Error: ' + error.message, 'error');
+    }
+}
+
+async function billingAutoLink() {
+    try {
+        const response = await fetch('/tools/crm/api/billing/auto-link', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await response.json();
+        if (data.success) {
+            const count = data.linked || data.count || 0;
+            showToast('Auto-link complete! ' + count + ' customer(s) linked.', 'success');
+            loadBillingTab();
+        } else {
+            showToast('Error: ' + (data.error || 'Auto-link failed'), 'error');
+        }
+    } catch (error) {
+        showToast('Error: ' + error.message, 'error');
     }
 }
 </script>

@@ -58,6 +58,14 @@
     }
 
     /* --- Hero --- */
+    .hero__title {
+        font-size: clamp(1.5rem, 7vw, 2.5rem);
+        word-break: break-word;
+        overflow-wrap: break-word;
+        hyphens: auto;
+        letter-spacing: 0.05em;
+    }
+
     .hero__stats {
         flex-direction: column;
         align-items: center;
@@ -180,5 +188,28 @@
     .hero__stat {
         width: 100%;
         text-align: center;
+    }
+}
+
+/* ==========================================================================
+   344px — Fold5 Folded / Extra Narrow
+   ========================================================================== */
+@media (max-width: 360px) {
+    h1, .hero__title {
+        font-size: clamp(1.2rem, 9vw, 1.6rem);
+        letter-spacing: 0.02em;
+    }
+
+    .container {
+        padding-inline: 0.75rem;
+    }
+
+    .hero__stat-number {
+        font-size: 2rem;
+    }
+
+    .nav__logo-text {
+        font-size: 0.9rem;
+        letter-spacing: 0.15em;
     }
 }

@@ -2,3 +2,31 @@
    Kytran Empowerment — Home Page Styles
    Page-specific overrides and animations for index.html
    ========================================================================== */
+
+/* Hero canvas — dim particles behind content */
+.hero__canvas {
+    opacity: 0.6;
+}
+
+/* Services preview */
+.services-preview {
+    text-align: center;
+}
+
+/* Trust strip */
+.trust-strip {
+    text-align: center;
+}
+
+.trust-strip__badges {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+}
+
+/* CTA section */
+.cta-section {
+    text-align: center;
+    padding: 6rem 0;
+}

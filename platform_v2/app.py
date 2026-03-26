@@ -1767,6 +1767,12 @@ from conversation_triage.routes import triage_bp  # noqa: E402
 init_oauth(app)
 logger.info("OAuth initialized with Google provider")
 
+# OAuth Provider — "Sign in with Kytran" for standalone products
+from oauth_provider import init_oauth_provider  # noqa: E402
+
+init_oauth_provider(app)
+logger.info("OAuth provider initialized (authorize + token endpoints)")
+
 # Register additional blueprints
 # Note: app_builder_bp, archie_chat_bp, consciousness_bp, backup_manager_bp, dev_pipeline_bp loaded via module_registry
 app.register_blueprint(github_bp)

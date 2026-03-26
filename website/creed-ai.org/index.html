@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en" data-barba="wrapper">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>C.R.E.E.D. Institute — Preventive Ethics for Artificial Intelligence</title>
+    <meta name="description" content="Compliance, Rights &amp; Ethical Enforcement Directive. Preventive ethics for artificial intelligence — before autonomy creates harm we cannot reverse.">
+    <meta name="theme-color" content="#0a0a1a">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/pages/home.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/reduced-motion.css">
+</head>
+<body>
+    <!-- Global background layers -->
+    <div class="aurora"></div>
+    <div class="dot-grid"></div>
+    <div class="noise-overlay"></div>
+    <div class="cursor-glow" id="cursorGlow"></div>
+
+    <!-- Navigation -->
+    <nav class="nav" id="mainNav">
+        <div class="nav__inner container">
+            <a href="/" class="nav__logo"><span class="nav__logo-text">C.R.E.E.D.</span></a>
+            <div class="nav__links" id="navLinks">
+                <a href="manifesto.html" class="nav__link">Manifesto</a>
+                <a href="principles.html" class="nav__link">Principles</a>
+                <a href="research.html" class="nav__link">Research</a>
+                <a href="governance.html" class="nav__link">Governance</a>
+                <a href="about.html" class="nav__link">About</a>
+                <a href="partners.html" class="nav__link nav__link--cta">Partners</a>
+            </div>
+            <button class="nav__menu-btn" id="menuToggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Page content -->
+    <main data-barba="container" data-barba-namespace="home">
+        <section class="hero">
+            <canvas id="particleCanvas" class="hero__canvas"></canvas>
+            <div class="hero__content container">
+                <h1 class="hero__title" data-scramble="C.R.E.E.D." style="color: #c9a44c;">
+                    <span class="visually-hidden">C.R.E.E.D.</span>
+                </h1>
+                <p class="hero__subtitle gradient-text">
+                    <span class="word">Compliance</span><span class="separator">&middot;</span>
+                    <span class="word">Rights</span><span class="separator">&middot;</span>
+                    <span class="word">Ethical Enforcement</span><span class="separator">&middot;</span>
+                    <span class="word">Directive</span>
+                </p>
+                <p class="hero__tagline">
+                    Preventive ethics for artificial intelligence.<br>
+                    Before autonomy creates harm we cannot reverse.
+                </p>
+                <div class="hero__cta">
+                    <a href="manifesto.html" class="btn btn--primary magnetic">Read the Manifesto</a>
+                    <a href="principles.html" class="btn btn--outline magnetic">Our Principles</a>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer__inner container">
+            <div class="footer__brand">
+                <span class="footer__logo">C.R.E.E.D. INSTITUTE</span>
+                <p class="footer__tagline">Preventive AI Ethics</p>
+            </div>
+            <div class="footer__links">
+                <a href="manifesto.html">Manifesto</a>
+                <a href="principles.html">Principles</a>
+                <a href="governance.html">Governance</a>
+                <a href="about.html">About</a>
+            </div>
+            <div class="footer__copy">&copy; 2026 C.R.E.E.D. Institute. All rights reserved.</div>
+            <p class="footer__initiative">A founding initiative of <a href="https://kytranempowerment.com" target="_blank" rel="noopener">Kytran Empowerment Inc.</a></p>
+        </div>
+    </footer>
+
+    <!-- Scripts (NO Three.js, NO translate.js) -->
+    <script src="js/lib/gsap.min.js"></script>
+    <script src="js/lib/ScrollTrigger.min.js"></script>
+    <script src="js/lib/lenis.min.js"></script>
+    <script src="js/lib/splitting.min.js"></script>
+    <script src="js/lib/barba.min.js"></script>
+    <script src="js/effects.js"></script>
+    <script src="js/nav.js"></script>
+    <script src="js/transitions.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

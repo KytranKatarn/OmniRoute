@@ -1,0 +1,88 @@
+/* ==========================================================================
+   C.R.E.E.D. Institute — Responsive Breakpoints
+   480px / 768px / 1024px
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Mobile Menu (< 768px)
+   -------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+    .nav__links {
+        position: fixed;
+        top: var(--nav-height);
+        left: 0;
+        right: 0;
+        bottom: 0;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: var(--space-2xl);
+        background: rgba(10, 10, 30, 0.95);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        transform: translateX(100%);
+        transition: transform var(--speed-medium) var(--ease-out);
+    }
+
+    .nav__links--open {
+        transform: translateX(0);
+    }
+
+    .nav__menu-btn {
+        display: flex;
+    }
+
+    .nav__link {
+        font-size: var(--text-lg);
+    }
+
+    .hero__subtitle {
+        font-size: var(--text-base);
+        letter-spacing: 0.15em;
+    }
+
+    .hero__subtitle .separator {
+        display: none;
+    }
+
+    .hero__subtitle .word {
+        display: block;
+        margin-bottom: var(--space-xs);
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Small screens (< 480px)
+   -------------------------------------------------------------------------- */
+@media (max-width: 480px) {
+    :root {
+        --space-section: 4rem;
+    }
+
+    .hero__tagline {
+        font-size: var(--text-base);
+    }
+
+    .hero__cta {
+        flex-direction: column;
+    }
+
+    .footer__inner {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .footer__links {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Large screens (> 1024px)
+   -------------------------------------------------------------------------- */
+@media (min-width: 1024px) {
+    .hero__title {
+        letter-spacing: 0.2em;
+    }
+}

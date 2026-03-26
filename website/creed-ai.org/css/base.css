@@ -1,0 +1,257 @@
+/* ==========================================================================
+   C.R.E.E.D. Institute — Base Styles
+   Design tokens, reset, utilities, ambient layers
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Design Tokens
+   -------------------------------------------------------------------------- */
+:root {
+    /* Colors */
+    --color-base:         #0a0a1a;
+    --color-primary:      #c9a44c;
+    --color-secondary:    #00e5ff;
+    --color-accent:       #e8e8e8;
+    --color-text:         #e0e0e0;
+    --color-text-muted:   #888;
+    --color-border:       rgba(201, 164, 76, 0.15);
+    --color-glass-bg:     rgba(10, 10, 30, 0.3);
+    --color-glass-border: rgba(201, 164, 76, 0.1);
+
+    /* Typography */
+    --font-nav:     'Antonio', sans-serif;
+    --font-heading: 'Orbitron', sans-serif;
+    --font-body:    'IBM Plex Mono', monospace;
+
+    /* Font sizes */
+    --text-xs:   0.75rem;
+    --text-sm:   0.875rem;
+    --text-base: 1rem;
+    --text-lg:   1.125rem;
+    --text-xl:   1.25rem;
+    --text-2xl:  1.5rem;
+    --text-3xl:  2rem;
+    --text-4xl:  2.5rem;
+    --text-hero: clamp(2.5rem, 6vw, 5rem);
+
+    /* Spacing */
+    --space-xs:      0.25rem;
+    --space-sm:      0.5rem;
+    --space-md:      1rem;
+    --space-lg:      1.5rem;
+    --space-xl:      2rem;
+    --space-2xl:     3rem;
+    --space-3xl:     4rem;
+    --space-section: 8rem;
+
+    /* Layout */
+    --max-width:     1200px;
+    --nav-height:    80px;
+    --border-radius: 12px;
+
+    /* Transitions */
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --speed-fast:   0.15s;
+    --speed-medium: 0.3s;
+    --speed-slow:   0.6s;
+}
+
+/* --------------------------------------------------------------------------
+   CSS Reset
+   -------------------------------------------------------------------------- */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+body {
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+    font-weight: 400;
+    line-height: 1.6;
+    color: var(--color-text);
+    background-color: var(--color-base);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+}
+
+a {
+    color: var(--color-primary);
+    text-decoration: none;
+    transition: color var(--speed-fast) ease;
+}
+
+a:hover {
+    color: var(--color-secondary);
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    line-height: 1.2;
+    color: #fff;
+}
+
+img, svg, video, canvas {
+    display: block;
+    max-width: 100%;
+}
+
+button {
+    font: inherit;
+    cursor: pointer;
+    border: none;
+    background: none;
+    color: inherit;
+}
+
+ul, ol {
+    list-style: none;
+}
+
+/* --------------------------------------------------------------------------
+   Utilities
+   -------------------------------------------------------------------------- */
+.container {
+    width: 100%;
+    max-width: var(--max-width);
+    margin-inline: auto;
+    padding-inline: var(--space-lg);
+}
+
+.section {
+    padding-block: var(--space-section);
+    position: relative;
+}
+
+.gradient-text {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Aurora Background (Gold + Teal)
+   -------------------------------------------------------------------------- */
+.aurora {
+    position: fixed;
+    inset: 0;
+    z-index: -3;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.aurora::before,
+.aurora::after {
+    content: '';
+    position: absolute;
+    width: 120%;
+    height: 120%;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0.15;
+    animation: aurora-drift 20s ease-in-out infinite alternate;
+}
+
+.aurora::before {
+    background: radial-gradient(ellipse at 30% 40%, var(--color-primary), transparent 70%);
+    top: -30%;
+    left: -20%;
+}
+
+.aurora::after {
+    background: radial-gradient(ellipse at 70% 60%, var(--color-secondary), transparent 70%);
+    bottom: -30%;
+    right: -20%;
+    animation-delay: -10s;
+    animation-direction: alternate-reverse;
+}
+
+@keyframes aurora-drift {
+    0%   { transform: translate(0, 0) scale(1); }
+    50%  { transform: translate(3%, -2%) scale(1.05); }
+    100% { transform: translate(-2%, 3%) scale(0.95); }
+}
+
+/* --------------------------------------------------------------------------
+   Dot Grid
+   -------------------------------------------------------------------------- */
+.dot-grid {
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    pointer-events: none;
+    background-image: radial-gradient(circle, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+    background-size: 32px 32px;
+}
+
+/* --------------------------------------------------------------------------
+   Noise Overlay
+   -------------------------------------------------------------------------- */
+.noise-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9998;
+    pointer-events: none;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 256px 256px;
+}
+
+/* --------------------------------------------------------------------------
+   Cursor Glow (Gold)
+   -------------------------------------------------------------------------- */
+.cursor-glow {
+    position: fixed;
+    width: 600px;
+    height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(201, 164, 76, 0.08), transparent 70%);
+    pointer-events: none;
+    z-index: 9997;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    transition: opacity var(--speed-medium) ease;
+    will-change: transform;
+}
+
+body:hover .cursor-glow {
+    opacity: 1;
+}
+
+/* --------------------------------------------------------------------------
+   Selection
+   -------------------------------------------------------------------------- */
+::selection {
+    background-color: var(--color-primary);
+    color: var(--color-base);
+}
+
+::-moz-selection {
+    background-color: var(--color-primary);
+    color: var(--color-base);
+}

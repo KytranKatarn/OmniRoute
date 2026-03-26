@@ -1,0 +1,23 @@
+/* ==========================================================================
+   C.R.E.E.D. Institute — Reduced Motion Preferences
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .aurora::before,
+    .aurora::after {
+        animation: none;
+    }
+
+    .cursor-glow {
+        display: none;
+    }
+}

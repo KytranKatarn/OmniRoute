@@ -50,8 +50,12 @@ admin_required = require_permission(Permission.ADMIN_ACCESS)
 @login_required
 @admin_required
 def index():
-    """Main System Operations dashboard"""
-    return render_template("tools/system_operations.html")
+    """Main System Operations — launch page for standalone"""
+    standalone_url = os.getenv("STANDALONE_SYSOPS_URL", "http://192.168.1.200:8085")
+    return render_template(
+        "tools/system_operations/system_operations_launch.html",
+        standalone_url=standalone_url,
+    )
 
 
 # ============================================================================

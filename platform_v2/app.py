@@ -1778,6 +1778,11 @@ from api_standalone import init_standalone_api  # noqa: E402
 
 init_standalone_api(app)
 
+# Billing API — Stripe webhook, checkout, portal, products
+from billing_routes import init_billing  # noqa: E402
+
+init_billing(app)
+
 # Register additional blueprints
 # Note: app_builder_bp, archie_chat_bp, consciousness_bp, backup_manager_bp, dev_pipeline_bp loaded via module_registry
 app.register_blueprint(github_bp)

@@ -132,7 +132,7 @@ def _push_tier_to_standalone(user_id, tier):
         return False
 
     headers["Content-Type"] = "application/json"
-    url = f"{STANDALONE_SYSOPS_URL}/api/billing/tier-update"
+    url = f"{STANDALONE_SYSOPS_URL}/dashboard/api/billing/tier-update"
 
     try:
         resp = requests.post(

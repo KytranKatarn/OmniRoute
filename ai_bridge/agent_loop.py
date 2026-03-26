@@ -752,8 +752,17 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Job #59 — Standalone health monitoring: ping KSM every 60s, alert on downtime
+        self.scheduler.add_job(
+            with_app_context(self._check_standalone_health),
+            trigger=IntervalTrigger(seconds=60),
+            id="agent_standalone_health",
+            name="Agent Loop: Standalone Health Monitor",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 59 jobs")
+        logger.info("Agent loop started with 60 jobs")
 
     def _update_stock_prices(self):
         """Job #27: Refresh cached stock prices, check price alerts, and auto-scan watchlist every 5 minutes."""
@@ -5950,6 +5959,71 @@ Respond with ONLY a JSON object (no markdown, no explanation):
             _trigger_loop_op("embedding")
         except Exception as e:
             logger.warning(f"[Consciousness Batch] Embedding batch failed: {e}")
+
+    # ── Job #59 — Standalone Health Monitor ─────────────────────────────
+
+    _standalone_last_status = {}
+
+    def _check_standalone_health(self):
+        """Job #59: Monitor standalone product health, alert on downtime."""
+        import os
+        import requests as req
+        from database import get_db_cursor
+
+        standalones = [
+            {
+                "name": "Kytran System Operations",
+                "url": os.getenv("STANDALONE_SYSOPS_URL", "http://192.168.1.200:8085"),
+                "health_path": "/dashboard/api/health",
+            },
+        ]
+
+        for product in standalones:
+            key = product["name"]
+            url = f"{product['url']}{product['health_path']}"
+            was_down = self._standalone_last_status.get(key) == "down"
+
+            try:
+                resp = req.get(url, timeout=10)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    status = data.get("status", "unknown")
+                    if status in ("healthy", "operational"):
+                        if was_down:
+                            # Recovered — send recovery notification
+                            with get_db_cursor(commit=True) as (conn, cur):
+                                cur.execute(
+                                    """INSERT INTO system_notifications
+                                       (type, title, message, source, priority, visibility, is_read, created_at)
+                                       VALUES (%s, %s, %s, %s, %s, %s, FALSE, NOW())""",
+                                    ("success", f"{key} Back Online",
+                                     f"{key} has recovered and is operational.",
+                                     "agent_loop", "normal", "admin"),
+                                )
+                            logger.info(f"[Standalone Health] {key} recovered")
+                        self._standalone_last_status[key] = "up"
+                        continue
+
+                # Non-200 or unhealthy status
+                raise Exception(f"HTTP {resp.status_code}")
+
+            except Exception as e:
+                if not was_down:
+                    # Just went down — alert
+                    try:
+                        with get_db_cursor(commit=True) as (conn, cur):
+                            cur.execute(
+                                """INSERT INTO system_notifications
+                                   (type, title, message, source, priority, visibility, is_read, created_at)
+                                   VALUES (%s, %s, %s, %s, %s, %s, FALSE, NOW())""",
+                                ("error", f"{key} is DOWN",
+                                 f"{key} health check failed: {str(e)[:200]}",
+                                 "agent_loop", "high", "admin"),
+                            )
+                    except Exception:
+                        pass
+                    logger.error(f"[Standalone Health] {key} is DOWN: {e}")
+                self._standalone_last_status[key] = "down"
 
 
 # ---------------------------------------------------------------------------

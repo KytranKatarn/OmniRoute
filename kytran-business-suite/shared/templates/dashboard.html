@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — Kytran Business Suite{% endblock %}
+
+{% block content %}
+<div class="kbs-page">
+  <div class="kbs-container">
+    <div class="kbs-dashboard-header">
+      <h1>Dashboard</h1>
+      <p>
+        Welcome back, {{ current_user.name }}
+        {% if g.tenant %} — {{ g.tenant.name }}{% endif %}
+      </p>
+    </div>
+
+    <hr class="kbs-divider" />
+
+    <!-- Module grid placeholder -->
+    <div class="kbs-module-grid">
+      <div class="kbs-placeholder" style="grid-column: 1 / -1;">
+        <h2>Your Modules</h2>
+        <p>Enabled modules will appear here. Visit the <a href="{{ url_for('marketplace.index') }}">Marketplace</a> to activate modules.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

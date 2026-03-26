@@ -1783,6 +1783,11 @@ from billing_routes import init_billing  # noqa: E402
 
 init_billing(app)
 
+# KSM Billing — webhook handlers for Kytran SysOps Manager tier push
+from services.ksm_billing_handler import register_ksm_billing_handlers  # noqa: E402
+
+register_ksm_billing_handlers()
+
 # Register additional blueprints
 # Note: app_builder_bp, archie_chat_bp, consciousness_bp, backup_manager_bp, dev_pipeline_bp loaded via module_registry
 app.register_blueprint(github_bp)

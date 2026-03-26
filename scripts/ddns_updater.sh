@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # DDNS Updater for ARCHIE Platform
 # Updates Hostinger DNS A records when public IP changes
-# Subdomains: archie, adguard, mdm, nagios, portainer, plex, n8n, voice, store @ kytranempowerment.com
+# Subdomains: archie, adguard, mdm, nagios, portainer, plex, n8n, voice, store, mediahub, consciousness, bridge, brainstorm, code, server, business @ kytranempowerment.com
 
 set -euo pipefail
 
 DOMAIN="kytranempowerment.com"
-SUBDOMAINS=("archie" "adguard" "mdm" "nagios" "portainer" "plex" "n8n" "voice" "store" "mediahub" "consciousness" "bridge" "brainstorm" "code")
+SUBDOMAINS=("archie" "adguard" "mdm" "nagios" "portainer" "plex" "n8n" "voice" "store" "mediahub" "consciousness" "bridge" "brainstorm" "code" "server" "business")
 IP_FILE="/mnt/archie_brain/scripts/.ddns_last_ip"
 LOG_FILE="/mnt/archie_brain/scripts/ddns_updater.log"
 ENV_FILE="/mnt/archie_brain/.env"

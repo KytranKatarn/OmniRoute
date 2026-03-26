@@ -46,7 +46,14 @@ STANDALONE_PRODUCTS = [
         "module_key": "standalone_kytran_system_operations",
         "tier": 1,
         "compliance_packs": ["ubuntu-stig", "docker-stig", "network-stig", "cis-ubuntu", "hipaa"],
-    }
+    },
+    {
+        "name": "Kytran Business Suite",
+        "path": "/mnt/archie_brain/kytran-business-suite",
+        "module_key": "standalone_kytran_business_suite",
+        "tier": 1,
+        "compliance_packs": ["ubuntu-stig", "docker-stig", "network-stig", "cis-ubuntu", "hipaa"],
+    },
 ]
 
 

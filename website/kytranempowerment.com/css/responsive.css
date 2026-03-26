@@ -194,10 +194,11 @@
 /* ==========================================================================
    344px — Fold5 Folded / Extra Narrow
    ========================================================================== */
-@media (max-width: 360px) {
+@media (max-width: 400px) {
     h1, .hero__title {
-        font-size: clamp(1.2rem, 9vw, 1.6rem);
-        letter-spacing: 0.02em;
+        font-size: clamp(1rem, 7.5vw, 1.4rem);
+        letter-spacing: 0;
+        padding-inline: 0;
     }
 
     .container {

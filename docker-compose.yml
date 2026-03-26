@@ -440,6 +440,53 @@ services:
       archie_headscale:
         condition: service_healthy
 
+  # Kytran Business Suite — standalone SaaS product
+  kytran-business-suite:
+    build: ./kytran-business-suite
+    container_name: kbs_app
+    ports:
+      - "8091:8090"
+    env_file: ./kytran-business-suite/.env
+    read_only: true
+    tmpfs:
+      - /tmp
+    depends_on:
+      - archie_database
+      - kbs-redis
+    mem_limit: 512m
+    cpus: 1.0
+    restart: unless-stopped
+    networks:
+      - archie_internal
+
+  kbs-redis:
+    image: redis:7-alpine
+    container_name: kbs_redis
+    volumes:
+      - kbs-redis-data:/data
+    mem_limit: 128m
+    cpus: 0.25
+    restart: unless-stopped
+    networks:
+      - archie_internal
+
+  kbs-worker:
+    build: ./kytran-business-suite
+    container_name: kbs_worker
+    command: python -m core.worker
+    env_file: ./kytran-business-suite/.env
+    read_only: true
+    tmpfs:
+      - /tmp
+    depends_on:
+      - archie_database
+      - kbs-redis
+    mem_limit: 256m
+    cpus: 0.5
+    restart: unless-stopped
+    networks:
+      - archie_internal
+
 secrets:
   db_password:
     file: ./secrets/database/password.txt
@@ -471,3 +518,4 @@ volumes:
   tailscale_hub_data:
     driver: local
     name: archie_tailscale_hub
+  kbs-redis-data:

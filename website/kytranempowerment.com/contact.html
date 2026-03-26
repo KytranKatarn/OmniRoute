@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en" data-barba="wrapper">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact — Kytran Empowerment</title>
+    <meta name="description" content="Get in touch with Kytran Empowerment. Sales, support, engineering, or partnerships — we'd love to hear from you.">
+    <meta name="theme-color" content="#0a0a1a">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/reduced-motion.css">
+</head>
+<body>
+    <!-- Global background layers -->
+    <div class="aurora"></div>
+    <div class="dot-grid"></div>
+    <div class="noise-overlay"></div>
+    <div class="cursor-glow" id="cursorGlow"></div>
+
+    <!-- Navigation -->
+    <nav class="nav" id="mainNav">
+        <div class="nav__inner container">
+            <a href="/" class="nav__logo"><span class="nav__logo-text">KYTRAN</span></a>
+            <div class="nav__links" id="navLinks">
+                <a href="services.html" class="nav__link">Services</a>
+                <a href="platform.html" class="nav__link">Platform</a>
+                <a href="directory.html" class="nav__link">Directory</a>
+                <a href="compliance.html" class="nav__link">Trust</a>
+                <a href="creed.html" class="nav__link">C.R.E.E.D.</a>
+                <a href="about.html" class="nav__link">About</a>
+                <a href="contact.html" class="nav__link nav__link--cta active">Contact</a>
+            </div>
+            <div class="nav__controls">
+                <button class="nav__lang-btn" id="langSwitcher" aria-label="Change language">EN</button>
+                <button class="nav__menu-btn" id="menuToggle" aria-label="Toggle menu">
+                    <span></span><span></span><span></span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Page content -->
+    <main data-barba="container" data-barba-namespace="contact">
+        <section class="hero">
+            <div class="hero__content container">
+                <h1 class="hero__title gradient-text" data-i18n="contact-hero-title">Get in Touch</h1>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="container">
+                <div style="display:flex;gap:3rem;flex-wrap:wrap;justify-content:center;align-items:flex-start;">
+                    <!-- Contact Form -->
+                    <div style="flex:1;min-width:320px;max-width:560px;">
+                        <form action="#" method="post" class="glass-panel" style="padding:2rem;display:flex;flex-direction:column;gap:1.25rem;">
+                            <div>
+                                <label for="contactName" style="display:block;margin-bottom:0.4rem;font-size:0.85rem;color:var(--text-secondary,#94a3b8);font-family:'IBM Plex Mono',monospace;">Name</label>
+                                <input type="text" id="contactName" name="name" required placeholder="Your name" style="width:100%;padding:0.7rem 1rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:var(--text-primary,#e2e8f0);font-family:'IBM Plex Mono',monospace;font-size:0.95rem;outline:none;" />
+                            </div>
+                            <div>
+                                <label for="contactEmail" style="display:block;margin-bottom:0.4rem;font-size:0.85rem;color:var(--text-secondary,#94a3b8);font-family:'IBM Plex Mono',monospace;">Email</label>
+                                <input type="email" id="contactEmail" name="email" required placeholder="you@example.com" style="width:100%;padding:0.7rem 1rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:var(--text-primary,#e2e8f0);font-family:'IBM Plex Mono',monospace;font-size:0.95rem;outline:none;" />
+                            </div>
+                            <div>
+                                <label for="contactDept" style="display:block;margin-bottom:0.4rem;font-size:0.85rem;color:var(--text-secondary,#94a3b8);font-family:'IBM Plex Mono',monospace;">Department</label>
+                                <select id="contactDept" name="department" style="width:100%;padding:0.7rem 1rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:var(--text-primary,#e2e8f0);font-family:'IBM Plex Mono',monospace;font-size:0.95rem;outline:none;">
+                                    <option value="general">General</option>
+                                    <option value="sales">Sales</option>
+                                    <option value="support">Support</option>
+                                    <option value="engineering">Engineering</option>
+                                    <option value="partnership">Partnership</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="contactMessage" style="display:block;margin-bottom:0.4rem;font-size:0.85rem;color:var(--text-secondary,#94a3b8);font-family:'IBM Plex Mono',monospace;">Message</label>
+                                <textarea id="contactMessage" name="message" rows="6" required placeholder="How can we help?" style="width:100%;padding:0.7rem 1rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:var(--text-primary,#e2e8f0);font-family:'IBM Plex Mono',monospace;font-size:0.95rem;outline:none;resize:vertical;"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn--primary magnetic" style="width:100%;">Send Message</button>
+                        </form>
+                    </div>
+
+                    <!-- Company Info -->
+                    <div style="flex:0 0 320px;min-width:280px;">
+                        <div class="glass-panel" style="padding:2rem;">
+                            <h3 style="font-family:'Orbitron',sans-serif;font-size:1.1rem;margin-bottom:1.25rem;">Kytran Empowerment Inc.</h3>
+                            <div style="display:flex;flex-direction:column;gap:1rem;font-family:'IBM Plex Mono',monospace;font-size:0.9rem;color:var(--text-secondary,#94a3b8);">
+                                <div>
+                                    <div style="color:var(--text-primary,#e2e8f0);margin-bottom:0.25rem;">Location</div>
+                                    Montreal, Quebec, Canada
+                                </div>
+                                <div>
+                                    <div style="color:var(--text-primary,#e2e8f0);margin-bottom:0.25rem;">Email</div>
+                                    <a href="mailto:info@kytranempowerment.com" style="color:var(--accent,#00e5ff);text-decoration:none;">info@kytranempowerment.com</a>
+                                </div>
+                                <div>
+                                    <div style="color:var(--text-primary,#e2e8f0);margin-bottom:0.25rem;">Hours</div>
+                                    Monday &ndash; Friday, 9 AM &ndash; 5 PM EST
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer__inner container">
+            <div class="footer__brand">
+                <span class="footer__logo">KYTRAN EMPOWERMENT</span>
+                <p class="footer__tagline">Montreal, Canada</p>
+            </div>
+            <div class="footer__links">
+                <a href="about.html">About</a>
+                <a href="compliance.html">Trust Center</a>
+                <a href="creed.html">C.R.E.E.D.</a>
+                <a href="contact.html">Contact</a>
+            </div>
+            <div class="footer__copy">&copy; 2026 Kytran Empowerment Inc. All rights reserved.</div>
+        </div>
+    </footer>
+
+    <!-- Language Overlay -->
+    <div class="lang-overlay" id="langOverlay" hidden>
+        <div class="lang-overlay__panel glass-panel">
+            <h3>Select Language</h3>
+            <div class="lang-overlay__grid">
+                <button data-lang="en" class="lang-btn active">English</button>
+                <button data-lang="fr" class="lang-btn">Francais</button>
+                <button data-lang="es" class="lang-btn">Espanol</button>
+                <button data-lang="de" class="lang-btn">Deutsch</button>
+                <button data-lang="zh" class="lang-btn">中文</button>
+                <button data-lang="ja" class="lang-btn">日本語</button>
+                <button data-lang="ar" class="lang-btn" dir="rtl">العربية</button>
+                <button data-lang="he" class="lang-btn" dir="rtl">עברית</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/lib/gsap.min.js"></script>
+    <script src="js/lib/ScrollTrigger.min.js"></script>
+    <script src="js/lib/lenis.min.js"></script>
+    <script src="js/lib/splitting.min.js"></script>
+    <script src="js/lib/barba.min.js"></script>
+    <script src="js/effects.js"></script>
+    <script src="js/nav.js"></script>
+    <script src="js/transitions.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

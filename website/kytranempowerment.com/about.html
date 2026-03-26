@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en" data-barba="wrapper">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About — Kytran Empowerment</title>
+    <meta name="description" content="Founded in Montreal, Canada. Building the future of AI-powered business automation with 122 agents and a growing human team.">
+    <meta name="theme-color" content="#0a0a1a">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/reduced-motion.css">
+</head>
+<body>
+    <!-- Global background layers -->
+    <div class="aurora"></div>
+    <div class="dot-grid"></div>
+    <div class="noise-overlay"></div>
+    <div class="cursor-glow" id="cursorGlow"></div>
+
+    <!-- Navigation -->
+    <nav class="nav" id="mainNav">
+        <div class="nav__inner container">
+            <a href="/" class="nav__logo"><span class="nav__logo-text">KYTRAN</span></a>
+            <div class="nav__links" id="navLinks">
+                <a href="services.html" class="nav__link">Services</a>
+                <a href="platform.html" class="nav__link">Platform</a>
+                <a href="directory.html" class="nav__link">Directory</a>
+                <a href="compliance.html" class="nav__link">Trust</a>
+                <a href="creed.html" class="nav__link">C.R.E.E.D.</a>
+                <a href="about.html" class="nav__link active">About</a>
+                <a href="contact.html" class="nav__link nav__link--cta">Contact</a>
+            </div>
+            <div class="nav__controls">
+                <button class="nav__lang-btn" id="langSwitcher" aria-label="Change language">EN</button>
+                <button class="nav__menu-btn" id="menuToggle" aria-label="Toggle menu">
+                    <span></span><span></span><span></span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Page content -->
+    <main data-barba="container" data-barba-namespace="about">
+        <section class="hero">
+            <div class="hero__content container">
+                <h1 class="hero__title gradient-text" data-i18n="about-hero-title">Our Story</h1>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="container">
+                <h2 class="section__title" data-split data-i18n="about-vision-title">The Vision</h2>
+                <div class="glass-panel" style="padding:2rem;max-width:800px;margin:0 auto 2rem;">
+                    <p style="margin-bottom:1rem;">Kytran Empowerment was founded in Montreal, Canada with a bold vision: build one platform that replaces a dozen disconnected business tools. No more juggling subscriptions, migrating data between systems, or losing context switching between apps.</p>
+                    <p style="margin-bottom:1rem;">At the heart of the platform is A.R.C.H.I.E. — an AI operations engine that doesn't just automate tasks, but understands your business. It learns from every interaction, improves its own codebase, and scales from a solo founder to a growing enterprise.</p>
+                    <p>We believe AI should empower people, not replace them. Every tool we build is designed to handle the repetitive work so humans can focus on the creative, strategic decisions that matter most.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="container">
+                <h2 class="section__title" data-split data-i18n="about-values-title">Our Values</h2>
+                <div class="card-grid" data-stagger>
+                    <div class="card">
+                        <div class="card__icon">&#9670;</div>
+                        <h3 class="card__title">Innovation</h3>
+                        <p class="card__text">We push boundaries. Self-healing code, GPU-aware routing, and agent welfare systems aren't buzzwords here — they're shipping features.</p>
+                    </div>
+                    <div class="card">
+                        <div class="card__icon">&#9878;</div>
+                        <h3 class="card__title">Ethics</h3>
+                        <p class="card__text">Every AI decision is auditable. C.R.E.E.D. governs our agents with real ethical oversight — not just a policy page.</p>
+                    </div>
+                    <div class="card">
+                        <div class="card__icon">&#9788;</div>
+                        <h3 class="card__title">Transparency</h3>
+                        <p class="card__text">Live compliance badges, public trust center, open governance logs. We show our work because trust is earned, not declared.</p>
+                    </div>
+                    <div class="card">
+                        <div class="card__icon">&#9733;</div>
+                        <h3 class="card__title">Self-Improvement</h3>
+                        <p class="card__text">The platform scans, proposes, and deploys improvements to itself. Every day it gets a little better — automatically.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="container">
+                <h2 class="section__title" data-split data-i18n="about-team-title">The Team</h2>
+                <div class="glass-panel" style="padding:2rem;max-width:800px;margin:0 auto;text-align:center;">
+                    <p style="font-size:1.1rem;">122 AI agents and a growing human team, working together across 16 departments — from engineering and security to creative design and customer success.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer__inner container">
+            <div class="footer__brand">
+                <span class="footer__logo">KYTRAN EMPOWERMENT</span>
+                <p class="footer__tagline">Montreal, Canada</p>
+            </div>
+            <div class="footer__links">
+                <a href="about.html">About</a>
+                <a href="compliance.html">Trust Center</a>
+                <a href="creed.html">C.R.E.E.D.</a>
+                <a href="contact.html">Contact</a>
+            </div>
+            <div class="footer__copy">&copy; 2026 Kytran Empowerment Inc. All rights reserved.</div>
+        </div>
+    </footer>
+
+    <!-- Language Overlay -->
+    <div class="lang-overlay" id="langOverlay" hidden>
+        <div class="lang-overlay__panel glass-panel">
+            <h3>Select Language</h3>
+            <div class="lang-overlay__grid">
+                <button data-lang="en" class="lang-btn active">English</button>
+                <button data-lang="fr" class="lang-btn">Francais</button>
+                <button data-lang="es" class="lang-btn">Espanol</button>
+                <button data-lang="de" class="lang-btn">Deutsch</button>
+                <button data-lang="zh" class="lang-btn">中文</button>
+                <button data-lang="ja" class="lang-btn">日本語</button>
+                <button data-lang="ar" class="lang-btn" dir="rtl">العربية</button>
+                <button data-lang="he" class="lang-btn" dir="rtl">עברית</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/lib/gsap.min.js"></script>
+    <script src="js/lib/ScrollTrigger.min.js"></script>
+    <script src="js/lib/lenis.min.js"></script>
+    <script src="js/lib/splitting.min.js"></script>
+    <script src="js/lib/barba.min.js"></script>
+    <script src="js/effects.js"></script>
+    <script src="js/nav.js"></script>
+    <script src="js/transitions.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

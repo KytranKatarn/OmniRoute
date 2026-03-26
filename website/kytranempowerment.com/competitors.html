@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en" data-barba="wrapper">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Why A.R.C.H.I.E. — Kytran Empowerment</title>
+    <meta name="description" content="See how A.R.C.H.I.E. compares to CrewAI, LangGraph, Devin, and Claude Code. Multi-agent orchestration built different.">
+    <meta name="theme-color" content="#0a0a1a">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/reduced-motion.css">
+</head>
+<body>
+    <!-- Global background layers -->
+    <div class="aurora"></div>
+    <div class="dot-grid"></div>
+    <div class="noise-overlay"></div>
+    <div class="cursor-glow" id="cursorGlow"></div>
+
+    <!-- Navigation -->
+    <nav class="nav" id="mainNav">
+        <div class="nav__inner container">
+            <a href="/" class="nav__logo"><span class="nav__logo-text">KYTRAN</span></a>
+            <div class="nav__links" id="navLinks">
+                <a href="services.html" class="nav__link">Services</a>
+                <a href="platform.html" class="nav__link">Platform</a>
+                <a href="directory.html" class="nav__link">Directory</a>
+                <a href="compliance.html" class="nav__link">Trust</a>
+                <a href="creed.html" class="nav__link">C.R.E.E.D.</a>
+                <a href="about.html" class="nav__link">About</a>
+                <a href="contact.html" class="nav__link nav__link--cta">Contact</a>
+            </div>
+            <div class="nav__controls">
+                <button class="nav__lang-btn" id="langSwitcher" aria-label="Change language">EN</button>
+                <button class="nav__menu-btn" id="menuToggle" aria-label="Toggle menu">
+                    <span></span><span></span><span></span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Page content -->
+    <main data-barba="container" data-barba-namespace="competitors">
+        <section class="hero">
+            <div class="hero__content container">
+                <h1 class="hero__title gradient-text" data-i18n="competitors-hero-title">Why A.R.C.H.I.E.?</h1>
+                <p class="hero__tagline" data-i18n="competitors-hero-subtitle">See how we compare</p>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="container">
+                <h2 class="section__title" data-split data-i18n="competitors-comparison-title">Feature Comparison</h2>
+                <div class="glass-panel" style="padding:2rem;overflow-x:auto;">
+                    <table style="width:100%;border-collapse:collapse;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:0.9rem;">
+                        <thead>
+                            <tr style="border-bottom:1px solid rgba(255,255,255,0.15);">
+                                <th style="text-align:left;padding:0.75rem 1rem;color:var(--text-secondary,#94a3b8);">Feature</th>
+                                <th style="padding:0.75rem 1rem;color:var(--accent,#00e5ff);">A.R.C.H.I.E.</th>
+                                <th style="padding:0.75rem 1rem;color:var(--text-secondary,#94a3b8);">CrewAI</th>
+                                <th style="padding:0.75rem 1rem;color:var(--text-secondary,#94a3b8);">LangGraph</th>
+                                <th style="padding:0.75rem 1rem;color:var(--text-secondary,#94a3b8);">Devin</th>
+                                <th style="padding:0.75rem 1rem;color:var(--text-secondary,#94a3b8);">Claude Code</th>
+                            </tr>
+                        </thead>
+                        <tbody data-stagger>
+                            <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+                                <td style="text-align:left;padding:0.75rem 1rem;">Multi-agent orchestration</td>
+                                <td style="padding:0.75rem;">&#10003;</td><td style="padding:0.75rem;">&#10003;</td><td style="padding:0.75rem;">&#10003;</td><td style="padding:0.75rem;">&#10007;</td><td style="padding:0.75rem;">&#10007;</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+                                <td style="text-align:left;padding:0.75rem 1rem;">GPU-aware routing</td>
+                                <td style="padding:0.75rem;">&#10003;</td><td style="padding:0.75rem;">&#10007;</td><td style="padding:0.75rem;">&#10007;</td><td style="padding:0.75rem;">&#10007;</td><td style="padding:0.75rem;">&#10007;</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+                                <td style="text-align:left;padding:0.75rem 1rem;">Agent welfare &amp; ethics</td>
+                                <td style="padding:0.75rem;">&#10003;</td><td style="padding:0.75rem;">&#10007;</td><td style="padding:0.75rem;">&#10007;</td><td style="padding:0.75rem;">&#10007;</td><td style="padding:0.75rem;">&#10007;</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+                                <td style="text-align:left;padding:0.75rem 1rem;">Self-auditing codebase</td>
+                                <td style="padding:0.75rem;">&#10003;</td><td style="padding:0.75rem;">&#10007;</td><td style="padding:0.75rem;">&#10007;</td><td style="padding:0.75rem;">&#10003;</td><td style="padding:0.75rem;">&#10007;</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+                                <td style="text-align:left;padding:0.75rem 1rem;">Fully self-hosted</td>
+                                <td style="padding:0.75rem;">&#10003;</td><td style="padding:0.75rem;">&#10003;</td><td style="padding:0.75rem;">&#10003;</td><td style="padding:0.75rem;">&#10007;</td><td style="padding:0.75rem;">&#10007;</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+                                <td style="text-align:left;padding:0.75rem 1rem;">MCP support</td>
+                                <td style="padding:0.75rem;">&#10003;</td><td style="padding:0.75rem;">&#10007;</td><td style="padding:0.75rem;">&#10007;</td><td style="padding:0.75rem;">&#10007;</td><td style="padding:0.75rem;">&#10003;</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+                                <td style="text-align:left;padding:0.75rem 1rem;">Physical security scanning</td>
+                                <td style="padding:0.75rem;">&#10003;</td><td style="padding:0.75rem;">&#10007;</td><td style="padding:0.75rem;">&#10007;</td><td style="padding:0.75rem;">&#10007;</td><td style="padding:0.75rem;">&#10007;</td>
+                            </tr>
+                            <tr>
+                                <td style="text-align:left;padding:0.75rem 1rem;">Background automation</td>
+                                <td style="padding:0.75rem;">&#10003;</td><td style="padding:0.75rem;">&#10003;</td><td style="padding:0.75rem;">&#10003;</td><td style="padding:0.75rem;">&#10003;</td><td style="padding:0.75rem;">&#10007;</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="container">
+                <h2 class="section__title" data-split data-i18n="competitors-roadmap-title">What We're Building</h2>
+                <div class="card-grid" data-stagger>
+                    <div class="card">
+                        <div class="card__icon">&#9654;</div>
+                        <h3 class="card__title">A2A Protocol</h3>
+                        <p class="card__text">Agent-to-agent communication protocol for cross-platform collaboration.</p>
+                    </div>
+                    <div class="card">
+                        <div class="card__icon">&#9654;</div>
+                        <h3 class="card__title">Parallel Execution</h3>
+                        <p class="card__text">Multi-agent parallel task execution with dependency resolution.</p>
+                    </div>
+                    <div class="card">
+                        <div class="card__icon">&#9654;</div>
+                        <h3 class="card__title">IDE Integration</h3>
+                        <p class="card__text">VS Code extension and JetBrains plugin for in-editor agent access.</p>
+                    </div>
+                    <div class="card">
+                        <div class="card__icon">&#9654;</div>
+                        <h3 class="card__title">Cloud Scaling</h3>
+                        <p class="card__text">Automatic cloud burst for GPU-intensive workloads when local capacity is exceeded.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer__inner container">
+            <div class="footer__brand">
+                <span class="footer__logo">KYTRAN EMPOWERMENT</span>
+                <p class="footer__tagline">Montreal, Canada</p>
+            </div>
+            <div class="footer__links">
+                <a href="about.html">About</a>
+                <a href="compliance.html">Trust Center</a>
+                <a href="creed.html">C.R.E.E.D.</a>
+                <a href="contact.html">Contact</a>
+            </div>
+            <div class="footer__copy">&copy; 2026 Kytran Empowerment Inc. All rights reserved.</div>
+        </div>
+    </footer>
+
+    <!-- Language Overlay -->
+    <div class="lang-overlay" id="langOverlay" hidden>
+        <div class="lang-overlay__panel glass-panel">
+            <h3>Select Language</h3>
+            <div class="lang-overlay__grid">
+                <button data-lang="en" class="lang-btn active">English</button>
+                <button data-lang="fr" class="lang-btn">Francais</button>
+                <button data-lang="es" class="lang-btn">Espanol</button>
+                <button data-lang="de" class="lang-btn">Deutsch</button>
+                <button data-lang="zh" class="lang-btn">中文</button>
+                <button data-lang="ja" class="lang-btn">日本語</button>
+                <button data-lang="ar" class="lang-btn" dir="rtl">العربية</button>
+                <button data-lang="he" class="lang-btn" dir="rtl">עברית</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/lib/gsap.min.js"></script>
+    <script src="js/lib/ScrollTrigger.min.js"></script>
+    <script src="js/lib/lenis.min.js"></script>
+    <script src="js/lib/splitting.min.js"></script>
+    <script src="js/lib/barba.min.js"></script>
+    <script src="js/effects.js"></script>
+    <script src="js/nav.js"></script>
+    <script src="js/transitions.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

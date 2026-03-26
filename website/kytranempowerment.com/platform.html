@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en" data-barba="wrapper">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Platform — Kytran Empowerment</title>
+    <meta name="description" content="Meet A.R.C.H.I.E. — the Autonomous Resource & Cognitive Hyperintelligence Engine powering 122 AI agents across 16 departments.">
+    <meta name="theme-color" content="#0a0a1a">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/reduced-motion.css">
+</head>
+<body>
+    <!-- Global background layers -->
+    <div class="aurora"></div>
+    <div class="dot-grid"></div>
+    <div class="noise-overlay"></div>
+    <div class="cursor-glow" id="cursorGlow"></div>
+
+    <!-- Navigation -->
+    <nav class="nav" id="mainNav">
+        <div class="nav__inner container">
+            <a href="/" class="nav__logo"><span class="nav__logo-text">KYTRAN</span></a>
+            <div class="nav__links" id="navLinks">
+                <a href="services.html" class="nav__link">Services</a>
+                <a href="platform.html" class="nav__link active">Platform</a>
+                <a href="directory.html" class="nav__link">Directory</a>
+                <a href="compliance.html" class="nav__link">Trust</a>
+                <a href="creed.html" class="nav__link">C.R.E.E.D.</a>
+                <a href="about.html" class="nav__link">About</a>
+                <a href="contact.html" class="nav__link nav__link--cta">Contact</a>
+            </div>
+            <div class="nav__controls">
+                <button class="nav__lang-btn" id="langSwitcher" aria-label="Change language">EN</button>
+                <button class="nav__menu-btn" id="menuToggle" aria-label="Toggle menu">
+                    <span></span><span></span><span></span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Page content -->
+    <main data-barba="container" data-barba-namespace="platform">
+        <section class="hero">
+            <div class="hero__content container">
+                <h1 class="hero__title gradient-text" data-i18n="platform-hero-title">Meet A.R.C.H.I.E.</h1>
+                <p class="hero__tagline" data-i18n="platform-hero-subtitle">Autonomous Resource &amp; Cognitive Hyperintelligence Engine</p>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="container">
+                <h2 class="section__title" data-split data-i18n="platform-what-title">What is A.R.C.H.I.E.?</h2>
+                <div class="glass-panel" style="padding:2rem;max-width:800px;margin:0 auto 2rem;">
+                    <p style="margin-bottom:1rem;">A.R.C.H.I.E. is an AI-powered operations platform that orchestrates 122 autonomous agents across 16 specialized departments. Every agent has a role, a department, and a set of capabilities — from writing code to analyzing financial data to generating creative content.</p>
+                    <p style="margin-bottom:1rem;">Unlike traditional automation tools that require constant human direction, A.R.C.H.I.E. agents collaborate, escalate, and self-improve. The platform continuously audits its own codebase, scans for security vulnerabilities, and proposes improvements — all governed by ethical oversight through C.R.E.E.D.</p>
+                    <p>Self-hosted and privacy-first, A.R.C.H.I.E. runs on your infrastructure. No data leaves your network unless you choose to enable cloud escalation. Every decision is logged, every action is auditable, and every agent operates within clearly defined ethical boundaries.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="container">
+                <h2 class="section__title" data-split data-i18n="platform-depts-title">16 Departments</h2>
+                <div class="card-grid" data-stagger>
+                    <div class="card"><div class="card__icon">&#9733;</div><h3 class="card__title">Executive Office</h3><p class="card__text">Strategic oversight and platform-wide coordination led by A.R.C.H.I.E. itself.</p></div>
+                    <div class="card"><div class="card__icon">&#9881;</div><h3 class="card__title">Operations &amp; Infrastructure</h3><p class="card__text">Server management, deployment pipelines, and system reliability.</p></div>
+                    <div class="card"><div class="card__icon">&#9830;</div><h3 class="card__title">Logistics &amp; Supply Chain</h3><p class="card__text">Resource allocation, scheduling, and capacity planning across the fleet.</p></div>
+                    <div class="card"><div class="card__icon">&#9830;</div><h3 class="card__title">Finance &amp; Accounting</h3><p class="card__text">Invoicing, billing, and financial analytics for platform services.</p></div>
+                    <div class="card"><div class="card__icon">&#9998;</div><h3 class="card__title">Engineering &amp; Technology</h3><p class="card__text">Code generation, self-healing pipelines, and continuous improvement.</p></div>
+                    <div class="card"><div class="card__icon">&#9745;</div><h3 class="card__title">Security &amp; Compliance</h3><p class="card__text">Automated scanning, vulnerability detection, and compliance enforcement.</p></div>
+                    <div class="card"><div class="card__icon">&#9670;</div><h3 class="card__title">Research &amp; Development</h3><p class="card__text">Exploring new capabilities, model evaluation, and experimental features.</p></div>
+                    <div class="card"><div class="card__icon">&#9827;</div><h3 class="card__title">Creative &amp; Design</h3><p class="card__text">Image generation, UI design, and creative asset production.</p></div>
+                    <div class="card"><div class="card__icon">&#9788;</div><h3 class="card__title">Marketing &amp; Communications</h3><p class="card__text">Content strategy, social media management, and brand messaging.</p></div>
+                    <div class="card"><div class="card__icon">&#9997;</div><h3 class="card__title">Documentation &amp; Knowledge</h3><p class="card__text">Knowledge base management with 18,000+ entries and semantic search.</p></div>
+                    <div class="card"><div class="card__icon">&#9742;</div><h3 class="card__title">Customer Success &amp; Support</h3><p class="card__text">User onboarding, issue resolution, and satisfaction tracking.</p></div>
+                    <div class="card"><div class="card__icon">&#9829;</div><h3 class="card__title">Human Resources &amp; Culture</h3><p class="card__text">Agent welfare, training programs, and workforce development.</p></div>
+                    <div class="card"><div class="card__icon">&#9764;</div><h3 class="card__title">Medical &amp; Wellness</h3><p class="card__text">Health-focused applications and wellness tracking tools.</p></div>
+                    <div class="card"><div class="card__icon">&#9878;</div><h3 class="card__title">Legal &amp; Regulatory</h3><p class="card__text">Policy enforcement, regulatory compliance, and governance frameworks.</p></div>
+                    <div class="card"><div class="card__icon">&#9883;</div><h3 class="card__title">Diplomatic &amp; External Relations</h3><p class="card__text">Partnership coordination and external integration management.</p></div>
+                    <div class="card"><div class="card__icon">&#9650;</div><h3 class="card__title">Analytics &amp; Intelligence</h3><p class="card__text">Data analysis, trend detection, and business intelligence dashboards.</p></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="container">
+                <h2 class="section__title" data-split data-i18n="platform-bridge-title">The AI Bridge</h2>
+                <div class="glass-panel" style="padding:2rem;max-width:800px;margin:0 auto;">
+                    <p style="margin-bottom:1rem;">Every AI request on the platform flows through a central dispatcher called the AI Bridge. It intelligently routes tasks to the best available agent based on capability, workload, and hardware availability.</p>
+                    <p>The Bridge supports GPU-aware routing, automatic model warm-up, multi-tier escalation from local to cloud, and full audit logging. No module talks directly to an LLM — everything is orchestrated, governed, and transparent.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer__inner container">
+            <div class="footer__brand">
+                <span class="footer__logo">KYTRAN EMPOWERMENT</span>
+                <p class="footer__tagline">Montreal, Canada</p>
+            </div>
+            <div class="footer__links">
+                <a href="about.html">About</a>
+                <a href="compliance.html">Trust Center</a>
+                <a href="creed.html">C.R.E.E.D.</a>
+                <a href="contact.html">Contact</a>
+            </div>
+            <div class="footer__copy">&copy; 2026 Kytran Empowerment Inc. All rights reserved.</div>
+        </div>
+    </footer>
+
+    <!-- Language Overlay -->
+    <div class="lang-overlay" id="langOverlay" hidden>
+        <div class="lang-overlay__panel glass-panel">
+            <h3>Select Language</h3>
+            <div class="lang-overlay__grid">
+                <button data-lang="en" class="lang-btn active">English</button>
+                <button data-lang="fr" class="lang-btn">Francais</button>
+                <button data-lang="es" class="lang-btn">Espanol</button>
+                <button data-lang="de" class="lang-btn">Deutsch</button>
+                <button data-lang="zh" class="lang-btn">中文</button>
+                <button data-lang="ja" class="lang-btn">日本語</button>
+                <button data-lang="ar" class="lang-btn" dir="rtl">العربية</button>
+                <button data-lang="he" class="lang-btn" dir="rtl">עברית</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/lib/gsap.min.js"></script>
+    <script src="js/lib/ScrollTrigger.min.js"></script>
+    <script src="js/lib/lenis.min.js"></script>
+    <script src="js/lib/splitting.min.js"></script>
+    <script src="js/lib/barba.min.js"></script>
+    <script src="js/effects.js"></script>
+    <script src="js/nav.js"></script>
+    <script src="js/transitions.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

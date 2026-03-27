@@ -855,25 +855,55 @@ def get_audit_log():
         return result
 
 
+SEVERITY_MAP = {
+    "HARDCODED_SECRET": "red",
+    "SQL_INJECTION_RISK": "red",
+    "DIRECT_OLLAMA": "red",
+    "DIRECT_CLOUD": "red",
+    "BARE_EXCEPT": "yellow",
+    "LARGE_FILE": "yellow",
+    "MISSING_INIT": "yellow",
+    "DEBUG_PRINT": "info",
+    "DEBUG_BREAKPOINT": "info",
+    "NO_DOCSTRING": "info",
+}
+
+
 def audit_single_module(module_name, module_path=None):
     """
     Run automated checks on a single module and return audit results.
-    Returns (issues_found: int, notes: str, status: str).
+    Returns (issues_found: int, notes: str, status: str, issues_list: list[dict]).
+
+    Each issue dict has: code, severity (red/yellow/info), file, detail.
     """
     import re
 
     issues = []
+    issues_list = []
+
+    def _add_issue(code, fname, detail=""):
+        severity = SEVERITY_MAP.get(code, "info")
+        label = f"{code}: {fname}" if not detail else f"{code}: {fname} ({detail})"
+        issues.append(label)
+        issues_list.append(
+            {
+                "code": code,
+                "severity": severity,
+                "file": fname,
+                "detail": detail,
+            }
+        )
 
     # Determine path — tool modules live under tools/, special modules have known paths
     if module_path is None:
         if module_name.startswith("[") or module_name.startswith("standalone_") or module_name.startswith("website_"):
             # Skip non-tool modules — they're infrastructure, not auditable tool modules
-            return (0, "infrastructure module — skipped", "completed")
+            return (0, "infrastructure module — skipped", "completed", [])
         tools_base = os.path.join(PLATFORM_ROOT, "tools")
         module_path = os.path.join(tools_base, module_name)
 
     if not os.path.isdir(module_path):
-        return (0, "module directory not found", "completed")
+        return (0, "module directory not found", "completed", [])
 
     py_files = []
     for root, dirs, files in os.walk(module_path):
@@ -885,7 +915,7 @@ def audit_single_module(module_name, module_path=None):
     # Check 1: Structure — has __init__.py
     has_init = any(f.endswith("__init__.py") for f in py_files)
     if not has_init and py_files:
-        issues.append("missing __init__.py")
+        _add_issue("MISSING_INIT", module_name, "no __init__.py")
 
     # Check 2: Pattern compliance — no direct Ollama/cloud calls
     for fpath in py_files:
@@ -899,14 +929,14 @@ def audit_single_module(module_name, module_path=None):
                 pass
             else:
                 if "call_ollama(" in content and "bridge" not in fpath:
-                    issues.append(f"DIRECT_OLLAMA: {fname}")
+                    _add_issue("DIRECT_OLLAMA", fname)
 
                 if ("call_claude_api(" in content or "call_openai_api(" in content) and "bridge" not in fpath:
-                    issues.append(f"DIRECT_CLOUD: {fname}")
+                    _add_issue("DIRECT_CLOUD", fname)
 
             # Check 3: Bare except
             if re.search(r"\bexcept\s*:", content):
-                issues.append(f"BARE_EXCEPT: {fname}")
+                _add_issue("BARE_EXCEPT", fname)
 
             # Check 4: Hardcoded secrets (exclude test fixtures, shell templates, env lookups)
             secret_matches = re.findall(
@@ -916,18 +946,18 @@ def audit_single_module(module_name, module_path=None):
                 # Skip test fixtures, template placeholders, env var patterns
                 if match.startswith("test_") or "openssl" in match or "${" in match or "os.getenv" in match:
                     continue
-                issues.append(f"HARDCODED_SECRET: {fname}")
+                _add_issue("HARDCODED_SECRET", fname)
 
             # Check 5: Large files (>600 lines per compliance rules)
             line_count = content.count("\n") + 1
             if line_count > 600:
-                issues.append(f"LARGE_FILE: {fname} ({line_count} lines)")
+                _add_issue("LARGE_FILE", fname, f"{line_count} lines")
 
             # Check 6: SQL injection risk — f-string or % formatting in execute()
             if re.search(r'\.execute\(\s*f["\']', content) or re.search(
                 r'\.execute\(\s*["\'].*%s.*["\']\s*%\s*[^(]', content
             ):
-                issues.append(f"SQL_INJECTION_RISK: {fname}")
+                _add_issue("SQL_INJECTION_RISK", fname)
 
             # Check 7: Debug leftovers — print(), breakpoint(), pdb
             lines = content.split("\n")
@@ -936,23 +966,23 @@ def audit_single_module(module_name, module_path=None):
                 if stripped.startswith("#"):
                     continue
                 if re.match(r"^print\(", stripped) and "logger" not in stripped:
-                    issues.append(f"DEBUG_PRINT: {fname}:{i}")
+                    _add_issue("DEBUG_PRINT", fname, f"line {i}")
                     break  # Only report first occurrence per file
                 if "breakpoint()" in stripped or "import pdb" in stripped:
-                    issues.append(f"DEBUG_BREAKPOINT: {fname}:{i}")
+                    _add_issue("DEBUG_BREAKPOINT", fname, f"line {i}")
                     break
 
             # Check 8: Missing module docstring (routes files only)
             if fname.endswith("routes.py") and not content.strip().startswith('"""'):
                 if not content.strip().startswith("'") and not content.strip().startswith("#"):
-                    issues.append(f"NO_DOCSTRING: {fname}")
+                    _add_issue("NO_DOCSTRING", fname)
 
         except Exception:
             pass
 
     status = "violations_found" if issues else "completed"
     notes = "; ".join(issues[:30]) if issues else "clean — all checks passed"
-    return (len(issues), notes, status)
+    return (len(issues), notes, status, issues_list)
 
 
 def log_audit(

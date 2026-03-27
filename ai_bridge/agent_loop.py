@@ -4505,9 +4505,15 @@ class AgentLoop:
             audited = 0
             clean = 0
             violations = 0
+            severity_totals = {"red": 0, "yellow": 0, "info": 0}
 
             for module_name, stats in per_module.items():
-                issues_found, notes, status = audit_single_module(module_name)
+                issues_found, notes, status, issues_list = audit_single_module(module_name)
+
+                # Tally severity breakdown
+                for issue in issues_list:
+                    sev = issue.get("severity", "info")
+                    severity_totals[sev] = severity_totals.get(sev, 0) + 1
 
                 # Check proposals affecting this module
                 proposal_issues = 0
@@ -4538,10 +4544,13 @@ class AgentLoop:
                     violations += 1
 
             logger.info(
-                "Automated module audit: %d modules audited (%d clean, %d violations)",
+                "Automated module audit: %d modules audited (%d clean, %d violations) — severity: %d red, %d yellow, %d info",
                 audited,
                 clean,
                 violations,
+                severity_totals["red"],
+                severity_totals["yellow"],
+                severity_totals["info"],
             )
             self._log_cycle("automated_module_audit", audited, violations, 0)
         except Exception as e:

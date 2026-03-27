@@ -8,7 +8,7 @@ from routes.contracts import contracts_bp
 from routes.parliament import parliament_bp
 from routes.spending import spending_bp
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static', static_url_path='')
 
 
 @app.after_request
@@ -17,6 +17,11 @@ def add_cors_headers(response):
     response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type"
     return response
+
+
+@app.route('/')
+def serve_dashboard():
+    return app.send_static_file('index.html')
 
 
 def create_app():

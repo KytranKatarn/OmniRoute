@@ -2799,8 +2799,8 @@ function _renderModuleChart(modules, displayNames) {
   if (!canvas) return;
   displayNames = displayNames || {};
 
-  // Responsive: show fewer modules on mobile
-  var maxBars = window.innerWidth < 480 ? 12 : window.innerWidth < 768 ? 18 : 25;
+  // Responsive: show fewer modules on mobile, all on desktop
+  var maxBars = window.innerWidth < 480 ? 15 : window.innerWidth < 768 ? 25 : 60;
   var names = Object.keys(modules).sort(function(a, b) {
     return (modules[b].lines || 0) - (modules[a].lines || 0);
   }).slice(0, maxBars);
@@ -2818,6 +2818,9 @@ function _renderModuleChart(modules, displayNames) {
   var barHeight = Math.max(names.length * rowH, 300);
   canvas.style.height = barHeight + "px";
   canvas.height = barHeight;
+  // Grow the parent container to fit all bars (with padding)
+  var container = canvas.parentElement;
+  if (container) container.style.height = (barHeight + 30) + "px";
 
   if (_chModuleChart) _chModuleChart.destroy();
   _chModuleChart = new Chart(canvas, {
@@ -2950,7 +2953,7 @@ function _renderStandaloneTable(modules, moduleStatusMap, tierMap) {
             var pct = Math.round(tp.completed / tp.total * 100);
             var barColor = pct >= 75 ? '#22c55e' : pct >= 25 ? '#f59e0b' : '#ef4444';
             tierHtml = '<div style="text-align:center;">'
-                + '<span style="font-size:10px;font-weight:600;color:' + barColor + ';">TIER ' + tp.current_tier + ': ' + tp.completed + '/' + tp.total + '</span>'
+                + '<span style="font-size:10px;font-weight:600;color:' + barColor + ';">TIER ' + (tp.current_tier || 1) + ': ' + tp.completed + '/' + tp.total + '</span>'
                 + '<div style="height:4px;background:rgba(255,255,255,0.1);border-radius:2px;margin-top:3px;width:60px;display:inline-block;">'
                 + '<div style="height:100%;width:' + pct + '%;background:' + barColor + ';border-radius:2px;"></div>'
                 + '</div></div>';
@@ -3365,7 +3368,12 @@ function _renderAuditTable(entries) {
     '<th class="center">Issues</th><th class="center">Fixed</th><th>Status</th><th>Date</th>' +
     '</tr></thead><tbody>';
 
-  entries.forEach(function(e) {
+  // Separate PATTERN_COMPLIANCE scans from real module audits
+  var patternEntries = entries.filter(function(e) { return e.module_name === "PATTERN_COMPLIANCE"; });
+  var moduleEntries = entries.filter(function(e) { return e.module_name !== "PATTERN_COMPLIANCE"; });
+
+  // Render real module audits first
+  moduleEntries.forEach(function(e) {
     var delta = (e.lines_after || 0) - (e.lines_before || 0);
     var deltaColor = delta > 0 ? "color:#22c55e" : delta < 0 ? "color:#ef4444" : "";
     var badgeClass = e.status === "completed" ? "ch-badge-green" : e.status === "in_progress" ? "ch-badge-amber" : e.status === "known_issues" ? "ch-badge-amber" : e.status === "violations_found" ? "ch-badge-purple" : "ch-badge-red";
@@ -3383,6 +3391,23 @@ function _renderAuditTable(entries) {
       '<td style="font-size:0.7rem;white-space:nowrap;color:rgba(255,255,255,0.5);">' + formatAge(e.audited_at) + '</td>' +
       '</tr>';
   });
+
+  // Collapse PATTERN_COMPLIANCE into a single summary row
+  if (patternEntries.length > 0) {
+    var totalIssues = patternEntries.reduce(function(s, e) { return s + (e.issues_found || 0); }, 0);
+    var latestPat = patternEntries[0];
+    var patBadgeClass = latestPat.status === "completed" ? "ch-badge-green" : "ch-badge-purple";
+    html += '<tr data-audit-id="' + latestPat.id + '">' +
+      '<td><span class="ch-module-name" style="color:rgba(255,255,255,0.4);">PATTERN_COMPLIANCE</span>' +
+      ' <span style="font-size:0.6rem;background:rgba(139,92,246,0.15);color:#a78bfa;padding:1px 6px;border-radius:3px;">' + patternEntries.length + ' scans</span></td>' +
+      '<td style="font-size:0.7rem;color:rgba(255,255,255,0.4);">automated_scan</td>' +
+      '<td class="center" colspan="4" style="font-size:0.7rem;color:rgba(255,255,255,0.35);">automated pattern checks</td>' +
+      '<td class="center">' + totalIssues + '</td>' +
+      '<td class="center">—</td>' +
+      '<td><span class="ch-badge ' + patBadgeClass + ' ch-audit-btn" data-audit-btn="' + latestPat.id + '"><span class="ch-badge-dot"></span>' + escHtml(latestPat.status || "pending") + ' &#9654;</span></td>' +
+      '<td style="font-size:0.7rem;white-space:nowrap;color:rgba(255,255,255,0.5);">' + formatAge(latestPat.audited_at) + '</td>' +
+      '</tr>';
+  }
 
   html += '</tbody></table>';
   setHtml(el, html);

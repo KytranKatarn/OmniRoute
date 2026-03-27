@@ -142,6 +142,19 @@ def _scan_directory(root_dir, label=None):
     return stats
 
 
+_STATIC_FILE_MAP = {
+    # Game engine files -> game_studio
+    "game-engine": "game_studio",
+    "game-module-builder": "game_studio",
+    "game-module-explorer": "game_studio",
+    "game-module-shooter": "game_studio",
+    "game-network": "game_studio",
+    "scene-editor": "game_studio",
+    # Media Hub service worker
+    "media-hub-sw": "media_hub",
+}
+
+
 def _match_module_name(filename, module_names):
     """Try to match a filename to a module name."""
     base = os.path.splitext(filename)[0].lower()
@@ -156,6 +169,10 @@ def _match_module_name(filename, module_names):
     for mod in module_names:
         if base == mod or underscore == mod:
             return mod
+    # Explicit static file map for files that don't follow naming convention
+    mapped = _STATIC_FILE_MAP.get(base)
+    if mapped and mapped in module_names:
+        return mapped
     return None
 
 
@@ -331,6 +348,7 @@ def _get_module_stats():
         "lcars-frames.css",
         "category-nav.css",
         "station-ops.css",
+        "department-ops.css",
         "glass-nav.css",
         "holo-sphere.css",
         "neural-core.css",
@@ -340,6 +358,7 @@ def _get_module_stats():
         "ops-alert-bar.css",
         "dual-chat.css",
         "xterm.css",
+        "system-operations-theme-vars.css",
     ]
     css_dir = os.path.join(PLATFORM_ROOT, "static", "css")
     if os.path.isdir(css_dir):
@@ -366,15 +385,21 @@ def _get_module_stats():
         "archie-i18n.js",
         "archie-theme.js",
         "station-ops.js",
+        "department-ops.js",
         "glass-nav.js",
         "holo-sphere.js",
         "neural-core.js",
         "pixel-crew.js",
         "agent-badge.js",
+        "agent-profile.js",
         "ops-alert-bar.js",
         "collaboration.js",
         "competitors-i18n.js",
+        "archie-chat-overlay.js",
         "devhq.js",
+        "socket.io.min.js",
+        "xterm.min.js",
+        "xterm-addon-fit.min.js",
     ]
     js_dir = os.path.join(PLATFORM_ROOT, "static", "js")
     if os.path.isdir(js_dir):
@@ -631,15 +656,21 @@ def _find_orphan_files(module_names):
         "archie-i18n.js",
         "archie-theme.js",
         "station-ops.js",
+        "department-ops.js",
         "glass-nav.js",
         "holo-sphere.js",
         "neural-core.js",
         "pixel-crew.js",
         "agent-badge.js",
+        "agent-profile.js",
         "ops-alert-bar.js",
         "collaboration.js",
         "competitors-i18n.js",
+        "archie-chat-overlay.js",
         "devhq.js",
+        "socket.io.min.js",
+        "xterm.min.js",
+        "xterm-addon-fit.min.js",
         # Core CSS
         "base.css",
         "login.css",
@@ -658,6 +689,7 @@ def _find_orphan_files(module_names):
         "lcars-frames.css",
         "category-nav.css",
         "station-ops.css",
+        "department-ops.css",
         "glass-nav.css",
         "holo-sphere.css",
         "neural-core.css",
@@ -667,6 +699,7 @@ def _find_orphan_files(module_names):
         "ops-alert-bar.css",
         "dual-chat.css",
         "xterm.css",
+        "system-operations-theme-vars.css",
         # Core HTML
         "base.html",
     }

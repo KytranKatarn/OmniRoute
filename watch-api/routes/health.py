@@ -55,3 +55,13 @@ def trigger_provincial_ingest():
         return jsonify({"status": "ok", "result": result})
     except Exception as e:
         return jsonify({"status": "error", "error": str(e)}), 500
+
+
+@health_bp.route("/ingest/municipal", methods=["POST"])
+def trigger_municipal_ingest():
+    try:
+        from ingest.municipal import run_municipal_ingest
+        result = run_municipal_ingest()
+        return jsonify({"status": "ok", "result": result})
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)}), 500

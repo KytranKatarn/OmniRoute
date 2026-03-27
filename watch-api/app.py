@@ -39,6 +39,9 @@ def _background_ingest():
         time.sleep(5)
         from ingest.provincial import run_provincial_ingest
         run_provincial_ingest()
+        time.sleep(5)
+        from ingest.municipal import run_municipal_ingest
+        run_municipal_ingest()
     except Exception as e:
         print(f"[W.A.T.C.H.] Startup ingest failed: {e}")
 

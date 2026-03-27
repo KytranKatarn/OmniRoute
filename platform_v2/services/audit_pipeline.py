@@ -276,10 +276,10 @@ def dispatch_proposal_fix(proposal_id):
     if not proposal:
         return {"success": False, "error": f"Proposal #{proposal_id} not found"}
 
-    if proposal["status"] not in ("pending", "approved"):
+    if proposal["status"] not in ("pending", "approved", "fix_requested"):
         return {
             "success": False,
-            "error": f"Proposal #{proposal_id} status is '{proposal['status']}', expected pending/approved",
+            "error": f"Proposal #{proposal_id} status is '{proposal['status']}', expected pending/approved/fix_requested",
         }
 
     meta = proposal["metadata"] if isinstance(proposal["metadata"], dict) else json.loads(proposal["metadata"] or "{}")
@@ -403,7 +403,7 @@ def dispatch_audit_proposals(limit=20):
     with get_db_cursor(commit=False) as (conn, cur):
         cur.execute(
             """SELECT id, metadata FROM improvement_proposals
-               WHERE status IN ('pending', 'approved')
+               WHERE status IN ('pending', 'approved', 'fix_requested')
                  AND metadata->>'source' = 'code_health_audit'
                  AND (metadata->>'dispatch_attempted') IS NULL
                ORDER BY

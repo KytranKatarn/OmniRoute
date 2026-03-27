@@ -35,3 +35,13 @@ def health():
         })
     except Exception as e:
         return jsonify({"status": "error", "error": str(e)}), 500
+
+
+@health_bp.route("/ingest/federal", methods=["POST"])
+def trigger_federal_ingest():
+    try:
+        from ingest.federal import run_federal_ingest
+        result = run_federal_ingest()
+        return jsonify({"status": "ok", "result": result})
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)}), 500

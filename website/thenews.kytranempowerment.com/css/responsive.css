@@ -44,13 +44,18 @@
     }
     .sidebar-toggle { display: flex; }
     .sidebar-backdrop {
-        display: none;
         position: fixed;
         inset: 0;
         background: rgba(0, 0, 0, 0.5);
         z-index: 499;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity var(--speed-medium);
     }
-    .sidebar-backdrop.open { display: block; }
+    .sidebar-backdrop.open {
+        opacity: 1;
+        pointer-events: auto;
+    }
 
     /* Topbar compact */
     .topbar__search { width: 140px; }

@@ -83,8 +83,11 @@ var Transforms = (function () {
         if (!data || !data.features) return [];
         return data.features.map(function (f) {
             var p = f.properties || {};
+            var coords = _extractCentroid(f.geometry);
             return {
                 id: p.id || Math.random().toString(36).substr(2, 9),
+                lon: coords[0],
+                lat: coords[1],
                 type: 'weather',
                 title: p.headline || p.event || 'Weather alert',
                 severity: (p.severity || 'unknown').toLowerCase(),
@@ -96,6 +99,25 @@ var Transforms = (function () {
                 url: p['@id'] || ''
             };
         });
+    }
+
+    function _extractCentroid(geometry) {
+        if (!geometry) return [0, 0];
+        if (geometry.type === 'Point') return geometry.coordinates;
+        if (geometry.type === 'Polygon' && geometry.coordinates && geometry.coordinates[0]) {
+            var ring = geometry.coordinates[0];
+            var lon = 0, lat = 0;
+            for (var i = 0; i < ring.length; i++) { lon += ring[i][0]; lat += ring[i][1]; }
+            return [lon / ring.length, lat / ring.length];
+        }
+        if (geometry.type === 'MultiPolygon' && geometry.coordinates && geometry.coordinates[0]) {
+            var ring2 = geometry.coordinates[0][0];
+            if (!ring2) return [0, 0];
+            var lo = 0, la = 0;
+            for (var j = 0; j < ring2.length; j++) { lo += ring2[j][0]; la += ring2[j][1]; }
+            return [lo / ring2.length, la / ring2.length];
+        }
+        return [0, 0];
     }
 
     /**

@@ -59,6 +59,7 @@ var App = (function () {
 
         /* Start data layers */
         _initDataLayers();
+        _startAnimationLoop();
         _setLoadProgress(70, 'Fetching data...');
 
         /* Hide loading after a delay (let first data arrive) */
@@ -131,7 +132,13 @@ var App = (function () {
             btn.addEventListener('click', function () {
                 btns.forEach(function (b) { b.classList.remove('active'); });
                 btn.classList.add('active');
-                /* Future: toggle globe vs flat */
+                var view = btn.dataset.view;
+                var vs = KytranMap.getViewState();
+                if (view === '3d') {
+                    KytranMap.flyTo(vs.latitude, vs.longitude, vs.zoom, 45);
+                } else {
+                    KytranMap.flyTo(vs.latitude, vs.longitude, vs.zoom, 0);
+                }
             });
         });
     }
@@ -173,6 +180,21 @@ var App = (function () {
         }
     }
 
+    /* -- Animation Loop (pulsing markers, refreshing visual layers) ------- */
+    function _startAnimationLoop() {
+        function tick() {
+            /* Re-render pulse layers every 200ms for smooth pulsing */
+            if (typeof Disasters !== 'undefined' && _layerState.disasters) {
+                Disasters.renderPulse && Disasters.renderPulse();
+            }
+            if (typeof Conflicts !== 'undefined' && _layerState.conflicts) {
+                Conflicts.renderPulse && Conflicts.renderPulse();
+            }
+            setTimeout(tick, 200);
+        }
+        tick();
+    }
+
     /* -- Data Layer Initialization ---------------------------------------- */
     function _initDataLayers() {
         /* Each layer module self-registers when loaded */
@@ -193,6 +215,7 @@ var App = (function () {
     }
 
     function _refreshAllData() {
+        Fetcher.clearCache();
         if (typeof Conflicts !== 'undefined') Conflicts.refresh();
         if (typeof Disasters !== 'undefined') Disasters.refresh();
         if (typeof Weather !== 'undefined') Weather.refresh();

@@ -76,14 +76,14 @@ var KytranMap = (function () {
         });
     }
 
-    function flyTo(lat, lon, zoom) {
+    function flyTo(lat, lon, zoom, pitch) {
         if (!_deckgl) return;
         _deckgl.setProps({
             initialViewState: {
                 latitude: lat,
                 longitude: lon,
                 zoom: zoom || 6,
-                pitch: 0,
+                pitch: pitch != null ? pitch : 0,
                 bearing: 0,
                 transitionDuration: 1200,
                 transitionInterpolator: new deck.FlyToInterpolator()

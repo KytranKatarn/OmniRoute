@@ -65,10 +65,11 @@ var Ticker = (function () {
             });
         }
 
-        /* Reset animation */
+        /* Reset animation — duration based on content length */
         _scrollEl.style.animation = 'none';
         void _scrollEl.offsetHeight; /* trigger reflow */
-        var duration = Math.max(_articles.length * 3, 30);
+        var totalChars = _articles.reduce(function (n, a) { return n + (a.title || '').length; }, 0);
+        var duration = Math.max(totalChars * 0.08, 30);
         _scrollEl.style.animation = 'ticker-scroll ' + duration + 's linear infinite';
     }
 

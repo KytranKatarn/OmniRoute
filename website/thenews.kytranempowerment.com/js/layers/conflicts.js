@@ -66,7 +66,36 @@ var Conflicts = (function () {
         KytranMap.setLayer('conflicts', layer);
     }
 
+    function renderPulse() {
+        var critical = _data.filter(function (d) { return d.severity === 'critical' || d.severity === 'high'; });
+        if (!_visible || critical.length === 0) { KytranMap.removeLayer('conflict-pulse'); return; }
+
+        var now = Date.now();
+        var pulseLayer = new deck.ScatterplotLayer({
+            id: 'conflict-pulse',
+            data: critical,
+            getPosition: function (d) { return [d.lon, d.lat]; },
+            getRadius: function (d) {
+                var cycle = ((now / 1000) % 3) / 3;
+                return 25000 * (1 + cycle * 2);
+            },
+            stroked: true,
+            filled: false,
+            getLineColor: function () {
+                var cycle = ((now / 1000) % 3) / 3;
+                return [255, 59, 59, Math.floor(160 * (1 - cycle))];
+            },
+            getLineWidth: 2,
+            lineWidthMinPixels: 1,
+            radiusMinPixels: 5,
+            radiusMaxPixels: 60,
+            pickable: false,
+            parameters: { depthTest: false }
+        });
+        KytranMap.setLayer('conflict-pulse', pulseLayer);
+    }
+
     function getData() { return _data; }
 
-    return { init: init, refresh: refresh, getData: getData };
+    return { init: init, refresh: refresh, getData: getData, renderPulse: renderPulse };
 })();

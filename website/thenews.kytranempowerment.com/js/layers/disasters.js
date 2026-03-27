@@ -55,7 +55,7 @@ var Disasters = (function () {
             return;
         }
 
-        /* Earthquake ScatterplotLayer — size by magnitude */
+        /* Earthquake ScatterplotLayer — size by magnitude + pulse ring */
         if (_earthquakes.length > 0) {
             var eqLayer = new deck.ScatterplotLayer({
                 id: 'earthquakes',
@@ -76,9 +76,45 @@ var Disasters = (function () {
                 pickable: true,
                 autoHighlight: true,
                 highlightColor: [255, 255, 255, 60],
-                parameters: { depthTest: false }
+                parameters: { depthTest: false },
+                transitions: { getRadius: { duration: 1000, easing: function (t) { return t; } } }
             });
             KytranMap.setLayer('earthquakes', eqLayer);
+
+            /* Pulse ring layer — expanding, fading circles around major quakes */
+            var majorQuakes = _earthquakes.filter(function (d) { return (d.magnitude || 0) >= 4; });
+            if (majorQuakes.length > 0) {
+                var pulseLayer = new deck.ScatterplotLayer({
+                    id: 'earthquake-pulse',
+                    data: majorQuakes,
+                    getPosition: function (d) { return [d.lon, d.lat]; },
+                    getRadius: function (d) {
+                        var age = (Date.now() - (d.timestamp || Date.now())) / 1000;
+                        var pulse = (age % 4) / 4; /* 4-second cycle */
+                        return Math.pow(2, (d.magnitude || 2)) * 2000 * (1 + pulse * 2);
+                    },
+                    getFillColor: function (d) {
+                        var age = (Date.now() - (d.timestamp || Date.now())) / 1000;
+                        var pulse = (age % 4) / 4;
+                        var alpha = Math.floor(80 * (1 - pulse));
+                        return [255, 109, 0, alpha];
+                    },
+                    radiusMinPixels: 4,
+                    radiusMaxPixels: 80,
+                    pickable: false,
+                    stroked: true,
+                    filled: false,
+                    getLineColor: function (d) {
+                        var age = (Date.now() - (d.timestamp || Date.now())) / 1000;
+                        var pulse = (age % 4) / 4;
+                        return [255, 109, 0, Math.floor(150 * (1 - pulse))];
+                    },
+                    getLineWidth: 2,
+                    lineWidthMinPixels: 1,
+                    parameters: { depthTest: false }
+                });
+                KytranMap.setLayer('earthquake-pulse', pulseLayer);
+            }
         }
 
         /* EONET events (wildfires, volcanoes, storms) */
@@ -105,7 +141,36 @@ var Disasters = (function () {
         }
     }
 
+    function renderPulse() {
+        var majorQuakes = _earthquakes.filter(function (d) { return (d.magnitude || 0) >= 4; });
+        if (!_visible || majorQuakes.length === 0) { KytranMap.removeLayer('earthquake-pulse'); return; }
+
+        var now = Date.now();
+        var pulseLayer = new deck.ScatterplotLayer({
+            id: 'earthquake-pulse',
+            data: majorQuakes,
+            getPosition: function (d) { return [d.lon, d.lat]; },
+            getRadius: function (d) {
+                var cycle = ((now - (d.timestamp || now)) / 1000 % 4) / 4;
+                return Math.pow(2, (d.magnitude || 2)) * 2000 * (1 + cycle * 2.5);
+            },
+            stroked: true,
+            filled: false,
+            getLineColor: function (d) {
+                var cycle = ((now - (d.timestamp || now)) / 1000 % 4) / 4;
+                return [255, 109, 0, Math.floor(180 * (1 - cycle))];
+            },
+            getLineWidth: 2,
+            lineWidthMinPixels: 1,
+            radiusMinPixels: 4,
+            radiusMaxPixels: 100,
+            pickable: false,
+            parameters: { depthTest: false }
+        });
+        KytranMap.setLayer('earthquake-pulse', pulseLayer);
+    }
+
     function getData() { return { earthquakes: _earthquakes, eonet: _eonet }; }
 
-    return { init: init, refresh: refresh, getData: getData };
+    return { init: init, refresh: refresh, getData: getData, renderPulse: renderPulse };
 })();

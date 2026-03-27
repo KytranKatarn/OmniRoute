@@ -14,39 +14,42 @@ var Effects = (function () {
 
     /* -- Animated stat counters ------------------------------------------- */
     function _initStatCounters() {
-        /* Listen for data updates to animate stat cards */
-        var totalEvents = 0;
+        var _counts = {};
         var countriesSet = new Set();
 
         function _updateStats() {
-            _animateCounter('stat-events', totalEvents);
+            var total = Object.keys(_counts).reduce(function (s, k) { return s + _counts[k]; }, 0);
+            _animateCounter('stat-events', total);
             _animateCounter('stat-countries', countriesSet.size);
         }
 
         EventBus.on('data:conflicts:updated', function (d) {
-            totalEvents += d.length;
+            _counts.conflicts = d.length;
             d.forEach(function (item) { if (item.source) countriesSet.add(item.source); });
             _updateStats();
         });
 
         EventBus.on('data:disasters:updated', function (d) {
-            var eq = d.earthquakes || [];
-            var eo = d.eonet || [];
-            totalEvents += eq.length + eo.length;
+            _counts.disasters = (d.earthquakes || []).length + (d.eonet || []).length;
             _updateStats();
         });
 
         EventBus.on('data:weather:updated', function (d) {
-            totalEvents += d.length;
+            _counts.weather = d.length;
             _updateStats();
         });
 
         EventBus.on('data:cyber:updated', function (d) {
-            totalEvents += d.length;
+            _counts.cyber = d.length;
             d.forEach(function (item) {
                 if (item.sourceCountry) countriesSet.add(item.sourceCountry);
                 if (item.targetCountry) countriesSet.add(item.targetCountry);
             });
+            _updateStats();
+        });
+
+        EventBus.on('data:outages:updated', function (d) {
+            _counts.outages = d.length;
             _updateStats();
         });
     }
@@ -99,9 +102,10 @@ var Effects = (function () {
     /* -- Subtle cursor glow on map --------------------------------------- */
     function _initCursorGlow() {
         var mapContainer = document.querySelector('.map-container');
-        if (!mapContainer) return;
+        if (!mapContainer || mapContainer.querySelector('.map-cursor-glow')) return;
 
         var glow = document.createElement('div');
+        glow.className = 'map-cursor-glow';
         glow.style.cssText = 'position:absolute;width:120px;height:120px;border-radius:50%;pointer-events:none;z-index:2;opacity:0;transition:opacity 0.3s;background:radial-gradient(circle,rgba(0,229,255,0.06) 0%,transparent 70%)';
         mapContainer.appendChild(glow);
 

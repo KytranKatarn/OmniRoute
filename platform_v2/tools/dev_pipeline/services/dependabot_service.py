@@ -117,10 +117,9 @@ def get_repair_queue(status: str = None, severity: str = None, source: str = Non
         params.append(source)
     query += " ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, created_at DESC"
 
-    with get_db_cursor() as (conn, cur):
+    with get_db_cursor(commit=False) as (conn, cur):
         cur.execute(query, params)
-        columns = [desc[0] for desc in cur.description]
-        rows = [dict(zip(columns, row)) for row in cur.fetchall()]
+        rows = [dict(row) for row in cur.fetchall()]
     return {"success": True, "items": rows, "count": len(rows)}
 
 

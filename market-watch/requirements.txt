@@ -1,0 +1,5 @@
+flask==3.1.0
+yfinance==0.2.54
+alpaca-py==0.38.0
+requests==2.33.0
+gunicorn==23.0.0

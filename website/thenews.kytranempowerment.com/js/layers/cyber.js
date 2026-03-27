@@ -79,31 +79,25 @@ var Cyber = (function () {
     function _render() {
         if (!_visible || _arcs.length === 0) return;
 
-        /* Main arcs — persistent, always visible */
-        var arcLayer = new deck.ArcLayer({
+        /* Main lines — flat on map surface, great circle path */
+        var lineLayer = new deck.LineLayer({
             id: 'cyber',
             data: _arcs,
             getSourcePosition: function (d) { return d.source; },
             getTargetPosition: function (d) { return d.target; },
-            getSourceColor: function (d) {
+            getColor: function (d) {
                 var a = Math.floor(100 + d.intensity * 50);
-                return [139, 92, 246, a];
+                return [160, 100, 220, a];
             },
-            getTargetColor: function (d) {
-                var a = Math.floor(140 + d.intensity * 40);
-                return [244, 114, 182, a];
-            },
-            getWidth: function (d) { return 1 + d.intensity * 0.8; },
-            getHeight: 0.05, /* very low arcs — almost flat on surface */
+            getWidth: function (d) { return 1 + d.intensity * 0.6; },
             widthMinPixels: 1,
-            widthMaxPixels: 4,
-            greatCircle: true, /* needed for anti-meridian wrapping */
+            widthMaxPixels: 3,
             pickable: true,
             autoHighlight: true,
             highlightColor: [255, 255, 255, 80],
             parameters: { depthTest: false }
         });
-        KytranMap.setLayer('cyber', arcLayer);
+        KytranMap.setLayer('cyber', lineLayer);
 
         /* Endpoint dots — glowing source/target markers */
         var endpoints = [];

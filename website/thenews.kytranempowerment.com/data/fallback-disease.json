@@ -1,0 +1,7 @@
+{"data":[
+{"id":"1","fields":{"name":"Mpox outbreak - Democratic Republic of the Congo","status":"ongoing","country":[{"name":"DR Congo","location":{"lat":-4.0,"lon":21.7}}],"date":{"created":"2026-03-01"}}},
+{"id":"2","fields":{"name":"Cholera outbreak - Haiti","status":"ongoing","country":[{"name":"Haiti","location":{"lat":19.0,"lon":-72.7}}],"date":{"created":"2026-02-15"}}},
+{"id":"3","fields":{"name":"Dengue fever - Brazil","status":"ongoing","country":[{"name":"Brazil","location":{"lat":-14.2,"lon":-51.9}}],"date":{"created":"2026-02-01"}}},
+{"id":"4","fields":{"name":"Avian influenza H5N1 - Egypt","status":"alert","country":[{"name":"Egypt","location":{"lat":26.8,"lon":30.8}}],"date":{"created":"2026-03-10"}}},
+{"id":"5","fields":{"name":"Measles outbreak - Pakistan","status":"ongoing","country":[{"name":"Pakistan","location":{"lat":30.3,"lon":69.3}}],"date":{"created":"2026-01-20"}}}
+]}

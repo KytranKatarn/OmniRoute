@@ -6,13 +6,17 @@
 var Config = (function () {
     'use strict';
 
-    var CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+    /* CORS proxy — detect local vs deployed */
+    var _isLocal = window.location.hostname === '192.168.1.200' || window.location.hostname === 'localhost';
+    var CORS_PROXY = _isLocal
+        ? 'http://192.168.1.200:8098/proxy?url='
+        : 'https://api.allorigins.win/raw?url=';
     var CORS_PROXY_ALT = 'https://corsproxy.io/?';
 
     /* -- API Endpoints ---------------------------------------------------- */
     var API = {
         /* Conflicts (GDELT — free, no key) */
-        conflicts: 'https://api.gdeltproject.org/api/v2/geo/geo?query=conflict OR war OR attack&format=geojson&timespan={timespan}',
+        conflicts: 'https://api.gdeltproject.org/api/v2/geo/geo?query=conflict OR war OR attack OR protest OR emergency&format=geojson&timespan={timespan}',
 
         /* Earthquakes (USGS — free, no key) */
         earthquakes_hour:  'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_hour.geojson',
@@ -25,8 +29,11 @@ var Config = (function () {
         /* Weather alerts US (NWS — free, no key) */
         nws_alerts: 'https://api.weather.gov/alerts/active?status=actual',
 
-        /* News (GDELT DOC — free, no key) */
-        news: 'https://api.gdeltproject.org/api/v2/doc/doc?query=conflict OR disaster OR earthquake OR cyber attack OR sanctions&mode=artlist&format=json&maxrecords=75&timespan={timespan}',
+        /* News (GDELT DOC — free, no key, includes Canada) */
+        news: 'https://api.gdeltproject.org/api/v2/doc/doc?query=conflict OR disaster OR earthquake OR cyber attack OR sanctions OR Canada&mode=artlist&format=json&maxrecords=100&timespan={timespan}',
+
+        /* Canadian news specifically */
+        news_canada: 'https://api.gdeltproject.org/api/v2/doc/doc?query=sourcecountry:CA&mode=artlist&format=json&maxrecords=30&timespan={timespan}',
 
         /* Cyber threats — simulated from public country-level stats */
         cyber_stats: 'data/fallback-cyber.json'
@@ -80,7 +87,10 @@ var Config = (function () {
         cyber:     { label: 'Cyber Threats',    color: '#8b5cf6', icon: 'shield',     default: true  },
         outages:   { label: 'Outages',          color: '#ffaa00', icon: 'zap-off',    default: false },
         sanctions: { label: 'Sanctions',        color: '#f472b6', icon: 'ban',        default: false },
-        military:  { label: 'Military / Nuclear', color: '#76ff03', icon: 'target',   default: false }
+        military:  { label: 'Military / Nuclear', color: '#76ff03', icon: 'target',   default: false },
+        flights:   { label: 'Live Flights',      color: '#00c8ff', icon: 'plane',    default: false },
+        airquality:{ label: 'Air Quality',        color: '#a0ff00', icon: 'wind',     default: false },
+        disease:   { label: 'Disease Outbreaks',  color: '#00ff88', icon: 'heart',    default: false }
     };
 
     /* -- DEFCON Levels ---------------------------------------------------- */

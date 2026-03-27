@@ -182,6 +182,27 @@
                 <span class="layer-toggle__label">Military / Nuclear</span>
                 <span class="layer-toggle__count">0</span>
             </label>
+
+            <label class="layer-toggle" data-layer="flights" style="--layer-color: #00c8ff">
+                <div class="layer-toggle__dot"></div>
+                <div class="layer-toggle__switch"></div>
+                <span class="layer-toggle__label">Live Flights</span>
+                <span class="layer-toggle__count">0</span>
+            </label>
+
+            <label class="layer-toggle" data-layer="airquality" style="--layer-color: #a0ff00">
+                <div class="layer-toggle__dot"></div>
+                <div class="layer-toggle__switch"></div>
+                <span class="layer-toggle__label">Air Quality</span>
+                <span class="layer-toggle__count">0</span>
+            </label>
+
+            <label class="layer-toggle" data-layer="disease" style="--layer-color: #00ff88">
+                <div class="layer-toggle__dot"></div>
+                <div class="layer-toggle__switch"></div>
+                <span class="layer-toggle__label">Disease Outbreaks</span>
+                <span class="layer-toggle__count">0</span>
+            </label>
         </div>
 
         <!-- Stats -->
@@ -197,7 +218,7 @@
                     <div class="stat-card__label">Countries</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-card__value" id="stat-sources">7</div>
+                    <div class="stat-card__value" id="stat-sources">10</div>
                     <div class="stat-card__label">Sources</div>
                 </div>
                 <div class="stat-card">
@@ -215,7 +236,7 @@
 
         <!-- Attribution -->
         <div class="sidebar__section" style="opacity:0.4; font-size:var(--text-xs);">
-            Data: GDELT, USGS, NASA, NWS, OFAC<br>
+            Data: GDELT, USGS, NASA, NWS, OFAC, OpenSky, WAQI, ReliefWeb<br>
             Map: MapLibre + CARTO<br>
             &copy; Kytran Empowerment Inc.
         </div>
@@ -259,6 +280,15 @@
             </div>
             <div class="map-legend__item">
                 <span class="map-legend__dot" style="background:var(--layer-outages)"></span> Outage
+            </div>
+            <div class="map-legend__item">
+                <span class="map-legend__dot" style="background:#00c8ff"></span> Flight
+            </div>
+            <div class="map-legend__item">
+                <span class="map-legend__dot" style="background:#a0ff00"></span> Air Quality
+            </div>
+            <div class="map-legend__item">
+                <span class="map-legend__dot" style="background:#00ff88"></span> Disease
             </div>
         </div>
 
@@ -312,6 +342,9 @@
 <script src="js/layers/outages.js"></script>
 <script src="js/layers/sanctions.js"></script>
 <script src="js/layers/military.js"></script>
+<script src="js/layers/flights.js"></script>
+<script src="js/layers/airquality.js"></script>
+<script src="js/layers/disease.js"></script>
 
 <!-- Panels -->
 <script src="js/panels/ticker.js"></script>

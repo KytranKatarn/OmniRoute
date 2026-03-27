@@ -208,6 +208,9 @@ var App = (function () {
         if (typeof Outages !== 'undefined') Outages.init();
         if (typeof Sanctions !== 'undefined') Sanctions.init();
         if (typeof Military !== 'undefined') Military.init();
+        if (typeof Flights !== 'undefined') Flights.init();
+        if (typeof AirQuality !== 'undefined') AirQuality.init();
+        if (typeof Disease !== 'undefined') Disease.init();
         if (typeof Ticker !== 'undefined') Ticker.init();
         if (typeof Defcon !== 'undefined') Defcon.init();
         if (typeof Search !== 'undefined') Search.init();

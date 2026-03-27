@@ -57,7 +57,8 @@ CREATE TABLE IF NOT EXISTS spending_records (
     fiscal_year TEXT,
     description TEXT,
     source_url TEXT,
-    ingested_at TEXT NOT NULL
+    ingested_at TEXT NOT NULL,
+    UNIQUE(department, fiscal_year, level)
 );
 
 CREATE TABLE IF NOT EXISTS ingest_log (

@@ -415,7 +415,7 @@ def create_issue(
 
 def get_dependabot_alerts(state: str = "open") -> Dict:
     """Fetch Dependabot alerts from GitHub API."""
-    ok, data = _api_get("/dependabot/alerts", params={"state": state, "per_page": 100})
+    ok, data = _api_get(f"/repos/{REPO_FULL}/dependabot/alerts", params={"state": state, "per_page": 100})
     if not ok:
         return {"success": False, "error": data.get("error", "API request failed")}
     alerts = []
@@ -441,7 +441,7 @@ def get_dependabot_alerts(state: str = "open") -> Dict:
 def dismiss_dependabot_alert(alert_number: int, reason: str = "fix_started") -> Dict:
     """Dismiss a Dependabot alert."""
     ok, data = _api_patch(
-        f"/dependabot/alerts/{alert_number}",
+        f"/repos/{REPO_FULL}/dependabot/alerts/{alert_number}",
         data={"state": "dismissed", "dismissed_reason": reason},
     )
     if not ok:
@@ -451,7 +451,7 @@ def dismiss_dependabot_alert(alert_number: int, reason: str = "fix_started") -> 
 
 def get_coderabbit_reviews(pr_number: int) -> Dict:
     """Fetch CodeRabbit review comments from a PR."""
-    ok, data = _api_get(f"/pulls/{pr_number}/comments")
+    ok, data = _api_get(f"/repos/{REPO_FULL}/pulls/{pr_number}/comments")
     if not ok:
         return {"success": False, "error": data.get("error", "Failed to fetch reviews")}
     reviews = [

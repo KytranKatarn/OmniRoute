@@ -408,6 +408,60 @@ def create_issue(
     }
 
 
+# ============================================================================
+# DEPENDABOT + CODERABBIT
+# ============================================================================
+
+
+def get_dependabot_alerts(state: str = "open") -> Dict:
+    """Fetch Dependabot alerts from GitHub API."""
+    ok, data = _api_get("/dependabot/alerts", params={"state": state, "per_page": 100})
+    if not ok:
+        return {"success": False, "error": data.get("error", "API request failed")}
+    alerts = []
+    for alert in data:
+        vuln = alert.get("security_vulnerability", {})
+        alerts.append(
+            {
+                "number": alert.get("number"),
+                "severity": vuln.get("severity", "unknown"),
+                "package_name": vuln.get("package", {}).get("name"),
+                "ecosystem": vuln.get("package", {}).get("ecosystem"),
+                "vulnerable_range": vuln.get("vulnerable_version_range"),
+                "fix_version": (vuln.get("first_patched_version") or {}).get("identifier"),
+                "summary": alert.get("security_advisory", {}).get("summary"),
+                "advisory_id": alert.get("security_advisory", {}).get("ghsa_id"),
+                "manifest_path": alert.get("dependency", {}).get("manifest_path"),
+                "state": alert.get("state"),
+            }
+        )
+    return {"success": True, "alerts": alerts, "count": len(alerts)}
+
+
+def dismiss_dependabot_alert(alert_number: int, reason: str = "fix_started") -> Dict:
+    """Dismiss a Dependabot alert."""
+    ok, data = _api_patch(
+        f"/dependabot/alerts/{alert_number}",
+        data={"state": "dismissed", "dismissed_reason": reason},
+    )
+    if not ok:
+        return {"success": False, "error": data.get("error", "Dismiss failed")}
+    return {"success": True, "alert_number": alert_number, "state": "dismissed"}
+
+
+def get_coderabbit_reviews(pr_number: int) -> Dict:
+    """Fetch CodeRabbit review comments from a PR."""
+    ok, data = _api_get(f"/pulls/{pr_number}/comments")
+    if not ok:
+        return {"success": False, "error": data.get("error", "Failed to fetch reviews")}
+    reviews = [
+        {"body": c.get("body", ""), "created_at": c.get("created_at"), "path": c.get("path")}
+        for c in data
+        if "coderabbit" in (c.get("user", {}).get("login", "")).lower()
+    ]
+    return {"success": True, "reviews": reviews, "count": len(reviews)}
+
+
 def close_issue(issue_number: int, comment: str = None) -> Dict:
     """Close a GitHub issue, optionally with a comment."""
     if comment:

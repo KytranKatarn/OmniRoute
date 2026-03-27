@@ -65,3 +65,13 @@ def trigger_municipal_ingest():
         return jsonify({"status": "ok", "result": result})
     except Exception as e:
         return jsonify({"status": "error", "error": str(e)}), 500
+
+
+@health_bp.route("/ingest/spending", methods=["POST"])
+def trigger_spending_ingest():
+    try:
+        from ingest.spending import run_spending_ingest
+        result = run_spending_ingest()
+        return jsonify({"status": "ok", "result": result})
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)}), 500

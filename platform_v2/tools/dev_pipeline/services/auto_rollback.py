@@ -166,7 +166,7 @@ class AutoRollbackManager:
                     ),
                 )
                 conn.commit()
-            except:
+            except Exception:
                 pass  # Notifications table might not exist
 
             cur.close()

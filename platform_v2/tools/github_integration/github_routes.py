@@ -574,7 +574,7 @@ def sync_documentation():
                         "message": "✓ Documentation committed locally (push failed - may need repo setup)",
                     }
                 )
-        except:
+        except Exception:
             return jsonify(
                 {
                     "success": True,
@@ -691,7 +691,7 @@ def get_setting(key, default=None):
             return json.loads(row[0])
         return default
 
-    except:
+    except Exception:
         return default
     finally:
         try:

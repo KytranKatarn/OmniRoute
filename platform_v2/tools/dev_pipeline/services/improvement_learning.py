@@ -338,7 +338,7 @@ class ImprovementLearning:
                 accuracy_pct = (1 - abs(actual_hours - estimated_hours) / estimated_hours) * 100
                 return f"{round(accuracy_pct, 1)}%"
 
-        except:
+        except Exception:
             pass
 
         return "unknown"

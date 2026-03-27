@@ -157,7 +157,7 @@ class InstagramClient:
 
         try:
             data = response.json()
-        except:
+        except Exception:
             data = {"error": {"message": response.text}}
 
         if "error" in data:
@@ -475,7 +475,7 @@ class TikTokClient:
 
         try:
             data = response.json()
-        except:
+        except Exception:
             data = {"error": {"message": response.text}}
 
         if data.get("error") and data["error"].get("code") != "ok":

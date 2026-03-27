@@ -259,7 +259,7 @@ def create_store():
                 "store",
                 store["id"],
             )
-        except:
+        except Exception:
             pass
 
         return jsonify(
@@ -452,7 +452,7 @@ def delete_store(store_id):
                 "store",
                 store_id,
             )
-        except:
+        except Exception:
             pass
 
         return jsonify({"success": True, "message": f'Store "{store["name"]}" deleted'})

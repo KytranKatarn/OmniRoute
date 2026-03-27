@@ -190,7 +190,7 @@ class SchemaSandboxManager:
             try:
                 cur.execute(sql.SQL("DROP SCHEMA IF EXISTS {} CASCADE").format(sql.Identifier(schema_name)))
                 conn.commit()
-            except:
+            except Exception:
                 pass
 
             cur.close()

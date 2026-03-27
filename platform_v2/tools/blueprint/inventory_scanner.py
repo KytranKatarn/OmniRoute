@@ -142,7 +142,7 @@ def scan_tools() -> Dict[str, Any]:
                         try:
                             with open(fp, "r") as file:
                                 line_count = sum(1 for _ in file)
-                        except:
+                        except Exception:
                             pass
 
                         total_lines += line_count

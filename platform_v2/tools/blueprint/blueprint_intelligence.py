@@ -174,7 +174,7 @@ def get_database_schema() -> Dict[str, Any]:
                 cur.execute(f'SELECT COUNT(*) as count FROM "{table_name}"')
                 row_count = cur.fetchone()["count"]
                 total_rows += row_count
-            except:
+            except Exception:
                 row_count = 0
 
             # Get primary key
@@ -617,7 +617,7 @@ def get_backup_status() -> Dict[str, Any]:
                         try:
                             with open(metadata_file, "r") as f:
                                 metadata = json.load(f)
-                        except:
+                        except Exception:
                             pass
 
                     # Calculate directory size
@@ -628,7 +628,7 @@ def get_backup_status() -> Dict[str, Any]:
                             try:
                                 dir_size += os.path.getsize(os.path.join(root, f))
                                 file_count += 1
-                            except:
+                            except Exception:
                                 pass
 
                     total_size += dir_size

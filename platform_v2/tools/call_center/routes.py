@@ -327,7 +327,7 @@ def provision_number():
                 "phone_number",
                 number["id"],
             )
-        except:
+        except Exception:
             pass
 
         return jsonify(

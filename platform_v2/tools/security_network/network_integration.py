@@ -54,7 +54,7 @@ class AdGuardAPI:
         """Get AdGuard statistics"""
         try:
             return self._request("GET", "control/stats")
-        except:
+        except Exception:
             return None
 
     def block_ip(self, ip_address, reason="Blocked by A.R.C.H.I.E."):
@@ -130,7 +130,7 @@ class NtopngAPI:
             response = requests.get(url, auth=auth, params=params)
             response.raise_for_status()
             return response.json()
-        except:
+        except Exception:
             return None
 
     def get_interface_stats(self):
@@ -175,7 +175,7 @@ class NagiosAPI:
             response = requests.get(url, auth=auth)
             response.raise_for_status()
             return response.text
-        except:
+        except Exception:
             return None
 
     def get_host_status(self):
@@ -220,7 +220,7 @@ class NginxProxyAPI:
 
             response.raise_for_status()
             return response.json()
-        except:
+        except Exception:
             return None
 
     def get_proxy_hosts(self):

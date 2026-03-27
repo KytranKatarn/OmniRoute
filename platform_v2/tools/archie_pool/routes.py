@@ -51,7 +51,7 @@ def status():
     try:
         response = requests.get(f"{POOL_API_URL}/api/stats", timeout=5)
         pool_healthy = response.status_code == 200
-    except:
+    except Exception:
         pass
 
     return jsonify(
@@ -74,7 +74,7 @@ def get_pool_stats():
         response = requests.get(f"{POOL_API_URL}/api/stats", timeout=10)
         if response.status_code == 200:
             return jsonify({"success": True, "stats": response.json()})
-    except:
+    except Exception:
         pass
 
     # Return sample data for development
@@ -90,7 +90,7 @@ def get_pool_blocks():
         response = requests.get(f"{POOL_API_URL}/api/blocks?limit={limit}", timeout=10)
         if response.status_code == 200:
             return jsonify({"success": True, "blocks": response.json()})
-    except:
+    except Exception:
         pass
 
     # Sample block data
@@ -131,7 +131,7 @@ def get_miner_stats(wallet):
         response = requests.get(f"{POOL_API_URL}/api/miner/{wallet}", timeout=10)
         if response.status_code == 200:
             return jsonify({"success": True, "miner": response.json()})
-    except:
+    except Exception:
         pass
 
     # Return sample data
@@ -155,7 +155,7 @@ def get_miner_workers(wallet):
         response = requests.get(f"{POOL_API_URL}/api/miner/{wallet}/workers", timeout=10)
         if response.status_code == 200:
             return jsonify({"success": True, "workers": response.json()})
-    except:
+    except Exception:
         pass
 
     # Sample worker data
@@ -201,7 +201,7 @@ def get_miner_payments(wallet):
         response = requests.get(f"{POOL_API_URL}/api/miner/{wallet}/payments?limit={limit}", timeout=10)
         if response.status_code == 200:
             return jsonify({"success": True, "payments": response.json()})
-    except:
+    except Exception:
         pass
 
     # Sample payment data
@@ -221,7 +221,7 @@ def get_network_stats():
         response = requests.get(f"{POOL_API_URL}/api/network", timeout=10)
         if response.status_code == 200:
             return jsonify({"success": True, "network": response.json()})
-    except:
+    except Exception:
         pass
 
     # Sample network data
@@ -362,7 +362,7 @@ def get_hashrate_history(wallet):
         response = requests.get(f"{POOL_API_URL}/api/miner/{wallet}/chart?period={period}", timeout=10)
         if response.status_code == 200:
             return jsonify({"success": True, "chart": response.json()})
-    except:
+    except Exception:
         pass
 
     # Generate sample chart data

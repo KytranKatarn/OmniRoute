@@ -95,7 +95,7 @@ def scan_for_candidates() -> List[Dict[str, Any]]:
                     try:
                         with open(os.path.join(stub_path, f)) as fp:
                             line_count += sum(1 for _ in fp)
-                    except:
+                    except Exception:
                         pass
 
             if line_count < 200:

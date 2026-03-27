@@ -570,7 +570,7 @@ def api_status():
             if response and "data" in response:
                 n8n_connected = True
                 workflow_count = len(response["data"])
-        except:
+        except Exception:
             pass
 
         return jsonify(

@@ -141,7 +141,7 @@ def sync_products():
             conn.commit()
             cur.close()
             conn.close()
-        except:
+        except Exception:
             pass
 
         raise

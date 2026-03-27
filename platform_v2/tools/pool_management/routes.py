@@ -240,7 +240,7 @@ def status():
     try:
         response = requests.get(f"{POOL_API_URL}/api/stats", timeout=5)
         pool_healthy = response.status_code == 200
-    except:
+    except Exception:
         pass
 
     return jsonify(
@@ -267,7 +267,7 @@ def admin_dashboard():
         response = requests.get(f"{POOL_API_URL}/api/admin/stats", timeout=10)
         if response.status_code == 200:
             return jsonify({"success": True, "stats": response.json()})
-    except:
+    except Exception:
         pass
 
     return jsonify(
@@ -310,7 +310,7 @@ def get_all_miners():
         )
         if response.status_code == 200:
             return jsonify({"success": True, **response.json()})
-    except:
+    except Exception:
         pass
 
     # Filter sample data
@@ -343,7 +343,7 @@ def get_miner_detail(wallet):
         response = requests.get(f"{POOL_API_URL}/api/admin/miners/{wallet}", timeout=10)
         if response.status_code == 200:
             return jsonify({"success": True, "miner": response.json()})
-    except:
+    except Exception:
         pass
 
     # Find in sample data
@@ -380,7 +380,7 @@ def ban_miner(wallet):
         )
         if response.status_code == 200:
             return jsonify({"success": True, "message": f"Miner {wallet} banned"})
-    except:
+    except Exception:
         pass
 
     return jsonify(
@@ -400,7 +400,7 @@ def unban_miner(wallet):
         response = requests.post(f"{POOL_API_URL}/api/admin/miners/{wallet}/unban", timeout=10)
         if response.status_code == 200:
             return jsonify({"success": True, "message": f"Miner {wallet} unbanned"})
-    except:
+    except Exception:
         pass
 
     return jsonify(
@@ -432,7 +432,7 @@ def get_all_blocks():
         )
         if response.status_code == 200:
             return jsonify({"success": True, **response.json()})
-    except:
+    except Exception:
         pass
 
     blocks = SAMPLE_BLOCKS.copy()
@@ -473,7 +473,7 @@ def get_payouts():
         )
         if response.status_code == 200:
             return jsonify({"success": True, **response.json()})
-    except:
+    except Exception:
         pass
 
     payouts = SAMPLE_PAYOUTS.copy()
@@ -502,7 +502,7 @@ def trigger_payouts():
         response = requests.post(f"{POOL_API_URL}/api/admin/payouts/process", timeout=30)
         if response.status_code == 200:
             return jsonify({"success": True, **response.json()})
-    except:
+    except Exception:
         pass
 
     return jsonify(
@@ -523,7 +523,7 @@ def retry_payout(payout_id):
         response = requests.post(f"{POOL_API_URL}/api/admin/payouts/{payout_id}/retry", timeout=10)
         if response.status_code == 200:
             return jsonify({"success": True, **response.json()})
-    except:
+    except Exception:
         pass
 
     return jsonify(
@@ -553,7 +553,7 @@ def get_conversions():
         )
         if response.status_code == 200:
             return jsonify({"success": True, **response.json()})
-    except:
+    except Exception:
         pass
 
     conversions = SAMPLE_CONVERSIONS.copy()
@@ -586,7 +586,7 @@ def trigger_conversions():
         response = requests.post(f"{POOL_API_URL}/api/admin/conversions/process", timeout=30)
         if response.status_code == 200:
             return jsonify({"success": True, **response.json()})
-    except:
+    except Exception:
         pass
 
     return jsonify(
@@ -613,7 +613,7 @@ def get_analytics():
         response = requests.get(f"{POOL_API_URL}/api/admin/analytics", params={"period": period}, timeout=10)
         if response.status_code == 200:
             return jsonify({"success": True, **response.json()})
-    except:
+    except Exception:
         pass
 
     # Generate sample analytics
@@ -667,7 +667,7 @@ def get_settings():
         response = requests.get(f"{POOL_API_URL}/api/admin/settings", timeout=10)
         if response.status_code == 200:
             return jsonify({"success": True, "settings": response.json()})
-    except:
+    except Exception:
         pass
 
     return jsonify({"success": True, "settings": SAMPLE_SETTINGS, "is_sample": True})
@@ -682,7 +682,7 @@ def update_settings():
         response = requests.put(f"{POOL_API_URL}/api/admin/settings", json=data, timeout=10)
         if response.status_code == 200:
             return jsonify({"success": True, **response.json()})
-    except:
+    except Exception:
         pass
 
     # Update sample settings (in memory only)
@@ -714,7 +714,7 @@ def get_services_status():
         response = requests.get(f"{POOL_API_URL}/api/admin/services", timeout=10)
         if response.status_code == 200:
             return jsonify({"success": True, **response.json()})
-    except:
+    except Exception:
         pass
 
     return jsonify(
@@ -748,7 +748,7 @@ def restart_service(service):
         response = requests.post(f"{POOL_API_URL}/api/admin/services/{service}/restart", timeout=30)
         if response.status_code == 200:
             return jsonify({"success": True, **response.json()})
-    except:
+    except Exception:
         pass
 
     return jsonify(

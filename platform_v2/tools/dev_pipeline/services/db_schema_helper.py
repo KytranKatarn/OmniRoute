@@ -37,14 +37,14 @@ def get_db_connection(cursor_factory=RealDictCursor):
 
         if has_request_context():
             schema = session.get("db_schema", "public")
-    except:
+    except Exception:
         schema = "public"
 
     # If not in session, try g object
     if not schema or schema == "public":
         try:
             schema = getattr(g, "db_schema", "public")
-        except:
+        except Exception:
             schema = "public"
 
     # Set search_path at connection level
@@ -70,12 +70,12 @@ def get_current_schema():
 
         if has_request_context():
             return session.get("db_schema", "public")
-    except:
+    except Exception:
         pass
 
     try:
         return getattr(g, "db_schema", "public")
-    except:
+    except Exception:
         return "public"
 
 
@@ -94,13 +94,13 @@ def set_sandbox_mode(enabled=True):
         if has_request_context():
             session["db_schema"] = schema
             session["sandbox_mode"] = enabled
-    except:
+    except Exception:
         pass
 
     try:
         g.db_schema = schema
         g.sandbox_mode = enabled
-    except:
+    except Exception:
         pass
 
 

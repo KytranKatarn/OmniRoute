@@ -894,18 +894,28 @@ def audit_single_module(module_name, module_path=None):
                 content = fh.read()
             fname = os.path.basename(fpath)
 
-            if "call_ollama(" in content and "bridge" not in fpath:
-                issues.append(f"DIRECT_OLLAMA: {fname}")
+            # Skip scanner/checker files that reference these as strings
+            if "compliance" in fname or "deploy_routes" in fname:
+                pass
+            else:
+                if "call_ollama(" in content and "bridge" not in fpath:
+                    issues.append(f"DIRECT_OLLAMA: {fname}")
 
-            if ("call_claude_api(" in content or "call_openai_api(" in content) and "bridge" not in fpath:
-                issues.append(f"DIRECT_CLOUD: {fname}")
+                if ("call_claude_api(" in content or "call_openai_api(" in content) and "bridge" not in fpath:
+                    issues.append(f"DIRECT_CLOUD: {fname}")
 
             # Check 3: Bare except
             if re.search(r"\bexcept\s*:", content):
                 issues.append(f"BARE_EXCEPT: {fname}")
 
-            # Check 4: Hardcoded secrets (simple pattern)
-            if re.search(r'(?:password|token|secret)\s*=\s*["\'][^"\']{8,}["\']', content, re.IGNORECASE):
+            # Check 4: Hardcoded secrets (exclude test fixtures, shell templates, env lookups)
+            secret_matches = re.findall(
+                r'(?:password|token|secret)\s*=\s*["\']([^"\']{8,})["\']', content, re.IGNORECASE
+            )
+            for match in secret_matches:
+                # Skip test fixtures, template placeholders, env var patterns
+                if match.startswith("test_") or "openssl" in match or "${" in match or "os.getenv" in match:
+                    continue
                 issues.append(f"HARDCODED_SECRET: {fname}")
         except Exception:
             pass

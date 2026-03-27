@@ -82,7 +82,7 @@ def status():
     try:
         response = req.get(f"{OLLAMA_URL}/api/tags", timeout=5)
         ollama_healthy = response.status_code == 200
-    except:
+    except Exception:
         pass
 
     return jsonify(

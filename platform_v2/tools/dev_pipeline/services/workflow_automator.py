@@ -284,7 +284,7 @@ class WorkflowAutomator:
                             "next_status": "approved",
                             "reason": "Auto-approved: low risk + tests passed",
                         }
-                except:
+                except Exception:
                     pass
 
         # tested → ready_for_deployment (if tests passed)

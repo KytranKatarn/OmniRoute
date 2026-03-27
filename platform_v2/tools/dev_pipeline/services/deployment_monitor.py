@@ -230,7 +230,7 @@ class DeploymentMonitor:
                 timeout=5,
             )
             return result.returncode == 0
-        except:
+        except Exception:
             return False
 
     def _check_database(self) -> bool:
@@ -243,7 +243,7 @@ class DeploymentMonitor:
             cur.close()
             conn.close()
             return True
-        except:
+        except Exception:
             return False
 
     def _check_error_rate(self) -> bool:

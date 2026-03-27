@@ -5476,26 +5476,30 @@ class BridgeDispatcher:
             )
             self._busy_agents = {r[0] for r in cur.fetchall()}
 
-            # Resolve agent name from capability→station→agent mapping (home-first)
+            # Resolve agent: try department routing first (post-rebrand),
+            # fall back to station routing for backward compatibility
             cap_key = capability or job_type.split("_")[0]
+            capability_dept = self._resolve_department(cap_key)
             capability_station = self._resolve_station(cap_key)
-            home_station = self._resolve_module_station(module_source)
 
             agent = None
             dispatch_station = capability_station
             is_cross_station = False
 
-            if home_station:
-                agent = self._select_agent(cap_key, home_station)
-                if agent:
-                    dispatch_station = home_station
+            # Department-first routing (preferred)
+            agent = self._select_agent_by_department(cap_key, capability_dept)
+            if not agent:
+                # Fallback to station routing
+                home_station = self._resolve_module_station(module_source)
+                if home_station:
+                    agent = self._select_agent(cap_key, home_station)
+                    if agent:
+                        dispatch_station = home_station
+                    else:
+                        agent = self._select_agent(cap_key, capability_station)
+                        is_cross_station = home_station != capability_station
                 else:
                     agent = self._select_agent(cap_key, capability_station)
-                    dispatch_station = capability_station
-                    is_cross_station = home_station != capability_station
-            else:
-                agent = self._select_agent(cap_key, capability_station)
-                dispatch_station = capability_station
 
             station_code = dispatch_station
             agent_name = None

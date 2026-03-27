@@ -23,6 +23,9 @@ def create_app():
     from routes.health import health_bp
     app.register_blueprint(health_bp)
 
+    from routes.portfolio import portfolio_bp
+    app.register_blueprint(portfolio_bp)
+
     @app.after_request
     def add_cors(response):
         response.headers["Access-Control-Allow-Origin"] = "*"

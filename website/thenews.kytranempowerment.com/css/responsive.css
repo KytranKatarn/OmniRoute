@@ -101,6 +101,8 @@
         min-width: 0;
     }
     .topbar__live { font-size: 10px; gap: 4px; }
+    .topbar__events { display: none; }
+    .topbar__clock { display: none; }
     .topbar__live-dot { width: 6px; height: 6px; }
 
     /* Ticker — compact */
@@ -143,6 +145,7 @@
     .topbar__logo { font-size: 11px; }
     .topbar__select { font-size: 9px; padding: 2px 4px; }
     .topbar__live { display: none; }
+    .topbar__clock { display: none; }
     .topbar { gap: 4px; padding: 0 4px; }
 
     .ticker__label { gap: 3px; }

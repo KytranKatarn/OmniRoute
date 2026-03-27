@@ -29,7 +29,7 @@
     align-items: center;
     gap: var(--space-md);
     padding: 0 var(--space-lg);
-    background: var(--color-surface);
+    background: linear-gradient(180deg, rgba(15, 15, 40, 1) 0%, var(--color-surface) 100%);
     border-bottom: 1px solid var(--color-glass-border);
     z-index: 100;
 }
@@ -112,6 +112,38 @@
     background: var(--color-surface);
 }
 
+/* Event Counter */
+.topbar__events {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+.topbar__events-count {
+    font-family: var(--font-heading);
+    font-size: var(--text-lg);
+    font-weight: 700;
+    color: var(--color-warning);
+    min-width: 24px;
+    text-align: right;
+}
+.topbar__events-label {
+    font-size: 9px;
+    color: var(--color-text-muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+/* UTC Clock */
+.topbar__clock {
+    font-family: var(--font-heading);
+    font-size: var(--text-sm);
+    color: var(--color-primary);
+    letter-spacing: 1px;
+    opacity: 0.8;
+    flex-shrink: 0;
+}
+
 /* Live Indicator */
 .topbar__live {
     display: flex;
@@ -168,6 +200,16 @@
 .sidebar__section {
     padding: var(--space-md);
     border-bottom: 1px solid var(--color-glass-border);
+    position: relative;
+}
+.sidebar__section::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 10%;
+    right: 10%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0, 229, 255, 0.15), transparent);
 }
 .sidebar__title {
     font-family: var(--font-nav);
@@ -529,11 +571,17 @@
 }
 .loading-overlay__title {
     font-family: var(--font-heading);
-    font-size: var(--text-2xl);
+    font-size: 2rem;
     color: var(--color-primary);
-    letter-spacing: 4px;
+    letter-spacing: 6px;
     text-transform: uppercase;
     margin-bottom: var(--space-md);
+    text-shadow: 0 0 30px rgba(0, 229, 255, 0.5), 0 0 60px rgba(0, 229, 255, 0.2);
+    animation: loading-glow 2s ease-in-out infinite;
+}
+@keyframes loading-glow {
+    0%, 100% { text-shadow: 0 0 30px rgba(0, 229, 255, 0.5), 0 0 60px rgba(0, 229, 255, 0.2); }
+    50% { text-shadow: 0 0 40px rgba(0, 229, 255, 0.8), 0 0 80px rgba(0, 229, 255, 0.4); }
 }
 .loading-overlay__bar {
     width: 200px;

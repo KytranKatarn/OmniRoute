@@ -212,6 +212,9 @@ var App = (function () {
         if (typeof AirQuality !== 'undefined') AirQuality.init();
         if (typeof Disease !== 'undefined') Disease.init();
         if (typeof Ships !== 'undefined') Ships.init();
+        if (typeof SpaceWeather !== 'undefined') SpaceWeather.init();
+        if (typeof Radiation !== 'undefined') Radiation.init();
+        if (typeof Protests !== 'undefined') Protests.init();
         if (typeof Ticker !== 'undefined') Ticker.init();
         if (typeof Defcon !== 'undefined') Defcon.init();
         if (typeof Detail !== 'undefined') Detail.init();

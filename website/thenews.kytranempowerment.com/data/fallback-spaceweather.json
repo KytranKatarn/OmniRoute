@@ -1,0 +1,27 @@
+[
+  {
+    "product_id": "SWPC-ALERT-001",
+    "issue_datetime": "2026-03-26T08:00:00Z",
+    "message": "ALERT: Geomagnetic Storm Watch issued. G2 (Moderate) geomagnetic storm conditions expected due to CME arrival."
+  },
+  {
+    "product_id": "SWPC-ALERT-002",
+    "issue_datetime": "2026-03-26T06:30:00Z",
+    "message": "WARNING: M-class solar flare detected from Region 3842. M5.2 flare peaked at 06:15 UTC."
+  },
+  {
+    "product_id": "SWPC-ALERT-003",
+    "issue_datetime": "2026-03-25T22:00:00Z",
+    "message": "SUMMARY: S2 (Moderate) solar radiation storm in progress. Proton flux levels elevated."
+  },
+  {
+    "product_id": "SWPC-ALERT-004",
+    "issue_datetime": "2026-03-25T14:00:00Z",
+    "message": "WATCH: G1 (Minor) geomagnetic storm watch. High-speed solar wind stream expected."
+  },
+  {
+    "product_id": "SWPC-ALERT-005",
+    "issue_datetime": "2026-03-25T10:00:00Z",
+    "message": "ALERT: Coronal Mass Ejection (CME) detected. Earth-directed component estimated arrival in 48-72 hours."
+  }
+]

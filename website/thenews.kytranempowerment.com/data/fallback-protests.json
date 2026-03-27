@@ -1,0 +1,7 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","geometry":{"type":"Point","coordinates":[2.35,48.86]},"properties":{"name":"Paris labor reform protest","domain":"france24.com","dateadded":"20260326120000","AvgTone":"-5.2","country":"FR"}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[-43.17,-22.91]},"properties":{"name":"Rio de Janeiro housing demonstration","domain":"reuters.com","dateadded":"20260326100000","AvgTone":"-3.8","country":"BR"}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[77.21,28.61]},"properties":{"name":"New Delhi farmers protest march","domain":"bbc.com","dateadded":"20260326080000","AvgTone":"-4.5","country":"IN"}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[37.62,55.75]},"properties":{"name":"Moscow civil rights demonstration","domain":"aljazeera.com","dateadded":"20260326060000","AvgTone":"-6.1","country":"RU"}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[-3.70,40.42]},"properties":{"name":"Madrid cost-of-living protest","domain":"elpais.com","dateadded":"20260326040000","AvgTone":"-3.2","country":"ES"}}
+]}

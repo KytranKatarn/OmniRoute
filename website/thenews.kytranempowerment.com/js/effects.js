@@ -10,6 +10,7 @@ var Effects = (function () {
         _initStatCounters();
         _initCursorGlow();
         _initLastUpdated();
+        _initUtcClock();
     }
 
     /* -- Animated stat counters ------------------------------------------- */
@@ -21,6 +22,9 @@ var Effects = (function () {
             var total = Object.keys(_counts).reduce(function (s, k) { return s + _counts[k]; }, 0);
             _animateCounter('stat-events', total);
             _animateCounter('stat-countries', countriesSet.size);
+            /* Update topbar event counter */
+            var topEl = document.getElementById('topbar-event-count');
+            if (topEl) topEl.textContent = total.toLocaleString();
         }
 
         EventBus.on('data:conflicts:updated', function (d) {
@@ -97,6 +101,22 @@ var Effects = (function () {
                 _animateCounter('stat-news', Ticker.getData().length);
             }
         });
+    }
+
+    /* -- UTC Clock -------------------------------------------------------- */
+    function _initUtcClock() {
+        var el = document.getElementById('utc-clock');
+        if (!el) return;
+        function tick() {
+            var now = new Date();
+            var h = String(now.getUTCHours()).padStart(2, '0');
+            var m = String(now.getUTCMinutes()).padStart(2, '0');
+            var s = String(now.getUTCSeconds()).padStart(2, '0');
+            var day = now.toLocaleDateString('en-US', { timeZone: 'UTC', day: '2-digit', month: 'short', year: 'numeric' });
+            el.textContent = h + ':' + m + ':' + s + ' UTC \u2014 ' + day;
+        }
+        tick();
+        setInterval(tick, 1000);
     }
 
     /* -- Subtle cursor glow on map --------------------------------------- */

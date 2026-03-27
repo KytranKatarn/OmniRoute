@@ -86,6 +86,15 @@
             <option value="7d">7D</option>
         </select>
 
+        <!-- Event Counter -->
+        <div class="topbar__events" id="topbar-events" title="Active events">
+            <span class="topbar__events-count" id="topbar-event-count">0</span>
+            <span class="topbar__events-label">EVENTS</span>
+        </div>
+
+        <!-- UTC Clock -->
+        <div class="topbar__clock" id="utc-clock" title="UTC Time">--:--:-- UTC</div>
+
         <!-- Live Indicator -->
         <div class="topbar__live">
             <span class="topbar__live-dot"></span>
@@ -210,6 +219,27 @@
                 <span class="layer-toggle__label">Ship Traffic</span>
                 <span class="layer-toggle__count">0</span>
             </label>
+
+            <label class="layer-toggle" data-layer="spaceweather" style="--layer-color: #ffd700">
+                <div class="layer-toggle__dot"></div>
+                <div class="layer-toggle__switch"></div>
+                <span class="layer-toggle__label">Space Weather</span>
+                <span class="layer-toggle__count">0</span>
+            </label>
+
+            <label class="layer-toggle" data-layer="radiation" style="--layer-color: #c6ff00">
+                <div class="layer-toggle__dot"></div>
+                <div class="layer-toggle__switch"></div>
+                <span class="layer-toggle__label">Radiation</span>
+                <span class="layer-toggle__count">0</span>
+            </label>
+
+            <label class="layer-toggle" data-layer="protests" style="--layer-color: #ff1493">
+                <div class="layer-toggle__dot"></div>
+                <div class="layer-toggle__switch"></div>
+                <span class="layer-toggle__label">Protests / Unrest</span>
+                <span class="layer-toggle__count">0</span>
+            </label>
         </div>
 
         <!-- Stats -->
@@ -225,7 +255,7 @@
                     <div class="stat-card__label">Countries</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-card__value" id="stat-sources">11</div>
+                    <div class="stat-card__value" id="stat-sources">14</div>
                     <div class="stat-card__label">Sources</div>
                 </div>
                 <div class="stat-card">
@@ -243,7 +273,7 @@
 
         <!-- Attribution -->
         <div class="sidebar__section" style="opacity:0.4; font-size:var(--text-xs);">
-            Data: GDELT, USGS, NASA, NWS, OFAC, OpenSky, WAQI, ReliefWeb<br>
+            Data: GDELT, USGS, NASA, NWS, OFAC, OpenSky, WAQI, ReliefWeb, NOAA SWPC, IAEA<br>
             Map: MapLibre + CARTO<br>
             &copy; Kytran Empowerment Inc.
         </div>
@@ -299,6 +329,15 @@
             </div>
             <div class="map-legend__item">
                 <span class="map-legend__dot" style="background:#00b4d8"></span> Ship
+            </div>
+            <div class="map-legend__item">
+                <span class="map-legend__dot" style="background:#ffd700"></span> Space
+            </div>
+            <div class="map-legend__item">
+                <span class="map-legend__dot" style="background:#c6ff00"></span> Radiation
+            </div>
+            <div class="map-legend__item">
+                <span class="map-legend__dot" style="background:#ff1493"></span> Protest
             </div>
         </div>
 
@@ -356,6 +395,9 @@
 <script src="js/layers/airquality.js"></script>
 <script src="js/layers/disease.js"></script>
 <script src="js/layers/ships.js"></script>
+<script src="js/layers/spaceweather.js"></script>
+<script src="js/layers/radiation.js"></script>
+<script src="js/layers/protests.js"></script>
 
 <!-- Panels -->
 <script src="js/panels/ticker.js"></script>

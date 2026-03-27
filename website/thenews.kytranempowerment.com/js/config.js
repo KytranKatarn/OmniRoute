@@ -88,7 +88,10 @@ var Config = (function () {
         flights:   { label: 'Live Flights',      color: '#00c8ff', icon: 'plane',    default: false },
         airquality:{ label: 'Air Quality',        color: '#a0ff00', icon: 'wind',     default: false },
         disease:   { label: 'Disease Outbreaks',  color: '#00ff88', icon: 'heart',    default: false },
-        ships:     { label: 'Ship Traffic',       color: '#00b4d8', icon: 'anchor',   default: false }
+        ships:     { label: 'Ship Traffic',       color: '#00b4d8', icon: 'anchor',   default: false },
+        spaceweather:{ label: 'Space Weather',   color: '#ffd700', icon: 'sun',      default: false },
+        radiation: { label: 'Radiation',          color: '#c6ff00', icon: 'alert',    default: false },
+        protests:  { label: 'Protests / Unrest', color: '#ff1493', icon: 'flag',     default: false }
     };
 
     /* -- DEFCON Levels ---------------------------------------------------- */

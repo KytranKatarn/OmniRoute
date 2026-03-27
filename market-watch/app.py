@@ -39,6 +39,9 @@ def create_app():
     from routes.alerts import alerts_bp
     app.register_blueprint(alerts_bp)
 
+    from routes.backtest import backtest_bp
+    app.register_blueprint(backtest_bp)
+
     @app.after_request
     def add_cors(response):
         response.headers["Access-Control-Allow-Origin"] = "*"

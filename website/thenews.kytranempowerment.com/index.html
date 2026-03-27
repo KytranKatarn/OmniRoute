@@ -15,6 +15,20 @@
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
 
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0a0a1a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="favicon.svg">
+    <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+            navigator.serviceWorker.register('/sw.js').catch(function () {});
+        });
+    }
+    </script>
+
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -92,6 +106,31 @@
                 <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>
             </svg>
         </button>
+
+        <!-- Notifications -->
+        <button class="topbar__icon-btn" id="notify-btn" title="Toggle notifications">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+        </button>
+
+        <!-- Sound -->
+        <button class="topbar__icon-btn" id="sound-btn" title="Toggle sound alerts">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+            </svg>
+        </button>
+
+        <!-- Embed -->
+        <button class="topbar__icon-btn" id="embed-btn" title="Get embed code">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+            </svg>
+        </button>
+
+        <!-- Export -->
+        <button class="topbar__icon-btn" id="export-csv" title="Export CSV">CSV</button>
+        <button class="topbar__icon-btn" id="export-json" title="Export JSON">JSON</button>
 
         <!-- About Link -->
         <a href="about.html" class="topbar__about" title="About Kytran News">About</a>
@@ -337,6 +376,16 @@
         <div class="map-controls">
             <button class="map-controls__btn" id="zoom-in" aria-label="Zoom in">+</button>
             <button class="map-controls__btn" id="zoom-out" aria-label="Zoom out">&minus;</button>
+            <button class="map-controls__btn" id="heatmap-btn" aria-label="Toggle heatmap" title="Heatmap (M)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6" opacity="0.6"/><circle cx="12" cy="12" r="2" fill="currentColor"/>
+                </svg>
+            </button>
+            <button class="map-controls__btn" id="fullscreen-btn" aria-label="Toggle fullscreen" title="Fullscreen (F)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                </svg>
+            </button>
         </div>
 
         <!-- Legend -->
@@ -452,10 +501,15 @@
 <script src="js/panels/defcon.js"></script>
 <script src="js/panels/detail.js"></script>
 <script src="js/panels/share.js"></script>
+<script src="js/panels/heatmap.js"></script>
+<script src="js/panels/notifications.js"></script>
+<script src="js/panels/export.js"></script>
+<script src="js/panels/embed.js"></script>
 <script src="js/panels/search.js"></script>
 <script src="js/panels/legend.js"></script>
 <script src="js/panels/timeline.js"></script>
 <script src="js/panels/regions.js"></script>
+<script src="js/panels/shortcuts.js"></script>
 
 <!-- Effects -->
 <script src="js/effects.js"></script>

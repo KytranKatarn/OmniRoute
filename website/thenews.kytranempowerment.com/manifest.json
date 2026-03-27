@@ -1,0 +1,18 @@
+{
+    "name": "Kytran News",
+    "short_name": "KNews",
+    "description": "Real-time global intelligence dashboard tracking conflicts, disasters, cyber threats, weather alerts, and breaking news worldwide.",
+    "start_url": "/",
+    "display": "standalone",
+    "theme_color": "#0a0a1a",
+    "background_color": "#0a0a1a",
+    "orientation": "any",
+    "icons": [
+        {
+            "src": "favicon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ]
+}

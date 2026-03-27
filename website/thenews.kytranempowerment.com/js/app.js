@@ -230,6 +230,19 @@ var App = (function () {
         if (typeof Timeline !== 'undefined') Timeline.init();
         if (typeof Regions !== 'undefined') Regions.init();
         if (typeof Effects !== 'undefined') Effects.init();
+        if (typeof Shortcuts !== 'undefined') Shortcuts.init();
+        if (typeof Heatmap !== 'undefined') Heatmap.init();
+        if (typeof Notifications !== 'undefined') Notifications.init();
+        if (typeof Export !== 'undefined') Export.init();
+        if (typeof Embed !== 'undefined') Embed.init();
+
+        /* Fullscreen button */
+        var fsBtn = document.getElementById('fullscreen-btn');
+        if (fsBtn && typeof Shortcuts !== 'undefined') {
+            fsBtn.addEventListener('click', function () {
+                Shortcuts.toggleFullscreen();
+            });
+        }
     }
 
     function _refreshAllData() {

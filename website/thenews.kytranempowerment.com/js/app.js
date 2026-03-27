@@ -190,6 +190,9 @@ var App = (function () {
             if (typeof Conflicts !== 'undefined' && _layerState.conflicts) {
                 Conflicts.renderPulse && Conflicts.renderPulse();
             }
+            if (typeof Cyber !== 'undefined' && _layerState.cyber) {
+                Cyber.renderPulse && Cyber.renderPulse();
+            }
             setTimeout(tick, 200);
         }
         tick();

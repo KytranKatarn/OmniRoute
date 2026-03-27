@@ -27,7 +27,7 @@
             "ticker";
     }
 
-    /* Sidebar becomes overlay drawer */
+    /* Sidebar becomes overlay drawer — hidden by default */
     .sidebar {
         position: fixed;
         left: 0;
@@ -58,18 +58,25 @@
     }
 
     /* Topbar compact */
-    .topbar__search { width: 140px; }
+    .topbar__search { width: 120px; }
     .topbar__version { display: none; }
     .topbar__logo { font-size: var(--text-lg); }
+    .topbar__spacer { flex: 0; }
+    .topbar { gap: var(--space-sm); padding: 0 var(--space-sm); }
 
-    /* Legend compact */
+    /* Legend compact — single row at bottom */
     .map-legend {
         bottom: var(--space-sm);
         right: var(--space-sm);
         left: var(--space-sm);
         justify-content: center;
         padding: 6px 10px;
+        font-size: var(--text-xs);
     }
+
+    /* Map controls — smaller on mobile */
+    .map-controls { top: var(--space-sm); right: var(--space-sm); }
+    .map-view-toggle { top: var(--space-sm); right: 44px; }
 }
 
 /* --------------------------------------------------------------------------
@@ -78,24 +85,73 @@
 @media (max-width: 480px) {
     :root {
         --topbar-height: 44px;
-        --ticker-height: 32px;
+        --ticker-height: 30px;
     }
 
+    /* Topbar — minimal */
     .topbar__search { display: none; }
     .topbar__logo {
-        font-size: var(--text-base);
+        font-size: var(--text-sm);
         letter-spacing: 1px;
     }
+    .topbar__logo span { display: none; }
     .topbar__select {
-        padding: 4px 6px;
-        font-size: var(--text-xs);
+        padding: 3px 5px;
+        font-size: 10px;
+        min-width: 0;
+    }
+    .topbar__live { font-size: 10px; gap: 4px; }
+    .topbar__live-dot { width: 6px; height: 6px; }
+
+    /* Ticker — compact */
+    .ticker__label {
+        padding: 0 var(--space-xs);
+        font-size: 10px;
+        letter-spacing: 0;
+    }
+    .ticker__count { display: none; }
+    .ticker__item { font-size: 10px; gap: 4px; }
+    .ticker__category { font-size: 8px; padding: 0 4px; }
+    .ticker__separator { display: none; }
+
+    /* Legend — hide on very small screens, use sidebar instead */
+    .map-legend {
+        font-size: 8px;
+        gap: 2px var(--space-xs);
+        padding: 4px 8px;
+    }
+    .map-legend__item { gap: 3px; }
+    .map-view-toggle { display: none; }
+
+    /* Sidebar toggle — smaller */
+    .sidebar-toggle {
+        width: 38px;
+        height: 38px;
+        bottom: calc(var(--ticker-height) + var(--space-sm));
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Fold 5 / Ultra-narrow (< 360px)
+   -------------------------------------------------------------------------- */
+@media (max-width: 360px) {
+    :root {
+        --topbar-height: 40px;
+        --ticker-height: 28px;
     }
 
-    .ticker__label { padding: 0 var(--space-sm); font-size: var(--text-xs); }
-    .ticker__count { display: none; }
-    .ticker__item { font-size: var(--text-xs); }
-    .ticker__category { font-size: 8px; }
+    .topbar__logo { font-size: 11px; }
+    .topbar__select { font-size: 9px; padding: 2px 4px; }
+    .topbar__live { display: none; }
+    .topbar { gap: 4px; padding: 0 4px; }
 
-    .map-legend { font-size: 9px; gap: var(--space-xs) var(--space-sm); }
-    .map-view-toggle { display: none; }
+    .ticker__label { gap: 3px; }
+    .ticker__item { font-size: 9px; }
+
+    .map-legend { display: none; }
+
+    .sidebar-toggle {
+        width: 34px;
+        height: 34px;
+    }
 }

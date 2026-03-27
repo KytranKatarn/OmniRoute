@@ -26,7 +26,7 @@ var Conflicts = (function () {
             fallbackUrl: Config.FALLBACKS.conflicts,
             useCorsProxy: true,
             cacheTTL: Config.INTERVALS.conflicts,
-            transform: Transforms.gdeltGeo
+            transform: function (data) { return Transforms.gdeltDocToGeo(data, 'conflict'); }
         }).then(function (data) {
             _data = data || [];
             App.updateLayerCount('conflicts', _data.length);

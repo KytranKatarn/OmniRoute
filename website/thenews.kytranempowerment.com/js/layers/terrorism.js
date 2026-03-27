@@ -26,7 +26,7 @@ var Terrorism = (function () {
             fallbackUrl: 'data/fallback-terrorism.json',
             useCorsProxy: true,
             cacheTTL: Config.INTERVALS.terrorism || 300000,
-            transform: Transforms.gdeltGeo
+            transform: function (data) { return Transforms.gdeltDocToGeo(data, 'terrorism'); }
         }).then(function (data) {
             _data = data || [];
             App.updateLayerCount('terrorism', _data.length);

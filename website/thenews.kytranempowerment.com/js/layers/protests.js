@@ -27,7 +27,7 @@ var Protests = (function () {
             fallbackUrl: 'data/fallback-protests.json',
             useCorsProxy: true,
             cacheTTL: Config.INTERVALS.protests || 300000,
-            transform: _transform
+            transform: function (data) { return Transforms.gdeltDocToGeo(data, 'protests'); }
         }).then(function (data) {
             _data = data || [];
             App.updateLayerCount('protests', _data.length);

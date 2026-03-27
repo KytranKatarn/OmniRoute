@@ -1,7 +1,7 @@
 /* ==========================================================================
    Kytran News — Cyber Threats Layer
-   Animated ArcLayer showing attack flows between countries
-   (checkpoint threatmap style — persistent arcs with pulsing glow)
+   Flat lines with animated projectiles showing attack direction
+   No arcs — everything flat on the map surface
    ========================================================================== */
 
 var Cyber = (function () {
@@ -9,7 +9,6 @@ var Cyber = (function () {
 
     var _arcs = [];
     var _visible = true;
-    var _initialized = false;
 
     /* Major country centroids for arc source/target */
     var COUNTRY_COORDS = {
@@ -30,16 +29,17 @@ var Cyber = (function () {
         EventBus.on('layer:toggle', function (e) {
             if (e.key === 'cyber') {
                 _visible = e.visible;
-                if (_visible) _render();
-                else {
-                    KytranMap.removeLayer('cyber');
-                    KytranMap.removeLayer('cyber-glow');
-                    KytranMap.removeLayer('cyber-endpoints');
+                if (!_visible) {
+                    KytranMap.removeLayer('cyber-lines');
+                    KytranMap.removeLayer('cyber-projectiles');
+                    KytranMap.removeLayer('cyber-trails');
+                    KytranMap.removeLayer('cyber-sources');
+                    KytranMap.removeLayer('cyber-targets');
+                    KytranMap.removeLayer('cyber-impact');
                 }
             }
         });
         refresh();
-        /* Refresh every 5 min instead of 1 min — arcs are stable */
         Scheduler.start('cyber', refresh, 300000);
     }
 
@@ -47,12 +47,12 @@ var Cyber = (function () {
         Fetcher.get(Config.API.cyber_stats, {
             sourceKey: 'cyber',
             fallbackUrl: Config.FALLBACKS.cyber,
-            cacheTTL: 300000 /* 5 min cache — keep arcs stable */
+            cacheTTL: 300000
         }).then(function (data) {
             _arcs = _generateArcs(data);
             App.updateLayerCount('cyber', _arcs.length);
             EventBus.emit('data:cyber:updated', _arcs);
-            if (_visible) _render();
+            if (_visible) _renderStatic();
         });
     }
 
@@ -76,89 +76,67 @@ var Cyber = (function () {
         });
     }
 
-    function _render() {
+    /* Render the static parts: faint lines + source/target dots */
+    function _renderStatic() {
         if (!_visible || _arcs.length === 0) return;
 
-        /* Curved arcs — height scales inversely with distance so long arcs stay low */
-        var arcLayer = new deck.ArcLayer({
-            id: 'cyber',
+        /* Faint flat lines connecting source to target */
+        var lineLayer = new deck.LineLayer({
+            id: 'cyber-lines',
             data: _arcs,
             getSourcePosition: function (d) { return d.source; },
             getTargetPosition: function (d) { return d.target; },
-            getSourceColor: function (d) {
-                var a = Math.floor(120 + d.intensity * 40);
-                return [139, 92, 246, a];
-            },
-            getTargetColor: function (d) {
-                var a = Math.floor(150 + d.intensity * 35);
-                return [244, 114, 182, a];
-            },
-            getHeight: function (d) {
-                /* Calculate distance between source and target */
-                var dx = d.target[0] - d.source[0];
-                var dy = d.target[1] - d.source[1];
-                var dist = Math.sqrt(dx * dx + dy * dy);
-                /* Short arcs (< 30°) get nice curve, long arcs flatten out */
-                if (dist < 15) return 0.4;
-                if (dist < 30) return 0.25;
-                if (dist < 60) return 0.12;
-                return 0.06; /* very long arcs stay low */
-            },
-            getWidth: function (d) { return 1.5 + d.intensity * 0.8; },
+            getColor: [139, 92, 246, 50],
+            getWidth: 1,
             widthMinPixels: 1,
-            widthMaxPixels: 4,
-            greatCircle: true,
+            widthMaxPixels: 1,
             pickable: true,
             autoHighlight: true,
             highlightColor: [255, 255, 255, 80],
             parameters: { depthTest: false }
         });
-        KytranMap.setLayer('cyber', arcLayer);
+        KytranMap.setLayer('cyber-lines', lineLayer);
 
-        /* Endpoint dots — glowing source/target markers */
-        var endpoints = [];
+        /* Source dots (attackers) — purple */
+        var sources = [];
+        var targets = [];
         _arcs.forEach(function (arc) {
-            endpoints.push({
-                position: arc.source,
-                color: [139, 92, 246],
-                label: arc.sourceCountry,
-                intensity: arc.intensity
-            });
-            endpoints.push({
-                position: arc.target,
-                color: [244, 114, 182],
-                label: arc.targetCountry,
-                intensity: arc.intensity
-            });
+            sources.push({ position: arc.source, label: arc.sourceCountry, intensity: arc.intensity });
+            targets.push({ position: arc.target, label: arc.targetCountry, intensity: arc.intensity });
         });
 
-        var endpointLayer = new deck.ScatterplotLayer({
-            id: 'cyber-endpoints',
-            data: endpoints,
+        var sourceLayer = new deck.ScatterplotLayer({
+            id: 'cyber-sources',
+            data: sources,
             getPosition: function (d) { return d.position; },
-            getRadius: function (d) { return 8000 + d.intensity * 4000; },
-            getFillColor: function (d) { return [d.color[0], d.color[1], d.color[2], 160]; },
+            getRadius: function (d) { return 6000 + d.intensity * 3000; },
+            getFillColor: [139, 92, 246, 180],
             radiusMinPixels: 3,
-            radiusMaxPixels: 10,
+            radiusMaxPixels: 8,
             pickable: false,
             parameters: { depthTest: false }
         });
-        KytranMap.setLayer('cyber-endpoints', endpointLayer);
+        KytranMap.setLayer('cyber-sources', sourceLayer);
+
+        /* Target dots (victims) — pink */
+        var targetLayer = new deck.ScatterplotLayer({
+            id: 'cyber-targets',
+            data: targets,
+            getPosition: function (d) { return d.position; },
+            getRadius: function (d) { return 6000 + d.intensity * 3000; },
+            getFillColor: [244, 114, 182, 180],
+            radiusMinPixels: 3,
+            radiusMaxPixels: 8,
+            pickable: false,
+            parameters: { depthTest: false }
+        });
+        KytranMap.setLayer('cyber-targets', targetLayer);
     }
 
     /**
-     * Interpolate a position along a great circle arc.
-     * t = 0 at source, t = 1 at target.
+     * Called from animation loop (200ms).
+     * Animated projectile dots traveling flat from source → target.
      */
-    function _interpolateArc(src, tgt, t) {
-        /* Simple linear interpolation (good enough for visual effect) */
-        return [
-            src[0] + (tgt[0] - src[0]) * t,
-            src[1] + (tgt[1] - src[1]) * t
-        ];
-    }
-
-    /* Called from animation loop — animated projectiles traveling along arcs */
     function renderPulse() {
         if (!_visible || _arcs.length === 0) {
             KytranMap.removeLayer('cyber-projectiles');
@@ -173,95 +151,99 @@ var Cyber = (function () {
         var impacts = [];
 
         _arcs.forEach(function (arc, i) {
-            /* Each arc has its own travel cycle — staggered so they don't all move at once */
-            var speed = 2.5 + (arc.intensity || 1) * 0.5; /* seconds per trip */
-            var t = ((now / 1000 + i * 0.7) % speed) / speed; /* 0 to 1 progress */
+            /* Each arc has its own staggered travel cycle */
+            var speed = 2000 + (arc.intensity || 1) * 500; /* ms per trip */
+            var t = ((now + i * 400) % speed) / speed; /* 0→1 progress */
 
-            /* Main projectile dot — traveling from source to target */
-            var pos = _interpolateArc(arc.source, arc.target, t);
+            /* Interpolate position along flat line */
+            var lon = arc.source[0] + (arc.target[0] - arc.source[0]) * t;
+            var lat = arc.source[1] + (arc.target[1] - arc.source[1]) * t;
+
+            /* Main projectile — bright, color shifts purple→pink as it travels */
             projectiles.push({
-                position: pos,
+                position: [lon, lat],
                 intensity: arc.intensity,
                 t: t
             });
 
-            /* Trail dots behind the projectile (3 trailing dots) */
-            for (var j = 1; j <= 3; j++) {
-                var trailT = t - j * 0.06;
+            /* 4 trailing dots behind the projectile */
+            for (var j = 1; j <= 4; j++) {
+                var trailT = t - j * 0.04;
                 if (trailT < 0) continue;
-                var trailPos = _interpolateArc(arc.source, arc.target, trailT);
+                var tlon = arc.source[0] + (arc.target[0] - arc.source[0]) * trailT;
+                var tlat = arc.source[1] + (arc.target[1] - arc.source[1]) * trailT;
                 trails.push({
-                    position: trailPos,
-                    alpha: 1 - (j * 0.3),
+                    position: [tlon, tlat],
+                    fade: j / 4,
                     intensity: arc.intensity
                 });
             }
 
-            /* Impact flash at target when projectile arrives (t > 0.9) */
-            if (t > 0.9) {
-                var impactAlpha = (t - 0.9) / 0.1; /* 0 to 1 in last 10% */
+            /* Impact ring at target when projectile arrives */
+            if (t > 0.85) {
+                var impactT = (t - 0.85) / 0.15;
                 impacts.push({
                     position: arc.target,
-                    cycle: impactAlpha,
+                    cycle: impactT,
                     intensity: arc.intensity
                 });
             }
         });
 
-        /* Projectile heads — bright moving dots */
-        var projectileLayer = new deck.ScatterplotLayer({
+        /* Projectile heads — bright dots */
+        var projLayer = new deck.ScatterplotLayer({
             id: 'cyber-projectiles',
             data: projectiles,
             getPosition: function (d) { return d.position; },
-            getRadius: function (d) { return 6000 + d.intensity * 3000; },
+            getRadius: function (d) { return 5000 + d.intensity * 3000; },
             getFillColor: function (d) {
-                var blend = d.t;
-                var r = Math.floor(139 + (244 - 139) * blend);
-                var g = Math.floor(92 + (114 - 92) * blend);
-                var b = Math.floor(246 + (182 - 246) * blend);
-                return [r, g, b, 240];
+                /* Color shifts from purple (source) to pink (target) */
+                var r = Math.floor(139 + (244 - 139) * d.t);
+                var g = Math.floor(92 + (114 - 92) * d.t);
+                var b = Math.floor(246 + (182 - 246) * d.t);
+                return [r, g, b, 255];
             },
             radiusMinPixels: 3,
-            radiusMaxPixels: 8,
+            radiusMaxPixels: 7,
             pickable: false,
             parameters: { depthTest: false }
         });
-        KytranMap.setLayer('cyber-projectiles', projectileLayer);
+        KytranMap.setLayer('cyber-projectiles', projLayer);
 
-        /* Trail dots — fading behind projectiles */
-        var trailLayer = new deck.ScatterplotLayer({
-            id: 'cyber-trails',
-            data: trails,
-            getPosition: function (d) { return d.position; },
-            getRadius: function (d) { return 4000 + d.intensity * 1500; },
-            getFillColor: function (d) {
-                return [180, 100, 220, Math.floor(140 * d.alpha)];
-            },
-            radiusMinPixels: 1,
-            radiusMaxPixels: 5,
-            pickable: false,
-            parameters: { depthTest: false }
-        });
-        KytranMap.setLayer('cyber-trails', trailLayer);
+        /* Trails — fading behind projectiles */
+        if (trails.length > 0) {
+            var trailLayer = new deck.ScatterplotLayer({
+                id: 'cyber-trails',
+                data: trails,
+                getPosition: function (d) { return d.position; },
+                getRadius: function (d) { return 3000 + d.intensity * 1500; },
+                getFillColor: function (d) {
+                    return [180, 100, 220, Math.floor(180 * (1 - d.fade))];
+                },
+                radiusMinPixels: 1,
+                radiusMaxPixels: 4,
+                pickable: false,
+                parameters: { depthTest: false }
+            });
+            KytranMap.setLayer('cyber-trails', trailLayer);
+        }
 
-        /* Impact flashes at targets */
+        /* Impact flash rings at targets */
         if (impacts.length > 0) {
             var impactLayer = new deck.ScatterplotLayer({
                 id: 'cyber-impact',
                 data: impacts,
                 getPosition: function (d) { return d.position; },
-                getRadius: function (d) {
-                    return 15000 * (1 + d.cycle * 2);
-                },
+                getRadius: function (d) { return 12000 * (1 + d.cycle * 2); },
                 stroked: true,
                 filled: false,
                 getLineColor: function (d) {
-                    return [244, 114, 182, Math.floor(200 * (1 - d.cycle))];
+                    return [244, 114, 182, Math.floor(220 * (1 - d.cycle))];
                 },
                 getLineWidth: 2,
                 lineWidthMinPixels: 1,
                 radiusMinPixels: 4,
-                radiusMaxPixels: 30,
+                radiusMaxPixels: 25,
                 pickable: false,
                 parameters: { depthTest: false }
             });

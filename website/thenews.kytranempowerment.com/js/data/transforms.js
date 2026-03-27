@@ -139,6 +139,81 @@ var Transforms = (function () {
         });
     }
 
+    /**
+     * Normalize GDELT DOC API artlist into geo-located event points.
+     * Extracts country from sourcecountry field and maps to centroid coords.
+     * Used as replacement for dead GDELT GEO API (404 since ~2026-03).
+     */
+    function gdeltDocToGeo(data, eventType) {
+        if (!data || !data.articles) return [];
+        var seen = {};
+        return data.articles.reduce(function (results, a) {
+            var country = (a.sourcecountry || '').toUpperCase().trim();
+            var coords = COUNTRY_CENTROIDS[country];
+            if (!coords) return results;
+            /* Jitter coords slightly to avoid stacking */
+            var jitterKey = country + '-' + results.length;
+            if (seen[country]) {
+                coords = [
+                    coords[0] + (Math.random() - 0.5) * 4,
+                    coords[1] + (Math.random() - 0.5) * 4
+                ];
+            }
+            seen[country] = true;
+            results.push({
+                id: a.url || Math.random().toString(36).substr(2, 9),
+                lon: coords[0],
+                lat: coords[1],
+                type: eventType || 'event',
+                title: a.title || 'Unknown event',
+                source: a.domain || a.sourcecountry || 'GDELT',
+                url: a.url || '',
+                country: country,
+                timestamp: a.seendate ? _parseGdeltDate(a.seendate) : Date.now(),
+                severity: _estimateConflictSeverity({ name: a.title || '' })
+            });
+            return results;
+        }, []);
+    }
+
+    /* Country centroids for mapping GDELT sourcecountry to coordinates */
+    var COUNTRY_CENTROIDS = {
+        'UNITED STATES': [-98.5, 39.8], 'CHINA': [104.1, 35.8], 'RUSSIA': [105.3, 61.5],
+        'GERMANY': [10.4, 51.1], 'UNITED KINGDOM': [-3.4, 55.3], 'FRANCE': [2.2, 46.2],
+        'BRAZIL': [-51.9, -14.2], 'INDIA': [78.9, 20.5], 'JAPAN': [138.2, 36.2],
+        'SOUTH KOREA': [127.7, 35.9], 'AUSTRALIA': [133.7, -25.2], 'CANADA': [-106.3, 56.1],
+        'NETHERLANDS': [5.2, 52.1], 'UKRAINE': [31.1, 48.3], 'IRAN': [53.6, 32.4],
+        'ISRAEL': [34.8, 31.0], 'SAUDI ARABIA': [45.0, 23.8], 'NIGERIA': [8.6, 9.0],
+        'SOUTH AFRICA': [22.9, -30.5], 'MEXICO': [-102.5, 23.6], 'SINGAPORE': [103.8, 1.3],
+        'NORTH KOREA': [127.5, 40.3], 'PAKISTAN': [69.3, 30.3], 'EGYPT': [30.8, 26.8],
+        'TURKEY': [35.2, 38.9], 'INDONESIA': [113.9, -0.7], 'VIETNAM': [108.2, 14.0],
+        'PHILIPPINES': [121.7, 12.8], 'THAILAND': [100.9, 15.8], 'POLAND': [19.1, 51.9],
+        'ITALY': [12.5, 41.9], 'SPAIN': [-3.7, 40.4], 'SWEDEN': [18.6, 60.1],
+        'ARGENTINA': [-63.6, -38.4], 'COLOMBIA': [-74.3, 4.6], 'IRAQ': [44.4, 33.2],
+        'SYRIA': [38.9, 34.8], 'AFGHANISTAN': [67.7, 33.9], 'YEMEN': [48.5, 15.5],
+        'LEBANON': [35.8, 33.8], 'PALESTINE': [35.2, 31.9], 'SUDAN': [30.2, 12.8],
+        'ETHIOPIA': [40.5, 9.1], 'SOMALIA': [46.2, 5.1], 'CONGO': [21.7, -4.0],
+        'MYANMAR': [96.0, 21.9], 'TAIWAN': [120.9, 23.7], 'GREECE': [21.8, 39.0],
+        'LIBYA': [17.2, 26.3], 'ALGERIA': [1.6, 28.0], 'MOROCCO': [-7.0, 31.8],
+        'KENYA': [37.9, -0.0], 'TANZANIA': [34.8, -6.3], 'CHILE': [-71.5, -35.6],
+        'PERU': [-75.0, -9.1], 'VENEZUELA': [-66.5, 6.4], 'CUBA': [-77.7, 21.5],
+        'NORWAY': [8.4, 60.4], 'FINLAND': [25.7, 61.9], 'DENMARK': [9.5, 56.2],
+        'BELGIUM': [4.4, 50.5], 'SWITZERLAND': [8.2, 46.8], 'AUSTRIA': [14.5, 47.5],
+        'PORTUGAL': [-8.2, 39.4], 'CZECH REPUBLIC': [15.4, 49.8], 'ROMANIA': [24.9, 45.9],
+        'HUNGARY': [19.5, 47.1], 'IRELAND': [-8.2, 53.4], 'NEW ZEALAND': [174.8, -40.9],
+        'BANGLADESH': [90.3, 23.6], 'NEPAL': [84.1, 28.3], 'SRI LANKA': [80.7, 7.8],
+        'MALAYSIA': [101.9, 4.2], 'JORDAN': [36.2, 30.5], 'QATAR': [51.1, 25.3],
+        'KUWAIT': [47.4, 29.3], 'UAE': [53.8, 23.4], 'GEORGIA': [43.3, 42.3],
+        'ARMENIA': [45.0, 40.0], 'AZERBAIJAN': [47.5, 40.1], 'TUNISIA': [9.5, 33.8],
+        'MOZAMBIQUE': [35.5, -18.6], 'ZAMBIA': [27.8, -13.1], 'ZIMBABWE': [29.1, -19.0],
+        'CAMEROON': [12.3, 7.3], 'GHANA': [-1.0, 7.9], 'SENEGAL': [-14.4, 14.4],
+        'MALI': [-1.9, 17.5], 'NIGER': [8.0, 17.6], 'CHAD': [18.7, 15.4],
+        'BURKINA FASO': [-1.5, 12.3], 'HAITI': [-72.2, 18.9], 'HONDURAS': [-86.2, 15.2],
+        'GUATEMALA': [-90.2, 15.7], 'EL SALVADOR': [-88.8, 13.7], 'NICARAGUA': [-85.2, 12.8],
+        'COSTA RICA': [-83.7, 10.0], 'PANAMA': [-80.8, 8.5], 'ECUADOR': [-78.1, -1.8],
+        'BOLIVIA': [-65.2, -16.3], 'PARAGUAY': [-58.4, -23.4], 'URUGUAY': [-55.7, -32.5]
+    };
+
     /* -- Helpers ---------------------------------------------------------- */
 
     function _parseGdeltDate(str) {
@@ -187,6 +262,7 @@ var Transforms = (function () {
 
     return {
         gdeltGeo: gdeltGeo,
+        gdeltDocToGeo: gdeltDocToGeo,
         usgsEarthquakes: usgsEarthquakes,
         eonetEvents: eonetEvents,
         nwsAlerts: nwsAlerts,

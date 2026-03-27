@@ -159,6 +159,34 @@ def init_db(path):
         last_error TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS subscriptions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL UNIQUE REFERENCES users(id),
+        tier TEXT NOT NULL DEFAULT 'free' CHECK(tier IN ('free', 'pro', 'business', 'enterprise')),
+        status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'cancelled', 'past_due', 'trialing')),
+        stripe_customer_id TEXT,
+        stripe_subscription_id TEXT,
+        current_period_end TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+    )""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS compliance_evidence (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        scan_id TEXT,
+        rule_id TEXT,
+        pack_id TEXT,
+        evidence_type TEXT NOT NULL CHECK(evidence_type IN (
+            'command_output', 'file_content', 'config_snapshot',
+            'service_status', 'log_excerpt',
+            'firewall_config', 'access_control_config', 'audit_log_export',
+            'ssl_cert_status', 'service_inventory'
+        )),
+        content TEXT NOT NULL,
+        soc2_mapping TEXT,
+        collected_at TEXT DEFAULT (datetime('now'))
+    )""")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_evidence_scan ON compliance_evidence(scan_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_evidence_soc2 ON compliance_evidence(soc2_mapping)")
     # Migrations — add columns that may be missing from older DBs
     try:
         conn.execute("ALTER TABLE docker_stacks ADD COLUMN color TEXT DEFAULT '#2563eb'")

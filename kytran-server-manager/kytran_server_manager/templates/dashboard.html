@@ -2,11 +2,58 @@
 {% block title %}{{ sysops_theme.product_name if sysops_theme else 'Kytran System Operations' }}{% endblock %}
 
 {% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-frames.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/system-operations.css') }}">
+<style>
+.compliance-summary-bar{display:flex;align-items:center;gap:12px;padding:8px 16px;margin-bottom:12px;background:rgba(0,229,255,.04);border:1px solid rgba(0,229,255,.15);border-radius:6px;flex-wrap:wrap;min-height:40px}
+.compliance-label{font-family:'Orbitron','Antonio',sans-serif;font-size:11px;font-weight:700;color:#8899aa;letter-spacing:1.5px;white-space:nowrap}
+.compliance-score{font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:700;padding:2px 10px;border-radius:4px;white-space:nowrap}
+.compliance-score.score-green{color:#22c55e;background:rgba(34,197,94,.1)}
+.compliance-score.score-amber{color:#f59e0b;background:rgba(245,158,11,.1)}
+.compliance-score.score-red{color:#ef4444;background:rgba(239,68,68,.1)}
+.compliance-score.score-none{color:#64748b;background:rgba(100,116,139,.1)}
+.compliance-packs{display:flex;gap:8px;flex-wrap:wrap;flex:1}
+.compliance-pack-badge{font-size:11px;font-weight:600;padding:3px 10px;border-radius:12px;white-space:nowrap;text-transform:uppercase;letter-spacing:.5px}
+.compliance-pack-badge.badge-green{color:#22c55e;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.25)}
+.compliance-pack-badge.badge-amber{color:#f59e0b;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.25)}
+.compliance-pack-badge.badge-red{color:#ef4444;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.25)}
+.compliance-scan-btn{display:inline-flex;align-items:center;gap:6px;padding:5px 14px;font-size:12px;font-weight:600;color:#00e5ff;background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.3);border-radius:4px;cursor:pointer;transition:all .2s;white-space:nowrap;margin-left:auto}
+.compliance-scan-btn:hover{background:rgba(0,229,255,.15)}
+.compliance-scan-btn:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:768px){.compliance-summary-bar{gap:8px;padding:8px 12px}.compliance-scan-btn{margin-left:0}}
+</style>
 {% endblock %}
 
 {% block content %}
 <div class="ksm-dashboard">
+    <!-- LCARS Frame Structure (matches A.R.C.H.I.E. admin modules) -->
+    <div class="lcars-frame frame-build">
+        <!-- Left Sidebar -->
+        <div class="lcars-sidebar">
+            <div class="lcars-elbow-top"></div>
+            <div class="lcars-seg" style="--seg-color: #2563eb"></div>
+            <div class="lcars-seg" style="--seg-color: #00e5ff"></div>
+            <div class="lcars-seg" style="--seg-color: #2563eb"></div>
+            <div class="lcars-seg" style="--seg-color: #1d4ed8"></div>
+            <div class="lcars-seg-light" style="--seg-color: #00e5ff"></div>
+            <div class="lcars-seg-fill"></div>
+            <div class="lcars-elbow-bottom"></div>
+        </div>
+        <!-- Right Content Column -->
+        <div class="lcars-content">
+            <!-- Header Bar -->
+            <div class="lcars-bar">
+                <span class="lcars-bar-title">{{ sysops_theme.product_name if sysops_theme else 'KYTRAN SYSTEM OPERATIONS' }}</span>
+                <div class="lcars-bar-spacer"></div>
+                <div class="lcars-pips">
+                    <div class="lcars-pip" style="width: 24px"></div>
+                    <div class="lcars-pip" style="width: 16px"></div>
+                    <div class="lcars-pip" style="width: 32px"></div>
+                </div>
+                <span class="lcars-bar-status">SYSOPS</span>
+            </div>
+            <!-- Content Body -->
+            <div class="lcars-body">
                 <!-- Controls -->
                 <div class="header-controls" style="justify-content: flex-start; margin-bottom: 16px; padding: 0; border: none;">
                     <div class="auto-refresh-toggle">
@@ -31,6 +78,17 @@
                         <span class="activity-timer" id="activityTimer">0s</span>
                         <span class="activity-stage" id="activityStage"></span>
                     </div>
+                </div>
+
+                <!-- Compliance Summary Bar -->
+                <div class="compliance-summary-bar" id="complianceSummaryBar">
+                    <span class="compliance-label">COMPLIANCE</span>
+                    <span class="compliance-score" id="complianceScore" title="Overall compliance score">--</span>
+                    <div class="compliance-packs" id="compliancePacks"></div>
+                    <button class="compliance-scan-btn" id="complianceScanBtn" onclick="triggerComplianceScan()" title="Run compliance scan">
+                        <i data-lucide="shield-check" style="width:14px;height:14px;"></i>
+                        Run Scan
+                    </button>
                 </div>
 
                 <!-- Tab Navigation -->
@@ -2502,6 +2560,13 @@
     </div>
 </div>
 
+            </div><!-- /lcars-body -->
+            <!-- Footer Bar -->
+            <div class="lcars-footer-bar"></div>
+        </div><!-- /lcars-content -->
+    </div><!-- /lcars-frame -->
+</div><!-- /ksm-dashboard -->
+
 
 {% endblock %}
 
@@ -2509,4 +2574,120 @@
 <script src="https://cdn.jsdelivr.net/npm/lucide@0.344.0/dist/umd/lucide.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="{{ url_for('static', filename='js/system-operations.js') }}"></script>
+<script>
+/* Compliance Summary Bar */
+async function loadComplianceSummary() {
+    const scoreEl = document.getElementById('complianceScore');
+    const packsEl = document.getElementById('compliancePacks');
+    if (!scoreEl) return;
+    try {
+        const resp = await fetch('/dashboard/api/compliance/scores');
+        if (!resp.ok) {
+            scoreEl.textContent = '--';
+            scoreEl.className = 'compliance-score score-none';
+            packsEl.textContent = 'No scans yet';
+            packsEl.style.color = '#64748b';
+            packsEl.style.fontSize = '11px';
+            return;
+        }
+        const data = await resp.json();
+        if (!data.success) {
+            scoreEl.textContent = '--';
+            scoreEl.className = 'compliance-score score-none';
+            packsEl.textContent = 'No scans yet';
+            packsEl.style.color = '#64748b';
+            packsEl.style.fontSize = '11px';
+            return;
+        }
+        const score = data.score != null ? Math.round(data.score) : null;
+        if (score != null) {
+            scoreEl.textContent = score + '%';
+            scoreEl.className = 'compliance-score ' + (score >= 90 ? 'score-green' : score >= 70 ? 'score-amber' : 'score-red');
+        } else {
+            scoreEl.textContent = '--';
+            scoreEl.className = 'compliance-score score-none';
+        }
+        while (packsEl.firstChild) packsEl.removeChild(packsEl.firstChild);
+        packsEl.style.color = '';
+        packsEl.style.fontSize = '';
+        const packScores = data.pack_scores || {};
+        for (const [packId, info] of Object.entries(packScores)) {
+            const ps = Math.round(info.score);
+            const cls = ps >= 90 ? 'badge-green' : ps >= 70 ? 'badge-amber' : 'badge-red';
+            const badge = document.createElement('span');
+            badge.className = 'compliance-pack-badge ' + cls;
+            badge.textContent = (info.name || packId) + ' ' + ps + '%';
+            badge.title = info.passed + '/' + info.total + ' passed';
+            packsEl.appendChild(badge);
+        }
+        if (Object.keys(packScores).length === 0 && data.packs) {
+            for (const [key, val] of Object.entries(data.packs)) {
+                const ps = Math.round(val);
+                const cls = ps >= 90 ? 'badge-green' : ps >= 70 ? 'badge-amber' : 'badge-red';
+                const badge = document.createElement('span');
+                badge.className = 'compliance-pack-badge ' + cls;
+                badge.textContent = key + ' ' + ps + '%';
+                packsEl.appendChild(badge);
+            }
+        }
+        /* Report + PDF links (business tier) */
+        if (data.scan_id) {
+            var bar = document.getElementById('complianceSummaryBar');
+            if (bar) {
+                var oldLinks = bar.querySelectorAll('.compliance-report-link');
+                oldLinks.forEach(function(el) { el.remove(); });
+
+                var reportLink = document.createElement('a');
+                reportLink.href = '/dashboard/compliance/report/' + data.scan_id;
+                reportLink.target = '_blank';
+                reportLink.textContent = 'Report';
+                reportLink.className = 'compliance-report-link';
+                reportLink.style.cssText = 'margin-left:8px;color:#8b5cf6;font-size:11px;text-decoration:none;border:1px solid rgba(139,92,246,0.3);padding:2px 8px;border-radius:4px;';
+
+                var pdfLink = document.createElement('a');
+                pdfLink.href = '/dashboard/api/compliance/report/' + data.scan_id + '/pdf';
+                pdfLink.textContent = 'PDF';
+                pdfLink.className = 'compliance-report-link';
+                pdfLink.style.cssText = 'margin-left:4px;color:#f59e0b;font-size:11px;text-decoration:none;border:1px solid rgba(245,158,11,0.3);padding:2px 8px;border-radius:4px;';
+
+                bar.appendChild(reportLink);
+                bar.appendChild(pdfLink);
+            }
+        }
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    } catch (e) {
+        console.error('Compliance summary load failed:', e);
+        scoreEl.textContent = '--';
+        scoreEl.className = 'compliance-score score-none';
+    }
+}
+
+async function triggerComplianceScan() {
+    const btn = document.getElementById('complianceScanBtn');
+    if (!btn) return;
+    btn.disabled = true;
+    const oldContent = btn.textContent;
+    btn.textContent = 'Scanning...';
+    try {
+        const resp = await fetch('/dashboard/api/compliance/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+        if (!resp.ok) throw new Error('Scan request failed');
+        await new Promise(r => setTimeout(r, 1000));
+        await loadComplianceSummary();
+    } catch (e) {
+        console.error('Compliance scan failed:', e);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '';
+        const icon = document.createElement('i');
+        icon.setAttribute('data-lucide', 'shield-check');
+        icon.style.width = '14px';
+        icon.style.height = '14px';
+        btn.appendChild(icon);
+        btn.appendChild(document.createTextNode(' Run Scan'));
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() { loadComplianceSummary(); });
+</script>
 {% endblock %}

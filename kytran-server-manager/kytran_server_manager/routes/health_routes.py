@@ -3,15 +3,21 @@ System Operations — Health Routes
 ====================================
 Extracted from routes.py during ADR-045 route split refactor.
 
-Endpoints: health alerts CRUD, health config, webhooks, system-health-full
+Endpoints: health alerts CRUD, health config, webhooks, system-health-full,
+           public /api/health monitoring endpoint with tier progress.
 """
 
-from flask import jsonify, request
+import time
+
+from flask import jsonify, request, current_app
 from flask_login import login_required, current_user
 
 from datetime import datetime
 
 from ..helpers import get_db
+
+# Track process start time for uptime calculation
+_start_time = time.time()
 
 try:
     from tools.blueprint.blueprint_intelligence import get_system_health
@@ -24,6 +30,90 @@ except ImportError:
 def register_health_routes(bp, admin_required_decorator):
     """Register health-related routes on the given blueprint."""
 
+    # ── Public health check (no auth) ─────────────────────────
+    @bp.route("/api/health")
+    def api_health():
+        """Public monitoring endpoint — returns status, compliance, tier progress."""
+        config = current_app.config
+        hub_url = config.get("ARCHIE_HUB_URL", "")
+        client_secret = config.get("ARCHIE_CLIENT_SECRET", "")
+        subdomain = config.get("SERVER_SUBDOMAIN", "")
+        version = config.get("VERSION", "1.0.0")
+
+        # Database check + last compliance scan
+        db_ok = False
+        last_scan = None
+        compliance_score = None
+        try:
+            conn = get_db()
+            cur = conn.cursor()
+            db_ok = True
+
+            # Get most recent compliance scan
+            try:
+                cur.execute(
+                    """SELECT completed_at, score
+                       FROM compliance_scans
+                       WHERE completed_at IS NOT NULL
+                       ORDER BY completed_at DESC LIMIT 1"""
+                )
+                row = cur.fetchone()
+                if row:
+                    last_scan = row["completed_at"]
+                    compliance_score = row["score"]
+            except Exception:
+                # Table may not exist yet
+                pass
+
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
+
+        # Check if last scan is within 24 hours
+        scan_recent = False
+        if last_scan:
+            try:
+                scan_dt = datetime.fromisoformat(last_scan.replace("Z", "+00:00"))
+                age_seconds = (datetime.utcnow() - scan_dt.replace(tzinfo=None)).total_seconds()
+                scan_recent = age_seconds < 86400  # 24 hours
+            except Exception:
+                pass
+
+        hub_configured = bool(hub_url)
+
+        # Tier 2 progress auto-detection
+        tier_progress = {
+            "sso": bool(hub_url and client_secret),
+            "compliance_scanning": scan_recent,
+            "badges": True,
+            "subdomain": bool(subdomain),
+            "redirect": hub_configured,
+            "health_endpoint": True,
+            "responsive": True,
+            "code_health_badge": hub_configured,
+        }
+        completed = sum(1 for v in tier_progress.values() if v)
+        total = len(tier_progress)
+
+        return jsonify({
+            "status": "operational",
+            "version": version,
+            "uptime_seconds": round(time.time() - _start_time),
+            "database": "connected" if db_ok else "error",
+            "last_compliance_scan": last_scan,
+            "compliance_score": compliance_score,
+            "connected_to_hub": hub_configured,
+            "tier_progress": {
+                "tier": 2,
+                "completed": completed,
+                "total": total,
+                "percentage": round((completed / total) * 100),
+                "items": tier_progress,
+            },
+        })
+
+    # ── Authenticated health routes ───────────────────────────
     @bp.route("/api/health/alerts")
     @login_required
     @admin_required_decorator

@@ -6,10 +6,19 @@
     .settings-section { background: var(--sysops-bg-primary, #1e293b); border: 1px solid var(--sysops-border-default, #334155); border-radius: 8px; padding: 24px; margin-bottom: 20px; }
     .settings-title { font-size: 1.1rem; font-weight: 600; color: var(--sysops-text-primary, #f8fafc); margin-bottom: 16px; }
 
+    .tier-badge { display: inline-block; padding: 4px 14px; border-radius: 4px; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+    .tier-free { background: #374151; color: #9ca3af; }
+    .tier-pro { background: rgba(34,197,94,0.15); color: #22c55e; border: 1px solid #22c55e; }
+    .tier-business { background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid #f59e0b; }
+    .tier-enterprise { background: rgba(139,92,246,0.15); color: #8b5cf6; border: 1px solid #8b5cf6; }
+    .tier-desc { color: var(--sysops-text-muted, #94a3b8); font-size: 0.85rem; margin-top: 8px; line-height: 1.5; }
+
     .theme-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
     .theme-card { border: 2px solid var(--sysops-border-default, #334155); border-radius: 8px; padding: 16px; cursor: pointer; transition: all 0.2s; }
     .theme-card:hover { border-color: var(--sysops-accent, #2563eb); }
     .theme-card.active { border-color: var(--sysops-accent, #2563eb); background: rgba(37, 99, 235, 0.1); }
+    .theme-card.locked { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
+    .theme-lock-label { display: inline-block; font-size: 0.65rem; font-weight: 700; color: #f59e0b; background: rgba(245,158,11,0.15); border: 1px solid #f59e0b; padding: 1px 6px; border-radius: 3px; margin-top: 6px; text-transform: uppercase; letter-spacing: 0.3px; }
     .theme-preview { height: 60px; border-radius: 4px; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; }
     .theme-name { font-weight: 600; color: var(--sysops-text-primary, #f8fafc); }
     .theme-desc { font-size: 0.8rem; color: var(--sysops-text-muted, #94a3b8); margin-top: 4px; }
@@ -21,47 +30,78 @@
         <i class="fas fa-cog"></i> Settings
     </h2>
 
+    <!-- Subscription Tier -->
+    <div class="settings-section">
+        <div class="settings-title"><i class="fas fa-id-badge"></i> Subscription</div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <span class="tier-badge tier-{{ tier }}">{{ tier|title }}</span>
+        </div>
+        <div class="tier-desc">
+            {% if tier == 'free' %}
+                Basic access with 2 themes and daily compliance scans.
+            {% elif tier == 'pro' %}
+                Pro tier: 3 themes, 6-hour scan intervals, and SSO access.
+            {% elif tier == 'business' %}
+                Business tier: all 5 themes, hourly scans, and full compliance packs.
+            {% elif tier == 'enterprise' %}
+                Enterprise tier: all features, custom scan intervals, and priority support.
+            {% endif %}
+        </div>
+        {% if tier != 'enterprise' %}
+        <div style="margin-top: 16px; display: flex; flex-wrap: wrap; gap: 10px;">
+            {% if tier == 'free' %}
+            <button class="ksm-btn" onclick="startCheckout('pro')" style="background: rgba(34,197,94,0.15); color: #22c55e; border: 1px solid #22c55e; font-weight: 600; cursor: pointer;">
+                <i class="fas fa-arrow-up"></i> Upgrade to Pro — $29/mo
+            </button>
+            {% endif %}
+            {% if tier in ['free', 'pro'] %}
+            <button class="ksm-btn" onclick="startCheckout('business')" style="background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid #f59e0b; font-weight: 600; cursor: pointer;">
+                <i class="fas fa-arrow-up"></i> Upgrade to Business — $49/mo
+            </button>
+            {% endif %}
+            <button class="ksm-btn" onclick="startCheckout('enterprise')" style="background: rgba(139,92,246,0.15); color: #8b5cf6; border: 1px solid #8b5cf6; font-weight: 600; cursor: pointer;">
+                <i class="fas fa-arrow-up"></i> Upgrade to Enterprise — $99/mo
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
     <!-- Theme Selection -->
     <div class="settings-section">
         <div class="settings-title"><i class="fas fa-palette"></i> Theme</div>
         <div class="theme-grid">
-            <div class="theme-card {% if current_theme == 'kytran' %}active{% endif %}" onclick="setTheme('kytran')">
-                <div class="theme-preview" style="background: linear-gradient(135deg, #0f172a, #1e293b); border: 1px solid #2563eb;">
-                    <span style="color: #2563eb; font-weight: 700;">KSO</span>
-                </div>
-                <div class="theme-name">Kytran Modern</div>
-                <div class="theme-desc">Clean, professional blue theme</div>
-            </div>
-            <div class="theme-card {% if current_theme == 'lcars' %}active{% endif %}" onclick="setTheme('lcars')" style="position: relative;">
+            {% set theme_meta = {
+                'kytran': {'label': 'KSO', 'name': 'Kytran Modern', 'desc': 'Clean, professional blue theme', 'bg': 'linear-gradient(135deg, #0f172a, #1e293b)', 'border': '#2563eb', 'color': '#2563eb'},
+                'lcars': {'label': 'LCARS', 'name': 'LCARS Command', 'desc': 'Exclusive sci-fi command center interface', 'bg': 'linear-gradient(135deg, #000000, #0a0a1a)', 'border': '#00e5ff', 'color': '#00e5ff', 'premium': true, 'font': "'Orbitron', monospace"},
+                'midnight': {'label': 'MID', 'name': 'Midnight', 'desc': 'Purple-accented dark DevOps theme', 'bg': 'linear-gradient(135deg, #09090b, #18181b)', 'border': '#8b5cf6', 'color': '#8b5cf6'},
+                'arctic': {'label': 'ARC', 'name': 'Arctic', 'desc': 'Clean light theme for bright environments', 'bg': 'linear-gradient(135deg, #f1f5f9, #e2e8f0)', 'border': '#0ea5e9', 'color': '#0ea5e9'},
+                'ember': {'label': 'EMB', 'name': 'Ember', 'desc': 'Warm orange terminal aesthetic', 'bg': 'linear-gradient(135deg, #0c0a09, #1c1917)', 'border': '#f97316', 'color': '#f97316'}
+            } %}
+            {% for theme_name in all_themes %}
+            {% set meta = theme_meta[theme_name] %}
+            {% set is_locked = theme_name not in allowed_themes %}
+            <div class="theme-card {% if current_theme == theme_name %}active{% endif %}{% if is_locked %} locked{% endif %}"
+                 {% if not is_locked %}onclick="setTheme('{{ theme_name }}')"{% endif %}
+                 style="position: relative;">
+                {% if meta.premium and not is_locked %}
                 <div style="position: absolute; top: 8px; right: 8px; background: linear-gradient(135deg, #00e5ff, #8b5cf6); color: #000; font-size: 0.6rem; font-weight: 800; padding: 2px 8px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Premium</div>
-                <div class="theme-preview" style="background: linear-gradient(135deg, #000000, #0a0a1a); border: 2px solid #00e5ff; box-shadow: 0 0 12px rgba(0,229,255,0.3);">
-                    <span style="color: #00e5ff; font-family: 'Orbitron', monospace; font-weight: 700;">LCARS</span>
+                {% endif %}
+                {% if is_locked %}
+                <div style="position: absolute; top: 8px; right: 8px;"><i class="fas fa-lock" style="color: #f59e0b; font-size: 0.8rem;"></i></div>
+                {% endif %}
+                <div class="theme-preview" style="background: {{ meta.bg }}; border: {% if meta.premium %}2{% else %}1{% endif %}px solid {{ meta.border }};{% if meta.premium and not is_locked %} box-shadow: 0 0 12px rgba(0,229,255,0.3);{% endif %}">
+                    <span style="color: {{ meta.color }};{% if meta.font %} font-family: {{ meta.font }};{% endif %} font-weight: 700;">{{ meta.label }}</span>
                 </div>
-                <div class="theme-name">LCARS Command <span style="color: #00e5ff; font-size: 0.7rem;">by Kytran</span></div>
-                <div class="theme-desc">Exclusive sci-fi command center interface</div>
+                <div class="theme-name">{{ meta.name }}{% if meta.premium %} <span style="color: #00e5ff; font-size: 0.7rem;">by Kytran</span>{% endif %}</div>
+                <div class="theme-desc">{{ meta.desc }}</div>
+                {% if meta.premium and not is_locked %}
                 <a href="https://kytranempowerment.com" target="_blank" style="font-size: 0.7rem; color: #00e5ff; text-decoration: none; margin-top: 4px; display: inline-block;">kytranempowerment.com &rarr;</a>
+                {% endif %}
+                {% if is_locked %}
+                <div class="theme-lock-label"><i class="fas fa-lock" style="font-size: 0.55rem;"></i> Upgrade required</div>
+                {% endif %}
             </div>
-            <div class="theme-card {% if current_theme == 'midnight' %}active{% endif %}" onclick="setTheme('midnight')">
-                <div class="theme-preview" style="background: linear-gradient(135deg, #09090b, #18181b); border: 1px solid #8b5cf6;">
-                    <span style="color: #8b5cf6; font-weight: 700;">MID</span>
-                </div>
-                <div class="theme-name">Midnight</div>
-                <div class="theme-desc">Purple-accented dark DevOps theme</div>
-            </div>
-            <div class="theme-card {% if current_theme == 'arctic' %}active{% endif %}" onclick="setTheme('arctic')">
-                <div class="theme-preview" style="background: linear-gradient(135deg, #f1f5f9, #e2e8f0); border: 1px solid #0ea5e9;">
-                    <span style="color: #0ea5e9; font-weight: 700;">ARC</span>
-                </div>
-                <div class="theme-name">Arctic</div>
-                <div class="theme-desc">Clean light theme for bright environments</div>
-            </div>
-            <div class="theme-card {% if current_theme == 'ember' %}active{% endif %}" onclick="setTheme('ember')">
-                <div class="theme-preview" style="background: linear-gradient(135deg, #0c0a09, #1c1917); border: 1px solid #f97316;">
-                    <span style="color: #f97316; font-weight: 700;">EMB</span>
-                </div>
-                <div class="theme-name">Ember</div>
-                <div class="theme-desc">Warm orange terminal aesthetic</div>
-            </div>
+            {% endfor %}
         </div>
     </div>
 
@@ -107,6 +147,32 @@
 </div>
 
 <script>
+async function startCheckout(tier) {
+    const btn = event.currentTarget;
+    const originalText = btn.textContent;
+    try {
+        btn.disabled = true;
+        btn.textContent = 'Redirecting...';
+
+        const res = await fetch('/dashboard/api/billing/checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tier: tier })
+        });
+        const data = await res.json();
+
+        if (data.checkout_url) {
+            window.location.href = data.checkout_url;
+        } else {
+            throw new Error(data.error || 'Failed to start checkout');
+        }
+    } catch (err) {
+        alert('Checkout error: ' + err.message);
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+}
+
 function setTheme(theme) {
     fetch('/settings/theme', {
         method: 'POST',
@@ -115,6 +181,8 @@ function setTheme(theme) {
     }).then(r => r.json()).then(data => {
         if (data.success) {
             window.location.reload();
+        } else if (data.error) {
+            alert(data.error);
         }
     });
 }

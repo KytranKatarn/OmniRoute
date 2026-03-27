@@ -14,6 +14,10 @@ def register_all_routes(app, admin_required_decorator):
     from .firewall_routes import register_firewall_routes
     from .health_routes import register_health_routes
     from .compliance_routes import register_compliance_routes
+    from .proxy_routes import register_proxy_routes
+    from .badge_routes import register_badge_routes
+    from .subscription_routes import register_subscription_routes
+    from .billing_routes import register_billing_routes
 
     register_core_routes(bp, admin_required_decorator)
     register_process_routes(bp, admin_required_decorator)
@@ -24,5 +28,9 @@ def register_all_routes(app, admin_required_decorator):
     register_firewall_routes(bp, admin_required_decorator)
     register_health_routes(bp, admin_required_decorator)
     register_compliance_routes(bp, admin_required_decorator)
+    register_proxy_routes(bp, admin_required_decorator)
+    register_badge_routes(bp, admin_required_decorator)
+    register_subscription_routes(bp, admin_required_decorator)
+    register_billing_routes(bp, admin_required_decorator)
 
     app.register_blueprint(bp)

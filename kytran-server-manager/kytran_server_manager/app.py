@@ -77,6 +77,11 @@ def create_app(config=None):
         if req.endpoint and req.endpoint not in ("setup", "static") and setup_required():
             return redirect("/setup")
 
+    # Start background compliance scanner (skip in testing)
+    if not app.config.get("TESTING"):
+        from .services.scheduler import start_scheduler
+        start_scheduler(app)
+
     return app
 
 

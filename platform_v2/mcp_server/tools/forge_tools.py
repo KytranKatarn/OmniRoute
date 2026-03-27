@@ -18,7 +18,15 @@ async def forge_health_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     try:
         from tools.dev_pipeline.services.github_service import health_check
 
-        return health_check()
+        health_data = health_check()
+        try:
+            from tools.dev_pipeline.services.dependabot_service import get_repair_queue
+
+            queue = get_repair_queue()
+            health_data["repair_queue_depth"] = queue.get("count", 0) if queue.get("success") else "error"
+        except Exception:
+            health_data["repair_queue_depth"] = "unavailable"
+        return health_data
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -60,7 +68,7 @@ async def forge_stats_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             cur.close()
             conn.close()
 
-        return {
+        stats_data = {
             "success": True,
             "github_connected": gh.get("authenticated", False),
             "open_prs": open_prs.get("count", 0),
@@ -69,6 +77,21 @@ async def forge_stats_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             "total_reviews": review_count,
             "self_heal_actions": heal_actions,
         }
+        try:
+            from tools.dev_pipeline.services.dependabot_service import get_repair_queue
+
+            queue = get_repair_queue()
+            items = queue.get("items", []) if queue.get("success") else []
+            stats_data["vulnerabilities"] = {
+                "total": len(items),
+                "pending": sum(1 for i in items if i.get("status") == "pending"),
+                "fixed": sum(1 for i in items if i.get("status") == "fixed"),
+                "failed": sum(1 for i in items if i.get("status") == "failed"),
+                "escalated": sum(1 for i in items if i.get("status") == "escalated"),
+            }
+        except Exception:
+            stats_data["vulnerabilities"] = "unavailable"
+        return stats_data
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -111,6 +134,27 @@ async def forge_deploy_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
         return deploy_via_merge(int(pr_number), proposal_id)
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+async def forge_scan_vulns_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Trigger on-demand Dependabot poll + manifest discovery."""
+    from tools.dev_pipeline.services.dependabot_service import (
+        poll_and_ingest,
+        sync_manifest_registry,
+        get_repair_queue,
+    )
+
+    manifests = sync_manifest_registry()
+    poll = poll_and_ingest()
+    queue = get_repair_queue()
+
+    return {
+        "success": True,
+        "manifests_discovered": manifests.get("count", 0),
+        "new_alerts": poll.get("new_alerts", 0) if poll.get("success") else 0,
+        "queue_depth": queue.get("count", 0) if queue.get("success") else 0,
+        "poll_error": poll.get("error") if not poll.get("success") else None,
+    }
 
 
 def register_forge_tools():
@@ -192,8 +236,17 @@ def register_forge_tools():
         requires_permission="write",
     )
 
+    register_tool(
+        name="forge_scan_vulns",
+        category="forge",
+        description="Scan for dependency vulnerabilities -- polls Dependabot, discovers manifests, reports repair queue status.",
+        input_schema={"type": "object", "properties": {}},
+        handler=forge_scan_vulns_handler,
+        requires_permission="write",
+    )
+
     logger.info(
-        "Registered 5 F.O.R.G.E. tools: forge_health, forge_stats, forge_self_heal, forge_list_prs, forge_deploy"
+        "Registered 6 F.O.R.G.E. tools: forge_health, forge_stats, forge_self_heal, forge_list_prs, forge_deploy, forge_scan_vulns"
     )
 
 

@@ -493,6 +493,28 @@ services:
     networks:
       - archie_internal
 
+  kytran_market_api:
+    build: ./market-watch
+    container_name: kytran_market_api
+    ports:
+      - "8101:8080"
+    volumes:
+      - ./market-watch/data:/app/data
+    environment:
+      - ARCHIE_HUB_URL=http://192.168.1.200:3000
+      - ALPACA_API_KEY=${ALPACA_API_KEY:-}
+      - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY:-}
+      - ALPACA_BASE_URL=https://paper-api.alpaca.markets
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+    restart: unless-stopped
+
 secrets:
   db_password:
     file: ./secrets/database/password.txt

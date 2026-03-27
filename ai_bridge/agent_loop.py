@@ -752,6 +752,14 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        self.scheduler.add_job(
+            with_app_context(self._run_market_watch_cycle),
+            trigger=IntervalTrigger(hours=4),
+            id="market_watch_cycle",
+            name="Agent Loop: M.A.R.K.E.T. Trading Cycle",
+            replace_existing=True,
+        )
+
         # Job #58 — Auto-remediation: fix low-risk compliance failures 30min after scan
         self.scheduler.add_job(
             with_app_context(self._run_auto_remediation),
@@ -2436,6 +2444,47 @@ class AgentLoop:
             logger.error("Dependabot scan job failed: %s", e)
             self._log_autonomy_action(
                 action_type="dependabot_scan",
+                details={"error": str(e)},
+                success=False,
+            )
+
+    def _run_market_watch_cycle(self):
+        """Agent Loop Job: M.A.R.K.E.T. autonomous trading cycle."""
+        try:
+            import requests
+            resp = requests.post(
+                "http://kytran_market_api:8080/api/analysis/cycle",
+                timeout=600,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                self._log_autonomy_action(
+                    action_type="market_watch_cycle",
+                    details={
+                        "stocks_analyzed": data.get("stocks_analyzed", 0),
+                        "trades": data.get("trades", 0),
+                        "skipped": data.get("skipped", 0),
+                        "failed": data.get("failed", 0),
+                    },
+                    success=True,
+                )
+                logger.info(
+                    "M.A.R.K.E.T. cycle: %d analyzed, %d traded, %d skipped",
+                    data.get("stocks_analyzed", 0),
+                    data.get("trades", 0),
+                    data.get("skipped", 0),
+                )
+            else:
+                logger.error("M.A.R.K.E.T. cycle failed: HTTP %d", resp.status_code)
+                self._log_autonomy_action(
+                    action_type="market_watch_cycle",
+                    details={"error": f"HTTP {resp.status_code}"},
+                    success=False,
+                )
+        except Exception as e:
+            logger.error("M.A.R.K.E.T. cycle job failed: %s", e)
+            self._log_autonomy_action(
+                action_type="market_watch_cycle",
                 details={"error": str(e)},
                 success=False,
             )

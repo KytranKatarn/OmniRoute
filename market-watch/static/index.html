@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Kytran Market Watch — AI-powered stock analysis and paper trading. Powered by M.A.R.K.E.T." />
+  <meta name="theme-color" content="#10b981" />
+
+  <title>Kytran Market Watch — AI Stock Intelligence</title>
+
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/favicon.svg" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Kytran Market Watch — AI Stock Intelligence" />
+  <meta property="og:description" content="AI-powered stock analysis, paper trading, and market intelligence" />
+  <meta property="og:type" content="website" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;700;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="/css/lcars.css" />
+  <link rel="stylesheet" href="/css/dashboard.css" />
+
+  <!-- Lightweight Charts -->
+  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+
+  <!-- LCARS HEADER -->
+  <header class="lcars-header" role="banner">
+    <div class="lcars-header__brand">
+      <img src="/favicon.svg" alt="Kytran Market Watch" />
+      MARKET WATCH
+    </div>
+
+    <nav class="lcars-header__tabs" role="navigation" aria-label="Main navigation">
+      <button class="lcars-tab active" data-tab="dashboard" aria-selected="true" role="tab">Dashboard</button>
+      <button class="lcars-tab" data-tab="watchlist" aria-selected="false" role="tab">Watchlist</button>
+      <button class="lcars-tab" data-tab="portfolio" aria-selected="false" role="tab">Portfolio</button>
+      <button class="lcars-tab" data-tab="alerts" aria-selected="false" role="tab">Alerts</button>
+      <button class="lcars-tab" data-tab="analysis" aria-selected="false" role="tab">Analysis</button>
+      <button class="lcars-tab" data-tab="trading" aria-selected="false" role="tab">Trading</button>
+      <button class="lcars-tab" data-tab="charts" aria-selected="false" role="tab">Charts</button>
+      <button class="lcars-tab" data-tab="backtest" aria-selected="false" role="tab">Backtest</button>
+    </nav>
+
+    <div class="lcars-header__status" aria-label="Live status">
+      <span class="lcars-live" id="header-live-status">Live</span>
+      <span id="header-last-updated" style="font-size:0.7rem;"></span>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  <main role="main">
+
+    <!-- TAB: DASHBOARD -->
+    <section id="tab-dashboard" class="tab-content" role="tabpanel" aria-label="Dashboard">
+      <div class="dashboard">
+
+        <!-- Hero Stats -->
+        <div class="hero-stats" aria-label="Portfolio summary">
+          <div class="hero-stat">
+            <div class="hero-stat__value" id="stat-portfolio-value">&mdash;</div>
+            <div class="hero-stat__label">Portfolio Value</div>
+          </div>
+          <div class="hero-stat">
+            <div class="hero-stat__value" id="stat-daily-pnl">&mdash;</div>
+            <div class="hero-stat__label">Daily P&amp;L</div>
+          </div>
+          <div class="hero-stat">
+            <div class="hero-stat__value" id="stat-positions">&mdash;</div>
+            <div class="hero-stat__label">Active Positions</div>
+          </div>
+          <div class="hero-stat">
+            <div class="hero-stat__value" id="stat-market-status">&mdash;</div>
+            <div class="hero-stat__label">Market Status</div>
+          </div>
+        </div>
+
+        <!-- Widget Grid -->
+        <div class="widget-grid">
+
+          <!-- Cycle Status -->
+          <div class="lcars-panel lcars-panel--positions" aria-label="Analysis cycle status">
+            <div class="lcars-panel__header">
+              <span>Analysis Cycle</span>
+              <span class="view-all" data-tab="analysis" role="button" tabindex="0">View All &rarr;</span>
+            </div>
+            <div class="lcars-panel__body">
+              <div id="widget-cycle-status">
+                <div class="loading">Loading&hellip;</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Alerts -->
+          <div class="lcars-panel lcars-panel--alerts" aria-label="Recent alerts">
+            <div class="lcars-panel__header">
+              <span>Recent Alerts</span>
+              <span class="view-all" data-tab="alerts" role="button" tabindex="0">View All &rarr;</span>
+            </div>
+            <div class="lcars-panel__body">
+              <div id="widget-alerts-list">
+                <div class="loading">Loading&hellip;</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Top Positions -->
+          <div class="lcars-panel" aria-label="Top positions">
+            <div class="lcars-panel__header">
+              <span>Top Positions</span>
+              <span class="view-all" data-tab="portfolio" role="button" tabindex="0">View All &rarr;</span>
+            </div>
+            <div class="lcars-panel__body">
+              <div id="widget-positions-list">
+                <div class="loading">Loading&hellip;</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Watchlist Preview -->
+          <div class="lcars-panel" aria-label="Watchlist preview">
+            <div class="lcars-panel__header">
+              <span>Watchlist</span>
+              <span class="view-all" data-tab="watchlist" role="button" tabindex="0">View All &rarr;</span>
+            </div>
+            <div class="lcars-panel__body">
+              <div id="widget-watchlist-preview">
+                <div class="loading">Loading&hellip;</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB: WATCHLIST -->
+    <section id="tab-watchlist" class="tab-content hidden" role="tabpanel" aria-label="Watchlist">
+      <div class="page-content">
+
+        <div class="filters" id="watchlist-add-form">
+          <div class="filter-group">
+            <label for="watchlist-ticker">Ticker</label>
+            <input id="watchlist-ticker" type="text" class="filter-input" placeholder="e.g. AAPL" style="text-transform:uppercase;" />
+          </div>
+          <button type="button" class="filter-btn" id="watchlist-add-btn">Add to Watchlist</button>
+        </div>
+
+        <div style="overflow-x: auto;">
+          <table class="data-table" aria-label="Watchlist data">
+            <thead>
+              <tr>
+                <th>Ticker</th>
+                <th>Price</th>
+                <th>Change</th>
+                <th>Change %</th>
+                <th>Last Analysis</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="watchlist-tbody">
+              <tr><td colspan="6"><div class="loading">Loading watchlist&hellip;</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- TAB: PORTFOLIO -->
+    <section id="tab-portfolio" class="tab-content hidden" role="tabpanel" aria-label="Portfolio">
+      <div class="page-content">
+
+        <!-- Account Summary -->
+        <div class="hero-stats" id="portfolio-summary" aria-label="Account summary">
+          <div class="hero-stat">
+            <div class="hero-stat__value" id="portfolio-cash">&mdash;</div>
+            <div class="hero-stat__label">Cash Balance</div>
+          </div>
+          <div class="hero-stat">
+            <div class="hero-stat__value" id="portfolio-equity">&mdash;</div>
+            <div class="hero-stat__label">Total Equity</div>
+          </div>
+          <div class="hero-stat">
+            <div class="hero-stat__value" id="portfolio-total-pnl">&mdash;</div>
+            <div class="hero-stat__label">Total P&amp;L</div>
+          </div>
+          <div class="hero-stat">
+            <div class="hero-stat__value" id="portfolio-total-pnl-pct">&mdash;</div>
+            <div class="hero-stat__label">Total Return</div>
+          </div>
+        </div>
+
+        <div style="overflow-x: auto;">
+          <table class="data-table" aria-label="Portfolio positions">
+            <thead>
+              <tr>
+                <th>Ticker</th>
+                <th>Qty</th>
+                <th>Avg Cost</th>
+                <th>Current Price</th>
+                <th>Market Value</th>
+                <th>P&amp;L</th>
+                <th>P&amp;L %</th>
+              </tr>
+            </thead>
+            <tbody id="portfolio-tbody">
+              <tr><td colspan="7"><div class="loading">Loading portfolio&hellip;</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- TAB: ALERTS -->
+    <section id="tab-alerts" class="tab-content hidden" role="tabpanel" aria-label="Alerts">
+      <div class="page-content">
+
+        <div class="filters" id="alert-create-form">
+          <div class="filter-group">
+            <label for="alert-ticker">Ticker</label>
+            <input id="alert-ticker" type="text" class="filter-input" placeholder="e.g. AAPL" style="text-transform:uppercase;" />
+          </div>
+          <div class="filter-group">
+            <label for="alert-type">Type</label>
+            <select id="alert-type" class="filter-input">
+              <option value="price_above">Price Above</option>
+              <option value="price_below">Price Below</option>
+              <option value="volume_above">Volume Above</option>
+              <option value="pct_change">% Change</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="alert-value">Value</label>
+            <input id="alert-value" type="number" step="0.01" class="filter-input" placeholder="150.00" />
+          </div>
+          <button type="button" class="filter-btn" id="alert-create-btn">Create Alert</button>
+        </div>
+
+        <div style="overflow-x: auto;">
+          <table class="data-table" aria-label="Alerts data">
+            <thead>
+              <tr>
+                <th>Ticker</th>
+                <th>Type</th>
+                <th>Target</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Triggered</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="alerts-tbody">
+              <tr><td colspan="7"><div class="loading">Loading alerts&hellip;</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- TAB: ANALYSIS -->
+    <section id="tab-analysis" class="tab-content hidden" role="tabpanel" aria-label="Analysis">
+      <div class="page-content">
+
+        <div class="filters">
+          <button type="button" class="filter-btn" id="analysis-run-btn">Run Analysis Cycle</button>
+          <div class="filter-group" style="margin-left:auto;">
+            <label>Last Cycle</label>
+            <span id="analysis-last-cycle" class="filter-input" style="border:none;background:transparent;color:var(--text-dim);">&mdash;</span>
+          </div>
+        </div>
+
+        <div id="analysis-reports">
+          <div class="loading">Loading analysis reports&hellip;</div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- TAB: TRADING -->
+    <section id="tab-trading" class="tab-content hidden" role="tabpanel" aria-label="Trading">
+      <div class="page-content">
+
+        <div class="widget-grid">
+
+          <!-- Buy Form -->
+          <div class="lcars-panel" aria-label="Buy order">
+            <div class="lcars-panel__header" style="background:var(--positive);">
+              <span>Buy Order</span>
+            </div>
+            <div class="lcars-panel__body">
+              <div class="form-grid">
+                <div class="form-group">
+                  <label for="buy-ticker">Ticker</label>
+                  <input id="buy-ticker" type="text" class="form-input" placeholder="AAPL" style="text-transform:uppercase;" />
+                </div>
+                <div class="form-group">
+                  <label for="buy-qty">Quantity</label>
+                  <input id="buy-qty" type="number" min="1" class="form-input" placeholder="10" />
+                </div>
+                <div class="form-group form-group--full">
+                  <button type="button" class="btn btn--primary" id="buy-submit-btn" style="background:var(--positive);">Execute Buy</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sell Form -->
+          <div class="lcars-panel" aria-label="Sell order">
+            <div class="lcars-panel__header" style="background:var(--negative);">
+              <span>Sell Order</span>
+            </div>
+            <div class="lcars-panel__body">
+              <div class="form-grid">
+                <div class="form-group">
+                  <label for="sell-ticker">Ticker</label>
+                  <input id="sell-ticker" type="text" class="form-input" placeholder="AAPL" style="text-transform:uppercase;" />
+                </div>
+                <div class="form-group">
+                  <label for="sell-qty">Quantity</label>
+                  <input id="sell-qty" type="number" min="1" class="form-input" placeholder="10" />
+                </div>
+                <div class="form-group form-group--full">
+                  <button type="button" class="btn btn--danger" id="sell-submit-btn">Execute Sell</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <h3 style="font-family:var(--font-nav);font-size:0.9rem;letter-spacing:2px;text-transform:uppercase;margin:24px 0 12px;color:var(--text-dim);">Order History</h3>
+
+        <div style="overflow-x: auto;">
+          <table class="data-table" aria-label="Order history">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Side</th>
+                <th>Ticker</th>
+                <th>Qty</th>
+                <th>Price</th>
+                <th>Total</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="orders-tbody">
+              <tr><td colspan="7"><div class="loading">Loading orders&hellip;</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- TAB: CHARTS -->
+    <section id="tab-charts" class="tab-content hidden" role="tabpanel" aria-label="Charts">
+      <div class="page-content">
+
+        <div class="chart-controls">
+          <div class="filter-group">
+            <label for="chart-ticker">Ticker</label>
+            <input id="chart-ticker" type="text" class="filter-input" placeholder="AAPL" style="text-transform:uppercase;" />
+          </div>
+          <button type="button" class="filter-btn" id="chart-load-btn">Load Chart</button>
+          <div style="display:flex;gap:4px;margin-left:auto;" id="chart-periods">
+            <button class="period-btn" data-period="1W">1W</button>
+            <button class="period-btn" data-period="1M">1M</button>
+            <button class="period-btn active" data-period="3M">3M</button>
+            <button class="period-btn" data-period="6M">6M</button>
+            <button class="period-btn" data-period="1Y">1Y</button>
+          </div>
+        </div>
+
+        <div class="chart-container" id="chart-container">
+          <div class="empty-state">
+            <div class="empty-state__icon">&#x1F4C8;</div>
+            <p>Enter a ticker and click Load Chart</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- TAB: BACKTEST -->
+    <section id="tab-backtest" class="tab-content hidden" role="tabpanel" aria-label="Backtest">
+      <div class="page-content">
+
+        <div class="filters" id="backtest-form">
+          <div class="filter-group">
+            <label for="backtest-ticker">Ticker</label>
+            <input id="backtest-ticker" type="text" class="filter-input" placeholder="AAPL" style="text-transform:uppercase;" />
+          </div>
+          <div class="filter-group">
+            <label for="backtest-strategy">Strategy</label>
+            <select id="backtest-strategy" class="filter-input">
+              <option value="sma_crossover">SMA Crossover</option>
+              <option value="rsi_reversal">RSI Reversal</option>
+              <option value="macd_signal">MACD Signal</option>
+              <option value="bollinger_bounce">Bollinger Bounce</option>
+              <option value="momentum">Momentum</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="backtest-period">Period</label>
+            <select id="backtest-period" class="filter-input">
+              <option value="3M">3 Months</option>
+              <option value="6M">6 Months</option>
+              <option value="1Y" selected>1 Year</option>
+              <option value="2Y">2 Years</option>
+            </select>
+          </div>
+          <button type="button" class="filter-btn" id="backtest-run-btn">Run Backtest</button>
+        </div>
+
+        <!-- Backtest Results -->
+        <div id="backtest-results-section" class="hidden">
+          <div class="backtest-results" id="backtest-metrics">
+            <!-- Filled by JS -->
+          </div>
+
+          <div class="chart-container" id="backtest-chart-container" style="min-height:300px;">
+            <!-- Equity curve rendered here -->
+          </div>
+
+          <h3 style="font-family:var(--font-nav);font-size:0.9rem;letter-spacing:2px;text-transform:uppercase;margin:24px 0 12px;color:var(--text-dim);">Trade Log</h3>
+
+          <div style="overflow-x: auto;">
+            <table class="data-table" aria-label="Backtest trades">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Action</th>
+                  <th>Price</th>
+                  <th>Shares</th>
+                  <th>P&amp;L</th>
+                </tr>
+              </thead>
+              <tbody id="backtest-trades-tbody">
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="backtest-empty" class="empty-state">
+          <div class="empty-state__icon">&#x1F9EA;</div>
+          <p>Configure a strategy above and click Run Backtest</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer role="contentinfo" style="
+    border-top: 1px solid var(--border);
+    padding: 20px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    font-family: var(--font-data);
+    margin-top: 40px;
+  ">
+    <p style="margin-bottom: 8px;">
+      <strong style="color: var(--accent);">Kytran Market Watch</strong> — Powered by M.A.R.K.E.T. (Market Analysis, Research, Knowledge &amp; Execution Technology)
+    </p>
+    <p>
+      <a href="https://civic.kytranempowerment.com" target="_blank" rel="noopener noreferrer">Civic Watch</a>
+      &nbsp;&middot;&nbsp;
+      <a href="https://legal.kytranempowerment.com" target="_blank" rel="noopener noreferrer">Legal Watch</a>
+      &nbsp;&middot;&nbsp;
+      <a href="https://thenews.kytranempowerment.com" target="_blank" rel="noopener noreferrer">The News</a>
+      &nbsp;&middot;&nbsp;
+      <a href="https://kytranempowerment.com" target="_blank" rel="noopener noreferrer">Kytran Empowerment</a>
+    </p>
+  </footer>
+
+  <!-- SCRIPTS -->
+  <script src="/js/api.js"></script>
+  <script src="/js/app.js"></script>
+  <script src="/js/dashboard.js"></script>
+  <script src="/js/watchlist.js"></script>
+  <script src="/js/portfolio.js"></script>
+  <script src="/js/alerts.js"></script>
+  <script src="/js/analysis.js"></script>
+  <script src="/js/trading.js"></script>
+  <script src="/js/charts.js"></script>
+  <script src="/js/backtest.js"></script>
+
+</body>
+</html>

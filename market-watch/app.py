@@ -29,6 +29,9 @@ def create_app():
     from routes.trading import trading_bp
     app.register_blueprint(trading_bp)
 
+    from routes.alerts import alerts_bp
+    app.register_blueprint(alerts_bp)
+
     @app.after_request
     def add_cors(response):
         response.headers["Access-Control-Allow-Origin"] = "*"

@@ -4410,10 +4410,12 @@ class AgentLoop:
 
     def _daily_code_metrics_scan(self):
         """Job #40: Daily codebase metrics snapshot at 3:00 AM with stale audit detection."""
+        start = time.time()
         try:
             from services.code_metrics_service import scan_and_detect_changes
 
             metrics, snapshot_id, changed_modules = scan_and_detect_changes()
+            duration_ms = int((time.time() - start) * 1000)
             logger.info(
                 "Daily code metrics: %d files, %d lines (snapshot #%s, %d modules changed)",
                 metrics["total_files"],
@@ -4421,7 +4423,9 @@ class AgentLoop:
                 snapshot_id,
                 len(changed_modules),
             )
+            self._log_cycle("code_metrics_scan", 1, 0, duration_ms)
         except Exception as e:
+            self._log_cycle("code_metrics_scan", 0, 1, int((time.time() - start) * 1000), error_message=str(e))
             logger.warning(f"Failed: {e}")
 
     def _pattern_compliance_check(self):
@@ -4464,9 +4468,9 @@ class AgentLoop:
                     status="violations_found",
                 )
                 logger.warning("Pattern compliance: %d violations found", len(violations))
-            else:
-                logger.info("Pattern compliance: clean — no violations found")
+            self._log_cycle("pattern_compliance", len(violations), 0, 0)
         except Exception as e:
+            self._log_cycle("pattern_compliance", 0, 1, 0, error_message=str(e))
             logger.warning(f"Failed: {e}")
 
     def _automated_module_audit(self):
@@ -4539,7 +4543,9 @@ class AgentLoop:
                 clean,
                 violations,
             )
+            self._log_cycle("automated_module_audit", audited, violations, 0)
         except Exception as e:
+            self._log_cycle("automated_module_audit", 0, 1, 0, error_message=str(e))
             logger.warning(f"Automated module audit failed: {e}")
 
     def _daily_code_health_digest(self):
@@ -6141,7 +6147,9 @@ Respond with ONLY a JSON object (no markdown, no explanation):
                 "[Consciousness Batch] Triggering scheduled embedding batch"
             )
             _trigger_loop_op("embedding")
+            self._log_cycle("consciousness_embedding", 1, 0, 0)
         except Exception as e:
+            self._log_cycle("consciousness_embedding", 0, 1, 0, error_message=str(e))
             logger.warning(f"[Consciousness Batch] Embedding batch failed: {e}")
 
     # ── Job #59 — Standalone Health Monitor ─────────────────────────────

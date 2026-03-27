@@ -28,6 +28,11 @@ var KytranMap = (function () {
             onViewStateChange: function (params) {
                 _viewState = params.viewState;
             },
+            onClick: function (info) {
+                if (info && info.object && typeof Detail !== 'undefined') {
+                    Detail.show(info.object);
+                }
+            },
             getTooltip: _getTooltip,
             layers: []
         });

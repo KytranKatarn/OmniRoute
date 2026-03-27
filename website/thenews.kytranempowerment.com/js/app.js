@@ -214,6 +214,7 @@ var App = (function () {
         if (typeof Ships !== 'undefined') Ships.init();
         if (typeof Ticker !== 'undefined') Ticker.init();
         if (typeof Defcon !== 'undefined') Defcon.init();
+        if (typeof Detail !== 'undefined') Detail.init();
         if (typeof Search !== 'undefined') Search.init();
         if (typeof Legend !== 'undefined') Legend.init();
         if (typeof Timeline !== 'undefined') Timeline.init();

@@ -1,0 +1,139 @@
+{
+  "outages": [
+    {
+      "name": "East Africa Submarine Cable Cut",
+      "lat": -6.17,
+      "lon": 39.19,
+      "country": "Tanzania",
+      "type": "cable",
+      "severity": "major",
+      "description": "EASSy and SEACOM submarine cables damaged off Dar es Salaam, affecting East African connectivity"
+    },
+    {
+      "name": "Red Sea Cable Damage",
+      "lat": 13.0,
+      "lon": 42.5,
+      "country": "Yemen",
+      "type": "cable",
+      "severity": "major",
+      "description": "Multiple submarine cables damaged in the Red Sea due to Houthi anchor dragging"
+    },
+    {
+      "name": "Russia BGP Hijack Incident",
+      "lat": 55.75,
+      "lon": 37.62,
+      "country": "Russia",
+      "type": "bgp",
+      "severity": "major",
+      "description": "Rostelecom BGP route leak redirecting European traffic through Russian networks"
+    },
+    {
+      "name": "Iran Internet Shutdown",
+      "lat": 35.69,
+      "lon": 51.39,
+      "country": "Iran",
+      "type": "censorship",
+      "severity": "major",
+      "description": "Nationwide internet throttling and platform blocks during civil unrest"
+    },
+    {
+      "name": "Pakistan Social Media Block",
+      "lat": 33.69,
+      "lon": 73.04,
+      "country": "Pakistan",
+      "type": "censorship",
+      "severity": "moderate",
+      "description": "Government-ordered block on X/Twitter and VPN services"
+    },
+    {
+      "name": "West Africa ACE Cable Fault",
+      "lat": 6.52,
+      "lon": -3.37,
+      "country": "Ivory Coast",
+      "type": "cable",
+      "severity": "moderate",
+      "description": "Africa Coast to Europe cable fault reducing bandwidth across West Africa"
+    },
+    {
+      "name": "Myanmar Internet Curfew",
+      "lat": 16.87,
+      "lon": 96.20,
+      "country": "Myanmar",
+      "type": "censorship",
+      "severity": "major",
+      "description": "Military junta enforcing nightly internet shutdowns and permanent VPN blocks"
+    },
+    {
+      "name": "China Great Firewall Tightening",
+      "lat": 39.90,
+      "lon": 116.40,
+      "country": "China",
+      "type": "censorship",
+      "severity": "moderate",
+      "description": "Enhanced DPI blocking of VPN protocols and encrypted DNS"
+    },
+    {
+      "name": "India Kashmir Shutdown",
+      "lat": 34.08,
+      "lon": 74.80,
+      "country": "India",
+      "type": "censorship",
+      "severity": "moderate",
+      "description": "Prolonged mobile internet suspension in Jammu & Kashmir region"
+    },
+    {
+      "name": "Brazil DDoS on Banking Infrastructure",
+      "lat": -23.55,
+      "lon": -46.63,
+      "country": "Brazil",
+      "type": "ddos",
+      "severity": "moderate",
+      "description": "Coordinated DDoS attacks targeting Brazilian financial institutions"
+    },
+    {
+      "name": "Ukraine BGP Disruptions",
+      "lat": 50.45,
+      "lon": 30.52,
+      "country": "Ukraine",
+      "type": "bgp",
+      "severity": "moderate",
+      "description": "War-related BGP instability affecting Ukrainian ISP peering"
+    },
+    {
+      "name": "Ethiopia Internet Restrictions",
+      "lat": 9.02,
+      "lon": 38.75,
+      "country": "Ethiopia",
+      "type": "censorship",
+      "severity": "moderate",
+      "description": "Regional internet shutdowns in conflict-affected areas"
+    },
+    {
+      "name": "Taiwan Submarine Cable Anchor Damage",
+      "lat": 25.03,
+      "lon": 121.57,
+      "country": "Taiwan",
+      "type": "cable",
+      "severity": "minor",
+      "description": "Suspected Chinese vessel anchor damage to Trans-Pacific cables near Matsu Islands"
+    },
+    {
+      "name": "South Africa Load Shedding Outage",
+      "lat": -26.20,
+      "lon": 28.04,
+      "country": "South Africa",
+      "type": "ddos",
+      "severity": "minor",
+      "description": "Data center outages during Stage 6 load shedding affecting local connectivity"
+    },
+    {
+      "name": "Cuba Network Collapse",
+      "lat": 23.11,
+      "lon": -82.37,
+      "country": "Cuba",
+      "type": "cable",
+      "severity": "minor",
+      "description": "ALBA-1 submarine cable degradation reducing already-limited Cuban bandwidth"
+    }
+  ]
+}

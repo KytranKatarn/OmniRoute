@@ -135,9 +135,11 @@ var App = (function () {
                 var view = btn.dataset.view;
                 var vs = KytranMap.getViewState();
                 if (view === '3d') {
-                    KytranMap.flyTo(vs.latitude, vs.longitude, vs.zoom, 45);
+                    KytranMap.flyTo(vs.latitude, vs.longitude, Math.max(vs.zoom, 2), 50);
+                    document.querySelector('.map-container').classList.add('map-3d');
                 } else {
                     KytranMap.flyTo(vs.latitude, vs.longitude, vs.zoom, 0);
+                    document.querySelector('.map-container').classList.remove('map-3d');
                 }
             });
         });
@@ -215,9 +217,14 @@ var App = (function () {
         if (typeof SpaceWeather !== 'undefined') SpaceWeather.init();
         if (typeof Radiation !== 'undefined') Radiation.init();
         if (typeof Protests !== 'undefined') Protests.init();
+        if (typeof Internet !== 'undefined') Internet.init();
+        if (typeof Terrorism !== 'undefined') Terrorism.init();
+        if (typeof Economic !== 'undefined') Economic.init();
+        if (typeof Social !== 'undefined') Social.init();
         if (typeof Ticker !== 'undefined') Ticker.init();
         if (typeof Defcon !== 'undefined') Defcon.init();
         if (typeof Detail !== 'undefined') Detail.init();
+        if (typeof Share !== 'undefined') Share.init();
         if (typeof Search !== 'undefined') Search.init();
         if (typeof Legend !== 'undefined') Legend.init();
         if (typeof Timeline !== 'undefined') Timeline.init();

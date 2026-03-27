@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About — Kytran News</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&family=Orbitron:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/base.css">
+    <style>
+        body { overflow: auto; height: auto; }
+        .about { max-width: 800px; margin: 0 auto; padding: var(--space-xl) var(--space-lg); }
+        .about__nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-2xl); }
+        .about__logo { font-family: var(--font-heading); font-size: var(--text-xl); color: var(--color-primary); letter-spacing: 2px; text-decoration: none; }
+        .about__logo span { color: var(--color-text-muted); font-weight: 400; }
+        .about__back { color: var(--color-primary); font-size: var(--text-sm); }
+        .about h1 { font-family: var(--font-heading); font-size: 2rem; color: #fff; margin-bottom: var(--space-lg); letter-spacing: 2px; }
+        .about h2 { font-family: var(--font-nav); font-size: var(--text-xl); color: var(--color-primary); margin: var(--space-xl) 0 var(--space-md); text-transform: uppercase; letter-spacing: 2px; }
+        .about p { color: var(--color-text); line-height: 1.8; margin-bottom: var(--space-md); }
+        .about ul { margin-bottom: var(--space-md); padding-left: var(--space-lg); }
+        .about li { color: var(--color-text); line-height: 1.8; margin-bottom: var(--space-xs); list-style: disc; }
+        .about li::marker { color: var(--color-primary); }
+        .about__sources { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--space-md); margin: var(--space-lg) 0; }
+        .about__source { padding: var(--space-md); background: rgba(255,255,255,0.03); border: 1px solid var(--color-glass-border); border-radius: 8px; }
+        .about__source-name { font-weight: 600; color: #fff; margin-bottom: 4px; }
+        .about__source-desc { font-size: var(--text-sm); color: var(--color-text-muted); }
+        .about__footer { margin-top: var(--space-2xl); padding-top: var(--space-lg); border-top: 1px solid var(--color-glass-border); text-align: center; color: var(--color-text-muted); font-size: var(--text-sm); }
+        .about__footer a { color: var(--color-primary); }
+    </style>
+</head>
+<body>
+<div class="about">
+    <nav class="about__nav">
+        <a href="/" class="about__logo">KYTRAN <span>NEWS</span></a>
+        <a href="/" class="about__back">&larr; Back to Dashboard</a>
+    </nav>
+
+    <h1>GLOBAL INTELLIGENCE DASHBOARD</h1>
+
+    <p>Kytran News is a real-time global intelligence monitoring platform that aggregates data from multiple open sources to provide a comprehensive view of world events as they unfold.</p>
+
+    <h2>What We Track</h2>
+    <ul>
+        <li><strong>Armed Conflicts &amp; Wars</strong> — Active conflict zones, military operations, casualties</li>
+        <li><strong>Natural Disasters</strong> — Earthquakes, wildfires, volcanic eruptions, floods, storms</li>
+        <li><strong>Weather Alerts</strong> — Severe weather warnings, extreme heat/cold advisories</li>
+        <li><strong>Cyber Threats</strong> — DDoS attacks, ransomware campaigns, state-sponsored hacking</li>
+        <li><strong>Protests &amp; Civil Unrest</strong> — Demonstrations, riots, political instability</li>
+        <li><strong>Space Weather</strong> — Solar flares, geomagnetic storms, radiation events</li>
+        <li><strong>Nuclear Radiation</strong> — Monitoring station readings worldwide</li>
+        <li><strong>Disease Outbreaks</strong> — Epidemics, pandemics, public health emergencies</li>
+        <li><strong>Economic Indicators</strong> — Market disruptions, financial center status</li>
+        <li><strong>Sanctions</strong> — International sanctions regimes by country</li>
+        <li><strong>Military &amp; Nuclear Sites</strong> — Known installations worldwide</li>
+        <li><strong>Internet Outages</strong> — BGP disruptions, submarine cable cuts, censorship</li>
+        <li><strong>Live Air Traffic</strong> — Real-time aircraft positions</li>
+        <li><strong>Maritime Traffic</strong> — Major shipping routes and port activity</li>
+        <li><strong>Air Quality</strong> — AQI readings in major cities</li>
+        <li><strong>Social Trends</strong> — Viral topics and sentiment by region</li>
+        <li><strong>Terrorism Incidents</strong> — Attacks, threats, and security events</li>
+        <li><strong>Power Outages</strong> — Reported blackouts and infrastructure failures</li>
+    </ul>
+
+    <h2>Data Sources</h2>
+    <div class="about__sources">
+        <div class="about__source">
+            <div class="about__source-name">GDELT Project</div>
+            <div class="about__source-desc">Global event monitoring, news, conflict data</div>
+        </div>
+        <div class="about__source">
+            <div class="about__source-name">USGS</div>
+            <div class="about__source-desc">Earthquake data worldwide</div>
+        </div>
+        <div class="about__source">
+            <div class="about__source-name">NASA EONET</div>
+            <div class="about__source-desc">Natural events — wildfires, storms, volcanoes</div>
+        </div>
+        <div class="about__source">
+            <div class="about__source-name">NWS (NOAA)</div>
+            <div class="about__source-desc">US weather alerts and warnings</div>
+        </div>
+        <div class="about__source">
+            <div class="about__source-name">NOAA SWPC</div>
+            <div class="about__source-desc">Space weather alerts and forecasts</div>
+        </div>
+        <div class="about__source">
+            <div class="about__source-name">OpenSky Network</div>
+            <div class="about__source-desc">Live aircraft tracking</div>
+        </div>
+        <div class="about__source">
+            <div class="about__source-name">ReliefWeb</div>
+            <div class="about__source-desc">Humanitarian disasters and epidemics</div>
+        </div>
+        <div class="about__source">
+            <div class="about__source-name">OFAC / EU / UN</div>
+            <div class="about__source-desc">International sanctions data</div>
+        </div>
+        <div class="about__source">
+            <div class="about__source-name">IAEA Network</div>
+            <div class="about__source-desc">Radiation monitoring stations</div>
+        </div>
+    </div>
+
+    <h2>Technology</h2>
+    <p>Built with deck.gl for WebGL-accelerated map rendering, MapLibre GL JS for base map tiles (CARTO Dark Matter), and vanilla JavaScript. No frameworks, no build tools — just fast, lean code.</p>
+
+    <h2>About Kytran Empowerment</h2>
+    <p>Kytran News is a product of <a href="https://kytranempowerment.com">Kytran Empowerment Inc.</a>, a technology company focused on building tools that inform, protect, and empower. Our mission is to make critical global intelligence accessible to everyone.</p>
+
+    <div class="about__footer">
+        <p>&copy; 2026 Kytran Empowerment Inc. All rights reserved.</p>
+        <p>
+            <a href="https://kytranempowerment.com">kytranempowerment.com</a> &middot;
+            <a href="https://creed-ai.org">creed-ai.org</a>
+        </p>
+    </div>
+</div>
+</body>
+</html>

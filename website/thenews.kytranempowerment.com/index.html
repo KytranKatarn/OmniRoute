@@ -86,6 +86,16 @@
             <option value="7d">7D</option>
         </select>
 
+        <!-- Share Button -->
+        <button class="topbar__share" id="share-btn" title="Copy share link">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>
+            </svg>
+        </button>
+
+        <!-- About Link -->
+        <a href="about.html" class="topbar__about" title="About Kytran News">About</a>
+
         <!-- Event Counter -->
         <div class="topbar__events" id="topbar-events" title="Active events">
             <span class="topbar__events-count" id="topbar-event-count">0</span>
@@ -240,6 +250,34 @@
                 <span class="layer-toggle__label">Protests / Unrest</span>
                 <span class="layer-toggle__count">0</span>
             </label>
+
+            <label class="layer-toggle" data-layer="internet" style="--layer-color: #ff4081">
+                <div class="layer-toggle__dot"></div>
+                <div class="layer-toggle__switch"></div>
+                <span class="layer-toggle__label">Internet Outages</span>
+                <span class="layer-toggle__count">0</span>
+            </label>
+
+            <label class="layer-toggle" data-layer="terrorism" style="--layer-color: #b71c1c">
+                <div class="layer-toggle__dot"></div>
+                <div class="layer-toggle__switch"></div>
+                <span class="layer-toggle__label">Terrorism</span>
+                <span class="layer-toggle__count">0</span>
+            </label>
+
+            <label class="layer-toggle" data-layer="economic" style="--layer-color: #ffc107">
+                <div class="layer-toggle__dot"></div>
+                <div class="layer-toggle__switch"></div>
+                <span class="layer-toggle__label">Markets / Economy</span>
+                <span class="layer-toggle__count">0</span>
+            </label>
+
+            <label class="layer-toggle" data-layer="social" style="--layer-color: #e040fb">
+                <div class="layer-toggle__dot"></div>
+                <div class="layer-toggle__switch"></div>
+                <span class="layer-toggle__label">Social Trends</span>
+                <span class="layer-toggle__count">0</span>
+            </label>
         </div>
 
         <!-- Stats -->
@@ -255,7 +293,7 @@
                     <div class="stat-card__label">Countries</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-card__value" id="stat-sources">14</div>
+                    <div class="stat-card__value" id="stat-sources">18</div>
                     <div class="stat-card__label">Sources</div>
                 </div>
                 <div class="stat-card">
@@ -271,11 +309,17 @@
             <div id="last-updated" style="font-size:var(--text-xs);color:var(--color-text-muted);">--</div>
         </div>
 
-        <!-- Attribution -->
-        <div class="sidebar__section" style="opacity:0.4; font-size:var(--text-xs);">
-            Data: GDELT, USGS, NASA, NWS, OFAC, OpenSky, WAQI, ReliefWeb, NOAA SWPC, IAEA<br>
-            Map: MapLibre + CARTO<br>
-            &copy; Kytran Empowerment Inc.
+        <!-- Attribution & Links -->
+        <div class="sidebar__section sidebar__footer">
+            <div style="display:flex;gap:var(--space-sm);flex-wrap:wrap;margin-bottom:var(--space-sm);">
+                <a href="about.html" class="sidebar__link">About</a>
+                <a href="https://kytranempowerment.com" target="_blank" rel="noopener" class="sidebar__link">Kytran</a>
+                <a href="https://creed-ai.org" target="_blank" rel="noopener" class="sidebar__link">C.R.E.E.D.</a>
+            </div>
+            <div style="opacity:0.4; font-size:var(--text-xs);">
+                Data: GDELT, USGS, NASA, NWS, OFAC, OpenSky, ReliefWeb, NOAA SWPC, IAEA<br>
+                Map: MapLibre + CARTO &middot; &copy; 2026 Kytran Empowerment Inc.
+            </div>
         </div>
     </aside>
 
@@ -398,11 +442,16 @@
 <script src="js/layers/spaceweather.js"></script>
 <script src="js/layers/radiation.js"></script>
 <script src="js/layers/protests.js"></script>
+<script src="js/layers/internet.js"></script>
+<script src="js/layers/terrorism.js"></script>
+<script src="js/layers/economic.js"></script>
+<script src="js/layers/social.js"></script>
 
 <!-- Panels -->
 <script src="js/panels/ticker.js"></script>
 <script src="js/panels/defcon.js"></script>
 <script src="js/panels/detail.js"></script>
+<script src="js/panels/share.js"></script>
 <script src="js/panels/search.js"></script>
 <script src="js/panels/legend.js"></script>
 <script src="js/panels/timeline.js"></script>

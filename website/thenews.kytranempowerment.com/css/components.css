@@ -170,3 +170,68 @@
     text-transform: uppercase;
     flex-shrink: 0;
 }
+
+/* --------------------------------------------------------------------------
+   Share Toast
+   -------------------------------------------------------------------------- */
+.share-toast {
+    position: fixed;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    padding: 10px 20px;
+    background: var(--color-primary);
+    color: var(--color-base);
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    border-radius: 8px;
+    z-index: 10000;
+    opacity: 0;
+    transition: opacity 0.3s, transform 0.3s;
+    pointer-events: none;
+    box-shadow: 0 4px 20px rgba(0, 229, 255, 0.3);
+}
+.share-toast.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* --------------------------------------------------------------------------
+   Topbar Share Button
+   -------------------------------------------------------------------------- */
+.topbar__share {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--color-glass-border);
+    border-radius: 6px;
+    color: var(--color-text-muted);
+    font-size: var(--text-base);
+    transition: all var(--speed-fast);
+    flex-shrink: 0;
+}
+.topbar__share:hover {
+    background: rgba(0, 229, 255, 0.1);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+/* --------------------------------------------------------------------------
+   Topbar About Link
+   -------------------------------------------------------------------------- */
+.topbar__about {
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+    opacity: 0.6;
+    transition: opacity var(--speed-fast);
+    flex-shrink: 0;
+}
+.topbar__about:hover {
+    opacity: 1;
+    color: var(--color-primary);
+    text-decoration: none;
+}

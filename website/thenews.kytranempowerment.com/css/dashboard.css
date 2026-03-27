@@ -606,6 +606,23 @@
 /* --------------------------------------------------------------------------
    Tooltip (map hover)
    -------------------------------------------------------------------------- */
+/* Sidebar Footer Links */
+.sidebar__footer { margin-top: auto; }
+.sidebar__link {
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+    padding: 3px 8px;
+    border: 1px solid var(--color-glass-border);
+    border-radius: 4px;
+    transition: all var(--speed-fast);
+    text-decoration: none;
+}
+.sidebar__link:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    text-decoration: none;
+}
+
 /* --------------------------------------------------------------------------
    Detail Panel (slide-out on click)
    -------------------------------------------------------------------------- */

@@ -1,0 +1,55 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [69.17, 34.53] },
+      "properties": {
+        "name": "Kabul Attack",
+        "severity": "critical",
+        "description": "Bomb attack near government district in Kabul",
+        "source": "fallback"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [36.28, 33.51] },
+      "properties": {
+        "name": "Damascus Incident",
+        "severity": "high",
+        "description": "Shooting attack reported in outskirts of Damascus",
+        "source": "fallback"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [13.18, 32.90] },
+      "properties": {
+        "name": "Tripoli Security Incident",
+        "severity": "medium",
+        "description": "Militant group clash near Tripoli checkpoint",
+        "source": "fallback"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [3.39, 6.52] },
+      "properties": {
+        "name": "Lagos Bomb Threat",
+        "severity": "medium",
+        "description": "Suspected explosive device found near Lagos market",
+        "source": "fallback"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [45.34, 2.05] },
+      "properties": {
+        "name": "Mogadishu Blast",
+        "severity": "critical",
+        "description": "Al-Shabaab claimed vehicle-borne IED in Mogadishu",
+        "source": "fallback"
+      }
+    }
+  ]
+}

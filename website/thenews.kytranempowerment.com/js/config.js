@@ -91,7 +91,11 @@ var Config = (function () {
         ships:     { label: 'Ship Traffic',       color: '#00b4d8', icon: 'anchor',   default: false },
         spaceweather:{ label: 'Space Weather',   color: '#ffd700', icon: 'sun',      default: false },
         radiation: { label: 'Radiation',          color: '#c6ff00', icon: 'alert',    default: false },
-        protests:  { label: 'Protests / Unrest', color: '#ff1493', icon: 'flag',     default: false }
+        protests:  { label: 'Protests / Unrest', color: '#ff1493', icon: 'flag',     default: false },
+        internet:  { label: 'Internet Outages',  color: '#ff4081', icon: 'wifi',     default: false },
+        terrorism: { label: 'Terrorism',          color: '#b71c1c', icon: 'alert',    default: false },
+        economic:  { label: 'Markets / Economy',  color: '#ffc107', icon: 'trending', default: false },
+        social:    { label: 'Social Trends',      color: '#e040fb', icon: 'hash',     default: false }
     };
 
     /* -- DEFCON Levels ---------------------------------------------------- */

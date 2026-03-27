@@ -1,0 +1,184 @@
+{
+  "centers": [
+    {
+      "name": "New York Stock Exchange",
+      "lat": 40.71,
+      "lon": -74.01,
+      "country": "United States",
+      "index": "S&P 500",
+      "status": "up",
+      "change_pct": 0.85
+    },
+    {
+      "name": "NASDAQ",
+      "lat": 40.76,
+      "lon": -73.98,
+      "country": "United States",
+      "index": "NASDAQ Composite",
+      "status": "up",
+      "change_pct": 1.12
+    },
+    {
+      "name": "London Stock Exchange",
+      "lat": 51.51,
+      "lon": -0.09,
+      "country": "United Kingdom",
+      "index": "FTSE 100",
+      "status": "down",
+      "change_pct": -0.43
+    },
+    {
+      "name": "Tokyo Stock Exchange",
+      "lat": 35.68,
+      "lon": 139.76,
+      "country": "Japan",
+      "index": "Nikkei 225",
+      "status": "volatile",
+      "change_pct": -1.87
+    },
+    {
+      "name": "Shanghai Stock Exchange",
+      "lat": 31.23,
+      "lon": 121.47,
+      "country": "China",
+      "index": "SSE Composite",
+      "status": "down",
+      "change_pct": -0.92
+    },
+    {
+      "name": "Hong Kong Stock Exchange",
+      "lat": 22.28,
+      "lon": 114.16,
+      "country": "Hong Kong",
+      "index": "Hang Seng",
+      "status": "volatile",
+      "change_pct": -2.15
+    },
+    {
+      "name": "Euronext Paris",
+      "lat": 48.87,
+      "lon": 2.34,
+      "country": "France",
+      "index": "CAC 40",
+      "status": "up",
+      "change_pct": 0.31
+    },
+    {
+      "name": "Frankfurt Stock Exchange",
+      "lat": 50.11,
+      "lon": 8.68,
+      "country": "Germany",
+      "index": "DAX",
+      "status": "up",
+      "change_pct": 0.67
+    },
+    {
+      "name": "Toronto Stock Exchange",
+      "lat": 43.65,
+      "lon": -79.38,
+      "country": "Canada",
+      "index": "TSX Composite",
+      "status": "up",
+      "change_pct": 0.44
+    },
+    {
+      "name": "Bombay Stock Exchange",
+      "lat": 18.93,
+      "lon": 72.83,
+      "country": "India",
+      "index": "SENSEX",
+      "status": "up",
+      "change_pct": 1.35
+    },
+    {
+      "name": "Australian Securities Exchange",
+      "lat": -33.87,
+      "lon": 151.21,
+      "country": "Australia",
+      "index": "ASX 200",
+      "status": "down",
+      "change_pct": -0.28
+    },
+    {
+      "name": "Korea Exchange",
+      "lat": 37.57,
+      "lon": 126.98,
+      "country": "South Korea",
+      "index": "KOSPI",
+      "status": "volatile",
+      "change_pct": -1.54
+    },
+    {
+      "name": "Swiss Exchange",
+      "lat": 47.37,
+      "lon": 8.54,
+      "country": "Switzerland",
+      "index": "SMI",
+      "status": "up",
+      "change_pct": 0.22
+    },
+    {
+      "name": "Johannesburg Stock Exchange",
+      "lat": -26.21,
+      "lon": 28.04,
+      "country": "South Africa",
+      "index": "JSE Top 40",
+      "status": "down",
+      "change_pct": -1.03
+    },
+    {
+      "name": "Saudi Exchange (Tadawul)",
+      "lat": 24.71,
+      "lon": 46.67,
+      "country": "Saudi Arabia",
+      "index": "TASI",
+      "status": "up",
+      "change_pct": 0.58
+    },
+    {
+      "name": "B3 (Brasil Bolsa Balcao)",
+      "lat": -23.55,
+      "lon": -46.63,
+      "country": "Brazil",
+      "index": "Bovespa",
+      "status": "volatile",
+      "change_pct": -0.76
+    },
+    {
+      "name": "Singapore Exchange",
+      "lat": 1.28,
+      "lon": 103.85,
+      "country": "Singapore",
+      "index": "STI",
+      "status": "up",
+      "change_pct": 0.19
+    },
+    {
+      "name": "Mexican Stock Exchange",
+      "lat": 19.43,
+      "lon": -99.13,
+      "country": "Mexico",
+      "index": "IPC",
+      "status": "down",
+      "change_pct": -0.55
+    },
+    {
+      "name": "Taiwan Stock Exchange",
+      "lat": 25.03,
+      "lon": 121.57,
+      "country": "Taiwan",
+      "index": "TAIEX",
+      "status": "volatile",
+      "change_pct": -1.21
+    },
+    {
+      "name": "Moscow Exchange",
+      "lat": 55.75,
+      "lon": 37.62,
+      "country": "Russia",
+      "index": "MOEX",
+      "status": "down",
+      "change_pct": -3.42
+    }
+  ]
+}

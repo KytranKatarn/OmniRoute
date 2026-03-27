@@ -1,0 +1,139 @@
+{
+  "trends": [
+    {
+      "topic": "#AIRegulation",
+      "lat": 38.91,
+      "lon": -77.04,
+      "region": "Washington DC",
+      "platform": "X",
+      "volume": 185000,
+      "sentiment": "negative"
+    },
+    {
+      "topic": "#ClimateAction",
+      "lat": 48.86,
+      "lon": 2.35,
+      "region": "Paris",
+      "platform": "Instagram",
+      "volume": 142000,
+      "sentiment": "positive"
+    },
+    {
+      "topic": "#TechLayoffs",
+      "lat": 37.77,
+      "lon": -122.42,
+      "region": "San Francisco",
+      "platform": "LinkedIn",
+      "volume": 98000,
+      "sentiment": "negative"
+    },
+    {
+      "topic": "#WorldCup2026",
+      "lat": 19.43,
+      "lon": -99.13,
+      "region": "Mexico City",
+      "platform": "TikTok",
+      "volume": 320000,
+      "sentiment": "positive"
+    },
+    {
+      "topic": "#CryptoSurge",
+      "lat": 1.35,
+      "lon": 103.82,
+      "region": "Singapore",
+      "platform": "X",
+      "volume": 76000,
+      "sentiment": "positive"
+    },
+    {
+      "topic": "#ProtestMovement",
+      "lat": 52.52,
+      "lon": 13.40,
+      "region": "Berlin",
+      "platform": "Telegram",
+      "volume": 54000,
+      "sentiment": "negative"
+    },
+    {
+      "topic": "#KPop",
+      "lat": 37.57,
+      "lon": 126.98,
+      "region": "Seoul",
+      "platform": "TikTok",
+      "volume": 250000,
+      "sentiment": "positive"
+    },
+    {
+      "topic": "#SpaceExploration",
+      "lat": 28.57,
+      "lon": -80.65,
+      "region": "Cape Canaveral",
+      "platform": "Reddit",
+      "volume": 67000,
+      "sentiment": "positive"
+    },
+    {
+      "topic": "#ElectionFraud",
+      "lat": -15.79,
+      "lon": -47.88,
+      "region": "Brasilia",
+      "platform": "X",
+      "volume": 89000,
+      "sentiment": "negative"
+    },
+    {
+      "topic": "#Bollywood",
+      "lat": 19.08,
+      "lon": 72.88,
+      "region": "Mumbai",
+      "platform": "Instagram",
+      "volume": 195000,
+      "sentiment": "neutral"
+    },
+    {
+      "topic": "#HealthcareReform",
+      "lat": 51.51,
+      "lon": -0.13,
+      "region": "London",
+      "platform": "X",
+      "volume": 43000,
+      "sentiment": "negative"
+    },
+    {
+      "topic": "#GamingRelease",
+      "lat": 35.68,
+      "lon": 139.69,
+      "region": "Tokyo",
+      "platform": "Reddit",
+      "volume": 156000,
+      "sentiment": "positive"
+    },
+    {
+      "topic": "#HousingCrisis",
+      "lat": 43.65,
+      "lon": -79.38,
+      "region": "Toronto",
+      "platform": "TikTok",
+      "volume": 71000,
+      "sentiment": "negative"
+    },
+    {
+      "topic": "#RenewableEnergy",
+      "lat": -33.87,
+      "lon": 151.21,
+      "region": "Sydney",
+      "platform": "LinkedIn",
+      "volume": 38000,
+      "sentiment": "positive"
+    },
+    {
+      "topic": "#FoodInflation",
+      "lat": 30.04,
+      "lon": 31.24,
+      "region": "Cairo",
+      "platform": "Facebook",
+      "volume": 62000,
+      "sentiment": "negative"
+    }
+  ]
+}

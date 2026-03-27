@@ -4478,6 +4478,7 @@ class AgentLoop:
         try:
             from database import get_db_cursor
             from services.code_metrics_service import audit_single_module, log_audit
+            from services.audit_pipeline import process_audit_findings
 
             # Load latest per_module data from most recent snapshot
             with get_db_cursor() as (conn, cur):
@@ -4506,6 +4507,7 @@ class AgentLoop:
             clean = 0
             violations = 0
             severity_totals = {"red": 0, "yellow": 0, "info": 0}
+            total_proposals = 0
 
             for module_name, stats in per_module.items():
                 issues_found, notes, status, issues_list = audit_single_module(module_name)
@@ -4514,6 +4516,16 @@ class AgentLoop:
                 for issue in issues_list:
                     sev = issue.get("severity", "info")
                     severity_totals[sev] = severity_totals.get(sev, 0) + 1
+
+                # Auto-generate Repair Bay proposals for red/yellow findings
+                if issues_list:
+                    try:
+                        result = process_audit_findings(module_name, issues_list)
+                        total_proposals += result.get("proposals_created", 0)
+                    except Exception as pipe_err:
+                        logger.warning(
+                            "Audit pipeline failed for %s: %s", module_name, pipe_err
+                        )
 
                 # Check proposals affecting this module
                 proposal_issues = 0
@@ -4544,13 +4556,15 @@ class AgentLoop:
                     violations += 1
 
             logger.info(
-                "Automated module audit: %d modules audited (%d clean, %d violations) — severity: %d red, %d yellow, %d info",
+                "Automated module audit: %d modules audited (%d clean, %d violations) — "
+                "severity: %d red, %d yellow, %d info — %d proposals created",
                 audited,
                 clean,
                 violations,
                 severity_totals["red"],
                 severity_totals["yellow"],
                 severity_totals["info"],
+                total_proposals,
             )
             self._log_cycle("automated_module_audit", audited, violations, 0)
         except Exception as e:

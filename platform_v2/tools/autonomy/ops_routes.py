@@ -412,6 +412,50 @@ def register_ops_routes(bp, admin_required):
                     }
                 )
 
+            # Department agent counts (Starbase integration)
+            cur.execute(
+                """
+                SELECT department,
+                    COUNT(*) FILTER (WHERE shift_state = 'active') AS active,
+                    COUNT(*) FILTER (WHERE shift_state = 'barracked') AS barracked,
+                    COUNT(*) FILTER (WHERE shift_state IN ('cooldown', 'winding_down')) AS cooldown,
+                    COUNT(*) AS total
+                FROM agents
+                WHERE status = 'active' AND department IS NOT NULL
+                GROUP BY department
+                ORDER BY department
+                """
+            )
+            dept_agents = {}
+            for row in cur.fetchall():
+                dept_agents[row["department"]] = {
+                    "active": row["active"],
+                    "barracked": row["barracked"],
+                    "cooldown": row["cooldown"],
+                    "total": row["total"],
+                }
+
+            # Recent bridge dispatch stats per department (24h)
+            cur.execute(
+                """
+                SELECT station_code AS dept,
+                    COUNT(*) AS total,
+                    COUNT(*) FILTER (WHERE status = 'completed') AS ok,
+                    COUNT(*) FILTER (WHERE status = 'failed') AS err
+                FROM bridge_jobs
+                WHERE created_at >= NOW() - INTERVAL '24 hours'
+                  AND station_code IS NOT NULL
+                GROUP BY station_code
+                """
+            )
+            dept_dispatches = {}
+            for row in cur.fetchall():
+                dept_dispatches[row["dept"]] = {
+                    "total": row["total"],
+                    "ok": row["ok"],
+                    "err": row["err"],
+                }
+
             cur.close()
             conn.close()
 
@@ -455,6 +499,8 @@ def register_ops_routes(bp, admin_required):
                     "loop_health": loop_health,
                     "bridge_health": bridge_health,
                     "components": components,
+                    "dept_agents": dept_agents,
+                    "dept_dispatches": dept_dispatches,
                 }
             )
 

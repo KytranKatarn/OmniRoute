@@ -393,25 +393,91 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
     var pendingApprovalIds = [];
 
     /* Job metadata - human labels + color accents for all 17 jobs */
-    var JOB_META = {
-        'agent_email_queue':          {label:'Email Queue',          color:'#00FFFF',  group:'comms'},
-        'agent_email_inbox':          {label:'Email Inbox',          color:'#00FFFF',  group:'comms'},
-        'agent_email_analyze':        {label:'Email Analysis',       color:'#00FFFF',  group:'comms'},
-        'agent_email_telegram_notify':{label:'Email Telegram',       color:'#a78bfa',  group:'comms'},
-        'agent_telegram_notify':      {label:'Telegram Notify',      color:'#a78bfa',  group:'comms'},
-        'agent_scheduled_tasks':      {label:'Scheduled Tasks',      color:'#FFAA00',  group:'core'},
-        'agent_reminders':            {label:'Reminders',            color:'#FFAA00',  group:'core'},
-        'agent_approvals':            {label:'Approval Queue',       color:'#FFAA00',  group:'core'},
-        'agent_hr_tracker':           {label:'HR Tracker',           color:'#00ff41',  group:'ops'},
-        'agent_stale_job_reaper':     {label:'Stale Job Reaper',     color:'#00ff41',  group:'ops'},
-        'agent_ethics_monitoring':    {label:'Ethics Monitor',       color:'#00ff41',  group:'ops'},
-        'agent_anomaly_detection':    {label:'Anomaly Detection',    color:'#f59e0b',  group:'intel'},
-        'agent_briefings':            {label:'Briefings',            color:'#f59e0b',  group:'intel'},
-        'agent_reports':              {label:'Reports',              color:'#f59e0b',  group:'intel'},
-        'agent_browser_tasks':        {label:'Browser Tasks',        color:'#f59e0b',  group:'intel'},
-        'agent_training':             {label:'Training',             color:'#a78bfa',  group:'core'},
-        'agent_proactive_scan':       {label:'Proactive Scan',       color:'#00ff41',  group:'ops'}
+    /* ── Full job registry — 58 jobs organized by department ── */
+    var DEPT_COLORS = {
+        'Executive Office':            '#00e5ff',
+        'Operations & Infrastructure': '#a3e635',
+        'Engineering & Technology':    '#fbbf24',
+        'Security & Compliance':       '#ef4444',
+        'Analytics & Intelligence':    '#8b5cf6',
+        'Research & Development':      '#10b981',
+        'Marketing & Communications':  '#22d3ee',
+        'Human Resources & Culture':   '#f472b6',
+        'Creative & Design':           '#f97316',
+        'Services':                    '#818cf8'
     };
+    var DEPT_ORDER = Object.keys(DEPT_COLORS);
+
+    var JOB_META = {
+        /* Executive Office */
+        'agent_fleet_health':           {label:'Fleet Health',          dept:'Executive Office'},
+        'agent_mesh_health':            {label:'Mesh Health',           dept:'Executive Office'},
+        'agent_model_state_save':       {label:'Model State Save',     dept:'Executive Office'},
+        'agent_standalone_health':      {label:'Standalone Health',     dept:'Executive Office'},
+        /* Operations & Infrastructure */
+        'agent_stale_job_reaper':       {label:'Stale Job Reaper',     dept:'Operations & Infrastructure'},
+        'agent_stuck_job_watchdog':     {label:'Stuck Job Watchdog',   dept:'Operations & Infrastructure'},
+        'agent_scheduled_tasks':        {label:'Scheduled Tasks',      dept:'Operations & Infrastructure'},
+        'agent_reminders':              {label:'Reminders',            dept:'Operations & Infrastructure'},
+        'agent_notification_cleanup':   {label:'Notification Cleanup', dept:'Operations & Infrastructure'},
+        /* Engineering & Technology */
+        'agent_code_metrics':           {label:'Code Metrics Scan',    dept:'Engineering & Technology'},
+        'agent_pattern_compliance':     {label:'Pattern Compliance',   dept:'Engineering & Technology'},
+        'agent_code_health_scan':       {label:'Code Health Scan',     dept:'Engineering & Technology'},
+        'agent_code_health_digest':     {label:'Code Health Digest',   dept:'Engineering & Technology'},
+        'agent_automated_module_audit': {label:'Module Audit',         dept:'Engineering & Technology'},
+        'agent_auto_execute_proposals': {label:'Auto-Execute Proposals',dept:'Engineering & Technology'},
+        'agent_uncommitted_check':      {label:'Uncommitted Check',    dept:'Engineering & Technology'},
+        'agent_proactive_scan':         {label:'Proactive Scan',       dept:'Engineering & Technology'},
+        'agent_auto_remediation':       {label:'Auto Remediation',     dept:'Engineering & Technology'},
+        /* Security & Compliance */
+        'agent_ssh_monitor':            {label:'SSH Monitor',          dept:'Security & Compliance'},
+        'agent_security_audit':         {label:'Security Audit',       dept:'Security & Compliance'},
+        'agent_ssl_expiry_check':       {label:'SSL Expiry Check',     dept:'Security & Compliance'},
+        'agent_auto_block':             {label:'Auto Block',           dept:'Security & Compliance'},
+        'agent_compliance_scan':        {label:'Compliance Scan',      dept:'Security & Compliance'},
+        'agent_camera_anomaly':         {label:'Camera Anomaly',       dept:'Security & Compliance'},
+        'agent_network_discovery':      {label:'Network Discovery',    dept:'Security & Compliance'},
+        'agent_query_spike_detect':     {label:'Query Spike Detect',   dept:'Security & Compliance'},
+        'agent_daily_dns_report':       {label:'DNS Report',           dept:'Security & Compliance'},
+        /* Analytics & Intelligence */
+        'agent_consciousness_analysis': {label:'Knowledge Analysis',   dept:'Analytics & Intelligence'},
+        'agent_consciousness_embedding':{label:'Embedding Batch',      dept:'Analytics & Intelligence'},
+        'agent_performance_rankings':   {label:'Performance Rankings', dept:'Analytics & Intelligence'},
+        'agent_anomaly_detection':      {label:'Anomaly Detection',    dept:'Analytics & Intelligence'},
+        'agent_competitor_scan':        {label:'Competitor Scan',      dept:'Analytics & Intelligence'},
+        /* Research & Development */
+        'agent_skill_sync':             {label:'Skill Sync',           dept:'Research & Development'},
+        'agent_github_auto_pull':       {label:'GitHub Auto-Pull',     dept:'Research & Development'},
+        'agent_skill_analyzer':         {label:'Skill Analyzer',       dept:'Research & Development'},
+        /* Marketing & Communications */
+        'agent_email_queue':            {label:'Email Queue',          dept:'Marketing & Communications'},
+        'agent_email_inbox':            {label:'Email Inbox',          dept:'Marketing & Communications'},
+        'agent_email_analyze':          {label:'Email Analysis',       dept:'Marketing & Communications'},
+        'agent_email_processing':       {label:'Email Processing',     dept:'Marketing & Communications'},
+        'agent_email_telegram_notify':  {label:'Email→Telegram',       dept:'Marketing & Communications'},
+        'agent_telegram_notify':        {label:'Telegram Notify',      dept:'Marketing & Communications'},
+        /* Human Resources & Culture */
+        'agent_hr_tracker':             {label:'HR Tracker',           dept:'Human Resources & Culture'},
+        'agent_training_tick':          {label:'Training Tick',        dept:'Human Resources & Culture'},
+        'agent_training':               {label:'Training',             dept:'Human Resources & Culture'},
+        'agent_welfare_recovery':       {label:'Welfare Recovery',     dept:'Human Resources & Culture'},
+        'agent_idle_volunteering':      {label:'Idle Volunteering',    dept:'Human Resources & Culture'},
+        'agent_ethics_monitoring':      {label:'Ethics Monitor',       dept:'Human Resources & Culture'},
+        /* Creative & Design */
+        'agent_media_generation':       {label:'Media Generation',     dept:'Creative & Design'},
+        /* Services */
+        'agent_approvals':              {label:'Approval Queue',       dept:'Services'},
+        'agent_browser_tasks':          {label:'Browser Tasks',        dept:'Services'},
+        'agent_briefings':              {label:'Briefings',            dept:'Services'},
+        'agent_reports':                {label:'Reports',              dept:'Services'},
+        'agent_calendar_drive':         {label:'Calendar & Drive',     dept:'Services'},
+        'agent_mission_schedule':       {label:'Mission Schedule',     dept:'Services'}
+    };
+    /* Add color from department */
+    Object.keys(JOB_META).forEach(function(k) {
+        JOB_META[k].color = DEPT_COLORS[JOB_META[k].dept] || '#FFAA00';
+    });
 
     var LOG_TO_ID = {};
     Object.keys(JOB_META).forEach(function(id) {
@@ -420,6 +486,9 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
 
     function getJobLabel(name) {
         return (JOB_META[name] || {}).label || (JOB_META[LOG_TO_ID[name]] || {}).label || name;
+    }
+    function getJobDept(name) {
+        return (JOB_META[name] || {}).dept || (JOB_META[LOG_TO_ID[name]] || {}).dept || 'Other';
     }
     function getJobColor(name) {
         return (JOB_META[name] || {}).color || (JOB_META[LOG_TO_ID[name]] || {}).color || '#FFAA00';
@@ -805,27 +874,82 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
                 emptyAl.textContent = agentLoop.running ? 'No registered jobs' : 'Agent loop not running';
                 agentJobsList.appendChild(emptyAl);
             } else {
-                var grid = document.createElement('div');
-                grid.className = 'job-grid';
+                /* Group jobs by department */
+                var byDept = {};
                 agentJobs.forEach(function(job) {
-                    var card = document.createElement('div');
-                    card.className = 'job-card';
-                    var meta = JOB_META[job.id] || {};
-                    card.style.setProperty('--job-color', meta.color || '#FFAA00');
-
-                    var info = document.createElement('div');
-                    info.className = 'job-info';
-                    var h3 = document.createElement('h3');
-                    h3.textContent = meta.label || job.id;
-                    info.appendChild(h3);
-                    var nextDiv = document.createElement('div');
-                    nextDiv.className = 'meta';
-                    nextDiv.textContent = 'Next: ' + (job.next_run ? ArchieTime.time(job.next_run) : 'N/A');
-                    info.appendChild(nextDiv);
-                    card.appendChild(info);
-                    grid.appendChild(card);
+                    var dept = getJobDept(job.id);
+                    if (!byDept[dept]) byDept[dept] = [];
+                    byDept[dept].push(job);
                 });
-                agentJobsList.appendChild(grid);
+                /* Render in department order */
+                var deptKeys = DEPT_ORDER.filter(function(d) { return byDept[d]; });
+                /* Add "Other" if there are unmatched jobs */
+                if (byDept['Other']) deptKeys.push('Other');
+
+                deptKeys.forEach(function(dept) {
+                    var jobs = byDept[dept];
+                    var deptColor = DEPT_COLORS[dept] || '#FFAA00';
+                    /* Collapsible department section */
+                    var section = document.createElement('div');
+                    section.className = 'au-dept-section';
+                    section.style.marginBottom = '12px';
+
+                    var header = document.createElement('div');
+                    header.className = 'au-dept-header';
+                    header.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 10px;cursor:pointer;border-radius:6px;background:rgba(255,255,255,0.03);border-left:3px solid ' + deptColor + ';';
+                    header.onclick = function() {
+                        var g = this.nextElementSibling;
+                        var chev = this.querySelector('.au-dept-chevron');
+                        if (g.style.display === 'none') { g.style.display = ''; chev.textContent = '\u25BC'; }
+                        else { g.style.display = 'none'; chev.textContent = '\u25B6'; }
+                    };
+
+                    var deptDot = document.createElement('span');
+                    deptDot.style.cssText = 'width:8px;height:8px;border-radius:50%;background:' + deptColor + ';flex-shrink:0;';
+                    header.appendChild(deptDot);
+
+                    var deptLabel = document.createElement('span');
+                    deptLabel.style.cssText = 'font-size:0.8rem;font-weight:600;color:' + deptColor + ';flex:1;';
+                    deptLabel.textContent = dept;
+                    header.appendChild(deptLabel);
+
+                    var deptCount = document.createElement('span');
+                    deptCount.style.cssText = 'font-size:0.65rem;color:rgba(255,255,255,0.4);';
+                    deptCount.textContent = jobs.length + ' job' + (jobs.length !== 1 ? 's' : '');
+                    header.appendChild(deptCount);
+
+                    var chevron = document.createElement('span');
+                    chevron.className = 'au-dept-chevron';
+                    chevron.style.cssText = 'font-size:0.6rem;color:rgba(255,255,255,0.3);';
+                    chevron.textContent = '\u25BC';
+                    header.appendChild(chevron);
+
+                    section.appendChild(header);
+
+                    var grid = document.createElement('div');
+                    grid.className = 'job-grid';
+                    grid.style.marginTop = '6px';
+                    jobs.forEach(function(job) {
+                        var card = document.createElement('div');
+                        card.className = 'job-card';
+                        var meta = JOB_META[job.id] || {};
+                        card.style.setProperty('--job-color', meta.color || deptColor);
+
+                        var info = document.createElement('div');
+                        info.className = 'job-info';
+                        var h3 = document.createElement('h3');
+                        h3.textContent = meta.label || job.id;
+                        info.appendChild(h3);
+                        var nextDiv = document.createElement('div');
+                        nextDiv.className = 'meta';
+                        nextDiv.textContent = 'Next: ' + (job.next_run ? ArchieTime.time(job.next_run) : 'N/A');
+                        info.appendChild(nextDiv);
+                        card.appendChild(info);
+                        grid.appendChild(card);
+                    });
+                    section.appendChild(grid);
+                    agentJobsList.appendChild(section);
+                });
             }
 
             /* --- Scheduler Jobs --- */
@@ -941,6 +1065,7 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
             var resp = await fetch(BASE + '/ops-health');
             var data = await resp.json();
             if (data.error) return;
+            var deptAgents = data.dept_agents || {};
 
             /* Loop health grid */
             var loopGrid = document.getElementById('loopHealthGrid');
@@ -953,13 +1078,64 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
                 empty.textContent = 'No agent loop data in last 24h';
                 loopGrid.appendChild(empty);
             } else {
+                /* Group health data by department */
+                var healthByDept = {};
                 loopHealth.forEach(function(h) {
-                    loopGrid.appendChild(buildHealthCard(
-                        getJobLabel(h.job_name),
-                        h.last_run,
-                        h.ok_24h,
-                        h.err_24h
-                    ));
+                    var dept = getJobDept('agent_' + h.job_name) !== 'Other'
+                        ? getJobDept('agent_' + h.job_name)
+                        : getJobDept(h.job_name);
+                    if (!healthByDept[dept]) healthByDept[dept] = {jobs: [], ok: 0, err: 0};
+                    healthByDept[dept].jobs.push(h);
+                    healthByDept[dept].ok += (h.ok_24h || 0);
+                    healthByDept[dept].err += (h.err_24h || 0);
+                });
+                var hDeptKeys = DEPT_ORDER.filter(function(d) { return healthByDept[d]; });
+                if (healthByDept['Other']) hDeptKeys.push('Other');
+
+                hDeptKeys.forEach(function(dept) {
+                    var deptData = healthByDept[dept];
+                    var deptColor = DEPT_COLORS[dept] || '#FFAA00';
+                    var worstStatus = deptData.err > 5 ? 'red' : deptData.err > 0 ? 'amber' : 'green';
+
+                    /* Department header row */
+                    var deptRow = document.createElement('div');
+                    deptRow.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 10px;margin:8px 0 4px;border-radius:6px;background:rgba(255,255,255,0.02);border-left:3px solid ' + deptColor + ';cursor:pointer;';
+                    deptRow.onclick = function() {
+                        var cards = this.nextElementSibling;
+                        cards.style.display = cards.style.display === 'none' ? '' : 'none';
+                    };
+
+                    var statusDot = document.createElement('span');
+                    var dotColors = {green:'#22c55e',amber:'#f59e0b',red:'#ef4444'};
+                    statusDot.style.cssText = 'width:8px;height:8px;border-radius:50%;background:' + dotColors[worstStatus] + ';';
+                    deptRow.appendChild(statusDot);
+
+                    var dLabel = document.createElement('span');
+                    dLabel.style.cssText = 'font-size:0.8rem;font-weight:600;color:' + deptColor + ';flex:1;';
+                    dLabel.textContent = dept;
+                    deptRow.appendChild(dLabel);
+
+                    var dStats = document.createElement('span');
+                    dStats.style.cssText = 'font-size:0.65rem;color:rgba(255,255,255,0.4);';
+                    var agentInfo = deptAgents[dept] || {};
+                    var agentStr = agentInfo.active ? ' \u00b7 ' + agentInfo.active + '/' + agentInfo.total + ' agents' : '';
+                    dStats.textContent = deptData.jobs.length + ' jobs \u00b7 ' + deptData.ok + ' ok \u00b7 ' + deptData.err + ' err' + agentStr;
+                    deptRow.appendChild(dStats);
+
+                    loopGrid.appendChild(deptRow);
+
+                    var cardsDiv = document.createElement('div');
+                    cardsDiv.className = 'health-grid';
+                    cardsDiv.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;margin-bottom:4px;';
+                    deptData.jobs.forEach(function(h) {
+                        cardsDiv.appendChild(buildHealthCard(
+                            getJobLabel(h.job_name),
+                            h.last_run,
+                            h.ok_24h,
+                            h.err_24h
+                        ));
+                    });
+                    loopGrid.appendChild(cardsDiv);
                 });
             }
 

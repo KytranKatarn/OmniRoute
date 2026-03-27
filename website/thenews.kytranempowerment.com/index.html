@@ -203,6 +203,13 @@
                 <span class="layer-toggle__label">Disease Outbreaks</span>
                 <span class="layer-toggle__count">0</span>
             </label>
+
+            <label class="layer-toggle" data-layer="ships" style="--layer-color: #00b4d8">
+                <div class="layer-toggle__dot"></div>
+                <div class="layer-toggle__switch"></div>
+                <span class="layer-toggle__label">Ship Traffic</span>
+                <span class="layer-toggle__count">0</span>
+            </label>
         </div>
 
         <!-- Stats -->
@@ -218,7 +225,7 @@
                     <div class="stat-card__label">Countries</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-card__value" id="stat-sources">10</div>
+                    <div class="stat-card__value" id="stat-sources">11</div>
                     <div class="stat-card__label">Sources</div>
                 </div>
                 <div class="stat-card">
@@ -290,6 +297,9 @@
             <div class="map-legend__item">
                 <span class="map-legend__dot" style="background:#00ff88"></span> Disease
             </div>
+            <div class="map-legend__item">
+                <span class="map-legend__dot" style="background:#00b4d8"></span> Ship
+            </div>
         </div>
 
         <!-- Attribution -->
@@ -345,6 +355,7 @@
 <script src="js/layers/flights.js"></script>
 <script src="js/layers/airquality.js"></script>
 <script src="js/layers/disease.js"></script>
+<script src="js/layers/ships.js"></script>
 
 <!-- Panels -->
 <script src="js/panels/ticker.js"></script>

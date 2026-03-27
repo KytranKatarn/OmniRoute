@@ -79,25 +79,41 @@ var Cyber = (function () {
     function _render() {
         if (!_visible || _arcs.length === 0) return;
 
-        /* Main lines — flat on map surface, great circle path */
-        var lineLayer = new deck.LineLayer({
+        /* Curved arcs — height scales inversely with distance so long arcs stay low */
+        var arcLayer = new deck.ArcLayer({
             id: 'cyber',
             data: _arcs,
             getSourcePosition: function (d) { return d.source; },
             getTargetPosition: function (d) { return d.target; },
-            getColor: function (d) {
-                var a = Math.floor(100 + d.intensity * 50);
-                return [160, 100, 220, a];
+            getSourceColor: function (d) {
+                var a = Math.floor(120 + d.intensity * 40);
+                return [139, 92, 246, a];
             },
-            getWidth: function (d) { return 1 + d.intensity * 0.6; },
+            getTargetColor: function (d) {
+                var a = Math.floor(150 + d.intensity * 35);
+                return [244, 114, 182, a];
+            },
+            getHeight: function (d) {
+                /* Calculate distance between source and target */
+                var dx = d.target[0] - d.source[0];
+                var dy = d.target[1] - d.source[1];
+                var dist = Math.sqrt(dx * dx + dy * dy);
+                /* Short arcs (< 30°) get nice curve, long arcs flatten out */
+                if (dist < 15) return 0.4;
+                if (dist < 30) return 0.25;
+                if (dist < 60) return 0.12;
+                return 0.06; /* very long arcs stay low */
+            },
+            getWidth: function (d) { return 1.5 + d.intensity * 0.8; },
             widthMinPixels: 1,
-            widthMaxPixels: 3,
+            widthMaxPixels: 4,
+            greatCircle: true,
             pickable: true,
             autoHighlight: true,
             highlightColor: [255, 255, 255, 80],
             parameters: { depthTest: false }
         });
-        KytranMap.setLayer('cyber', lineLayer);
+        KytranMap.setLayer('cyber', arcLayer);
 
         /* Endpoint dots — glowing source/target markers */
         var endpoints = [];

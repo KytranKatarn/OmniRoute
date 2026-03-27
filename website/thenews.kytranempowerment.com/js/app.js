@@ -211,6 +211,7 @@ var App = (function () {
         if (typeof Flights !== 'undefined') Flights.init();
         if (typeof AirQuality !== 'undefined') AirQuality.init();
         if (typeof Disease !== 'undefined') Disease.init();
+        if (typeof Ships !== 'undefined') Ships.init();
         if (typeof Ticker !== 'undefined') Ticker.init();
         if (typeof Defcon !== 'undefined') Defcon.init();
         if (typeof Search !== 'undefined') Search.init();

@@ -90,7 +90,8 @@ var Config = (function () {
         military:  { label: 'Military / Nuclear', color: '#76ff03', icon: 'target',   default: false },
         flights:   { label: 'Live Flights',      color: '#00c8ff', icon: 'plane',    default: false },
         airquality:{ label: 'Air Quality',        color: '#a0ff00', icon: 'wind',     default: false },
-        disease:   { label: 'Disease Outbreaks',  color: '#00ff88', icon: 'heart',    default: false }
+        disease:   { label: 'Disease Outbreaks',  color: '#00ff88', icon: 'heart',    default: false },
+        ships:     { label: 'Ship Traffic',       color: '#00b4d8', icon: 'anchor',   default: false }
     };
 
     /* -- DEFCON Levels ---------------------------------------------------- */

@@ -12,14 +12,16 @@ var Flights = (function () {
     function init() {
         _visible = App.isLayerActive('flights');
         EventBus.on('layer:toggle', function (e) {
-            if (e.key === 'flights') { _visible = e.visible; _render(); }
+            if (e.key === 'flights') {
+                _visible = e.visible;
+                if (_visible && _data.length === 0) refresh();
+                else _render();
+            }
         });
         if (_visible) refresh();
-        Scheduler.start('flights', refresh, 15000); /* 15 sec — OpenSky rate limit */
     }
 
     function refresh() {
-        if (!_visible) return;
         /* OpenSky Network — returns all aircraft in bounding box or worldwide */
         Fetcher.get('https://opensky-network.org/api/states/all', {
             sourceKey: 'flights',
@@ -30,7 +32,11 @@ var Flights = (function () {
         }).then(function (data) {
             _data = data || [];
             App.updateLayerCount('flights', _data.length);
-            _render();
+            if (_visible) _render();
+            /* Start polling once we have data */
+            if (_data.length > 0 && !Scheduler.getActiveKeys().indexOf('flights') !== -1) {
+                Scheduler.start('flights', refresh, 15000);
+            }
         });
     }
 

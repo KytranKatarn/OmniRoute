@@ -23,6 +23,13 @@ def create_app():
     from routes.health import health_bp
     app.register_blueprint(health_bp)
 
+    from routes.stocks import stocks_bp
+    from routes.watchlist import watchlist_bp
+    from routes.charts import charts_bp
+    app.register_blueprint(stocks_bp)
+    app.register_blueprint(watchlist_bp)
+    app.register_blueprint(charts_bp)
+
     from routes.portfolio import portfolio_bp
     app.register_blueprint(portfolio_bp)
 

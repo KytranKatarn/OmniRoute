@@ -6,12 +6,9 @@
 var Config = (function () {
     'use strict';
 
-    /* CORS proxy — detect local vs deployed */
-    var _isLocal = window.location.hostname === '192.168.1.200' || window.location.hostname === 'localhost';
-    var CORS_PROXY = _isLocal
-        ? 'http://192.168.1.200:8098/proxy?url='
-        : 'https://api.allorigins.win/raw?url=';
-    var CORS_PROXY_ALT = 'https://corsproxy.io/?';
+    /* CORS proxy — self-hosted primary, public fallback */
+    var CORS_PROXY = 'https://proxy.kytranempowerment.com/proxy?url=';
+    var CORS_PROXY_ALT = 'https://api.allorigins.win/raw?url=';
 
     /* -- API Endpoints ---------------------------------------------------- */
     var API = {

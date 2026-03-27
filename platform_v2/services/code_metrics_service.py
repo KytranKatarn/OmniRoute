@@ -917,11 +917,41 @@ def audit_single_module(module_name, module_path=None):
                 if match.startswith("test_") or "openssl" in match or "${" in match or "os.getenv" in match:
                     continue
                 issues.append(f"HARDCODED_SECRET: {fname}")
+
+            # Check 5: Large files (>600 lines per compliance rules)
+            line_count = content.count("\n") + 1
+            if line_count > 600:
+                issues.append(f"LARGE_FILE: {fname} ({line_count} lines)")
+
+            # Check 6: SQL injection risk — f-string or % formatting in execute()
+            if re.search(r'\.execute\(\s*f["\']', content) or re.search(
+                r'\.execute\(\s*["\'].*%s.*["\']\s*%\s*[^(]', content
+            ):
+                issues.append(f"SQL_INJECTION_RISK: {fname}")
+
+            # Check 7: Debug leftovers — print(), breakpoint(), pdb
+            lines = content.split("\n")
+            for i, line in enumerate(lines, 1):
+                stripped = line.strip()
+                if stripped.startswith("#"):
+                    continue
+                if re.match(r"^print\(", stripped) and "logger" not in stripped:
+                    issues.append(f"DEBUG_PRINT: {fname}:{i}")
+                    break  # Only report first occurrence per file
+                if "breakpoint()" in stripped or "import pdb" in stripped:
+                    issues.append(f"DEBUG_BREAKPOINT: {fname}:{i}")
+                    break
+
+            # Check 8: Missing module docstring (routes files only)
+            if fname.endswith("routes.py") and not content.strip().startswith('"""'):
+                if not content.strip().startswith("'") and not content.strip().startswith("#"):
+                    issues.append(f"NO_DOCSTRING: {fname}")
+
         except Exception:
             pass
 
     status = "violations_found" if issues else "completed"
-    notes = "; ".join(issues[:20]) if issues else "clean — all checks passed"
+    notes = "; ".join(issues[:30]) if issues else "clean — all checks passed"
     return (len(issues), notes, status)
 
 

@@ -2903,14 +2903,15 @@ class BridgeDispatcher:
             elif energy <= 0.3:
                 mood = "fatigued"
 
+            mood_intensity = round(max(1.0 - stress * 0.3, 0.3), 3)
             cur.execute(
                 """
                 UPDATE agent_emotional_state
                 SET stress_level = %s, energy_level = %s,
-                    current_mood = %s, timestamp = NOW()
+                    current_mood = %s, mood_intensity = %s, timestamp = NOW()
                 WHERE agent_id = %s
                 """,
-                (round(stress, 3), round(energy, 3), mood, agent_id),
+                (round(stress, 3), round(energy, 3), mood, mood_intensity, agent_id),
             )
             conn.commit()
             cur.close()

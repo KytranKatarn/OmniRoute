@@ -291,6 +291,24 @@ class SafeDeploymentProtocol:
                 (proposal_id,),
             )
 
+            # Bridge to Code Health: mark affected module audit as stale
+            try:
+                cur.execute(
+                    "SELECT file_path FROM improvement_proposals WHERE id = %s",
+                    (proposal_id,),
+                )
+                prow = cur.fetchone()
+                if prow and prow.get("file_path"):
+                    parts = prow["file_path"].split("/")
+                    if "tools" in parts:
+                        idx = parts.index("tools")
+                        if idx + 1 < len(parts):
+                            from services.code_metrics_service import mark_stale_audits
+
+                            mark_stale_audits([parts[idx + 1]])
+            except Exception as stale_err:
+                logger.warning(f"Code Health bridge: {stale_err}")
+
             conn.commit()
 
             # Get final deployment info

@@ -698,6 +698,15 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Job #58 — Automated Module Audit (weekly Sunday 3:30 AM, after Job #40 snapshot)
+        self.scheduler.add_job(
+            with_app_context(self._automated_module_audit),
+            trigger=CronTrigger(day_of_week="sun", hour=3, minute=30),
+            id="agent_automated_module_audit",
+            name="Agent Loop: Automated Module Audit",
+            replace_existing=True,
+        )
+
         # Job #52 — Competitor landscape auto-scan (every 2 weeks)
         self.scheduler.add_job(
             with_app_context(self._competitor_landscape_scan),
@@ -4459,6 +4468,79 @@ class AgentLoop:
                 logger.info("Pattern compliance: clean — no violations found")
         except Exception as e:
             logger.warning(f"Failed: {e}")
+
+    def _automated_module_audit(self):
+        """Job #58: Automated module audit — weekly Sunday 3:30 AM."""
+        try:
+            from database import get_db_cursor
+            from services.code_metrics_service import audit_single_module, log_audit
+
+            # Load latest per_module data from most recent snapshot
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT per_module FROM code_metrics_snapshots
+                       ORDER BY scanned_at DESC LIMIT 1"""
+                )
+                row = cur.fetchone()
+                if not row or not row.get("per_module"):
+                    logger.warning("Automated module audit: no snapshot found, skipping")
+                    return
+
+                per_module = row["per_module"]
+
+                # Also check for open high/critical proposals per module
+                cur.execute(
+                    """SELECT file_path, COUNT(*) as cnt
+                       FROM improvement_proposals
+                       WHERE status NOT IN ('deployed', 'rejected', 'archived')
+                         AND severity IN ('high', 'critical')
+                       GROUP BY file_path"""
+                )
+                proposal_files = {r["file_path"]: r["cnt"] for r in cur.fetchall()}
+
+            audited = 0
+            clean = 0
+            violations = 0
+
+            for module_name, stats in per_module.items():
+                issues_found, notes, status = audit_single_module(module_name)
+
+                # Check proposals affecting this module
+                proposal_issues = 0
+                for fpath, cnt in proposal_files.items():
+                    if f"/tools/{module_name}/" in fpath:
+                        proposal_issues += cnt
+                if proposal_issues > 0:
+                    issues_found += proposal_issues
+                    notes += f"; {proposal_issues} open high/critical proposals"
+                    if status == "completed":
+                        status = "violations_found"
+
+                log_audit(
+                    module_name=module_name,
+                    category="automated_weekly",
+                    files_reviewed=stats.get("files", 0),
+                    lines_before=stats.get("lines", 0),
+                    lines_after=stats.get("lines", 0),
+                    issues_found=issues_found,
+                    notes=notes,
+                    status=status,
+                )
+
+                audited += 1
+                if status == "completed":
+                    clean += 1
+                else:
+                    violations += 1
+
+            logger.info(
+                "Automated module audit: %d modules audited (%d clean, %d violations)",
+                audited,
+                clean,
+                violations,
+            )
+        except Exception as e:
+            logger.warning(f"Automated module audit failed: {e}")
 
     def _daily_code_health_digest(self):
         """Job #51: Send a morning Telegram summary of code health status at 8:00 AM."""

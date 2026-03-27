@@ -195,6 +195,48 @@ function loadDashboard() {
     var moodBar = document.getElementById("wellnessMoodBar");
     if (moodBar) moodBar.style.width = mood + "%";
 
+    // Fleet deployment stats (from Starbase data)
+    var fleetEl = document.getElementById("fleetStats");
+    if (!fleetEl) {
+      // Create fleet stats row below wellness bars
+      var wellnessCard = document.getElementById("wellnessMoodBar");
+      if (wellnessCard) {
+        var parent = wellnessCard.closest(".cs-card-body");
+        if (parent) {
+          fleetEl = document.createElement("div");
+          fleetEl.id = "fleetStats";
+          fleetEl.style.cssText = "margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:8px;flex-wrap:wrap;";
+          parent.appendChild(fleetEl);
+        }
+      }
+    }
+    if (fleetEl && data.agents.deployed !== undefined) {
+      var tasks1h = data.agents.tasks_last_hour || 0;
+      var rate = data.agents.success_rate_1h || 0;
+      var rateColor = rate >= 90 ? "#22c55e" : rate >= 70 ? "#f59e0b" : "#ef4444";
+      while (fleetEl.firstChild) fleetEl.removeChild(fleetEl.firstChild);
+      var items = [
+        {label: "Active", value: data.agents.deployed, color: "#22c55e"},
+        {label: "Reserve", value: data.agents.barracked, color: "#8b5cf6"},
+        {label: "Off Duty", value: data.agents.off_duty, color: "rgba(255,255,255,0.3)"},
+        {label: "Tasks/1h", value: tasks1h, color: "#00e5ff"},
+        {label: "Success", value: rate + "%", color: rateColor}
+      ];
+      items.forEach(function(item) {
+        var el = document.createElement("div");
+        el.style.cssText = "text-align:center;flex:1;min-width:50px;";
+        var v = document.createElement("div");
+        v.style.cssText = "font-size:0.9rem;font-weight:700;color:" + item.color + ";";
+        v.textContent = item.value;
+        var l = document.createElement("div");
+        l.style.cssText = "font-size:0.55rem;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.05em;";
+        l.textContent = item.label;
+        el.appendChild(v);
+        el.appendChild(l);
+        fleetEl.appendChild(el);
+      });
+    }
+
     // Emotional state mood indicator
     api("/emotional-state").then(function (d) {
       var mood = (d.mood || "neutral").toLowerCase();

@@ -143,6 +143,26 @@ def register_code_health_routes(bp, admin_required):
         result = backfill_git_history()
         return jsonify(result)
 
+    @bp.route("/api/code-health/governance-log")
+    @login_required
+    @admin_required
+    def code_health_governance_log():
+        """Return F.O.R.G.E. self-healing actions from governance audit log."""
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT event_type, action, outcome, details, timestamp
+                   FROM governance_audit_log
+                   WHERE event_category = 'self_healing'
+                   ORDER BY timestamp DESC LIMIT 50"""
+            )
+            entries = []
+            for r in cur.fetchall():
+                e = dict(r)
+                if hasattr(e.get("timestamp"), "isoformat"):
+                    e["timestamp"] = e["timestamp"].isoformat()
+                entries.append(e)
+        return jsonify({"success": True, "entries": entries})
+
     @bp.route("/api/code-health/standalone-status")
     @login_required
     @admin_required

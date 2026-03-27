@@ -145,6 +145,29 @@ def api_dashboard_summary():
         )
         wellness = cur.fetchone()
 
+        # Fleet deployment status from agents table (Starbase data)
+        cur.execute(
+            """
+            SELECT
+                count(*) FILTER (WHERE shift_state = 'active') as deployed,
+                count(*) FILTER (WHERE shift_state = 'barracked') as barracked,
+                count(*) FILTER (WHERE shift_state IN ('off_duty', 'cooldown', 'winding_down')) as off_duty
+            FROM agents
+        """
+        )
+        fleet = cur.fetchone()
+
+        # Recent dispatch activity (last hour)
+        cur.execute(
+            """
+            SELECT count(*) as tasks_1h,
+                   count(*) FILTER (WHERE success = true) as successes_1h
+            FROM task_execution_log
+            WHERE created_at > NOW() - INTERVAL '1 hour'
+        """
+        )
+        recent = cur.fetchone()
+
         # Projects (from Dev HQ) — via shared service
         projects = project_service.get_project_stats()
 
@@ -242,9 +265,14 @@ def api_dashboard_summary():
                 "agents": {
                     "total": agents["total"],
                     "active": agents["active"],
+                    "deployed": fleet["deployed"],
+                    "barracked": fleet["barracked"],
+                    "off_duty": fleet["off_duty"],
                     "avg_energy": float(wellness["avg_energy"] or 0),
                     "avg_stress": float(wellness["avg_stress"] or 0),
                     "avg_mood": float(wellness["avg_mood"] or 0),
+                    "tasks_last_hour": recent["tasks_1h"],
+                    "success_rate_1h": round(recent["successes_1h"] / max(recent["tasks_1h"], 1) * 100, 1),
                 },
                 "projects": {
                     "active": projects["active"],

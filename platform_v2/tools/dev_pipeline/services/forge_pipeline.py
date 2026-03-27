@@ -330,6 +330,27 @@ def deploy_via_merge(pr_number: int, proposal_id: int = None) -> Dict:
                     (proposal_id,),
                 )
                 conn.commit()
+
+                # Bridge to Code Health: mark affected module audit as stale
+                cur2 = conn.cursor()
+                try:
+                    cur2.execute(
+                        "SELECT file_path FROM improvement_proposals WHERE id = %s",
+                        (proposal_id,),
+                    )
+                    prow = cur2.fetchone()
+                    if prow and prow[0]:
+                        parts = prow[0].split("/")
+                        if "tools" in parts:
+                            idx = parts.index("tools")
+                            if idx + 1 < len(parts):
+                                affected = parts[idx + 1]
+                                from services.code_metrics_service import mark_stale_audits
+
+                                mark_stale_audits([affected])
+                                logger.info(f"[FORGE] Marked {affected} audit stale after deploy")
+                finally:
+                    cur2.close()
             finally:
                 cur.close()
                 conn.close()

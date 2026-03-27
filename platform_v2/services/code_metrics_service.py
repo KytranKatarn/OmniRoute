@@ -855,6 +855,66 @@ def get_audit_log():
         return result
 
 
+def audit_single_module(module_name, module_path=None):
+    """
+    Run automated checks on a single module and return audit results.
+    Returns (issues_found: int, notes: str, status: str).
+    """
+    import re
+
+    issues = []
+
+    # Determine path — tool modules live under tools/, special modules have known paths
+    if module_path is None:
+        if module_name.startswith("[") or module_name.startswith("standalone_") or module_name.startswith("website_"):
+            # Skip non-tool modules — they're infrastructure, not auditable tool modules
+            return (0, "infrastructure module — skipped", "completed")
+        tools_base = os.path.join(PLATFORM_ROOT, "tools")
+        module_path = os.path.join(tools_base, module_name)
+
+    if not os.path.isdir(module_path):
+        return (0, "module directory not found", "completed")
+
+    py_files = []
+    for root, dirs, files in os.walk(module_path):
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
+        for f in files:
+            if f.endswith(".py"):
+                py_files.append(os.path.join(root, f))
+
+    # Check 1: Structure — has __init__.py
+    has_init = any(f.endswith("__init__.py") for f in py_files)
+    if not has_init and py_files:
+        issues.append("missing __init__.py")
+
+    # Check 2: Pattern compliance — no direct Ollama/cloud calls
+    for fpath in py_files:
+        try:
+            with open(fpath, "r", encoding="utf-8", errors="ignore") as fh:
+                content = fh.read()
+            fname = os.path.basename(fpath)
+
+            if "call_ollama(" in content and "bridge" not in fpath:
+                issues.append(f"DIRECT_OLLAMA: {fname}")
+
+            if ("call_claude_api(" in content or "call_openai_api(" in content) and "bridge" not in fpath:
+                issues.append(f"DIRECT_CLOUD: {fname}")
+
+            # Check 3: Bare except
+            if re.search(r"\bexcept\s*:", content):
+                issues.append(f"BARE_EXCEPT: {fname}")
+
+            # Check 4: Hardcoded secrets (simple pattern)
+            if re.search(r'(?:password|token|secret)\s*=\s*["\'][^"\']{8,}["\']', content, re.IGNORECASE):
+                issues.append(f"HARDCODED_SECRET: {fname}")
+        except Exception:
+            pass
+
+    status = "violations_found" if issues else "completed"
+    notes = "; ".join(issues[:20]) if issues else "clean — all checks passed"
+    return (len(issues), notes, status)
+
+
 def log_audit(
     module_name,
     category,

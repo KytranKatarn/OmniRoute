@@ -68,6 +68,13 @@ STANDALONE_PRODUCTS = [
         "tier": 1,
         "compliance_packs": ["ubuntu-stig", "docker-stig", "network-stig", "cis-ubuntu"],
     },
+    {
+        "name": "Kytran Market Watch",
+        "path": "/mnt/archie_brain/market-watch",
+        "module_key": "standalone_kytran_market_watch",
+        "tier": 1,
+        "compliance_packs": ["ubuntu-stig", "docker-stig", "network-stig", "cis-ubuntu"],
+    },
 ]
 
 # Website products tracked in Code Health (static sites deployed to Hostinger)

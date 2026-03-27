@@ -449,11 +449,7 @@ def _get_standalone_stats():
                 if lang is None:
                     continue
                 filepath = os.path.join(root, f)
-                try:
-                    with open(filepath, "r", errors="ignore") as fh:
-                        line_count = sum(1 for _ in fh)
-                except Exception:
-                    line_count = 0
+                line_count = _count_lines(filepath)
                 stats["files"] += 1
                 stats["lines"] += line_count
                 if lang not in stats["by_type"]:
@@ -499,11 +495,7 @@ def _get_website_stats():
                 if lang is None:
                     continue
                 filepath = os.path.join(root, f)
-                try:
-                    with open(filepath, "r", errors="ignore") as fh:
-                        line_count = sum(1 for _ in fh)
-                except Exception:
-                    line_count = 0
+                line_count = _count_lines(filepath)
                 stats["files"] += 1
                 stats["lines"] += line_count
                 if lang not in stats["by_type"]:
@@ -737,6 +729,18 @@ def save_snapshot(metrics=None):
 
     try:
         with get_db_cursor(commit=True) as (conn, cur):
+            # Skip if identical snapshot exists within last hour
+            cur.execute(
+                """SELECT id FROM code_metrics_snapshots
+                   WHERE total_files = %s AND total_lines = %s
+                     AND scanned_at > NOW() - INTERVAL '1 hour'
+                   LIMIT 1""",
+                (metrics["total_files"], metrics["total_lines"]),
+            )
+            if cur.fetchone():
+                logger.info("Skipping duplicate snapshot (same file/line count within 1h)")
+                return None
+
             cur.execute(
                 """INSERT INTO code_metrics_snapshots
                        (total_files, total_lines, total_folders,

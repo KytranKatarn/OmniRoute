@@ -193,6 +193,7 @@ services:
       - ./kytran-business-suite:/mnt/archie_brain/kytran-business-suite:ro
       - ./watch-api:/mnt/archie_brain/watch-api:ro
       - ./legal-watch:/mnt/archie_brain/legal-watch:ro
+      - ./market-watch:/mnt/archie_brain/market-watch:ro
     ports:
       - "3000:3000"
     networks:

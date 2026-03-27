@@ -2652,7 +2652,13 @@ function loadCodeHealth() {
     });
 
     window._chDisplayNames = moduleDisplayNames;
-    _renderCodeHealthSummaryBar(statusData.summary || {});
+    var allMods = d.modules || {};
+    var modCount = Object.keys(allMods).length;
+    var standaloneCount = Object.keys(allMods).filter(function(k) { return k.startsWith('standalone_'); }).length;
+    var websiteKeysAll = ['website_kytranempowerment_current', 'website_kytranempowerment', 'website_creed_ai', 'website_kytran_news'];
+    var websiteCount = Object.keys(allMods).filter(function(k) { return websiteKeysAll.indexOf(k) !== -1; }).length;
+    var platformCount = modCount - standaloneCount - websiteCount;
+    _renderCodeHealthSummaryBar(statusData.summary || {}, {platform: platformCount, standalone: standaloneCount, websites: websiteCount});
     _renderCodeHealthStats(d);
     // Separate standalone products from platform modules
     var allModules = d.modules || {};
@@ -2697,7 +2703,7 @@ function loadCodeHealth() {
   chLoadHistory();
 }
 
-function _renderCodeHealthSummaryBar(summary) {
+function _renderCodeHealthSummaryBar(summary, counts) {
   var el = document.getElementById("chStatusSummary");
   if (!el) {
     // Insert summary bar before the stats grid if container doesn't exist yet
@@ -2745,25 +2751,47 @@ function _renderCodeHealthSummaryBar(summary) {
     el.appendChild(wrap);
   });
 
-  if (total) {
-    var totalSpan = document.createElement("span");
-    totalSpan.style.cssText = "font-size:0.7rem;color:rgba(255,255,255,0.3);margin-left:auto;";
-    totalSpan.textContent = total + " modules";
-    el.appendChild(totalSpan);
-  }
+  counts = counts || {};
+  var parts = [];
+  if (counts.platform) parts.push(counts.platform + " modules");
+  if (counts.standalone) parts.push(counts.standalone + " standalone");
+  if (counts.websites) parts.push(counts.websites + " websites");
+  var trackingText = parts.length ? parts.join(" \u00b7 ") : (total + " modules");
+
+  var totalSpan = document.createElement("span");
+  totalSpan.style.cssText = "font-size:0.7rem;color:rgba(255,255,255,0.3);margin-left:auto;";
+  totalSpan.textContent = trackingText;
+  el.appendChild(totalSpan);
 }
 
 function _renderCodeHealthStats(d) {
   var fmt = function(n) { return (n || 0).toLocaleString(); };
   setHtml("chTotalFiles", fmt(d.total_files));
   setHtml("chTotalLines", fmt(d.total_lines));
-  setHtml("chPythonLines", fmt(d.python ? d.python.lines : 0));
-  setHtml("chJsLines", fmt(d.js ? d.js.lines : 0));
-  setHtml("chHtmlLines", fmt(d.html ? d.html.lines : 0));
-  setHtml("chCssLines", fmt(d.css ? d.css.lines : 0));
-  setHtml("chSqlLines", fmt(d.sql ? d.sql.lines : 0));
-  setHtml("chShellLines", fmt(d.shell ? d.shell.lines : 0));
-  setHtml("chJsonLines", fmt(d.json ? d.json.lines : 0));
+  var langs = [
+    {id: "chPythonLines", key: "python"},
+    {id: "chJsLines", key: "js"},
+    {id: "chHtmlLines", key: "html"},
+    {id: "chCssLines", key: "css"},
+    {id: "chSqlLines", key: "sql"},
+    {id: "chShellLines", key: "shell"},
+    {id: "chJsonLines", key: "json"}
+  ];
+  langs.forEach(function(l) {
+    var data = d[l.key] || {files: 0, lines: 0};
+    var el = document.getElementById(l.id);
+    if (el) {
+      el.textContent = fmt(data.lines);
+      var sub = el.parentNode.querySelector(".ch-stat-files");
+      if (!sub) {
+        sub = document.createElement("div");
+        sub.className = "ch-stat-files";
+        sub.style.cssText = "font-size:0.6rem;color:rgba(255,255,255,0.35);margin-top:2px;";
+        el.parentNode.insertBefore(sub, el.nextSibling);
+      }
+      sub.textContent = fmt(data.files) + " files";
+    }
+  });
 }
 
 function _renderModuleChart(modules, displayNames) {
@@ -3304,11 +3332,34 @@ function _renderAuditTable(entries) {
   if (!el) return;
 
   if (!entries.length) {
-    setHtml(el, '<div class="ch-empty">No audit entries yet. Start auditing modules to see progress here.</div>');
+    setHtml(el, '<div class="ch-empty">No audit entries yet. Run a scan and audit modules to track code quality progress.</div>');
     return;
   }
 
-  var html = '<table class="ch-table"><thead><tr>' +
+  // Count unique audited modules (excluding PATTERN_COMPLIANCE meta-audits)
+  var auditedSet = {};
+  var completedSet = {};
+  entries.forEach(function(e) {
+    if (e.module_name !== "PATTERN_COMPLIANCE") {
+      auditedSet[e.module_name] = true;
+      if (e.status === "completed") completedSet[e.module_name] = true;
+    }
+  });
+  var auditedCount = Object.keys(auditedSet).length;
+  var completedCount = Object.keys(completedSet).length;
+  // Estimate total from module table if available
+  var totalModules = Object.keys(window._chDisplayNames || {}).length || auditedCount;
+  var pct = totalModules > 0 ? Math.round(completedCount / totalModules * 100) : 0;
+  var barColor = pct >= 75 ? '#22c55e' : pct >= 25 ? '#f59e0b' : '#ef4444';
+
+  var html = '<div style="display:flex;align-items:center;gap:12px;padding:8px 12px;margin-bottom:8px;border-radius:6px;background:rgba(255,255,255,0.02);">'
+    + '<span style="font-size:0.75rem;color:rgba(255,255,255,0.5);">Audit Coverage</span>'
+    + '<div style="flex:1;max-width:200px;height:6px;background:rgba(255,255,255,0.08);border-radius:3px;">'
+    + '<div style="height:100%;width:' + pct + '%;background:' + barColor + ';border-radius:3px;transition:width 0.3s;"></div></div>'
+    + '<span style="font-size:0.75rem;font-weight:600;color:' + barColor + ';">' + completedCount + '/' + totalModules + ' clean (' + pct + '%)</span>'
+    + '</div>';
+
+  html += '<table class="ch-table"><thead><tr>' +
     '<th>Module</th><th>Category</th><th class="center">Files</th>' +
     '<th class="center">Before</th><th class="center">After</th><th class="center">\u0394</th>' +
     '<th class="center">Issues</th><th class="center">Fixed</th><th>Status</th><th>Date</th>' +

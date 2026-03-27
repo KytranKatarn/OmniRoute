@@ -743,6 +743,15 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Job #59 — Dependabot vulnerability scan: poll alerts and triage every 6 hours
+        self.scheduler.add_job(
+            with_app_context(self._run_dependabot_scan),
+            trigger=IntervalTrigger(hours=6),
+            id="dependabot_scan",
+            name="Agent Loop: Dependabot Vulnerability Scan",
+            replace_existing=True,
+        )
+
         # Job #58 — Auto-remediation: fix low-risk compliance failures 30min after scan
         self.scheduler.add_job(
             with_app_context(self._run_auto_remediation),
@@ -2387,6 +2396,50 @@ class AgentLoop:
             return {"skipped": True, "reason": f"Unknown action type: {action_type}"}
 
     # ------------------------------------------------------------------
+    # Dependabot Vulnerability Scan
+    # ------------------------------------------------------------------
+
+    def _run_dependabot_scan(self):
+        """Agent Loop Job: Poll Dependabot alerts and triage pending repairs."""
+        try:
+            from tools.dev_pipeline.services.dependabot_service import (
+                poll_and_ingest,
+                sync_manifest_registry,
+            )
+            from tools.dev_pipeline.services.forge_triage import triage_pending_queue
+
+            sync_manifest_registry()
+            poll_result = poll_and_ingest()
+            if not poll_result["success"]:
+                logger.error("Dependabot poll failed: %s", poll_result.get("error"))
+                return
+
+            triage_result = triage_pending_queue()
+
+            self._log_autonomy_action(
+                action_type="dependabot_scan",
+                details={
+                    "new_alerts": poll_result.get("new_alerts", 0),
+                    "dispatched": triage_result.get("dispatched", 0),
+                    "escalated": triage_result.get("escalated", 0),
+                    "dismissed": triage_result.get("dismissed", 0),
+                },
+                success=True,
+            )
+            logger.info(
+                "Dependabot scan complete: %d new, %d dispatched, %d escalated",
+                poll_result.get("new_alerts", 0),
+                triage_result.get("dispatched", 0),
+                triage_result.get("escalated", 0),
+            )
+        except Exception as e:
+            logger.error("Dependabot scan job failed: %s", e)
+            self._log_autonomy_action(
+                action_type="dependabot_scan",
+                details={"error": str(e)},
+                success=False,
+            )
+
     # Proactive Code Sentinel (Phase 5 — Task 3)
     # ------------------------------------------------------------------
 

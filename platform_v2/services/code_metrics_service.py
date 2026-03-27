@@ -54,6 +54,20 @@ STANDALONE_PRODUCTS = [
         "tier": 1,
         "compliance_packs": ["ubuntu-stig", "docker-stig", "network-stig", "cis-ubuntu", "hipaa"],
     },
+    {
+        "name": "Kytran Civic Watch",
+        "path": "/mnt/archie_brain/watch-api",
+        "module_key": "standalone_kytran_civic_watch",
+        "tier": 1,
+        "compliance_packs": ["ubuntu-stig", "docker-stig", "network-stig", "cis-ubuntu"],
+    },
+    {
+        "name": "Kytran Legal Watch",
+        "path": "/mnt/archie_brain/legal-watch",
+        "module_key": "standalone_kytran_legal_watch",
+        "tier": 1,
+        "compliance_packs": ["ubuntu-stig", "docker-stig", "network-stig", "cis-ubuntu"],
+    },
 ]
 
 # Website products tracked in Code Health (static sites deployed to Hostinger)

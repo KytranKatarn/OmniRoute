@@ -191,6 +191,8 @@ services:
       # ── Standalone Products (read-only for Code Health scanner) ──
       - ./kytran-server-manager:/mnt/archie_brain/kytran-server-manager:ro
       - ./kytran-business-suite:/mnt/archie_brain/kytran-business-suite:ro
+      - ./watch-api:/mnt/archie_brain/watch-api:ro
+      - ./legal-watch:/mnt/archie_brain/legal-watch:ro
     ports:
       - "3000:3000"
     networks:

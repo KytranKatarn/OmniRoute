@@ -20,8 +20,8 @@ var Spending = (function () {
     }
 
     function refresh() {
-        var timespan = App.getTimeRange();
-        var url = Config.WATCH_API + '/events?type=spending&timespan=' + (timespan || '30d') + '&limit=200';
+        /* Civic data uses 1y for spending — fiscal year cycles */
+        var url = Config.WATCH_API + '/events?type=spending&timespan=1y&limit=200';
         Fetcher.get(url, {
             sourceKey: 'spending',
             fallbackUrl: Config.FALLBACKS.spending,

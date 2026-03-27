@@ -20,8 +20,8 @@ var Parliament = (function () {
     }
 
     function refresh() {
-        var timespan = App.getTimeRange();
-        var url = Config.WATCH_API + '/events?type=bill,vote,debate&timespan=' + (timespan || '30d') + '&limit=200';
+        /* Civic data uses 1y for parliament — bills have long lifecycles */
+        var url = Config.WATCH_API + '/events?type=bill,vote,debate&timespan=1y&limit=200';
         Fetcher.get(url, {
             sourceKey: 'parliament',
             fallbackUrl: Config.FALLBACKS.parliament,

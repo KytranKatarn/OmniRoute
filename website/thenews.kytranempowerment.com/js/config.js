@@ -8,12 +8,15 @@ var Config = (function () {
 
     /* CORS proxy — self-hosted primary, public fallback */
     var CORS_PROXY = 'https://proxy.kytranempowerment.com/proxy?url=';
-    var CORS_PROXY_ALT = 'https://api.allorigins.win/raw?url=';
+    var CORS_PROXY_ALT = ''; /* disabled — allorigins/corsproxy both broken as of 2026-03 */
+
+    /* W.A.T.C.H. Civic Intelligence API */
+    var WATCH_API = 'https://civic.kytranempowerment.com/api';
 
     /* -- API Endpoints ---------------------------------------------------- */
     var API = {
-        /* Conflicts (GDELT — free, no key) */
-        conflicts: 'https://api.gdeltproject.org/api/v2/geo/geo?query=conflict OR war OR attack OR protest OR emergency&format=geojson&timespan={timespan}',
+        /* Conflicts (GDELT DOC — GEO endpoint is dead as of 2026-03) */
+        conflicts: 'https://api.gdeltproject.org/api/v2/doc/doc?query=(conflict OR war OR attack OR military strike)&mode=artlist&format=json&maxrecords=75&timespan={timespan}',
 
         /* Earthquakes (USGS — free, no key) */
         earthquakes_hour:  'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_hour.geojson',
@@ -27,10 +30,19 @@ var Config = (function () {
         nws_alerts: 'https://api.weather.gov/alerts/active?status=actual',
 
         /* News (GDELT DOC — free, no key, includes Canada) */
-        news: 'https://api.gdeltproject.org/api/v2/doc/doc?query=conflict OR disaster OR earthquake OR cyber attack OR sanctions OR Canada&mode=artlist&format=json&maxrecords=100&timespan={timespan}',
+        news: 'https://api.gdeltproject.org/api/v2/doc/doc?query=(conflict OR disaster OR earthquake OR cyber attack OR sanctions OR Canada)&mode=artlist&format=json&maxrecords=100&timespan={timespan}',
 
         /* Canadian news specifically */
         news_canada: 'https://api.gdeltproject.org/api/v2/doc/doc?query=sourcecountry:CA&mode=artlist&format=json&maxrecords=30&timespan={timespan}',
+
+        /* Protests (GDELT DOC — GEO endpoint dead) */
+        protests: 'https://api.gdeltproject.org/api/v2/doc/doc?query=(protest OR demonstration OR rally OR unrest)&mode=artlist&format=json&maxrecords=50&timespan={timespan}',
+
+        /* Terrorism (GDELT DOC — GEO endpoint dead) */
+        terrorism: 'https://api.gdeltproject.org/api/v2/doc/doc?query=(terrorism OR terrorist attack OR bombing OR extremist)&mode=artlist&format=json&maxrecords=50&timespan={timespan}',
+
+        /* Outages (GDELT DOC — GEO endpoint dead) */
+        outages: 'https://api.gdeltproject.org/api/v2/doc/doc?query=(power outage OR internet outage OR blackout OR grid failure)&mode=artlist&format=json&maxrecords=50&timespan={timespan}',
 
         /* Cyber threats — simulated from public country-level stats */
         cyber_stats: 'data/fallback-cyber.json'
@@ -44,6 +56,9 @@ var Config = (function () {
         cyber:       60000,   /* 1 min */
         news:       180000,   /* 3 min */
         outages:    600000,   /* 10 min */
+        contracts:  600000,   /* 10 min */
+        parliament: 600000,   /* 10 min */
+        spending:   600000,   /* 10 min */
     };
 
     /* -- Fallback Data Paths ---------------------------------------------- */
@@ -54,7 +69,10 @@ var Config = (function () {
         cyber:     'data/fallback-cyber.json',
         news:      'data/fallback-news.json',
         military:  'data/military-sites.geojson',
-        sanctions: 'data/sanctions-entities.json'
+        sanctions: 'data/sanctions-entities.json',
+        contracts:  'data/fallback-contracts.json',
+        parliament: 'data/fallback-parliament.json',
+        spending:   'data/fallback-spending.json'
     };
 
     /* -- Time Ranges ------------------------------------------------------ */
@@ -95,7 +113,10 @@ var Config = (function () {
         internet:  { label: 'Internet Outages',  color: '#ff4081', icon: 'wifi',     default: false },
         terrorism: { label: 'Terrorism',          color: '#b71c1c', icon: 'alert',    default: false },
         economic:  { label: 'Markets / Economy',  color: '#ffc107', icon: 'trending', default: false },
-        social:    { label: 'Social Trends',      color: '#e040fb', icon: 'hash',     default: false }
+        social:    { label: 'Social Trends',      color: '#e040fb', icon: 'hash',     default: false },
+        contracts:  { label: 'Gov Contracts',   color: '#00bfa5', icon: 'briefcase', default: false },
+        parliament: { label: 'Parliament',      color: '#ffd740', icon: 'landmark',  default: false },
+        spending:   { label: 'Public Spending', color: '#69f0ae', icon: 'dollar',    default: false }
     };
 
     /* -- DEFCON Levels ---------------------------------------------------- */
@@ -136,6 +157,7 @@ var Config = (function () {
     return {
         CORS_PROXY: CORS_PROXY,
         CORS_PROXY_ALT: CORS_PROXY_ALT,
+        WATCH_API: WATCH_API,
         API: API,
         INTERVALS: INTERVALS,
         FALLBACKS: FALLBACKS,

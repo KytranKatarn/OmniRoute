@@ -1,7 +1,7 @@
-{"type":"FeatureCollection","features":[
-{"type":"Feature","geometry":{"type":"Point","coordinates":[36.8,33.5]},"properties":{"name":"Syrian conflict zone","domain":"reuters.com","dateadded":"20260326120000"}},
-{"type":"Feature","geometry":{"type":"Point","coordinates":[44.3,33.3]},"properties":{"name":"Baghdad security incident","domain":"aljazeera.com","dateadded":"20260326100000"}},
-{"type":"Feature","geometry":{"type":"Point","coordinates":[30.5,50.4]},"properties":{"name":"Ukraine frontline activity","domain":"bbc.com","dateadded":"20260326080000"}},
-{"type":"Feature","geometry":{"type":"Point","coordinates":[45.0,13.5]},"properties":{"name":"Yemen conflict update","domain":"reuters.com","dateadded":"20260326060000"}},
-{"type":"Feature","geometry":{"type":"Point","coordinates":[13.1,32.9]},"properties":{"name":"Libya security situation","domain":"france24.com","dateadded":"20260326040000"}}
+{"articles":[
+{"title":"Syrian conflict zone — ongoing hostilities reported","domain":"reuters.com","sourcecountry":"Syria","url":"https://reuters.com","seendate":"20260326120000"},
+{"title":"Baghdad security incident — multiple casualties","domain":"aljazeera.com","sourcecountry":"Iraq","url":"https://aljazeera.com","seendate":"20260326100000"},
+{"title":"Ukraine frontline activity — shelling intensifies","domain":"bbc.com","sourcecountry":"Ukraine","url":"https://bbc.com","seendate":"20260326080000"},
+{"title":"Yemen conflict update — ceasefire negotiations stall","domain":"reuters.com","sourcecountry":"Yemen","url":"https://reuters.com","seendate":"20260326060000"},
+{"title":"Libya security situation — militia clashes reported","domain":"france24.com","sourcecountry":"Libya","url":"https://france24.com","seendate":"20260326040000"}
 ]}

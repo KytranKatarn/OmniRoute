@@ -8,6 +8,10 @@ var Fetcher = (function () {
 
     var _cache = {};
     var _status = {};  /* per-source: 'fresh' | 'stale' | 'error' */
+    var _gdeltQueue = [];
+    var _gdeltProcessing = false;
+    var _lastGdeltRequest = 0;
+    var GDELT_DELAY = 5500; /* 5.5s between GDELT requests (API requires 5s) */
 
     /**
      * Fetch data with resilience layers.
@@ -21,11 +25,30 @@ var Fetcher = (function () {
      * @param {number} options.timeout      - Request timeout in ms (default 10000)
      * @returns {Promise<any>}
      */
+    function _isGdeltUrl(url) {
+        return url.indexOf('gdeltproject.org') !== -1;
+    }
+
+    function _processGdeltQueue() {
+        if (_gdeltProcessing || _gdeltQueue.length === 0) return;
+        _gdeltProcessing = true;
+
+        var item = _gdeltQueue.shift();
+        var now = Date.now();
+        var wait = Math.max(0, GDELT_DELAY - (now - _lastGdeltRequest));
+
+        setTimeout(function () {
+            _lastGdeltRequest = Date.now();
+            _doFetch(item.url, item.options).then(item.resolve).catch(item.reject);
+            _gdeltProcessing = false;
+            _processGdeltQueue(); /* process next in queue */
+        }, wait);
+    }
+
     function get(url, options) {
         options = options || {};
         var cacheTTL = options.cacheTTL || 60000;
         var sourceKey = options.sourceKey || url;
-        var timeout = options.timeout || 10000;
 
         /* 1. Check cache */
         var cached = _cache[sourceKey];
@@ -34,7 +57,23 @@ var Fetcher = (function () {
             return Promise.resolve(cached.data);
         }
 
-        /* 2. Fetch with timeout */
+        /* 2. Queue GDELT requests to respect rate limits */
+        if (_isGdeltUrl(url)) {
+            return new Promise(function (resolve, reject) {
+                _gdeltQueue.push({ url: url, options: options, resolve: resolve, reject: reject });
+                _processGdeltQueue();
+            });
+        }
+
+        return _doFetch(url, options);
+    }
+
+    function _doFetch(url, options) {
+        options = options || {};
+        var sourceKey = options.sourceKey || url;
+        var timeout = options.timeout || 10000;
+
+        /* Fetch with timeout */
         return _fetchWithTimeout(url, timeout)
             .then(function (response) {
                 if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -62,22 +101,8 @@ var Fetcher = (function () {
                         return data;
                     })
                     .catch(function () {
-                        /* 4. Retry via alt CORS proxy */
-                        var altUrl = Config.CORS_PROXY_ALT + encodeURIComponent(url);
-                        return _fetchWithTimeout(altUrl, timeout)
-                            .then(function (r) {
-                                if (!r.ok) throw new Error('Alt proxy HTTP ' + r.status);
-                                return r.json();
-                            })
-                            .then(function (data) {
-                                if (options.transform) data = options.transform(data);
-                                _cache[sourceKey] = { data: data, timestamp: Date.now() };
-                                _status[sourceKey] = 'fresh';
-                                return data;
-                            })
-                            .catch(function () {
-                                return _loadFallback(options, sourceKey);
-                            });
+                        /* 4. Skip to fallback — alt proxies disabled */
+                        return _loadFallback(options, sourceKey);
                     });
             });
     }

@@ -194,6 +194,7 @@ var App = (function () {
             }
             if (typeof Cyber !== 'undefined' && _layerState.cyber) {
                 Cyber.renderPulse && Cyber.renderPulse();
+                Parliament.renderPulse && Parliament.renderPulse();
             }
             setTimeout(tick, 200);
         }
@@ -221,6 +222,9 @@ var App = (function () {
         if (typeof Terrorism !== 'undefined') Terrorism.init();
         if (typeof Economic !== 'undefined') Economic.init();
         if (typeof Social !== 'undefined') Social.init();
+        if (typeof Contracts !== 'undefined') Contracts.init();
+        if (typeof Parliament !== 'undefined') Parliament.init();
+        if (typeof Spending !== 'undefined') Spending.init();
         if (typeof Ticker !== 'undefined') Ticker.init();
         if (typeof Defcon !== 'undefined') Defcon.init();
         if (typeof Detail !== 'undefined') Detail.init();

@@ -317,6 +317,27 @@
                 <span class="layer-toggle__label">Social Trends</span>
                 <span class="layer-toggle__count">0</span>
             </label>
+
+            <label class="layer-toggle" data-layer="contracts" style="--layer-color: #00bfa5">
+                <div class="layer-toggle__dot"></div>
+                <div class="layer-toggle__switch"></div>
+                <span class="layer-toggle__label">Gov Contracts</span>
+                <span class="layer-toggle__count">0</span>
+            </label>
+
+            <label class="layer-toggle" data-layer="parliament" style="--layer-color: #ffd740">
+                <div class="layer-toggle__dot"></div>
+                <div class="layer-toggle__switch"></div>
+                <span class="layer-toggle__label">Parliament</span>
+                <span class="layer-toggle__count">0</span>
+            </label>
+
+            <label class="layer-toggle" data-layer="spending" style="--layer-color: #69f0ae">
+                <div class="layer-toggle__dot"></div>
+                <div class="layer-toggle__switch"></div>
+                <span class="layer-toggle__label">Public Spending</span>
+                <span class="layer-toggle__count">0</span>
+            </label>
         </div>
 
         <!-- Stats -->
@@ -432,6 +453,15 @@
             <div class="map-legend__item">
                 <span class="map-legend__dot" style="background:#ff1493"></span> Protest
             </div>
+            <div class="map-legend__item">
+                <span class="map-legend__dot" style="background:#00bfa5"></span> Contract
+            </div>
+            <div class="map-legend__item">
+                <span class="map-legend__dot" style="background:#ffd740"></span> Parliament
+            </div>
+            <div class="map-legend__item">
+                <span class="map-legend__dot" style="background:#69f0ae"></span> Spending
+            </div>
         </div>
 
         <!-- Attribution -->
@@ -470,34 +500,37 @@
 <script src="https://unpkg.com/deck.gl@8.9.35/dist.min.js"></script>
 
 <!-- Core modules (load order matters) -->
-<script src="js/config.js"></script>
-<script src="js/data/fetcher.js"></script>
-<script src="js/data/scheduler.js"></script>
-<script src="js/data/transforms.js"></script>
-<script src="js/map.js"></script>
+<script src="js/config.js?v=2"></script>
+<script src="js/data/fetcher.js?v=2"></script>
+<script src="js/data/scheduler.js?v=2"></script>
+<script src="js/data/transforms.js?v=2"></script>
+<script src="js/map.js?v=2"></script>
 
 <!-- Data layers -->
-<script src="js/layers/conflicts.js"></script>
-<script src="js/layers/disasters.js"></script>
-<script src="js/layers/weather.js"></script>
-<script src="js/layers/cyber.js"></script>
-<script src="js/layers/outages.js"></script>
-<script src="js/layers/sanctions.js"></script>
-<script src="js/layers/military.js"></script>
-<script src="js/layers/flights.js"></script>
-<script src="js/layers/airquality.js"></script>
-<script src="js/layers/disease.js"></script>
-<script src="js/layers/ships.js"></script>
-<script src="js/layers/spaceweather.js"></script>
-<script src="js/layers/radiation.js"></script>
-<script src="js/layers/protests.js"></script>
-<script src="js/layers/internet.js"></script>
-<script src="js/layers/terrorism.js"></script>
-<script src="js/layers/economic.js"></script>
-<script src="js/layers/social.js"></script>
+<script src="js/layers/conflicts.js?v=2"></script>
+<script src="js/layers/disasters.js?v=2"></script>
+<script src="js/layers/weather.js?v=2"></script>
+<script src="js/layers/cyber.js?v=2"></script>
+<script src="js/layers/outages.js?v=2"></script>
+<script src="js/layers/sanctions.js?v=2"></script>
+<script src="js/layers/military.js?v=2"></script>
+<script src="js/layers/flights.js?v=2"></script>
+<script src="js/layers/airquality.js?v=2"></script>
+<script src="js/layers/disease.js?v=2"></script>
+<script src="js/layers/ships.js?v=2"></script>
+<script src="js/layers/spaceweather.js?v=2"></script>
+<script src="js/layers/radiation.js?v=2"></script>
+<script src="js/layers/protests.js?v=2"></script>
+<script src="js/layers/internet.js?v=2"></script>
+<script src="js/layers/terrorism.js?v=2"></script>
+<script src="js/layers/economic.js?v=2"></script>
+<script src="js/layers/social.js?v=2"></script>
+<script src="js/layers/contracts.js?v=2"></script>
+<script src="js/layers/parliament.js?v=2"></script>
+<script src="js/layers/spending.js?v=2"></script>
 
 <!-- Panels -->
-<script src="js/panels/ticker.js"></script>
+<script src="js/panels/ticker.js?v=2"></script>
 <script src="js/panels/defcon.js"></script>
 <script src="js/panels/detail.js"></script>
 <script src="js/panels/share.js"></script>

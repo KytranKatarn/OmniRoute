@@ -25,6 +25,8 @@ class Config:
         # AI Bridge
         self.KBS_BRIDGE_URL = os.getenv("KBS_BRIDGE_URL", "")
         self.KBS_BRIDGE_API_KEY = os.getenv("KBS_BRIDGE_API_KEY", "")
+        self.KBS_BRIDGE_MODEL = os.getenv("KBS_BRIDGE_MODEL", "qwen2.5-coder:7b")
+        self.KBS_WEBHOOK_TIMEOUT = int(os.getenv("KBS_WEBHOOK_TIMEOUT", "10"))
 
         # Mail
         self.KBS_MAIL_PROVIDER = os.getenv("KBS_MAIL_PROVIDER", "smtp")

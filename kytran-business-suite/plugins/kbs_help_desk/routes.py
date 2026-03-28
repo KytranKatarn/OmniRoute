@@ -1,6 +1,7 @@
 """Help Desk plugin routes — tickets, comments, SLA, assignment, resolution."""
 
 import logging
+import os
 from datetime import datetime, timezone
 
 from flask import g, jsonify, render_template, request
@@ -8,7 +9,10 @@ from flask_login import login_required
 from psycopg2.extras import Json
 
 from core.database import get_db_cursor, set_tenant_search_path
+from core.email_templates import render_ticket_created_email
 from core.event_bus import event_bus
+from core.inbound_email import parse_inbound_email
+from core.mail_client import send_email
 from core.tenant import require_module
 
 logger = logging.getLogger(__name__)
@@ -509,6 +513,138 @@ def register_routes(bp):
             policy = cur.fetchone()
 
         return jsonify(policy)
+
+    # ------------------------------------------------------------------
+    # Inbound email intake (webhook — no login_required)
+    # ------------------------------------------------------------------
+
+    @bp.route("/api/email-intake", methods=["POST"])
+    def email_intake():
+        """Receive inbound email payloads from an email provider webhook."""
+        # Authenticate via shared secret
+        expected_secret = os.environ.get("KBS_EMAIL_WEBHOOK_SECRET", "")
+        provided_secret = request.headers.get("X-Webhook-Secret", "")
+        if not expected_secret or provided_secret != expected_secret:
+            return jsonify({"error": "unauthorized"}), 401
+
+        data = request.get_json(force=True) or {}
+        tenant_id = data.get("tenant_id")
+        if not tenant_id:
+            return jsonify({"error": "tenant_id is required"}), 400
+
+        parsed = parse_inbound_email(data)
+
+        with get_db_cursor(commit=True, dict_cursor=True) as (conn, cur):
+            set_tenant_search_path(cur, tenant_id)
+
+            # Try to match sender to a CRM contact
+            cur.execute(
+                "SELECT id, first_name, last_name FROM crm_customers WHERE email = %s LIMIT 1",
+                (parsed["sender_email"],),
+            )
+            contact = cur.fetchone()
+            customer_id = contact["id"] if contact else None
+            customer_name = (
+                f"{contact['first_name']} {contact['last_name']}".strip()
+                if contact
+                else parsed["sender_name"] or parsed["sender_email"]
+            )
+
+            if parsed["is_reply"] and parsed["ticket_number"]:
+                # Add comment to existing ticket
+                cur.execute(
+                    "SELECT id FROM support_tickets WHERE ticket_number = %s",
+                    (parsed["ticket_number"],),
+                )
+                ticket_row = cur.fetchone()
+                if ticket_row is None:
+                    return jsonify({"error": "referenced ticket not found"}), 404
+
+                ticket_id = ticket_row["id"]
+                cur.execute(
+                    """
+                    INSERT INTO ticket_comments
+                        (ticket_id, author_name, author_email, content, source, created_at)
+                    VALUES (%s, %s, %s, %s, 'email', NOW())
+                    RETURNING id
+                    """,
+                    (
+                        ticket_id,
+                        customer_name,
+                        parsed["sender_email"],
+                        parsed["body"],
+                    ),
+                )
+                cur.execute(
+                    "UPDATE support_tickets SET updated_at = NOW() WHERE id = %s",
+                    (ticket_id,),
+                )
+                return jsonify(
+                    {"status": "comment_added", "ticket_id": ticket_id,
+                     "ticket_number": parsed["ticket_number"]}
+                ), 201
+
+            else:
+                # Create new ticket
+                ticket_number = _next_ticket_number(cur, tenant_id)
+                cur.execute(
+                    """
+                    INSERT INTO support_tickets
+                        (ticket_number, subject, description, status, priority,
+                         source, customer_id, customer_email, customer_name,
+                         created_at, updated_at)
+                    VALUES (%s, %s, %s, 'open', 'medium', 'email', %s, %s, %s,
+                            NOW(), NOW())
+                    RETURNING id, ticket_number, subject
+                    """,
+                    (
+                        ticket_number,
+                        parsed["subject"],
+                        parsed["body"],
+                        customer_id,
+                        parsed["sender_email"],
+                        customer_name,
+                    ),
+                )
+                ticket = cur.fetchone()
+
+        # Send confirmation email (best-effort)
+        try:
+            cur_tenant_name = "Support"  # fallback; no Flask g in webhook context
+            html_body, plain_body = render_ticket_created_email(
+                ticket_number=ticket["ticket_number"],
+                subject=ticket["subject"],
+                customer_name=customer_name,
+                business_name=cur_tenant_name,
+            )
+            send_email(
+                to=parsed["sender_email"],
+                subject=f"Ticket {ticket['ticket_number']} received: {ticket['subject']}",
+                body=plain_body,
+                html_body=html_body,
+            )
+        except Exception:
+            logger.warning(
+                "Failed to send confirmation email for ticket %s",
+                ticket["ticket_number"],
+                exc_info=True,
+            )
+
+        event_bus.emit(
+            "ticket.created",
+            {
+                "ticket_id": ticket["id"],
+                "ticket_number": ticket["ticket_number"],
+                "subject": ticket["subject"],
+                "source": "email",
+            },
+            tenant_id=tenant_id,
+        )
+
+        return jsonify(
+            {"status": "ticket_created", "ticket_number": ticket["ticket_number"],
+             "ticket_id": ticket["id"]}
+        ), 201
 
     # ------------------------------------------------------------------
     # Stats

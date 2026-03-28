@@ -97,6 +97,7 @@ function switchTab(tab) {
         'work':         loadWorkSessions,
         'performance':  loadPerformance,
         'creed':        loadCreed,
+        'social':       loadSocialFeed,
     };
     if (!loaded[tab] && loaders[tab]) {
         loaders[tab]();
@@ -638,6 +639,73 @@ async function openAgentDetail(agentId) {
             + 'ComfyUI portrait generation coming soon (pending disk space cleanup).'
             + '</div></div></div>';
 
+        // ── Social Presence ──
+        html += '<div class="dhq-ad-section" id="socialSection" data-agent-id="' + a.id + '">'
+            + '<div class="dhq-ad-section-title">Social Presence '
+            + '<button class="dhq-btn-sm dhq-btn-edit" onclick="toggleSocialEdit(' + a.id + ')">Edit</button>'
+            + '</div>'
+            + '<div id="socialView"><div class="dhq-loading" style="padding:0.3rem">Loading social...</div></div>'
+            + '<div id="socialEdit" style="display:none">'
+            + '<div class="dhq-social-form">'
+            // Writing voice editor
+            + '<div class="dhq-form-row">'
+            + '<div class="dhq-form-col">'
+            + '<label class="dhq-form-label">Writing Tone</label>'
+            + '<select id="social-tone" class="dhq-select">'
+            + '<option value="professional">Professional</option>'
+            + '<option value="casual">Casual</option>'
+            + '<option value="witty">Witty</option>'
+            + '<option value="academic">Academic</option>'
+            + '<option value="inspirational">Inspirational</option>'
+            + '<option value="technical">Technical</option>'
+            + '<option value="friendly">Friendly</option>'
+            + '<option value="authoritative">Authoritative</option>'
+            + '</select></div>'
+            + '<div class="dhq-form-col" style="flex:2">'
+            + '<label class="dhq-form-label">Topics (comma-separated)</label>'
+            + '<input id="social-topics" class="dhq-input" placeholder="e.g. AI ethics, cybersecurity, team culture">'
+            + '</div></div>'
+            + '<label class="dhq-form-label">Style Notes</label>'
+            + '<textarea id="social-style" class="dhq-textarea" rows="2" placeholder="e.g. Uses short punchy sentences. Often quotes sci-fi."></textarea>'
+            + '<div class="dhq-form-actions">'
+            + '<button class="dhq-action-btn dhq-action-save" onclick="saveWritingVoice(' + a.id + ')">Save Voice</button>'
+            + '<button class="dhq-action-btn" onclick="toggleSocialEdit(' + a.id + ')">Cancel</button>'
+            + '</div>'
+            // Add profile form
+            + '<div class="dhq-social-add-profile" style="margin-top:0.75rem;border-top:1px solid rgba(255,255,255,0.1);padding-top:0.75rem">'
+            + '<div class="dhq-form-label">Add Social Profile</div>'
+            + '<div class="dhq-form-row">'
+            + '<select id="social-platform" class="dhq-select"><option value="">Platform...</option>'
+            + '<option value="twitter">Twitter / X</option>'
+            + '<option value="linkedin">LinkedIn</option>'
+            + '<option value="instagram">Instagram</option>'
+            + '<option value="bluesky">Bluesky</option>'
+            + '<option value="mastodon">Mastodon</option>'
+            + '<option value="threads">Threads</option>'
+            + '<option value="github">GitHub</option>'
+            + '<option value="website">Website</option>'
+            + '</select>'
+            + '<input id="social-handle" class="dhq-input" placeholder="@handle or URL">'
+            + '<button class="dhq-action-btn" onclick="addSocialProfile(' + a.id + ')">Add</button>'
+            + '</div></div>'
+            + '</div></div>'
+            // Posts section
+            + '<div id="socialPosts" style="margin-top:0.75rem"></div>'
+            // Generate post
+            + '<div class="dhq-social-generate" style="margin-top:0.75rem;border-top:1px solid rgba(255,255,255,0.1);padding-top:0.75rem">'
+            + '<div class="dhq-form-label">Generate Post</div>'
+            + '<div class="dhq-form-row">'
+            + '<input id="social-gen-topic" class="dhq-input" placeholder="Topic (optional)" style="flex:2">'
+            + '<button class="dhq-action-btn" onclick="generateSocialPost(' + a.id + ')" id="btnGenPost">Generate</button>'
+            + '</div>'
+            + '<div id="socialGenPreview" style="display:none;margin-top:0.5rem">'
+            + '<div class="dhq-ad-prompt" id="socialGenContent"></div>'
+            + '<div class="dhq-form-actions" style="margin-top:0.4rem">'
+            + '<button class="dhq-action-btn dhq-action-save" onclick="saveSocialPost(' + a.id + ')">Save as Draft</button>'
+            + '<button class="dhq-action-btn" onclick="document.getElementById(\'socialGenPreview\').style.display=\'none\'">Discard</button>'
+            + '</div></div></div>'
+            + '</div>';
+
         // ── Actions ──
         html += '<div class="dhq-ad-section dhq-ad-actions">'
             + '<div class="dhq-ad-section-title">Actions</div>'
@@ -650,6 +718,8 @@ async function openAgentDetail(agentId) {
 
         // Load identity data asynchronously after modal renders
         loadAgentIdentity(a.id);
+        // Load social data
+        loadAgentSocial(a.id);
     } catch (err) {
         setHtml(body, '<div class="dhq-empty">Error loading agent profile: ' + esc(err.message) + '</div>');
     }
@@ -826,6 +896,255 @@ async function setPrimaryPortrait(agentId, portraitId) {
         }
     } catch (err) {
         alert('Error: ' + err.message);
+    }
+}
+
+// ───────────────────────────────────────────────────────────────
+// Social Presence
+// ───────────────────────────────────────────────────────────────
+
+const PLATFORM_ICONS = {
+    twitter: '\uD83D\uDC26', linkedin: '\uD83D\uDCBC', instagram: '\uD83D\uDCF7',
+    bluesky: '\u2601\uFE0F', mastodon: '\uD83D\uDC18', threads: '\uD83E\uDDF5',
+    github: '\uD83D\uDC31', website: '\uD83C\uDF10',
+};
+
+async function loadAgentSocial(agentId) {
+    try {
+        var profileResp = await api('/api/agent/' + agentId + '/social-profiles');
+        var voiceResp = await api('/api/agent/' + agentId + '/writing-voice');
+        var postsResp = await api('/api/agent/' + agentId + '/posts');
+
+        var profiles = profileResp.profiles || [];
+        var voice = voiceResp.voice || {};
+        var posts = postsResp.posts || [];
+
+        var viewEl = document.getElementById('socialView');
+        var html = '<div class="dhq-social-view">';
+
+        // Writing voice summary
+        html += '<div class="dhq-social-voice">'
+            + '<span class="dhq-ad-label">Tone:</span> ' + esc(voice.tone || 'professional');
+        if (voice.style) {
+            html += ' &middot; <span class="dhq-ad-label">Style:</span> ' + esc(voice.style);
+        }
+        var topics = voice.topics || [];
+        if (topics.length > 0) {
+            html += '<div class="dhq-social-topics">';
+            for (var i = 0; i < topics.length; i++) {
+                html += '<span class="dhq-social-topic-tag">' + esc(topics[i]) + '</span>';
+            }
+            html += '</div>';
+        }
+        html += '</div>';
+
+        // Social profiles
+        if (profiles.length > 0) {
+            html += '<div class="dhq-social-profiles">';
+            for (var pi = 0; pi < profiles.length; pi++) {
+                var p = profiles[pi];
+                var icon = PLATFORM_ICONS[p.platform] || '\uD83C\uDF10';
+                html += '<div class="dhq-social-profile-badge">'
+                    + '<span class="dhq-social-icon">' + icon + '</span>'
+                    + '<span class="dhq-social-platform">' + esc(p.platform) + '</span>'
+                    + '<span class="dhq-social-handle">' + esc(p.handle) + '</span>'
+                    + '</div>';
+            }
+            html += '</div>';
+        } else {
+            html += '<div class="dhq-empty" style="padding:0.3rem;font-size:0.75rem">No social profiles yet. Click Edit to add.</div>';
+        }
+        html += '</div>';
+        setHtml(viewEl, html);
+
+        // Render posts
+        var postsEl = document.getElementById('socialPosts');
+        if (posts.length > 0) {
+            var pHtml = '<div class="dhq-form-label">Recent Posts (' + posts.length + ')</div>'
+                + '<div class="dhq-social-posts-list">';
+            var showMax = Math.min(posts.length, 5);
+            for (var qi = 0; qi < showMax; qi++) {
+                var post = posts[qi];
+                pHtml += '<div class="dhq-social-post-item">'
+                    + '<div class="dhq-social-post-content">' + esc(post.content).substring(0, 200) + '</div>'
+                    + '<div class="dhq-social-post-meta">'
+                    + '<span class="dhq-social-post-status dhq-status-' + esc(post.status) + '">' + esc(post.status).toUpperCase() + '</span>'
+                    + (post.platform ? ' &middot; ' + esc(post.platform) : '')
+                    + ' &middot; ' + fmtTime(post.created_at)
+                    + (post.status === 'draft' ? ' &middot; <button class="dhq-btn-sm" onclick="publishPost(' + post.id + ',' + agentId + ')">Publish</button>' : '')
+                    + '</div></div>';
+            }
+            if (posts.length > 5) {
+                pHtml += '<div style="font-size:0.7rem;color:var(--dhq-text-dim)">+' + (posts.length - 5) + ' more posts</div>';
+            }
+            pHtml += '</div>';
+            setHtml(postsEl, pHtml);
+        }
+
+        // Pre-fill edit form
+        var toneEl = document.getElementById('social-tone');
+        if (toneEl) toneEl.value = voice.tone || 'professional';
+        var styleEl = document.getElementById('social-style');
+        if (styleEl) styleEl.value = voice.style || '';
+        var topicsEl = document.getElementById('social-topics');
+        if (topicsEl) topicsEl.value = (voice.topics || []).join(', ');
+
+    } catch (err) {
+        var viewEl2 = document.getElementById('socialView');
+        if (viewEl2) setHtml(viewEl2, '<div class="dhq-empty">Error loading social data: ' + esc(err.message) + '</div>');
+    }
+}
+
+function toggleSocialEdit(agentId) {
+    var viewEl = document.getElementById('socialView');
+    var editEl = document.getElementById('socialEdit');
+    var isEditing = editEl.style.display !== 'none';
+    editEl.style.display = isEditing ? 'none' : '';
+    viewEl.style.display = isEditing ? '' : 'none';
+}
+
+async function saveWritingVoice(agentId) {
+    var tone = document.getElementById('social-tone').value;
+    var style = document.getElementById('social-style').value;
+    var topicsRaw = document.getElementById('social-topics').value;
+    var topics = topicsRaw ? topicsRaw.split(',').map(function(t) { return t.trim(); }).filter(Boolean) : [];
+
+    try {
+        var resp = await apiPost('/api/agent/' + agentId + '/writing-voice', {
+            tone: tone, style: style, topics: topics
+        });
+        if (resp.success) {
+            toggleSocialEdit(agentId);
+            loadAgentSocial(agentId);
+        } else {
+            alert(resp.error || 'Failed to save writing voice');
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+async function addSocialProfile(agentId) {
+    var platform = document.getElementById('social-platform').value;
+    var handle = document.getElementById('social-handle').value.trim();
+    if (!platform || !handle) {
+        alert('Select a platform and enter a handle');
+        return;
+    }
+    try {
+        var resp = await apiPost('/api/agent/' + agentId + '/social-profiles', {
+            platform: platform, handle: handle
+        });
+        if (resp.success) {
+            document.getElementById('social-platform').value = '';
+            document.getElementById('social-handle').value = '';
+            loadAgentSocial(agentId);
+        } else {
+            alert(resp.error || 'Failed to add profile');
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+async function generateSocialPost(agentId) {
+    var topic = document.getElementById('social-gen-topic').value.trim();
+    var btn = document.getElementById('btnGenPost');
+    btn.disabled = true;
+    btn.textContent = 'Generating...';
+    try {
+        var resp = await apiPost('/api/agent/' + agentId + '/posts/generate', { topic: topic });
+        if (resp.content) {
+            document.getElementById('socialGenContent').textContent = resp.content;
+            document.getElementById('socialGenPreview').style.display = '';
+        } else {
+            alert(resp.error || 'Generation returned empty');
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Generate';
+    }
+}
+
+async function saveSocialPost(agentId) {
+    var content = document.getElementById('socialGenContent').textContent;
+    if (!content) return;
+    try {
+        var resp = await apiPost('/api/agent/' + agentId + '/posts', { content: content });
+        if (resp.success) {
+            document.getElementById('socialGenPreview').style.display = 'none';
+            loadAgentSocial(agentId);
+        } else {
+            alert(resp.error || 'Failed to save post');
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+async function publishPost(postId, agentId) {
+    try {
+        var resp = await apiPost('/api/posts/' + postId + '/publish', {});
+        if (resp.success) {
+            loadAgentSocial(agentId);
+        } else {
+            alert(resp.error || 'Failed to publish post');
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+// ───────────────────────────────────────────────────────────────
+// Social Feed (global tab)
+// ───────────────────────────────────────────────────────────────
+
+async function loadSocialFeed() {
+    var el = document.getElementById('socialFeedContent');
+    if (!el) return;
+    try {
+        var feedResp = await api('/api/social/feed?limit=30');
+        var statsResp = await api('/api/social/stats');
+        loaded['social'] = true;
+
+        var stats = statsResp;
+        var posts = feedResp.posts || [];
+
+        var html = '<div class="dhq-social-stats-bar">'
+            + '<span class="dhq-stat"><span class="dhq-stat-val">' + stats.agents_with_profiles + '</span> Agents with Profiles</span>'
+            + '<span class="dhq-stat"><span class="dhq-stat-val">' + stats.total_profiles + '</span> Profiles</span>'
+            + '<span class="dhq-stat"><span class="dhq-stat-val">' + stats.platforms_used + '</span> Platforms</span>'
+            + '<span class="dhq-stat"><span class="dhq-stat-val">' + stats.posts_this_week + '</span> Posts (7d)</span>'
+            + '<span class="dhq-stat"><span class="dhq-stat-val">' + stats.total_published + '</span> Published</span>'
+            + '</div>';
+
+        if (posts.length === 0) {
+            html += '<div class="dhq-empty">No posts yet. Open an agent profile and generate content.</div>';
+        } else {
+            html += '<div class="dhq-social-feed">';
+            for (var i = 0; i < posts.length; i++) {
+                var p = posts[i];
+                html += '<div class="dhq-social-feed-card">'
+                    + '<div class="dhq-social-feed-header">'
+                    + '<span class="dhq-social-feed-author dhq-clickable" onclick="openAgentDetail(' + p.agent_id + ')">'
+                    + esc(p.display_name || p.name) + '</span>'
+                    + '<span class="dhq-social-feed-dept">' + esc(p.department) + '</span>'
+                    + '<span class="dhq-social-post-status dhq-status-' + esc(p.status) + '">' + esc(p.status) + '</span>'
+                    + '</div>'
+                    + '<div class="dhq-social-feed-body">' + esc(p.content) + '</div>'
+                    + '<div class="dhq-social-feed-footer">'
+                    + (p.platform ? esc(p.platform) + ' &middot; ' : '')
+                    + fmtTime(p.created_at)
+                    + '</div></div>';
+            }
+            html += '</div>';
+        }
+
+        setHtml(el, html);
+    } catch (err) {
+        setHtml(el, '<div class="dhq-empty">Error loading social feed: ' + esc(err.message) + '</div>');
     }
 }
 

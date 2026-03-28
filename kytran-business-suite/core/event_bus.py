@@ -61,6 +61,19 @@ class EventBus:
                     event_type,
                 )
 
+        # Dispatch to registered webhooks (if tenant_id is present)
+        if tenant_id is not None:
+            try:
+                from core.webhook_manager import dispatch_webhooks
+
+                dispatch_webhooks(
+                    tenant_id=tenant_id,
+                    event_type=event_type,
+                    payload=data,
+                )
+            except Exception:
+                logger.exception("Webhook dispatch failed for event %r", event_type)
+
     def clear(self) -> None:
         """Remove all registered handlers (useful for test isolation)."""
         self._handlers.clear()

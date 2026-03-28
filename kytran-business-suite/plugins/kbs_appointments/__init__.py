@@ -20,3 +20,13 @@ def create_blueprint(manifest):
     event_bus.on("contact.created")(on_contact_created)
 
     return bp
+
+
+def create_public_blueprint():
+    """Return the public booking blueprint (no login required).
+
+    Called by the app factory to register routes at /<slug> for public booking.
+    """
+    from plugins.kbs_appointments.public_routes import create_public_blueprint as _create
+
+    return _create()

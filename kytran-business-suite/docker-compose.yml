@@ -8,6 +8,8 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+    volumes:
+      - .:/app:ro
     depends_on:
       - kbs-redis
       - kbs-postgres
@@ -45,6 +47,8 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+    volumes:
+      - .:/app:ro
     depends_on:
       - kbs-redis
     mem_limit: 256m

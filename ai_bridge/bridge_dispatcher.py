@@ -5232,6 +5232,7 @@ class BridgeDispatcher:
 
             agent = None
             dispatch_station = capability_station
+            home_station = capability_station
             is_cross_station = False
 
             # Department-first routing (preferred)

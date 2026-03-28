@@ -185,6 +185,47 @@ def render_appointment_confirmation_email(
     return html, text
 
 
+def render_payment_received_email(
+    invoice_number: str,
+    customer_name: str,
+    amount: float,
+    payment_method: str,
+    payment_reference: str,
+    business_name: str,
+) -> tuple[str, str]:
+    """Render payment confirmation email. Returns (html, plain_text)."""
+    amount_str = f"${amount:,.2f}"
+
+    body = f"""
+    <div class="header" style="color:#00e5ff;font-size:24px;font-weight:bold;margin-bottom:20px;">{business_name}</div>
+    <div style="display:inline-block;background:#10b98122;color:#10b981;padding:4px 12px;border-radius:4px;font-weight:bold;font-size:14px;margin-bottom:16px;">Payment Received</div>
+    <p>Hi {customer_name},</p>
+    <p>We've received your payment. Thank you!</p>
+    <p style="text-align:center;">
+      <span style="color:#10b981;font-size:32px;font-weight:bold;">{amount_str}</span>
+    </p>
+    <div style="background:#0d0d1a;border-radius:6px;padding:16px;margin:20px 0;border-left:3px solid #10b981;">
+      <div style="margin:8px 0;"><span style="color:#888;display:inline-block;width:140px;">Invoice</span> <strong>{invoice_number}</strong></div>
+      <div style="margin:8px 0;"><span style="color:#888;display:inline-block;width:140px;">Payment Method</span> <strong>{payment_method.title()}</strong></div>
+      <div style="margin:8px 0;"><span style="color:#888;display:inline-block;width:140px;">Reference</span> <strong>{payment_reference}</strong></div>
+    </div>
+    <p>If you have any questions about this payment, please contact us.</p>
+    <p style="margin-top:24px;color:#a0a0c0;">Best regards,<br>{business_name}</p>
+    """
+    html = _base_html(f"Payment Received - {invoice_number}", body)
+    text = (
+        f"Payment Received\n\n"
+        f"Hi {customer_name},\n\n"
+        f"We've received your payment of {amount_str}.\n\n"
+        f"Invoice: {invoice_number}\n"
+        f"Payment Method: {payment_method.title()}\n"
+        f"Reference: {payment_reference}\n\n"
+        f"Thank you for your business.\n\n"
+        f"{business_name}"
+    )
+    return html, text
+
+
 def render_appointment_reminder_email(
     customer_name: str,
     service_name: str,

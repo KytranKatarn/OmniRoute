@@ -4580,9 +4580,22 @@ class AgentLoop:
                 else:
                     violations += 1
 
+            # --- Phase 2: Dispatch approved proposals for AI fixes ---
+            try:
+                from services.audit_pipeline import dispatch_audit_proposals
+                dispatch_result = dispatch_audit_proposals(limit=10)
+                total_dispatched = dispatch_result.get("dispatched", 0)
+                logger.info(
+                    "Repair pipeline phase 2: %d proposals dispatched for AI fixes",
+                    total_dispatched,
+                )
+            except Exception as dispatch_err:
+                logger.warning("Repair pipeline dispatch phase failed: %s", dispatch_err)
+                total_dispatched = 0
+
             logger.info(
                 "Automated module audit: %d modules audited (%d clean, %d violations) — "
-                "severity: %d red, %d yellow, %d info — %d proposals created",
+                "severity: %d red, %d yellow, %d info — %d proposals created, %d dispatched",
                 audited,
                 clean,
                 violations,
@@ -4590,7 +4603,26 @@ class AgentLoop:
                 severity_totals["yellow"],
                 severity_totals["info"],
                 total_proposals,
+                total_dispatched,
             )
+
+            # --- Phase 3: Send Telegram summary ---
+            try:
+                gateway = self.flask_app.config.get("TELEGRAM_GATEWAY")
+                if gateway and gateway.is_running and (violations > 0 or total_dispatched > 0):
+                    summary_msg = (
+                        f"\U0001f527 Weekly Repair Cycle Complete\n"
+                        f"Modules audited: {audited} ({clean} clean, {violations} violations)\n"
+                        f"Severity: {severity_totals['red']} red, {severity_totals['yellow']} yellow, {severity_totals['info']} info\n"
+                        f"Proposals: {total_proposals} created, {total_dispatched} dispatched"
+                    )
+                    import asyncio
+                    asyncio.run_coroutine_threadsafe(
+                        gateway.send_notification(summary_msg), gateway.loop
+                    )
+            except Exception as tg_err:
+                logger.debug("Repair cycle Telegram summary failed: %s", tg_err)
+
             self._log_cycle("automated_module_audit", audited, violations, 0)
         except Exception as e:
             self._log_cycle("automated_module_audit", 0, 1, 0, error_message=str(e))

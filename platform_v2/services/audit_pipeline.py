@@ -6,7 +6,7 @@ medium-priority proposals with Tier 1 (auto) approval. Info (style) issues are s
 
 Import:
     from services.audit_pipeline import process_audit_findings, dispatch_proposal_fix,
-        dispatch_audit_proposals
+        dispatch_audit_proposals, verify_fix_deployment
 """
 
 import json
@@ -732,6 +732,89 @@ def dispatch_audit_proposals(limit=20):
     )
 
     return {"dispatched": dispatched, "failed": failed, "skipped": 0}
+
+
+def verify_fix_deployment(module_name, proposal_id, pre_issue_count):
+    """Re-audit a module after a fix is deployed to verify it improved.
+
+    Compares before/after issue counts. Logs result to governance_audit_log.
+
+    Args:
+        module_name: Module that was fixed
+        proposal_id: The proposal that was deployed
+        pre_issue_count: Issue count before the fix
+
+    Returns:
+        {"verified": bool, "pre_count": int, "post_count": int, "delta": int}
+    """
+    # Fresh audit of the module
+    try:
+        sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+        from services.code_metrics_service import audit_single_module
+
+        _issues_found, _notes, _status, issues_list = audit_single_module(module_name)
+    except Exception as e:
+        logger.error("verify_fix_deployment: re-audit of %s failed: %s", module_name, e)
+        return {"verified": False, "pre_count": pre_issue_count, "post_count": -1, "delta": 0}
+
+    post_count = len(issues_list)
+    delta = pre_issue_count - post_count
+    verified = post_count < pre_issue_count
+
+    # Log to governance_audit_log
+    if verified:
+        event_type = "repair_fix_verified"
+        outcome = "success"
+        reason = (
+            f"Module '{module_name}' improved: {pre_issue_count} → {post_count} issues "
+            f"(delta={delta}) after proposal #{proposal_id}"
+        )
+    else:
+        event_type = "repair_fix_regression"
+        outcome = "regression"
+        reason = (
+            f"Module '{module_name}' did NOT improve: {pre_issue_count} → {post_count} issues "
+            f"(delta={delta}) after proposal #{proposal_id}"
+        )
+
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """INSERT INTO governance_audit_log
+                   (event_type, event_category, action, outcome, reason, timestamp)
+                   VALUES (%s, 'repair_pipeline', 'verify_fix', %s, %s, NOW())""",
+                (event_type, outcome, reason[:500]),
+            )
+    except Exception as log_err:
+        logger.warning("Failed to log verify_fix_deployment event: %s", log_err)
+
+    # Update proposal status based on verification result
+    new_status = "deployed" if verified else "regression"
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "UPDATE improvement_proposals SET status = %s WHERE id = %s",
+                (new_status, proposal_id),
+            )
+    except Exception as update_err:
+        logger.warning(
+            "Failed to update proposal #%d status to '%s': %s",
+            proposal_id,
+            new_status,
+            update_err,
+        )
+
+    logger.info(
+        "verify_fix_deployment: module=%s proposal=#%d verified=%s (%d → %d, delta=%d)",
+        module_name,
+        proposal_id,
+        verified,
+        pre_issue_count,
+        post_count,
+        delta,
+    )
+
+    return {"verified": verified, "pre_count": pre_issue_count, "post_count": post_count, "delta": delta}
 
 
 def _mark_dispatch_attempted(proposal_id, error_msg):

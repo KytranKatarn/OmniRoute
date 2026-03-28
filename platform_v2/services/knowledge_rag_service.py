@@ -13,40 +13,10 @@ logger = logging.getLogger(__name__)
 def search_relevant_context(query, limit=5, categories=None):
     """Semantic search across knowledge_base using existing embeddings.
     Falls back to text search if embeddings unavailable."""
-    with get_db_cursor() as (conn, cur):
-        # Try embedding-based search first
-        try:
-            # Use the existing embedding similarity search
-            cur.execute(
-                """
-                SELECT id, title, content, category, importance,
-                       1 - (embedding <=> (SELECT embedding FROM knowledge_base WHERE title ILIKE %s LIMIT 1)) as similarity
-                FROM knowledge_base
-                WHERE embedding IS NOT NULL AND is_archived = false
-                ORDER BY similarity DESC
-                LIMIT %s
-            """,
-                (f"%{query[:50]}%", limit),
-            )
-            results = cur.fetchall()
-            if results:
-                return [dict(r) for r in results]
-        except Exception:
-            pass
+    # Delegate to the new rag_service for proper vector search
+    from services.rag_service import search_knowledge as _rag_search
 
-        # Fallback: text search
-        cur.execute(
-            """
-            SELECT id, title, content, category, importance
-            FROM knowledge_base
-            WHERE is_archived = false
-            AND (title ILIKE %s OR content ILIKE %s OR tags::text ILIKE %s)
-            ORDER BY importance DESC
-            LIMIT %s
-        """,
-            (f"%{query}%", f"%{query}%", f"%{query}%", limit),
-        )
-        return [dict(r) for r in cur.fetchall()]
+    return _rag_search(query, limit=limit, knowledge_types=None)
 
 
 def get_module_context(module_name):
@@ -54,11 +24,10 @@ def get_module_context(module_name):
     with get_db_cursor() as (conn, cur):
         cur.execute(
             """
-            SELECT title, content, category, importance
+            SELECT title, content, category, importance_score
             FROM knowledge_base
-            WHERE is_archived = false
-            AND (category = %s OR tags::text ILIKE %s OR content ILIKE %s)
-            ORDER BY importance DESC
+            WHERE (category = %s OR tags::text ILIKE %s OR content ILIKE %s)
+            ORDER BY importance_score DESC
             LIMIT 10
         """,
             (module_name, f"%{module_name}%", f"%{module_name}%"),
@@ -101,7 +70,7 @@ def build_session_context(topics):
             context_parts.append(f"\n## Knowledge: {topic}")
             for r in results:
                 title = r.get("title", "")
-                content = str(r.get("content", ""))[:500]
+                content = str(r.get("content", ""))[:300]
                 context_parts.append(f"- **{title}**: {content}")
 
     decisions = get_recent_decisions(limit=3)

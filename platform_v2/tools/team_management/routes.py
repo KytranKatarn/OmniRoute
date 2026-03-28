@@ -97,17 +97,12 @@ def api_admin_required(f):
 @admin_required
 def index():
     """
-    Team Management Dashboard
+    Team Management — Redirects to Department HQ.
 
-    Renders unified team management interface with tabs for:
-    - Roster (all 58 agents)
-    - Tasks (assignment system)
-    - Execution (run agents)
-    - Automations (workflows)
-    - Chat (multi-agent discussions)
-    - Performance (metrics/tracking)
+    All team management UI is now consolidated in Department HQ.
+    API endpoints below remain active for backward compatibility.
     """
-    return render_template("tools/team_management.html")
+    return redirect("/tools/department-hq")
 
 
 # ============================================================================

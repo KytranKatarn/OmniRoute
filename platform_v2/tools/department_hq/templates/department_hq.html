@@ -98,6 +98,23 @@
 
   </div>
 </div>
+
+<!-- Agent Detail Modal (LCARS) -->
+<div class="bm-overlay" id="agentDetailOverlay" style="display:none" onclick="closeAgentDetail(event)">
+  <div class="bm-shell dhq-agent-modal" onclick="event.stopPropagation()">
+    <div class="bm-frame">
+      <div class="bm-content">
+        <div class="bm-header">
+          <div class="dhq-modal-title" id="agentModalTitle">Agent Profile</div>
+          <button class="dhq-modal-close" onclick="closeAgentDetail()">&times;</button>
+        </div>
+        <div class="bm-body" id="agentDetailBody">
+          <div class="dhq-loading">Loading agent profile...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}

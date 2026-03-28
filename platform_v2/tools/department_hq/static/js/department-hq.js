@@ -227,7 +227,7 @@ async function loadOrgChart() {
 
                 if (dept.director) {
                     var d = dept.director;
-                    html += '<div class="dhq-org-director">'
+                    html += '<div class="dhq-org-director dhq-clickable" onclick="openAgentDetail(' + d.id + ')">'
                         + '<div class="dhq-org-director-icon">AI</div>'
                         + '<div>'
                         + '<div class="dhq-org-director-name">' + esc(d.display_name || d.name) + '</div>'
@@ -239,7 +239,7 @@ async function loadOrgChart() {
                     html += '<div class="dhq-org-staff-grid">';
                     for (var si = 0; si < dept.staff.length; si++) {
                         var a = dept.staff[si];
-                        html += '<div class="dhq-org-agent">'
+                        html += '<div class="dhq-org-agent dhq-clickable" onclick="openAgentDetail(' + a.id + ')">'
                             + '<span class="dhq-org-agent-dot ' + esc(a.shift_state) + '"></span>'
                             + '<span>' + esc(a.display_name || a.name) + '</span>'
                             + '</div>';
@@ -298,14 +298,14 @@ async function loadRoster() {
         for (var i = 0; i < data.agents.length; i++) {
             var a = data.agents[i];
             var color = floorColor(a.floor);
-            html += '<tr>'
+            html += '<tr class="dhq-roster-row" onclick="openAgentDetail(' + a.id + ')">'
                 + '<td><div style="font-weight:600">' + esc(a.display_name || a.name) + '</div>'
                 + '<div style="font-size:0.7rem;color:var(--dhq-text-dim)">' + esc(a.name) + '</div></td>'
                 + '<td style="color:' + color + '">' + esc(a.department) + '</td>'
                 + '<td>' + esc(a.floor) + '</td>'
                 + '<td>' + shiftBadge(a.shift_state) + '</td>'
                 + '<td>' + (a.is_department_ai ? '<span class="dhq-role-director">DIRECTOR</span>' : 'Staff') + '</td>'
-                + '<td><button class="dhq-action-btn" onclick="toggleShift(' + a.id + ',\'' + esc(a.shift_state) + '\')">Shift</button></td>'
+                + '<td><button class="dhq-action-btn" onclick="event.stopPropagation();toggleShift(' + a.id + ',\'' + esc(a.shift_state) + '\')">Shift</button></td>'
                 + '</tr>';
         }
         html += '</tbody></table>';
@@ -480,6 +480,159 @@ async function loadCreed() {
         setHtml(el, html);
     } catch (err) {
         setHtml(el, '<div class="dhq-empty">Error loading C.R.E.E.D.: ' + esc(err.message) + '</div>');
+    }
+}
+
+// ───────────────────────────────────────────────────────────────
+// Agent Detail Modal
+// ───────────────────────────────────────────────────────────────
+
+async function openAgentDetail(agentId) {
+    var overlay = document.getElementById('agentDetailOverlay');
+    var body = document.getElementById('agentDetailBody');
+    var title = document.getElementById('agentModalTitle');
+    overlay.style.display = 'flex';
+    setHtml(body, '<div class="dhq-loading">Loading agent profile...</div>');
+    title.textContent = 'Agent Profile';
+
+    try {
+        var data = await api('/api/agent/' + agentId + '/profile');
+        var a = data.agent;
+        var skills = data.skills || [];
+        var welfare = data.welfare;
+        var perf = data.performance || {};
+
+        title.textContent = (a.display_name || a.name) + ' — Profile';
+
+        var html = '<div class="dhq-agent-detail">';
+
+        // ── Header section ──
+        html += '<div class="dhq-ad-header">'
+            + '<div class="dhq-ad-avatar">'
+            + (a.avatar_url ? '<img src="' + esc(a.avatar_url) + '" alt="avatar">' : '<div class="dhq-ad-avatar-placeholder">&#x1F916;</div>')
+            + '</div>'
+            + '<div class="dhq-ad-info">'
+            + '<div class="dhq-ad-name">' + esc(a.display_name || a.name) + '</div>'
+            + '<div class="dhq-ad-code">' + esc(a.name) + '</div>'
+            + '<div class="dhq-ad-meta">'
+            + '<span style="color:' + floorColor(a.floor) + '">' + esc(a.department) + '</span>'
+            + ' &middot; ' + esc(a.floor)
+            + ' &middot; ' + shiftBadge(a.shift_state)
+            + (a.is_department_ai ? ' &middot; <span class="dhq-role-director">DIRECTOR</span>' : '')
+            + '</div>'
+            + '<div class="dhq-ad-meta">'
+            + '<span class="dhq-ad-label">Model:</span> ' + esc(a.model || 'N/A')
+            + ' &middot; <span class="dhq-ad-label">Temp:</span> ' + (a.temperature || 0.7).toFixed(1)
+            + ' &middot; <span class="dhq-ad-label">Max Tokens:</span> ' + (a.max_tokens || 2048)
+            + '</div>'
+            + (a.title ? '<div class="dhq-ad-title-text">' + esc(a.title) + '</div>' : '')
+            + '</div></div>';
+
+        // ── System Prompt (truncated) ──
+        if (a.system_prompt) {
+            var promptPreview = a.system_prompt.length > 300
+                ? a.system_prompt.substring(0, 300) + '...'
+                : a.system_prompt;
+            html += '<div class="dhq-ad-section">'
+                + '<div class="dhq-ad-section-title">System Prompt</div>'
+                + '<div class="dhq-ad-prompt">' + esc(promptPreview) + '</div>'
+                + '</div>';
+        }
+
+        // ── Skills ──
+        html += '<div class="dhq-ad-section">'
+            + '<div class="dhq-ad-section-title">Skills (' + skills.length + ')</div>';
+        if (skills.length > 0) {
+            html += '<div class="dhq-ad-skills">';
+            for (var si = 0; si < skills.length; si++) {
+                var sk = skills[si];
+                var level = sk.proficiency_level || 1;
+                var bars = '';
+                for (var bi = 1; bi <= 5; bi++) {
+                    bars += '<span class="dhq-skill-bar ' + (bi <= level ? 'dhq-skill-bar-filled' : '') + '"></span>';
+                }
+                html += '<div class="dhq-ad-skill">'
+                    + '<span class="dhq-ad-skill-name">' + esc(sk.skill_name) + '</span>'
+                    + '<span class="dhq-ad-skill-bars">' + bars + '</span>'
+                    + '<span class="dhq-ad-skill-cat">' + esc(sk.skill_category || '') + '</span>'
+                    + '</div>';
+            }
+            html += '</div>';
+        } else {
+            html += '<div class="dhq-empty" style="padding:0.5rem">No skills recorded.</div>';
+        }
+        html += '</div>';
+
+        // ── Welfare ──
+        html += '<div class="dhq-ad-section">'
+            + '<div class="dhq-ad-section-title">Welfare</div>'
+            + '<div class="dhq-ad-welfare">';
+
+        var stress = welfare ? welfare.stress_level : a.stress_level || 0;
+        var energy = welfare ? welfare.energy_level : a.energy_level || 0.5;
+        var mood = welfare ? welfare.current_mood : a.current_mood || 'neutral';
+
+        html += renderMeter('Stress', stress, stress >= 0.7 ? '#f87171' : stress >= 0.4 ? '#fbbf24' : '#34d399')
+            + renderMeter('Energy', energy, energy <= 0.3 ? '#f87171' : energy <= 0.5 ? '#fbbf24' : '#34d399')
+            + '<div class="dhq-ad-welfare-mood">Mood: <strong>' + esc(mood) + '</strong></div>';
+        html += '</div></div>';
+
+        // ── Performance ──
+        html += '<div class="dhq-ad-section">'
+            + '<div class="dhq-ad-section-title">Performance (7 days)</div>'
+            + '<div class="dhq-ad-perf-grid">'
+            + '<div class="dhq-ad-perf-item"><span class="dhq-ad-perf-val">' + (perf.jobs_completed || 0) + '</span><span class="dhq-ad-perf-label">Completed</span></div>'
+            + '<div class="dhq-ad-perf-item"><span class="dhq-ad-perf-val">' + (perf.jobs_failed || 0) + '</span><span class="dhq-ad-perf-label">Failed</span></div>'
+            + '<div class="dhq-ad-perf-item"><span class="dhq-ad-perf-val">' + (perf.avg_response_ms || 0) + ' ms</span><span class="dhq-ad-perf-label">Avg Response</span></div>'
+            + '<div class="dhq-ad-perf-item"><span class="dhq-ad-perf-val">' + (perf.success_rate || 0) + '%</span><span class="dhq-ad-perf-label">Success Rate</span></div>'
+            + '</div></div>';
+
+        // ── Actions ──
+        html += '<div class="dhq-ad-section dhq-ad-actions">'
+            + '<div class="dhq-ad-section-title">Actions</div>'
+            + '<div class="dhq-ad-action-row">'
+            + '<button class="dhq-action-btn dhq-action-shift" onclick="changeAgentShift(' + a.id + ',\'' + esc(a.shift_state) + '\')">Cycle Shift</button>'
+            + '</div></div>';
+
+        html += '</div>';
+        setHtml(body, html);
+    } catch (err) {
+        setHtml(body, '<div class="dhq-empty">Error loading agent profile: ' + esc(err.message) + '</div>');
+    }
+}
+
+function renderMeter(label, value, color) {
+    var pct = Math.round((value || 0) * 100);
+    return '<div class="dhq-ad-meter">'
+        + '<span class="dhq-ad-meter-label">' + esc(label) + '</span>'
+        + '<div class="dhq-ad-meter-track">'
+        + '<div class="dhq-ad-meter-fill" style="width:' + pct + '%;background:' + color + '"></div>'
+        + '</div>'
+        + '<span class="dhq-ad-meter-val">' + pct + '%</span>'
+        + '</div>';
+}
+
+function closeAgentDetail(event) {
+    if (event && event.target !== document.getElementById('agentDetailOverlay')) return;
+    document.getElementById('agentDetailOverlay').style.display = 'none';
+}
+
+async function changeAgentShift(agentId, currentState) {
+    var states = ['active', 'barracked', 'off_duty'];
+    var idx = states.indexOf(currentState);
+    var next = states[(idx + 1) % states.length];
+
+    try {
+        var data = await apiPost('/api/agent/' + agentId + '/shift', { shift_state: next });
+        if (data.success) {
+            // Refresh the modal and roster
+            openAgentDetail(agentId);
+            if (loaded['roster']) loadRoster();
+        } else {
+            alert(data.error || 'Failed to change shift state');
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
     }
 }
 

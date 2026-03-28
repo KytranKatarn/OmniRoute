@@ -664,6 +664,193 @@
     font-style: italic;
 }
 
+/* ── Clickable elements ── */
+.dhq-clickable { cursor: pointer; }
+.dhq-clickable:hover { opacity: 0.85; }
+.dhq-roster-row { cursor: pointer; transition: background 0.15s; }
+.dhq-roster-row:hover { background: rgba(0, 229, 255, 0.06); }
+
+/* ── Agent Detail Modal (LCARS) ── */
+.bm-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 9000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.dhq-agent-modal {
+    width: min(680px, 95vw);
+    max-height: 90vh;
+    background: var(--dhq-bg, #0a0e1a);
+    border: 1px solid var(--dhq-border, #1a2040);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.dhq-agent-modal .bm-frame { display: flex; flex-direction: column; height: 100%; }
+.dhq-agent-modal .bm-content { display: flex; flex-direction: column; height: 100%; }
+
+.dhq-agent-modal .bm-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    background: linear-gradient(90deg, rgba(0,229,255,0.12), transparent);
+    border-bottom: 1px solid rgba(0,229,255,0.2);
+}
+
+.dhq-modal-title {
+    font-family: 'Orbitron', 'Antonio', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #00e5ff;
+    letter-spacing: 1px;
+}
+
+.dhq-modal-close {
+    background: none;
+    border: none;
+    color: #ff6b6b;
+    font-size: 1.4rem;
+    cursor: pointer;
+    padding: 0 0.3rem;
+    line-height: 1;
+}
+.dhq-modal-close:hover { color: #ff4444; }
+
+.dhq-agent-modal .bm-body {
+    padding: 1rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* ── Agent Detail Content ── */
+.dhq-agent-detail { display: flex; flex-direction: column; gap: 1rem; }
+
+.dhq-ad-header {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.dhq-ad-avatar { flex-shrink: 0; width: 64px; height: 64px; }
+.dhq-ad-avatar img { width: 100%; height: 100%; border-radius: 8px; object-fit: cover; }
+.dhq-ad-avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    background: rgba(0,229,255,0.08);
+    border-radius: 8px;
+    border: 1px solid rgba(0,229,255,0.15);
+}
+
+.dhq-ad-info { flex: 1; min-width: 0; }
+.dhq-ad-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #e0e0e0;
+    margin-bottom: 0.15rem;
+}
+.dhq-ad-code { font-size: 0.7rem; color: var(--dhq-text-dim, #6b7280); margin-bottom: 0.3rem; font-family: 'IBM Plex Mono', monospace; }
+.dhq-ad-meta { font-size: 0.75rem; color: #9ca3af; line-height: 1.6; }
+.dhq-ad-label { color: #6b7280; }
+.dhq-ad-title-text { font-size: 0.75rem; color: #a78bfa; margin-top: 0.25rem; font-style: italic; }
+
+/* ── Sections ── */
+.dhq-ad-section {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
+    padding: 0.75rem;
+}
+
+.dhq-ad-section-title {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #00e5ff;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid rgba(0,229,255,0.15);
+}
+
+/* System prompt */
+.dhq-ad-prompt {
+    font-size: 0.72rem;
+    color: #9ca3af;
+    line-height: 1.5;
+    font-family: 'IBM Plex Mono', monospace;
+    white-space: pre-wrap;
+    max-height: 120px;
+    overflow-y: auto;
+}
+
+/* Skills */
+.dhq-ad-skills { display: flex; flex-direction: column; gap: 0.35rem; }
+.dhq-ad-skill {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+}
+.dhq-ad-skill-name { flex: 1; color: #d1d5db; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dhq-ad-skill-bars { display: flex; gap: 2px; flex-shrink: 0; }
+.dhq-skill-bar {
+    width: 14px;
+    height: 6px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+}
+.dhq-skill-bar-filled { background: #00e5ff; }
+.dhq-ad-skill-cat { font-size: 0.6rem; color: #6b7280; flex-shrink: 0; }
+
+/* Welfare meters */
+.dhq-ad-welfare { display: flex; flex-direction: column; gap: 0.5rem; }
+.dhq-ad-meter { display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; }
+.dhq-ad-meter-label { width: 50px; color: #9ca3af; flex-shrink: 0; }
+.dhq-ad-meter-track {
+    flex: 1;
+    height: 8px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.dhq-ad-meter-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+.dhq-ad-meter-val { width: 36px; text-align: right; color: #d1d5db; flex-shrink: 0; }
+.dhq-ad-welfare-mood { font-size: 0.75rem; color: #9ca3af; }
+
+/* Performance grid */
+.dhq-ad-perf-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+}
+.dhq-ad-perf-item {
+    text-align: center;
+    padding: 0.4rem;
+    background: rgba(0,229,255,0.04);
+    border-radius: 6px;
+}
+.dhq-ad-perf-val { display: block; font-size: 1rem; font-weight: 700; color: #e0e0e0; }
+.dhq-ad-perf-label { display: block; font-size: 0.6rem; color: #6b7280; margin-top: 0.15rem; }
+
+/* Actions */
+.dhq-ad-action-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.dhq-action-shift { background: rgba(0,229,255,0.15); border-color: rgba(0,229,255,0.3); }
+.dhq-action-shift:hover { background: rgba(0,229,255,0.25); }
+
 /* Responsive */
 @media (max-width: 1024px) {
     .dhq-dept-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
@@ -682,6 +869,9 @@
     .dhq-session-card { grid-template-columns: 1fr; }
     .dhq-perf-grid { grid-template-columns: 1fr; }
     .dhq-creed-grid { grid-template-columns: 1fr; }
+    .dhq-ad-header { flex-direction: column; align-items: center; text-align: center; }
+    .dhq-ad-perf-grid { grid-template-columns: repeat(2, 1fr); }
+    .dhq-agent-modal { width: 98vw; max-height: 95vh; }
 }
 
 @media (max-width: 480px) {

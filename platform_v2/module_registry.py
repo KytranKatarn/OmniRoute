@@ -462,7 +462,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="team_management",
         name="Team Management",
-        description="[Retired] Absorbed into Starbase Command Crew tab",
+        description="[Retired] Redirects to Department HQ. API endpoints still active.",
         icon="users-round",
         category=ModuleCategory.AI_COMMAND,
         route="/tools/team-management",

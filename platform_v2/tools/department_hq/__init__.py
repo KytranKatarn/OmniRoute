@@ -23,8 +23,10 @@ department_hq_bp = Blueprint(
 from .routes import register_routes, admin_required  # noqa: F401, E402
 from .roster_routes import register_roster_routes  # noqa: E402
 from .work_routes import register_work_routes  # noqa: E402
+from .agent_detail_routes import register_agent_detail_routes  # noqa: E402
 
 # Register all route groups on the blueprint
 register_routes(department_hq_bp)
 register_roster_routes(department_hq_bp, admin_required)
 register_work_routes(department_hq_bp, admin_required)
+register_agent_detail_routes(department_hq_bp, admin_required)

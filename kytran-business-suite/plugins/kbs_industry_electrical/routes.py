@@ -497,6 +497,31 @@ def register_routes(bp):
             }
         )
 
+    # ------------------------------------------------------------------
+    # AI Agent
+    # ------------------------------------------------------------------
+
+    @bp.route("/api/ai/ask", methods=["POST"])
+    @login_required
+    @require_module("industry-electrical")
+    def ask_ai():
+        """Ask the Electrical AI agent a question with optional context."""
+        from core.industry_agents import IndustryAgentService
+
+        data = request.get_json(force=True)
+        question = (data.get("question") or "").strip()
+        if not question:
+            return jsonify({"error": "question is required"}), 400
+
+        result = IndustryAgentService.ask_agent(
+            vertical_slug="electrical",
+            question=question,
+            context=data.get("context", {}),
+            tenant_id=g.tenant_id,
+        )
+        status_code = 200 if result["success"] else 502
+        return jsonify(result), status_code
+
 
 # ---------------------------------------------------------------------------
 # Event consumers (module-level, not route handlers)

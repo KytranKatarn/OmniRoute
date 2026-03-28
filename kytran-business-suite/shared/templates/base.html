@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{% block title %}Kytran Business Suite{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='lcars.css') }}" />
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}" />
+  <meta name="theme-color" content="#00e5ff" />
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -37,5 +39,12 @@
   <!-- Page Content -->
   {% block content %}{% endblock %}
 
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/static/sw.js").catch(function(err) {
+        console.log("SW registration failed:", err);
+      });
+    }
+  </script>
 </body>
 </html>

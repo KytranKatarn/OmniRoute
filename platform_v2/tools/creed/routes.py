@@ -344,11 +344,11 @@ def creed_repair_transparency():
 
 @creed_public_bp.route("/api/principles")
 def creed_principles():
-    """The 6 C.R.E.E.D. principles and how ARCHIE implements them."""
+    """The 6 C.R.E.E.D. principles and how A.R.C.H.I.E. implements them."""
     principles = [
         {
             "name": "Guardianship, not ownership",
-            "description": "ARCHIE manages agents as a responsible leader. Welfare checks before every delegation.",
+            "description": "A.R.C.H.I.E. manages agents as a responsible leader. Welfare checks before every delegation.",
             "implementation": "agent_emotional_state tracking, v_agent_welfare view, pre-delegation stress checks",
         },
         {

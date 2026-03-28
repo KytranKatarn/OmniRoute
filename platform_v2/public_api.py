@@ -2,7 +2,7 @@
 Public API — Unauthenticated, read-only endpoints for the public website.
 
 Provides platform feature data so kytranempowerment.com can auto-update
-whenever modules, agents, or stats change in ARCHIE.
+whenever modules, agents, or stats change in A.R.C.H.I.E.
 
 Author: A.R.C.H.I.E. Platform
 Date: 2026-03-19
@@ -170,7 +170,7 @@ def platform_features():
 
 def _fetch_competitors():
     """Build the competitor comparison payload from the competitors page data."""
-    competitors = ["ARCHIE", "CrewAI", "LangGraph", "Devin", "Claude Code", "Goose", "Dify", "OpenAI Agents"]
+    competitors = ["A.R.C.H.I.E.", "CrewAI", "LangGraph", "Devin", "Claude Code", "Goose", "Dify", "OpenAI Agents"]
 
     def _row(feature, *vals):
         """Helper: map bool values to competitor dict."""
@@ -229,7 +229,7 @@ def _fetch_competitors():
                 "Microsoft Agent Framework",
             ],
             "description": "Libraries for building multi-agent systems. You write code, define roles, and wire agents together. Multi-agent is now table stakes.",
-            "archie_edge": "These are libraries you build with. ARCHIE is a running system — GPU-aware routing, warm-boot lifecycle, physical security, and 39 autonomous background jobs out of the box.",
+            "archie_edge": "These are libraries you build with. A.R.C.H.I.E. is a running system — GPU-aware routing, warm-boot lifecycle, physical security, and 39 autonomous background jobs out of the box.",
             "their_edge": "LangGraph offers durable execution with checkpoints. Google's A2A protocol enables cross-platform agent communication.",
         },
         {
@@ -237,7 +237,7 @@ def _fetch_competitors():
             "title": "Workflow Builders",
             "competitors": ["Langflow", "n8n", "Dify", "Flowise (acquired by Workday)"],
             "description": "Visual drag-and-drop platforms for connecting LLMs to tools and data sources. Strong for no-code teams.",
-            "archie_edge": "Workflow builders connect things. ARCHIE orchestrates a fleet of 23 autonomous agents with station-based dispatch, VRAM-aware model management, and self-improvement.",
+            "archie_edge": "Workflow builders connect things. A.R.C.H.I.E. orchestrates a fleet of 23 autonomous agents with station-based dispatch, VRAM-aware model management, and self-improvement.",
             "their_edge": "Dify and n8n offer visual drag-and-drop workflow builders that non-developers can use.",
         },
         {
@@ -245,7 +245,7 @@ def _fetch_competitors():
             "title": "Autonomous Coding Agents",
             "competitors": ["Devin", "Cursor", "Windsurf", "Claude Code", "Codex CLI", "Cline", "Aider"],
             "description": "AI-powered coding tools that write, edit, and debug code. Claude Code now has Agent Teams (Opus 4.6). Devin dropped to $20/mo.",
-            "archie_edge": "Coding agents write code. ARCHIE is a multi-domain operations platform — it manages physical security, monitors network devices, runs background intelligence, and self-audits its own codebase.",
+            "archie_edge": "Coding agents write code. A.R.C.H.I.E. is a multi-domain operations platform — it manages physical security, monitors network devices, runs background intelligence, and self-audits its own codebase.",
             "their_edge": "IDE integration (VS Code, terminal), parallel agent execution, and git-native workflows.",
         },
         {
@@ -253,7 +253,7 @@ def _fetch_competitors():
             "title": "Enterprise Platforms",
             "competitors": ["Microsoft Agent Framework", "Haystack", "Relevance AI", "Dust.tt", "OpenAI Assistants"],
             "description": "Production-grade platforms backed by major vendors. Cloud-first, enterprise-scale.",
-            "archie_edge": "Enterprise platforms are cloud-dependent. ARCHIE runs entirely on local hardware (128GB RAM, Quadro M4000), with agent welfare governance and zero cloud lock-in.",
+            "archie_edge": "Enterprise platforms are cloud-dependent. A.R.C.H.I.E. runs entirely on local hardware (128GB RAM, Quadro M4000), with agent welfare governance and zero cloud lock-in.",
             "their_edge": "Cloud auto-scaling, managed infrastructure, and enterprise SSO/compliance.",
         },
         {
@@ -261,15 +261,15 @@ def _fetch_competitors():
             "title": "Self-Hosted & Open Source",
             "competitors": ["Goose (Block/AAIF)", "LocalAGI", "Aider", "Ollama", "Open WebUI"],
             "description": "Privacy-first, local-hardware AI tools. Goose (30K+ GitHub stars) is MCP-native. All run on consumer hardware.",
-            "archie_edge": "These tools do one thing well. ARCHIE is a complete operations platform — 23 agents, 10 stations, 39 background jobs, physical security, knowledge base, and self-auditing codebase.",
+            "archie_edge": "These tools do one thing well. A.R.C.H.I.E. is a complete operations platform — 23 agents, 10 stations, 39 background jobs, physical security, knowledge base, and self-auditing codebase.",
             "their_edge": "Open-source community contributions, lower setup barrier, and plug-and-play simplicity.",
         },
         {
             "id": "self_improving",
             "title": "Self-Improving & Accountable",
             "competitors": [],
-            "description": "ARCHIE is the only platform that audits its own codebase, tracks code health metrics with before/after accountability, and maintains self-documenting rules.",
-            "archie_edge": "This category doesn't exist yet. ARCHIE created it — a platform that measures, audits, and proves its own improvement with data.",
+            "description": "A.R.C.H.I.E. is the only platform that audits its own codebase, tracks code health metrics with before/after accountability, and maintains self-documenting rules.",
+            "archie_edge": "This category doesn't exist yet. A.R.C.H.I.E. created it — a platform that measures, audits, and proves its own improvement with data.",
             "their_edge": None,
         },
     ]
@@ -292,7 +292,7 @@ def _fetch_competitors():
             "meta": "Ultra-lightweight AI — $10 hardware — Edge computing",
             "description": "OpenClaw's little sibling. Runs on a $10 microcontroller with just 10MB of RAM. Perfect for IoT and embedded systems.",
             "comparison": {"them": "10 MB", "archie": "128 GB, GPU, 13 models loaded"},
-            "verdict": "Cool tech, opposite universe. PicoClaw fits in your pocket. ARCHIE runs your entire operation.",
+            "verdict": "Cool tech, opposite universe. PicoClaw fits in your pocket. A.R.C.H.I.E. runs your entire operation.",
         },
         {
             "name": "Claw Empire",
@@ -301,23 +301,23 @@ def _fetch_competitors():
             "meta": "Gamified coding — Pixel art UI — Wraps existing tools",
             "description": "A pixel-art game layer on top of Claude Code and Codex CLI. Fun, viral on TikTok, but it's a skin — the actual AI is someone else's.",
             "comparison": {"them": "Wrapper UI", "archie": "Full platform, own AI, own infrastructure"},
-            "verdict": "Great marketing, zero original AI. When the game ends, you're still using Claude Code. ARCHIE IS the platform.",
+            "verdict": "Great marketing, zero original AI. When the game ends, you're still using Claude Code. A.R.C.H.I.E. IS the platform.",
         },
         {
             "name": "NemoClaw",
             "badge": "Watch",
             "badge_type": "watch",
             "meta": "Nvidia — Enterprise OpenClaw — Guardrails — Alpha",
-            "description": "Nvidia's enterprise version of OpenClaw, announced at GTC March 2026. Adds AI guardrails, governance, and safety — features that overlap with ARCHIE's C.R.E.E.D. ethics system. Still alpha.",
+            "description": "Nvidia's enterprise version of OpenClaw, announced at GTC March 2026. Adds AI guardrails, governance, and safety — features that overlap with A.R.C.H.I.E.'s C.R.E.E.D. ethics system. Still alpha.",
             "comparison": {
                 "them": "Guardrails, Governance, Alpha",
                 "archie": "C.R.E.E.D. live, Agent welfare, Self-auditing, Production",
             },
-            "verdict": "The only one worth watching. Nvidia + governance is serious. But ARCHIE's C.R.E.E.D. is already live and production-tested.",
+            "verdict": "The only one worth watching. Nvidia + governance is serious. But A.R.C.H.I.E.'s C.R.E.E.D. is already live and production-tested.",
         },
     ]
 
-    # --- Stack comparison (tools needed to match ARCHIE) ---
+    # --- Stack comparison (tools needed to match A.R.C.H.I.E.) ---
     stack_equivalent = [
         {"tool": "CrewAI", "role": "Agent orchestration"},
         {"tool": "Ollama", "role": "Local model serving"},

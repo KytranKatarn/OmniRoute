@@ -3907,7 +3907,7 @@ async function sendMessage(message) {
             if (data.agent_used || data.model_used) {
                 var badge = document.createElement('div');
                 badge.className = 'msg-meta-badge';
-                badge.textContent = (data.agent_used || 'ARCHIE') + ' \u00b7 ' + (data.model_used || '') +
+                badge.textContent = (data.agent_used || 'A.R.C.H.I.E.') + ' \u00b7 ' + (data.model_used || '') +
                     (data.response_time ? ' \u00b7 ' + (data.response_time / 1000).toFixed(1) + 's' : '');
                 contentDiv.appendChild(badge);
             }
@@ -3934,7 +3934,7 @@ async function sendMessage(message) {
             scrollToBottom();
         } else {
             // Error response
-            addMessage('Error: ' + (data.error || 'No response from ARCHIE'), false);
+            addMessage('Error: ' + (data.error || 'No response from A.R.C.H.I.E.'), false);
         }
     } catch (err) {
         showTyping(false);

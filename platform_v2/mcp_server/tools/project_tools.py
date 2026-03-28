@@ -1421,7 +1421,7 @@ register_tool(
             },
             "notes": {
                 "type": "string",
-                "description": "ARCHIE's internal notes about the project",
+                "description": "A.R.C.H.I.E.'s internal notes about the project",
             },
             "emotional_association": {
                 "type": "string",

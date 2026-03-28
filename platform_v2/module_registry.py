@@ -1,5 +1,5 @@
 """
-Module Registry - Single Source of Truth for all ARCHIE Platform Modules
+Module Registry - Single Source of Truth for all A.R.C.H.I.E. Platform Modules
 Centralized registration system for dashboard modules with permissions and health checks
 
 Purpose:
@@ -237,7 +237,7 @@ def pool_management_health_check() -> Dict:
 
 
 def archie_chat_health_check() -> Dict:
-    """Health check for ARCHIE chat — checks Bridge availability + agents"""
+    """Health check for A.R.C.H.I.E. chat — checks Bridge availability + agents"""
     try:
         from database import get_db_cursor
 
@@ -721,7 +721,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="project_manager",
         name="Project Manager",
-        description="Unified project & documentation system<br>Tasks • Teams • Decisions • ARCHIE awareness",
+        description="Unified project & documentation system<br>Tasks • Teams • Decisions • A.R.C.H.I.E. awareness",
         icon="folder-kanban",
         category=ModuleCategory.PROJECT_KNOWLEDGE,
         route="/tools/project-manager",

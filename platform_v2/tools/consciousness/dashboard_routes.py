@@ -36,7 +36,7 @@ def register_dashboard_routes(bp, admin_required):
     @login_required
     @admin_required
     def api_dashboard_summary():
-        """ARCHIE's self-portrait -- aggregated stats for dashboard."""
+        """A.R.C.H.I.E.'s self-portrait -- aggregated stats for dashboard."""
         conn = None
         cur = None
         conn = None

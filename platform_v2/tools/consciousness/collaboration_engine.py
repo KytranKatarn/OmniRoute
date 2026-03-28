@@ -314,7 +314,7 @@ If you think the topic is fully addressed, say "I think we've covered this well.
             result = archie._call_llm(prompt, max_tokens=1000)
             return result[0] if result else "I need more time to think about this."
         except Exception as e:
-            logger.error(f"ARCHIE response error: {e}")
+            logger.error(f"A.R.C.H.I.E. response error: {e}")
             return f"I encountered an issue while formulating my response: {str(e)}"
 
     async def _get_claude_response(self, session: CollabSession) -> str:
@@ -862,7 +862,7 @@ Summary (bullet points only):"""
         return session
 
     async def _create_execution_plan(self, session: CollabSession) -> str:
-        """ARCHIE creates a structured execution plan for the topic"""
+        """A.R.C.H.I.E. creates a structured execution plan for the topic"""
         archie = self._get_archie()
         if not archie:
             return "1. Research the topic\n2. Analyze findings\n3. Synthesize conclusions"
@@ -888,7 +888,7 @@ Keep it brief — just the steps, no preamble."""
             return "1. Analyze the request\n2. Research relevant context\n3. Produce deliverables"
 
     async def _claude_review_plan(self, session: CollabSession, plan: str) -> str:
-        """Claude reviews and provides feedback on ARCHIE's plan"""
+        """Claude reviews and provides feedback on A.R.C.H.I.E.'s plan"""
         bridge = self._get_claude()
         if not bridge:
             return "Plan looks good. Let's proceed with execution."
@@ -911,7 +911,7 @@ Keep response concise (1-2 paragraphs)."""
             return f"Plan review encountered an issue: {e}. Proceeding with current plan."
 
     async def _archie_execute_step(self, session: CollabSession, step: str) -> str:
-        """ARCHIE executes a plan step"""
+        """A.R.C.H.I.E. executes a plan step"""
         archie = self._get_archie()
         if not archie:
             return f"Completed analysis for: {step}"
@@ -955,7 +955,7 @@ Execute this step and provide the result. Be thorough but concise."""
             return f"Step execution encountered an issue: {e}"
 
     async def _synthesize_results(self, session: CollabSession) -> str:
-        """ARCHIE synthesizes all results into a final summary"""
+        """A.R.C.H.I.E. synthesizes all results into a final summary"""
         archie = self._get_archie()
 
         # Collect all work products

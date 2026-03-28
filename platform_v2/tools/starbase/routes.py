@@ -674,7 +674,7 @@ def get_creed_enforcement_log():
                     {
                         "timestamp": archie_state["timestamp"].isoformat(),
                         "event_category": "archie_wellness",
-                        "label": f"ARCHIE mood: {archie_state['current_mood']}",
+                        "label": f"A.R.C.H.I.E. mood: {archie_state['current_mood']}",
                         "agent_name": None,
                         "severity": "info",
                     }
@@ -886,7 +886,7 @@ def get_creed_enforcement_log_full():
                         {
                             "timestamp": archie_state["timestamp"].isoformat(),
                             "event_category": "archie_wellness",
-                            "label": f"ARCHIE mood: {archie_state['current_mood']}",
+                            "label": f"A.R.C.H.I.E. mood: {archie_state['current_mood']}",
                             "agent_name": None,
                             "severity": "info",
                         }

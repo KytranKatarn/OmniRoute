@@ -297,17 +297,22 @@ class OrchestrationEngine:
 
             # --- Step 6: Select agent ---
             if agent_target:
-                # Station or agent targeting override
-                _valid_stations = {
-                    "COMMAND", "ANALYTICS", "CREATIVE", "ENGINEERING",
-                    "COMMUNICATIONS", "RESEARCH", "SECURITY", "LOGISTICS",
-                    "DIPLOMATIC", "OPERATIONS",
+                # Department or agent targeting override
+                _valid_departments = {
+                    "EXECUTIVE OFFICE", "OPERATIONS & INFRASTRUCTURE",
+                    "LOGISTICS & SUPPLY CHAIN", "FINANCE & ACCOUNTING",
+                    "ENGINEERING & TECHNOLOGY", "SECURITY & COMPLIANCE",
+                    "RESEARCH & DEVELOPMENT", "CREATIVE & DESIGN",
+                    "MARKETING & COMMUNICATIONS", "DOCUMENTATION & KNOWLEDGE",
+                    "CUSTOMER SUCCESS & SUPPORT", "HUMAN RESOURCES & CULTURE",
+                    "MEDICAL & WELLNESS", "LEGAL & REGULATORY",
+                    "DIPLOMATIC & EXTERNAL RELATIONS", "ANALYTICS & INTELLIGENCE",
                 }
-                if agent_target.upper() in _valid_stations:
+                if agent_target.upper() in _valid_departments:
                     steps.append(ThinkingStep(
                         step_type=StepType.AGENT_SELECT.value,
-                        label="Agent Target (Station)",
-                        data={"station_override": agent_target.upper()},
+                        label="Agent Target (Department)",
+                        data={"department_override": agent_target.upper()},
                     ))
                 else:
                     steps.append(ThinkingStep(
@@ -401,7 +406,7 @@ class OrchestrationEngine:
             # Team management intents bypass normal LLM execution
             elif intent_type in (
                 "team_management",
-                "station_management",
+                "department_management",
                 "status_query",
                 "dev_hq_status",
             ):
@@ -409,15 +414,15 @@ class OrchestrationEngine:
                     intent_type, message, user_id, intent, steps
                 )
             elif intent.get("requires_multi_agent") and intent.get(
-                "participating_stations"
+                "participating_departments"
             ):
                 # Multi-agent orchestration: decompose → assign → execute → synthesize
                 steps.append(
                     ThinkingStep(
                         step_type=StepType.ROUTE_DECISION.value,
-                        label=f"Multi-agent mode: {len(intent['participating_stations'])} stations",
+                        label=f"Multi-agent mode: {len(intent['participating_departments'])} departments",
                         data={
-                            "stations": intent["participating_stations"],
+                            "departments": intent["participating_departments"],
                             "domains": intent.get("domains_detected", []),
                         },
                         duration_ms=0,
@@ -608,7 +613,7 @@ class OrchestrationEngine:
 
     NON_STREAMABLE_INTENTS = frozenset({
         "memory_store", "memory_forget", "memory_list",
-        "media_generate", "team_management", "station_management",
+        "media_generate", "team_management", "department_management",
         "status_query", "dev_hq_status",
     })
 
@@ -718,17 +723,22 @@ class OrchestrationEngine:
 
             # --- Step 6: Select agent ---
             if agent_target:
-                # Station or agent targeting override
-                _valid_stations = {
-                    "COMMAND", "ANALYTICS", "CREATIVE", "ENGINEERING",
-                    "COMMUNICATIONS", "RESEARCH", "SECURITY", "LOGISTICS",
-                    "DIPLOMATIC", "OPERATIONS",
+                # Department or agent targeting override
+                _valid_departments = {
+                    "EXECUTIVE OFFICE", "OPERATIONS & INFRASTRUCTURE",
+                    "LOGISTICS & SUPPLY CHAIN", "FINANCE & ACCOUNTING",
+                    "ENGINEERING & TECHNOLOGY", "SECURITY & COMPLIANCE",
+                    "RESEARCH & DEVELOPMENT", "CREATIVE & DESIGN",
+                    "MARKETING & COMMUNICATIONS", "DOCUMENTATION & KNOWLEDGE",
+                    "CUSTOMER SUCCESS & SUPPORT", "HUMAN RESOURCES & CULTURE",
+                    "MEDICAL & WELLNESS", "LEGAL & REGULATORY",
+                    "DIPLOMATIC & EXTERNAL RELATIONS", "ANALYTICS & INTELLIGENCE",
                 }
-                if agent_target.upper() in _valid_stations:
+                if agent_target.upper() in _valid_departments:
                     steps.append(ThinkingStep(
                         step_type=StepType.AGENT_SELECT.value,
-                        label="Agent Target (Station)",
-                        data={"station_override": agent_target.upper()},
+                        label="Agent Target (Department)",
+                        data={"department_override": agent_target.upper()},
                     ))
                 else:
                     steps.append(ThinkingStep(
@@ -1089,7 +1099,7 @@ class OrchestrationEngine:
             "code_review": ["Engineering & Technology"],
             "team_task": ["Operations & Infrastructure", "Human Resources & Culture"],
             "team_management": ["Human Resources & Culture", "Operations & Infrastructure", "Executive Office"],
-            "station_management": ["Executive Office"],
+            "department_management": ["Executive Office"],
             "status_query": ["Executive Office", "Operations & Infrastructure"],
             "dev_hq_status": ["Executive Office", "Operations & Infrastructure"],
             "business_task": ["Operations & Infrastructure", "Finance & Accounting"],
@@ -1471,14 +1481,14 @@ class OrchestrationEngine:
 - Capabilities: {capabilities}
 
 {first_name} is now active and ready to receive tasks.""",
-        "agent_assigned": """Done! **{agent_name}** has been assigned to **{station_name}** station as {assignment_type}.""",
+        "agent_assigned": """Done! **{agent_name}** has been assigned to **{department_name}** department as {assignment_type}.""",
         "team_status": """Here's the current team status:
 
 **Active Agents**: {active_count}
-**On Stations**: {stationed_count}
+**Assigned to Departments**: {dept_count}
 **Resting**: {resting_count}
 
-{station_summary}""",
+{dept_summary}""",
         "agent_deactivated": """**{agent_name}** has been deactivated and moved to the lounge.
 Reason: {reason}""",
         "error": """I ran into an issue: {error}
@@ -1500,8 +1510,8 @@ Please try again or use the Team Management module directly.""",
         try:
             if intent_type == "team_management":
                 response = self._handle_team_management(message, user_id, intent, steps)
-            elif intent_type == "station_management":
-                response = self._handle_station_management(
+            elif intent_type == "department_management":
+                response = self._handle_department_management(
                     message, user_id, intent, steps
                 )
             elif intent_type == "status_query":
@@ -1938,23 +1948,22 @@ Please try again or use the Team Management module directly.""",
         finally:
             conn.close()
 
-    def _handle_station_management(
+    def _handle_department_management(
         self, message: str, user_id: int, intent: Dict, steps: List[ThinkingStep]
     ) -> str:
-        """Handle station assignment/unassignment."""
+        """Handle department assignment/unassignment."""
         from param_extractor import (
             extract_params,
             resolve_agent_by_name,
-            resolve_station_by_name,
         )
 
-        params = extract_params(message, "assign_station")
+        params = extract_params(message, "assign_department")
         agent_name = params.get("agent_name", "")
-        station_code = params.get("station_code", "")
+        department = params.get("department", "") or params.get("station_code", "")
         assignment_type = params.get("assignment_type", "primary")
 
-        if not agent_name or not station_code:
-            return "I need both an agent name and a station. For example: 'Assign Nova to Engineering station'"
+        if not agent_name or not department:
+            return "I need both an agent name and a department. For example: 'Assign Nova to Engineering & Technology'"
 
         conn = get_db()
         try:
@@ -1962,34 +1971,28 @@ Please try again or use the Team Management module directly.""",
             if not agent:
                 return f"I couldn't find an agent matching '{agent_name}'."
 
-            station = resolve_station_by_name(station_code, conn)
-            if not station:
-                return f"I couldn't find a station matching '{station_code}'. Available: COMMAND, ENGINEERING, OPERATIONS, etc."
-
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            # Check if already assigned
+            # Validate department exists
             cur.execute(
-                """
-                SELECT id FROM station_assignments
-                WHERE agent_id = %s AND station_id = %s AND is_active = TRUE
-            """,
-                (agent["id"], station["id"]),
+                "SELECT DISTINCT department FROM agents WHERE department ILIKE %s",
+                (f"%{department}%",),
             )
+            dept_row = cur.fetchone()
+            if not dept_row:
+                cur.execute("SELECT DISTINCT department FROM agents ORDER BY department")
+                all_depts = [r["department"] for r in cur.fetchall()]
+                return f"I couldn't find a department matching '{department}'. Available: {', '.join(all_depts)}"
+            resolved_dept = dept_row["department"]
 
-            if cur.fetchone():
-                return f"**{agent['name']}** is already assigned to **{station['station_name']}** station."
+            # Check if already in that department
+            if agent.get("department") == resolved_dept:
+                return f"**{agent['name']}** is already in the **{resolved_dept}** department."
 
-            # Create assignment
+            # Update agent's department
             cur.execute(
-                """
-                INSERT INTO station_assignments
-                    (station_id, agent_id, assignment_type, priority, is_active, assigned_by)
-                VALUES (%s, %s, %s, 10, TRUE, %s)
-                ON CONFLICT (station_id, agent_id) DO UPDATE
-                SET is_active = TRUE, assignment_type = %s, assigned_at = NOW()
-            """,
-                (station["id"], agent["id"], assignment_type, user_id, assignment_type),
+                "UPDATE agents SET department = %s WHERE id = %s",
+                (resolved_dept, agent["id"]),
             )
             conn.commit()
             cur.close()
@@ -1997,10 +2000,10 @@ Please try again or use the Team Management module directly.""",
             steps.append(
                 ThinkingStep(
                     step_type="team_action",
-                    label=f"Assigned: {agent['name']} → {station['station_code']}",
+                    label=f"Assigned: {agent['name']} → {resolved_dept}",
                     data={
                         "agent_id": agent["id"],
-                        "station_code": station["station_code"],
+                        "department": resolved_dept,
                         "assignment_type": assignment_type,
                     },
                     success=True,
@@ -2009,7 +2012,7 @@ Please try again or use the Team Management module directly.""",
 
             return self.TEAM_RESPONSE_TEMPLATES["agent_assigned"].format(
                 agent_name=agent["name"],
-                station_name=station["station_name"] or station["station_code"],
+                department_name=resolved_dept,
                 assignment_type=assignment_type,
             )
         except Exception as e:
@@ -2021,7 +2024,7 @@ Please try again or use the Team Management module directly.""",
     def _handle_status_query(
         self, message: str, user_id: int, intent: Dict, steps: List[ThinkingStep]
     ) -> str:
-        """Handle team/station status queries."""
+        """Handle team/department status queries."""
         entities = intent.get("entities", {})
         subtype = entities.get("subtype", "roster")
 
@@ -2033,14 +2036,12 @@ Please try again or use the Team Management module directly.""",
             cur.execute("SELECT COUNT(*) as count FROM agents WHERE status = 'active'")
             active_count = cur.fetchone()["count"]
 
-            # Stationed agents
+            # Agents with a department assigned
             cur.execute("""
-                SELECT COUNT(DISTINCT sa.agent_id) as count
-                FROM station_assignments sa
-                JOIN agents a ON sa.agent_id = a.id
-                WHERE sa.is_active = TRUE AND a.status = 'active'
+                SELECT COUNT(*) as count FROM agents
+                WHERE status = 'active' AND department IS NOT NULL
             """)
-            stationed_count = cur.fetchone()["count"]
+            dept_count = cur.fetchone()["count"]
 
             # Resting agents
             cur.execute("""
@@ -2049,28 +2050,26 @@ Please try again or use the Team Management module directly.""",
             """)
             resting_count = cur.fetchone()["count"]
 
-            # Station summary
+            # Department summary
             cur.execute("""
-                SELECT bs.station_code, bs.station_name,
-                       COUNT(sa.id) FILTER (WHERE sa.is_active = TRUE) as agent_count
-                FROM bridge_stations bs
-                LEFT JOIN station_assignments sa ON bs.id = sa.station_id
-                WHERE bs.is_active = TRUE
-                GROUP BY bs.station_code, bs.station_name, bs.position_order
-                ORDER BY bs.position_order
+                SELECT department, COUNT(*) as agent_count
+                FROM agents
+                WHERE status = 'active' AND department IS NOT NULL
+                GROUP BY department
+                ORDER BY department
             """)
-            stations = cur.fetchall()
+            departments = cur.fetchall()
 
-            station_lines = []
-            for s in stations:
-                count = s["agent_count"] or 0
+            dept_lines = []
+            for d in departments:
+                count = d["agent_count"] or 0
                 indicator = "●" if count > 0 else "○"
-                station_lines.append(
-                    f"  {indicator} **{s['station_code']}** ({s['station_name']}): {count} agents"
+                dept_lines.append(
+                    f"  {indicator} **{d['department']}**: {count} agents"
                 )
 
-            station_summary = (
-                "\n".join(station_lines) if station_lines else "No stations configured."
+            dept_summary = (
+                "\n".join(dept_lines) if dept_lines else "No departments configured."
             )
 
             cur.close()
@@ -2078,10 +2077,10 @@ Please try again or use the Team Management module directly.""",
             steps.append(
                 ThinkingStep(
                     step_type="team_action",
-                    label=f"Status: {active_count} active, {stationed_count} on stations",
+                    label=f"Status: {active_count} active, {dept_count} in departments",
                     data={
                         "active": active_count,
-                        "stationed": stationed_count,
+                        "dept_count": dept_count,
                         "resting": resting_count,
                     },
                     success=True,
@@ -2090,9 +2089,9 @@ Please try again or use the Team Management module directly.""",
 
             return self.TEAM_RESPONSE_TEMPLATES["team_status"].format(
                 active_count=active_count,
-                stationed_count=stationed_count,
+                dept_count=dept_count,
                 resting_count=resting_count,
-                station_summary=station_summary,
+                dept_summary=dept_summary,
             )
         except Exception as e:
             return self.TEAM_RESPONSE_TEMPLATES["error"].format(error=str(e))
@@ -2253,8 +2252,8 @@ You can check the full details at Dev HQ: /dev-hq"""
 
 You can ask me to:
 - Create a new agent ("Create a Python code reviewer")
-- Assign agents to stations ("Put Nova on Engineering station")
-- Check station status ("Who's on duty?")
+- Assign agents to departments ("Put Nova in Engineering & Technology")
+- Check department status ("Who's on duty?")
 - Deactivate agents ("Retire the test agent")"""
         except Exception as e:
             return self.TEAM_RESPONSE_TEMPLATES["error"].format(error=str(e))
@@ -2531,7 +2530,7 @@ You can ask me to:
         if intent_type in (
             "conversation",
             "team_management",
-            "station_management",
+            "department_management",
             "status_query",
             "dev_hq_status",
         ):

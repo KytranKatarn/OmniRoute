@@ -74,10 +74,10 @@ def _send_approval_telegram(
             lines.append(f"Module: {module}")
         elif action_type == "create_agent":
             cap = action_data.get("capability", "?")
-            station = action_data.get("station_code", "?")
+            department = action_data.get("department", action_data.get("station_code", "?"))
             lines.append(f"Type: Create New Agent")
             lines.append(f"Capability: {cap}")
-            lines.append(f"Station: {station}")
+            lines.append(f"Department: {department}")
         else:
             lines.append(f"Type: {action_type}")
 
@@ -244,6 +244,30 @@ def request_approval(
     except Exception as e:
         logger.error(f"Failed to request approval: {e}")
         return None
+
+
+# Maps agent loop job names to their owning department
+JOB_DEPARTMENT_MAP = {
+    "fleet_health_check": "Operations & Infrastructure",
+    "model_state_save": "Operations & Infrastructure",
+    "heartbeat_monitor": "Operations & Infrastructure",
+    "automated_module_audit": "Engineering & Technology",
+    "pattern_compliance_check": "Engineering & Technology",
+    "proactive_scan": "Engineering & Technology",
+    "compliance_scan": "Security & Compliance",
+    "ethics_monitoring": "Security & Compliance",
+    "knowledge_dedup": "Research & Development",
+    "conversation_indexing": "Research & Development",
+    "consciousness_analysis": "Research & Development",
+    "embedding_batch": "Research & Development",
+    "git_commit_tracking": "Research & Development",
+    "github_skill_analysis": "Documentation & Knowledge",
+    "skill_sync": "Documentation & Knowledge",
+    "daily_code_health_digest": "Marketing & Communications",
+    "welfare_recovery": "Human Resources & Culture",
+    "training_tick": "Human Resources & Culture",
+    "approval_queue": "Executive Office",
+}
 
 
 class AgentLoop:
@@ -3060,16 +3084,16 @@ class AgentLoop:
 
             start = time.time()
 
-            # Find stations with recent failures and no idle primaries
+            # Find departments with recent failures and no idle primaries
             cur.execute("""
-                SELECT tel.station_code, bs.id AS station_id,
+                SELECT a.department,
                        COUNT(*) AS recent_failures
                 FROM task_execution_log tel
-                JOIN bridge_stations bs ON tel.station_code = bs.station_code
+                JOIN agents a ON tel.agent_name = a.name
                 WHERE tel.success = FALSE
                   AND tel.created_at > NOW() - INTERVAL '30 minutes'
-                  AND bs.is_active = TRUE
-                GROUP BY tel.station_code, bs.id
+                  AND a.department IS NOT NULL
+                GROUP BY a.department
                 ORDER BY recent_failures DESC
                 LIMIT 5
             """)
@@ -3082,17 +3106,16 @@ class AgentLoop:
 
             # Find idle agents (not busy, not resting, active status)
             cur.execute("""
-                SELECT a.id, a.name, a.model, sa.station_id,
-                       bs.station_code AS home_station
+                SELECT a.id, a.name, a.model,
+                       a.department AS home_department
                 FROM agents a
-                JOIN station_assignments sa ON a.id = sa.agent_id AND sa.is_active = TRUE
-                JOIN bridge_stations bs ON sa.station_id = bs.id
                 LEFT JOIN bridge_jobs bj ON bj.agent_name = a.name AND bj.status = 'running'
                 LEFT JOIN agent_rest_cycles arc ON a.id = arc.agent_id AND arc.ended_at IS NULL
                 WHERE a.status = 'active'
                   AND bj.id IS NULL
                   AND arc.id IS NULL
                   AND a.shift_state IN ('active', 'winding_down')
+                  AND a.department IS NOT NULL
             """)
             idle_agents = cur.fetchall()
 
@@ -3103,22 +3126,22 @@ class AgentLoop:
 
             volunteered = 0
             for job in pending_jobs:
-                # Find an idle agent NOT from this station
+                # Find an idle agent NOT from this department
                 volunteer = None
                 for agent in idle_agents:
-                    if agent["home_station"] != job["station_code"]:
+                    if agent["home_department"] != job["department"]:
                         volunteer = agent
                         break
 
                 if volunteer:
                     logger.info(
-                        f"Volunteering {volunteer['name']} from {volunteer['home_station']} "
-                        f"to help {job['station_code']} ({job['recent_failures']} recent failures)"
+                        f"Volunteering {volunteer['name']} from {volunteer['home_department']} "
+                        f"to help {job['department']} ({job['recent_failures']} recent failures)"
                     )
                     self._create_notification(
-                        f"Fleet: {volunteer['name']} volunteering at {job['station_code']}",
+                        f"Fleet: {volunteer['name']} volunteering at {job['department']}",
                         "info",
-                        {"agent": volunteer["name"], "station": job["station_code"]},
+                        {"agent": volunteer["name"], "department": job["department"]},
                     )
                     volunteered += 1
                     # Remove from idle list so they don't get double-assigned
@@ -3805,14 +3828,15 @@ class AgentLoop:
             if items_failed > 0 and items_processed == 0
             else "partial" if items_failed > 0 else "success"
         )
+        department = JOB_DEPARTMENT_MAP.get(job_name, "Operations & Infrastructure")
         try:
             conn = get_db()
             cur = conn.cursor()
             cur.execute(
                 """
                 INSERT INTO autonomy_loop_log
-                (job_name, status, items_processed, items_failed, duration_ms, details, error_message)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                (job_name, status, items_processed, items_failed, duration_ms, details, error_message, department)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     job_name,
@@ -3822,6 +3846,7 @@ class AgentLoop:
                     duration_ms,
                     json.dumps(details or {}),
                     error_message,
+                    department,
                 ),
             )
             conn.commit()
@@ -5439,12 +5464,11 @@ Respond with ONLY a JSON object (no markdown, no explanation):
                                     for s in target_stations
                                 ]
 
-                                # Find agents on target stations
+                                # Find agents in target departments
                                 cur2.execute(
                                     """SELECT DISTINCT a.id, a.name
                                        FROM agents a
-                                       JOIN station_assignments sa ON sa.agent_id = a.id
-                                       WHERE sa.is_active = true
+                                       WHERE a.department IS NOT NULL
                                          AND a.shift_state IN ('active', 'deployed')
                                          AND EXISTS (
                                              SELECT 1 FROM agent_skills ask
@@ -5895,10 +5919,8 @@ Respond with ONLY a JSON object (no markdown, no explanation):
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute("""
                 SELECT a.id, a.name FROM agents a
-                JOIN station_assignments sa ON a.id = sa.agent_id
-                WHERE sa.station_code = 'ENGINEERING'
+                WHERE a.department = 'Engineering & Technology'
                   AND a.shift_state = 'active'
-                  AND sa.is_active = true
                 ORDER BY a.name
                 LIMIT 1
             """)
@@ -5988,7 +6010,7 @@ Respond with ONLY a JSON object (no markdown, no explanation):
                 system_prompt=system_prompt,
                 capability="code_fix",
                 module_id="dev_pipeline",
-                station_code="ENGINEERING",
+                department="Engineering & Technology",
             )
 
             if not fleet_result or not fleet_result.get("success"):

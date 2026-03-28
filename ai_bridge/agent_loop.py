@@ -21,9 +21,21 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any, Dict, List, Optional
 
+import sys
+
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from db import get_db
+
+# Allow importing platform_v2 services from ai_bridge context
+if "/mnt/archie_brain/platform_v2" not in sys.path:
+    sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+
+from services.agent_service import (
+    add_skill,
+    recover_idle,
+    update_welfare,
+)
 
 logger = logging.getLogger("agent_loop")
 
@@ -2970,12 +2982,12 @@ class AgentLoop:
                 energy = max(1.0 - stress * 0.5 - float(row["error_rate_pct"]) / 200, 0.1)
                 mood = "stressed" if stress > 0.8 else "focused" if stress > 0.4 else "relaxed"
 
-                cur.execute("""
-                    UPDATE agent_emotional_state
-                    SET stress_level = %s, energy_level = %s, current_mood = %s,
-                        timestamp = NOW()
-                    WHERE agent_id = %s
-                """, (round(stress, 2), round(energy, 2), mood, row["agent_id"]))
+                update_welfare(
+                    row["agent_id"],
+                    stress=round(stress, 2),
+                    energy=round(energy, 2),
+                    mood=mood,
+                )
 
             conn.commit()
 
@@ -3553,12 +3565,7 @@ class AgentLoop:
                 """, (t["id"],))
 
                 # Advance agent's proficiency level to target
-                cur.execute("""
-                    UPDATE agent_skills
-                    SET proficiency_level = %s, updated_at = NOW()
-                    WHERE agent_id = %s AND skill_name = %s
-                      AND proficiency_level < %s
-                """, (target_level, agent_id, skill_name, target_level))
+                add_skill(agent_id, skill_name, level=target_level)
 
                 # Boost confidence in agent_learning_log (cap at 1.0)
                 cur.execute("""
@@ -3583,14 +3590,7 @@ class AgentLoop:
                     ))
 
                 # Nudge emotional state positively
-                cur.execute("""
-                    UPDATE agent_emotional_state
-                    SET energy_level = LEAST(1.0, energy_level + 0.1),
-                        stress_level = GREATEST(0.0, stress_level - 0.1),
-                        current_mood = 'accomplished',
-                        timestamp = NOW()
-                    WHERE agent_id = %s
-                """, (agent_id,))
+                recover_idle(agent_id, energy_boost=0.1, stress_reduction=0.1)
 
                 completed += 1
                 logger.info(
@@ -5561,23 +5561,13 @@ Respond with ONLY a JSON object (no markdown, no explanation):
                                         if capabilities
                                         else f"gh:{skill['skill_name'][:50]}"
                                     )
-                                    cur2.execute(
-                                        """INSERT INTO agent_skills
-                                               (agent_id, skill_name, skill_category,
-                                                proficiency_level, notes)
-                                           VALUES (%s, %s, %s, %s, %s)
-                                           ON CONFLICT (agent_id, skill_name)
-                                           DO NOTHING""",
-                                        (
-                                            agent_row["id"],
-                                            gh_skill_name,
-                                            categories[0] if categories else "general",
-                                            min(quality, 3),
-                                            f"Auto-assigned from {skill['repo_name']}",
-                                        ),
+                                    add_skill(
+                                        agent_row["id"],
+                                        gh_skill_name,
+                                        level=min(quality, 3),
+                                        category=categories[0] if categories else "general",
                                     )
-                                    if cur2.rowcount > 0:
-                                        assigned_ids.append(agent_row["id"])
+                                    assigned_ids.append(agent_row["id"])
 
                                 # Update github_skills with assigned agent IDs
                                 if assigned_ids:

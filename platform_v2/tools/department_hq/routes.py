@@ -5,12 +5,16 @@ Endpoints:
   GET /                — Render the single-page template
   GET /api/overview    — Floor summary with department counts, agent counts, health
   GET /api/org-chart   — Floors -> departments -> AI Director + staff list
+
+Uses the centralized agent_service for agent data; keeps minimal SQL
+only for non-agent tables (dept_work_sessions, bridge_jobs).
 """
 
 from functools import wraps
 from flask import render_template, jsonify, request
 from flask_login import login_required, current_user
 from database import get_db_cursor
+from services.agent_service import get_department_summary, get_org_chart
 
 # ---------------------------------------------------------------------------
 # Admin guard (same pattern as consciousness module)
@@ -48,24 +52,11 @@ def register_routes(bp, _admin_required=None):
     def api_overview():
         """Floor summary: department counts, agent counts, active sessions, health."""
         try:
-            with get_db_cursor(commit=False) as (conn, cur):
-                # Agents per department with shift breakdown
-                cur.execute(
-                    """
-                    SELECT department, floor,
-                           COUNT(*) AS total,
-                           COUNT(*) FILTER (WHERE shift_state = 'active') AS active,
-                           COUNT(*) FILTER (WHERE shift_state = 'deployed') AS deployed,
-                           COUNT(*) FILTER (WHERE shift_state = 'barracked') AS barracked,
-                           COUNT(*) FILTER (WHERE is_department_ai = true) AS directors
-                    FROM agents
-                    WHERE department IS NOT NULL
-                    GROUP BY department, floor
-                    ORDER BY floor, department
-                """
-                )
-                dept_rows = cur.fetchall()
+            # Agent counts per department from centralized service
+            dept_rows = get_department_summary()
 
+            # Supplementary data that lives outside agents table — keep minimal SQL
+            with get_db_cursor(commit=False) as (conn, cur):
                 # Active work sessions per department
                 cur.execute(
                     """
@@ -95,50 +86,50 @@ def register_routes(bp, _admin_required=None):
                 job_rows = cur.fetchall()
                 job_map = {r["department"]: dict(r) for r in job_rows}
 
-                # Build floor summary
-                floors = {}
-                for row in dept_rows:
-                    fl = row["floor"] or "UNKNOWN"
-                    if fl not in floors:
-                        floors[fl] = {
-                            "floor": fl,
-                            "departments": [],
-                            "total_agents": 0,
-                            "active_agents": 0,
-                        }
-                    dept_name = row["department"]
-                    dept_info = {
-                        "department": dept_name,
-                        "total_agents": row["total"],
-                        "active": row["active"],
-                        "deployed": row["deployed"],
-                        "barracked": row["barracked"],
-                        "directors": row["directors"],
-                        "active_sessions": session_map.get(dept_name, 0),
-                        "jobs_24h": job_map.get(dept_name, {}).get("jobs_24h", 0),
-                        "completed_24h": job_map.get(dept_name, {}).get("completed_24h", 0),
-                        "failed_24h": job_map.get(dept_name, {}).get("failed_24h", 0),
+            # Build floor summary
+            floors = {}
+            for row in dept_rows:
+                fl = row["floor"] or "UNKNOWN"
+                if fl not in floors:
+                    floors[fl] = {
+                        "floor": fl,
+                        "departments": [],
+                        "total_agents": 0,
+                        "active_agents": 0,
                     }
-                    floors[fl]["departments"].append(dept_info)
-                    floors[fl]["total_agents"] += row["total"]
-                    floors[fl]["active_agents"] += row["active"]
+                dept_name = row["department"]
+                dept_info = {
+                    "department": dept_name,
+                    "total_agents": row["total"],
+                    "active": row["active"],
+                    "deployed": row["deployed"],
+                    "barracked": row["barracked"],
+                    "directors": row["directors"],
+                    "active_sessions": session_map.get(dept_name, 0),
+                    "jobs_24h": job_map.get(dept_name, {}).get("jobs_24h", 0),
+                    "completed_24h": job_map.get(dept_name, {}).get("completed_24h", 0),
+                    "failed_24h": job_map.get(dept_name, {}).get("failed_24h", 0),
+                }
+                floors[fl]["departments"].append(dept_info)
+                floors[fl]["total_agents"] += row["total"]
+                floors[fl]["active_agents"] += row["active"]
 
-                # Overall totals
-                total_agents = sum(f["total_agents"] for f in floors.values())
-                active_agents = sum(f["active_agents"] for f in floors.values())
-                total_departments = sum(len(f["departments"]) for f in floors.values())
+            # Overall totals
+            total_agents = sum(f["total_agents"] for f in floors.values())
+            active_agents = sum(f["active_agents"] for f in floors.values())
+            total_departments = sum(len(f["departments"]) for f in floors.values())
 
-                return jsonify(
-                    {
-                        "floors": floors,
-                        "totals": {
-                            "agents": total_agents,
-                            "active": active_agents,
-                            "departments": total_departments,
-                            "floors": len(floors),
-                        },
-                    }
-                )
+            return jsonify(
+                {
+                    "floors": floors,
+                    "totals": {
+                        "agents": total_agents,
+                        "active": active_agents,
+                        "departments": total_departments,
+                        "floors": len(floors),
+                    },
+                }
+            )
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
@@ -150,54 +141,40 @@ def register_routes(bp, _admin_required=None):
     def api_org_chart():
         """Hierarchical org chart: floors -> departments -> director + staff."""
         try:
-            with get_db_cursor(commit=False) as (conn, cur):
-                cur.execute(
-                    """
-                    SELECT id, name, display_name, department, floor,
-                           is_department_ai, shift_state, model, status
-                    FROM agents
-                    WHERE department IS NOT NULL
-                    ORDER BY floor, department, is_department_ai DESC, display_name
-                """
-                )
-                agents = cur.fetchall()
+            org = get_org_chart()
 
-            # Organize into hierarchy
-            floors = {}
-            for agent in agents:
-                fl = agent["floor"] or "UNKNOWN"
-                dept = agent["department"]
-
-                if fl not in floors:
-                    floors[fl] = {"floor": fl, "departments": {}}
-                if dept not in floors[fl]["departments"]:
-                    floors[fl]["departments"][dept] = {
-                        "department": dept,
-                        "director": None,
-                        "staff": [],
-                    }
-
-                agent_data = {
-                    "id": agent["id"],
-                    "name": agent["name"],
-                    "display_name": agent["display_name"],
-                    "shift_state": agent["shift_state"],
-                    "model": agent["model"],
-                    "status": agent["status"],
-                    "is_director": agent["is_department_ai"],
-                }
-
-                if agent["is_department_ai"]:
-                    floors[fl]["departments"][dept]["director"] = agent_data
-                else:
-                    floors[fl]["departments"][dept]["staff"].append(agent_data)
-
-            # Convert dept dicts to lists for JSON
+            # Transform service output into the JSON shape the frontend expects:
+            # { floors: { FLOOR: { floor, departments: [{ department, director, staff }] } } }
             result = {}
-            for fl_name, fl_data in floors.items():
+            for fl_name, departments in org.items():
+                dept_list = []
+                for dept_name, dept_data in departments.items():
+                    director = dept_data.get("director")
+                    staff = dept_data.get("staff", [])
+
+                    # Normalize agent dicts to the fields the frontend uses
+                    def _agent_view(a):
+                        return {
+                            "id": a["id"],
+                            "name": a["name"],
+                            "display_name": a["display_name"],
+                            "shift_state": a["shift_state"],
+                            "model": a["model"],
+                            "status": a["status"],
+                            "is_director": a.get("is_department_ai", False),
+                        }
+
+                    dept_list.append(
+                        {
+                            "department": dept_name,
+                            "director": _agent_view(director) if director else None,
+                            "staff": [_agent_view(s) for s in staff],
+                        }
+                    )
+
                 result[fl_name] = {
                     "floor": fl_name,
-                    "departments": list(fl_data["departments"].values()),
+                    "departments": dept_list,
                 }
 
             return jsonify({"floors": result})

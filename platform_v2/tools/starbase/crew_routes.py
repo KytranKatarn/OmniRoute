@@ -15,6 +15,10 @@ from flask_login import login_required, current_user
 from database import get_db_cursor
 import requests
 
+from services.agent_service import list_agents, get_agent
+from services.agent_models import get_loaded_models, check_vram_budget
+from services.agent_dispatch import get_fleet_roster
+
 from .helpers import (
     _get_cached_ollama_tags,
     _get_cached_ollama_ps,
@@ -187,13 +191,12 @@ def register_crew_routes(bp, admin_required):
                 wl = workload_map.get(member.get("agent_id") or member.get("id"), {})
                 member["workload"] = wl
 
-            # Add shift_state to each manifest entry
+            # Add shift_state to each manifest entry (from agent_service)
             try:
-                with get_db_cursor(commit=False) as (sconn, scur):
-                    scur.execute("SELECT id, shift_state FROM agents WHERE status IN ('active', 'inactive')")
-                    shift_states = {r["id"]: r["shift_state"] or "active" for r in scur.fetchall()}
-                    for entry in manifest:
-                        entry["shift_state"] = shift_states.get(entry.get("agent_id") or entry.get("id"), "active")
+                all_agents = list_agents(limit=500)
+                shift_states = {a["id"]: a.get("shift_state") or "active" for a in all_agents}
+                for entry in manifest:
+                    entry["shift_state"] = shift_states.get(entry.get("agent_id") or entry.get("id"), "active")
             except Exception as e:
                 logger.warning(f"[crew] Failed to fetch agent shift states: {e}")
 
@@ -660,122 +663,123 @@ def register_crew_routes(bp, admin_required):
     def cluster_agents():
         """Return ALL agents across hub + fleet with location and status.
 
-        Combines the hub ``agents`` table with ``node_agents`` /
-        ``remote_nodes`` to give a single cluster-wide view.  Also checks
-        ``bridge_jobs`` for any currently-running job per agent.
+        Uses agent_service.list_agents and agent_dispatch.get_fleet_roster
+        instead of raw SQL.  Also checks bridge_jobs for running jobs and
+        Ollama for loaded-model status.
         """
         try:
-            with get_db_cursor(commit=False) as (conn, cur):
-                # -- Loaded models on the hub (to flag model_loaded) --
-                hub_ps = _get_cached_ollama_ps()
-                loaded_models = set()
-                for pm in hub_ps:
-                    name = pm.get("name", "").replace(":latest", "")
-                    loaded_models.add(name)
+            # -- Loaded models on the hub (to flag model_loaded) --
+            hub_ps = _get_cached_ollama_ps()
+            loaded_models = set()
+            for pm in hub_ps:
+                name = pm.get("name", "").replace(":latest", "")
+                loaded_models.add(name)
 
-                # -- All hub agents with station + node deployment info --
-                cur.execute(
-                    """
-                    SELECT
-                        a.id,
-                        a.name,
-                        a.display_name,
-                        a.title,
-                        a.model,
-                        a.shift_state,
-                        a.status        AS agent_status,
-                        a.avatar_url,
-                        a.department,
-                        -- Node deployment info (NULL when on hub)
-                        na.id           AS node_agent_id,
-                        na.status       AS node_agent_status,
-                        rn.node_name,
-                        rn.status       AS node_status,
-                        -- Current active job (most recent running/in_progress)
-                        (
-                            SELECT bj.description
-                            FROM bridge_jobs bj
-                            WHERE bj.agent_name = a.name
-                              AND bj.status IN ('running', 'in_progress', 'pending')
-                            ORDER BY bj.created_at DESC
-                            LIMIT 1
-                        ) AS current_job
-                    FROM agents a
-                    LEFT JOIN node_agents na
-                        ON na.hub_agent_id = a.id AND na.status = 'active'
-                    LEFT JOIN remote_nodes rn
-                        ON rn.id = na.node_id AND rn.is_active = true
-                    WHERE a.status = 'active'
-                    ORDER BY a.shift_state, a.name
-                    """
-                )
-                rows = cur.fetchall()
+            # -- Fleet roster: hub agents + node-deployed agents --
+            roster = get_fleet_roster()
+            hub_agents = roster.get("hub", [])
+            node_agents = roster.get("nodes", [])
 
-                agents_list = []
-                summary = {
-                    "total": 0,
-                    "hub_active": 0,
-                    "hub_barracked": 0,
-                    "deployed": 0,
-                    "off_duty": 0,
+            # Build a set of deployed agent IDs with their node info
+            deployed_map = {}
+            for na in node_agents:
+                deployed_map[na["id"]] = {
+                    "node_name": na.get("node_name"),
+                    "hostname": na.get("hostname"),
                 }
 
-                for row in rows:
-                    shift = row["shift_state"] or "active"
-                    is_deployed = row["node_agent_id"] is not None
-                    model_name = (row["model"] or "").replace(":latest", "")
-
-                    location = "hub"
-                    node_name = None
-                    if is_deployed and row["node_name"]:
-                        location = row["node_name"]
-                        node_name = row["node_name"]
-
-                    # Model loaded check: hub models from Ollama ps,
-                    # deployed agents assumed loaded if node is online
-                    model_loaded = False
-                    if is_deployed:
-                        model_loaded = row["node_status"] == "online"
-                    else:
-                        model_loaded = model_name in loaded_models
-
-                    agents_list.append(
-                        {
-                            "id": row["id"],
-                            "name": row["name"],
-                            "display_name": row["display_name"] or row["name"],
-                            "location": location,
-                            "node_name": node_name,
-                            "shift_state": shift,
-                            "station_code": row["department"],
-                            "department": row["department"],
-                            "model": row["model"],
-                            "model_loaded": model_loaded,
-                            "current_job": row["current_job"],
-                            "title": row["title"],
-                            "avatar_url": row["avatar_url"],
-                            "assignment_type": "primary",
-                        }
+            # -- Current active jobs per agent (still needs DB — bridge_jobs is not agent data) --
+            active_jobs = {}
+            try:
+                with get_db_cursor(commit=False) as (conn, cur):
+                    cur.execute(
+                        """SELECT DISTINCT ON (bj.agent_name) bj.agent_name, bj.description
+                           FROM bridge_jobs bj
+                           WHERE bj.status IN ('running', 'in_progress', 'pending')
+                           ORDER BY bj.agent_name, bj.created_at DESC"""
                     )
+                    for row in cur.fetchall():
+                        active_jobs[row["agent_name"]] = row["description"]
+            except Exception as e:
+                logger.warning("cluster_agents: failed to fetch active jobs: %s", e)
 
-                    # Summary counts
-                    summary["total"] += 1
-                    if shift == "deployed" or is_deployed:
-                        summary["deployed"] += 1
-                    elif shift == "barracked":
-                        summary["hub_barracked"] += 1
-                    elif shift in ("off_duty", "winding_down", "cooldown"):
-                        summary["off_duty"] += 1
-                    else:
-                        summary["hub_active"] += 1
+            # -- Node online status (for model_loaded check on deployed agents) --
+            node_online = set()
+            try:
+                with get_db_cursor(commit=False) as (conn, cur):
+                    cur.execute("SELECT node_name FROM remote_nodes WHERE is_active = true AND status = 'online'")
+                    node_online = {r["node_name"] for r in cur.fetchall()}
+            except Exception as e:
+                logger.warning("cluster_agents: failed to fetch node status: %s", e)
 
-                return jsonify(
+            # -- Combine all active agents from service --
+            all_agents = list_agents(limit=500)
+
+            agents_list = []
+            summary = {
+                "total": 0,
+                "hub_active": 0,
+                "hub_barracked": 0,
+                "deployed": 0,
+                "off_duty": 0,
+            }
+
+            for agent in all_agents:
+                shift = agent.get("shift_state") or "active"
+                agent_id = agent["id"]
+                is_deployed = agent_id in deployed_map
+                model_name = (agent.get("model") or "").replace(":latest", "")
+
+                location = "hub"
+                node_name = None
+                if is_deployed:
+                    location = deployed_map[agent_id].get("node_name") or "node"
+                    node_name = deployed_map[agent_id].get("node_name")
+
+                # Model loaded check
+                model_loaded = False
+                if is_deployed:
+                    model_loaded = node_name in node_online if node_name else False
+                else:
+                    model_loaded = model_name in loaded_models
+
+                agents_list.append(
                     {
-                        "success": True,
-                        "agents": agents_list,
-                        "summary": summary,
+                        "id": agent_id,
+                        "name": agent.get("name"),
+                        "display_name": agent.get("display_name") or agent.get("name"),
+                        "location": location,
+                        "node_name": node_name,
+                        "shift_state": shift,
+                        "station_code": agent.get("department"),
+                        "department": agent.get("department"),
+                        "model": agent.get("model"),
+                        "model_loaded": model_loaded,
+                        "current_job": active_jobs.get(agent.get("name")),
+                        "title": agent.get("title"),
+                        "avatar_url": agent.get("avatar_url"),
+                        "assignment_type": "primary",
                     }
                 )
+
+                # Summary counts
+                summary["total"] += 1
+                if shift == "deployed" or is_deployed:
+                    summary["deployed"] += 1
+                elif shift == "barracked":
+                    summary["hub_barracked"] += 1
+                elif shift in ("off_duty", "winding_down", "cooldown"):
+                    summary["off_duty"] += 1
+                else:
+                    summary["hub_active"] += 1
+
+            return jsonify(
+                {
+                    "success": True,
+                    "agents": agents_list,
+                    "summary": summary,
+                }
+            )
 
         except Exception as e:
             logger.error("cluster_agents error: %s", e)

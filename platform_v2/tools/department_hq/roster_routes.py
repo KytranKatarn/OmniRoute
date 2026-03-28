@@ -5,31 +5,20 @@ Endpoints:
   GET  /api/roster        — All agents with filters (?department=, ?floor=, ?shift_state=, ?search=)
   POST /api/roster/assign — Reassign agent to department {agent_id, department}
   POST /api/roster/shift  — Change shift state {agent_id, shift_state}
+
+Uses the centralized agent_service for all agent operations.
 """
 
 from flask import jsonify, request
-from database import get_db_cursor
+from services.agent_service import (
+    list_agents,
+    get_agent,
+    update_agent,
+    DEPARTMENT_FLOOR_MAP,
+    VALID_SHIFT_STATES,
+)
 
-VALID_SHIFT_STATES = {"active", "deployed", "barracked", "off_duty", "winding_down", "cooldown"}
-
-VALID_DEPARTMENTS = {
-    "Executive Office",
-    "Operations & Infrastructure",
-    "Logistics & Supply Chain",
-    "Finance & Accounting",
-    "Engineering & Technology",
-    "Security & Compliance",
-    "Research & Development",
-    "Creative & Design",
-    "Marketing & Communications",
-    "Documentation & Knowledge",
-    "Customer Success & Support",
-    "Human Resources & Culture",
-    "Medical & Wellness",
-    "Legal & Regulatory",
-    "Diplomatic & External Relations",
-    "Analytics & Intelligence",
-}
+VALID_DEPARTMENTS = set(DEPARTMENT_FLOOR_MAP.keys())
 
 
 def register_roster_routes(bp, admin_required):
@@ -42,52 +31,44 @@ def register_roster_routes(bp, admin_required):
         department = request.args.get("department")
         floor = request.args.get("floor")
         shift_state = request.args.get("shift_state")
-        search = request.args.get("search", "").strip()
+        search = request.args.get("search", "").strip() or None
         limit = min(int(request.args.get("limit", 200)), 500)
         offset = int(request.args.get("offset", 0))
 
         try:
-            conditions = ["department IS NOT NULL"]
-            params = []
+            # Fetch all matching agents via service (service handles filtering)
+            all_agents = list_agents(
+                department=department,
+                floor=floor,
+                shift_state=shift_state,
+                search=search,
+                limit=limit + offset,  # fetch enough for offset pagination
+            )
 
-            if department:
-                conditions.append("department = %s")
-                params.append(department)
-            if floor:
-                conditions.append("floor = %s")
-                params.append(floor)
-            if shift_state:
-                conditions.append("shift_state = %s")
-                params.append(shift_state)
-            if search:
-                conditions.append("(LOWER(name) LIKE %s OR LOWER(display_name) LIKE %s OR LOWER(department) LIKE %s)")
-                like = f"%{search.lower()}%"
-                params.extend([like, like, like])
+            # Apply offset pagination on the result
+            total = len(all_agents)
+            agents = all_agents[offset : offset + limit]
 
-            where = " AND ".join(conditions)
-
-            with get_db_cursor(commit=False) as (conn, cur):
-                # Count total
-                cur.execute(f"SELECT COUNT(*) AS cnt FROM agents WHERE {where}", params)
-                total = cur.fetchone()["cnt"]
-
-                # Fetch page
-                cur.execute(
-                    f"""
-                    SELECT id, name, display_name, department, floor,
-                           is_department_ai, shift_state, model, status
-                    FROM agents
-                    WHERE {where}
-                    ORDER BY floor, department, is_department_ai DESC, display_name
-                    LIMIT %s OFFSET %s
-                    """,
-                    params + [limit, offset],
+            # Trim to the fields the original endpoint returned
+            trimmed = []
+            for a in agents:
+                trimmed.append(
+                    {
+                        "id": a["id"],
+                        "name": a["name"],
+                        "display_name": a["display_name"],
+                        "department": a["department"],
+                        "floor": a["floor"],
+                        "is_department_ai": a["is_department_ai"],
+                        "shift_state": a["shift_state"],
+                        "model": a["model"],
+                        "status": a["status"],
+                    }
                 )
-                agents = cur.fetchall()
 
             return jsonify(
                 {
-                    "agents": [dict(a) for a in agents],
+                    "agents": trimmed,
                     "total": total,
                     "limit": limit,
                     "offset": offset,
@@ -110,30 +91,13 @@ def register_roster_routes(bp, admin_required):
             return jsonify({"error": f"Invalid department: {department}"}), 400
 
         try:
-            with get_db_cursor(commit=True) as (conn, cur):
-                # Verify agent exists
-                cur.execute("SELECT id, name, department FROM agents WHERE id = %s", [agent_id])
-                agent = cur.fetchone()
-                if not agent:
-                    return jsonify({"error": "Agent not found"}), 404
+            # Verify agent exists
+            agent = get_agent(agent_id)
+            if not agent:
+                return jsonify({"error": "Agent not found"}), 404
 
-                # Look up the floor for the target department
-                cur.execute(
-                    "SELECT floor FROM agents WHERE department = %s LIMIT 1",
-                    [department],
-                )
-                floor_row = cur.fetchone()
-                floor = floor_row["floor"] if floor_row else None
-
-                # Update
-                cur.execute(
-                    """
-                    UPDATE agents
-                    SET department = %s, floor = %s
-                    WHERE id = %s
-                    """,
-                    [department, floor, agent_id],
-                )
+            # update_agent auto-derives floor from department
+            update_agent(agent_id, department=department)
 
             return jsonify(
                 {
@@ -141,6 +105,8 @@ def register_roster_routes(bp, admin_required):
                     "message": f"{agent['name']} reassigned to {department}",
                 }
             )
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
@@ -158,23 +124,21 @@ def register_roster_routes(bp, admin_required):
             return jsonify({"error": f"Invalid shift_state: {shift_state}. Valid: {sorted(VALID_SHIFT_STATES)}"}), 400
 
         try:
-            with get_db_cursor(commit=True) as (conn, cur):
-                cur.execute("SELECT id, name, shift_state FROM agents WHERE id = %s", [agent_id])
-                agent = cur.fetchone()
-                if not agent:
-                    return jsonify({"error": "Agent not found"}), 404
+            agent = get_agent(agent_id)
+            if not agent:
+                return jsonify({"error": "Agent not found"}), 404
 
-                cur.execute(
-                    "UPDATE agents SET shift_state = %s WHERE id = %s",
-                    [shift_state, agent_id],
-                )
+            previous = agent["shift_state"]
+            update_agent(agent_id, shift_state=shift_state)
 
             return jsonify(
                 {
                     "success": True,
                     "message": f"{agent['name']} shift changed to {shift_state}",
-                    "previous": agent["shift_state"],
+                    "previous": previous,
                 }
             )
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
         except Exception as e:
             return jsonify({"error": str(e)}), 500

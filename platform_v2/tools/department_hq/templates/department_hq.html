@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Department HQ — A.R.C.H.I.E.{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('department_hq.static', filename='css/department-hq.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="dhq-container">
+  <!-- Header -->
+  <div class="dhq-header">
+    <div class="dhq-header-bar">
+      <div class="dhq-elbow-tl"></div>
+      <h1 class="dhq-title">DEPARTMENT HQ</h1>
+      <div class="dhq-header-stats" id="dhqHeaderStats">
+        <span class="dhq-stat"><span class="dhq-stat-val" id="statDepts">--</span> Departments</span>
+        <span class="dhq-stat"><span class="dhq-stat-val" id="statAgents">--</span> Agents</span>
+        <span class="dhq-stat"><span class="dhq-stat-val" id="statActive">--</span> Active</span>
+      </div>
+      <div class="dhq-elbow-tr"></div>
+    </div>
+
+    <!-- Tab Bar -->
+    <div class="dhq-tabs">
+      <button class="dhq-tab active" data-tab="overview" onclick="switchTab('overview')">Overview</button>
+      <button class="dhq-tab" data-tab="org-chart" onclick="switchTab('org-chart')">Org Chart</button>
+      <button class="dhq-tab" data-tab="roster" onclick="switchTab('roster')">Roster</button>
+      <button class="dhq-tab" data-tab="work" onclick="switchTab('work')">Work Tracking</button>
+      <button class="dhq-tab" data-tab="performance" onclick="switchTab('performance')">Performance</button>
+      <button class="dhq-tab" data-tab="creed" onclick="switchTab('creed')">C.R.E.E.D.</button>
+    </div>
+  </div>
+
+  <!-- Tab Panels -->
+  <div class="dhq-panels">
+
+    <!-- OVERVIEW -->
+    <div class="dhq-panel active" id="panel-overview">
+      <div id="overviewContent" class="dhq-loading">Loading overview...</div>
+    </div>
+
+    <!-- ORG CHART -->
+    <div class="dhq-panel" id="panel-org-chart">
+      <div id="orgChartContent" class="dhq-loading">Loading org chart...</div>
+    </div>
+
+    <!-- ROSTER -->
+    <div class="dhq-panel" id="panel-roster">
+      <div class="dhq-roster-controls">
+        <input type="text" id="rosterSearch" class="dhq-input" placeholder="Search agents..." oninput="debounceRoster()">
+        <select id="rosterFloor" class="dhq-select" onchange="loadRoster()">
+          <option value="">All Floors</option>
+          <option value="BRIDGE">BRIDGE</option>
+          <option value="OPERATIONS">OPERATIONS</option>
+          <option value="ENGINEERING">ENGINEERING</option>
+          <option value="CREATIVE">CREATIVE</option>
+          <option value="SERVICES">SERVICES</option>
+        </select>
+        <select id="rosterShift" class="dhq-select" onchange="loadRoster()">
+          <option value="">All Shifts</option>
+          <option value="active">Active</option>
+          <option value="deployed">Deployed</option>
+          <option value="barracked">Barracked</option>
+          <option value="off_duty">Off Duty</option>
+          <option value="cooldown">Cooldown</option>
+        </select>
+        <span class="dhq-roster-count" id="rosterCount"></span>
+      </div>
+      <div id="rosterContent" class="dhq-loading">Loading roster...</div>
+    </div>
+
+    <!-- WORK TRACKING -->
+    <div class="dhq-panel" id="panel-work">
+      <div class="dhq-work-controls">
+        <select id="workDept" class="dhq-select" onchange="loadWorkSessions()">
+          <option value="">All Departments</option>
+        </select>
+        <select id="workStatus" class="dhq-select" onchange="loadWorkSessions()">
+          <option value="">All Statuses</option>
+          <option value="active">Active</option>
+          <option value="completed">Completed</option>
+          <option value="failed">Failed</option>
+        </select>
+      </div>
+      <div id="workContent" class="dhq-loading">Loading work sessions...</div>
+    </div>
+
+    <!-- PERFORMANCE -->
+    <div class="dhq-panel" id="panel-performance">
+      <div id="perfContent" class="dhq-loading">Loading performance data...</div>
+    </div>
+
+    <!-- C.R.E.E.D. -->
+    <div class="dhq-panel" id="panel-creed">
+      <div id="creedContent" class="dhq-loading">Loading C.R.E.E.D. data...</div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('department_hq.static', filename='js/department-hq.js') }}"></script>
+{% endblock %}

@@ -35,6 +35,42 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
+# Legacy station ↔ department mappings (moved here from agent_routes.py)
+# Other route files import these for backward-compatible rendering.
+# ---------------------------------------------------------------------------
+LEGACY_STATION_DEPARTMENT = {
+    "COMMAND": ["Executive Office"],
+    "ANALYTICS": ["Analytics & Intelligence", "Finance & Accounting"],
+    "CREATIVE": ["Creative & Design", "Marketing & Communications", "Documentation & Knowledge"],
+    "ENGINEERING": ["Engineering & Technology", "Security & Compliance", "Research & Development"],
+    "COMMUNICATIONS": ["Marketing & Communications"],
+    "RESEARCH": ["Research & Development"],
+    "SECURITY": ["Security & Compliance"],
+    "LOGISTICS": ["Logistics & Supply Chain"],
+    "DIPLOMATIC": ["Diplomatic & External Relations"],
+    "OPERATIONS": ["Operations & Infrastructure"],
+}
+
+DEPARTMENT_TO_STATION = {}
+for _code, _depts in LEGACY_STATION_DEPARTMENT.items():
+    for _dept in _depts:
+        if _dept not in DEPARTMENT_TO_STATION:
+            DEPARTMENT_TO_STATION[_dept] = _code
+
+LEGACY_STATION_COLORS = {
+    "COMMAND": "#00e5ff",
+    "ANALYTICS": "#8b5cf6",
+    "CREATIVE": "#f472b6",
+    "ENGINEERING": "#fbbf24",
+    "COMMUNICATIONS": "#22d3ee",
+    "RESEARCH": "#10b981",
+    "SECURITY": "#ef4444",
+    "LOGISTICS": "#f97316",
+    "DIPLOMATIC": "#818cf8",
+    "OPERATIONS": "#a3e635",
+}
+
+# ---------------------------------------------------------------------------
 # Centralised defaults — import these instead of repeating os.getenv() calls
 # ---------------------------------------------------------------------------
 OLLAMA_LOCAL_HOST = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")

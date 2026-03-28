@@ -6,7 +6,7 @@ from flask import jsonify, request
 from flask_login import login_required
 from database import get_db_cursor
 
-from .agent_routes import LEGACY_STATION_COLORS, DEPARTMENT_TO_STATION
+from .helpers import LEGACY_STATION_COLORS, DEPARTMENT_TO_STATION
 
 logger = logging.getLogger(__name__)
 

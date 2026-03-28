@@ -1,8 +1,11 @@
 """
 A.R.C.H.I.E. STARBASE COMMAND Module
 =====================================
-Central command center for all AI/LLM operations.
-Star Trek-inspired station-based workflow.
+Fleet infrastructure dashboard: node management, model control, OTA/sync,
+fleet health, and cluster operations.
+
+Agent/roster/department management has moved to Department HQ.
+Station and agent route files contain redirect stubs only.
 
 Author: A.R.C.H.I.E. Platform
 Date: 2026-01-16

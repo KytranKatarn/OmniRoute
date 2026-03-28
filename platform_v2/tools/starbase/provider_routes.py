@@ -471,7 +471,7 @@ def register_provider_routes(bp, admin_required):
         Accepts station_code (mapped via LEGACY_STATION_DEPARTMENT) or department name.
         station_assignments table is DROPPED — updates agents.department directly.
         """
-        from .agent_routes import LEGACY_STATION_DEPARTMENT, DEPARTMENT_TO_STATION
+        from .helpers import LEGACY_STATION_DEPARTMENT, DEPARTMENT_TO_STATION
 
         try:
             if not current_user.is_admin:

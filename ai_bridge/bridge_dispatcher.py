@@ -5492,14 +5492,14 @@ class BridgeDispatcher:
                     else "overflow_dispatch"
                 )
             self._log_capacity_event(
-                station_code=station_code,
+                department=capability_dept,
                 event_type=cap_event_type,
                 agent_id=agent.get("id") if agent else None,
                 agent_name=agent_name,
                 job_id=job_id,
                 capability=cap_key,
                 slot_number=slot_number,
-                reason=f"{'cross-station' if is_cross_station else 'primary'} dispatch for {cap_key}",
+                reason=f"{'cross-department' if is_cross_station else 'primary'} dispatch for {cap_key}",
                 metadata={
                     "module_source": module_source,
                     "is_cross_station": is_cross_station,

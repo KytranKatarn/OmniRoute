@@ -267,6 +267,7 @@ JOB_DEPARTMENT_MAP = {
     "welfare_recovery": "Human Resources & Culture",
     "training_tick": "Human Resources & Culture",
     "approval_queue": "Executive Office",
+    "department_metrics_rollup": "Analytics & Intelligence",
 }
 
 
@@ -808,6 +809,15 @@ class AgentLoop:
             trigger=IntervalTrigger(seconds=60),
             id="agent_standalone_health",
             name="Agent Loop: Standalone Health Monitor",
+            replace_existing=True,
+        )
+
+        # Job #60 — Department metrics rollup: daily at 2:00 AM, owned by S.P.E.C.T.R.A.
+        self.scheduler.add_job(
+            with_app_context(self._department_metrics_rollup),
+            trigger=CronTrigger(hour=2, minute=0),
+            id="department_metrics_rollup",
+            name="Agent Loop: Department Metrics Rollup",
             replace_existing=True,
         )
 
@@ -6310,6 +6320,32 @@ Respond with ONLY a JSON object (no markdown, no explanation):
                         pass
                     logger.error(f"[Standalone Health] {key} is DOWN: {e}")
                 self._standalone_last_status[key] = "down"
+
+    def _department_metrics_rollup(self):
+        """Job #60: Department metrics rollup — daily at 2:00 AM.
+        Owned by Analytics & Intelligence (S.P.E.C.T.R.A.)."""
+        try:
+            import sys
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from services.work_tracking_service import compute_department_metrics
+
+            result = compute_department_metrics(period_hours=24)
+            logger.info(
+                "Department metrics rollup: %d departments computed",
+                result.get("departments_computed", 0),
+            )
+            self._log_cycle(
+                "department_metrics_rollup",
+                result.get("departments_computed", 0),
+                0,
+                0,
+            )
+        except Exception as e:
+            self._log_cycle(
+                "department_metrics_rollup", 0, 1, 0, error_message=str(e)
+            )
+            logger.warning("Department metrics rollup failed: %s", e)
 
 
 # ---------------------------------------------------------------------------

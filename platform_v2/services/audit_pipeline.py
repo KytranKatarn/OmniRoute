@@ -517,6 +517,14 @@ def dispatch_proposal_fix(proposal_id):
         {"success": bool, "proposal_id": int, "agent": str, "diff_lines": int}
         or {"success": False, "error": str}
     """
+    from services.work_tracking_service import (
+        create_work_session,
+        complete_work_session,
+        fail_work_session,
+    )
+
+    session_id = None
+
     # Load proposal + metadata
     with get_db_cursor(commit=False) as (conn, cur):
         cur.execute(
@@ -543,15 +551,31 @@ def dispatch_proposal_fix(proposal_id):
     issue_code = meta.get("issue_code", "")
     module_name = meta.get("module_name", "")
 
+    # Create work session for tracking
+    try:
+        session_id = create_work_session(
+            agent_id=None,
+            department="Engineering & Technology",
+            session_type="fix",
+            title=f"Fix {issue_code} in {file_path}",
+            metadata={"proposal_id": proposal_id, "issue_code": issue_code, "module": module_name},
+        )
+    except Exception as ws_err:
+        logger.warning("Work session creation failed (non-blocking): %s", ws_err)
+
     # Read source file
     abs_path = os.path.join("/mnt/archie_brain", file_path)
     if not os.path.isfile(abs_path):
+        if session_id:
+            fail_work_session(session_id, error_msg=f"Source file not found: {file_path}")
         return {"success": False, "error": f"Source file not found: {file_path}"}
 
     try:
         with open(abs_path, "r", encoding="utf-8", errors="ignore") as f:
             source_content = f.read()
     except Exception as e:
+        if session_id:
+            fail_work_session(session_id, error_msg=f"Failed to read {file_path}: {e}")
         return {"success": False, "error": f"Failed to read {file_path}: {e}"}
 
     # Determine capability and build prompt
@@ -588,10 +612,14 @@ def dispatch_proposal_fix(proposal_id):
         )
     except Exception as e:
         logger.error("Bridge dispatch failed for proposal #%d: %s", proposal_id, e)
+        if session_id:
+            fail_work_session(session_id, error_msg=f"Bridge dispatch failed: {e}")
         return {"success": False, "error": f"Bridge dispatch failed: {e}"}
 
     if not result or not getattr(result, "response", None):
         logger.warning("Bridge returned empty response for proposal #%d", proposal_id)
+        if session_id:
+            fail_work_session(session_id, error_msg="Bridge returned empty response")
         return {"success": False, "error": "Bridge returned empty response"}
 
     fixed_content = result.response.strip()
@@ -615,6 +643,8 @@ def dispatch_proposal_fix(proposal_id):
                     agent_name,
                     gate1["reason"],
                 )
+                if session_id:
+                    fail_work_session(session_id, error_msg=f"C.R.E.E.D. Gate 1 denied: {gate1['reason']}")
                 return {
                     "success": False,
                     "error": f"C.R.E.E.D. Gate 1 denied: {gate1['reason']}",
@@ -662,6 +692,9 @@ def dispatch_proposal_fix(proposal_id):
         diff_stats.get("added", 0),
         diff_stats.get("removed", 0),
     )
+
+    if session_id:
+        complete_work_session(session_id, jobs_completed=1)
 
     return {
         "success": True,

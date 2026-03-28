@@ -2412,25 +2412,40 @@ class AgentLoop:
                         "error": f"Proposal #{proposal_id} not found or already processed",
                     }
 
-                # Trigger Phase 4 auto-execution in background thread
-                import threading
-                import importlib
+                # Check if this is a code_health_audit proposal — handled by repair pipeline, not old auto_run
+                cur.execute(
+                    "SELECT metadata->>'source' as source FROM improvement_proposals WHERE id = %s",
+                    (proposal_id,),
+                )
+                src_row = cur.fetchone()
+                proposal_source = (src_row.get("source") or "") if src_row else ""
 
-                def _run_auto_execute():
-                    try:
-                        import sys
+                if proposal_source == "code_health_audit":
+                    # Repair pipeline handles these via dispatch_proposal_fix
+                    logger.info(
+                        f"Proposal #{proposal_id} is code_health_audit — skipping old auto_run, "
+                        f"repair pipeline will dispatch via Bridge"
+                    )
+                else:
+                    # Trigger Phase 4 auto-execution for non-audit proposals
+                    import threading
+                    import importlib
 
-                        sys.path.insert(0, "/mnt/archie_brain/platform_v2")
-                        from services.proposal_service import auto_run
+                    def _run_auto_execute():
+                        try:
+                            import sys
 
-                        auto_run(proposal_id)
-                    except Exception as exec_err:
-                        logger.error(
-                            f"Auto-execution failed for proposal #{proposal_id}: {exec_err}"
-                        )
+                            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+                            from services.proposal_service import auto_run
 
-                thread = threading.Thread(target=_run_auto_execute, daemon=True)
-                thread.start()
+                            auto_run(proposal_id)
+                        except Exception as exec_err:
+                            logger.error(
+                                f"Auto-execution failed for proposal #{proposal_id}: {exec_err}"
+                            )
+
+                    thread = threading.Thread(target=_run_auto_execute, daemon=True)
+                    thread.start()
 
                 logger.info(
                     f"Improvement proposal #{proposal_id} approved via autonomy queue, "
@@ -5869,6 +5884,7 @@ Respond with ONLY a JSON object (no markdown, no explanation):
                     WHERE status = 'approved'
                       AND assigned_agent_id IS NULL
                       AND retry_count < 3
+                      AND (metadata->>'source' IS NULL OR metadata->>'source' != 'code_health_audit')
                     ORDER BY
                         CASE priority
                             WHEN 'critical' THEN 1

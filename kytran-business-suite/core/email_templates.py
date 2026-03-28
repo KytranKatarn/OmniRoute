@@ -17,14 +17,26 @@ def _base_html(title: str, body_content: str) -> str:
 </html>"""
 
 
+def _parse_total(total) -> str:
+    """Normalize total to a formatted '$X,XXX.XX' string.
+
+    Accepts either a numeric value or a pre-formatted string like '$1,356.00'.
+    """
+    if isinstance(total, str):
+        cleaned = total.replace("$", "").replace(",", "").strip()
+        return f"${float(cleaned):,.2f}"
+    return f"${float(total):,.2f}"
+
+
 def render_invoice_email(
     invoice_number: str,
     customer_name: str,
-    total: str,
+    total,
     due_date: str,
     business_name: str,
 ) -> tuple[str, str]:
     """Return (html, plain_text) for an invoice sent notification."""
+    formatted_total = _parse_total(total)
     body = f"""
     <div class="header" style="color:#00e5ff;font-size:24px;font-weight:bold;margin-bottom:20px;">{business_name}</div>
     <p>Dear {customer_name},</p>
@@ -35,13 +47,12 @@ def render_invoice_email(
     </p>
     <p>
       <strong>Amount Due:</strong>
-      <span style="color:#00e5ff;font-size:28px;font-weight:bold;">${float(total):.2f}</span>
+      <span style="color:#00e5ff;font-size:28px;font-weight:bold;">{formatted_total}</span>
     </p>
     <p><strong>Due Date:</strong> <strong>{due_date}</strong></p>
     <p style="margin-top:24px;color:#a0a0c0;">Thank you for your business.</p>
     """
     html = _base_html(f"Invoice {invoice_number}", body)
-    formatted_total = f"${float(total):.2f}"
     text = (
         f"{business_name}\n\n"
         f"Dear {customer_name},\n\n"

@@ -42,6 +42,11 @@ def create_app(config=None):
 
     app.register_blueprint(marketplace_bp, url_prefix="/marketplace")
 
+    # Onboarding blueprint
+    from core.onboarding import onboarding_bp
+
+    app.register_blueprint(onboarding_bp, url_prefix="/onboarding")
+
     # Dashboard
     @app.route("/")
     @app.route("/dashboard")

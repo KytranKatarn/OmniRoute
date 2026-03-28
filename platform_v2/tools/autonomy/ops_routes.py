@@ -260,6 +260,101 @@ def register_ops_routes(bp, admin_required):
             return jsonify({"error": str(e)}), 500
 
     # ------------------------------------------------------------------
+    # 1b. GET /api/repair-pipeline-status — repair pipeline overview
+    # ------------------------------------------------------------------
+    @bp.route("/api/repair-pipeline-status")
+    @login_required
+    @admin_required
+    def repair_pipeline_status():
+        """Return current repair pipeline status: proposals, work sessions, gate events."""
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Count proposals by status (from code_health_audit source)
+            proposal_counts = {}
+            try:
+                cur.execute(
+                    """SELECT status, COUNT(*) AS count
+                       FROM improvement_proposals
+                       WHERE metadata->>'source' = 'code_health_audit'
+                       GROUP BY status"""
+                )
+                proposal_counts = {r["status"]: r["count"] for r in cur.fetchall()}
+            except Exception:
+                # Table may not exist yet
+                pass
+
+            # Count recent work sessions (fix type, last 7 days)
+            session_counts = {}
+            try:
+                cur.execute(
+                    """SELECT status, COUNT(*) AS count
+                       FROM dept_work_sessions
+                       WHERE session_type = 'fix'
+                         AND started_at > NOW() - INTERVAL '7 days'
+                       GROUP BY status"""
+                )
+                session_counts = {r["status"]: r["count"] for r in cur.fetchall()}
+            except Exception:
+                pass
+
+            # Latest C.R.E.E.D. gate events (last 7 days)
+            gate_events = []
+            try:
+                cur.execute(
+                    """SELECT event_type, outcome, COUNT(*) AS count
+                       FROM governance_audit_log
+                       WHERE event_category = 'creed_gate'
+                         AND timestamp > NOW() - INTERVAL '7 days'
+                       GROUP BY event_type, outcome"""
+                )
+                gate_events = [dict(r) for r in cur.fetchall()]
+            except Exception:
+                pass
+
+            # Latest code audit summary (red/yellow/green counts)
+            audit_summary = {"red": 0, "yellow": 0, "green": 0}
+            try:
+                cur.execute(
+                    """SELECT DISTINCT ON (module_name)
+                          module_name, issues_found, notes, status
+                       FROM code_audit_log
+                       ORDER BY module_name, audited_at DESC"""
+                )
+                red_codes = {"SQL_INJECTION", "HARDCODED_SECRET", "DIRECT_OLLAMA", "DIRECT_CLOUD"}
+                yellow_codes = {"BARE_EXCEPT", "LARGE_FILE", "MISSING_INIT"}
+                for row in cur.fetchall():
+                    notes = row["notes"] or ""
+                    issues = row["issues_found"] or 0
+                    if issues == 0:
+                        audit_summary["green"] += 1
+                    elif any(code in notes for code in red_codes):
+                        audit_summary["red"] += 1
+                    elif any(code in notes for code in yellow_codes):
+                        audit_summary["yellow"] += 1
+                    else:
+                        audit_summary["green"] += 1
+            except Exception:
+                pass
+
+            cur.close()
+            conn.close()
+
+            return jsonify(
+                {
+                    "proposals": proposal_counts,
+                    "sessions": session_counts,
+                    "gate_events": gate_events,
+                    "audit_summary": audit_summary,
+                }
+            )
+
+        except Exception as e:
+            logger.exception("repair_pipeline_status error")
+            return jsonify({"error": str(e)}), 500
+
+    # ------------------------------------------------------------------
     # 2. GET /api/ops-active-jobs — detailed active jobs
     # ------------------------------------------------------------------
     @bp.route("/api/ops-active-jobs")

@@ -134,6 +134,62 @@ def register_code_health_routes(bp, admin_required):
 
         return jsonify({"success": True, "modules": modules, "summary": summary})
 
+    @bp.route("/api/code-health/severity-summary")
+    @login_required
+    @admin_required
+    def code_health_severity_summary():
+        """Return per-module severity breakdown for badge coloring.
+
+        For each module, parses the latest code_audit_log notes to determine
+        the highest severity: red (security), yellow (quality), green (clean).
+        """
+        RED_CODES = {"SQL_INJECTION", "HARDCODED_SECRET", "DIRECT_OLLAMA", "DIRECT_CLOUD"}
+        YELLOW_CODES = {"BARE_EXCEPT", "LARGE_FILE", "MISSING_INIT"}
+
+        modules = {}
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT DISTINCT ON (module_name)
+                      module_name, issues_found, notes, status, audited_at
+                   FROM code_audit_log
+                   ORDER BY module_name, audited_at DESC"""
+            )
+            for row in cur.fetchall():
+                name = row["module_name"]
+                notes = row["notes"] or ""
+                issues_found = row["issues_found"] or 0
+
+                red_count = 0
+                yellow_count = 0
+                info_count = 0
+
+                if issues_found > 0 and notes:
+                    for code in RED_CODES:
+                        if code in notes:
+                            red_count += notes.count(code)
+                    for code in YELLOW_CODES:
+                        if code in notes:
+                            yellow_count += notes.count(code)
+                    info_count = max(0, issues_found - red_count - yellow_count)
+
+                if red_count > 0:
+                    highest = "red"
+                elif yellow_count > 0:
+                    highest = "yellow"
+                else:
+                    highest = "green"
+
+                modules[name] = {
+                    "highest_severity": highest,
+                    "red": red_count,
+                    "yellow": yellow_count,
+                    "info": info_count,
+                    "total_issues": issues_found,
+                    "last_audit": row["audited_at"].isoformat() if row["audited_at"] else None,
+                }
+
+        return jsonify({"success": True, "modules": modules})
+
     @bp.route("/api/code-health/backfill-git", methods=["POST"])
     @login_required
     @admin_required

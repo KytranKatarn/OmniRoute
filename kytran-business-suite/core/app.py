@@ -52,6 +52,11 @@ def create_app(config=None):
 
     app.register_blueprint(dashboard_stats_bp)
 
+    # Admin dashboard
+    from core.admin_dashboard import admin_bp
+
+    app.register_blueprint(admin_bp, url_prefix="/admin")
+
     # Dashboard
     @app.route("/")
     @app.route("/dashboard")

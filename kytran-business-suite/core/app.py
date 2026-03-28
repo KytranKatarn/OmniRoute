@@ -57,6 +57,11 @@ def create_app(config=None):
 
     app.register_blueprint(admin_bp, url_prefix="/admin")
 
+    # Team management
+    from core.team_management import team_bp
+
+    app.register_blueprint(team_bp)
+
     # Dashboard
     @app.route("/")
     @app.route("/dashboard")

@@ -9,6 +9,7 @@ from psycopg2.extras import Json
 from core.database import get_db_cursor, set_tenant_search_path
 from core.event_bus import event_bus
 from core.tenant import require_module
+from plugins.kbs_crm.search import build_search_conditions
 
 logger = logging.getLogger(__name__)
 
@@ -38,31 +39,41 @@ def register_routes(bp):
         per_page = request.args.get("per_page", 25, type=int)
         status = request.args.get("status")
         offset = (page - 1) * per_page
+        search = request.args.get("search", "").strip()
+        segment_id = request.args.get("segment_id", type=int)
+        conditions, search_params = build_search_conditions(
+            search=search or None, segment_id=segment_id
+        )
+        where_clause = ""
+        if conditions:
+            where_clause = "WHERE " + " AND ".join(conditions)
 
         with get_db_cursor(commit=False, dict_cursor=True) as (conn, cur):
             set_tenant_search_path(cur, g.tenant_id)
 
-            where = ""
-            params: list = []
+            base_params: list = list(search_params)
             if status:
-                where = "WHERE status = %s"
-                params.append(status)
+                if where_clause:
+                    where_clause += " AND c.status = %s"
+                else:
+                    where_clause = "WHERE c.status = %s"
+                base_params.append(status)
 
             cur.execute(
-                f"SELECT COUNT(*) AS cnt FROM crm_customers {where}",
-                params,
+                f"SELECT COUNT(*) AS cnt FROM crm_customers c {where_clause}",
+                base_params,
             )
             total = cur.fetchone()["cnt"]
 
             cur.execute(
                 f"""
-                SELECT id, name, email, phone, company, status, source,
-                       notes, tags, metadata, created_at, updated_at
-                FROM crm_customers {where}
-                ORDER BY created_at DESC
+                SELECT c.id, c.name, c.email, c.phone, c.company, c.status, c.source,
+                       c.notes, c.tags, c.metadata, c.created_at, c.updated_at
+                FROM crm_customers c {where_clause}
+                ORDER BY c.created_at DESC
                 LIMIT %s OFFSET %s
                 """,
-                params + [per_page, offset],
+                base_params + [per_page, offset],
             )
             customers = cur.fetchall()
 

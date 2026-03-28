@@ -408,12 +408,13 @@ class BridgeDispatcher:
                 cur3.execute("""
                     SELECT na.id AS node_agent_id, na.name, na.node_id,
                            na.source_agent_id, na.model AS local_model,
-                           na.department, na.status,
+                           a_hub.department, na.status,
                            rn.node_id AS node_str_id, rn.hostname,
                            rn.last_heartbeat, rn.status AS node_status,
                            rn.gpu_vram_gb, rn.ram_gb
                     FROM node_agents na
                     JOIN remote_nodes rn ON rn.id = na.node_id
+                    LEFT JOIN agents a_hub ON na.hub_agent_id = a_hub.id
                     WHERE na.status = 'active'
                       AND rn.status = 'online'
                       AND rn.last_heartbeat > NOW() - INTERVAL '30 seconds'
@@ -1042,7 +1043,7 @@ class BridgeDispatcher:
         # Get recent capabilities needed in this department (last 7 days)
         cur.execute("""
             SELECT DISTINCT capability FROM task_execution_log
-            WHERE (station_code = %s OR metadata->>'department' = %s)
+            WHERE (station_code = %s OR request_metadata->>'department' = %s)
               AND created_at > NOW() - INTERVAL '7 days'
         """, (department, department))
         recent_caps = [r["capability"] for r in cur.fetchall()]
@@ -1601,7 +1602,7 @@ class BridgeDispatcher:
                 """
                 SELECT na.name AS agent_name,
                        na.model,
-                       na.department,
+                       a_hub.department,
                        na.hub_agent_id,
                        rn.id AS node_id,
                        rn.node_name,
@@ -1611,12 +1612,13 @@ class BridgeDispatcher:
                        rn.port AS node_port
                 FROM node_agents na
                 JOIN remote_nodes rn ON rn.id = na.node_id
+                LEFT JOIN agents a_hub ON na.hub_agent_id = a_hub.id
                 WHERE rn.is_active = true
                   AND (
                       rn.last_heartbeat > NOW() - INTERVAL '30 seconds'
                       OR rn.deployment_mode = 'starbase'
                   )
-                  AND na.department = %s
+                  AND a_hub.department = %s
                 ORDER BY rn.bridge_priority DESC, rn.last_heartbeat DESC NULLS LAST
                 """,
                 (department,),
@@ -4574,7 +4576,7 @@ class BridgeDispatcher:
             slot_number = occupancy["primary"] + 1
             cap_event_type = "primary_dispatch"
         self._log_capacity_event(
-            station_code=station_code,
+            department=station_code,
             event_type=cap_event_type,
             agent_id=agent.get("id") if agent else None,
             agent_name=agent_name,
@@ -5722,7 +5724,7 @@ class BridgeDispatcher:
                     if a_name and a_name in self._agent_cache:
                         agent_id_for_cap = self._agent_cache[a_name].get("id")
                     self._log_capacity_event(
-                        station_code=job_station,
+                        department=job_station,
                         event_type="slot_freed",
                         agent_id=agent_id_for_cap,
                         agent_name=a_name,

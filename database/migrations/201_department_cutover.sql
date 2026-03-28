@@ -63,4 +63,8 @@ ALTER TABLE task_execution_log ALTER COLUMN station_code TYPE VARCHAR(100);
 -- 8. Mark bridge_stations as deprecated (keep for historical reference)
 COMMENT ON TABLE bridge_stations IS 'DEPRECATED: replaced by agents.department + agents.floor. Kept for historical reference.';
 
+-- 9. Add department to node_agents (fleet agents inherit from hub agent)
+ALTER TABLE node_agents ADD COLUMN IF NOT EXISTS department VARCHAR(100);
+UPDATE node_agents na SET department = a.department FROM agents a WHERE na.hub_agent_id = a.id AND na.department IS NULL;
+
 COMMIT;

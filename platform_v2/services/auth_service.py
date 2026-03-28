@@ -7,8 +7,11 @@ Import:
     from services.auth_service import get_user_by_username, record_failed_login
 """
 
+import hashlib
+import json
 import logging
 import re
+import secrets
 from datetime import datetime, timedelta
 from collections import defaultdict
 import threading
@@ -286,3 +289,135 @@ def check_ip_rate_limit(ip_address):
         _ip_attempts[ip_address].append(now)
 
     return False, 0
+
+
+# ============================================================================
+# DEVICE AUTHENTICATION — Registration, approval, API keys
+# ============================================================================
+
+
+def generate_api_key():
+    """Generate a new API key: archie_ + 32 hex chars."""
+    return f"archie_{secrets.token_hex(16)}"
+
+
+def hash_api_key(key):
+    """Hash an API key for storage."""
+    return hashlib.sha256(key.encode()).hexdigest()
+
+
+def register_device(device_name, device_type, hostname=None, hardware_info=None, purpose=""):
+    """Register a new device. Returns device_id. Status is 'pending' until approved."""
+    with get_db_connection() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute(
+                """INSERT INTO registered_devices (device_name, device_type, hostname, hardware_info, purpose)
+                   VALUES (%s, %s, %s, %s, %s) RETURNING id""",
+                (device_name, device_type, hostname, json.dumps(hardware_info or {}), purpose),
+            )
+            device_id = cur.fetchone()["id"]
+            conn.commit()
+        finally:
+            cur.close()
+    logger.info(
+        "Device registered: #%d %s (%s) — pending approval",
+        device_id,
+        device_name,
+        device_type,
+    )
+    return device_id
+
+
+def approve_device(device_id, approved_by=None):
+    """Approve a device and generate its API key. Returns the key (one-time)."""
+    api_key = generate_api_key()
+    key_hash = hash_api_key(api_key)
+    with get_db_connection() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute(
+                """UPDATE registered_devices
+                   SET status = 'approved', api_key_hash = %s, approved_at = NOW(), approved_by = %s
+                   WHERE id = %s AND status = 'pending' RETURNING id""",
+                (key_hash, approved_by, device_id),
+            )
+            result = cur.fetchone()
+            conn.commit()
+            if not result:
+                return None
+        finally:
+            cur.close()
+    logger.info("Device #%d approved", device_id)
+    return api_key
+
+
+def deny_device(device_id):
+    """Deny a pending device registration."""
+    with get_db_connection() as conn:
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "UPDATE registered_devices SET status = 'denied' WHERE id = %s AND status = 'pending'",
+                (device_id,),
+            )
+            conn.commit()
+        finally:
+            cur.close()
+
+
+def revoke_device(device_id):
+    """Revoke an approved device's access."""
+    with get_db_connection() as conn:
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "UPDATE registered_devices SET status = 'revoked', api_key_hash = NULL WHERE id = %s",
+                (device_id,),
+            )
+            conn.commit()
+        finally:
+            cur.close()
+    logger.warning("Device #%d revoked", device_id)
+
+
+def validate_api_key(api_key):
+    """Validate an API key. Returns device dict or None."""
+    key_hash = hash_api_key(api_key)
+    with get_db_connection() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute(
+                """SELECT id, device_name, device_type, status
+                   FROM registered_devices
+                   WHERE api_key_hash = %s AND status = 'approved'""",
+                (key_hash,),
+            )
+            device = cur.fetchone()
+            if device:
+                cur.execute(
+                    "UPDATE registered_devices SET last_seen = NOW(), request_count = request_count + 1 WHERE id = %s",
+                    (device["id"],),
+                )
+                conn.commit()
+                return dict(device)
+        finally:
+            cur.close()
+    return None
+
+
+def list_devices(status=None):
+    """List registered devices, optionally filtered by status."""
+    with get_db_connection() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            if status:
+                cur.execute(
+                    "SELECT * FROM registered_devices WHERE status = %s ORDER BY registered_at DESC",
+                    (status,),
+                )
+            else:
+                cur.execute("SELECT * FROM registered_devices ORDER BY registered_at DESC")
+            return [dict(r) for r in cur.fetchall()]
+        finally:
+            cur.close()

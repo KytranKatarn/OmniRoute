@@ -30,6 +30,7 @@
       <button class="dhq-tab" data-tab="performance" onclick="switchTab('performance')">Performance</button>
       <button class="dhq-tab" data-tab="creed" onclick="switchTab('creed')">C.R.E.E.D.</button>
       <button class="dhq-tab" data-tab="social" onclick="switchTab('social')">Social</button>
+      <button class="dhq-tab" data-tab="devices" onclick="switchTab('devices')">Devices</button>
     </div>
   </div>
 
@@ -100,6 +101,21 @@
     <!-- SOCIAL FEED -->
     <div class="dhq-panel" id="panel-social">
       <div id="socialFeedContent" class="dhq-loading">Loading social feed...</div>
+    </div>
+
+    <!-- DEVICES -->
+    <div class="dhq-panel" id="panel-devices">
+      <div class="dhq-work-controls">
+        <select id="deviceStatusFilter" class="dhq-select" onchange="loadDevices()">
+          <option value="">All Statuses</option>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="denied">Denied</option>
+          <option value="revoked">Revoked</option>
+        </select>
+        <span class="dhq-roster-count" id="deviceCount"></span>
+      </div>
+      <div id="devicesContent" class="dhq-loading">Loading devices...</div>
     </div>
 
   </div>

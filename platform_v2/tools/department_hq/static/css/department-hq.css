@@ -1006,9 +1006,117 @@
     color: var(--dhq-text-dim);
 }
 
+/* ── Devices Tab ── */
+
+.dhq-devices-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1rem;
+}
+
+.dhq-device-card {
+    background: rgba(0, 229, 255, 0.04);
+    border: 1px solid rgba(0, 229, 255, 0.15);
+    border-radius: 8px;
+    padding: 1rem;
+    transition: border-color 0.2s;
+}
+
+.dhq-device-card:hover {
+    border-color: rgba(0, 229, 255, 0.4);
+}
+
+.dhq-device-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.dhq-device-name {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.85rem;
+    color: #00e5ff;
+    font-weight: 600;
+}
+
+.dhq-device-badge {
+    font-size: 0.6rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 700;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    color: #000;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.dhq-device-info {
+    display: grid;
+    gap: 0.3rem;
+    font-size: 0.78rem;
+    color: var(--dhq-text-dim, #8ba4b5);
+    margin-bottom: 0.75rem;
+}
+
+.dhq-device-label {
+    color: var(--dhq-text-bright, #b0d4e8);
+    font-weight: 600;
+    display: inline-block;
+    min-width: 80px;
+}
+
+.dhq-device-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.dhq-btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.35rem 0.8rem;
+    border: 1px solid;
+    border-radius: 4px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    transition: all 0.15s;
+}
+
+.dhq-btn-approve {
+    background: rgba(16, 185, 129, 0.15);
+    border-color: #10b981;
+    color: #10b981;
+}
+.dhq-btn-approve:hover {
+    background: rgba(16, 185, 129, 0.3);
+}
+
+.dhq-btn-deny {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: #ef4444;
+    color: #ef4444;
+}
+.dhq-btn-deny:hover {
+    background: rgba(239, 68, 68, 0.3);
+}
+
+.dhq-btn-revoke {
+    background: rgba(107, 114, 128, 0.15);
+    border-color: #6b7280;
+    color: #9ca3af;
+}
+.dhq-btn-revoke:hover {
+    background: rgba(107, 114, 128, 0.3);
+}
+
 @media (max-width: 480px) {
     .dhq-container { padding: 0.5rem; }
     .dhq-title { font-size: 1rem; }
     .dhq-tab { font-size: 0.6rem; padding: 0.4rem 0.6rem; }
     .dhq-social-stats-bar { flex-direction: column; gap: 0.3rem; }
+    .dhq-devices-grid { grid-template-columns: 1fr; }
 }

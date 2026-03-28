@@ -98,6 +98,7 @@ function switchTab(tab) {
         'performance':  loadPerformance,
         'creed':        loadCreed,
         'social':       loadSocialFeed,
+        'devices':      loadDevices,
     };
     if (!loaded[tab] && loaders[tab]) {
         loaders[tab]();
@@ -1145,6 +1146,118 @@ async function loadSocialFeed() {
         setHtml(el, html);
     } catch (err) {
         setHtml(el, '<div class="dhq-empty">Error loading social feed: ' + esc(err.message) + '</div>');
+    }
+}
+
+// ───────────────────────────────────────────────────────────────
+// Devices
+// ───────────────────────────────────────────────────────────────
+
+const DEVICE_TYPE_LABELS = {
+    cli: 'CLI',
+    node: 'Node',
+    kso: 'KSO',
+    kbs: 'KBS',
+    standalone: 'Standalone',
+};
+
+const DEVICE_STATUS_COLORS = {
+    pending:  '#fbbf24',
+    approved: '#10b981',
+    denied:   '#ef4444',
+    revoked:  '#6b7280',
+};
+
+function formatDeviceTime(ts) {
+    if (!ts) return '—';
+    var d = new Date(ts);
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+}
+
+async function loadDevices() {
+    var el = document.getElementById('devicesContent');
+    var countEl = document.getElementById('deviceCount');
+    try {
+        var statusFilter = document.getElementById('deviceStatusFilter').value;
+        var url = '/api/auth/devices';
+        if (statusFilter) url += '?status=' + statusFilter;
+        var devices = await api(url);
+        loaded['devices'] = true;
+
+        if (countEl) countEl.textContent = devices.length + ' device' + (devices.length !== 1 ? 's' : '');
+
+        if (!devices.length) {
+            setHtml(el, '<div class="dhq-empty">No devices found</div>');
+            return;
+        }
+
+        var html = '<div class="dhq-devices-grid">';
+        for (var i = 0; i < devices.length; i++) {
+            var d = devices[i];
+            var statusColor = DEVICE_STATUS_COLORS[d.status] || '#6b7280';
+            var typeLabel = DEVICE_TYPE_LABELS[d.device_type] || d.device_type;
+            html += '<div class="dhq-device-card">'
+                + '<div class="dhq-device-header">'
+                + '<span class="dhq-device-name">' + esc(d.device_name) + '</span>'
+                + '<span class="dhq-device-badge" style="background:' + statusColor + '">' + esc(d.status.toUpperCase()) + '</span>'
+                + '</div>'
+                + '<div class="dhq-device-info">'
+                + '<div><span class="dhq-device-label">Type:</span> ' + esc(typeLabel) + '</div>'
+                + '<div><span class="dhq-device-label">Hostname:</span> ' + esc(d.hostname || '—') + '</div>'
+                + '<div><span class="dhq-device-label">Purpose:</span> ' + esc(d.purpose || '—') + '</div>'
+                + '<div><span class="dhq-device-label">Registered:</span> ' + formatDeviceTime(d.registered_at) + '</div>'
+                + '<div><span class="dhq-device-label">Last Seen:</span> ' + formatDeviceTime(d.last_seen) + '</div>'
+                + '<div><span class="dhq-device-label">Requests:</span> ' + (d.request_count || 0) + '</div>'
+                + '</div>'
+                + '<div class="dhq-device-actions">';
+
+            if (d.status === 'pending') {
+                html += '<button class="dhq-btn dhq-btn-approve" onclick="approveDevice(' + d.id + ')">Approve</button>'
+                    + '<button class="dhq-btn dhq-btn-deny" onclick="denyDevice(' + d.id + ')">Deny</button>';
+            } else if (d.status === 'approved') {
+                html += '<button class="dhq-btn dhq-btn-revoke" onclick="revokeDevice(' + d.id + ')">Revoke</button>';
+            }
+
+            html += '</div></div>';
+        }
+        html += '</div>';
+        setHtml(el, html);
+    } catch (err) {
+        setHtml(el, '<div class="dhq-empty">Error loading devices: ' + esc(err.message) + '</div>');
+    }
+}
+
+async function approveDevice(deviceId) {
+    try {
+        var resp = await fetch(DHQ_BASE + '/api/auth/approve/' + deviceId, {method: 'POST'});
+        var data = await resp.json();
+        if (data.api_key) {
+            // Show in a prompt so user can copy — alert may truncate
+            prompt('API Key (copy this — shown once only):', data.api_key);
+        }
+        loadDevices();
+    } catch (err) {
+        alert('Error approving device: ' + err.message);
+    }
+}
+
+async function denyDevice(deviceId) {
+    if (!confirm('Deny this device registration?')) return;
+    try {
+        await fetch(DHQ_BASE + '/api/auth/deny/' + deviceId, {method: 'POST'});
+        loadDevices();
+    } catch (err) {
+        alert('Error denying device: ' + err.message);
+    }
+}
+
+async function revokeDevice(deviceId) {
+    if (!confirm('Revoke this device? It will lose all access immediately.')) return;
+    try {
+        await fetch(DHQ_BASE + '/api/auth/revoke/' + deviceId, {method: 'POST'});
+        loadDevices();
+    } catch (err) {
+        alert('Error revoking device: ' + err.message);
     }
 }
 

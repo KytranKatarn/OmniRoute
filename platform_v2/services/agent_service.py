@@ -291,7 +291,7 @@ def get_skills(agent_id):
     """Get agent's skills with levels. Returns list of dicts."""
     with get_db_cursor() as (conn, cur):
         cur.execute(
-            "SELECT skill_name, skill_category, proficiency_level FROM agent_skills WHERE agent_id = %s ORDER BY level DESC",
+            "SELECT skill_name, skill_category, proficiency_level FROM agent_skills WHERE agent_id = %s ORDER BY proficiency_level DESC",
             (agent_id,),
         )
         return [dict(r) for r in cur.fetchall()]

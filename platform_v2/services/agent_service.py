@@ -51,7 +51,7 @@ def get_agent(agent_id):
     with get_db_cursor() as (conn, cur):
         cur.execute(
             """SELECT a.*,
-                      aes.stress_level, aes.energy_level, aes.mood, aes.mood_intensity
+                      aes.stress_level, aes.energy_level, aes.current_mood, aes.mood_intensity
                FROM agents a
                LEFT JOIN agent_emotional_state aes ON aes.agent_id = a.id
                WHERE a.id = %s""",
@@ -150,7 +150,7 @@ def create_agent(name, display_name, department, model, **kwargs):
 
         # Create initial emotional state
         cur.execute(
-            """INSERT INTO agent_emotional_state (agent_id, stress_level, energy_level, mood, mood_intensity)
+            """INSERT INTO agent_emotional_state (agent_id, stress_level, energy_level, current_mood, mood_intensity)
                VALUES (%s, 0.1, 0.9, 'neutral', 0.5)""",
             (agent_id,),
         )
@@ -339,7 +339,7 @@ def get_welfare(agent_id):
     """Get agent's current emotional state. Returns dict or None."""
     with get_db_cursor() as (conn, cur):
         cur.execute(
-            """SELECT stress_level, energy_level, mood, mood_intensity
+            """SELECT stress_level, energy_level, current_mood, mood_intensity
                FROM agent_emotional_state WHERE agent_id = %s
                ORDER BY id DESC LIMIT 1""",
             (agent_id,),
@@ -356,7 +356,7 @@ def update_welfare(agent_id, stress=None, energy=None, mood=None, mood_intensity
     if energy is not None:
         updates["energy_level"] = max(0.0, min(1.0, energy))
     if mood is not None:
-        updates["mood"] = mood
+        updates["current_mood"] = mood
     if mood_intensity is not None:
         updates["mood_intensity"] = max(0.0, min(1.0, mood_intensity))
 

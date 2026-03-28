@@ -12,6 +12,7 @@ from core.email_templates import render_invoice_email
 from core.event_bus import event_bus
 from core.mail_client import send_email
 from core.pdf_generator import generate_invoice_pdf
+from core.stripe_checkout import create_invoice_checkout_session
 from core.tenant import require_module
 
 logger = logging.getLogger(__name__)
@@ -478,6 +479,66 @@ def register_routes(bp):
                 tenant_id=g.tenant_id,
             )
         return jsonify(updated)
+
+    # ------------------------------------------------------------------
+    # Stripe Checkout — "Pay Online"
+    # ------------------------------------------------------------------
+
+    @bp.route("/api/invoices/<int:invoice_id>/checkout", methods=["POST"])
+    @login_required
+    @require_module("invoicing")
+    def create_checkout(invoice_id):
+        """Create a Stripe Checkout session for online invoice payment."""
+        with get_db_cursor(commit=False, dict_cursor=True) as (conn, cur):
+            set_tenant_search_path(cur, g.tenant_id)
+
+            cur.execute(
+                """
+                SELECT i.id, i.invoice_number, i.status, i.total,
+                       i.customer_id,
+                       c.name AS customer_name, c.email AS customer_email
+                FROM invoices i
+                LEFT JOIN crm_customers c ON c.id = i.customer_id
+                WHERE i.id = %s
+                """,
+                (invoice_id,),
+            )
+            invoice = cur.fetchone()
+
+            if not invoice:
+                return jsonify({"error": "invoice not found"}), 404
+
+            if invoice["status"] == "paid":
+                return jsonify({"error": "invoice is already paid"}), 400
+
+            if not invoice.get("customer_email"):
+                return jsonify({"error": "customer has no email address"}), 400
+
+            # Fetch line items
+            cur.execute(
+                """
+                SELECT description, quantity, unit_price, amount
+                FROM invoice_items
+                WHERE invoice_id = %s
+                ORDER BY id
+                """,
+                (invoice_id,),
+            )
+            items = cur.fetchall()
+
+        if not items:
+            return jsonify({"error": "invoice has no line items"}), 400
+
+        invoice_data = dict(invoice)
+        invoice_data["items"] = [dict(item) for item in items]
+
+        try:
+            result = create_invoice_checkout_session(invoice_data, tenant_id=g.tenant_id)
+        except Exception as exc:
+            logger.exception("Failed to create Stripe checkout for invoice %s", invoice_id)
+            return jsonify({"error": f"Stripe error: {str(exc)}"}), 500
+
+        return jsonify(result)
 
     # ------------------------------------------------------------------
     # Stats

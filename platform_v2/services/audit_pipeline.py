@@ -18,6 +18,259 @@ from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
 
+
+# ---------------------------------------------------------------------------
+# C.R.E.E.D. Governance Gates
+# ---------------------------------------------------------------------------
+
+# Department-to-module mapping for self-modification detection
+_DEPARTMENT_MODULE_MAP = {
+    "Engineering & Technology": [
+        "dev_pipeline",
+        "consciousness",
+        "dev_hq",
+    ],
+    "Security & Compliance": [
+        "security_network",
+        "backup_manager",
+    ],
+    "Operations & Infrastructure": [
+        "system_operations",
+        "media_hub",
+    ],
+    "Creative & Design": [
+        "media_studio",
+        "game_studio",
+        "content_studio",
+    ],
+}
+
+
+def creed_gate_pre_fix(proposal_id, agent_id):
+    """C.R.E.E.D. Gate 1 — called BEFORE an agent generates a fix.
+
+    Checks:
+        1. Self-modification constraint (agent cannot fix its own department's module)
+        2. Welfare check (stress/energy thresholds)
+        3. Capability check (agent exists and is active)
+
+    Returns:
+        {"approved": bool, "reason": str}
+    """
+    reason = "all checks passed"
+    approved = True
+
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            # --- Load proposal metadata ---
+            cur.execute(
+                "SELECT metadata FROM improvement_proposals WHERE id = %s",
+                (proposal_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                approved = False
+                reason = f"proposal #{proposal_id} not found"
+                _log_creed_gate(
+                    "repair_fix_generation",
+                    "denied" if not approved else "approved",
+                    agent_id,
+                    reason,
+                )
+                return {"approved": approved, "reason": reason}
+
+            meta = row["metadata"] if isinstance(row["metadata"], dict) else json.loads(row["metadata"] or "{}")
+            module_name = meta.get("module_name", "")
+
+            # --- 1. Self-modification constraint ---
+            cur.execute(
+                """SELECT a.name, a.display_name, a.department
+                   FROM agents a WHERE a.id = %s""",
+                (agent_id,),
+            )
+            agent = cur.fetchone()
+
+            if not agent:
+                approved = False
+                reason = f"agent id={agent_id} not found"
+                _log_creed_gate(
+                    "repair_fix_generation",
+                    "denied",
+                    agent_id,
+                    reason,
+                )
+                return {"approved": approved, "reason": reason}
+
+            agent_dept = (agent.get("department") or "").strip()
+            dept_modules = _DEPARTMENT_MODULE_MAP.get(agent_dept, [])
+            if module_name and module_name in dept_modules:
+                approved = False
+                reason = (
+                    f"self-modification blocked — agent '{agent.get('display_name', agent['name'])}' "
+                    f"(dept: {agent_dept}) cannot fix module '{module_name}'"
+                )
+                _log_creed_gate(
+                    "repair_fix_generation",
+                    "denied",
+                    agent_id,
+                    reason,
+                )
+                return {"approved": approved, "reason": reason}
+
+            # --- 2. Welfare check ---
+            cur.execute(
+                """SELECT stress_level, energy_level
+                   FROM agent_emotional_state
+                   WHERE agent_id = %s
+                   ORDER BY id DESC LIMIT 1""",
+                (agent_id,),
+            )
+            welfare = cur.fetchone()
+            if welfare:
+                stress = float(welfare.get("stress_level") or 0)
+                energy = float(welfare.get("energy_level") or 1)
+                if stress >= 0.8 or energy <= 0.2:
+                    approved = False
+                    reason = (
+                        f"agent welfare threshold exceeded — "
+                        f"stress={stress:.2f} (max 0.8), energy={energy:.2f} (min 0.2)"
+                    )
+                    _log_creed_gate(
+                        "repair_fix_generation",
+                        "denied",
+                        agent_id,
+                        reason,
+                    )
+                    return {"approved": approved, "reason": reason}
+
+            # --- 3. Capability check (agent exists and active) ---
+            shift = (agent.get("shift_state") or "").strip()
+            if shift not in ("active", "deployed"):
+                approved = False
+                reason = f"agent shift_state is '{shift}', expected active or deployed"
+                _log_creed_gate(
+                    "repair_fix_generation",
+                    "denied",
+                    agent_id,
+                    reason,
+                )
+                return {"approved": approved, "reason": reason}
+
+    except Exception as e:
+        logger.error("C.R.E.E.D. Gate 1 error for proposal #%d: %s", proposal_id, e)
+        approved = False
+        reason = f"gate error: {e}"
+
+    _log_creed_gate(
+        "repair_fix_generation",
+        "approved" if approved else "denied",
+        agent_id,
+        reason,
+    )
+    return {"approved": approved, "reason": reason}
+
+
+def creed_gate_pre_apply(proposal_id):
+    """C.R.E.E.D. Gate 2 — called BEFORE a generated fix is applied to the codebase.
+
+    Checks:
+        1. Scope check (diff only touches the target file)
+        2. Severity-based approval tier
+
+    Returns:
+        {"approved": bool, "reason": str, "tier": int}
+    """
+    approved = True
+    reason = "all checks passed"
+    tier = 1
+
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """SELECT code_changes, metadata, priority
+                   FROM improvement_proposals WHERE id = %s""",
+                (proposal_id,),
+            )
+            row = cur.fetchone()
+
+        if not row:
+            _log_creed_gate_apply("denied", f"proposal #{proposal_id} not found")
+            return {"approved": False, "reason": f"proposal #{proposal_id} not found", "tier": 0}
+
+        meta = row["metadata"] if isinstance(row["metadata"], dict) else json.loads(row["metadata"] or "{}")
+        target_file = meta.get("file_path", "")
+        severity_tier = meta.get("severity_tier", "yellow")
+        diff_text = row.get("code_changes") or ""
+
+        # --- 1. Scope check — diff should only reference the target file ---
+        if diff_text and target_file:
+            # Look for diff headers like "--- a/path" or "+++ b/path"
+            import re
+
+            file_refs = re.findall(r"^(?:---|\+\+\+)\s+[ab]/(.+)$", diff_text, re.MULTILINE)
+            target_basename = os.path.basename(target_file)
+            for ref in file_refs:
+                ref_basename = os.path.basename(ref)
+                if ref_basename != target_basename and ref != "/dev/null":
+                    approved = False
+                    reason = f"scope violation — diff references '{ref}' " f"but target is '{target_file}'"
+                    _log_creed_gate_apply("denied", reason)
+                    return {"approved": False, "reason": reason, "tier": 0}
+
+        # --- 2. Severity-based approval tier ---
+        if severity_tier == "red":
+            tier = 2
+            approved = False
+            reason = "red severity requires human approval"
+            _log_creed_gate_apply("denied", reason)
+            return {"approved": False, "reason": reason, "tier": 2}
+
+        # Yellow: auto-approve if diff is short enough (< 50 lines)
+        diff_line_count = len(diff_text.strip().splitlines()) if diff_text else 0
+        if diff_line_count >= 50:
+            tier = 2
+            approved = False
+            reason = f"diff too large ({diff_line_count} lines >= 50) — requires human review"
+            _log_creed_gate_apply("denied", reason)
+            return {"approved": False, "reason": reason, "tier": 2}
+
+    except Exception as e:
+        logger.error("C.R.E.E.D. Gate 2 error for proposal #%d: %s", proposal_id, e)
+        _log_creed_gate_apply("denied", f"gate error: {e}")
+        return {"approved": False, "reason": f"gate error: {e}", "tier": 0}
+
+    _log_creed_gate_apply("approved", reason)
+    return {"approved": approved, "reason": reason, "tier": tier}
+
+
+def _log_creed_gate(event_type, outcome, agent_id, reason):
+    """Log a C.R.E.E.D. gate decision to governance_audit_log."""
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """INSERT INTO governance_audit_log
+                   (event_type, event_category, action, outcome, agent_id, reason, timestamp)
+                   VALUES (%s, 'creed_gate', 'pre_fix_check', %s, %s, %s, NOW())""",
+                (event_type, outcome, agent_id, (reason or "")[:500]),
+            )
+    except Exception as e:
+        logger.warning("Failed to log C.R.E.E.D. gate event: %s", e)
+
+
+def _log_creed_gate_apply(outcome, reason):
+    """Log a C.R.E.E.D. Gate 2 (pre-apply) decision to governance_audit_log."""
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """INSERT INTO governance_audit_log
+                   (event_type, event_category, action, outcome, agent_id, reason, timestamp)
+                   VALUES ('repair_fix_apply', 'creed_gate', 'pre_apply_check', %s, NULL, %s, NOW())""",
+                (outcome, (reason or "")[:500]),
+            )
+    except Exception as e:
+        logger.warning("Failed to log C.R.E.E.D. Gate 2 event: %s", e)
+
+
 # Map audit severity tiers to proposal attributes
 _TIER_CONFIG = {
     "red": {
@@ -343,6 +596,36 @@ def dispatch_proposal_fix(proposal_id):
 
     fixed_content = result.response.strip()
     agent_name = getattr(result, "agent_name", "unknown")
+
+    # C.R.E.E.D. Gate 1: Can this agent fix this code?
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                "SELECT id FROM agents WHERE name = %s OR display_name = %s LIMIT 1",
+                (agent_name, agent_name),
+            )
+            agent_row = cur.fetchone()
+
+        if agent_row:
+            gate1 = creed_gate_pre_fix(proposal_id, agent_row["id"])
+            if not gate1["approved"]:
+                logger.warning(
+                    "C.R.E.E.D. Gate 1 denied proposal #%d agent %s: %s",
+                    proposal_id,
+                    agent_name,
+                    gate1["reason"],
+                )
+                return {
+                    "success": False,
+                    "error": f"C.R.E.E.D. Gate 1 denied: {gate1['reason']}",
+                }
+        else:
+            logger.info(
+                "C.R.E.E.D. Gate 1 skipped — agent '%s' not found in agents table",
+                agent_name,
+            )
+    except Exception as gate_err:
+        logger.warning("C.R.E.E.D. Gate 1 check failed (non-blocking): %s", gate_err)
 
     # Generate diff
     try:

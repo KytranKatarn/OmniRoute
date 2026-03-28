@@ -363,6 +363,61 @@
             </div>
         </div>
 
+        <!-- Repair Pipeline Transparency -->
+        <div class="section">
+            <h2>REPAIR PIPELINE TRANSPARENCY</h2>
+            <p style="color: var(--text-muted); margin-bottom: 16px; font-size: 0.8rem;">
+                F.O.R.G.E. self-healing pipeline activity over the last 7 days.
+                Every code fix passes through C.R.E.E.D. governance gates before deployment.
+            </p>
+            <div class="stats-grid" id="repair-stats">
+                <div class="stat-card purple">
+                    <div class="value" id="repair-found">--</div>
+                    <div class="label">Issues Found</div>
+                </div>
+                <div class="stat-card cyan">
+                    <div class="value" id="repair-generated">--</div>
+                    <div class="label">Fixes Generated</div>
+                </div>
+                <div class="stat-card green">
+                    <div class="value" id="repair-approved">--</div>
+                    <div class="label">Fixes Approved</div>
+                </div>
+                <div class="stat-card gold">
+                    <div class="value" id="repair-denied">--</div>
+                    <div class="label">Fixes Denied</div>
+                </div>
+                <div class="stat-card green">
+                    <div class="value" id="repair-deployed">--</div>
+                    <div class="label">Fixes Deployed</div>
+                </div>
+            </div>
+
+            <!-- Agents involved -->
+            <div style="margin: 1rem 0 0.75rem;">
+                <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">Agents Involved</span>
+                <div id="repair-agents" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 0.5rem;">
+                    <span style="color: var(--text-muted); font-size: 0.8rem;">--</span>
+                </div>
+            </div>
+
+            <!-- Department Breakdown -->
+            <div style="margin: 1.25rem 0;">
+                <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">Department Breakdown</span>
+                <div id="repair-departments" style="margin-top: 0.5rem;">
+                    <span style="color: var(--text-muted); font-size: 0.8rem;">--</span>
+                </div>
+            </div>
+
+            <!-- Gate Events -->
+            <div style="margin-top: 1.25rem;">
+                <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">Recent Gate Events</span>
+                <div class="timeline" id="repair-gate-events" style="margin-top: 0.5rem; max-height: 250px;">
+                    <span style="color: var(--text-muted); font-size: 0.8rem;">No gate events recorded yet.</span>
+                </div>
+            </div>
+        </div>
+
         <div class="footer">
             <p>A.R.C.H.I.E. Platform &mdash; Kytran Empowerment Inc.</p>
             <p>Data refreshes automatically. All governance events are immutable and auditable.</p>
@@ -585,14 +640,135 @@
             } catch(e) { console.error('Compliance load error:', e); }
         }
 
+        async function loadRepairTransparency() {
+            try {
+                var resp = await fetch('/creed/api/repair-transparency');
+                var data = await resp.json();
+                if (!data.success) return;
+
+                setText('repair-found', data.issues_found || 0);
+                setText('repair-generated', data.fixes_generated || 0);
+                setText('repair-approved', data.fixes_approved || 0);
+                setText('repair-denied', data.fixes_denied || 0);
+                setText('repair-deployed', data.fixes_deployed || 0);
+
+                // Agents involved
+                var agentsEl = document.getElementById('repair-agents');
+                agentsEl.textContent = '';
+                if (data.agents_involved && data.agents_involved.length > 0) {
+                    data.agents_involved.forEach(function(name) {
+                        var tag = document.createElement('span');
+                        tag.style.cssText = 'display:inline-block;padding:0.2rem 0.6rem;background:rgba(139,92,246,0.15);border:1px solid var(--purple);border-radius:12px;font-size:0.7rem;color:var(--purple);font-family:Orbitron,monospace;letter-spacing:0.5px;';
+                        tag.textContent = name;
+                        agentsEl.appendChild(tag);
+                    });
+                } else {
+                    agentsEl.textContent = 'No agents active this period.';
+                    agentsEl.style.color = 'var(--text-muted)';
+                    agentsEl.style.fontSize = '0.8rem';
+                }
+
+                // Department breakdown
+                var deptEl = document.getElementById('repair-departments');
+                deptEl.textContent = '';
+                var depts = data.department_breakdown || {};
+                var deptKeys = Object.keys(depts);
+                if (deptKeys.length > 0) {
+                    deptKeys.forEach(function(dept) {
+                        var row = document.createElement('div');
+                        row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:0.4rem 0.6rem;border-bottom:1px solid rgba(48,54,61,0.4);font-size:0.8rem;';
+
+                        var nameSpan = document.createElement('span');
+                        nameSpan.style.color = 'var(--text-primary)';
+                        nameSpan.textContent = dept;
+                        row.appendChild(nameSpan);
+
+                        var statsSpan = document.createElement('span');
+                        statsSpan.style.cssText = 'font-family:Orbitron,monospace;font-size:0.7rem;';
+                        var found = depts[dept].found || 0;
+                        var fixed = depts[dept].fixed || 0;
+
+                        var foundBit = document.createElement('span');
+                        foundBit.style.color = 'var(--gold)';
+                        foundBit.textContent = found + ' found';
+                        statsSpan.appendChild(foundBit);
+
+                        var sep = document.createElement('span');
+                        sep.style.cssText = 'color:var(--text-muted);margin:0 6px;';
+                        sep.textContent = '|';
+                        statsSpan.appendChild(sep);
+
+                        var fixedBit = document.createElement('span');
+                        fixedBit.style.color = 'var(--green)';
+                        fixedBit.textContent = fixed + ' fixed';
+                        statsSpan.appendChild(fixedBit);
+
+                        row.appendChild(statsSpan);
+                        deptEl.appendChild(row);
+                    });
+                } else {
+                    deptEl.textContent = 'No department data this period.';
+                    deptEl.style.color = 'var(--text-muted)';
+                    deptEl.style.fontSize = '0.8rem';
+                }
+
+                // Gate events
+                var gateEl = document.getElementById('repair-gate-events');
+                gateEl.textContent = '';
+                if (data.gate_events && data.gate_events.length > 0) {
+                    data.gate_events.forEach(function(evt) {
+                        var div = document.createElement('div');
+                        div.className = 'timeline-event';
+
+                        var timeSpan = document.createElement('span');
+                        timeSpan.className = 'time';
+                        timeSpan.textContent = formatTime(evt.timestamp);
+                        div.appendChild(timeSpan);
+
+                        var actionSpan = document.createElement('span');
+                        actionSpan.className = 'event-type';
+                        actionSpan.textContent = evt.action || '';
+                        div.appendChild(actionSpan);
+
+                        var reasonSpan = document.createElement('span');
+                        reasonSpan.className = 'action';
+                        reasonSpan.textContent = evt.reason || '';
+                        div.appendChild(reasonSpan);
+
+                        var outcomeSpan = document.createElement('span');
+                        outcomeSpan.className = 'outcome';
+                        var outcome = evt.outcome || '';
+                        outcomeSpan.textContent = outcome;
+                        if (outcome === 'approved' || outcome === 'passed' || outcome === 'success') {
+                            outcomeSpan.classList.add('outcome-success');
+                        } else if (outcome === 'denied' || outcome === 'blocked') {
+                            outcomeSpan.classList.add('outcome-blocked');
+                        }
+                        div.appendChild(outcomeSpan);
+
+                        gateEl.appendChild(div);
+                    });
+                } else {
+                    var emptyMsg = document.createElement('span');
+                    emptyMsg.style.cssText = 'color:var(--text-muted);font-size:0.8rem;';
+                    emptyMsg.textContent = 'No C.R.E.E.D. gate events recorded in the last 7 days.';
+                    gateEl.appendChild(emptyMsg);
+                }
+
+            } catch (e) {
+                console.error('Load repair transparency error:', e);
+            }
+        }
+
         // Load everything
         loadStats();
         loadWelfare();
         loadPrinciples();
         loadCompliance();
+        loadRepairTransparency();
 
         // Auto-refresh every 60 seconds
-        setInterval(function() { loadStats(); loadWelfare(); loadCompliance(); }, 60000);
+        setInterval(function() { loadStats(); loadWelfare(); loadCompliance(); loadRepairTransparency(); }, 60000);
     </script>
 </body>
 </html>

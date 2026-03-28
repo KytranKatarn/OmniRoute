@@ -206,6 +206,142 @@ def creed_welfare():
             pass
 
 
+@creed_public_bp.route("/api/repair-transparency")
+def creed_repair_transparency():
+    """Repair pipeline transparency — public, read-only.
+
+    Shows F.O.R.G.E. self-healing activity: issues found, fixes generated,
+    approved, denied, deployed, plus C.R.E.E.D. gate events.
+    """
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # --- Improvement proposals from code_health_audit (last 7 days) ---
+        cur.execute(
+            """
+            SELECT
+                COUNT(*) AS total_found,
+                COUNT(*) FILTER (WHERE status IN ('pending', 'fix_requested'))
+                    AS fixes_generated,
+                COUNT(*) FILTER (WHERE status = 'approved'
+                                  OR approved_at IS NOT NULL)
+                    AS fixes_approved,
+                COUNT(*) FILTER (WHERE status = 'rejected')
+                    AS fixes_denied,
+                COUNT(*) FILTER (WHERE status = 'deployed'
+                                  OR deployed_at IS NOT NULL)
+                    AS fixes_deployed
+            FROM improvement_proposals
+            WHERE (metadata->>'source' = 'code_health_audit'
+                   OR metadata->>'source' = 'code_sentinel')
+              AND proposed_at > NOW() - INTERVAL '7 days'
+            """
+        )
+        counts = dict(cur.fetchone())
+
+        # --- Department breakdown via category column ---
+        cur.execute(
+            """
+            SELECT
+                COALESCE(category, 'Uncategorized') AS department,
+                COUNT(*) AS found,
+                COUNT(*) FILTER (WHERE status = 'deployed'
+                                  OR deployed_at IS NOT NULL
+                                  OR approved_at IS NOT NULL)
+                    AS fixed
+            FROM improvement_proposals
+            WHERE (metadata->>'source' = 'code_health_audit'
+                   OR metadata->>'source' = 'code_sentinel')
+              AND proposed_at > NOW() - INTERVAL '7 days'
+            GROUP BY category
+            ORDER BY found DESC
+            """
+        )
+        dept_rows = cur.fetchall()
+        department_breakdown = {}
+        for row in dept_rows:
+            department_breakdown[row["department"]] = {
+                "found": row["found"],
+                "fixed": row["fixed"],
+            }
+
+        # --- Agents involved (from metadata or proposed_by) ---
+        cur.execute(
+            """
+            SELECT DISTINCT
+                COALESCE(metadata->>'agent_name',
+                         metadata->>'proposed_by_agent',
+                         'F.O.R.G.E.') AS agent_name
+            FROM improvement_proposals
+            WHERE (metadata->>'source' = 'code_health_audit'
+                   OR metadata->>'source' = 'code_sentinel')
+              AND proposed_at > NOW() - INTERVAL '7 days'
+            """
+        )
+        agents_involved = [r["agent_name"] for r in cur.fetchall()]
+        # Always include F.O.R.G.E. and V.I.G.I.L. if there is any activity
+        if counts["total_found"] > 0:
+            for name in ["F.O.R.G.E.", "V.I.G.I.L."]:
+                if name not in agents_involved:
+                    agents_involved.append(name)
+
+        # --- C.R.E.E.D. gate events from governance_audit_log ---
+        cur.execute(
+            """
+            SELECT timestamp, action, outcome, reason
+            FROM governance_audit_log
+            WHERE event_category = 'creed_gate'
+              AND timestamp > NOW() - INTERVAL '7 days'
+            ORDER BY timestamp DESC
+            LIMIT 50
+            """
+        )
+        gate_events = []
+        for row in cur.fetchall():
+            gate_events.append(
+                {
+                    "timestamp": row["timestamp"].isoformat() if row["timestamp"] else None,
+                    "action": row["action"],
+                    "outcome": row["outcome"],
+                    "reason": row["reason"],
+                }
+            )
+
+        return jsonify(
+            {
+                "success": True,
+                "period": "last_7_days",
+                "issues_found": counts["total_found"],
+                "fixes_generated": counts["fixes_generated"],
+                "fixes_approved": counts["fixes_approved"],
+                "fixes_denied": counts["fixes_denied"],
+                "fixes_deployed": counts["fixes_deployed"],
+                "agents_involved": agents_involved,
+                "department_breakdown": department_breakdown,
+                "gate_events": gate_events,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"C.R.E.E.D. repair transparency error: {e}")
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "Could not load repair transparency data",
+                }
+            ),
+            500,
+        )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
+
+
 @creed_public_bp.route("/api/principles")
 def creed_principles():
     """The 6 C.R.E.E.D. principles and how ARCHIE implements them."""

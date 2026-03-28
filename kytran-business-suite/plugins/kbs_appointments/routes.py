@@ -9,6 +9,8 @@ from psycopg2.extras import Json
 
 from core.database import get_db_cursor, set_tenant_search_path
 from core.event_bus import event_bus
+from core.mail_client import send_email
+from core.email_templates import render_appointment_confirmation_email
 from core.tenant import require_module
 
 logger = logging.getLogger(__name__)
@@ -310,6 +312,52 @@ def register_routes(bp):
             },
             tenant_id=g.tenant_id,
         )
+
+        # Send confirmation email if customer has an email on file
+        if appointment.get("customer_id"):
+            try:
+                with get_db_cursor(commit=False, dict_cursor=True) as (conn, cur):
+                    set_tenant_search_path(cur, g.tenant_id)
+                    cur.execute(
+                        "SELECT name, email FROM crm_customers WHERE id = %s",
+                        (appointment["customer_id"],),
+                    )
+                    customer = cur.fetchone()
+                    cur.execute(
+                        "SELECT name, duration_minutes FROM appointment_types WHERE id = %s",
+                        (appointment["appointment_type_id"],),
+                    )
+                    appt_type_row = cur.fetchone()
+
+                if customer and customer.get("email") and appt_type_row:
+                    start_dt = appointment["start_time"]
+                    if isinstance(start_dt, str):
+                        start_dt = datetime.fromisoformat(start_dt)
+
+                    tenant_name = getattr(g, "tenant_name", "Our Business")
+                    tenant_slug = getattr(g, "tenant_slug", "")
+
+                    html_body, text_body = render_appointment_confirmation_email(
+                        customer_name=customer["name"],
+                        service_name=appt_type_row["name"],
+                        appointment_date=start_dt.strftime("%B %d, %Y"),
+                        appointment_time=start_dt.strftime("%-I:%M %p"),
+                        duration_minutes=appt_type_row["duration_minutes"],
+                        business_name=tenant_name,
+                        booking_slug=tenant_slug,
+                    )
+                    send_email(
+                        to=customer["email"],
+                        subject=f"Appointment Confirmed — {appt_type_row['name']}",
+                        body=text_body,
+                        html_body=html_body,
+                    )
+            except Exception:
+                logger.exception(
+                    "Failed to send confirmation email for appointment %s",
+                    appointment["id"],
+                )
+
         return jsonify(appointment), 201
 
     @bp.route("/api/appointments/<int:appointment_id>", methods=["GET"])

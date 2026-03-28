@@ -3072,10 +3072,10 @@ class AgentLoop:
 
     def _volunteer_idle_agents(self):
         """
-        Scan for idle agents and volunteer them at stations with pending work.
+        Scan for idle agents and volunteer them at departments with pending work.
         Runs every 5 minutes.
-        - Find stations with recent task failures
-        - Find idle agents not at those stations
+        - Find departments with recent task failures
+        - Find idle agents not in those departments
         - Create notifications for volunteering events
         """
         try:
@@ -5427,7 +5427,7 @@ Respond with ONLY a JSON object (no markdown, no explanation):
   "quality_score": <1-5 integer, 5=production-ready, 4=good, 3=decent, 2=basic, 1=stub>,
   "summary": "<1-2 sentence description of what this skill does>",
   "capabilities": [<list of capability tags like "code-review", "testing", "debugging", "deployment", "documentation", "refactoring", "security", "monitoring", "data-processing", "ai-prompting", "automation">],
-  "target_stations": [<which A.R.C.H.I.E. stations could use this: "ENGINEERING", "RESEARCH", "ANALYTICS", "CREATIVE", "SECURITY", "OPERATIONS", "COMMUNICATIONS", "LOGISTICS", "COMMAND", "DIPLOMATIC">],
+  "target_departments": [<which A.R.C.H.I.E. departments could use this: "Engineering & Technology", "Research & Development", "Analytics & Intelligence", "Creative & Design", "Security & Compliance", "Operations & Infrastructure", "Marketing & Communications", "Logistics & Supply Chain", "Executive Office", "Diplomatic & External Relations", "Finance & Accounting", "Customer Success & Support", "Human Resources & Culture", "Medical & Wellness", "Legal & Regulatory", "Documentation & Knowledge">],
   "adaptation_value": "<high/medium/low - how valuable would it be to adapt this for A.R.C.H.I.E.>",
   "adaptation_notes": "<what would need to change to make it A.R.C.H.I.E.-native>"
 }}"""
@@ -5451,7 +5451,7 @@ Respond with ONLY a JSON object (no markdown, no explanation):
                         quality = min(5, max(1, int(result.get("quality_score", 2))))
                         capabilities = result.get("capabilities", [])
                         summary = result.get("summary", "")
-                        target_stations = result.get("target_stations", [])
+                        target_departments = result.get("target_departments", result.get("target_stations", []))
 
                         # Determine final status based on quality
                         new_status = "registered" if quality >= 3 else "analyzed"
@@ -5477,9 +5477,26 @@ Respond with ONLY a JSON object (no markdown, no explanation):
                             )
 
                             # Auto-assign to agents if quality >= 3
-                            if quality >= 3 and target_stations:
-                                # Map station names to skill_category values
-                                station_to_category = {
+                            if quality >= 3 and target_departments:
+                                # Map department names to skill_category values
+                                department_to_category = {
+                                    "Engineering & Technology": "engineering",
+                                    "Research & Development": "research",
+                                    "Analytics & Intelligence": "analytics",
+                                    "Creative & Design": "creative",
+                                    "Security & Compliance": "security",
+                                    "Operations & Infrastructure": "operations",
+                                    "Marketing & Communications": "communications",
+                                    "Logistics & Supply Chain": "logistics",
+                                    "Executive Office": "operations",
+                                    "Diplomatic & External Relations": "diplomacy",
+                                    "Finance & Accounting": "finance",
+                                    "Customer Success & Support": "support",
+                                    "Human Resources & Culture": "hr",
+                                    "Medical & Wellness": "medical",
+                                    "Legal & Regulatory": "legal",
+                                    "Documentation & Knowledge": "documentation",
+                                    # Legacy station names (backward compat)
                                     "ENGINEERING": "engineering",
                                     "RESEARCH": "research",
                                     "ANALYTICS": "analytics",
@@ -5492,8 +5509,8 @@ Respond with ONLY a JSON object (no markdown, no explanation):
                                     "DIPLOMATIC": "diplomacy",
                                 }
                                 categories = [
-                                    station_to_category.get(s.upper(), s.lower())
-                                    for s in target_stations
+                                    department_to_category.get(s, s.lower())
+                                    for s in target_departments
                                 ]
 
                                 # Find agents in target departments
@@ -5937,7 +5954,7 @@ Respond with ONLY a JSON object (no markdown, no explanation):
         )
 
         system_prompt = (
-            "You are an ENGINEERING station agent on A.R.C.H.I.E. "
+            "You are an Engineering & Technology department agent on A.R.C.H.I.E. "
             "Fix the code issue described. Return ONLY valid JSON with keys: "
             "modified_code, explanation, confidence (0-1), files_changed (array), "
             "lines_modified (array of line numbers), breaking_changes (bool)."

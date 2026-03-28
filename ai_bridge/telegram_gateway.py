@@ -653,9 +653,10 @@ class TelegramGateway:
         if not self._running or not self._loop:
             return
 
+        dept = context.get('department', context.get('station', '?'))
         text = (
             f"Escalation Request #{approval_id}\n"
-            f"Agent: {context.get('agent_name', '?')} ({context.get('station', '?')})\n"
+            f"Agent: {context.get('agent_name', '?')} ({dept})\n"
             f"Capability: {context.get('capability', '?')}\n"
             f"Failed {context.get('failure_count', '?')}x on: {context.get('original_model', '?')}\n"
             f"Next tier: {context.get('escalated_model', '?')} (~${context.get('est_cost', 0):.4f})\n"

@@ -47,6 +47,11 @@ def create_app(config=None):
 
     app.register_blueprint(onboarding_bp, url_prefix="/onboarding")
 
+    # Dashboard stats API
+    from core.dashboard_stats import dashboard_stats_bp
+
+    app.register_blueprint(dashboard_stats_bp)
+
     # Dashboard
     @app.route("/")
     @app.route("/dashboard")

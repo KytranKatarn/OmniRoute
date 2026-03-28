@@ -3,7 +3,7 @@ services:
     build: .
     container_name: kbs_app
     ports:
-      - "8090:8090"
+      - "8091:8090"
     env_file: .env
     read_only: true
     tmpfs:

@@ -2,7 +2,7 @@
 Translation Service for ARCHIE Linguistics Module
 
 All LLM calls route through BridgeDispatcher per ADR-013.
-Bridge handles agent assignment, IAAE governance, HR labor tracking,
+Bridge handles agent assignment, C.R.E.E.D. governance, HR labor tracking,
 and dashboard AI Insights automatically.
 
 Capabilities used:
@@ -65,7 +65,7 @@ def _dispatch(capability: str, prompt: str, system_prompt: str = None, timeout: 
 
     All LLM work goes through the bridge so that:
     - Agent assignment is tracked (e.g. Amara at Consciousness)
-    - IAAE governance is enforced
+    - C.R.E.E.D. governance is enforced
     - HR labor tracking records the work
     - Dashboard AI Insights reflect the activity
     - Escalation triggers automatically on failures

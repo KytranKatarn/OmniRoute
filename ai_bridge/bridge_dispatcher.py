@@ -4927,7 +4927,7 @@ class BridgeDispatcher:
         self._log_execution(result, module_id, user_id)
 
     # ========================================================================
-    # IAAE GOVERNANCE INTEGRATION
+    # C.R.E.E.D. GOVERNANCE INTEGRATION
     # ========================================================================
 
     def _log_governance(
@@ -4940,8 +4940,8 @@ class BridgeDispatcher:
     ):
         """Log to governance_audit_log for Vigil overwatch.
 
-        Makes batch job lifecycle visible to the IAAE transparency system.
-        Uses direct DB insert (not iaae_routes) because this may be called
+        Makes batch job lifecycle visible to the C.R.E.E.D. transparency system.
+        Uses direct DB insert (not creed_routes) because this may be called
         from background threads without a Flask request context.
         Failures are silently logged — governance logging should never block work.
         """
@@ -5518,7 +5518,7 @@ class BridgeDispatcher:
                     job_id=job_id,
                 )
 
-            # ── IAAE governance: log job creation for Vigil overwatch ──
+            # ── C.R.E.E.D. governance: log job creation for Vigil overwatch ──
             self._log_governance(
                 "batch_job",
                 "create_job",
@@ -5694,7 +5694,7 @@ class BridgeDispatcher:
                         f"check skipped: {schema_err}"
                     )
 
-            # ── IAAE governance: log job completion for Vigil overwatch ──
+            # ── C.R.E.E.D. governance: log job completion for Vigil overwatch ──
             if row:
                 a_name = row[0]
                 m_src = row[1]

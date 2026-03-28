@@ -2683,7 +2683,7 @@ class AgentLoop:
     # ------------------------------------------------------------------
 
     def _run_ethics_monitoring(self):
-        """Run IAAE ethics monitoring cycle (every 15 min)."""
+        """Run C.R.E.E.D. ethics monitoring cycle (every 15 min)."""
         start = time.time()
         try:
             from ai_bridge.ethics_monitor import EthicsMonitor

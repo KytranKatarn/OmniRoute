@@ -1603,7 +1603,7 @@ def track_token_usage(agent_id, provider, model, tokens_used, cost, user_id=None
                     "monthly_budget": monthly_budget,
                 }
 
-            # Insert budget alert for HR/IAAE tracking (if warning triggered)
+            # Insert budget alert for HR/C.R.E.E.D. tracking (if warning triggered)
             if warning:
                 try:
                     conn2 = get_db()
@@ -3079,11 +3079,11 @@ def log_task_execution(
     request_origin="platform",
 ):
     """
-    Log task execution for HR monitoring and IAAE compliance.
+    Log task execution for HR monitoring and C.R.E.E.D. compliance.
 
     All tasks (internal and contractor) are logged for:
     - HR productivity tracking
-    - IAAE compliance auditing
+    - C.R.E.E.D. compliance auditing
     - Cost analysis
     - Performance monitoring
 
@@ -3419,7 +3419,7 @@ def call_contractor_with_approval(
     1. Checks approval before calling
     2. Estimates cost
     3. Makes the API call
-    4. Logs the execution for HR/IAAE
+    4. Logs the execution for HR/C.R.E.E.D.
 
     Args:
         contractor_agent: Dict with contractor info

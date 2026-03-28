@@ -1,5 +1,5 @@
 """
-Ethics Monitor - IAAE Compliance Monitoring System
+Ethics Monitor - C.R.E.E.D. Compliance Monitoring System
 
 ATHENA's monitoring routines for ensuring ethical AI operations:
 - Agent welfare monitoring (stress, energy levels)
@@ -84,7 +84,7 @@ class EthicsMonitor:
     """
     ATHENA's Ethics Monitoring System
 
-    Monitors all agents for IAAE compliance including:
+    Monitors all agents for C.R.E.E.D. compliance including:
     - Emotional wellbeing (stress, energy levels)
     - Rest cycle compliance
     - Constraint violations

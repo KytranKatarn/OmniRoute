@@ -9,9 +9,9 @@ Conflict Types:
 - understaffed: Station has no primary agent for a shift
 - no_backup: Station has primary but no backup agent
 - overstaffed: Station has more than 3 agents (resource waste)
-- consecutive_shifts: Agent assigned to back-to-back shifts (IAAE violation)
+- consecutive_shifts: Agent assigned to back-to-back shifts (C.R.E.E.D. violation)
 - overlap: Agent assigned to overlapping shifts on same day
-- iaae_violation: Rest cycle or workload limit exceeded
+- creed_violation: Rest cycle or workload limit exceeded
 
 Usage:
     # Run from command line
@@ -85,7 +85,7 @@ class ShiftConflictDetector:
                 "no_backup": self._check_no_backup(cur),
                 "overstaffed": self._check_overstaffed(cur),
                 "consecutive_shifts": self._check_consecutive_shifts(cur),
-                "iaae_violations": self._check_iaae_violations(cur),
+                "creed_violations": self._check_creed_violations(cur),
             }
 
             conn.commit()
@@ -285,7 +285,7 @@ class ShiftConflictDetector:
         return count
 
     def _check_consecutive_shifts(self, cur) -> int:
-        """Check for agents working consecutive shifts (IAAE violation)"""
+        """Check for agents working consecutive shifts (C.R.E.E.D. violation)"""
         logger.info("Checking for consecutive shift assignments...")
 
         cur.execute(
@@ -342,9 +342,9 @@ class ShiftConflictDetector:
 
         return count
 
-    def _check_iaae_violations(self, cur) -> int:
-        """Check for IAAE governance violations (workload, rest cycles)"""
-        logger.info("Checking for IAAE compliance violations...")
+    def _check_creed_violations(self, cur) -> int:
+        """Check for C.R.E.E.D. governance violations (workload, rest cycles)"""
+        logger.info("Checking for C.R.E.E.D. compliance violations...")
 
         count = 0
 
@@ -374,7 +374,7 @@ class ShiftConflictDetector:
                 """
                 SELECT id FROM shift_conflicts
                 WHERE agent_id = %s
-                AND conflict_type = 'iaae_violation'
+                AND conflict_type = 'creed_violation'
                 AND conflict_date = CURRENT_DATE
                 AND resolved = false
             """,
@@ -386,7 +386,7 @@ class ShiftConflictDetector:
                     """
                     INSERT INTO shift_conflicts
                     (agent_id, conflict_date, conflict_type, severity, description, details)
-                    VALUES (%s, CURRENT_DATE, 'iaae_violation', 'critical', %s, %s)
+                    VALUES (%s, CURRENT_DATE, 'creed_violation', 'critical', %s, %s)
                 """,
                     (
                         row["agent_id"],
@@ -425,7 +425,7 @@ class ShiftConflictDetector:
                 """
                 SELECT id FROM shift_conflicts
                 WHERE agent_id = %s
-                AND conflict_type = 'iaae_violation'
+                AND conflict_type = 'creed_violation'
                 AND conflict_date = CURRENT_DATE
                 AND description LIKE '%stress%'
                 AND resolved = false
@@ -438,7 +438,7 @@ class ShiftConflictDetector:
                     """
                     INSERT INTO shift_conflicts
                     (agent_id, conflict_date, conflict_type, severity, description, details)
-                    VALUES (%s, CURRENT_DATE, 'iaae_violation', 'warning', %s, %s)
+                    VALUES (%s, CURRENT_DATE, 'creed_violation', 'warning', %s, %s)
                 """,
                     (
                         row["agent_id"],

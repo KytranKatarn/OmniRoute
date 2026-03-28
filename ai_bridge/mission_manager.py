@@ -5,7 +5,7 @@ and event-driven flow routing (conditional branching for mission profiles).
 Project #146: Station Operations / Task #953, #957
 
 Manages 6 mission profiles that dynamically reconfigure Bridge dispatcher
-routing, station priorities, agent warmup, and IAAE welfare thresholds.
+routing, station priorities, agent warmup, and C.R.E.E.D. welfare thresholds.
 
 Flow Router (Task #957): Inspired by CrewAI Flows. Predefined workflow
 flows allow the completion of one job to automatically trigger the next

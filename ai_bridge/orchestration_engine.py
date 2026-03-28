@@ -3,11 +3,11 @@ A.R.C.H.I.E. Orchestration Engine
 
 The core brain that sits between user input and agent execution.
 Composes existing systems: intent parsing, smart routing, agent delegation,
-IAAE governance, and model execution into a single orchestrated pipeline.
+C.R.E.E.D. governance, and model execution into a single orchestrated pipeline.
 
 Each request flows through:
 1. Intent parsing (what does the user want?)
-2. IAAE pre-check (any ethical constraints?)
+2. C.R.E.E.D. pre-check (any ethical constraints?)
 3. Agent welfare check (is the selected agent healthy?)
 4. Smart routing (which model tier?)
 5. GPU state awareness (avoid model swap crashes)
@@ -62,7 +62,7 @@ class StepType(Enum):
     INTENT_PARSE = "intent_parse"
     ROUTE_DECISION = "route_decision"
     AGENT_SELECT = "agent_select"
-    IAAE_CHECK = "iaae_check"
+    CREED_CHECK = "creed_check"
     WELFARE_CHECK = "welfare_check"
     GPU_CHECK = "gpu_check"
     EXECUTE = "execute"
@@ -91,7 +91,7 @@ class ThinkingStep:
 
 @dataclass
 class GovernanceEvent:
-    """An IAAE governance event logged during orchestration"""
+    """A C.R.E.E.D. governance event logged during orchestration"""
 
     event_type: str
     action: str
@@ -152,7 +152,7 @@ class OrchestrationEngine:
     """
     ARCHIE's orchestration brain.
 
-    Routes user requests through intent parsing, IAAE governance,
+    Routes user requests through intent parsing, C.R.E.E.D. governance,
     smart routing, agent selection, and execution — composing
     existing subsystems rather than rewriting them.
     """
@@ -210,7 +210,7 @@ class OrchestrationEngine:
         Main orchestration pipeline.
 
         Takes a user message and routes it through the full pipeline:
-        intent → IAAE → welfare → routing → agent → execution → logging.
+        intent → C.R.E.E.D. → welfare → routing → agent → execution → logging.
 
         Args:
             message: The user's input text
@@ -283,8 +283,8 @@ class OrchestrationEngine:
             except Exception as e:
                 logger.warning(f"Language detection failed: {e}")
 
-            # --- Step 2: IAAE pre-check ---
-            iaae_ok = self._step_iaae_check(intent, steps, governance_events)
+            # --- Step 2: C.R.E.E.D. pre-check ---
+            creed_ok = self._step_creed_check(intent, steps, governance_events)
 
             # --- Step 3: Agent welfare check ---
             # (deferred until after agent selection)
@@ -703,11 +703,11 @@ class OrchestrationEngine:
                     "governance_events": governance_events,
                 }
 
-            # --- Step 2: IAAE pre-check ---
-            iaae_ok = self._step_iaae_check(intent, steps, governance_events)
-            if not iaae_ok:
+            # --- Step 2: C.R.E.E.D. pre-check ---
+            creed_ok = self._step_creed_check(intent, steps, governance_events)
+            if not creed_ok:
                 return {
-                    "error": "iaae_blocked",
+                    "error": "creed_blocked",
                     "fallback_response": "I'm unable to process that request due to governance constraints.",
                     "steps": steps,
                     "governance_events": governance_events,
@@ -892,13 +892,13 @@ class OrchestrationEngine:
 
         return intent
 
-    def _step_iaae_check(
+    def _step_creed_check(
         self,
         intent: Dict,
         steps: List[ThinkingStep],
         governance_events: List[GovernanceEvent],
     ) -> bool:
-        """Step 2: IAAE ethics pre-check"""
+        """Step 2: C.R.E.E.D. ethics pre-check"""
         t0 = time.time()
         passed = True
         violations = []
@@ -923,7 +923,7 @@ class OrchestrationEngine:
                             "team_management",
                         ),
                     )
-                    from iaae_routes import check_constraints
+                    from creed_routes import check_constraints
 
                     violations = check_constraints(action)
                     if violations:
@@ -933,15 +933,15 @@ class OrchestrationEngine:
                         if mandatory:
                             passed = False
                 except ImportError:
-                    logger.debug("IAAE routes not available for constraint check")
+                    logger.debug("C.R.E.E.D. routes not available for constraint check")
         except Exception as e:
-            logger.warning(f"IAAE check error: {e}")
+            logger.warning(f"C.R.E.E.D. check error: {e}")
 
         duration = int((time.time() - t0) * 1000)
         steps.append(
             ThinkingStep(
-                step_type=StepType.IAAE_CHECK.value,
-                label="IAAE: passed" if passed else "IAAE: blocked",
+                step_type=StepType.CREED_CHECK.value,
+                label="C.R.E.E.D.: passed" if passed else "C.R.E.E.D.: blocked",
                 data={
                     "passed": passed,
                     "violations": len(violations),
@@ -1361,7 +1361,7 @@ class OrchestrationEngine:
         """Step 7: Execute the request with the selected model.
 
         Primary path: route through Bridge dispatcher to get agent selection,
-        SmartRouter classification, knowledge augmentation (RAG), IAAE
+        SmartRouter classification, knowledge augmentation (RAG), C.R.E.E.D.
         governance logging, and HR tracking. Falls back to direct Ollama if
         dispatcher is unavailable.
         """
@@ -1762,15 +1762,15 @@ Please try again or use the Team Management module directly.""",
         from param_extractor import extract_params
         from ethics_monitor import get_monitor
 
-        # Step: Check IAAE governance
+        # Step: Check C.R.E.E.D. governance
         monitor = get_monitor()
         archie_id = 2  # ARCHIE is the parent agent
         permission = monitor.check_agent_creation_allowed(archie_id)
 
         steps.append(
             ThinkingStep(
-                step_type=StepType.IAAE_CHECK.value,
-                label=f"IAAE: Sub-agent creation {'allowed' if permission['allowed'] else 'blocked'}",
+                step_type=StepType.CREED_CHECK.value,
+                label=f"C.R.E.E.D.: Sub-agent creation {'allowed' if permission['allowed'] else 'blocked'}",
                 data=permission,
                 success=permission["allowed"],
             )
@@ -1854,7 +1854,7 @@ Please try again or use the Team Management module directly.""",
             new_agent = cur.fetchone()
             conn.commit()
 
-            # Log creation event via IAAE
+            # Log creation event via C.R.E.E.D.
             monitor.log_agent_creation_event(
                 parent_agent_id=archie_id,
                 child_agent_id=new_agent["id"],
@@ -2287,9 +2287,9 @@ You can ask me to:
         steps: List[ThinkingStep] = []
         governance_events: List[GovernanceEvent] = []
 
-        # Step 1: IAAE check for joint work
+        # Step 1: C.R.E.E.D. check for joint work
         intent = {"type": "collaboration", "complexity": {"score": 7}}
-        self._step_iaae_check(intent, steps, governance_events)
+        self._step_creed_check(intent, steps, governance_events)
 
         # Step 2: Log that we're starting a joint collaboration
         self._log_governance_event(
@@ -2730,7 +2730,7 @@ You can ask me to:
                     "team_management",
                 ),
             )
-            from iaae_routes import log_governance_event
+            from creed_routes import log_governance_event
 
             log_governance_event(
                 event_type=event_type,

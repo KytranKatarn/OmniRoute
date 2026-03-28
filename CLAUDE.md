@@ -1,6 +1,6 @@
 # A.R.C.H.I.E. Platform
 
-**Version**: 5.32.0 | **Host**: 192.168.1.200 | **Status**: Operational
+**Version**: 5.33.0 | **Host**: 192.168.1.200 | **Status**: Operational
 
 ---
 
@@ -41,7 +41,7 @@
 | 2 | **Read Before Building** | Search KB + read existing code before writing anything |
 | 3 | **Never Guess** | If you haven't read it, you don't know it. 2 strikes → ask user |
 | 4 | **No Wasted Effort** | Can't test it? Say so. Beyond capability? Say so immediately |
-| 5 | **Follow Patterns** | Stations→StationOps, modals→LCARS, LLM→Bridge, SaaS→per-user |
+| 5 | **Follow Patterns** | Departments→AgentService, modals→LCARS, LLM→Bridge, SaaS→per-user |
 | 6 | **Platform Rules** | User is REMOTE (192.168.1.200). Never commit secrets. Bridge first |
 
 Full details in memory files: `feedback_01` through `feedback_06`
@@ -70,20 +70,22 @@ Every new session MUST begin with one of:
 | Platform | http://192.168.1.200:3000 |
 | Dev HQ | http://192.168.1.200:3000/dev-hq |
 | Docs | `knowledge_base` table → Dev HQ Knowledge tab or MCP `search_knowledge` |
-| Modules | `/mnt/archie_brain/platform_v2/tools/` (50 modules) |
-| MCP Tools | 79 tools via `.mcp.json` (incl. `session_briefing`) |
+| Modules | `/mnt/archie_brain/platform_v2/tools/` (46 modules) |
+| MCP Tools | 85 tools via `.mcp.json` (incl. `session_briefing`) |
 | Projects | `unified_projects` table → MCP `get_projects` / `create_task` |
 
-## Architecture (8 Systems)
+## Architecture (10 Systems)
 
 1. **Knowledge Base** - `knowledge_base` table (~18,000 active entries, 99% embedded)
 2. **AI Bridge** - `/ai_bridge/archie_bridge.py` (multi-model router)
 3. **Module System** - Flask Blueprints in `/platform_v2/tools/`
 4. **Dev HQ** - Development command center (`/dev-hq`)
 5. **Consciousness** - Knowledge analytics, AI processing, embedding coverage
-6. **Improvement Workflow** - Scan → Proposal → Sandbox → Deploy
+6. **Self-Healing Pipeline** - Audit → Propose → Fix → Verify (`services/audit_pipeline.py`)
 7. **Orchestration Engine** - `ai_bridge/orchestration_engine.py` (intent→route→delegate→execute)
-8. **IAAE Transparency** - `/iaae` public page, live governance stats
+8. **C.R.E.E.D.** - `/creed` ethics & compliance institute, live governance stats
+9. **Agent Service** - Centralized agent CRUD, lifecycle, dispatch (`services/agent_service.py`)
+10. **Department HQ** - 16 departments, 5 floors, agent management (`tools/department_hq/`)
 
 ## Source of Truth
 
@@ -100,34 +102,40 @@ Every new session MUST begin with one of:
 ## Key Files
 
 ```
-platform_v2/app.py                - Flask app + |localtime filter
-platform_v2/module_registry.py    - Module definitions
-platform_v2/rbac.py               - Permissions
-platform_v2/database.py           - DB connection
-platform_v2/static/js/archie-time.js  - Timezone formatter
-platform_v2/static/js/station-ops.js  - Shared station ops component
-platform_v2/static/css/station-ops.css - Station ops CSS
-ai_bridge/archie_bridge.py        - AI routing
-ai_bridge/orchestration_engine.py - Orchestration pipeline
-ai_bridge/smart_router.py         - GPU-aware model routing
-ai_bridge/knowledge_analyzer.py   - Knowledge extraction
-ai_bridge/embedding_service.py    - Vector embeddings
+platform_v2/app.py                          - Flask app + |localtime filter
+platform_v2/module_registry.py              - Module definitions
+platform_v2/rbac.py                         - Permissions
+platform_v2/database.py                     - DB connection
+platform_v2/services/agent_service.py       - Centralized agent CRUD, lifecycle, skills, welfare
+platform_v2/services/agent_models.py        - Model load/unload/warmboot
+platform_v2/services/agent_dispatch.py      - Candidate selection, scoring
+platform_v2/services/audit_pipeline.py      - Self-healing repair pipeline
+platform_v2/services/agent_social_service.py - Social presence
+platform_v2/services/work_tracking_service.py - Work sessions, metrics
+platform_v2/tools/department_hq/            - Department management (6 tabs)
+platform_v2/tools/agent_academy/            - Training & benchmarks (5 tabs)
+platform_v2/static/js/archie-time.js        - Timezone formatter
+ai_bridge/archie_bridge.py                  - AI routing
+ai_bridge/orchestration_engine.py           - Orchestration pipeline
+ai_bridge/smart_router.py                   - GPU-aware model routing
+ai_bridge/knowledge_analyzer.py             - Knowledge extraction
+ai_bridge/embedding_service.py              - Vector embeddings
 ```
 
 ## Pattern Reference
 
-### Station Operations → Copy Consciousness Exactly
-- `StationOps` class from `station-ops.js` + `station-ops.css`
-- Constructor: `new StationOps({stationCode, moduleSource, agentsElId, jobsElId, commandsElId, statusElId, commands, dataUrl})`
-- 10 stations: COMMAND, ANALYTICS, CREATIVE, ENGINEERING, COMMUNICATIONS, RESEARCH, SECURITY, LOGISTICS, DIPLOMATIC, OPERATIONS
-- Each station: 2 primary agents max + 1 auxiliary
-- **Consciousness module is the gold standard** — read it first
+### Department HQ → Agent Service Pattern
+- All agent mutations go through `agent_service.py` — no direct SQL on agent tables
+- 16 departments across 5 floors: BRIDGE, OPERATIONS, ENGINEERING, CREATIVE, SERVICES
+- Department HQ module: 6 tabs (Overview, Departments, Agents, Training, Welfare, Settings)
+- Agent Academy module: 5 tabs (Benchmarks, Training, A/B Testing, Skills, Reports)
+- Agent lifecycle: `agent_service.create_agent()`, `.update_agent()`, `.deactivate_agent()`
 
 ### Bridge Dispatch → ALL LLM Calls (ADR-013)
 - `get_dispatcher()` singleton — never instantiate directly
 - `dispatch()` or `dispatch_json()` for all inference
 - `get_crew_manifest()` for roster data
-- Escalation: home → capability → cross-station → fleet → cloud
+- Escalation: home → capability → cross-department → fleet → cloud
 
 ### LCARS Modals → bm- Classes
 - `bm-overlay > bm-shell > bm-frame + bm-content > bm-header + bm-body + bm-footer`
@@ -135,10 +143,11 @@ ai_bridge/embedding_service.py    - Vector embeddings
 - Reference: `bridge.html` lines 9209-9249
 
 ### Agent Roster
-- `agents` table = single source of truth (107 agents)
-- 1 agent = 1 station (DB constraint)
+- `agents` table = single source of truth (122 agents: 16 AI Directors + 106 Staff)
+- 1 agent = 1 department (managed via `agent_service.py`)
 - Shift states: active, deployed, barracked, off_duty, winding_down, cooldown
-- A.R.C.H.I.E. + V.I.G.I.L. always on COMMAND
+- A.R.C.H.I.E. = Executive Office director, V.I.G.I.L. = Security & Compliance director
+- All agent mutations go through `agent_service.py` — no direct SQL on agent tables
 
 ### UI
 - Live glow: `sc-live` (pulsing teal) vs `sc-static` (dim)
@@ -172,6 +181,8 @@ ai_bridge/embedding_service.py    - Vector embeddings
 | `localhost:5432 refused` | Use `192.168.1.200` for DB_HOST |
 | `TemplateNotFound` | Use `tools/` prefix in path |
 | Module not showing | Check both `rbac.py` + `module_registry.py` |
+| Ollama resource contention | Unload non-essential models before inference |
+| Agent column errors | `current_mood` (not mood), `skill_category` (not category), `proficiency_level` (not level) |
 
 ## Commands
 

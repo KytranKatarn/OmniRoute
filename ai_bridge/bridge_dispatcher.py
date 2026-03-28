@@ -37,88 +37,6 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# CAPABILITY → STATION MAPPING
-# Maps what kind of work → which station handles it
-# ============================================================================
-
-CAPABILITY_STATION_MAP = {
-    # Command station capabilities
-    "conversation": "COMMAND",
-    "dispatch": "COMMAND",
-    "governance": "COMMAND",
-    "orchestration": "COMMAND",
-    # Analytics station capabilities
-    "classify": "ANALYTICS",
-    "sentiment": "ANALYTICS",
-    "tagging": "ANALYTICS",
-    "anomaly_detection": "ANALYTICS",
-    "pattern_recognition": "ANALYTICS",
-    "embedding": "ANALYTICS",
-    "vision": "ANALYTICS",
-    # Engineering station capabilities
-    "code": "ENGINEERING",
-    "code_analysis": "ENGINEERING",
-    "code_review": "ENGINEERING",
-    "testing": "ENGINEERING",
-    "debugging": "ENGINEERING",
-    "schema_design": "ENGINEERING",
-    "api_design": "ENGINEERING",
-    "deployment": "ENGINEERING",
-    # Operations station capabilities
-    "operations": "OPERATIONS",
-    "system_monitoring": "OPERATIONS",
-    "backup": "OPERATIONS",
-    "health_check": "OPERATIONS",
-    "security_analysis": "SECURITY",
-    # Security station capabilities
-    "vulnerability_scan": "SECURITY",
-    "threat_analysis": "SECURITY",
-    "device_audit": "SECURITY",
-    "dns_report": "SECURITY",
-    "network_scan": "SECURITY",
-    "camera_check": "SECURITY",
-    "filter_review": "SECURITY",
-    "ssl_check": "SECURITY",
-    "incident_response": "SECURITY",
-    "policy_review": "SECURITY",
-    "ssh_audit": "SECURITY",
-    "telegram": "OPERATIONS",
-    "email": "OPERATIONS",
-    "notification": "OPERATIONS",
-    "webhook": "OPERATIONS",
-    "ha_integration": "OPERATIONS",
-    "automation": "OPERATIONS",
-    # Creative station capabilities
-    "content_writing": "CREATIVE",
-    "email_composition": "CREATIVE",
-    "chat_styling": "CREATIVE",
-    "voice": "CREATIVE",
-    "ux_writing": "CREATIVE",
-    "social_media": "CREATIVE",
-    "image_generation": "CREATIVE",
-    "video_generation": "CREATIVE",
-    "audio_generation": "CREATIVE",
-    "audio_tts": "CREATIVE",
-    "audio_music": "CREATIVE",
-    "media_editing": "CREATIVE",
-    # Research station capabilities
-    "knowledge_analysis": "RESEARCH",
-    "summarize": "RESEARCH",
-    "document_analysis": "RESEARCH",
-    "fact_checking": "RESEARCH",
-    "semantic_search": "RESEARCH",
-    "context_retrieval": "RESEARCH",
-    # Analytics station — translation (linguistic processing, Languages tab)
-    "translate": "ANALYTICS",
-    # Analytics — language detection (classification task)
-    "detect_language": "ANALYTICS",
-    # Generic fallbacks
-    "analysis": "ANALYTICS",
-    "general": "COMMAND",
-    "json": "ANALYTICS",
-}
-
-# ============================================================================
 # CAPABILITY → DEPARTMENT MAPPING
 # Maps what kind of work → which department handles it (rebrand Phase 2.2)
 # Used by department-aware routing; falls back to station map when needed.
@@ -198,44 +116,36 @@ CAPABILITY_DEPARTMENT_MAP = {
     "context_retrieval": "Research & Development",
 }
 
-# Reverse lookup: department → legacy station code (for backward compat)
-DEPARTMENT_TO_STATION = {
-    "Executive Office": "COMMAND",
-    "Analytics & Intelligence": "ANALYTICS",
-    "Engineering & Technology": "ENGINEERING",
+# ============================================================================
+# DEPARTMENT → FLOOR MAPPING
+# Maps each department to its building floor (rebrand Phase 2.2)
+# ============================================================================
+
+DEPARTMENT_FLOOR_MAP = {
+    "Executive Office": "BRIDGE",
     "Operations & Infrastructure": "OPERATIONS",
-    "Security & Compliance": "SECURITY",
+    "Logistics & Supply Chain": "OPERATIONS",
+    "Finance & Accounting": "OPERATIONS",
+    "Engineering & Technology": "ENGINEERING",
+    "Security & Compliance": "ENGINEERING",
+    "Research & Development": "ENGINEERING",
     "Creative & Design": "CREATIVE",
-    "Research & Development": "RESEARCH",
-    "Marketing & Communications": "COMMUNICATIONS",
-    "Logistics & Supply Chain": "LOGISTICS",
-    "Diplomatic & External Relations": "DIPLOMATIC",
-    "Documentation & Knowledge": "RESEARCH",
-    "Customer Success & Support": "OPERATIONS",
-    "Finance & Accounting": "ANALYTICS",
-    "Human Resources & Culture": "COMMAND",
-    "Legal & Regulatory": "SECURITY",
-    "Medical & Wellness": "RESEARCH",
+    "Marketing & Communications": "CREATIVE",
+    "Documentation & Knowledge": "CREATIVE",
+    "Customer Success & Support": "SERVICES",
+    "Human Resources & Culture": "SERVICES",
+    "Medical & Wellness": "SERVICES",
+    "Legal & Regulatory": "SERVICES",
+    "Diplomatic & External Relations": "SERVICES",
+    "Analytics & Intelligence": "SERVICES",
 }
 
-# Forward lookup: station code → department name
-STATION_TO_DEPARTMENT = {v: k for k, v in DEPARTMENT_TO_STATION.items()
-                         if v not in ("RESEARCH", "OPERATIONS", "ANALYTICS", "SECURITY", "COMMAND")}
-STATION_TO_DEPARTMENT.update({
-    "COMMAND": "Executive Office",
-    "ANALYTICS": "Analytics & Intelligence",
-    "ENGINEERING": "Engineering & Technology",
-    "OPERATIONS": "Operations & Infrastructure",
-    "SECURITY": "Security & Compliance",
-    "CREATIVE": "Creative & Design",
-    "RESEARCH": "Research & Development",
-    "COMMUNICATIONS": "Marketing & Communications",
-    "LOGISTICS": "Logistics & Supply Chain",
-    "DIPLOMATIC": "Diplomatic & External Relations",
-})
+FLOOR_DEPARTMENTS = {}
+for _dept, _flr in DEPARTMENT_FLOOR_MAP.items():
+    FLOOR_DEPARTMENTS.setdefault(_flr, []).append(_dept)
 
 # Capabilities that require explicit agent skill (no generous 0.3 default).
-# If no agent at the mapped station has the skill, cross-station dispatch
+# If no agent at the mapped department has the skill, cross-department dispatch
 # finds an agent elsewhere who does.
 CAPABILITY_REQUIRES_SKILL = {
     "translate",            # Needs a capable chat LLM — not a classifier or embedder
@@ -243,10 +153,10 @@ CAPABILITY_REQUIRES_SKILL = {
     "image_generation",     # ComfyUI skill — only Pixel has this
 }
 
-# Specialized agent selection within stations
-# When a station has multiple agents, pick by sub-capability
+# Specialized agent selection within departments
+# When a department has multiple agents, pick by sub-capability
 AGENT_SPECIALIZATION = {
-    "COMMAND": {
+    "Executive Office": {
         "default": "ARCHIE",
         "security_analysis": "Sentinel",
         "compliance": "Sentinel",
@@ -254,13 +164,13 @@ AGENT_SPECIALIZATION = {
         "governance": "Sentinel",
         "threat_detection": "Sentinel",
     },
-    "ENGINEERING": {
+    "Engineering & Technology": {
         "default": "CodeSmith",
         "schema_design": "Architect",
         "api_design": "Architect",
         "architecture": "Architect",
     },
-    "OPERATIONS": {
+    "Operations & Infrastructure": {
         "default": "OpsMaster",
         "telegram": "CommRelay",
         "email": "CommRelay",
@@ -268,16 +178,16 @@ AGENT_SPECIALIZATION = {
         "webhook": "CommRelay",
         "ha_integration": "CommRelay",
     },
-    "ANALYTICS": {
+    "Analytics & Intelligence": {
         "default": "DataMind",
         "embedding": "Nexus",
         "vision": "Nexus",
         "knowledge_extraction": "Nexus",
     },
-    "CREATIVE": {
+    "Creative & Design": {
         "default": "Wordsmith",
     },
-    "RESEARCH": {
+    "Research & Development": {
         "default": "Scholar",
     },
 }
@@ -312,14 +222,25 @@ class DispatchResult:
     agent_name: str
     agent_id: Optional[int]
     model_used: str
-    station_code: str
-    capability: str
+    station_code: str = "Engineering & Technology"  # now holds department name (legacy name kept for compat)
+    capability: str = ""
     duration_ms: int = 0
     prompt_tokens: int = 0
     completion_tokens: int = 0
     provider: str = "ollama"
     error: Optional[str] = None
     metadata: Optional[Dict] = None
+    department: str = ""
+
+    def __post_init__(self):
+        # Normalize: if department was passed, use it; else derive from station_code
+        if self.department and not self.station_code:
+            self.station_code = self.department
+        elif self.station_code and not self.department:
+            self.department = self.station_code
+        elif not self.department and not self.station_code:
+            self.department = "Engineering & Technology"
+            self.station_code = "Engineering & Technology"
 
     def to_dict(self) -> Dict:
         return {
@@ -328,7 +249,8 @@ class DispatchResult:
             "agent_name": self.agent_name,
             "agent_id": self.agent_id,
             "model_used": self.model_used,
-            "station_code": self.station_code,
+            "department": self.department,
+            "station_code": DEPARTMENT_FLOOR_MAP.get(self.department, self.station_code),
             "capability": self.capability,
             "duration_ms": self.duration_ms,
             "prompt_tokens": self.prompt_tokens,
@@ -343,14 +265,14 @@ class BridgeDispatcher:
     Central dispatch system for all AI work on the ARCHIE Platform.
 
     Modules request work by capability. The dispatcher:
-    1. Maps capability → station → agent
+    1. Maps capability → department → agent
     2. Uses the agent's assigned model to execute
     3. Logs everything to task_execution_log for HR tracking
     4. Handles fallback/escalation gracefully
     """
 
     def __init__(self):
-        self._agent_cache = {}  # name → {id, model, station_code, ...}
+        self._agent_cache = {}  # name → {id, model, department, ...}
         self._cache_time = 0
         self._cache_ttl = 300  # Refresh cache every 5 minutes
         self._db_getter = None
@@ -361,11 +283,11 @@ class BridgeDispatcher:
         self._welfare_cache_time = 0
         self._welfare_cache_ttl = 30  # Refresh every 30 seconds
         self._busy_agents = set()  # agent names with running bridge_jobs
-        # Module → station cache (bridge_stations.modules lookup)
-        self._module_station_cache = {}
-        self._module_station_ts = 0
+        # Module → department cache
+        self._module_department_cache = {}
+        self._module_department_ts = 0
         # Dynamic specialization cache from benchmarks (10-minute TTL)
-        self._dynamic_spec_cache = {}  # (station, capability) → agent_name
+        self._dynamic_spec_cache = {}  # (department, capability) → agent_name
         self._dynamic_spec_ts = 0
         self._dynamic_spec_ttl = 600
         # Fleet health tracking — node_db_id → {"online": bool, "last_check": timestamp}
@@ -392,7 +314,7 @@ class BridgeDispatcher:
             )
 
     def _refresh_agent_cache(self):
-        """Load active agents and their station assignments from DB."""
+        """Load active agents and their departments from DB."""
         now = time.time()
         if self._agent_cache and (now - self._cache_time) < self._cache_ttl:
             return
@@ -403,18 +325,15 @@ class BridgeDispatcher:
             conn = self._get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute("""
-                SELECT a.id, a.name, a.model, a.default_model_tier,
-                       a.system_prompt, a.capabilities, a.temperature,
-                       a.max_tokens, a.status, a.shift_state,
+                SELECT a.id, a.name, a.display_name, a.model,
+                       a.default_model_tier, a.system_prompt, a.capabilities,
+                       a.temperature, a.max_tokens, a.status, a.shift_state,
                        a.first_name, a.last_name, a.title,
-                       a.display_name, a.image_model,
-                       a.department, a.is_department_ai,
-                       bs.station_code, bs.default_llm
+                       a.image_model, a.department, a.floor,
+                       a.is_department_ai
                 FROM agents a
-                LEFT JOIN station_assignments sa ON a.id = sa.agent_id AND sa.is_active = TRUE
-                LEFT JOIN bridge_stations bs ON sa.station_id = bs.id AND bs.is_active = TRUE
                 WHERE a.status = 'active'
-                ORDER BY COALESCE(sa.priority, 999)
+                ORDER BY a.department, a.name
             """)
             agents = cur.fetchall()
             cur.close()
@@ -422,10 +341,6 @@ class BridgeDispatcher:
 
             self._agent_cache = {}
             for agent in agents:
-                # Resolve department: prefer DB column, fall back from station
-                _dept = agent.get("department") or STATION_TO_DEPARTMENT.get(
-                    agent.get("station_code", ""), "Executive Office"
-                )
                 self._agent_cache[agent["name"]] = {
                     "id": agent["id"],
                     "model": agent["model"],
@@ -434,9 +349,9 @@ class BridgeDispatcher:
                     "capabilities": agent["capabilities"] or {},
                     "temperature": float(agent["temperature"] or 0.5),
                     "max_tokens": agent["max_tokens"] or 4096,
-                    "station_code": agent["station_code"],
-                    "station_llm": agent["default_llm"],
-                    "department": _dept,
+                    "department": agent["department"] or "Engineering & Technology",
+                    "floor": agent.get("floor") or DEPARTMENT_FLOOR_MAP.get(
+                        agent["department"], "ENGINEERING"),
                     "is_department_ai": bool(agent.get("is_department_ai")),
                     "first_name": agent.get("first_name") or "",
                     "last_name": agent.get("last_name") or "",
@@ -493,7 +408,7 @@ class BridgeDispatcher:
                 cur3.execute("""
                     SELECT na.id AS node_agent_id, na.name, na.node_id,
                            na.source_agent_id, na.model AS local_model,
-                           na.station_codes, na.status,
+                           na.department, na.status,
                            rn.node_id AS node_str_id, rn.hostname,
                            rn.last_heartbeat, rn.status AS node_status,
                            rn.gpu_vram_gb, rn.ram_gb
@@ -510,12 +425,14 @@ class BridgeDispatcher:
                 fleet_count = 0
                 for row in fleet_agents:
                     cache_key = f"fleet:{row['node_str_id']}:{row['name']}"
+                    _dept = row.get("department") or "Engineering & Technology"
                     self._agent_cache[cache_key] = {
                         "id": row["node_agent_id"],
                         "source_agent_id": row["source_agent_id"],
                         "name": row["name"],
                         "model": row["local_model"],
-                        "station_codes": row["station_codes"] or [],
+                        "department": _dept,
+                        "floor": DEPARTMENT_FLOOR_MAP.get(_dept, "ENGINEERING"),
                         "status": row["status"],
                         "node_id": row["node_str_id"],
                         "node_db_id": row["node_id"],
@@ -546,44 +463,24 @@ class BridgeDispatcher:
         except Exception as e:
             logger.error(f"[BridgeDispatcher] Cache refresh failed: {e}")
 
-    def _get_station_slot_occupancy(self, station_code):
-        """Count current slot occupancy at a station from active bridge_jobs.
+    def _get_station_slot_occupancy(self, department):
+        """Count current slot occupancy for a department from active bridge_jobs.
         Returns dict with primary/auxiliary/contractor counts and capacity config.
+        Department-based: fixed limits (max_primary=3, max_auxiliary=1, overflow=True).
         """
         try:
             from psycopg2.extras import RealDictCursor
 
             conn = self._get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute(
-                """
-                SELECT id, max_primary, max_auxiliary, allow_overflow
-                FROM bridge_stations WHERE station_code = %s AND is_active = true
-            """,
-                (station_code,),
-            )
-            station = cur.fetchone()
-            if not station:
-                cur.close()
-                conn.close()
-                return {
-                    "primary": 0,
-                    "auxiliary": 0,
-                    "contractor": 0,
-                    "total": 0,
-                    "max_primary": 2,
-                    "max_auxiliary": 1,
-                    "allow_overflow": True,
-                }
 
-            # Count primary crew: jobs at this station that are NOT cross-station or cloud
-            # Count auxiliary: cross-station jobs targeting this station (module_station or dispatch_station)
-            # Count contractors: cloud jobs at this station
+            # Count running jobs for this department
             cur.execute(
                 """
                 SELECT
                     (SELECT COUNT(*) FROM bridge_jobs
-                     WHERE status = 'running' AND station_code = %s
+                     WHERE status = 'running'
+                     AND (metadata->>'department' = %s OR station_code = %s)
                      AND (metadata->>'is_cross_station') IS DISTINCT FROM 'true'
                      AND (metadata->>'is_cloud') IS DISTINCT FROM 'true'
                     ) AS primary_count,
@@ -591,14 +488,15 @@ class BridgeDispatcher:
                      WHERE status = 'running'
                      AND metadata->>'is_cross_station' = 'true'
                      AND (metadata->>'is_cloud') IS DISTINCT FROM 'true'
-                     AND (metadata->>'module_station' = %s OR metadata->>'dispatch_station' = %s)
+                     AND (metadata->>'department' = %s)
                     ) AS auxiliary_count,
                     (SELECT COUNT(*) FROM bridge_jobs
-                     WHERE status = 'running' AND station_code = %s
+                     WHERE status = 'running'
+                     AND (metadata->>'department' = %s OR station_code = %s)
                      AND metadata->>'is_cloud' = 'true'
                     ) AS contractor_count
             """,
-                (station_code, station_code, station_code, station_code),
+                (department, department, department, department, department),
             )
             counts = cur.fetchone() or {}
             cur.close()
@@ -612,39 +510,37 @@ class BridgeDispatcher:
                 "auxiliary": auxiliary,
                 "contractor": contractor,
                 "total": primary + auxiliary + contractor,
-                "max_primary": station.get("max_primary", 2),
-                "max_auxiliary": station.get("max_auxiliary", 1),
-                "allow_overflow": station.get("allow_overflow", True),
-                "station_id": station.get("id"),
+                "max_primary": 3,
+                "max_auxiliary": 1,
+                "allow_overflow": True,
             }
         except Exception as e:
             logger.warning(
-                f"[CAPACITY] Error getting slot occupancy for {station_code}: {e}"
+                f"[CAPACITY] Error getting slot occupancy for {department}: {e}"
             )
             return {
                 "primary": 0,
                 "auxiliary": 0,
                 "contractor": 0,
                 "total": 0,
-                "max_primary": 2,
+                "max_primary": 3,
                 "max_auxiliary": 1,
                 "allow_overflow": True,
             }
 
-    def _station_aux_available(self, requesting_station, cur=None):
-        """Check if a station can accept a cross-station auxiliary agent.
+    def _station_aux_available(self, requesting_department, cur=None):
+        """Check if a department can accept a cross-department auxiliary agent.
 
-        Rules (3-slot model):
-        1. ALL assigned crew must be busy before auxiliary is allowed.
-           A station with 1 agent can get aux help once that agent is working.
-           A station with 2 agents needs both busy before aux.
-        2. Only 1 auxiliary slot per station (max_auxiliary from bridge_stations).
+        Rules:
+        1. Department must have at least one agent assigned before auxiliary help.
+        2. Only 1 auxiliary slot per department.
 
         Pass an existing cursor to reuse a transaction (prevents race conditions
         when called inside create_job's advisory-locked transaction).
 
         Returns (available: bool, aux_count: int, max_aux: int, reason: str).
         """
+        max_aux = 1
         own_conn = False
         try:
             if cur is None:
@@ -654,33 +550,17 @@ class BridgeDispatcher:
                 cur = conn.cursor(cursor_factory=RealDictCursor)
                 own_conn = True
 
-            # Acquire station-level advisory lock to prevent concurrent aux dispatches
-            station_lock_key = hash(f"aux_lock:{requesting_station}") % (2**31)
-            cur.execute("SELECT pg_advisory_xact_lock(%s)", (station_lock_key,))
+            # Acquire department-level advisory lock to prevent concurrent aux dispatches
+            dept_lock_key = hash(f"aux_lock:{requesting_department}") % (2**31)
+            cur.execute("SELECT pg_advisory_xact_lock(%s)", (dept_lock_key,))
 
-            cur.execute(
-                "SELECT id, max_primary, max_auxiliary FROM bridge_stations "
-                "WHERE station_code = %s AND is_active = true",
-                (requesting_station,),
-            )
-            station = cur.fetchone()
-            if not station:
-                if own_conn:
-                    cur.close()
-                    conn.close()
-                return True, 0, 1, ""
-
-            max_aux = station["max_auxiliary"] or 1
-
-            # Rule 1: All assigned crew must be busy before auxiliary help
+            # Rule 1: Department must have at least one active agent
             cur.execute(
                 """
-                SELECT COUNT(*) as cnt FROM station_assignments
-                WHERE station_id = %s
-                AND assignment_type = 'primary'
-                AND is_active = TRUE
+                SELECT COUNT(*) as cnt FROM agents
+                WHERE department = %s AND status = 'active'
             """,
-                (station["id"],),
+                (requesting_department,),
             )
             assigned_count = cur.fetchone()["cnt"]
             if assigned_count == 0:
@@ -688,8 +568,8 @@ class BridgeDispatcher:
                     cur.close()
                     conn.close()
                 reason = (
-                    f"{requesting_station} has no crew assigned. "
-                    f"At least one agent must be assigned before auxiliary dispatch."
+                    f"{requesting_department} has no agents assigned. "
+                    f"At least one agent must be in the department before auxiliary dispatch."
                 )
                 return False, 0, max_aux, reason
 
@@ -700,12 +580,9 @@ class BridgeDispatcher:
                 WHERE status = 'running'
                 AND metadata->>'is_cross_station' = 'true'
                 AND (metadata->>'is_cloud') IS DISTINCT FROM 'true'
-                AND (
-                    metadata->>'module_station' = %s
-                    OR metadata->>'dispatch_station' = %s
-                )
+                AND metadata->>'department' = %s
             """,
-                (requesting_station, requesting_station),
+                (requesting_department,),
             )
             aux_count = cur.fetchone()["cnt"]
             if own_conn:
@@ -719,7 +596,7 @@ class BridgeDispatcher:
         except Exception as e:
             logger.warning(
                 f"[CAPACITY] Error checking aux availability at "
-                f"{requesting_station}: {e}"
+                f"{requesting_department}: {e}"
             )
             if own_conn:
                 try:
@@ -731,7 +608,7 @@ class BridgeDispatcher:
 
     def _log_capacity_event(
         self,
-        station_code,
+        department,
         event_type,
         agent_id=None,
         agent_name=None,
@@ -742,25 +619,34 @@ class BridgeDispatcher:
         reason=None,
         metadata=None,
     ):
-        """Log a station capacity event for workload intelligence (ADR-055)."""
+        """Log a department capacity event for workload intelligence (ADR-055).
+        Writes to station_capacity_events using bridge_stations lookup if available,
+        otherwise logs department in metadata.
+        """
         try:
             from psycopg2.extras import Json
 
             conn = self._get_db()
             cur = conn.cursor()
+            # Try to find a bridge_station for backward compat logging
+            floor = DEPARTMENT_FLOOR_MAP.get(department, "ENGINEERING")
             cur.execute(
-                "SELECT id FROM bridge_stations WHERE station_code = %s",
-                (station_code,),
+                "SELECT id FROM bridge_stations WHERE station_code = %s LIMIT 1",
+                (floor,),
             )
             row = cur.fetchone()
             station_id = row[0] if row else None
             if station_id is None:
-                logger.warning(
-                    f"[CAPACITY] Unknown station_code '{station_code}', skipping event log"
+                # No matching bridge_station — skip event log (deprecated table)
+                logger.debug(
+                    f"[CAPACITY] No bridge_station for floor '{floor}' "
+                    f"(department='{department}'), skipping capacity event"
                 )
                 cur.close()
                 conn.close()
                 return
+            meta = dict(metadata or {})
+            meta["department"] = department
             cur.execute(
                 """
                 INSERT INTO station_capacity_events
@@ -778,7 +664,7 @@ class BridgeDispatcher:
                     capability,
                     slot_number,
                     reason,
-                    Json(metadata or {}),
+                    Json(meta),
                 ),
             )
             conn.commit()
@@ -786,7 +672,7 @@ class BridgeDispatcher:
             conn.close()
         except Exception as e:
             logger.warning(
-                f"[CAPACITY] Error logging event {event_type} for {station_code}: {e}"
+                f"[CAPACITY] Error logging event {event_type} for {department}: {e}"
             )
 
     def _refresh_welfare_cache(self, skip_busy_refresh: bool = False):
@@ -951,16 +837,16 @@ class BridgeDispatcher:
             logger.warning(f"[BridgeDispatcher] Welfare cache refresh failed: {e}")
 
     def _get_dynamic_specialization(
-        self, station_code: str, capability: str
+        self, department: str, capability: str
     ) -> Optional[str]:
-        """Return the top benchmark performer for *capability* at *station*.
+        """Return the top benchmark performer for *capability* in *department*.
 
         Uses a 10-minute cache.  Falls back to ``None`` so the caller can
         check the static ``AGENT_SPECIALIZATION`` dict.
         """
         _NO_WINNER = ""  # sentinel for "queried DB, no winner found"
         now = time.time()
-        cache_key = (station_code, capability)
+        cache_key = (department, capability)
 
         if (now - self._dynamic_spec_ts) < self._dynamic_spec_ttl:
             cached = self._dynamic_spec_cache.get(cache_key)
@@ -980,14 +866,15 @@ class BridgeDispatcher:
                     FROM action_benchmark_results r
                     JOIN action_benchmark_runs br ON br.id = r.run_id
                     WHERE br.status = 'completed'
-                      AND br.station_code = %s
+                      AND (br.station_code = %s
+                           OR br.test_config->>'department' = %s)
                       AND br.test_config->>'capability' = %s
                       AND r.rank = 1
                       AND r.success = TRUE
                     ORDER BY br.started_at DESC
                     LIMIT 1
                     """,
-                    (station_code, capability),
+                    (department, department, capability),
                 )
                 row = cur.fetchone()
             finally:
@@ -1002,7 +889,7 @@ class BridgeDispatcher:
         except Exception as e:
             logger.debug(
                 "Dynamic specialization lookup failed (%s/%s): %s",
-                station_code,
+                department,
                 capability,
                 e,
             )
@@ -1083,17 +970,12 @@ class BridgeDispatcher:
             agent_name, agent_id, new_state, reason,
         )
 
-        # Get current station
+        # Get current department from agents table
         cur.execute("""
-            SELECT sa.station_id, bs.station_code
-            FROM station_assignments sa
-            JOIN bridge_stations bs ON sa.station_id = bs.id
-            WHERE sa.agent_id = %s AND sa.is_active = TRUE
-            LIMIT 1
+            SELECT department FROM agents WHERE id = %s
         """, (agent_id,))
-        station_row = cur.fetchone()
-        station_id = station_row["station_id"] if station_row else None
-        station_code = station_row["station_code"] if station_row else "UNKNOWN"
+        dept_row = cur.fetchone()
+        department = dept_row["department"] if dept_row else "Engineering & Technology"
 
         # Close previous rotation log entry
         cur.execute("""
@@ -1101,12 +983,12 @@ class BridgeDispatcher:
             WHERE agent_id = %s AND ended_at IS NULL
         """, (agent_id,))
 
-        # Insert new rotation log entry
+        # Insert new rotation log entry (station_id kept NULL for department-based routing)
         cur.execute("""
             INSERT INTO agent_rotation_log
                 (agent_id, station_id, shift_state, reason, started_at)
-            VALUES (%s, %s, %s, %s, NOW())
-        """, (agent_id, station_id, new_state, reason))
+            VALUES (%s, NULL, %s, %s, NOW())
+        """, (agent_id, new_state, reason))
 
         # Update agent shift_state
         cur.execute(
@@ -1120,16 +1002,16 @@ class BridgeDispatcher:
             VALUES ('info', %s, %s, %s, NOW())
         """, (
             f"Shift transition: {agent_name}",
-            f"{agent_name} transitioned to {new_state} at {station_code} (reason: {reason})",
+            f"{agent_name} transitioned to {new_state} in {department} (reason: {reason})",
             Json({"agent_id": agent_id, "agent_name": agent_name,
-                  "new_state": new_state, "station_code": station_code,
+                  "new_state": new_state, "department": department,
                   "reason": reason}),
         ))
 
-        # If cooldown, find a replacement
-        if new_state == "cooldown" and station_id:
+        # If cooldown, find a replacement in the same department
+        if new_state == "cooldown":
             replacement = self._find_replacement(
-                cur, agent_id, station_id, station_code
+                cur, agent_id, department
             )
             if replacement:
                 # Update the rotation log for the exhausted agent with replaced_by
@@ -1150,26 +1032,27 @@ class BridgeDispatcher:
         if agent_id in self._welfare_cache:
             self._welfare_cache[agent_id]["shift_state"] = new_state
 
-    def _find_replacement(self, cur, exhausted_agent_id, station_id, station_code):
-        """Find and activate the best replacement agent for a station.
+    def _find_replacement(self, cur, exhausted_agent_id, department):
+        """Find and activate the best replacement agent for a department.
 
         Scores candidates on skill proficiency, RAM fit, rest time,
         and historical performance.  Returns the activated agent dict
         or None.
         """
-        # Get recent capabilities needed at this station (last 7 days)
+        # Get recent capabilities needed in this department (last 7 days)
         cur.execute("""
             SELECT DISTINCT capability FROM task_execution_log
-            WHERE station_code = %s
+            WHERE (station_code = %s OR metadata->>'department' = %s)
               AND created_at > NOW() - INTERVAL '7 days'
-        """, (station_code,))
+        """, (department, department))
         recent_caps = [r["capability"] for r in cur.fetchall()]
 
-        # Find candidate agents
+        # Find candidate agents in the same department
         cur.execute("""
             SELECT a.id, a.name
             FROM agents a
             WHERE a.status = 'active'
+              AND a.department = %s
               AND a.shift_state IN ('active', 'off_duty')
               AND a.id != %s
               AND a.name NOT IN (
@@ -1178,15 +1061,11 @@ class BridgeDispatcher:
               AND a.id NOT IN (
                   SELECT agent_id FROM agent_rest_cycles WHERE ended_at IS NULL
               )
-              AND a.id NOT IN (
-                  SELECT agent_id FROM station_assignments
-                  WHERE station_id = %s AND is_active = TRUE
-              )
-        """, (exhausted_agent_id, station_id))
+        """, (department, exhausted_agent_id))
         candidates = cur.fetchall()
 
         if not candidates:
-            logger.debug("[ShiftLifecycle] No replacement candidates for station %s", station_code)
+            logger.debug("[ShiftLifecycle] No replacement candidates for department %s", department)
             return None
 
         best_score = -1.0
@@ -1258,10 +1137,10 @@ class BridgeDispatcher:
         agent_name: str,
         agent_info: Dict,
         capability: str,
-        station_code: str,
+        department: str,
         recommended_tier: Optional[str] = None,
     ) -> tuple:
-        """Score an agent for a given capability and station.
+        """Score an agent for a given capability and department.
 
         Args:
             recommended_tier: SmartRouter advisory tier (e.g. 'local', 'haiku').
@@ -1317,7 +1196,7 @@ class BridgeDispatcher:
             skills_score = skill_entry.get("level", 1) / 5.0
         elif capability in CAPABILITY_REQUIRES_SKILL:
             # Capability requires explicit skill — don't use generous default.
-            # Forces cross-station dispatch to an agent who actually has it.
+            # Forces cross-department dispatch to an agent who actually has it.
             return (0.0, f"{agent_name} lacks required skill '{capability}'")
         else:
             skills_score = 0.3  # generous default — agent may still handle it
@@ -1335,12 +1214,12 @@ class BridgeDispatcher:
                 specialization_score = rank_data["rank_score"]
             else:
                 # Fall back to dynamic benchmark winner
-                dyn_winner = self._get_dynamic_specialization(station_code, capability)
+                dyn_winner = self._get_dynamic_specialization(department, capability)
                 if dyn_winner and dyn_winner == agent_name:
                     specialization_score = 1.0
                 else:
                     # Fall back to static specialization map
-                    station_specs = AGENT_SPECIALIZATION.get(station_code, {})
+                    station_specs = AGENT_SPECIALIZATION.get(department, {})
                     default_specs = AGENT_SPECIALIZATION.get("default", {})
                     preferred = station_specs.get(capability) or default_specs.get(capability)
                     specialization_score = 1.0 if preferred == agent_name else 0.0
@@ -1419,8 +1298,8 @@ class BridgeDispatcher:
 
         return (round(composite, 4), None)
 
-    def _resolve_station(self, capability: str) -> str:
-        """Resolve station for capability, checking mission profile overrides first."""
+    def _resolve_department(self, capability: str) -> str:
+        """Resolve department for capability, checking mission profile overrides first."""
         try:
             from ai_bridge.mission_manager import MissionManager
 
@@ -1430,24 +1309,11 @@ class BridgeDispatcher:
                 return overrides[capability]
         except Exception as e:
             logger.warning("Capability routing override failed for %s: %s", capability, e)
-        return CAPABILITY_STATION_MAP.get(capability, "COMMAND")
+        return CAPABILITY_DEPARTMENT_MAP.get(capability, "Engineering & Technology")
 
     # ------------------------------------------------------------------
     # Department-based routing (rebrand Phase 2.2)
     # ------------------------------------------------------------------
-
-    def _resolve_department(self, capability: str) -> str:
-        """Resolve department for a capability.
-
-        Uses CAPABILITY_DEPARTMENT_MAP with fallback to station→department
-        translation via STATION_TO_DEPARTMENT.
-        """
-        dept = CAPABILITY_DEPARTMENT_MAP.get(capability)
-        if dept:
-            return dept
-        # Fallback: resolve station, then map to department
-        station = CAPABILITY_STATION_MAP.get(capability, "COMMAND")
-        return STATION_TO_DEPARTMENT.get(station, "Executive Office")
 
     def _select_agent_by_department(
         self,
@@ -1480,18 +1346,6 @@ class BridgeDispatcher:
                 coordinator = (name, info)
 
         if not candidates:
-            # Fallback: try mapping department to station for backward compat
-            fallback_station = DEPARTMENT_TO_STATION.get(department)
-            if fallback_station:
-                logger.info(
-                    f"[BridgeDispatcher] No agents in department='{department}', "
-                    f"falling back to station={fallback_station}"
-                )
-                return self._select_agent(
-                    capability, fallback_station,
-                    skip_busy_refresh=skip_busy_refresh,
-                    recommended_tier=recommended_tier,
-                )
             logger.warning(
                 f"[BridgeDispatcher] No agents in department='{department}' "
                 f"for capability='{capability}'"
@@ -1501,12 +1355,8 @@ class BridgeDispatcher:
         # Try coordinator first (department AI) — if available and not blocked
         if coordinator:
             coord_name, coord_info = coordinator
-            # Use legacy station_code for scoring (scoring uses station context)
-            _station = coord_info.get("station_code") or DEPARTMENT_TO_STATION.get(
-                department, "COMMAND"
-            )
             score, block_reason = self._score_agent(
-                coord_name, coord_info, capability, _station,
+                coord_name, coord_info, capability, department,
                 recommended_tier=recommended_tier,
             )
             if score > 0:
@@ -1521,11 +1371,8 @@ class BridgeDispatcher:
         scored = []
         blocked = []
         for name, info in candidates:
-            _station = info.get("station_code") or DEPARTMENT_TO_STATION.get(
-                department, "COMMAND"
-            )
             score, block_reason = self._score_agent(
-                name, info, capability, _station,
+                name, info, capability, department,
                 recommended_tier=recommended_tier,
             )
             if score > 0:
@@ -1578,11 +1425,8 @@ class BridgeDispatcher:
                 # Must have the skill explicitly
                 if capability not in (info.get("skills") or {}):
                     continue
-                _station = info.get("station_code") or DEPARTMENT_TO_STATION.get(
-                    other_dept, "COMMAND"
-                )
                 score, block_reason = self._score_agent(
-                    agent_name, info, capability, _station
+                    agent_name, info, capability, other_dept
                 )
                 if score <= 0:
                     continue
@@ -1596,10 +1440,12 @@ class BridgeDispatcher:
 
         return None
 
-    def _resolve_module_station(self, module_id: str) -> Optional[str]:
-        """Look up the home station for a module from bridge_stations.modules."""
+    def _resolve_module_department(self, module_id: str) -> Optional[str]:
+        """Look up the home department for a module from bridge_stations.modules.
+        Returns department name or None.
+        """
         now = time.time()
-        if now - self._module_station_ts > 300:
+        if now - self._module_department_ts > 300:
             try:
                 conn = self._get_db()
                 cur = conn.cursor()
@@ -1607,87 +1453,58 @@ class BridgeDispatcher:
                     "SELECT station_code, modules FROM bridge_stations WHERE is_active = true"
                 )
                 cache = {}
+                # Map station_code → department for each module
+                _STATION_DEPT = {
+                    "COMMAND": "Executive Office",
+                    "ANALYTICS": "Analytics & Intelligence",
+                    "ENGINEERING": "Engineering & Technology",
+                    "OPERATIONS": "Operations & Infrastructure",
+                    "SECURITY": "Security & Compliance",
+                    "CREATIVE": "Creative & Design",
+                    "RESEARCH": "Research & Development",
+                    "COMMUNICATIONS": "Marketing & Communications",
+                    "LOGISTICS": "Logistics & Supply Chain",
+                    "DIPLOMATIC": "Diplomatic & External Relations",
+                }
                 for row in cur.fetchall():
-                    code = row[0]
+                    dept = _STATION_DEPT.get(row[0], "Engineering & Technology")
                     for m in (row[1] or []):
-                        cache[m.lower().strip()] = code
+                        cache[m.lower().strip()] = dept
                 cur.close()
                 conn.close()
-                self._module_station_cache = cache
-                self._module_station_ts = now
+                self._module_department_cache = cache
+                self._module_department_ts = now
             except Exception as e:
-                logger.debug(f"[BridgeDispatcher] Module station cache failed: {e}")
+                logger.debug(f"[BridgeDispatcher] Module department cache failed: {e}")
         key = module_id.lower().strip()
-        result = self._module_station_cache.get(key)
+        result = self._module_department_cache.get(key)
         if not result and "_" in key:
             # Try base module name (e.g. "consciousness_linguistics" → "consciousness")
             base = key.split("_")[0]
-            result = self._module_station_cache.get(base)
+            result = self._module_department_cache.get(base)
         return result
 
     def _select_agent(
         self,
         capability: str,
-        station_code: str,
+        department: str,
         skip_busy_refresh: bool = False,
         recommended_tier: Optional[str] = None,
     ) -> Optional[Dict]:
-        """Select the best agent for a capability within a station.
+        """Select the best agent for a capability within a department.
 
         Uses multi-factor scoring: skills, specialization, welfare,
         availability, budget headroom, and SmartRouter tier match.
         Hard-blocked agents (resting, budget exhausted, critical welfare)
         are filtered out.
+
+        This is now a thin wrapper around _select_agent_by_department
+        for backward compatibility.
         """
-        self._refresh_agent_cache()
-        self._refresh_welfare_cache(skip_busy_refresh=skip_busy_refresh)
-
-        # Gather all candidates assigned to this station
-        # Handles both local agents (station_code string) and
-        # fleet agents (station_codes array)
-        candidates = []
-        for name, info in self._agent_cache.items():
-            agent_station = info.get("station_code", "")
-            agent_stations = info.get("station_codes", [])
-            if agent_station == station_code or station_code in agent_stations:
-                candidates.append((name, info))
-
-        if not candidates:
-            logger.warning(
-                f"[BridgeDispatcher] No agents at station={station_code} "
-                f"for capability='{capability}'"
-            )
-            return None
-
-        # Score each candidate
-        scored = []
-        blocked = []
-        for name, info in candidates:
-            score, block_reason = self._score_agent(
-                name, info, capability, station_code,
-                recommended_tier=recommended_tier,
-            )
-            if score > 0:
-                scored.append((score, name, info))
-            else:
-                blocked.append((name, block_reason))
-
-        if not scored:
-            reasons = "; ".join(f"{n}: {r}" for n, r in blocked)
-            logger.warning(
-                f"[BridgeDispatcher] All {len(blocked)} agent(s) blocked for "
-                f"capability='{capability}' station='{station_code}': {reasons}"
-            )
-            return None
-
-        # Sort descending by score, pick the best
-        scored.sort(key=lambda x: x[0], reverse=True)
-        best_score, best_name, best_info = scored[0]
-
-        logger.info(
-            f"[BridgeDispatcher] Selected {best_name} (score={best_score}) for "
-            f"capability='{capability}' station='{station_code}' "
-            f"({len(scored)} eligible, {len(blocked)} blocked)"
+        return self._select_agent_by_department(
+            capability, department,
+            skip_busy_refresh=skip_busy_refresh,
+            recommended_tier=recommended_tier,
         )
 
         return best_info
@@ -1763,14 +1580,14 @@ class BridgeDispatcher:
 
     def _find_fleet_agent(
         self,
-        station_code: str,
+        department: str,
         capability: str,
         model_preference: Optional[str] = None,
     ) -> Optional[Dict]:
         """Find an available agent on a fleet node for cross-node dispatch.
 
         Checks remote_nodes for online fleet nodes, then looks for agents
-        assigned to the requested station whose model is available on
+        in the requested department whose model is available on
         that node.  Returns agent info dict or None.
         """
         try:
@@ -1779,12 +1596,12 @@ class BridgeDispatcher:
             conn = self._get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            # Find node agents on matching stations with online nodes
+            # Find node agents in matching department with online nodes
             cur.execute(
                 """
                 SELECT na.name AS agent_name,
                        na.model,
-                       na.station_codes,
+                       na.department,
                        na.hub_agent_id,
                        rn.id AS node_id,
                        rn.node_name,
@@ -1799,10 +1616,10 @@ class BridgeDispatcher:
                       rn.last_heartbeat > NOW() - INTERVAL '30 seconds'
                       OR rn.deployment_mode = 'starbase'
                   )
-                  AND %s = ANY(na.station_codes)
+                  AND na.department = %s
                 ORDER BY rn.bridge_priority DESC, rn.last_heartbeat DESC NULLS LAST
                 """,
-                (station_code,),
+                (department,),
             )
             candidates = cur.fetchall()
             cur.close()
@@ -1810,7 +1627,7 @@ class BridgeDispatcher:
 
             if not candidates:
                 logger.debug(
-                    f"[BridgeDispatcher] No fleet agents for station={station_code}"
+                    f"[BridgeDispatcher] No fleet agents for department={department}"
                 )
                 return None
 
@@ -1874,7 +1691,7 @@ class BridgeDispatcher:
                     f"[BridgeDispatcher] Fleet agent found: {agent_name} "
                     f"(model={model}) on node {candidate['node_name']} "
                     f"({resolved_host}:{resolved_port} via {conn_type}) "
-                    f"for station={station_code}"
+                    f"for department={department}"
                 )
                 return {
                     "agent_name": agent_name,
@@ -1888,7 +1705,7 @@ class BridgeDispatcher:
 
             logger.debug(
                 f"[BridgeDispatcher] No reachable fleet agents for "
-                f"station={station_code} capability={capability}"
+                f"department={department} capability={capability}"
             )
             return None
 
@@ -3337,7 +3154,7 @@ class BridgeDispatcher:
                     advisory_type="free_cloud",
                     module_id=module_id,
                     capability=capability,
-                    home_station=self._resolve_module_station(module_id),
+                    home_station=self._resolve_module_department(module_id),
                     cloud_model=cloud_model,
                     cloud_provider="ollama_cloud",
                     reason=f"{agent_name} busy with job #{busy_job.get('id', '?')}",
@@ -3419,7 +3236,7 @@ class BridgeDispatcher:
                     advisory_type="paid_cloud",
                     module_id=module_id,
                     capability=capability,
-                    home_station=self._resolve_module_station(module_id),
+                    home_station=self._resolve_module_department(module_id),
                     cloud_model=next_tier["model"],
                     cloud_provider=next_tier.get("provider", "external"),
                 )
@@ -3853,7 +3670,7 @@ class BridgeDispatcher:
         """Create a new agent from an approved creation request.
 
         Inserts into: agents, agent_skills, agent_budgets,
-        agent_emotional_state, station_assignments, agent_creation_events,
+        agent_emotional_state, agent_creation_events,
         governance_audit_log.
 
         Args:
@@ -3863,11 +3680,26 @@ class BridgeDispatcher:
             New agent_id on success, None on failure.
         """
         capability = approval_data.get("capability", "general")
-        station_code = approval_data.get("station_code", "COMMAND")
+        department = approval_data.get("department",
+            approval_data.get("station_code",
+                CAPABILITY_DEPARTMENT_MAP.get(capability, "Engineering & Technology")))
+        # If station_code was passed (legacy), map to department
+        if department in DEPARTMENT_FLOOR_MAP:
+            pass  # Already a department name
+        else:
+            # Legacy station code — map to department
+            _LEGACY = {
+                "COMMAND": "Executive Office", "ENGINEERING": "Engineering & Technology",
+                "OPERATIONS": "Operations & Infrastructure", "SECURITY": "Security & Compliance",
+                "CREATIVE": "Creative & Design", "RESEARCH": "Research & Development",
+                "ANALYTICS": "Analytics & Intelligence", "COMMUNICATIONS": "Marketing & Communications",
+            }
+            department = _LEGACY.get(department, "Engineering & Technology")
+
+        floor = DEPARTMENT_FLOOR_MAP.get(department, "ENGINEERING")
         suggested_name = approval_data.get("suggested_name", f"Auto-{capability}")
         suggested_model = approval_data.get(
-            "suggested_model",
-            self._STATION_DEFAULT_MODEL.get(station_code, "dolphin3-8k:latest"),
+            "suggested_model", "dolphin3-8k:latest",
         )
         suggested_skills = approval_data.get("suggested_skills", [capability])
         reason = approval_data.get("reason", "Dynamic creation via dispatcher")
@@ -3876,8 +3708,6 @@ class BridgeDispatcher:
         parts = suggested_name.split("-", 1)
         first_name = parts[0] if parts else suggested_name
         last_name = parts[1] if len(parts) > 1 else ""
-        # Use module-level mapping (replaces old inline _STATION_DEPARTMENT)
-        department = STATION_TO_DEPARTMENT.get(station_code, station_code)
 
         try:
             conn = self._get_db()
@@ -3887,13 +3717,13 @@ class BridgeDispatcher:
             cur.execute(
                 """
                 INSERT INTO agents (
-                    name, model, status, department, title,
+                    name, model, status, department, floor, title,
                     first_name, last_name,
                     worker_type, cost_tier, agent_generation,
                     parent_agent_id, created_by_agent_id,
                     system_prompt, temperature, max_tokens
                 ) VALUES (
-                    %s, %s, 'active', %s, %s,
+                    %s, %s, 'active', %s, %s, %s,
                     %s, %s,
                     'internal', 'free', 1,
                     2, 2,
@@ -3905,11 +3735,12 @@ class BridgeDispatcher:
                     suggested_name,
                     suggested_model,
                     department,
+                    floor,
                     f"{capability.replace('_', ' ').title()} Specialist",
                     first_name,
                     last_name,
                     f"You are {suggested_name}, a specialist in {capability} "
-                    f"at the {station_code} station.",
+                    f"in the {department} department.",
                 ),
             )
             new_agent_id = cur.fetchone()[0]
@@ -3924,7 +3755,7 @@ class BridgeDispatcher:
                     ) VALUES (%s, %s, %s, 3)
                     ON CONFLICT (agent_id, skill_name) DO NOTHING
                     """,
-                    (new_agent_id, skill, station_code.lower()),
+                    (new_agent_id, skill, capability),
                 )
 
             # 3. INSERT into agent_budgets
@@ -3950,21 +3781,7 @@ class BridgeDispatcher:
                 (new_agent_id,),
             )
 
-            # 5. INSERT into station_assignments
-            cur.execute(
-                """
-                INSERT INTO station_assignments (
-                    station_id, agent_id, assignment_type, priority, is_active
-                ) VALUES (
-                    (SELECT id FROM bridge_stations
-                     WHERE station_code = %s LIMIT 1),
-                    %s, 'primary', 50, TRUE
-                )
-                """,
-                (station_code, new_agent_id),
-            )
-
-            # 6. INSERT into agent_creation_events
+            # 5. INSERT into agent_creation_events
             cur.execute(
                 """
                 INSERT INTO agent_creation_events (
@@ -3983,11 +3800,11 @@ class BridgeDispatcher:
                     new_agent_id,
                     reason,
                     json.dumps(suggested_skills),
-                    station_code,
+                    department,
                 ),
             )
 
-            # 7. INSERT into governance_audit_log
+            # 6. INSERT into governance_audit_log
             cur.execute(
                 """
                 INSERT INTO governance_audit_log (
@@ -4004,7 +3821,7 @@ class BridgeDispatcher:
                         {
                             "name": suggested_name,
                             "model": suggested_model,
-                            "station": station_code,
+                            "department": department,
                             "capability": capability,
                             "skills": suggested_skills,
                         }
@@ -4023,7 +3840,7 @@ class BridgeDispatcher:
             logger.info(
                 f"[BridgeDispatcher] Created agent #{new_agent_id} "
                 f"'{suggested_name}' for capability='{capability}' "
-                f"station='{station_code}'"
+                f"department='{department}'"
             )
             return new_agent_id
 
@@ -4226,13 +4043,11 @@ class BridgeDispatcher:
         except Exception as sr_err:
             logger.debug(f"[BridgeDispatcher] SmartRouter advisory skipped: {sr_err}")
 
-        # 1. Map capability → department (primary) and station (fallback)
+        # 1. Map capability → department
         capability_department = self._resolve_department(capability)
-        capability_station = self._resolve_station(capability)
-        home_station = self._resolve_module_station(module_id)
+        home_department = self._resolve_module_department(module_id)
 
         agent = None
-        dispatch_station = capability_station
         dispatch_department = capability_department
         is_cross_station = False
 
@@ -4245,7 +4060,6 @@ class BridgeDispatcher:
         #     (used by benchmarks to test each agent individually).
         if prefer_agent and prefer_agent in self._agent_cache:
             agent = self._agent_cache[prefer_agent]
-            dispatch_station = agent.get("station_code", capability_station)
             dispatch_department = agent.get("department", capability_department)
         else:
             # 1b. Department-based routing (primary path)
@@ -4255,117 +4069,51 @@ class BridgeDispatcher:
             )
             if agent:
                 dispatch_department = capability_department
-                dispatch_station = agent.get("station_code") or DEPARTMENT_TO_STATION.get(
-                    capability_department, capability_station
-                )
-            elif home_station:
-                # 1c. Fallback: try home station (legacy path)
-                agent = self._select_agent(
-                    capability, home_station, skip_busy_refresh=_sbr,
+            elif home_department and home_department != capability_department:
+                # 1c. Fallback: try home department
+                agent = self._select_agent_by_department(
+                    capability, home_department, skip_busy_refresh=_sbr,
                     recommended_tier=recommended_tier,
                 )
                 if agent:
-                    dispatch_station = home_station
-                    dispatch_department = agent.get("department", capability_department)
-                else:
-                    # Home station can't handle — fall to capability station
-                    agent = self._select_agent(
-                        capability, capability_station, skip_busy_refresh=_sbr,
-                        recommended_tier=recommended_tier,
-                    )
-                    dispatch_station = capability_station
-                    dispatch_department = agent.get("department", capability_department) if agent else capability_department
-                    is_cross_station = home_station != capability_station
-            else:
-                # 1d. No department match, no home station — try capability station
-                agent = self._select_agent(
-                    capability, capability_station, skip_busy_refresh=_sbr,
-                    recommended_tier=recommended_tier,
-                )
-                dispatch_station = capability_station
-                dispatch_department = agent.get("department", capability_department) if agent else capability_department
+                    dispatch_department = home_department
+                    is_cross_station = True
 
-        station_code = dispatch_station
+        station_code = DEPARTMENT_FLOOR_MAP.get(dispatch_department, "ENGINEERING")
 
-        # 2. Fallback if no agent found — try cross-station, then cloud
-        station_exhausted = False
+        # 2. Fallback if no agent found — try cross-department, then fleet, then cloud
+        department_exhausted = False
         if not agent:
-            station_exhausted = True
-            blocked_station = home_station or capability_station
+            department_exhausted = True
+            blocked_department = home_department or capability_department
 
-            # 2a. Try agents from OTHER worker stations (cross-station dispatch)
-            #     Skip COMMAND — ARCHIE is the commander, not a worker.
+            # 2a. Try agents from OTHER departments (cross-department dispatch)
+            #     Skip Executive Office — ARCHIE is the commander, not a worker.
             #     Only pick agents that actually have the requested skill.
-            #     Enforce max_auxiliary: only 1 cross-station helper per station.
             aux_ok, aux_count, max_aux, aux_reason = self._station_aux_available(
-                blocked_station
+                blocked_department
             )
             if not aux_ok:
                 logger.info(
-                    f"[BridgeDispatcher] {blocked_station} aux blocked: "
-                    f"{aux_reason}. Skipping cross-station → cloud."
+                    f"[BridgeDispatcher] {blocked_department} aux blocked: "
+                    f"{aux_reason}. Skipping cross-department → cloud."
                 )
             else:
-                all_stations = set(
-                    info.get("station_code")
-                    for info in self._agent_cache.values()
-                    if info.get("station_code")
+                cross_dept_agent = self._find_cross_department_agent(
+                    capability, blocked_department
                 )
-                tried_stations = {blocked_station, "COMMAND"}
-                if home_station and capability_station and home_station != capability_station:
-                    tried_stations.add(capability_station)
-
-                for other_station in sorted(all_stations - tried_stations):
-                    # Check each agent at this station for the actual skill
-                    for agent_name_candidate, info in self._agent_cache.items():
-                        if info.get("station_code") != other_station:
-                            continue
-                        # Must have the skill explicitly (not the generous 0.3 default)
-                        if capability not in (info.get("skills") or {}):
-                            continue
-                        # Score the agent normally (checks busy, welfare, budget)
-                        score, block_reason = self._score_agent(
-                            agent_name_candidate, info, capability, other_station
-                        )
-                        if score <= 0:
-                            continue
-
-                        # Found a skilled, available agent at another station
-                        display = self._agent_display(agent_name_candidate)
-
-                        logger.info(
-                            f"[BridgeDispatcher] Cross-station fallback: "
-                            f"{blocked_station} exhausted → {other_station} "
-                            f"({display}) for '{capability}'"
-                        )
-
-                        self._telegram_dispatch_advisory(
-                            advisory_type="cross_station",
-                            module_id=module_id,
-                            home_station=blocked_station,
-                            dispatch_station=other_station,
-                            capability=capability,
-                            agent_name=display,
-                            reason=(
-                                f"All agents at {blocked_station} are busy. "
-                                f"Asking {display} at {other_station} to help."
-                            ),
-                        )
-
-                        agent = info
-                        station_code = other_station
-                        dispatch_station = other_station
-                        is_cross_station = True
-                        station_exhausted = False
-                        break
-                    if agent:
-                        break
+                if cross_dept_agent:
+                    agent = cross_dept_agent
+                    dispatch_department = cross_dept_agent.get("department", capability_department)
+                    station_code = DEPARTMENT_FLOOR_MAP.get(dispatch_department, "ENGINEERING")
+                    is_cross_station = True
+                    department_exhausted = False
 
         # 2b. Fleet node fallback — check remote nodes for available agents
-        if not agent and station_exhausted:
-            blocked_station = home_station or capability_station
+        if not agent and department_exhausted:
+            blocked_department = home_department or capability_department
             fleet_agent = self._find_fleet_agent(
-                blocked_station, capability
+                blocked_department, capability
             )
             if fleet_agent:
                 logger.info(
@@ -4380,7 +4128,7 @@ class BridgeDispatcher:
                     options={"temperature": 0.7},
                     capability=capability,
                     module_id=module_id,
-                    station_code=blocked_station,
+                    station_code=DEPARTMENT_FLOOR_MAP.get(blocked_department, "ENGINEERING"),
                     user_id=user_id,
                     job_id=job_id,
                 )
@@ -4390,12 +4138,12 @@ class BridgeDispatcher:
                     self._telegram_dispatch_advisory(
                         advisory_type="cross_station",
                         module_id=module_id,
-                        home_station=blocked_station,
+                        home_station=blocked_department,
                         dispatch_station=f"FLEET→{fleet_agent['node_name']}",
                         capability=capability,
                         agent_name=fleet_agent["agent_name"],
                         reason=(
-                            f"Hub agents busy at {blocked_station}. "
+                            f"Hub agents busy in {blocked_department}. "
                             f"Dispatched to fleet node "
                             f"{fleet_agent['node_name']}."
                         ),
@@ -4403,7 +4151,7 @@ class BridgeDispatcher:
 
                     # Log capacity event for fleet dispatch
                     self._log_capacity_event(
-                        station_code=blocked_station,
+                        department=blocked_department,
                         event_type="fleet_dispatch",
                         agent_name=fleet_agent["agent_name"],
                         capability=capability,
@@ -4425,7 +4173,7 @@ class BridgeDispatcher:
                         agent_name=fleet_agent["agent_name"],
                         agent_id=None,
                         model_used=fleet_agent["model"],
-                        station_code=blocked_station,
+                        department=blocked_department,
                         capability=capability,
                         duration_ms=duration_ms,
                         prompt_tokens=fleet_result.get("prompt_tokens", 0),
@@ -4435,15 +4183,14 @@ class BridgeDispatcher:
                         provider="fleet_node",
                         metadata={
                             "escalation": "fleet_dispatch",
-                            "blocked_station": blocked_station,
-                            "home_station": home_station,
-                            "dispatch_station": f"FLEET→{fleet_agent['node_name']}",
+                            "blocked_department": blocked_department,
+                            "home_department": home_department,
+                            "department": blocked_department,
                             "is_cross_station": True,
                             "is_remote": True,
                             "node_id": fleet_agent["node_id"],
                             "node_name": fleet_agent["node_name"],
                             "node_hostname": fleet_agent["node_hostname"],
-                            "capability_station": capability_station,
                         },
                     )
                     self._log_execution(
@@ -4456,11 +4203,11 @@ class BridgeDispatcher:
                         f"'{capability}' — falling through to cloud"
                     )
 
-        if not agent and station_exhausted:
-            blocked_station = home_station or capability_station
+        if not agent and department_exhausted:
+            blocked_department = home_department or capability_department
 
-            # 2c. All 3 station slots (Primary + Secondary + Auxiliary) are
-            #     full.  Cloud is the 4th slot — requires Telegram approval.
+            # 2c. Department at capacity — cloud is the fallback.
+            #     Requires Telegram approval.
             routing_mode = "local_only" if local_only else self._get_routing_mode()
             if routing_mode != "local_only":
                 try:
@@ -4469,13 +4216,13 @@ class BridgeDispatcher:
                     busy_names = [
                         self._agent_display(aname)
                         for aname, ainfo in self._agent_cache.items()
-                        if ainfo.get("station_code") == blocked_station
+                        if ainfo.get("department") == blocked_department
                     ]
-                    busy_str = ", ".join(busy_names) or blocked_station
+                    busy_str = ", ".join(busy_names) or blocked_department
 
                     logger.info(
-                        f"[BridgeDispatcher] {blocked_station} at full capacity "
-                        f"(3 slots). Requesting cloud approval via Telegram."
+                        f"[BridgeDispatcher] {blocked_department} at full capacity. "
+                        f"Requesting cloud approval via Telegram."
                     )
                     request_approval(
                         action_type="cloud_throughput_escalation",
@@ -4484,8 +4231,7 @@ class BridgeDispatcher:
                             "busy_job": {
                                 "id": 0,
                                 "description": (
-                                    f"Station {blocked_station} at full capacity "
-                                    f"(Primary + Secondary + Auxiliary filled)"
+                                    f"Department {blocked_department} at full capacity"
                                 ),
                                 "progress_pct": 0,
                             },
@@ -4494,11 +4240,11 @@ class BridgeDispatcher:
                             "capability": capability,
                             "module_id": module_id,
                             "prompt_preview": prompt[:200] if prompt else "",
+                            "department": blocked_department,
                         },
                         reason=(
-                            f"Station {blocked_station} at full capacity "
-                            f"(all 3 slots filled). Approve cloud contractor "
-                            f"for '{capability}'?"
+                            f"Department {blocked_department} at full capacity. "
+                            f"Approve cloud contractor for '{capability}'?"
                         ),
                         requested_by="bridge_dispatcher",
                         tier=2,
@@ -4513,11 +4259,11 @@ class BridgeDispatcher:
                 self._telegram_dispatch_advisory(
                     advisory_type="cross_station",
                     module_id=module_id,
-                    home_station=blocked_station,
+                    home_station=blocked_department,
                     dispatch_station="CLOUD",
                     capability=capability,
                     reason=(
-                        f"All 3 slots at {blocked_station} are filled "
+                        f"Department {blocked_department} at capacity "
                         f"for '{capability}'. Cloud approval requested."
                     ),
                 )
@@ -4527,12 +4273,14 @@ class BridgeDispatcher:
             if routing_mode != "local_only" and escalation_mode == "auto":
                 for cloud_model in self.FREE_CLOUD_MODELS:
                     logger.info(
-                        f"[BridgeDispatcher] Station {blocked_station} exhausted "
+                        f"[BridgeDispatcher] Department {blocked_department} exhausted "
                         f"for '{capability}'. Trying cloud: {cloud_model}"
                     )
                     # Create visible bridge_job for 3D bridge view
                     cloud_job_id = self._create_cloud_job(
-                        cloud_model, "ollama_cloud", blocked_station, capability, module_id
+                        cloud_model, "ollama_cloud",
+                        DEPARTMENT_FLOOR_MAP.get(blocked_department, "ENGINEERING"),
+                        capability, module_id
                     )
                     llm_result = self._execute_llm(
                         model=cloud_model,
@@ -4548,14 +4296,14 @@ class BridgeDispatcher:
                             advisory_type="free_cloud",
                             module_id=module_id,
                             capability=capability,
-                            home_station=blocked_station,
+                            home_station=blocked_department,
                             cloud_model=cloud_model,
                             cloud_provider="ollama_cloud",
-                            reason=f"Station {blocked_station} at capacity",
+                            reason=f"Department {blocked_department} at capacity",
                         )
                         # ── Capacity event: cloud contractor (ADR-055) ──
                         self._log_capacity_event(
-                            station_code=blocked_station,
+                            department=blocked_department,
                             event_type="cloud_contractor",
                             agent_name=f"CLOUD→{cloud_model}",
                             capability=capability,
@@ -4571,22 +4319,21 @@ class BridgeDispatcher:
                             agent_name=f"CLOUD→{cloud_model}",
                             agent_id=None,
                             model_used=cloud_model,
-                            station_code=blocked_station,
+                            department=blocked_department,
                             capability=capability,
                             duration_ms=duration_ms,
                             prompt_tokens=llm_result.get("prompt_tokens", 0),
                             completion_tokens=llm_result.get("completion_tokens", 0),
                             provider="ollama_cloud",
                             metadata={
-                                "escalation": "station_exhausted_cloud",
-                                "blocked_station": blocked_station,
-                                "home_station": home_station,
-                                "dispatch_station": "CLOUD",
+                                "escalation": "department_exhausted_cloud",
+                                "blocked_department": blocked_department,
+                                "home_department": home_department,
+                                "department": blocked_department,
                                 "is_cross_station": True,
                                 "is_cloud": True,
                                 "cloud_model": cloud_model,
                                 "cloud_provider": "ollama_cloud",
-                                "capability_station": capability_station,
                             },
                         )
                         self._log_execution(result, module_id, user_id, job_id=job_id)
@@ -4611,9 +4358,9 @@ class BridgeDispatcher:
                         busy_names = [
                             self._agent_display(aname)
                             for aname, ainfo in self._agent_cache.items()
-                            if ainfo.get("station_code") == blocked_station
+                            if ainfo.get("department") == blocked_department
                         ]
-                        busy_str = ", ".join(busy_names) or blocked_station
+                        busy_str = ", ".join(busy_names) or blocked_department
 
                         request_approval(
                             action_type="cloud_throughput_escalation",
@@ -4621,7 +4368,7 @@ class BridgeDispatcher:
                                 "original_agent": busy_str,
                                 "busy_job": {
                                     "id": 0,
-                                    "description": f"All agents at {blocked_station} busy",
+                                    "description": f"All agents in {blocked_department} busy",
                                     "progress_pct": 0,
                                 },
                                 "escalated_model": next_tier["model"],
@@ -4629,9 +4376,10 @@ class BridgeDispatcher:
                                 "capability": capability,
                                 "module_id": module_id,
                                 "prompt_preview": prompt[:200],
+                                "department": blocked_department,
                             },
                             reason=(
-                                f"All agents at {blocked_station} busy, "
+                                f"All agents in {blocked_department} busy, "
                                 f"free cloud failed. "
                                 f"Escalate to {next_tier['model']}?"
                             ),
@@ -4642,7 +4390,7 @@ class BridgeDispatcher:
                             advisory_type="paid_cloud",
                             module_id=module_id,
                             capability=capability,
-                            home_station=blocked_station,
+                            home_station=blocked_department,
                             cloud_model=next_tier["model"],
                             cloud_provider=next_tier.get("provider", "external"),
                         )
@@ -4655,10 +4403,10 @@ class BridgeDispatcher:
             try:
                 self._request_agent_creation(
                     capability=capability,
-                    station_code=blocked_station,
+                    station_code=DEPARTMENT_FLOOR_MAP.get(blocked_department, "ENGINEERING"),
                     reason=(
                         f"No available agent for capability='{capability}' "
-                        f"at station='{blocked_station}' "
+                        f"in department='{blocked_department}' "
                         f"(module={module_id})"
                     ),
                 )
@@ -4669,7 +4417,7 @@ class BridgeDispatcher:
 
             logger.warning(
                 f"[BridgeDispatcher] No agent for capability='{capability}' "
-                f"station='{blocked_station}', cloud unavailable, falling back to COMMAND"
+                f"department='{blocked_department}', cloud unavailable, falling back to Executive Office"
             )
             agent = self._agent_cache.get(
                 "ARCHIE",
@@ -4678,11 +4426,11 @@ class BridgeDispatcher:
                     "model": "dolphin3-8k:latest",
                     "system_prompt": None,
                     "temperature": 0.5,
-                    "station_code": "COMMAND",
+                    "department": "Executive Office",
                 },
             )
-            station_code = "COMMAND"
-            dispatch_station = "COMMAND"
+            station_code = "BRIDGE"
+            dispatch_department = "Executive Office"
 
         # 2f. Fleet: if selected agent is on a remote node, dispatch via mesh
         if agent and agent.get("is_remote"):
@@ -4719,17 +4467,17 @@ class BridgeDispatcher:
 
         logger.info(
             f"[BridgeDispatcher] Dispatching: capability='{capability}' → "
-            f"agent='{agent_name}' model='{model}' station='{station_code}' "
+            f"agent='{agent_name}' model='{model}' department='{dispatch_department}' "
             f"module='{module_id}' proficiency=Lv{proficiency_level}"
         )
 
-        # 3a. Cross-station Telegram advisory
-        if is_cross_station and home_station:
+        # 3a. Cross-department Telegram advisory
+        if is_cross_station and home_department:
             self._telegram_dispatch_advisory(
                 advisory_type="cross_station",
                 module_id=module_id,
-                home_station=home_station,
-                dispatch_station=dispatch_station,
+                home_station=home_department,
+                dispatch_station=dispatch_department,
                 capability=capability,
                 agent_name=agent_name,
             )
@@ -4764,7 +4512,7 @@ class BridgeDispatcher:
                 agent_name=agent_name,
                 agent_id=agent.get("id"),
                 model_used=model,
-                station_code=station_code,
+                department=dispatch_department,
                 capability=capability,
                 error=f"Blocked: routing_mode=local_only, model={model} is cloud/external",
             )
@@ -4780,7 +4528,7 @@ class BridgeDispatcher:
                 agent_name=agent_name,
                 agent_id=agent.get("id"),
                 model_used=model,
-                station_code=station_code,
+                department=dispatch_department,
                 capability=capability,
                 error=f"Blocked: routing_mode=local_cloud, model={model} is paid external",
             )
@@ -5004,11 +4752,11 @@ class BridgeDispatcher:
         result_metadata = {
             "module_id": module_id,
             "priority": priority,
-            "home_station": agent.get("station_code") if agent and is_cross_station else home_station,
+            "home_station": agent.get("department") if agent and is_cross_station else home_station,
             "dispatch_station": home_station if is_cross_station else dispatch_station,
             "is_cross_station": is_cross_station,
             "capability_station": capability_station,
-            "agent_station": agent.get("station_code") if agent else None,
+            "agent_department": agent.get("department") if agent else None,
             "module_station": home_station,
             # Department routing metadata (Phase 2.2)
             "department": dispatch_department,
@@ -5134,7 +4882,7 @@ class BridgeDispatcher:
         Used by modules that need to know which model will handle their work
         (e.g., chat modules that use archie_bridge for conversation context).
         """
-        station_code = CAPABILITY_STATION_MAP.get(capability, "COMMAND")
+        station_code = CAPABILITY_DEPARTMENT_MAP.get(capability, "Engineering & Technology")
         agent = self._select_agent(capability, station_code)
         if agent:
             return agent.get("model", "")
@@ -5154,7 +4902,7 @@ class BridgeDispatcher:
         Log an AI call that happened outside the dispatcher (e.g., via archie_bridge).
         Ensures all AI activity appears in task_execution_log for HR tracking.
         """
-        station_code = CAPABILITY_STATION_MAP.get(capability, "COMMAND")
+        station_code = CAPABILITY_DEPARTMENT_MAP.get(capability, "Engineering & Technology")
         agent = self._select_agent(capability, station_code)
         agent_name = "ARCHIE"
         agent_id = 2
@@ -5480,7 +5228,7 @@ class BridgeDispatcher:
             # fall back to station routing for backward compatibility
             cap_key = capability or job_type.split("_")[0]
             capability_dept = self._resolve_department(cap_key)
-            capability_station = self._resolve_station(cap_key)
+            capability_station = self._resolve_department(cap_key)
 
             agent = None
             dispatch_station = capability_station
@@ -5490,7 +5238,7 @@ class BridgeDispatcher:
             agent = self._select_agent_by_department(cap_key, capability_dept)
             if not agent:
                 # Fallback to station routing
-                home_station = self._resolve_module_station(module_source)
+                home_station = self._resolve_module_department(module_source)
                 if home_station:
                     agent = self._select_agent(cap_key, home_station)
                     if agent:
@@ -5527,56 +5275,36 @@ class BridgeDispatcher:
                     logger.info(
                         f"[BridgeDispatcher] create_job: {blocked_station} "
                         f"aux blocked: {aux_reason}. "
-                        f"Skipping cross-station → cloud approval."
+                        f"Skipping cross-department → cloud approval."
                     )
                 else:
-                    all_stations = set(
-                        info.get("station_code")
-                        for info in self._agent_cache.values()
-                        if info.get("station_code")
+                    # Try cross-department dispatch
+                    cross_agent = self._find_cross_department_agent(
+                        cap_key, blocked_station
                     )
-                    tried_stations = {blocked_station, "COMMAND"}
-                    if (
-                        home_station
-                        and capability_station
-                        and home_station != capability_station
-                    ):
-                        tried_stations.add(capability_station)
-
-                    for other_station in sorted(all_stations - tried_stations):
-                        for agent_name_candidate, info in self._agent_cache.items():
-                            if info.get("station_code") != other_station:
-                                continue
-                            if cap_key not in (info.get("skills") or {}):
-                                continue
-                            score, _block = self._score_agent(
-                                agent_name_candidate, info, cap_key, other_station
-                            )
-                            if score <= 0:
-                                continue
-
-                            agent = info
-                            agent_name = agent_name_candidate
-                            station_code = other_station
-                            dispatch_station = other_station
-                            is_cross_station = True
-                            logger.info(
-                                f"[BridgeDispatcher] create_job cross-station: "
-                                f"{blocked_station} → {other_station} "
-                                f"({self._agent_display(agent_name_candidate)}) "
-                                f"for '{cap_key}'"
-                            )
-                            break
-                        if agent:
-                            break
+                    if cross_agent:
+                        agent = cross_agent
+                        for aname, ainfo in self._agent_cache.items():
+                            if ainfo.get("id") == cross_agent.get("id"):
+                                agent_name = aname
+                                break
+                        other_dept = cross_agent.get("department", blocked_station)
+                        station_code = DEPARTMENT_FLOOR_MAP.get(other_dept, "ENGINEERING")
+                        dispatch_station = other_dept
+                        is_cross_station = True
+                        logger.info(
+                            f"[BridgeDispatcher] create_job cross-department: "
+                            f"{blocked_station} → {other_dept} "
+                            f"({self._agent_display(agent_name)}) "
+                            f"for '{cap_key}'"
+                        )
 
             if not agent_name:
-                # All 3 station slots (Primary + Secondary + Auxiliary) are
-                # full.  Request cloud approval via Telegram and REJECT the
-                # job so no orphan (agentless) jobs are created.
-                blocked_station = home_station or capability_station
+                # Department at capacity — request cloud approval via Telegram
+                # and REJECT the job so no orphan (agentless) jobs are created.
+                blocked_dept = home_station or capability_station
                 logger.info(
-                    f"[BridgeDispatcher] create_job: {blocked_station} at "
+                    f"[BridgeDispatcher] create_job: {blocked_dept} at "
                     f"full capacity for '{cap_key}'. Requesting cloud approval."
                 )
 
@@ -5586,9 +5314,9 @@ class BridgeDispatcher:
                     busy_names = [
                         self._agent_display(aname)
                         for aname, ainfo in self._agent_cache.items()
-                        if ainfo.get("station_code") == blocked_station
+                        if ainfo.get("department") == blocked_dept
                     ]
-                    busy_str = ", ".join(busy_names) or blocked_station
+                    busy_str = ", ".join(busy_names) or blocked_dept
 
                     request_approval(
                         action_type="cloud_throughput_escalation",
@@ -5597,8 +5325,7 @@ class BridgeDispatcher:
                             "busy_job": {
                                 "id": 0,
                                 "description": (
-                                    f"Station {blocked_station} at full capacity "
-                                    f"(Primary + Secondary + Auxiliary filled). "
+                                    f"Department {blocked_dept} at full capacity. "
                                     f"Job: {description or job_type}"
                                 ),
                                 "progress_pct": 0,
@@ -5607,9 +5334,10 @@ class BridgeDispatcher:
                             "escalated_provider": "ollama_cloud",
                             "capability": cap_key,
                             "module_id": module_source,
+                            "department": blocked_dept,
                         },
                         reason=(
-                            f"Station {blocked_station} at full capacity. "
+                            f"Department {blocked_dept} at full capacity. "
                             f"Approve cloud for '{cap_key}' "
                             f"({description or job_type})?"
                         ),
@@ -5640,7 +5368,7 @@ class BridgeDispatcher:
 
             # Enrich metadata with dispatch info
             # agent_station = the agent's actual home station (for visual shading)
-            agent_home = agent.get("station_code") if agent else None
+            agent_home = agent.get("department") if agent else None
             enriched_meta = dict(metadata or {})
             enriched_meta["home_station"] = agent_home or home_station
             enriched_meta["dispatch_station"] = home_station if is_cross_station else dispatch_station
@@ -6010,7 +5738,7 @@ class BridgeDispatcher:
                     if a_name and a_name in self._agent_cache:
                         agent_id = self._agent_cache[a_name].get("id")
                     cap_key = j_type.split("_")[0] if j_type else "batch"
-                    station_code = CAPABILITY_STATION_MAP.get(cap_key, "COMMAND")
+                    station_code = CAPABILITY_DEPARTMENT_MAP.get(cap_key, "Engineering & Technology")
                     batch_result = DispatchResult(
                         success=(status == "completed"),
                         response=f"Batch job #{job_id}: {desc}",
@@ -6250,36 +5978,33 @@ class BridgeDispatcher:
             gpu_vram = float(node["gpu_vram_gb"] or 0)
             ram_gb = float(node["ram_gb"] or 0)
 
-            # 2. Get station codes for this node
-            cur.execute(
-                """
-                SELECT bs.station_code
-                FROM node_station_assignments nsa
-                JOIN bridge_stations bs ON bs.id = nsa.station_id
-                WHERE nsa.node_id = %s AND nsa.is_active = TRUE
-                ORDER BY bs.station_code
-                """,
-                (node_db_id,),
-            )
-            node_stations = [r["station_code"] for r in cur.fetchall()]
-            if not node_stations:
-                logger.warning(
-                    "assign_agents_to_node: node %s has no station assignments",
-                    node_db_id,
+            # 2. Get departments for this node (from node_station_assignments if available, else all)
+            node_departments = []
+            try:
+                cur.execute(
+                    """
+                    SELECT bs.station_code
+                    FROM node_station_assignments nsa
+                    JOIN bridge_stations bs ON bs.id = nsa.station_id
+                    WHERE nsa.node_id = %s AND nsa.is_active = TRUE
+                    ORDER BY bs.station_code
+                    """,
+                    (node_db_id,),
                 )
-                return []
+                node_departments = [r["station_code"] for r in cur.fetchall()]
+            except Exception:
+                pass  # node_station_assignments may not exist yet
+            if not node_departments:
+                # Default: accept agents from all departments
+                node_departments = list(DEPARTMENT_FLOOR_MAP.keys())
 
             # 3. Find barracked agents NOT already on this node, with real model names
             cur.execute(
                 """
                 SELECT a.id, a.name, a.first_name, a.last_name,
                        a.display_name, a.title, a.model, a.gpu_tools,
-                       ARRAY_AGG(DISTINCT bs.station_code) FILTER (
-                           WHERE bs.station_code IS NOT NULL
-                       ) as station_codes
+                       a.department
                 FROM agents a
-                LEFT JOIN station_assignments sa ON sa.agent_id = a.id AND sa.is_active = TRUE
-                LEFT JOIN bridge_stations bs ON bs.id = sa.station_id
                 WHERE a.shift_state = 'barracked'
                   AND a.status = 'active'
                   AND (a.model LIKE '%%:%%' OR a.model LIKE '%%/%%')
@@ -6287,7 +6012,6 @@ class BridgeDispatcher:
                       SELECT hub_agent_id FROM node_agents
                       WHERE node_id = %s AND hub_agent_id IS NOT NULL
                   )
-                GROUP BY a.id
                 ORDER BY a.name
                 """,
                 (node_db_id,),
@@ -6327,37 +6051,35 @@ class BridgeDispatcher:
             candidates.sort(key=_score_agent, reverse=True)
 
             # 5. Build station allocation: COMMAND gets max 1, others get max 2
-            station_slots = {}
-            for sc in node_stations:
-                station_slots[sc] = 1 if sc == "COMMAND" else 2
+            # Use department-based slots (2 per department, 1 for Executive Office)
+            dept_slots = {}
+            for dept in node_departments:
+                dept_slots[dept] = 1 if dept == "Executive Office" else 2
 
-            # 6. Assign agents up to max_agents, distributing across stations
+            # 6. Assign agents up to max_agents, distributing across departments
             assigned = []
-            station_fill = {sc: 0 for sc in node_stations}
+            dept_fill = {d: 0 for d in node_departments}
 
             for agent in candidates:
                 if len(assigned) >= max_agents:
                     break
 
-                # Pick best station for this agent
-                agent_stations = agent["station_codes"] or []
+                # Pick best department for this agent
+                agent_dept = agent.get("department", "Engineering & Technology")
                 target_station = None
 
-                # Prefer a station the agent is already assigned to on the hub
-                for sc in agent_stations:
-                    if sc in station_slots and station_fill.get(sc, 0) < station_slots[sc]:
-                        target_station = sc
-                        break
-
-                # Fall back to any node station with capacity
-                if not target_station:
-                    for sc in node_stations:
-                        if station_fill.get(sc, 0) < station_slots[sc]:
-                            target_station = sc
+                # Prefer the agent's own department
+                if agent_dept in dept_slots and dept_fill.get(agent_dept, 0) < dept_slots.get(agent_dept, 2):
+                    target_station = agent_dept
+                else:
+                    # Fall back to any department with capacity
+                    for d in node_departments:
+                        if dept_fill.get(d, 0) < dept_slots.get(d, 2):
+                            target_station = d
                             break
 
                 if not target_station:
-                    # All stations full
+                    # All departments full
                     continue
 
                 # INSERT into node_agents
@@ -6389,7 +6111,7 @@ class BridgeDispatcher:
                         json.dumps(agent["gpu_tools"] or []),
                     ),
                 )
-                station_fill[target_station] += 1
+                dept_fill[target_station] = dept_fill.get(target_station, 0) + 1
                 assigned.append(agent["name"])
                 logger.info(
                     "Assigned barracked agent %s (model=%s) to node %s station %s",
@@ -6453,7 +6175,7 @@ class BridgeDispatcher:
         """
         Build a live roster of every agent's real-time status.
 
-        Joins: agents, station_assignments, agent_emotional_state,
+        Joins: agents, agent_emotional_state,
                bridge_jobs (running), task_execution_log (24h), knowledge_base.
         """
         self._refresh_agent_cache()
@@ -6598,24 +6320,19 @@ class BridgeDispatcher:
             except Exception as _exc:
                 pass
 
-            # Station codes per agent (array from station_assignments)
-            station_codes_map = {}  # agent_id → [station_code, ...]
+            # Station codes per agent (derived from department → floor mapping)
+            station_codes_map = {}  # agent_id → [floor_code, ...]
             try:
                 sc_conn = self._get_db()
                 sc_cur = sc_conn.cursor(cursor_factory=RealDictCursor)
                 sc_cur.execute("""
-                    SELECT sa.agent_id, bs.station_code
-                    FROM station_assignments sa
-                    JOIN bridge_stations bs ON bs.id = sa.station_id
-                    WHERE sa.is_active = true
-                    ORDER BY sa.agent_id, bs.station_code
+                    SELECT id, department FROM agents WHERE status = 'active'
                 """)
                 for r in sc_cur.fetchall():
-                    aid = r["agent_id"]
-                    if aid not in station_codes_map:
-                        station_codes_map[aid] = []
-                    if r["station_code"] not in station_codes_map[aid]:
-                        station_codes_map[aid].append(r["station_code"])
+                    aid = r["id"]
+                    dept = r.get("department", "Engineering & Technology")
+                    floor = DEPARTMENT_FLOOR_MAP.get(dept, "ENGINEERING")
+                    station_codes_map[aid] = [floor]
                 sc_cur.close()
                 sc_conn.close()
             except Exception as sc_err:
@@ -6755,10 +6472,8 @@ class BridgeDispatcher:
                         "title": info.get("title", ""),
                         "id": agent_id,
                         "agent_id": agent_id,
-                        "station": info.get("station_code", "COMMAND"),
-                        "department": info.get("department", STATION_TO_DEPARTMENT.get(
-                            info.get("station_code", "COMMAND"), "Executive Office"
-                        )),
+                        "station": DEPARTMENT_FLOOR_MAP.get(info.get("department", "Engineering & Technology"), "ENGINEERING"),
+                        "department": info.get("department", "Engineering & Technology"),
                         "is_department_ai": info.get("is_department_ai", False),
                         "station_codes": station_codes_map.get(agent_id, []),
                         "shift_state": _shift,
@@ -6805,15 +6520,15 @@ class BridgeDispatcher:
             return []
 
     def get_dispatch_status(self) -> Dict:
-        """Get current dispatch status for all stations (Phase 6: Bridge Command)."""
+        """Get current dispatch status for all departments (Phase 6: Bridge Command)."""
         self._refresh_agent_cache()
 
-        stations = {}
+        departments = {}
         for name, info in self._agent_cache.items():
-            sc = info["station_code"]
-            if sc not in stations:
-                stations[sc] = {"agents": [], "active": True}
-            stations[sc]["agents"].append(
+            dept = info.get("department", "Engineering & Technology")
+            if dept not in departments:
+                departments[dept] = {"agents": [], "active": True}
+            departments[dept]["agents"].append(
                 {
                     "name": name,
                     "id": info["id"],
@@ -6824,8 +6539,11 @@ class BridgeDispatcher:
 
         return {
             "total_agents": len(self._agent_cache),
-            "total_stations": len(stations),
-            "stations": stations,
+            "total_departments": len(departments),
+            "departments": departments,
+            # Backward compat
+            "total_stations": len(departments),
+            "stations": departments,
         }
 
     # ========================================================================
@@ -6845,10 +6563,10 @@ class BridgeDispatcher:
         try:
             import requests
 
-            # Find the right station for this capability
-            station = self._resolve_station(capability)
+            # Find the right department for this capability
+            department = self._resolve_department(capability)
 
-            # Get an active agent model for this station
+            # Get an active agent model for this department
             from database import get_db_cursor
             from psycopg2.extras import RealDictCursor
 
@@ -6858,14 +6576,12 @@ class BridgeDispatcher:
                 cur.execute(
                     """
                     SELECT a.model FROM agents a
-                    JOIN station_assignments sa ON sa.agent_id = a.id
-                    JOIN bridge_stations bs ON bs.id = sa.station_id
-                    WHERE bs.station_code = %s
-                      AND sa.is_active = true
+                    WHERE a.department = %s
+                      AND a.status = 'active'
                       AND a.shift_state = 'active'
                     LIMIT 1
                     """,
-                    (station,),
+                    (department,),
                 )
                 row = cur.fetchone()
                 if row:
@@ -6874,7 +6590,7 @@ class BridgeDispatcher:
             if not model:
                 return {
                     "success": False,
-                    "error": f"No available agent for capability={capability} (station={station})",
+                    "error": f"No available agent for capability={capability} (department={department})",
                 }
 
             # Route through Bridge call_ollama (ADR-013 compliance)

@@ -723,10 +723,10 @@ class AgentLoop:
             replace_existing=True,
         )
 
-        # Job #58 — Automated Module Audit (weekly Sunday 3:30 AM, after Job #40 snapshot)
+        # Job #58 — Automated Module Audit (daily 3:30 AM, after Job #40 snapshot)
         self.scheduler.add_job(
             with_app_context(self._automated_module_audit),
-            trigger=CronTrigger(day_of_week="sun", hour=3, minute=30),
+            trigger=CronTrigger(hour=3, minute=30),
             id="agent_automated_module_audit",
             name="Agent Loop: Automated Module Audit",
             replace_existing=True,

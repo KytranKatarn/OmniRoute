@@ -724,7 +724,7 @@ def dispatch_audit_proposals(limit=20):
                  AND (metadata->>'dispatch_attempted') IS NULL
                ORDER BY
                  CASE WHEN priority = 'critical' THEN 0 ELSE 1 END,
-                 created_at ASC
+                 proposed_at ASC
                LIMIT %s""",
             (limit,),
         )

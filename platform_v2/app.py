@@ -2193,7 +2193,7 @@ def _warmup_i18n_keys():
     def _do_scan():
         try:
             with app.app_context():
-                from tools.consciousness.routes import scan_and_seed_keys
+                from tools.consciousness.language_routes import scan_and_seed_keys
 
                 result = scan_and_seed_keys()
                 if result["seeded"] > 0:

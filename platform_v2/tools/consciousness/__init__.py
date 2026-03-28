@@ -28,6 +28,8 @@ from .insights_routes import register_insights_routes  # noqa: E402
 from .github_routes import register_github_routes  # noqa: E402
 from .integration_routes import register_integration_routes  # noqa: E402
 from .code_health_routes import register_code_health_routes  # noqa: E402
+from .dashboard_routes import register_dashboard_routes  # noqa: E402
+from .language_routes import register_language_routes  # noqa: E402
 
 # Register processing routes as nested blueprint
 consciousness_bp.register_blueprint(processing_bp)
@@ -48,6 +50,12 @@ register_integration_routes(consciousness_bp, admin_required)
 
 # Register code health routes (metrics, audit progress)
 register_code_health_routes(consciousness_bp, admin_required)
+
+# Register dashboard routes (summary API)
+register_dashboard_routes(consciousness_bp, admin_required)
+
+# Register language/translation routes
+register_language_routes(consciousness_bp, admin_required)
 
 # Loop startup moved to Autonomy module (2026-03-23)
 # See: tools/autonomy/__init__.py

@@ -4051,6 +4051,9 @@ class BridgeDispatcher:
 
         agent = None
         dispatch_department = capability_department
+        home_station = home_department or capability_department
+        dispatch_station = capability_department
+        capability_station = capability_department
         is_cross_station = False
 
         # skip_busy_refresh=True: request_work() already set _busy_agents

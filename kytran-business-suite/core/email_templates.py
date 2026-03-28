@@ -35,18 +35,19 @@ def render_invoice_email(
     </p>
     <p>
       <strong>Amount Due:</strong>
-      <span style="color:#00e5ff;font-size:28px;font-weight:bold;">{total}</span>
+      <span style="color:#00e5ff;font-size:28px;font-weight:bold;">${float(total):.2f}</span>
     </p>
     <p><strong>Due Date:</strong> <strong>{due_date}</strong></p>
     <p style="margin-top:24px;color:#a0a0c0;">Thank you for your business.</p>
     """
     html = _base_html(f"Invoice {invoice_number}", body)
+    formatted_total = f"${float(total):.2f}"
     text = (
         f"{business_name}\n\n"
         f"Dear {customer_name},\n\n"
         f"Your invoice has been created and is ready for review.\n\n"
         f"Invoice Number: {invoice_number}\n"
-        f"Amount Due: {total}\n"
+        f"Amount Due: {formatted_total}\n"
         f"Due Date: {due_date}\n\n"
         f"Thank you for your business."
     )

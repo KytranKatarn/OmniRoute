@@ -1,13 +1,17 @@
 """Invoicing plugin routes — invoice CRUD, payments, line items, stats."""
 
 import logging
+from datetime import datetime
 
-from flask import g, jsonify, render_template, request
+from flask import Response, g, jsonify, render_template, request
 from flask_login import login_required
 from psycopg2.extras import Json
 
 from core.database import get_db_cursor, set_tenant_search_path
+from core.email_templates import render_invoice_email
 from core.event_bus import event_bus
+from core.mail_client import send_email
+from core.pdf_generator import generate_invoice_pdf
 from core.tenant import require_module
 
 logger = logging.getLogger(__name__)
@@ -276,30 +280,135 @@ def register_routes(bp):
     # Actions
     # ------------------------------------------------------------------
 
-    @bp.route("/api/invoices/<int:invoice_id>/send", methods=["POST"])
+    @bp.route("/api/invoices/<int:invoice_id>/pdf", methods=["GET"])
     @login_required
     @require_module("invoicing")
-    def send_invoice(invoice_id):
-        with get_db_cursor(commit=True, dict_cursor=True) as (conn, cur):
+    def download_invoice_pdf(invoice_id):
+        with get_db_cursor(commit=False, dict_cursor=True) as (conn, cur):
             set_tenant_search_path(cur, g.tenant_id)
             cur.execute(
-                "UPDATE invoices SET status = 'sent', updated_at = NOW() WHERE id = %s RETURNING *",
+                """
+                SELECT i.*, c.name AS customer_name, c.email AS customer_email
+                FROM invoices i
+                LEFT JOIN crm_customers c ON c.id = i.customer_id
+                WHERE i.id = %s
+                """,
                 (invoice_id,),
             )
             invoice = cur.fetchone()
             if not invoice:
                 return jsonify({"error": "Invoice not found"}), 404
 
+            cur.execute(
+                "SELECT * FROM invoice_items WHERE invoice_id = %s ORDER BY id",
+                (invoice_id,),
+            )
+            items = cur.fetchall()
+
+            cur.execute("SELECT * FROM invoice_settings ORDER BY id LIMIT 1")
+            settings = cur.fetchone() or {}
+
+        invoice_data = dict(invoice)
+        invoice_data["items"] = [dict(i) for i in items]
+
+        business = {
+            "name": settings.get("business_name", ""),
+            "email": settings.get("business_email", ""),
+            "phone": settings.get("business_phone", ""),
+            "address": settings.get("business_address", ""),
+        }
+
+        pdf_bytes = generate_invoice_pdf(invoice_data, business)
+        inv_num = invoice_data.get("invoice_number", f"invoice-{invoice_id}")
+        return Response(
+            pdf_bytes,
+            mimetype="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{inv_num}.pdf"'},
+        )
+
+    @bp.route("/api/invoices/<int:invoice_id>/send", methods=["POST"])
+    @login_required
+    @require_module("invoicing")
+    def send_invoice(invoice_id):
+        with get_db_cursor(commit=True, dict_cursor=True) as (conn, cur):
+            set_tenant_search_path(cur, g.tenant_id)
+
+            cur.execute(
+                """
+                SELECT i.*, c.name AS customer_name, c.email AS customer_email
+                FROM invoices i
+                LEFT JOIN crm_customers c ON c.id = i.customer_id
+                WHERE i.id = %s
+                """,
+                (invoice_id,),
+            )
+            invoice = cur.fetchone()
+            if not invoice:
+                return jsonify({"error": "Invoice not found"}), 404
+
+            customer_email = invoice.get("customer_email")
+            if not customer_email:
+                return jsonify({"error": "Customer has no email address"}), 400
+
+            cur.execute(
+                "SELECT * FROM invoice_items WHERE invoice_id = %s ORDER BY id",
+                (invoice_id,),
+            )
+            items = cur.fetchall()
+
+            cur.execute("SELECT * FROM invoice_settings ORDER BY id LIMIT 1")
+            settings = cur.fetchone() or {}
+
+            cur.execute(
+                "UPDATE invoices SET status = 'sent', sent_at = NOW(), updated_at = NOW() WHERE id = %s RETURNING *",
+                (invoice_id,),
+            )
+            updated = cur.fetchone()
+
+        # Format due_date for display
+        due_date_raw = invoice.get("due_date")
+        if due_date_raw:
+            try:
+                if hasattr(due_date_raw, "strftime"):
+                    due_date_str = due_date_raw.strftime("%B %d, %Y")
+                else:
+                    due_date_str = datetime.strptime(str(due_date_raw), "%Y-%m-%d").strftime("%B %d, %Y")
+            except (ValueError, TypeError):
+                due_date_str = str(due_date_raw)
+        else:
+            due_date_str = "N/A"
+
+        business_name = settings.get("business_name") or "Kytran Business Suite"
+        total = float(invoice.get("total") or 0)
+
+        html_body, text_body = render_invoice_email(
+            invoice_number=invoice.get("invoice_number", ""),
+            customer_name=invoice.get("customer_name", ""),
+            total=total,
+            due_date=due_date_str,
+            business_name=business_name,
+        )
+
+        try:
+            send_email(
+                to=customer_email,
+                subject=f"Invoice {invoice.get('invoice_number', '')} from {business_name}",
+                body=text_body,
+                html_body=html_body,
+            )
+        except Exception:
+            logger.exception("Failed to send invoice email for invoice %s", invoice_id)
+
         event_bus.emit(
             "invoice.sent",
             {
                 "invoice_id": invoice_id,
                 "customer_id": invoice.get("customer_id"),
-                "total": float(invoice.get("total", 0)),
+                "total": total,
             },
             tenant_id=g.tenant_id,
         )
-        return jsonify(invoice)
+        return jsonify(updated)
 
     @bp.route("/api/invoices/<int:invoice_id>/mark-paid", methods=["POST"])
     @login_required

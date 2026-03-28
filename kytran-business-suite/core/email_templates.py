@@ -130,3 +130,96 @@ def render_ticket_updated_email(
         f"Thank you for contacting {business_name} Support."
     )
     return html, text
+
+
+def render_appointment_confirmation_email(
+    customer_name: str,
+    service_name: str,
+    appointment_date: str,
+    appointment_time: str,
+    duration_minutes: int,
+    business_name: str,
+    booking_slug: str,
+    cancel_token: str | None = None,
+) -> tuple[str, str]:
+    """Render appointment booking confirmation email. Returns (html, plain_text)."""
+    cancel_section_html = ""
+    cancel_section_text = ""
+    if cancel_token:
+        cancel_section_html = f"""
+  <p style="margin-top: 20px;">
+    Need to cancel?
+    <a href="https://book.kytranempowerment.com/{booking_slug}/cancel?token={cancel_token}"
+       style="color: #ef4444;">Cancel this appointment</a>
+  </p>"""
+        cancel_section_text = (
+            f"\nNeed to cancel? Visit: "
+            f"https://book.kytranempowerment.com/{booking_slug}/cancel?token={cancel_token}"
+        )
+
+    body = f"""
+    <div class="header" style="color:#00e5ff;font-size:24px;font-weight:bold;margin-bottom:20px;">{business_name}</div>
+    <p>Hi {customer_name},</p>
+    <p>Your appointment has been <span style="color:#00e5ff;font-weight:bold;">confirmed</span>!</p>
+    <div style="background:#0d0d1a;border-radius:6px;padding:16px;margin:20px 0;border-left:3px solid #00e5ff;">
+      <div style="margin:8px 0;"><span style="color:#888;display:inline-block;width:100px;">Service:</span> <strong>{service_name}</strong></div>
+      <div style="margin:8px 0;"><span style="color:#888;display:inline-block;width:100px;">Date:</span> <strong>{appointment_date}</strong></div>
+      <div style="margin:8px 0;"><span style="color:#888;display:inline-block;width:100px;">Time:</span> <strong>{appointment_time}</strong></div>
+      <div style="margin:8px 0;"><span style="color:#888;display:inline-block;width:100px;">Duration:</span> <strong>{duration_minutes} minutes</strong></div>
+    </div>
+    <p>We look forward to seeing you!</p>{cancel_section_html}
+    <p style="margin-top:30px;padding-top:20px;border-top:1px solid #333;font-size:12px;color:#888;">Booked via {business_name}</p>
+    """
+    html = _base_html(f"Appointment Confirmed — {service_name}", body)
+    text = (
+        f"Hi {customer_name},\n\n"
+        f"Your appointment has been confirmed!\n\n"
+        f"Service:  {service_name}\n"
+        f"Date:     {appointment_date}\n"
+        f"Time:     {appointment_time}\n"
+        f"Duration: {duration_minutes} minutes\n\n"
+        f"We look forward to seeing you!\n"
+        f"{cancel_section_text}\n"
+        f"— {business_name}"
+    )
+    return html, text
+
+
+def render_appointment_reminder_email(
+    customer_name: str,
+    service_name: str,
+    appointment_date: str,
+    appointment_time: str,
+    duration_minutes: int,
+    business_name: str,
+    hours_until: int,
+) -> tuple[str, str]:
+    """Render appointment reminder email. Returns (html, plain_text)."""
+    hour_word = "hour" if hours_until == 1 else "hours"
+
+    body = f"""
+    <div class="header" style="color:#00e5ff;font-size:24px;font-weight:bold;margin-bottom:20px;">{business_name}</div>
+    <div style="display:inline-block;background:#fbbf24;color:#0d0d1a;padding:4px 12px;border-radius:4px;font-weight:bold;font-size:14px;margin-bottom:16px;">Reminder: {hours_until} {hour_word} away</div>
+    <p>Hi {customer_name},</p>
+    <p>This is a friendly reminder about your upcoming appointment:</p>
+    <div style="background:#0d0d1a;border-radius:6px;padding:16px;margin:20px 0;border-left:3px solid #fbbf24;">
+      <div style="margin:8px 0;"><span style="color:#888;display:inline-block;width:100px;">Service:</span> <strong>{service_name}</strong></div>
+      <div style="margin:8px 0;"><span style="color:#888;display:inline-block;width:100px;">Date:</span> <strong>{appointment_date}</strong></div>
+      <div style="margin:8px 0;"><span style="color:#888;display:inline-block;width:100px;">Time:</span> <strong>{appointment_time}</strong></div>
+      <div style="margin:8px 0;"><span style="color:#888;display:inline-block;width:100px;">Duration:</span> <strong>{duration_minutes} minutes</strong></div>
+    </div>
+    <p>We look forward to seeing you!</p>
+    <p style="margin-top:30px;padding-top:20px;border-top:1px solid #333;font-size:12px;color:#888;">Sent by {business_name}</p>
+    """
+    html = _base_html(f"Appointment Reminder — {service_name}", body)
+    text = (
+        f"Hi {customer_name},\n\n"
+        f"Reminder: Your appointment is in {hours_until} {hour_word}!\n\n"
+        f"Service:  {service_name}\n"
+        f"Date:     {appointment_date}\n"
+        f"Time:     {appointment_time}\n"
+        f"Duration: {duration_minutes} minutes\n\n"
+        f"We look forward to seeing you!\n\n"
+        f"— {business_name}"
+    )
+    return html, text

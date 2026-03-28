@@ -476,6 +476,110 @@ def register_routes(bp):
 
         return jsonify(policy), 201
 
+    @bp.route("/api/tickets/<int:ticket_id>/sla", methods=["GET"])
+    @login_required
+    @require_module("help-desk")
+    def get_ticket_sla(ticket_id):
+        with get_db_cursor(commit=False, dict_cursor=True) as (conn, cur):
+            set_tenant_search_path(cur, g.tenant_id)
+
+            cur.execute(
+                """
+                SELECT id, ticket_number, priority, status, created_at, resolved_at,
+                    created_at + CASE priority
+                        WHEN 'urgent' THEN INTERVAL '4 hours'
+                        WHEN 'high'   THEN INTERVAL '8 hours'
+                        WHEN 'medium' THEN INTERVAL '24 hours'
+                        WHEN 'low'    THEN INTERVAL '72 hours'
+                        ELSE               INTERVAL '24 hours'
+                    END AS sla_deadline
+                FROM support_tickets
+                WHERE id = %s
+                """,
+                (ticket_id,),
+            )
+            row = cur.fetchone()
+            if row is None:
+                return jsonify({"error": "ticket not found"}), 404
+
+        now = datetime.now(timezone.utc)
+        sla_deadline = row["sla_deadline"]
+        # Make deadline timezone-aware if needed
+        if sla_deadline is not None and sla_deadline.tzinfo is None:
+            sla_deadline = sla_deadline.replace(tzinfo=timezone.utc)
+
+        resolved = row["status"] == "resolved" or row["status"] == "closed"
+        if resolved:
+            sla_status = "met"
+        elif sla_deadline is not None and now > sla_deadline:
+            sla_status = "breached"
+        else:
+            sla_status = "on_track"
+
+        return jsonify(
+            {
+                "ticket_id": row["id"],
+                "ticket_number": row["ticket_number"],
+                "priority": row["priority"],
+                "status": row["status"],
+                "created_at": row["created_at"],
+                "resolved_at": row["resolved_at"],
+                "sla_deadline": sla_deadline,
+                "sla_status": sla_status,
+            }
+        )
+
+    @bp.route("/api/sla/summary", methods=["GET"])
+    @login_required
+    @require_module("help-desk")
+    def sla_summary():
+        with get_db_cursor(commit=False, dict_cursor=True) as (conn, cur):
+            set_tenant_search_path(cur, g.tenant_id)
+
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) AS total,
+                    COUNT(*) FILTER (
+                        WHERE (status = 'resolved' OR status = 'closed')
+                          AND resolved_at <= created_at + CASE priority
+                              WHEN 'urgent' THEN INTERVAL '4 hours'
+                              WHEN 'high'   THEN INTERVAL '8 hours'
+                              WHEN 'medium' THEN INTERVAL '24 hours'
+                              WHEN 'low'    THEN INTERVAL '72 hours'
+                              ELSE               INTERVAL '24 hours'
+                          END
+                    ) AS sla_met,
+                    COUNT(*) FILTER (
+                        WHERE status NOT IN ('resolved', 'closed')
+                          AND NOW() > created_at + CASE priority
+                              WHEN 'urgent' THEN INTERVAL '4 hours'
+                              WHEN 'high'   THEN INTERVAL '8 hours'
+                              WHEN 'medium' THEN INTERVAL '24 hours'
+                              WHEN 'low'    THEN INTERVAL '72 hours'
+                              ELSE               INTERVAL '24 hours'
+                          END
+                    ) AS sla_breached
+                FROM support_tickets
+                WHERE created_at >= NOW() - INTERVAL '30 days'
+                """
+            )
+            row = cur.fetchone()
+
+        total = row["total"] or 0
+        met = row["sla_met"] or 0
+        breached = row["sla_breached"] or 0
+        compliance_rate = round(met / total * 100, 2) if total > 0 else 100.0
+
+        return jsonify(
+            {
+                "total_tickets_30d": total,
+                "sla_met": met,
+                "sla_breached": breached,
+                "compliance_rate": compliance_rate,
+            }
+        )
+
     @bp.route("/api/sla/<int:policy_id>", methods=["PUT"])
     @login_required
     @require_module("help-desk")

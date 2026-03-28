@@ -6,6 +6,8 @@ Endpoints:
   GET /api/performance              — Latest department metrics with KPIs
   GET /api/performance/<department> — Detailed metrics + agent breakdown for one department
   GET /api/creed                    — Per-department C.R.E.E.D. scores, governance events, welfare
+  POST /api/browser-test            — Run browser test on a single URL
+  POST /api/browser-test/all        — Test all critical platform pages
 """
 
 from flask import jsonify, request
@@ -279,3 +281,29 @@ def register_work_routes(bp, admin_required):
             )
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+
+    # ------------------------------------------------------------------
+    # Browser Tests
+    # ------------------------------------------------------------------
+    @bp.route("/api/browser-test", methods=["POST"])
+    @admin_required
+    def run_browser_test():
+        """Run a browser test on a URL."""
+        from services.browser_test_service import test_page
+
+        data = request.get_json(silent=True) or {}
+        url = data.get("url", "")
+        checks = data.get("checks", [])
+        if not url:
+            return jsonify({"error": "url is required"}), 400
+        result = test_page(url, checks=checks)
+        return jsonify(result)
+
+    @bp.route("/api/browser-test/all", methods=["POST"])
+    @admin_required
+    def run_all_browser_tests():
+        """Test all critical platform pages."""
+        from services.browser_test_service import test_all_modules
+
+        results = test_all_modules()
+        return jsonify(results)

@@ -19,6 +19,7 @@ from archie_engine.hub.auth import HubAuth
 from archie_engine.hub.connector import HubConnector
 from archie_engine.hub.heartbeat import Heartbeat
 from archie_engine.hub.sync import HubSync
+from archie_engine.hub_skills import HubSkillLoader
 from archie_engine.skills import SkillRegistry
 from archie_engine.skills.executor import SkillExecutor
 from archie_engine.claude.context_bridge import ContextBridge
@@ -72,6 +73,7 @@ class Engine:
         self.hub_connector: HubConnector | None = None
         self.hub_heartbeat: Heartbeat | None = None
         self.hub_sync: HubSync | None = None
+        self.hub_skill_loader: HubSkillLoader | None = None
         self._hub_status = HubStatus.DISCONNECTED
 
         if is_hub_configured(config):
@@ -89,6 +91,8 @@ class Engine:
             )
             # Route inference through hub Bridge when connected
             self.router.hub_connector = self.hub_connector
+            # Hub skill loader for /archie-* commands
+            self.hub_skill_loader = HubSkillLoader(self.hub_connector)
 
     @property
     def hub_status(self) -> HubStatus:
@@ -117,6 +121,13 @@ class Engine:
             await self.hub_heartbeat.start()
             if self.hub_sync and self.hub_heartbeat.status == HubStatus.CONNECTED:
                 await self.hub_sync.sync_all()
+            # Pre-cache hub skills list
+            if self.hub_skill_loader and self.hub_heartbeat.status == HubStatus.CONNECTED:
+                try:
+                    hub_skills = await self.hub_skill_loader.list_skills(use_cache=False)
+                    logger.info("Cached %d hub skills from Department HQ", len(hub_skills))
+                except Exception as e:
+                    logger.warning("Failed to cache hub skills: %s", e)
         self.skill_registry.load()
         logger.info("ARCHIE Engine started")
 
@@ -151,9 +162,17 @@ class Engine:
             return {"type": "error", "error": f"Session not found: {session_id}"}
 
         if msg_type == "list_skills":
+            local_skills = self.skill_registry.list_skills()
+            hub_skills = []
+            if self.hub_skill_loader:
+                try:
+                    hub_skills = await self.hub_skill_loader.list_skills()
+                except Exception as e:
+                    logger.warning("Failed to list hub skills: %s", e)
             return {
                 "type": "skills_list",
-                "skills": self.skill_registry.list_skills(),
+                "skills": local_skills,
+                "hub_skills": hub_skills,
             }
 
         if msg_type == "message":
@@ -176,6 +195,37 @@ class Engine:
         # Check for slash command
         if content.startswith("/"):
             name, raw_args = self.skill_registry.parse_command(content)
+
+            # Try hub skills first for /archie-* commands
+            if self.hub_skill_loader and name.startswith("archie-"):
+                try:
+                    hub_skill = await self.hub_skill_loader.find_skill(name)
+                    if hub_skill:
+                        context_str = ""
+                        if raw_args:
+                            ctx = await self.sessions.build_context(session_id)
+                            history = ctx.get("history", [])
+                            if history:
+                                context_str = "\n".join(
+                                    f"{m['role']}: {m['content']}" for m in history[-3:]
+                                )
+                        result = await self.hub_skill_loader.execute(
+                            name, raw_args or "", context=context_str
+                        )
+                        response_text = result.get("response", result.get("error", "No response"))
+                        await self.sessions.add_message(session_id, "assistant", response_text)
+                        return {
+                            "type": "response",
+                            "session_id": session_id,
+                            "content": response_text,
+                            "intent": f"hub_skill:{name}",
+                            "tool_calls": [],
+                            "hub_executed": True,
+                        }
+                except Exception as e:
+                    logger.warning("Hub skill %s failed, trying local: %s", name, e)
+
+            # Fall back to local skills
             skill = self.skill_registry.get(name)
             if skill:
                 args = {}

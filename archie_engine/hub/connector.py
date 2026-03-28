@@ -156,6 +156,26 @@ class HubConnector:
     async def get_skills(self) -> dict:
         return await self.call_tool("get_skills_matrix", {})
 
+    # ─────────────────────────────────────────────
+    # Department HQ Skills API
+    # ─────────────────────────────────────────────
+
+    async def list_hub_skills(self) -> dict | list:
+        """List all skills via Department HQ API."""
+        return await self.get("/tools/department-hq/api/skills/list")
+
+    async def get_hub_skill(self, skill_name: str) -> dict:
+        """Get a single skill definition from Department HQ."""
+        return await self.get(f"/tools/department-hq/api/skills/{skill_name}")
+
+    async def execute_hub_skill(self, skill_name: str, user_input: str,
+                                context: str = "") -> dict:
+        """Execute a skill via Department HQ Bridge dispatch."""
+        return await self.post(f"/tools/department-hq/api/skills/{skill_name}/execute", data={
+            "input": user_input,
+            "context": context,
+        })
+
     async def get_model_state(self) -> dict:
         return await self.call_tool("get_llm_health", {})
 

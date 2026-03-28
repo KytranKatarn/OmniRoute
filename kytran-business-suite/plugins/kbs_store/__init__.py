@@ -13,6 +13,17 @@ def create_blueprint(manifest):
 
     register_routes(bp)
 
+    # Public storefront routes (no login)
+    from plugins.kbs_store.public_routes import register_public_routes
+
+    public_bp = Blueprint(
+        "store_public",
+        __name__,
+        url_prefix="/public",
+    )
+    register_public_routes(public_bp)
+    bp.register_blueprint(public_bp)
+
     # Register event consumers
     from core.event_bus import event_bus
     from plugins.kbs_store.routes import on_contact_created, on_invoice_paid, on_order_paid

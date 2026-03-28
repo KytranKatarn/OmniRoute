@@ -415,10 +415,118 @@ def _mark_order_paid_from_stripe(
         )
 
 
+def _handle_subscription_created(event: dict) -> None:
+    """customer.subscription.created -- activate tier modules, record subscription ID."""
+    subscription = event.get("data", {}).get("object", {})
+    customer_id = subscription.get("customer")
+    subscription_id = subscription.get("id")
+    metadata = subscription.get("metadata", {})
+    tier = metadata.get("tier", "")
+    module_slug = metadata.get("module_slug", "")
+    tenant_id_str = metadata.get("tenant_id")
+
+    # Try metadata first, then customer lookup
+    tenant = None
+    if tenant_id_str:
+        with get_db_cursor(dict_cursor=True) as (conn, cur):
+            cur.execute("SELECT id, tier FROM tenants WHERE id = %s", (int(tenant_id_str),))
+            tenant = cur.fetchone()
+
+    if not tenant and customer_id:
+        tenant = _get_tenant_by_stripe_customer(customer_id)
+
+    if not tenant:
+        logger.warning(
+            "subscription.created: no tenant found (customer=%s, metadata=%s)",
+            customer_id,
+            metadata,
+        )
+        return
+
+    tid = tenant["id"]
+
+    if module_slug:
+        # Add-on subscription
+        activate_module(tid, module_slug, source="addon_purchase")
+        logger.info("Activated addon module %s for tenant %s via subscription", module_slug, tid)
+    elif tier:
+        # Tier subscription
+        _set_tenant_tier(tid, tier)
+        sync_tier_modules(tid, tier)
+
+        # Store subscription ID and link Stripe customer
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                UPDATE tenants
+                SET stripe_subscription_id = %s,
+                    stripe_customer_id = COALESCE(stripe_customer_id, %s),
+                    updated_at = NOW()
+                WHERE id = %s
+                """,
+                (subscription_id, customer_id, tid),
+            )
+
+        # Check for trial
+        trial_end = subscription.get("trial_end")
+        if trial_end:
+            from datetime import datetime
+
+            trial_dt = datetime.utcfromtimestamp(trial_end)
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "UPDATE tenants SET trial_ends_at = %s WHERE id = %s",
+                    (trial_dt, tid),
+                )
+
+        logger.info("Activated tier %s for tenant %s via subscription %s", tier, tid, subscription_id)
+
+
+def _handle_invoice_payment_failed(event: dict) -> None:
+    """invoice.payment_failed -- notify tenant, set grace period."""
+    invoice_obj = event.get("data", {}).get("object", {})
+    customer_id = invoice_obj.get("customer")
+    attempt_count = invoice_obj.get("attempt_count", 0)
+
+    tenant = _get_tenant_by_stripe_customer(customer_id) if customer_id else None
+    if not tenant:
+        logger.warning("invoice.payment_failed: no tenant for customer %s", customer_id)
+        return
+
+    tid = tenant["id"]
+
+    # Set a 7-day grace period on first failure
+    if attempt_count <= 1:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                UPDATE tenants
+                SET settings = COALESCE(settings, '{}'::jsonb)
+                    || '{"payment_failed": true}'::jsonb,
+                    updated_at = NOW()
+                WHERE id = %s
+                """,
+                (tid,),
+            )
+        logger.warning(
+            "Payment failed for tenant %s (attempt %s) -- 7-day grace period started",
+            tid,
+            attempt_count,
+        )
+    else:
+        logger.warning(
+            "Payment failed for tenant %s (attempt %s) -- grace period continues",
+            tid,
+            attempt_count,
+        )
+
+
 _HANDLERS = {
     "checkout.session.completed": _handle_checkout_completed,
+    "customer.subscription.created": _handle_subscription_created,
     "customer.subscription.updated": _handle_subscription_updated,
     "customer.subscription.deleted": _handle_subscription_deleted,
+    "invoice.payment_failed": _handle_invoice_payment_failed,
 }
 
 

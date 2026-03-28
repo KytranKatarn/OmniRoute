@@ -48,7 +48,19 @@ DROP TABLE IF EXISTS station_assignments CASCADE;
 -- 6. Add department column to autonomy_loop_log
 ALTER TABLE autonomy_loop_log ADD COLUMN IF NOT EXISTS department VARCHAR(100);
 
--- 7. Mark bridge_stations as deprecated (keep for historical reference)
+-- 7. Widen station_code columns to fit department names (varchar(20) → varchar(100))
+DROP VIEW IF EXISTS v_station_slot_occupancy CASCADE;
+DROP VIEW IF EXISTS v_station_node_coverage CASCADE;
+DROP VIEW IF EXISTS v_station_staffing CASCADE;
+DROP VIEW IF EXISTS station_borrowing_summary CASCADE;
+ALTER TABLE bridge_jobs ALTER COLUMN station_code TYPE VARCHAR(100);
+ALTER TABLE action_benchmark_runs ALTER COLUMN station_code TYPE VARCHAR(100);
+ALTER TABLE benchmark_recommendations ALTER COLUMN station_code TYPE VARCHAR(100);
+ALTER TABLE chat_messages ALTER COLUMN station_code TYPE VARCHAR(100);
+ALTER TABLE station_actions ALTER COLUMN station_code TYPE VARCHAR(100);
+ALTER TABLE task_execution_log ALTER COLUMN station_code TYPE VARCHAR(100);
+
+-- 8. Mark bridge_stations as deprecated (keep for historical reference)
 COMMENT ON TABLE bridge_stations IS 'DEPRECATED: replaced by agents.department + agents.floor. Kept for historical reference.';
 
 COMMIT;

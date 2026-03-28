@@ -45,6 +45,19 @@ class Config:
         self.KBS_STRIPE_WEBHOOK_SECRET = os.getenv("KBS_STRIPE_WEBHOOK_SECRET", "")
         self.KBS_STRIPE_PUBLISHABLE_KEY = os.getenv("KBS_STRIPE_PUBLISHABLE_KEY", "")
 
+        # Stripe subscription price IDs (Stripe Dashboard -> Products -> Prices)
+        self.KBS_STRIPE_PRICE_BUSINESS = os.getenv("KBS_STRIPE_PRICE_BUSINESS", "")
+        self.KBS_STRIPE_PRICE_ENTERPRISE = os.getenv("KBS_STRIPE_PRICE_ENTERPRISE", "")
+        # Add-on / a-la-carte price IDs stored as JSON: {"salon": "price_xxx", ...}
+        self.KBS_STRIPE_ADDON_PRICES = os.getenv("KBS_STRIPE_ADDON_PRICES", "{}")
+
+        # Hostinger DNS (subdomain provisioning)
+        self.KBS_HOSTINGER_API_KEY = os.getenv("KBS_HOSTINGER_API_KEY", "")
+        self.KBS_BASE_DOMAIN = os.getenv("KBS_BASE_DOMAIN", "kytranempowerment.com")
+        self.KBS_SUBDOMAIN_TARGET = os.getenv(
+            "KBS_SUBDOMAIN_TARGET", "192.168.1.200"
+        )
+
         # Printful
         self.KBS_PRINTFUL_API_KEY = os.getenv("KBS_PRINTFUL_API_KEY", "")
 

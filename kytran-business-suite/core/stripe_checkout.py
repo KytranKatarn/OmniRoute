@@ -198,3 +198,172 @@ def _save_checkout_session_for_order(order_id: int, session_id: str, tenant_id: 
             )
     except Exception:
         logger.exception("Failed to save checkout session for order %s", order_id)
+
+
+# ---------------------------------------------------------------------------
+# Subscription checkout
+# ---------------------------------------------------------------------------
+
+# Tier -> Stripe Price ID mapping (loaded from env)
+_TIER_PRICE_MAP = {
+    "business": os.getenv("KBS_STRIPE_PRICE_BUSINESS", ""),
+    "enterprise": os.getenv("KBS_STRIPE_PRICE_ENTERPRISE", ""),
+}
+
+
+def create_subscription_checkout(
+    tenant_id: int,
+    tier: str,
+    customer_email: str,
+    success_url: str = None,
+    cancel_url: str = None,
+    trial_days: int = None,
+) -> dict:
+    """Create a Stripe Checkout Session for a subscription.
+
+    Args:
+        tenant_id: Tenant purchasing the subscription.
+        tier: 'business' or 'enterprise'.
+        customer_email: Email for the Stripe customer.
+        success_url: Redirect on success.
+        cancel_url: Redirect on cancel.
+        trial_days: If set, adds a trial period (default 14 for business).
+
+    Returns:
+        Dict with 'url' (redirect URL) and 'session_id'.
+
+    Raises:
+        ValueError: If tier is invalid or has no price ID configured.
+    """
+    price_id = _TIER_PRICE_MAP.get(tier)
+    if not price_id:
+        raise ValueError(
+            f"No Stripe price ID configured for tier '{tier}'. "
+            f"Set KBS_STRIPE_PRICE_{tier.upper()} env var."
+        )
+
+    # Default trial: 14 days for business tier
+    if trial_days is None and tier == "business":
+        trial_days = 14
+
+    checkout_params = {
+        "mode": "subscription",
+        "customer_email": customer_email,
+        "line_items": [{"price": price_id, "quantity": 1}],
+        "metadata": {
+            "tenant_id": str(tenant_id),
+            "tier": tier,
+            "source": "kbs_subscription",
+        },
+        "subscription_data": {
+            "metadata": {"tenant_id": str(tenant_id), "tier": tier},
+        },
+        "success_url": success_url or f"{_BASE_URL}/dashboard?subscription=success",
+        "cancel_url": cancel_url or f"{_BASE_URL}/marketplace?subscription=cancelled",
+    }
+
+    if trial_days and trial_days > 0:
+        checkout_params["subscription_data"]["trial_period_days"] = trial_days
+
+    session = stripe.checkout.Session.create(**checkout_params)
+
+    # Record the checkout attempt
+    _save_subscription_checkout(tenant_id, session.id, tier)
+
+    logger.info(
+        "Created Stripe subscription checkout %s for tenant %s (tier=%s, trial=%s)",
+        session.id,
+        tenant_id,
+        tier,
+        trial_days,
+    )
+
+    return {"url": session.url, "session_id": session.id}
+
+
+def create_addon_checkout(
+    tenant_id: int,
+    plugin_slug: str,
+    customer_email: str,
+    success_url: str = None,
+    cancel_url: str = None,
+) -> dict:
+    """Create a Stripe Checkout Session for an add-on plugin subscription.
+
+    Args:
+        tenant_id: Tenant purchasing the add-on.
+        plugin_slug: Plugin slug (e.g. 'salon', 'electrical').
+        customer_email: Email for the Stripe customer.
+        success_url: Redirect on success.
+        cancel_url: Redirect on cancel.
+
+    Returns:
+        Dict with 'url' and 'session_id'.
+
+    Raises:
+        ValueError: If no price ID is configured for this plugin.
+    """
+    import json as _json
+
+    addon_prices = _json.loads(os.getenv("KBS_STRIPE_ADDON_PRICES", "{}"))
+    price_id = addon_prices.get(plugin_slug)
+
+    if not price_id:
+        raise ValueError(
+            f"No Stripe price ID configured for add-on plugin '{plugin_slug}'. "
+            f"Add it to KBS_STRIPE_ADDON_PRICES JSON env var."
+        )
+
+    session = stripe.checkout.Session.create(
+        mode="subscription",
+        customer_email=customer_email,
+        line_items=[{"price": price_id, "quantity": 1}],
+        metadata={
+            "tenant_id": str(tenant_id),
+            "module_slug": plugin_slug,
+            "source": "kbs_addon",
+        },
+        subscription_data={
+            "metadata": {
+                "tenant_id": str(tenant_id),
+                "module_slug": plugin_slug,
+            },
+        },
+        success_url=success_url
+        or f"{_BASE_URL}/marketplace?addon={plugin_slug}&status=success",
+        cancel_url=cancel_url
+        or f"{_BASE_URL}/marketplace?addon={plugin_slug}&status=cancelled",
+    )
+
+    logger.info(
+        "Created Stripe addon checkout %s for tenant %s plugin %s",
+        session.id,
+        tenant_id,
+        plugin_slug,
+    )
+
+    return {"url": session.url, "session_id": session.id}
+
+
+def _save_subscription_checkout(
+    tenant_id: int, session_id: str, tier: str
+) -> None:
+    """Record subscription checkout attempt in tenants metadata."""
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                UPDATE tenants
+                SET settings = COALESCE(settings, '{}'::jsonb) || %s::jsonb,
+                    updated_at = NOW()
+                WHERE id = %s
+                """,
+                (
+                    f'{{"last_checkout_session": "{session_id}", "pending_tier": "{tier}"}}',
+                    tenant_id,
+                ),
+            )
+    except Exception:
+        logger.exception(
+            "Failed to save subscription checkout for tenant %s", tenant_id
+        )

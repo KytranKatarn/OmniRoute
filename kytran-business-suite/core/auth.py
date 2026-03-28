@@ -243,6 +243,14 @@ def signup():
         except Exception:
             pass  # Non-fatal — schema may already exist
 
+        # Provision subdomain (non-blocking -- failure doesn't block signup)
+        try:
+            from core.subdomain_manager import provision_subdomain
+
+            provision_subdomain(slug)
+        except Exception:
+            pass  # Non-fatal -- subdomain can be provisioned later
+
         # Log in the new user
         user = User.get_by_id(user_id)
         login_user(user)

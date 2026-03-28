@@ -81,6 +81,32 @@ def create_app(config=None):
 
         return render_template("dashboard.html", plugins=enabled_plugins)
 
+    # Custom domain API
+    @app.route("/api/settings/domain", methods=["POST"])
+    def connect_custom_domain():
+        from flask import g, jsonify as jf, request as req
+        from flask_login import current_user as cu
+
+        if not cu.is_authenticated:
+            return jf({"error": "authentication required"}), 401
+
+        data = req.get_json() or {}
+        domain = data.get("domain", "").strip()
+        if not domain:
+            return jf({"error": "domain is required"}), 400
+
+        tenant_tier = g.tenant.get("tier", "free")
+        if tenant_tier == "free":
+            return jf({"error": "Custom domains require a paid plan"}), 402
+
+        try:
+            from core.subdomain_manager import provision_custom_domain
+
+            result = provision_custom_domain(domain, g.tenant_id)
+            return jf(result)
+        except Exception as exc:
+            return jf({"error": str(exc)}), 500
+
     # Register plugins
     from core.plugin_loader import register_plugins
 

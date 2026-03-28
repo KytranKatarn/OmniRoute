@@ -26,6 +26,7 @@ from .work_routes import register_work_routes  # noqa: E402
 from .agent_detail_routes import register_agent_detail_routes  # noqa: E402
 from .identity_routes import register_identity_routes  # noqa: E402
 from .social_routes import register_social_routes  # noqa: E402
+from .skill_routes import register_skill_routes  # noqa: E402
 
 # Register all route groups on the blueprint
 register_routes(department_hq_bp)
@@ -34,3 +35,4 @@ register_work_routes(department_hq_bp, admin_required)
 register_agent_detail_routes(department_hq_bp, admin_required)
 register_identity_routes(department_hq_bp, admin_required)
 register_social_routes(department_hq_bp, admin_required)
+register_skill_routes(department_hq_bp, admin_required)

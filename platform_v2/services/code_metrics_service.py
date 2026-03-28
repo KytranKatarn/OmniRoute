@@ -922,7 +922,7 @@ def audit_single_module(module_name, module_path=None):
         try:
             with open(fpath, "r", encoding="utf-8", errors="ignore") as fh:
                 content = fh.read()
-            fname = os.path.basename(fpath)
+            fname = os.path.relpath(fpath, module_path)
 
             # Skip scanner/checker files that reference these as strings
             if "compliance" in fname or "deploy_routes" in fname:

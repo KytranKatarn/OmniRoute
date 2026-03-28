@@ -221,6 +221,39 @@ def register_routes(bp):
 
         return jsonify({"archived": True, "id": product_id})
 
+    @bp.route("/api/products/<int:product_id>/inventory", methods=["PUT"])
+    @login_required
+    @require_module("store")
+    def update_inventory(product_id):
+        data = request.get_json(force=True)
+        quantity = data.get("quantity")
+        if quantity is None:
+            return jsonify({"error": "quantity is required"}), 400
+
+        with get_db_cursor(commit=True, dict_cursor=True) as (conn, cur):
+            set_tenant_search_path(cur, g.tenant_id)
+            cur.execute(
+                """
+                UPDATE store_products SET inventory_count = %s, updated_at = NOW()
+                WHERE id = %s
+                RETURNING id, name, inventory_count
+                """,
+                (int(quantity), product_id),
+            )
+            product = cur.fetchone()
+
+        if not product:
+            return jsonify({"error": "product not found"}), 404
+
+        if product["inventory_count"] <= 5:
+            event_bus.emit(
+                "product.low_stock",
+                {"product_id": product["id"], "name": product["name"], "stock_quantity": product["inventory_count"]},
+                tenant_id=g.tenant_id,
+            )
+
+        return jsonify(product)
+
     # ------------------------------------------------------------------
     # Orders
     # ------------------------------------------------------------------

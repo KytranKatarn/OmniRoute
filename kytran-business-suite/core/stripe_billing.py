@@ -164,9 +164,20 @@ def _set_tenant_tier(tenant_id: int, tier: str) -> None:
 
 
 def _handle_checkout_completed(event: dict) -> None:
-    """checkout.session.completed — activate add-on module from metadata."""
-    session = event.get("data", {}).get("object", {})
-    metadata = session.get("metadata", {})
+    """checkout.session.completed — dispatch based on metadata source.
+
+    One-time payments for invoices/orders go to _handle_invoice_or_order_payment.
+    Subscription checkouts continue to the existing tier activation flow.
+    """
+    obj = event.get("data", {}).get("object", {})
+    metadata = obj.get("metadata", {})
+    source = metadata.get("source", "")
+
+    if source in ("kbs_invoicing", "kbs_store"):
+        _handle_invoice_or_order_payment(event)
+        return
+
+    # Original subscription/addon checkout handling follows...
     module_slug = metadata.get("module_slug")
     tenant_id = metadata.get("tenant_id")
     if not module_slug or not tenant_id:
@@ -226,6 +237,182 @@ def _handle_subscription_deleted(event: dict) -> None:
     # Ensure free-tier modules are active
     sync_tier_modules(tenant_id, "free")
     logger.info("Downgraded tenant %s to free tier", tenant_id)
+
+
+def _handle_invoice_or_order_payment(event: dict) -> None:
+    """Handle checkout.session.completed for invoice or order payments.
+
+    This is called by _handle_checkout_completed when the metadata indicates
+    source=kbs_invoicing or source=kbs_store. Handles one-time payments.
+    """
+    obj = event.get("data", {}).get("object", {})
+    metadata = obj.get("metadata", {})
+    source = metadata.get("source", "")
+    tenant_id_str = metadata.get("tenant_id")
+    payment_intent = obj.get("payment_intent", "")
+    amount_total = obj.get("amount_total", 0)  # in cents
+    customer_email = obj.get("customer_email", "")
+
+    if not tenant_id_str:
+        logger.warning("checkout.session.completed with no tenant_id in metadata")
+        return
+
+    tenant_id = int(tenant_id_str)
+
+    if source == "kbs_invoicing":
+        invoice_id_str = metadata.get("invoice_id")
+        if not invoice_id_str:
+            logger.warning("Invoice checkout completed but no invoice_id in metadata")
+            return
+
+        invoice_id = int(invoice_id_str)
+        _mark_invoice_paid_from_stripe(
+            tenant_id=tenant_id,
+            invoice_id=invoice_id,
+            amount=amount_total / 100.0,
+            payment_reference=payment_intent,
+        )
+        logger.info(
+            "Stripe checkout completed: invoice %s paid (tenant %s, $%.2f)",
+            invoice_id,
+            tenant_id,
+            amount_total / 100.0,
+        )
+
+    elif source == "kbs_store":
+        order_id_str = metadata.get("order_id")
+        if not order_id_str:
+            logger.warning("Order checkout completed but no order_id in metadata")
+            return
+
+        order_id = int(order_id_str)
+        _mark_order_paid_from_stripe(
+            tenant_id=tenant_id,
+            order_id=order_id,
+            amount=amount_total / 100.0,
+            payment_reference=payment_intent,
+            customer_email=customer_email,
+        )
+        logger.info(
+            "Stripe checkout completed: order %s paid (tenant %s, $%.2f)",
+            order_id,
+            tenant_id,
+            amount_total / 100.0,
+        )
+
+
+def _mark_invoice_paid_from_stripe(
+    tenant_id: int,
+    invoice_id: int,
+    amount: float,
+    payment_reference: str,
+) -> None:
+    """Mark an invoice as paid and record the payment. Emit events."""
+    from core.database import set_tenant_search_path
+    from core.event_bus import event_bus
+
+    with get_db_cursor(commit=True, dict_cursor=True) as (conn, cur):
+        set_tenant_search_path(cur, tenant_id)
+
+        # Record payment
+        cur.execute(
+            """
+            INSERT INTO invoice_payments (invoice_id, amount, payment_method, payment_reference)
+            VALUES (%s, %s, %s, %s)
+            """,
+            (invoice_id, amount, "stripe", payment_reference),
+        )
+
+        # Update invoice status
+        cur.execute(
+            """
+            UPDATE invoices
+            SET amount_paid = total, balance_due = 0, status = 'paid', updated_at = NOW()
+            WHERE id = %s
+            RETURNING id, customer_id, total
+            """,
+            (invoice_id,),
+        )
+        invoice = cur.fetchone()
+
+    if invoice:
+        event_bus.emit(
+            "payment.received",
+            {
+                "invoice_id": invoice_id,
+                "amount": amount,
+                "payment_method": "stripe",
+                "payment_reference": payment_reference,
+                "customer_id": invoice.get("customer_id"),
+            },
+            tenant_id=tenant_id,
+        )
+        event_bus.emit(
+            "invoice.paid",
+            {
+                "invoice_id": invoice_id,
+                "customer_id": invoice.get("customer_id"),
+                "total": float(invoice.get("total", 0)),
+            },
+            tenant_id=tenant_id,
+        )
+
+
+def _mark_order_paid_from_stripe(
+    tenant_id: int,
+    order_id: int,
+    amount: float,
+    payment_reference: str,
+    customer_email: str = "",
+) -> None:
+    """Mark a store order as paid and update status. Emit events."""
+    from core.database import set_tenant_search_path
+    from core.event_bus import event_bus
+
+    with get_db_cursor(commit=True, dict_cursor=True) as (conn, cur):
+        set_tenant_search_path(cur, tenant_id)
+
+        cur.execute(
+            """
+            UPDATE store_orders
+            SET status = 'paid',
+                payment_status = 'paid',
+                payment_method = 'stripe',
+                payment_reference = %s,
+                metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb,
+                updated_at = NOW()
+            WHERE id = %s
+            RETURNING id, customer_id
+            """,
+            (
+                payment_reference,
+                f'{{"stripe_amount_cents": {int(amount * 100)}, "customer_email": "{customer_email}"}}',
+                order_id,
+            ),
+        )
+        order = cur.fetchone()
+
+    if order:
+        event_bus.emit(
+            "payment.received",
+            {
+                "order_id": order_id,
+                "amount": amount,
+                "payment_method": "stripe",
+                "payment_reference": payment_reference,
+                "customer_id": order.get("customer_id"),
+            },
+            tenant_id=tenant_id,
+        )
+        event_bus.emit(
+            "order.paid",
+            {
+                "order_id": order_id,
+                "customer_id": order.get("customer_id"),
+                "amount": amount,
+            },
+            tenant_id=tenant_id,
+        )
 
 
 _HANDLERS = {

@@ -122,6 +122,11 @@ def create_app(config=None):
         except Exception as exc:
             return jf({"error": str(exc)}), 500
 
+    # Settings API (API keys + webhooks)
+    from core.settings_api_routes import settings_api_bp
+
+    app.register_blueprint(settings_api_bp)
+
     # Register plugins
     from core.plugin_loader import register_plugins
 

@@ -526,3 +526,115 @@ def recommend_node_deployment(node_id):
         gpu_vram_gb=float(node.get("gpu_vram_gb") or 0),
         ram_gb=float(node.get("ram_gb") or 0),
     )
+
+
+# ---------------------------------------------------------------------------
+# Identity & Portraits
+# ---------------------------------------------------------------------------
+
+
+def get_identity(agent_id):
+    """Get agent identity details (bio, gender, ethnicity, appearance, portrait_prompt)."""
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """SELECT id, name, display_name, department, floor, is_department_ai,
+                      bio, gender, ethnicity, age_range, appearance_notes, portrait_prompt,
+                      model, system_prompt, avatar_url
+               FROM agents WHERE id = %s""",
+            (agent_id,),
+        )
+        row = cur.fetchone()
+        return dict(row) if row else None
+
+
+def update_identity(agent_id, **fields):
+    """Update agent identity fields (bio, gender, ethnicity, age_range, appearance_notes, portrait_prompt)."""
+    allowed = {"bio", "gender", "ethnicity", "age_range", "appearance_notes", "portrait_prompt"}
+    filtered = {k: v for k, v in fields.items() if k in allowed}
+    if not filtered:
+        return False
+    return update_agent(agent_id, **filtered)
+
+
+def get_portraits(agent_id):
+    """Get all portraits for an agent."""
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """SELECT id, image_path, prompt, style, is_primary, generation_status, generated_at
+               FROM agent_portraits WHERE agent_id = %s
+               ORDER BY is_primary DESC, created_at DESC""",
+            (agent_id,),
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+
+def add_portrait(agent_id, prompt, style="professional", negative_prompt=""):
+    """Add a portrait entry (pending generation). Returns portrait_id."""
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """INSERT INTO agent_portraits (agent_id, prompt, negative_prompt, style, generation_status)
+               VALUES (%s, %s, %s, %s, 'pending') RETURNING id""",
+            (agent_id, prompt, negative_prompt, style),
+        )
+        return cur.fetchone()["id"]
+
+
+def set_primary_portrait(agent_id, portrait_id):
+    """Set a portrait as the primary (unsets any existing primary)."""
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE agent_portraits SET is_primary = false WHERE agent_id = %s",
+            (agent_id,),
+        )
+        cur.execute(
+            "UPDATE agent_portraits SET is_primary = true WHERE id = %s AND agent_id = %s",
+            (portrait_id, agent_id),
+        )
+
+
+def generate_portrait_prompt(agent_id):
+    """Auto-generate a portrait prompt from agent identity data. Returns (prompt, negative)."""
+    identity = get_identity(agent_id)
+    if not identity:
+        return "", ""
+
+    is_director = identity.get("is_department_ai", False)
+    gender = identity.get("gender") or "person"
+    ethnicity = identity.get("ethnicity") or ""
+    age = identity.get("age_range") or "30s"
+    appearance = identity.get("appearance_notes") or ""
+
+    if is_director:
+        prompt = (
+            f"Professional corporate portrait photo of a {gender} in their {age}, "
+            f"{ethnicity + ', ' if ethnicity else ''}"
+            f"wearing sleek futuristic corporate attire. "
+            f"Subtle AI android features: slightly too-perfect skin, faint digital iris pattern, "
+            f"barely visible circuit-like patterns along jawline. "
+            f"Confident pose, soft studio lighting, dark background with teal accent. "
+            f"Photorealistic, 8k, cinematic. {appearance}"
+        )
+        negative = "cartoon, anime, robot, mechanical, obvious cyborg, glowing eyes, wires"
+    else:
+        prompt = (
+            f"Professional corporate portrait photo of a {gender} in their {age}, "
+            f"{ethnicity + ', ' if ethnicity else ''}"
+            f"wearing smart business attire. Natural expression, confident. "
+            f"Soft studio lighting, clean background. "
+            f"Photorealistic, 8k, sharp focus. {appearance}"
+        )
+        negative = "cartoon, anime, robot, AI, cyborg, unrealistic"
+
+    return prompt, negative
+
+
+def get_photo_gallery(agent_id):
+    """Get agent's photo gallery."""
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """SELECT id, image_path, caption, category, generated_at
+               FROM agent_photo_gallery WHERE agent_id = %s
+               ORDER BY created_at DESC""",
+            (agent_id,),
+        )
+        return [dict(r) for r in cur.fetchall()]

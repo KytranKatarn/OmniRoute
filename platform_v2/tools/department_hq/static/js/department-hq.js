@@ -587,6 +587,57 @@ async function openAgentDetail(agentId) {
             + '<div class="dhq-ad-perf-item"><span class="dhq-ad-perf-val">' + (perf.success_rate || 0) + '%</span><span class="dhq-ad-perf-label">Success Rate</span></div>'
             + '</div></div>';
 
+        // ── Identity ──
+        html += '<div class="dhq-ad-section dhq-identity-section" id="identitySection" data-agent-id="' + a.id + '">'
+            + '<div class="dhq-ad-section-title">Identity &amp; Portrait '
+            + '<button class="dhq-btn-sm dhq-btn-edit" onclick="toggleIdentityEdit(' + a.id + ')">Edit</button>'
+            + '</div>'
+            + '<div id="identityView">'
+            + '<div class="dhq-loading" style="padding:0.3rem">Loading identity...</div>'
+            + '</div>'
+            + '<div id="identityEdit" style="display:none">'
+            + '<div class="dhq-identity-form">'
+            + '<label class="dhq-form-label">Bio</label>'
+            + '<textarea id="identity-bio" class="dhq-textarea" rows="3" placeholder="Agent biography..."></textarea>'
+            + '<div class="dhq-form-row">'
+            + '<div class="dhq-form-col">'
+            + '<label class="dhq-form-label">Gender</label>'
+            + '<select id="identity-gender" class="dhq-select">'
+            + '<option value="">--</option>'
+            + '<option value="male">Male</option>'
+            + '<option value="female">Female</option>'
+            + '<option value="non-binary">Non-binary</option>'
+            + '</select></div>'
+            + '<div class="dhq-form-col">'
+            + '<label class="dhq-form-label">Ethnicity</label>'
+            + '<input id="identity-ethnicity" class="dhq-input" placeholder="e.g. Korean, Brazilian...">'
+            + '</div>'
+            + '<div class="dhq-form-col">'
+            + '<label class="dhq-form-label">Age Range</label>'
+            + '<select id="identity-age" class="dhq-select">'
+            + '<option value="">--</option>'
+            + '<option value="20s">20s</option>'
+            + '<option value="30s">30s</option>'
+            + '<option value="40s">40s</option>'
+            + '<option value="50s">50s</option>'
+            + '<option value="60s">60s</option>'
+            + '</select></div></div>'
+            + '<label class="dhq-form-label">Appearance Notes</label>'
+            + '<textarea id="identity-appearance" class="dhq-textarea" rows="2" placeholder="Distinguishing features..."></textarea>'
+            + '<div class="dhq-form-actions">'
+            + '<button class="dhq-action-btn dhq-action-save" onclick="saveIdentity(' + a.id + ')">Save Identity</button>'
+            + '<button class="dhq-action-btn" onclick="toggleIdentityEdit(' + a.id + ')">Cancel</button>'
+            + '</div></div></div>'
+            + '<div class="dhq-ad-subsection">'
+            + '<div class="dhq-ad-section-title">Portrait Prompt '
+            + '<button class="dhq-btn-sm" onclick="generatePortraitPrompt(' + a.id + ')">Auto-Generate</button>'
+            + '</div>'
+            + '<div id="portrait-prompt-preview" class="dhq-ad-prompt" style="min-height:2rem"></div>'
+            + '<div id="portraitGallery" class="dhq-portrait-grid"></div>'
+            + '<div class="dhq-portrait-note" style="color:#8b8b8b;font-size:0.75rem;margin-top:0.5rem">'
+            + 'ComfyUI portrait generation coming soon (pending disk space cleanup).'
+            + '</div></div></div>';
+
         // ── Actions ──
         html += '<div class="dhq-ad-section dhq-ad-actions">'
             + '<div class="dhq-ad-section-title">Actions</div>'
@@ -596,6 +647,9 @@ async function openAgentDetail(agentId) {
 
         html += '</div>';
         setHtml(body, html);
+
+        // Load identity data asynchronously after modal renders
+        loadAgentIdentity(a.id);
     } catch (err) {
         setHtml(body, '<div class="dhq-empty">Error loading agent profile: ' + esc(err.message) + '</div>');
     }
@@ -630,6 +684,145 @@ async function changeAgentShift(agentId, currentState) {
             if (loaded['roster']) loadRoster();
         } else {
             alert(data.error || 'Failed to change shift state');
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+// ───────────────────────────────────────────────────────────────
+// Identity & Portraits
+// ───────────────────────────────────────────────────────────────
+
+async function loadAgentIdentity(agentId) {
+    try {
+        var resp = await api('/api/agent/' + agentId + '/identity');
+        var id = resp.identity;
+        var portraits = resp.portraits || [];
+
+        var viewEl = document.getElementById('identityView');
+        var html = '<div class="dhq-identity-view">';
+        if (id.bio) {
+            html += '<div class="dhq-identity-bio">' + esc(id.bio) + '</div>';
+        }
+        var traits = [];
+        if (id.gender) traits.push(esc(id.gender));
+        if (id.ethnicity) traits.push(esc(id.ethnicity));
+        if (id.age_range) traits.push(esc(id.age_range));
+        if (traits.length > 0) {
+            html += '<div class="dhq-identity-traits">' + traits.join(' &middot; ') + '</div>';
+        }
+        if (id.appearance_notes) {
+            html += '<div class="dhq-identity-appearance">' + esc(id.appearance_notes) + '</div>';
+        }
+        if (!id.bio && traits.length === 0) {
+            html += '<div class="dhq-empty" style="padding:0.3rem">No identity data yet. Click Edit to add.</div>';
+        }
+        html += '</div>';
+        setHtml(viewEl, html);
+
+        // Portrait prompt
+        if (id.portrait_prompt) {
+            var ppEl = document.getElementById('portrait-prompt-preview');
+            if (ppEl) ppEl.textContent = id.portrait_prompt;
+        }
+
+        // Render portrait gallery
+        var galleryEl = document.getElementById('portraitGallery');
+        if (portraits.length > 0 && galleryEl) {
+            var gHtml = '';
+            for (var i = 0; i < portraits.length; i++) {
+                var p = portraits[i];
+                gHtml += '<div class="dhq-portrait-card' + (p.is_primary ? ' dhq-portrait-primary' : '') + '">';
+                if (p.image_path) {
+                    gHtml += '<img src="' + esc(p.image_path) + '" alt="portrait">';
+                } else {
+                    gHtml += '<div class="dhq-portrait-pending">' + esc(p.generation_status) + '</div>';
+                }
+                gHtml += '<div class="dhq-portrait-style">' + esc(p.style) + '</div>';
+                if (!p.is_primary) {
+                    gHtml += '<button class="dhq-btn-sm" onclick="setPrimaryPortrait(' + agentId + ',' + p.id + ')">Set Primary</button>';
+                } else {
+                    gHtml += '<span class="dhq-portrait-badge">PRIMARY</span>';
+                }
+                gHtml += '</div>';
+            }
+            setHtml(galleryEl, gHtml);
+        }
+    } catch (err) {
+        var viewEl2 = document.getElementById('identityView');
+        if (viewEl2) setHtml(viewEl2, '<div class="dhq-empty">Error loading identity: ' + esc(err.message) + '</div>');
+    }
+}
+
+function toggleIdentityEdit(agentId) {
+    var viewEl = document.getElementById('identityView');
+    var editEl = document.getElementById('identityEdit');
+    var isEditing = editEl.style.display !== 'none';
+
+    if (isEditing) {
+        editEl.style.display = 'none';
+        viewEl.style.display = '';
+    } else {
+        editEl.style.display = '';
+        viewEl.style.display = 'none';
+        // Pre-fill from current identity view data
+        api('/api/agent/' + agentId + '/identity').then(function(resp) {
+            var id = resp.identity;
+            document.getElementById('identity-bio').value = id.bio || '';
+            document.getElementById('identity-gender').value = id.gender || '';
+            document.getElementById('identity-ethnicity').value = id.ethnicity || '';
+            document.getElementById('identity-age').value = id.age_range || '';
+            document.getElementById('identity-appearance').value = id.appearance_notes || '';
+        });
+    }
+}
+
+async function saveIdentity(agentId) {
+    var body = {
+        bio: document.getElementById('identity-bio').value,
+        gender: document.getElementById('identity-gender').value,
+        ethnicity: document.getElementById('identity-ethnicity').value,
+        age_range: document.getElementById('identity-age').value,
+        appearance_notes: document.getElementById('identity-appearance').value,
+    };
+    try {
+        var resp = await apiPost('/api/agent/' + agentId + '/identity', body);
+        if (resp.success) {
+            document.getElementById('identityEdit').style.display = 'none';
+            document.getElementById('identityView').style.display = '';
+            loadAgentIdentity(agentId);
+        } else {
+            alert(resp.error || 'Failed to save identity');
+        }
+    } catch (err) {
+        alert('Error saving identity: ' + err.message);
+    }
+}
+
+async function generatePortraitPrompt(agentId) {
+    try {
+        var resp = await apiPost('/api/agent/' + agentId + '/portraits/generate-prompt', {});
+        var ppEl = document.getElementById('portrait-prompt-preview');
+        if (ppEl && resp.prompt) {
+            ppEl.textContent = resp.prompt;
+            // Also save it to the agent record
+            await apiPost('/api/agent/' + agentId + '/identity', { portrait_prompt: resp.prompt });
+        } else if (!resp.prompt) {
+            alert('Fill in identity data (gender, ethnicity, age) first to generate a prompt.');
+        }
+    } catch (err) {
+        alert('Error generating prompt: ' + err.message);
+    }
+}
+
+async function setPrimaryPortrait(agentId, portraitId) {
+    try {
+        var resp = await apiPost('/api/agent/' + agentId + '/portraits/' + portraitId + '/set-primary', {});
+        if (resp.success) {
+            loadAgentIdentity(agentId);
+        } else {
+            alert(resp.error || 'Failed to set primary portrait');
         }
     } catch (err) {
         alert('Error: ' + err.message);

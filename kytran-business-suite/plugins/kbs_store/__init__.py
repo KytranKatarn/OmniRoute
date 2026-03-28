@@ -15,9 +15,10 @@ def create_blueprint(manifest):
 
     # Register event consumers
     from core.event_bus import event_bus
-    from plugins.kbs_store.routes import on_contact_created, on_invoice_paid
+    from plugins.kbs_store.routes import on_contact_created, on_invoice_paid, on_order_paid
 
     event_bus.on("contact.created")(on_contact_created)
     event_bus.on("invoice.paid")(on_invoice_paid)
+    event_bus.on("order.paid")(on_order_paid)
 
     return bp

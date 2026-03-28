@@ -44,3 +44,6 @@ class Config:
         self.KBS_STRIPE_SECRET_KEY = os.getenv("KBS_STRIPE_SECRET_KEY", "")
         self.KBS_STRIPE_WEBHOOK_SECRET = os.getenv("KBS_STRIPE_WEBHOOK_SECRET", "")
         self.KBS_STRIPE_PUBLISHABLE_KEY = os.getenv("KBS_STRIPE_PUBLISHABLE_KEY", "")
+
+        # Printful
+        self.KBS_PRINTFUL_API_KEY = os.getenv("KBS_PRINTFUL_API_KEY", "")

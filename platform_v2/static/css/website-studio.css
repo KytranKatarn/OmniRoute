@@ -711,3 +711,96 @@
 .ws-ai-drawer-handle:hover {
   background: var(--ws-accent, #4af);
 }
+
+/* ============================================================
+   Loading Indicators
+   ============================================================ */
+
+.ws-loading-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: var(--ws-muted, #667);
+  font-size: 0.95rem;
+  grid-column: 1 / -1;
+}
+
+.ws-loading-indicator::before {
+  content: "";
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--ws-border, #223);
+  border-top-color: var(--ws-accent, #4af);
+  border-radius: 50%;
+  margin-right: 0.75rem;
+  animation: ws-spin 0.8s linear infinite;
+}
+
+@keyframes ws-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ============================================================
+   Empty States
+   ============================================================ */
+
+.ws-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  text-align: center;
+  grid-column: 1 / -1;
+}
+
+.ws-empty-state-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.6;
+}
+
+.ws-empty-state-title {
+  font-size: 1.3rem;
+  color: var(--ws-text, #aab);
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.ws-empty-state-text {
+  color: var(--ws-muted, #667);
+  font-size: 0.95rem;
+  max-width: 400px;
+  line-height: 1.5;
+  margin-bottom: 1.25rem;
+}
+
+.ws-empty-state-btn {
+  font-size: 1rem;
+  padding: 0.6rem 1.5rem;
+}
+
+.ws-empty-state-small {
+  padding: 1.5rem 1rem;
+  color: var(--ws-muted, #667);
+  font-size: 0.9rem;
+}
+
+/* ============================================================
+   Error Messages
+   ============================================================ */
+
+.ws-error-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  color: #f87171;
+  font-size: 0.9rem;
+  grid-column: 1 / -1;
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.2);
+  border-radius: var(--ws-radius, 4px);
+}

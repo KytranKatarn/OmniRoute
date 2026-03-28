@@ -118,6 +118,26 @@
     document.getElementById("wsDashboard").style.display = "";
     document.getElementById("wsBuilder").style.display = "none";
 
+    // Show loading state for projects
+    const projectGrid = document.getElementById("wsProjectGrid");
+    if (projectGrid) {
+      clearEl(projectGrid);
+      const loader = document.createElement("div");
+      loader.className = "ws-loading-indicator";
+      loader.textContent = "Loading projects...";
+      projectGrid.appendChild(loader);
+    }
+
+    // Show loading state for templates
+    const templateGrid = document.getElementById("wsTemplateGrid");
+    if (templateGrid) {
+      clearEl(templateGrid);
+      const loader = document.createElement("div");
+      loader.className = "ws-loading-indicator";
+      loader.textContent = "Loading templates...";
+      templateGrid.appendChild(loader);
+    }
+
     // Load projects
     try {
       const data = await api("GET", "/api/projects");
@@ -125,6 +145,13 @@
       renderProjectCards(_projects);
     } catch (e) {
       console.error("Failed to load projects:", e);
+      if (projectGrid) {
+        clearEl(projectGrid);
+        const err = document.createElement("div");
+        err.className = "ws-error-message";
+        err.textContent = "Failed to load projects. Please refresh the page.";
+        projectGrid.appendChild(err);
+      }
     }
 
     // Load templates
@@ -133,6 +160,13 @@
       renderTemplateCards(data);
     } catch (e) {
       console.error("Failed to load templates:", e);
+      if (templateGrid) {
+        clearEl(templateGrid);
+        const err = document.createElement("div");
+        err.className = "ws-error-message";
+        err.textContent = "Failed to load templates.";
+        templateGrid.appendChild(err);
+      }
     }
   }
 
@@ -141,6 +175,36 @@
     if (!grid) return;
 
     clearEl(grid);
+
+    // Empty state when no projects exist
+    if (!projects || projects.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "ws-empty-state";
+
+      const icon = document.createElement("div");
+      icon.className = "ws-empty-state-icon";
+      icon.textContent = "\uD83C\uDF10";
+      empty.appendChild(icon);
+
+      const title = document.createElement("div");
+      title.className = "ws-empty-state-title";
+      title.textContent = "No websites yet";
+      empty.appendChild(title);
+
+      const text = document.createElement("div");
+      text.className = "ws-empty-state-text";
+      text.textContent = "Create your first website to get started with the AI-powered designer.";
+      empty.appendChild(text);
+
+      const btn = document.createElement("button");
+      btn.className = "ws-toolbar-btn ws-deploy-btn ws-empty-state-btn";
+      btn.textContent = "+ Create Your First Website";
+      btn.addEventListener("click", window.openNewProjectModal);
+      empty.appendChild(btn);
+
+      grid.appendChild(empty);
+      return;
+    }
 
     const newCard = document.createElement("div");
     newCard.className = "ws-project-card ws-new-project-card";
@@ -182,6 +246,24 @@
 
     // Handle both {templates: {category: [items]}} and {templates: [...]}
     let templates = data.templates || data;
+
+    // Check if templates is empty
+    let isEmpty = false;
+    if (Array.isArray(templates)) {
+      isEmpty = templates.length === 0;
+    } else if (typeof templates === "object" && templates !== null) {
+      isEmpty = Object.keys(templates).length === 0;
+    } else {
+      isEmpty = true;
+    }
+
+    if (isEmpty) {
+      const empty = document.createElement("div");
+      empty.className = "ws-empty-state ws-empty-state-small";
+      empty.textContent = "No templates available yet. Start with a blank project.";
+      grid.appendChild(empty);
+      return;
+    }
 
     if (Array.isArray(templates)) {
       templates.forEach((tpl) => {
@@ -292,6 +374,9 @@
       // Hide dashboard, show builder
       document.getElementById("wsDashboard").style.display = "none";
       document.getElementById("wsBuilder").style.display = "";
+
+      // Show loading overlay
+      toast("Loading project...");
 
       // Load project details
       const projData = await api("GET", "/api/projects/" + projectId);

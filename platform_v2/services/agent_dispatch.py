@@ -44,7 +44,7 @@ def score_agent(agent, capability):
     # Skills score (0.30 weight)
     skills = get_skills(agent_id)
     skill_match = next((s for s in skills if s["skill_name"] == capability), None)
-    skill_score = (skill_match["level"] / 5.0) if skill_match else 0.3
+    skill_score = (skill_match["proficiency_level"] / 5.0) if skill_match else 0.3
     score += skill_score * WEIGHTS["skills"]
 
     # Welfare score (0.15 weight)

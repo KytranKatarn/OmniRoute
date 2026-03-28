@@ -291,7 +291,7 @@ def get_skills(agent_id):
     """Get agent's skills with levels. Returns list of dicts."""
     with get_db_cursor() as (conn, cur):
         cur.execute(
-            "SELECT skill_name, category, level FROM agent_skills WHERE agent_id = %s ORDER BY level DESC",
+            "SELECT skill_name, skill_category, proficiency_level FROM agent_skills WHERE agent_id = %s ORDER BY level DESC",
             (agent_id,),
         )
         return [dict(r) for r in cur.fetchall()]
@@ -301,9 +301,9 @@ def add_skill(agent_id, skill_name, level=1, category="general"):
     """Add or update a skill for an agent."""
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
-            """INSERT INTO agent_skills (agent_id, skill_name, level, category)
+            """INSERT INTO agent_skills (agent_id, skill_name, proficiency_level, skill_category)
                VALUES (%s, %s, %s, %s)
-               ON CONFLICT (agent_id, skill_name) DO UPDATE SET level = EXCLUDED.level""",
+               ON CONFLICT (agent_id, skill_name) DO UPDATE SET proficiency_level = EXCLUDED.proficiency_level""",
             (agent_id, skill_name, level, category),
         )
     logger.info("Agent #%d skill %s set to level %d", agent_id, skill_name, level)
@@ -320,11 +320,11 @@ def match_capability(capability):
     with get_db_cursor() as (conn, cur):
         cur.execute(
             """SELECT a.id, a.name, a.display_name, a.department, a.model,
-                      a.shift_state, s.level
+                      a.shift_state, s.proficiency_level
                FROM agent_skills s
                JOIN agents a ON a.id = s.agent_id
                WHERE s.skill_name = %s AND a.status = 'active'
-               ORDER BY s.level DESC, a.is_department_ai DESC""",
+               ORDER BY s.proficiency_level DESC, a.is_department_ai DESC""",
             (capability,),
         )
         return [dict(r) for r in cur.fetchall()]

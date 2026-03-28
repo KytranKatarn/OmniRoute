@@ -462,7 +462,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="team_management",
         name="Team Management",
-        description="[Retired] Redirects to Department HQ. API endpoints still active.",
+        description="[Deprecated] Internal API only — use Department HQ. Routes delegate to agent_service.",
         icon="users-round",
         category=ModuleCategory.AI_COMMAND,
         route="/tools/team-management",
@@ -472,7 +472,7 @@ MODULES: List[ModuleDefinition] = [
         enabled=False,
         health_check=lambda: default_health_check("team_management"),
         priority=3,
-        tags=["team", "agents", "management", "execution", "hr", "creed", "ai-command"],
+        tags=["team", "agents", "management", "execution", "hr", "creed", "ai-command", "internal", "deprecated"],
     ),
     ModuleDefinition(
         id="department_hq",

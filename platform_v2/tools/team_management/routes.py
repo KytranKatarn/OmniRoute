@@ -1,9 +1,13 @@
-"""
-Team Management - Standalone Module Routes
-==========================================
-Unified Team Management with all agent routes migrated from admin/routes.py.
+"""DEPRECATED: Team Management routes — being migrated to agent_service + Department HQ.
 
-Migrated routes:
+API endpoints remain active for backward compatibility. HTML redirects to Department HQ.
+New development should use agent_service.py and Department HQ routes.
+
+Core CRUD, skills, and welfare endpoints now delegate to services.agent_service.
+Endpoints not yet covered by agent_service (chat, discussions, contractors, routing,
+ethics monitoring, performance tracking) remain as raw SQL for now.
+
+Original migrated routes:
 - /api/agents GET - Get all agents
 - /api/agents/<id> GET - Get agent details
 - /api/agents/<id> PUT/PATCH - Update agent profile
@@ -38,6 +42,9 @@ import json
 import requests
 import shutil
 import sys
+
+# Import agent_service for delegated CRUD/skills/welfare operations
+from services import agent_service
 
 # Add ai_bridge to path for image generation
 sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
@@ -252,80 +259,52 @@ def get_agents():
 @login_required
 @api_admin_required
 def get_agent_details(agent_id):
-    """Get detailed information about a specific agent"""
+    """Get detailed information about a specific agent.
+    Delegates core profile to agent_service; supplements with tools & executions.
+    """
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # Get agent details
-        cur.execute(
-            """
-            SELECT
-                a.*,
-                at.name as type_name,
-                at.icon as type_icon,
-                at.category as type_category
-            FROM agents a
-            LEFT JOIN agent_types at ON a.type_id = at.id
-            WHERE a.id = %s
-        """,
-            (agent_id,),
-        )
-
-        agent = cur.fetchone()
-
-        if not agent:
+        agent_dict = agent_service.get_agent(agent_id)
+        if not agent_dict:
             return jsonify({"success": False, "error": "Agent not found"}), 404
 
-        # Get agent tools
-        cur.execute(
-            """
-            SELECT tool_name, enabled, configuration, usage_count, last_used_at
-            FROM agent_tools
-            WHERE agent_id = %s
-            ORDER BY tool_name
-        """,
-            (agent_id,),
-        )
+        # Serialize datetimes
+        for key in ("created_at", "updated_at", "last_used"):
+            if agent_dict.get(key) and hasattr(agent_dict[key], "isoformat"):
+                agent_dict[key] = agent_dict[key].isoformat()
 
-        tools = cur.fetchall()
+        # Supplement with tools and recent executions (not in agent_service)
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute(
+                """SELECT tool_name, enabled, configuration, usage_count, last_used_at
+                   FROM agent_tools WHERE agent_id = %s ORDER BY tool_name""",
+                (agent_id,),
+            )
+            tools_list = []
+            for tool in cur.fetchall():
+                td = dict(tool)
+                if td.get("last_used_at"):
+                    td["last_used_at"] = td["last_used_at"].isoformat()
+                tools_list.append(td)
 
-        # Get recent executions
-        cur.execute(
-            """
-            SELECT id, task_description, status, started_at, completed_at, duration_seconds, tokens_used, cost
-            FROM agent_executions
-            WHERE agent_id = %s
-            ORDER BY started_at DESC
-            LIMIT 10
-        """,
-            (agent_id,),
-        )
-
-        recent_executions = cur.fetchall()
-
-        # Convert dates
-        agent_dict = dict(agent)
-        if agent_dict.get("created_at"):
-            agent_dict["created_at"] = agent_dict["created_at"].isoformat()
-        if agent_dict.get("updated_at"):
-            agent_dict["updated_at"] = agent_dict["updated_at"].isoformat()
-
-        tools_list = []
-        for tool in tools:
-            tool_dict = dict(tool)
-            if tool_dict.get("last_used_at"):
-                tool_dict["last_used_at"] = tool_dict["last_used_at"].isoformat()
-            tools_list.append(tool_dict)
-
-        executions_list = []
-        for exec in recent_executions:
-            exec_dict = dict(exec)
-            if exec_dict.get("started_at"):
-                exec_dict["started_at"] = exec_dict["started_at"].isoformat()
-            if exec_dict.get("completed_at"):
-                exec_dict["completed_at"] = exec_dict["completed_at"].isoformat()
-            executions_list.append(exec_dict)
+            cur.execute(
+                """SELECT id, task_description, status, started_at, completed_at,
+                          duration_seconds, tokens_used, cost
+                   FROM agent_executions WHERE agent_id = %s
+                   ORDER BY started_at DESC LIMIT 10""",
+                (agent_id,),
+            )
+            executions_list = []
+            for ex in cur.fetchall():
+                ed = dict(ex)
+                for k in ("started_at", "completed_at"):
+                    if ed.get(k):
+                        ed[k] = ed[k].isoformat()
+                executions_list.append(ed)
+        finally:
+            cur.close()
+            conn.close()
 
         return jsonify(
             {
@@ -341,111 +320,64 @@ def get_agent_details(agent_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>", methods=["PUT", "PATCH"])
 @login_required
 @api_admin_required
 def update_agent_profile(agent_id):
-    """Update agent profile (name, email, phone, avatar)"""
+    """Update agent profile — delegates to agent_service.update_agent()."""
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
         data = request.get_json() or {}
 
-        # Verify agent exists
-        cur.execute("SELECT id FROM agents WHERE id = %s", (agent_id,))
-        if not cur.fetchone():
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Agent not found"}), 404
-
-        # Build dynamic UPDATE query based on provided fields
-        update_fields = []
-        params = []
-
-        # Allowed editable fields
+        # Allowed editable fields (maps JSON key -> DB column)
         editable_fields = {
-            "name": "name",  # Display name
-            "first_name": "first_name",
-            "last_name": "last_name",
-            "email": "email",
-            "gmail": "gmail",
-            "phone": "phone",
-            "avatar_url": "avatar_url",
-            "personality_prompt": "personality_prompt",
-            "communication_style": "communication_style",
-            "system_prompt": "system_prompt",
-            "bio": "bio",
-            "title": "title",
-            "department": "department",
-            "avatar_generation_prompt": "avatar_generation_prompt",
-            "model": "model",  # LLM model assignment
-            "temperature": "temperature",  # Response creativity
-            "tier": "tier",  # Agent tier level
-            "pronouns": "pronouns",
-            "worker_type": "worker_type",
-            "max_tokens": "max_tokens",
+            "name",
+            "first_name",
+            "last_name",
+            "email",
+            "gmail",
+            "phone",
+            "avatar_url",
+            "personality_prompt",
+            "communication_style",
+            "system_prompt",
+            "bio",
+            "title",
+            "department",
+            "avatar_generation_prompt",
+            "model",
+            "temperature",
+            "tier",
+            "pronouns",
+            "worker_type",
+            "max_tokens",
         }
 
-        for json_field, db_field in editable_fields.items():
-            if json_field in data:
-                update_fields.append(f"{db_field} = %s")
-                params.append(data[json_field])
+        fields = {k: v for k, v in data.items() if k in editable_fields}
 
-        # Auto-update name from first_name + last_name if both provided and name not explicitly set
+        # Auto-derive name from first_name + last_name when name not explicitly set
         if "name" not in data and ("first_name" in data or "last_name" in data):
-            # Get current values to combine with new ones
-            cur.execute("SELECT first_name, last_name FROM agents WHERE id = %s", (agent_id,))
-            current = cur.fetchone()
-            new_first = data.get("first_name", current["first_name"] or "")
-            new_last = data.get("last_name", current["last_name"] or "")
-            if new_first or new_last:
-                full_name = f"{new_first} {new_last}".strip()
-                update_fields.append("name = %s")
-                params.append(full_name)
+            current = agent_service.get_agent(agent_id)
+            if current:
+                new_first = data.get("first_name", current.get("first_name") or "")
+                new_last = data.get("last_name", current.get("last_name") or "")
+                if new_first or new_last:
+                    fields["name"] = f"{new_first} {new_last}".strip()
 
-        if not update_fields:
-            cur.close()
-            conn.close()
-            return (
-                jsonify({"success": False, "error": "No valid fields to update"}),
-                400,
-            )
+        if not fields:
+            return jsonify({"success": False, "error": "No valid fields to update"}), 400
 
-        # Add updated_at timestamp
-        update_fields.append("updated_at = NOW()")
+        updated = agent_service.update_agent(agent_id, **fields)
+        if not updated:
+            return jsonify({"success": False, "error": "Agent not found"}), 404
 
-        # Add agent_id to params
-        params.append(agent_id)
-
-        # Execute update
-        sql = f"""
-            UPDATE agents
-            SET {', '.join(update_fields)}
-            WHERE id = %s
-            RETURNING id, name, first_name, last_name, email, gmail, phone, avatar_url,
-                      personality_prompt, communication_style, system_prompt,
-                      bio, title, department, model, temperature, tier, pronouns,
-                      worker_type, max_tokens, updated_at
-        """
-
-        cur.execute(sql, params)
-        updated_agent = cur.fetchone()
-
-        conn.commit()
-
-        # Convert to dict and format dates
-        result = dict(updated_agent)
-        if result.get("updated_at"):
-            result["updated_at"] = result["updated_at"].isoformat()
+        # Return fresh agent data
+        result = agent_service.get_agent(agent_id)
+        if result:
+            for key in ("created_at", "updated_at", "last_used"):
+                if result.get(key) and hasattr(result[key], "isoformat"):
+                    result[key] = result[key].isoformat()
 
         return jsonify(
             {
@@ -455,75 +387,57 @@ def update_agent_profile(agent_id):
             }
         )
 
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
     except Exception as e:
         import traceback
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>", methods=["DELETE"])
 @login_required
 @api_admin_required
-def delete_agent(agent_id):
-    """Permanently delete an agent"""
+def delete_agent_route(agent_id):
+    """Permanently delete an agent — delegates to agent_service.delete_agent()."""
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        cur.execute("SELECT id, name FROM agents WHERE id = %s", (agent_id,))
-        agent = cur.fetchone()
+        agent = agent_service.get_agent(agent_id)
         if not agent:
+            return jsonify({"success": False, "error": "Agent not found"}), 404
+
+        agent_name = agent.get("name", f"#{agent_id}")
+
+        # Null out FK references before hard delete (agent_service doesn't do this)
+        conn = get_db()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "UPDATE unified_projects SET created_by_agent_id = NULL WHERE created_by_agent_id = %s",
+                (agent_id,),
+            )
+            cur.execute(
+                "UPDATE unified_tasks SET assigned_agent_id = NULL WHERE assigned_agent_id = %s",
+                (agent_id,),
+            )
+            cur.execute(
+                "UPDATE unified_tasks SET created_by_agent_id = NULL WHERE created_by_agent_id = %s",
+                (agent_id,),
+            )
+            conn.commit()
+        finally:
             cur.close()
             conn.close()
-            return (
-                jsonify({"success": False, "error": "Agent not found"}),
-                404,
-            )
 
-        agent_name = agent["name"]
+        agent_service.delete_agent(agent_id, hard=True)
 
-        # Null out FK references in unified_projects and unified_tasks
-        cur.execute(
-            "UPDATE unified_projects SET created_by_agent_id = NULL " "WHERE created_by_agent_id = %s",
-            (agent_id,),
-        )
-        cur.execute(
-            "UPDATE unified_tasks SET assigned_agent_id = NULL " "WHERE assigned_agent_id = %s",
-            (agent_id,),
-        )
-        cur.execute(
-            "UPDATE unified_tasks SET created_by_agent_id = NULL " "WHERE created_by_agent_id = %s",
-            (agent_id,),
-        )
-
-        cur.execute("DELETE FROM agents WHERE id = %s", (agent_id,))
-        conn.commit()
-
-        return jsonify(
-            {
-                "success": True,
-                "message": f"Agent '{agent_name}' deleted",
-            }
-        )
+        return jsonify({"success": True, "message": f"Agent '{agent_name}' deleted"})
 
     except Exception as e:
         import traceback
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/work-history", methods=["GET"])
@@ -1136,44 +1050,22 @@ def end_discussion(discussion_id):
 @login_required
 @api_admin_required
 def toggle_agent(agent_id):
-    """Toggle agent status between active and paused"""
+    """Toggle agent status between active and paused — delegates to agent_service."""
     try:
-        conn = get_db()
-        cur = conn.cursor()
-
-        cur.execute(
-            """
-            UPDATE agents
-            SET status = CASE
-                WHEN status = 'active' THEN 'paused'
-                ELSE 'active'
-            END,
-            updated_at = NOW()
-            WHERE id = %s
-            RETURNING status
-        """,
-            (agent_id,),
-        )
-
-        result = cur.fetchone()
-        conn.commit()
-
-        if not result:
+        agent = agent_service.get_agent(agent_id)
+        if not agent:
             return jsonify({"success": False, "error": "Agent not found"}), 404
 
-        return jsonify({"success": True, "status": result[0]})
+        new_status = "paused" if agent.get("status") == "active" else "active"
+        agent_service.update_agent(agent_id, status=new_status)
+
+        return jsonify({"success": True, "status": new_status})
 
     except Exception as e:
         import traceback
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
 
 
 @team_management_bp.route("/api/agents/types", methods=["GET"])
@@ -1634,51 +1526,18 @@ def get_skills_matrix():
 @login_required
 @api_admin_required
 def get_agent_skills(agent_id):
-    """Get all skills for a specific agent"""
+    """Get all skills for a specific agent — delegates to agent_service.get_skills()."""
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # Verify agent exists
-        cur.execute("SELECT id, name, model FROM agents WHERE id = %s", (agent_id,))
-        agent = cur.fetchone()
+        agent = agent_service.get_agent(agent_id)
         if not agent:
             return jsonify({"success": False, "error": "Agent not found"}), 404
 
-        # Get agent's skills
-        cur.execute(
-            """
-            SELECT
-                id,
-                skill_name,
-                skill_category,
-                proficiency_level,
-                notes,
-                created_at,
-                updated_at
-            FROM agent_skills
-            WHERE agent_id = %s
-            ORDER BY skill_category, proficiency_level DESC, skill_name
-        """,
-            (agent_id,),
-        )
-
-        skills = cur.fetchall()
-
-        # Format dates
-        skills_list = []
-        for skill in skills:
-            skill_dict = dict(skill)
-            if skill_dict.get("created_at"):
-                skill_dict["created_at"] = skill_dict["created_at"].isoformat()
-            if skill_dict.get("updated_at"):
-                skill_dict["updated_at"] = skill_dict["updated_at"].isoformat()
-            skills_list.append(skill_dict)
+        skills_list = agent_service.get_skills(agent_id)
 
         return jsonify(
             {
                 "success": True,
-                "agent": dict(agent),
+                "agent": {"id": agent["id"], "name": agent.get("name"), "model": agent.get("model")},
                 "skills": skills_list,
                 "skill_count": len(skills_list),
             }
@@ -1689,85 +1548,41 @@ def get_agent_skills(agent_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/skills", methods=["POST"])
 @login_required
 @api_admin_required
 def add_agent_skill(agent_id):
-    """Add a new skill to an agent"""
+    """Add a new skill to an agent — delegates to agent_service.add_skill()."""
     try:
-        import uuid
-        from datetime import datetime
-
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # Verify agent exists
-        cur.execute("SELECT id FROM agents WHERE id = %s", (agent_id,))
-        if not cur.fetchone():
+        agent = agent_service.get_agent(agent_id)
+        if not agent:
             return jsonify({"success": False, "error": "Agent not found"}), 404
 
         data = request.get_json() or {}
         skill_name = data.get("skill_name")
         proficiency = data.get("proficiency_level", 3)
         category = data.get("skill_category", "general")
-        notes = data.get("notes", "")
 
         if not skill_name:
             return jsonify({"success": False, "error": "skill_name is required"}), 400
 
         if proficiency < 1 or proficiency > 5:
-            return (
-                jsonify({"success": False, "error": "proficiency_level must be 1-5"}),
-                400,
-            )
+            return jsonify({"success": False, "error": "proficiency_level must be 1-5"}), 400
 
-        # Insert skill (or update if exists)
-        cur.execute(
-            """
-            INSERT INTO agent_skills
-            (id, agent_id, skill_name, skill_category, proficiency_level, notes, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (agent_id, skill_name) DO UPDATE SET
-                proficiency_level = EXCLUDED.proficiency_level,
-                skill_category = EXCLUDED.skill_category,
-                notes = EXCLUDED.notes,
-                updated_at = EXCLUDED.updated_at
-            RETURNING id, skill_name, skill_category, proficiency_level, notes, created_at, updated_at
-        """,
-            (
-                str(uuid.uuid4()),
-                agent_id,
-                skill_name.lower().replace(" ", "_"),
-                category,
-                proficiency,
-                notes,
-                datetime.now(),
-                datetime.now(),
-            ),
-        )
-
-        new_skill = cur.fetchone()
-        conn.commit()
-
-        skill_dict = dict(new_skill)
-        if skill_dict.get("created_at"):
-            skill_dict["created_at"] = skill_dict["created_at"].isoformat()
-        if skill_dict.get("updated_at"):
-            skill_dict["updated_at"] = skill_dict["updated_at"].isoformat()
+        normalized_name = skill_name.lower().replace(" ", "_")
+        agent_service.add_skill(agent_id, normalized_name, level=proficiency, category=category)
 
         return jsonify(
             {
                 "success": True,
                 "message": f'Skill "{skill_name}" added to agent',
-                "skill": skill_dict,
+                "skill": {
+                    "skill_name": normalized_name,
+                    "skill_category": category,
+                    "proficiency_level": proficiency,
+                },
             }
         )
 
@@ -1776,12 +1591,6 @@ def add_agent_skill(agent_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/skills/<skill_id>", methods=["PUT"])

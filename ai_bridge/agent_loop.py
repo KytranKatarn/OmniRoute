@@ -4605,6 +4605,32 @@ class AgentLoop:
                 else:
                     violations += 1
 
+            # --- Phase 1.5: Pre-dispatch model cleanup ---
+            # Unload non-essential models to free VRAM/RAM for repair agents
+            try:
+                import urllib.request as _urllib
+                essential_models = {"arctic-embed-cpu:latest", "qwen2.5-coder:7b", "qwen2.5:1.5b"}
+                ps_resp = _urllib.urlopen("http://192.168.1.200:11434/api/ps", timeout=10)
+                loaded = json.loads(ps_resp.read()).get("models", [])
+                unloaded = 0
+                for m in loaded:
+                    if m["name"] not in essential_models:
+                        try:
+                            unload_data = json.dumps({"model": m["name"], "keep_alive": 0}).encode()
+                            unload_req = _urllib.Request(
+                                "http://192.168.1.200:11434/api/generate",
+                                data=unload_data,
+                                headers={"Content-Type": "application/json"},
+                            )
+                            _urllib.urlopen(unload_req, timeout=30).read()
+                            unloaded += 1
+                        except Exception:
+                            pass
+                if unloaded:
+                    logger.info("Repair pipeline: unloaded %d non-essential models before dispatch", unloaded)
+            except Exception as cleanup_err:
+                logger.debug("Pre-dispatch cleanup skipped: %s", cleanup_err)
+
             # --- Phase 2: Dispatch approved proposals for AI fixes ---
             try:
                 from services.audit_pipeline import dispatch_audit_proposals

@@ -47,3 +47,27 @@ class Config:
 
         # Printful
         self.KBS_PRINTFUL_API_KEY = os.getenv("KBS_PRINTFUL_API_KEY", "")
+
+        # RingCentral
+        self.KBS_RINGCENTRAL_SERVER_URL = os.getenv(
+            "KBS_RINGCENTRAL_SERVER_URL", "https://platform.ringcentral.com"
+        )
+        self.KBS_RINGCENTRAL_CLIENT_ID = os.getenv("KBS_RINGCENTRAL_CLIENT_ID", "")
+        self.KBS_RINGCENTRAL_CLIENT_SECRET = os.getenv("KBS_RINGCENTRAL_CLIENT_SECRET", "")
+        self.KBS_RINGCENTRAL_JWT_TOKEN = os.getenv("KBS_RINGCENTRAL_JWT_TOKEN", "")
+        self.KBS_RINGCENTRAL_ACCOUNT_ID = os.getenv("KBS_RINGCENTRAL_ACCOUNT_ID", "~")
+        self.KBS_RINGCENTRAL_WEBHOOK_SECRET = os.getenv("KBS_RINGCENTRAL_WEBHOOK_SECRET", "")
+
+        # Twilio (SMS fallback)
+        self.KBS_TWILIO_ACCOUNT_SID = os.getenv("KBS_TWILIO_ACCOUNT_SID", "")
+        self.KBS_TWILIO_AUTH_TOKEN = os.getenv("KBS_TWILIO_AUTH_TOKEN", "")
+        self.KBS_TWILIO_PHONE_NUMBER = os.getenv("KBS_TWILIO_PHONE_NUMBER", "")
+
+        # Hostinger Reach (email marketing)
+        self.KBS_REACH_API_URL = os.getenv(
+            "KBS_REACH_API_URL", "https://api.hostinger.com/reach/v1"
+        )
+        self.KBS_REACH_API_KEY = os.getenv("KBS_REACH_API_KEY", "")
+
+        # SMS provider preference
+        self.KBS_SMS_PROVIDER = os.getenv("KBS_SMS_PROVIDER", "ringcentral")

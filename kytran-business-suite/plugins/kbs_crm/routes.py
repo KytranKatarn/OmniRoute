@@ -432,3 +432,49 @@ def on_invoice_paid(data):
             )
     except Exception:
         logger.exception("Failed to log invoice interaction for customer %s", customer_id)
+
+
+def on_payment_received(data):
+    """Log a 'payment' interaction when a payment is received (any source)."""
+    customer_id = data.get("customer_id")
+    tenant_id = data.get("_tenant_id")
+    if not customer_id or not tenant_id:
+        return
+    try:
+        amount = data.get("amount", 0)
+        method = data.get("payment_method", "unknown")
+        reference = data.get("payment_reference", "")
+        invoice_id = data.get("invoice_id")
+        order_id = data.get("order_id")
+
+        subject = f"Payment received: ${amount:,.2f} via {method}"
+        if invoice_id:
+            content = f"Payment of ${amount:,.2f} received for invoice #{invoice_id} via {method}. Reference: {reference}"
+        elif order_id:
+            content = f"Payment of ${amount:,.2f} received for order #{order_id} via {method}. Reference: {reference}"
+        else:
+            content = f"Payment of ${amount:,.2f} received via {method}. Reference: {reference}"
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            set_tenant_search_path(cur, tenant_id)
+            cur.execute(
+                """
+                INSERT INTO crm_interactions (customer_id, type, subject, content, metadata)
+                VALUES (%s, 'payment', %s, %s, %s)
+                """,
+                (
+                    customer_id,
+                    subject,
+                    content,
+                    Json({
+                        "amount": amount,
+                        "payment_method": method,
+                        "payment_reference": reference,
+                        "invoice_id": invoice_id,
+                        "order_id": order_id,
+                        "source": "event_bus",
+                    }),
+                ),
+            )
+    except Exception:
+        logger.exception("Failed to log payment interaction for customer %s", customer_id)

@@ -543,6 +543,21 @@ MODULES: List[ModuleDefinition] = [
             "development-tools",
         ],
     ),
+    ModuleDefinition(
+        id="agent_academy",
+        name="Agent Academy",
+        description="Training \u2022 Benchmarks \u2022 A/B Testing \u2022 Model Config<br>Skill development and performance optimization",
+        icon="graduation-cap",
+        category=ModuleCategory.AI_COMMAND,
+        route="/tools/agent-academy",
+        blueprint_import="tools.agent_academy:agent_academy_bp",
+        required_permissions=["admin:access"],
+        minimum_role="ADMIN",
+        enabled=True,
+        health_check=lambda: default_health_check("agent_academy"),
+        priority=3,
+        tags=["training", "benchmarks", "testing", "models", "ai-command"],
+    ),
     # ============================================
     # SAAS SERVICES (10 modules)
     # ============================================

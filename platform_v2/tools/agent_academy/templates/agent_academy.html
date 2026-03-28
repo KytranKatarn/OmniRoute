@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block title %}Agent Academy — A.R.C.H.I.E.{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('agent_academy.static', filename='css/agent-academy.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="aa-container">
+    <!-- Header -->
+    <div class="aa-header">
+        <div class="aa-header-bar">
+            <div class="aa-header-elbow"></div>
+            <h1 class="aa-title">AGENT ACADEMY</h1>
+            <div class="aa-header-status">
+                <span class="aa-badge aa-badge-teal" id="aa-agent-count">--</span> AGENTS
+                <span class="aa-badge aa-badge-purple" id="aa-skill-count">--</span> SKILLS
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="aa-tab-bar">
+        <button class="aa-tab active" data-tab="benchmarks" onclick="switchTab('benchmarks')">
+            <i data-lucide="zap"></i> BENCHMARKS
+        </button>
+        <button class="aa-tab" data-tab="training" onclick="switchTab('training')">
+            <i data-lucide="graduation-cap"></i> TRAINING
+        </button>
+        <button class="aa-tab" data-tab="models" onclick="switchTab('models')">
+            <i data-lucide="cpu"></i> MODELS
+        </button>
+        <button class="aa-tab" data-tab="ab-test" onclick="switchTab('ab-test')">
+            <i data-lucide="git-compare"></i> A/B TESTING
+        </button>
+        <button class="aa-tab" data-tab="knowledge" onclick="switchTab('knowledge')">
+            <i data-lucide="book-open"></i> KNOWLEDGE
+        </button>
+    </div>
+
+    <!-- Tab Panels -->
+
+    <!-- BENCHMARKS TAB -->
+    <div class="aa-panel active" id="panel-benchmarks">
+        <div class="aa-panel-controls">
+            <h2 class="aa-panel-title">Run Benchmark</h2>
+            <div class="aa-form-row">
+                <select id="bench-agent" class="aa-select">
+                    <option value="">Select Agent...</option>
+                </select>
+                <input type="text" id="bench-capability" class="aa-input" placeholder="Capability (e.g. code_review)">
+            </div>
+            <div class="aa-form-row">
+                <textarea id="bench-prompt" class="aa-textarea" rows="3" placeholder="Test prompt..."></textarea>
+            </div>
+            <button class="aa-btn aa-btn-primary" onclick="runBenchmark()" id="btn-run-bench">
+                <i data-lucide="play"></i> RUN BENCHMARK
+            </button>
+        </div>
+
+        <h2 class="aa-panel-title" style="margin-top:1.5rem">Rankings</h2>
+        <div id="rankings-container" class="aa-card-grid"></div>
+
+        <h2 class="aa-panel-title" style="margin-top:1.5rem">Recent Runs</h2>
+        <div id="benchmarks-container"></div>
+    </div>
+
+    <!-- TRAINING TAB -->
+    <div class="aa-panel" id="panel-training">
+        <div class="aa-panel-controls">
+            <h2 class="aa-panel-title">Assign Training</h2>
+            <div class="aa-form-row">
+                <select id="train-agent" class="aa-select">
+                    <option value="">Select Agent...</option>
+                </select>
+                <input type="text" id="train-skill" class="aa-input" placeholder="Skill name">
+                <select id="train-level" class="aa-select aa-select-sm">
+                    <option value="1">Lv 1</option>
+                    <option value="2">Lv 2</option>
+                    <option value="3" selected>Lv 3</option>
+                    <option value="4">Lv 4</option>
+                    <option value="5">Lv 5</option>
+                </select>
+                <button class="aa-btn aa-btn-primary" onclick="assignTraining()">
+                    <i data-lucide="plus"></i> ASSIGN
+                </button>
+            </div>
+        </div>
+
+        <h2 class="aa-panel-title" style="margin-top:1.5rem">Skill Gaps</h2>
+        <div id="gaps-container"></div>
+
+        <h2 class="aa-panel-title" style="margin-top:1.5rem">Department Status</h2>
+        <div id="training-status-container"></div>
+    </div>
+
+    <!-- MODELS TAB -->
+    <div class="aa-panel" id="panel-models">
+        <div class="aa-panel-controls aa-form-row">
+            <select id="model-dept-filter" class="aa-select" onchange="loadModelAgents()">
+                <option value="">All Departments</option>
+            </select>
+            <div class="aa-model-stats">
+                <span class="aa-badge aa-badge-green" id="loaded-count">--</span> loaded
+                <span class="aa-badge aa-badge-dim" id="available-count">--</span> available
+            </div>
+        </div>
+        <div id="models-container"></div>
+
+        <!-- Model Edit Modal (inline) -->
+        <div class="aa-modal-overlay" id="model-edit-modal" style="display:none">
+            <div class="aa-modal">
+                <div class="aa-modal-header">
+                    <h3 id="modal-agent-name">Edit Model Config</h3>
+                    <button class="aa-btn-icon" onclick="closeModelModal()">&times;</button>
+                </div>
+                <div class="aa-modal-body">
+                    <input type="hidden" id="modal-agent-id">
+                    <label class="aa-label">Model</label>
+                    <select id="modal-model" class="aa-select"></select>
+                    <label class="aa-label">Temperature</label>
+                    <input type="number" id="modal-temp" class="aa-input" min="0" max="2" step="0.1">
+                    <label class="aa-label">Max Tokens</label>
+                    <input type="number" id="modal-tokens" class="aa-input" min="256" max="32768" step="256">
+                    <label class="aa-label">System Prompt</label>
+                    <textarea id="modal-system-prompt" class="aa-textarea" rows="8"></textarea>
+                </div>
+                <div class="aa-modal-footer">
+                    <button class="aa-btn" onclick="closeModelModal()">CANCEL</button>
+                    <button class="aa-btn aa-btn-primary" onclick="saveModelConfig()">SAVE</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- A/B TESTING TAB -->
+    <div class="aa-panel" id="panel-ab-test">
+        <div class="aa-panel-controls">
+            <h2 class="aa-panel-title">Compare Models</h2>
+            <div class="aa-form-row">
+                <select id="ab-model-a" class="aa-select">
+                    <option value="">Model A...</option>
+                </select>
+                <span class="aa-vs">VS</span>
+                <select id="ab-model-b" class="aa-select">
+                    <option value="">Model B...</option>
+                </select>
+            </div>
+            <div class="aa-form-row">
+                <input type="text" id="ab-capability" class="aa-input" placeholder="Capability tag (optional)">
+            </div>
+            <div class="aa-form-row">
+                <textarea id="ab-prompt" class="aa-textarea" rows="3" placeholder="Test prompt for both models..."></textarea>
+            </div>
+            <button class="aa-btn aa-btn-primary" onclick="runABTest()" id="btn-run-ab">
+                <i data-lucide="play"></i> RUN A/B TEST
+            </button>
+        </div>
+
+        <div id="ab-result-container" style="display:none">
+            <div class="aa-ab-comparison">
+                <div class="aa-ab-side" id="ab-side-a">
+                    <h3 class="aa-ab-label">MODEL A</h3>
+                    <div class="aa-ab-model-name" id="ab-name-a"></div>
+                    <div class="aa-ab-stats" id="ab-stats-a"></div>
+                    <div class="aa-ab-response" id="ab-response-a"></div>
+                </div>
+                <div class="aa-ab-divider"></div>
+                <div class="aa-ab-side" id="ab-side-b">
+                    <h3 class="aa-ab-label">MODEL B</h3>
+                    <div class="aa-ab-model-name" id="ab-name-b"></div>
+                    <div class="aa-ab-stats" id="ab-stats-b"></div>
+                    <div class="aa-ab-response" id="ab-response-b"></div>
+                </div>
+            </div>
+        </div>
+
+        <h2 class="aa-panel-title" style="margin-top:1.5rem">Test History</h2>
+        <div id="ab-history-container"></div>
+    </div>
+
+    <!-- KNOWLEDGE TAB -->
+    <div class="aa-panel" id="panel-knowledge">
+        <h2 class="aa-panel-title">Agent System Prompts</h2>
+        <div id="knowledge-container"></div>
+
+        <!-- Prompt Edit Modal -->
+        <div class="aa-modal-overlay" id="prompt-edit-modal" style="display:none">
+            <div class="aa-modal">
+                <div class="aa-modal-header">
+                    <h3 id="prompt-modal-name">Edit System Prompt</h3>
+                    <button class="aa-btn-icon" onclick="closePromptModal()">&times;</button>
+                </div>
+                <div class="aa-modal-body">
+                    <input type="hidden" id="prompt-modal-agent-id">
+                    <textarea id="prompt-modal-text" class="aa-textarea" rows="14"></textarea>
+                    <div class="aa-prompt-stats">
+                        <span id="prompt-char-count">0</span> characters
+                    </div>
+                </div>
+                <div class="aa-modal-footer">
+                    <button class="aa-btn" onclick="closePromptModal()">CANCEL</button>
+                    <button class="aa-btn aa-btn-primary" onclick="savePrompt()">SAVE</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('agent_academy.static', filename='js/agent-academy.js') }}"></script>
+{% endblock %}

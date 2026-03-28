@@ -564,7 +564,11 @@ def dispatch_proposal_fix(proposal_id):
         logger.warning("Work session creation failed (non-blocking): %s", ws_err)
 
     # Read source file
+    # Resolve path: file_path is "platform_v2/tools/..." but inside Docker root is /app/ (= platform_v2/)
+    # Try /mnt/archie_brain first (host), fall back to /app/ (Docker) with prefix stripped
     abs_path = os.path.join("/mnt/archie_brain", file_path)
+    if not os.path.isfile(abs_path) and file_path.startswith("platform_v2/"):
+        abs_path = os.path.join("/app", file_path[len("platform_v2/") :])
     if not os.path.isfile(abs_path):
         if session_id:
             fail_work_session(session_id, error_msg=f"Source file not found: {file_path}")

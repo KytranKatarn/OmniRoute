@@ -4796,24 +4796,21 @@ def get_agents_on_duty(station_name: str = None):
 
         query = """
             SELECT DISTINCT
-                a.id, a.name, a.department, a.worker_type,
-                bs.station_name, bs.id as station_id,
-                sa.assignment_type,
+                a.id, a.name, a.department, a.floor, a.worker_type,
                 sd.shift_name, sd.start_time, sd.end_time
             FROM agents a
-            JOIN station_assignments sa ON a.id = sa.agent_id AND sa.is_active = true
-            JOIN bridge_stations bs ON sa.station_id = bs.id AND bs.is_active = true
             LEFT JOIN agent_shifts ash ON a.id = ash.agent_id
                 AND ash.effective_from <= CURRENT_DATE
                 AND (ash.effective_until IS NULL OR ash.effective_until >= CURRENT_DATE)
                 AND (ash.day_of_week IS NULL OR ash.day_of_week = %s)
             LEFT JOIN shift_definitions sd ON ash.shift_id = sd.id AND sd.is_active = true
             WHERE a.status = 'active'
+              AND a.department IS NOT NULL
         """
         params = [current_day]
 
         if station_name:
-            query += " AND LOWER(bs.station_name) = LOWER(%s)"
+            query += " AND LOWER(a.department) = LOWER(%s)"
             params.append(station_name)
 
         # Check if current time is within shift hours (handle overnight shifts)
@@ -4823,7 +4820,7 @@ def get_agents_on_duty(station_name: str = None):
                 OR (sd.start_time <= sd.end_time AND %s::time BETWEEN sd.start_time AND sd.end_time)
                 OR (sd.start_time > sd.end_time AND (%s::time >= sd.start_time OR %s::time <= sd.end_time))
             )
-            ORDER BY sa.assignment_type, a.name
+            ORDER BY a.department, a.name
         """
         params.extend([current_time, current_time, current_time])
 
@@ -4874,16 +4871,11 @@ def get_available_agent_for_station(station_name: str, prefer_primary: bool = Tr
 
         cur.execute(
             """
-            SELECT a.id, a.name, a.department, a.worker_type,
-                   bs.station_name, sa.assignment_type
+            SELECT a.id, a.name, a.department, a.floor, a.worker_type
             FROM agents a
-            JOIN station_assignments sa ON a.id = sa.agent_id AND sa.is_active = true
-            JOIN bridge_stations bs ON sa.station_id = bs.id
             WHERE a.status = 'active'
-              AND LOWER(bs.station_name) = LOWER(%s)
-            ORDER BY
-                CASE sa.assignment_type WHEN 'primary' THEN 1 ELSE 2 END,
-                a.name
+              AND LOWER(a.department) = LOWER(%s)
+            ORDER BY a.name
             LIMIT 1
         """,
             (station_name,),
@@ -4897,12 +4889,12 @@ def get_available_agent_for_station(station_name: str, prefer_primary: bool = Tr
             return dict(agent)
 
     except Exception as e:
-        print(f"[AI Bridge] Error getting agent for station: {e}")
+        print(f"[AI Bridge] Error getting agent for department: {e}")
 
     # Final fallback: return a contractor
     contractors = list_available_contractors()
     if contractors:
-        print(f"[AI Bridge] No station agents available, using contractor fallback")
+        print(f"[AI Bridge] No department agents available, using contractor fallback")
         return contractors[0]
 
     return None

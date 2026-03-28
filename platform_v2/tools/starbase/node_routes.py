@@ -2037,15 +2037,16 @@ def register_node_routes(bp, admin_required):
                 if not node:
                     return jsonify({"success": False, "error": "Node not found"}), 404
 
-                # Get station assignments with station details
+                # Get station assignments — bridge_stations deprecated, use it only for name lookup
+                # (node_station_assignments still references station_id FK)
                 cur.execute(
                     """
                     SELECT
                         nsa.id AS assignment_id,
                         nsa.station_id,
-                        bs.station_code,
-                        bs.station_name,
-                        bs.color AS station_color,
+                        COALESCE(bs.station_code, 'UNKNOWN') as station_code,
+                        COALESCE(bs.station_name, 'Unknown') as station_name,
+                        COALESCE(bs.color, '#666') AS station_color,
                         nsa.role,
                         nsa.priority,
                         nsa.shift_preference,
@@ -2054,9 +2055,9 @@ def register_node_routes(bp, admin_required):
                         nsa.assigned_at,
                         nsa.notes
                     FROM node_station_assignments nsa
-                    JOIN bridge_stations bs ON nsa.station_id = bs.id
+                    LEFT JOIN bridge_stations bs ON nsa.station_id = bs.id
                     WHERE nsa.node_id = %s
-                    ORDER BY nsa.priority ASC, bs.station_name ASC
+                    ORDER BY nsa.priority ASC
                 """,
                     (node["id"],),
                 )
@@ -2096,7 +2097,7 @@ def register_node_routes(bp, admin_required):
                 if not node:
                     return jsonify({"success": False, "error": "Node not found"}), 404
 
-                # Verify station exists
+                # Verify station exists (bridge_stations still holds node-station mappings)
                 cur.execute(
                     "SELECT id, station_name FROM bridge_stations WHERE id = %s",
                     (data["station_id"],),
@@ -2191,9 +2192,9 @@ def register_node_routes(bp, admin_required):
                 # Check if assignment exists
                 cur.execute(
                     """
-                    SELECT nsa.id, bs.station_name
+                    SELECT nsa.id, COALESCE(bs.station_name, 'Unknown') as station_name
                     FROM node_station_assignments nsa
-                    JOIN bridge_stations bs ON nsa.station_id = bs.id
+                    LEFT JOIN bridge_stations bs ON nsa.station_id = bs.id
                     WHERE nsa.node_id = %s AND nsa.station_id = %s
                 """,
                     (node["id"], station_id),
@@ -2302,9 +2303,9 @@ def register_node_routes(bp, admin_required):
                 if not node:
                     return jsonify({"success": False, "error": "Node not found"}), 404
 
-                # Get station name for response
+                # Get station name for response (bridge_stations deprecated but still exists)
                 cur.execute("SELECT station_name FROM bridge_stations WHERE id = %s", (station_id,))
-                station = cur.fetchone()
+                station = cur.fetchone() or {"station_name": "Unknown"}
 
                 # Delete assignment
                 cur.execute(
@@ -2342,7 +2343,7 @@ def register_node_routes(bp, admin_required):
         try:
             with get_db_cursor(commit=False) as (conn, cur):
 
-                # Verify station exists
+                # Verify station exists (bridge_stations deprecated but still holds node-station FK data)
                 cur.execute(
                     "SELECT id, station_code, station_name, color FROM bridge_stations WHERE id = %s",
                     (station_id,),

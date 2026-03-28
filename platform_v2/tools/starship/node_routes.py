@@ -104,30 +104,45 @@ def register_node_routes(bp, auth_decorator):
                 )
                 latest_hb = cur.fetchone()
 
-                # All stations with agent counts (real agents from node_agents table)
+                # Station color lookup — from Python map (bridge_stations deprecated)
+                _STATION_COLORS = {
+                    "COMMAND": "#00e5ff",
+                    "ANALYTICS": "#8b5cf6",
+                    "CREATIVE": "#f472b6",
+                    "ENGINEERING": "#fbbf24",
+                    "COMMUNICATIONS": "#22d3ee",
+                    "RESEARCH": "#10b981",
+                    "SECURITY": "#ef4444",
+                    "LOGISTICS": "#f97316",
+                    "DIPLOMATIC": "#818cf8",
+                    "OPERATIONS": "#a3e635",
+                }
+                # Build stations from the legacy map with agent counts from node_agents
                 cur.execute(
                     """
-                    SELECT bs.id, bs.station_code, bs.station_name, bs.color, bs.icon,
-                           bs.default_llm,
-                           CASE WHEN nsa.id IS NOT NULL THEN true ELSE false END as assigned,
-                           nsa.is_active as station_active,
-                           (SELECT COUNT(*) FROM node_agents na
-                            WHERE na.node_id = %s AND na.status = 'active'
-                            AND bs.station_code = ANY(na.station_codes)) as agent_count
-                    FROM bridge_stations bs
-                    LEFT JOIN node_station_assignments nsa
-                        ON nsa.station_id = bs.id AND nsa.node_id = %s
-                    WHERE bs.is_active = true
-                    ORDER BY bs.position_row, bs.position_order
+                    SELECT unnest(na.station_codes) as station_code, COUNT(*) as agent_count
+                    FROM node_agents na
+                    WHERE na.node_id = %s AND na.status = 'active'
+                    GROUP BY unnest(na.station_codes)
                     """,
-                    (node.get("id") or 0, node.get("id") or 0),
+                    (node.get("id") or 0,),
                 )
-                stations = cur.fetchall()
-
-                # Build station color lookup
-                station_color_map = {}
-                for s in stations:
-                    station_color_map[s["station_code"]] = s["color"]
+                code_counts = {r["station_code"]: r["agent_count"] for r in cur.fetchall()}
+                stations = [
+                    {
+                        "id": idx,
+                        "station_code": code,
+                        "station_name": code.title(),
+                        "color": color,
+                        "icon": None,
+                        "default_llm": None,
+                        "assigned": code in code_counts,
+                        "station_active": True,
+                        "agent_count": code_counts.get(code, 0),
+                    }
+                    for idx, (code, color) in enumerate(_STATION_COLORS.items())
+                ]
+                station_color_map = _STATION_COLORS
 
                 # Node-specific agents from node_agents table
                 cur.execute(
@@ -607,10 +622,10 @@ def register_node_routes(bp, auth_decorator):
             if station_code:
                 cur.execute(
                     """
-                    SELECT sc.*, bs.station_code
+                    SELECT sc.*, COALESCE(bs.station_code, 'UNKNOWN') as station_code
                     FROM station_commands sc
-                    JOIN bridge_stations bs ON bs.id = sc.station_id
-                    WHERE bs.station_code = %s AND sc.is_active = true
+                    LEFT JOIN bridge_stations bs ON bs.id = sc.station_id
+                    WHERE COALESCE(bs.station_code, '') = %s AND sc.is_active = true
                     ORDER BY sc.command_name
                     """,
                     (station_code,),
@@ -618,11 +633,11 @@ def register_node_routes(bp, auth_decorator):
             else:
                 cur.execute(
                     """
-                    SELECT sc.*, bs.station_code
+                    SELECT sc.*, COALESCE(bs.station_code, 'UNKNOWN') as station_code
                     FROM station_commands sc
-                    JOIN bridge_stations bs ON bs.id = sc.station_id
+                    LEFT JOIN bridge_stations bs ON bs.id = sc.station_id
                     WHERE sc.is_active = true
-                    ORDER BY bs.station_code, sc.command_name
+                    ORDER BY station_code, sc.command_name
                     """
                 )
             commands = cur.fetchall()
@@ -640,9 +655,9 @@ def register_node_routes(bp, auth_decorator):
         with get_db_cursor() as (conn, cur):
             cur.execute(
                 """
-                SELECT sc.*, bs.station_code
+                SELECT sc.*, COALESCE(bs.station_code, 'UNKNOWN') as station_code
                 FROM station_commands sc
-                JOIN bridge_stations bs ON bs.id = sc.station_id
+                LEFT JOIN bridge_stations bs ON bs.id = sc.station_id
                 WHERE sc.id = %s AND sc.is_active = true
                 """,
                 (command_id,),

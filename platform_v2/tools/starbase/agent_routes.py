@@ -14,6 +14,42 @@ from .helpers import OLLAMA_LOCAL_URL, _get_cached_ollama_ps
 
 logger = logging.getLogger(__name__)
 
+# Maps legacy station codes to department names for backward-compatible panel rendering.
+# station_assignments table is DROPPED; agents.department is the source of truth.
+LEGACY_STATION_DEPARTMENT = {
+    "COMMAND": ["Executive Office"],
+    "ANALYTICS": ["Analytics & Intelligence", "Finance & Accounting"],
+    "CREATIVE": ["Creative & Design", "Marketing & Communications", "Documentation & Knowledge"],
+    "ENGINEERING": ["Engineering & Technology", "Security & Compliance", "Research & Development"],
+    "COMMUNICATIONS": ["Marketing & Communications"],
+    "RESEARCH": ["Research & Development"],
+    "SECURITY": ["Security & Compliance"],
+    "LOGISTICS": ["Logistics & Supply Chain"],
+    "DIPLOMATIC": ["Diplomatic & External Relations"],
+    "OPERATIONS": ["Operations & Infrastructure"],
+}
+
+# Reverse map: department name -> legacy station code
+DEPARTMENT_TO_STATION = {}
+for _code, _depts in LEGACY_STATION_DEPARTMENT.items():
+    for _dept in _depts:
+        if _dept not in DEPARTMENT_TO_STATION:
+            DEPARTMENT_TO_STATION[_dept] = _code
+
+# Legacy station colors for backward-compatible rendering
+LEGACY_STATION_COLORS = {
+    "COMMAND": "#00e5ff",
+    "ANALYTICS": "#8b5cf6",
+    "CREATIVE": "#f472b6",
+    "ENGINEERING": "#fbbf24",
+    "COMMUNICATIONS": "#22d3ee",
+    "RESEARCH": "#10b981",
+    "SECURITY": "#ef4444",
+    "LOGISTICS": "#f97316",
+    "DIPLOMATIC": "#818cf8",
+    "OPERATIONS": "#a3e635",
+}
+
 
 def register_agent_routes(bp, admin_required):
     """Register agent-related routes on the bridge blueprint."""
@@ -427,37 +463,23 @@ def register_agent_routes(bp, admin_required):
     @bp.route("/api/agents/<int:agent_id>/assign-station", methods=["POST"])
     @login_required
     def assign_agent_to_station(agent_id):
-        """Assign an agent to a station"""
+        """Assign an agent to a department (legacy station_code maps to department)."""
         data = request.get_json() or {}
         station_code = data.get("station_code")
-        assignment_type = data.get("assignment_type", "primary")  # primary, backup, relief
-        shift_preference = data.get("shift_preference", "any")  # alpha, beta, gamma, any
-        priority = data.get("priority", 10)
-        notes = data.get("notes", "")
+        department = data.get("department")
 
-        if not station_code:
-            return jsonify({"success": False, "error": "station_code required"}), 400
+        # Accept either department name directly or legacy station_code
+        if not department and station_code:
+            depts = LEGACY_STATION_DEPARTMENT.get(station_code.upper(), [])
+            department = depts[0] if depts else None
+        if not department:
+            return jsonify({"success": False, "error": "department or station_code required"}), 400
 
         try:
             with get_db_cursor() as (conn, cur):
-
-                # Get station ID from code
+                # Block: agent must be active
                 cur.execute(
-                    "SELECT id FROM bridge_stations WHERE station_code = %s",
-                    (station_code.upper(),),
-                )
-                station = cur.fetchone()
-                if not station:
-                    return (
-                        jsonify({"success": False, "error": f"Station {station_code} not found"}),
-                        404,
-                    )
-
-                station_id = station["id"]
-
-                # Block: agent must be active (not paused, resting, etc.)
-                cur.execute(
-                    "SELECT name, status FROM agents WHERE id = %s",
+                    "SELECT name, status, department as current_dept FROM agents WHERE id = %s",
                     (agent_id,),
                 )
                 agent_row = cur.fetchone()
@@ -470,129 +492,39 @@ def register_agent_routes(bp, admin_required):
                                 "success": False,
                                 "error": (
                                     f"{agent_row['name']} is {agent_row['status']} "
-                                    f"— only active agents can be assigned to stations"
+                                    f"— only active agents can be reassigned"
                                 ),
                             }
                         ),
                         400,
                     )
 
-                # Block: cannot reassign fixed agents (ARCHIE, Vigil at COMMAND)
-                cur.execute(
-                    "SELECT bs.station_code FROM station_assignments sa "
-                    "JOIN bridge_stations bs ON bs.id = sa.station_id "
-                    "WHERE sa.agent_id = %s AND sa.is_fixed = TRUE AND sa.is_active = TRUE",
-                    (agent_id,),
-                )
-                fixed_row = cur.fetchone()
-                if fixed_row:
+                # Block: cannot reassign fixed agents (ARCHIE at Executive Office, VIGIL at Security)
+                fixed_agents = {"A.R.C.H.I.E.", "V.I.G.I.L."}
+                if agent_row["name"] in fixed_agents:
                     return (
                         jsonify(
                             {
                                 "success": False,
-                                "error": f"Agent has a fixed assignment at {fixed_row['station_code']} and cannot be moved",
+                                "error": f"Agent has a fixed department assignment ({agent_row['current_dept']}) and cannot be moved",
                             }
                         ),
                         400,
                     )
 
-                # Enforce station capacity limits
+                # Update agents.department directly
                 cur.execute(
-                    "SELECT max_primary, max_auxiliary FROM bridge_stations WHERE id = %s",
-                    (station_id,),
+                    "UPDATE agents SET department = %s, updated_at = NOW() WHERE id = %s RETURNING id",
+                    (department, agent_id),
                 )
-                limits = cur.fetchone()
-                if limits and assignment_type == "primary":
-                    cur.execute(
-                        "SELECT COUNT(*) as cnt FROM station_assignments "
-                        "WHERE station_id = %s AND assignment_type = 'primary' "
-                        "AND is_active = TRUE AND agent_id != %s",
-                        (station_id, agent_id),
-                    )
-                    if cur.fetchone()["cnt"] >= limits["max_primary"]:
-                        return (
-                            jsonify(
-                                {
-                                    "success": False,
-                                    "error": f"Station at max primary capacity ({limits['max_primary']})",
-                                }
-                            ),
-                            400,
-                        )
-                elif limits and assignment_type in ("auxiliary", "backup", "relief"):
-                    cur.execute(
-                        "SELECT COUNT(*) as cnt FROM station_assignments "
-                        "WHERE station_id = %s AND assignment_type IN ('auxiliary', 'backup', 'relief') "
-                        "AND is_active = TRUE AND agent_id != %s",
-                        (station_id, agent_id),
-                    )
-                    if cur.fetchone()["cnt"] >= limits["max_auxiliary"]:
-                        return (
-                            jsonify(
-                                {
-                                    "success": False,
-                                    "error": f"Station at max auxiliary capacity ({limits['max_auxiliary']})",
-                                }
-                            ),
-                            400,
-                        )
-
-                # 1-station rule: deactivate agent's existing assignment elsewhere
-                cur.execute(
-                    "UPDATE station_assignments SET is_active = FALSE "
-                    "WHERE agent_id = %s AND is_active = TRUE AND is_fixed = FALSE "
-                    "AND station_id != %s",
-                    (agent_id, station_id),
-                )
-
-                # Check if assignment already exists at this station
-                cur.execute(
-                    """
-                    SELECT id FROM station_assignments
-                    WHERE station_id = %s AND agent_id = %s
-                """,
-                    (station_id, agent_id),
-                )
-                existing = cur.fetchone()
-
-                if existing:
-                    # Update existing assignment
-                    cur.execute(
-                        """
-                        UPDATE station_assignments
-                        SET assignment_type = %s, shift_preference = %s, priority = %s,
-                            notes = %s, is_active = TRUE, assigned_at = NOW()
-                        WHERE id = %s
-                        RETURNING id
-                    """,
-                        (assignment_type, shift_preference, priority, notes, existing["id"]),
-                    )
-                else:
-                    # Create new assignment
-                    cur.execute(
-                        """
-                        INSERT INTO station_assignments
-                        (station_id, agent_id, assignment_type, shift_preference, priority, notes)
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                        RETURNING id
-                    """,
-                        (
-                            station_id,
-                            agent_id,
-                            assignment_type,
-                            shift_preference,
-                            priority,
-                            notes,
-                        ),
-                    )
-
-                assignment_id = cur.fetchone()["id"]
+                updated = cur.fetchone()
+                legacy_code = DEPARTMENT_TO_STATION.get(department, "UNKNOWN")
 
                 return jsonify(
                     {
                         "success": True,
-                        "assignment_id": assignment_id,
-                        "message": f"Agent assigned to {station_code} as {assignment_type}",
+                        "agent_id": updated["id"],
+                        "message": f"Agent assigned to {department} (station {legacy_code})",
                     }
                 )
 
@@ -603,44 +535,25 @@ def register_agent_routes(bp, admin_required):
     @bp.route("/api/agents/<int:agent_id>/unassign-station", methods=["POST"])
     @login_required
     def unassign_agent_from_station(agent_id):
-        """Remove an agent from a station"""
+        """Unassign agent — sets department to 'Unassigned' (legacy station_assignments removed)."""
         data = request.get_json() or {}
-        station_code = data.get("station_code")
+        station_code = data.get("station_code")  # accepted for backward compat but ignored
 
         try:
-            with get_db_cursor(cursor_factory=None) as (conn, cur):
-
-                if station_code:
-                    # Unassign from specific station
-                    cur.execute(
-                        """
-                        UPDATE station_assignments sa
-                        SET is_active = FALSE
-                        FROM bridge_stations bs
-                        WHERE sa.station_id = bs.id
-                          AND bs.station_code = %s
-                          AND sa.agent_id = %s
-                    """,
-                        (station_code.upper(), agent_id),
-                    )
-                else:
-                    # Unassign from all stations
-                    cur.execute(
-                        """
-                        UPDATE station_assignments
-                        SET is_active = FALSE
-                        WHERE agent_id = %s
-                    """,
-                        (agent_id,),
-                    )
-
-                affected = cur.rowcount
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "UPDATE agents SET department = 'Unassigned', updated_at = NOW() WHERE id = %s RETURNING id",
+                    (agent_id,),
+                )
+                updated = cur.fetchone()
+                if not updated:
+                    return jsonify({"success": False, "error": "Agent not found"}), 404
 
                 return jsonify(
                     {
                         "success": True,
-                        "message": f'Agent unassigned from {station_code if station_code else "all stations"}',
-                        "affected": affected,
+                        "message": f'Agent unassigned from {station_code if station_code else "department"}',
+                        "affected": 1,
                     }
                 )
 
@@ -655,58 +568,58 @@ def register_agent_routes(bp, admin_required):
     @bp.route("/api/stations/assignments")
     @login_required
     def get_all_station_assignments():
-        """Get all station assignments grouped by station"""
+        """Get all department assignments grouped by legacy station code.
+
+        station_assignments table is DROPPED. This now queries agents.department
+        and maps back to legacy station codes for backward-compatible panel rendering.
+        """
         try:
             with get_db_cursor(commit=False) as (conn, cur):
-
                 cur.execute(
                     """
-                    SELECT
-                        bs.id as station_id,
-                        bs.station_code,
-                        bs.station_name,
-                        bs.color,
-                        bs.icon,
-                        json_agg(
-                            json_build_object(
-                                'assignment_id', sa.id,
-                                'agent_id', a.id,
-                                'agent_name', a.name,
-                                'first_name', a.first_name,
-                                'last_name', a.last_name,
-                                'agent_title', a.title,
-                                'agent_avatar', a.avatar_url,
-                                'agent_model', a.model,
-                                'agent_status', a.status,
-                                'assignment_type', sa.assignment_type,
-                                'role_type', COALESCE(sa.role_type, 'standard'),
-                                'is_fixed', COALESCE(sa.is_fixed, FALSE),
-                                'department', a.department,
-                                'shift_preference', sa.shift_preference,
-                                'priority', sa.priority,
-                                'assigned_at', sa.assigned_at
-                            ) ORDER BY sa.is_fixed DESC, sa.priority, sa.assignment_type
-                        ) FILTER (WHERE sa.id IS NOT NULL) as agents
-                    FROM bridge_stations bs
-                    LEFT JOIN station_assignments sa ON bs.id = sa.station_id AND sa.is_active = TRUE
-                    LEFT JOIN agents a ON sa.agent_id = a.id
-                    WHERE bs.is_active = TRUE
-                    GROUP BY bs.id, bs.station_code, bs.station_name, bs.color, bs.icon, bs.position_row, bs.position_order
-                    ORDER BY bs.position_row, bs.position_order
-                """
+                    SELECT a.id, a.name, a.first_name, a.last_name, a.title,
+                           a.avatar_url, a.model, a.status, a.department, a.floor,
+                           a.tier
+                    FROM agents a
+                    WHERE a.status IN ('active', 'idle', 'busy', 'deployed')
+                    ORDER BY a.department, a.name
+                    """
                 )
-                stations = cur.fetchall()
+                all_agents = cur.fetchall()
 
-                # Convert datetime in nested JSON
-                for station in stations:
-                    if station["agents"]:
-                        for agent in station["agents"]:
-                            if agent.get("assigned_at"):
-                                agent["assigned_at"] = (
-                                    agent["assigned_at"].isoformat()
-                                    if hasattr(agent["assigned_at"], "isoformat")
-                                    else str(agent["assigned_at"])
-                                )
+                # Build station groupings from LEGACY_STATION_DEPARTMENT
+                stations = []
+                for code, depts in LEGACY_STATION_DEPARTMENT.items():
+                    dept_agents = [a for a in all_agents if a["department"] in depts]
+                    agent_list = [
+                        {
+                            "agent_id": a["id"],
+                            "agent_name": a["name"],
+                            "first_name": a["first_name"],
+                            "last_name": a["last_name"],
+                            "agent_title": a["title"],
+                            "agent_avatar": a["avatar_url"],
+                            "agent_model": a["model"],
+                            "agent_status": a["status"],
+                            "assignment_type": "primary",
+                            "role_type": "standard",
+                            "is_fixed": False,
+                            "department": a["department"],
+                            "shift_preference": "any",
+                            "priority": 10,
+                            "assigned_at": None,
+                        }
+                        for a in dept_agents
+                    ] or None
+                    stations.append(
+                        {
+                            "station_code": code,
+                            "station_name": code.title(),
+                            "color": LEGACY_STATION_COLORS.get(code, "#888"),
+                            "icon": None,
+                            "agents": agent_list,
+                        }
+                    )
 
                 return jsonify({"success": True, "stations": stations})
 
@@ -727,10 +640,7 @@ def register_agent_routes(bp, admin_required):
                            a.avatar_url, a.model, a.tier, a.capabilities
                     FROM agents a
                     WHERE a.status IN ('active', 'idle', 'busy')
-                      AND NOT EXISTS (
-                          SELECT 1 FROM station_assignments sa
-                          WHERE sa.agent_id = a.id AND sa.is_active = TRUE
-                      )
+                      AND (a.department IS NULL OR a.department = 'Unassigned')
                     ORDER BY a.name
                 """
                 )
@@ -745,30 +655,32 @@ def register_agent_routes(bp, admin_required):
     @bp.route("/api/stations/<station_code>/config", methods=["GET"])
     @login_required
     def get_station_config(station_code):
-        """Get station configuration"""
+        """Get station configuration (department-based, legacy station code accepted)."""
+        code = station_code.upper()
+        depts = LEGACY_STATION_DEPARTMENT.get(code)
+        if not depts:
+            return jsonify({"success": False, "error": "Station not found"}), 404
+
         try:
             with get_db_cursor(commit=False) as (conn, cur):
-
+                # Count agents in mapped departments
                 cur.execute(
-                    """
-                    SELECT id, station_code, station_name, full_name, description,
-                           color, icon, default_llm, modules, position_row, position_order,
-                           is_active, created_at, updated_at
-                    FROM bridge_stations
-                    WHERE station_code = %s
-                """,
-                    (station_code.upper(),),
+                    "SELECT COUNT(*) as cnt FROM agents WHERE department = ANY(%s) AND status IN ('active','idle','busy')",
+                    (depts,),
                 )
-                station = cur.fetchone()
+                cnt = cur.fetchone()["cnt"]
 
-                if not station:
-                    return jsonify({"success": False, "error": "Station not found"}), 404
-
-                # Convert datetime
-                for key in ["created_at", "updated_at"]:
-                    if station.get(key):
-                        station[key] = station[key].isoformat()
-
+                station = {
+                    "station_code": code,
+                    "station_name": code.title(),
+                    "full_name": code.title(),
+                    "description": f"Departments: {', '.join(depts)}",
+                    "color": LEGACY_STATION_COLORS.get(code, "#888"),
+                    "icon": None,
+                    "departments": depts,
+                    "agent_count": cnt,
+                    "is_active": True,
+                }
                 return jsonify({"success": True, "station": station})
 
         except Exception as e:
@@ -779,115 +691,42 @@ def register_agent_routes(bp, admin_required):
     @login_required
     @admin_required
     def update_station_config(station_code):
-        """Update station configuration"""
-        data = request.get_json() or {}
+        """Update station configuration — DEPRECATED.
 
-        allowed_fields = [
-            "station_name",
-            "full_name",
-            "description",
-            "color",
-            "icon",
-            "default_llm",
-            "modules",
-            "position_row",
-            "position_order",
-            "is_active",
-        ]
-
-        updates = {k: v for k, v in data.items() if k in allowed_fields}
-
-        if not updates:
-            return jsonify({"success": False, "error": "No valid fields to update"}), 400
-
-        try:
-            with get_db_cursor() as (conn, cur):
-
-                # Build dynamic update query
-                set_clauses = [f"{k} = %s" for k in updates.keys()]
-                values = list(updates.values())
-                values.append(station_code.upper())
-
-                cur.execute(
-                    f"""
-                    UPDATE bridge_stations
-                    SET {', '.join(set_clauses)}, updated_at = NOW()
-                    WHERE station_code = %s
-                    RETURNING id, station_code, station_name
-                """,
-                    values,
-                )
-
-                updated = cur.fetchone()
-
-                if not updated:
-                    return jsonify({"success": False, "error": "Station not found"}), 404
-
-                return jsonify(
-                    {
-                        "success": True,
-                        "station": updated,
-                        "message": f"Station {station_code} updated",
-                    }
-                )
-
-        except Exception as e:
-            logger.error(f"Error updating station: {e}")
-            return jsonify({"success": False, "error": "Internal server error"}), 500
+        bridge_stations is deprecated. Station config is now derived from
+        agents.department. This endpoint is a no-op stub for backward compat.
+        """
+        return jsonify(
+            {
+                "success": True,
+                "station": {"station_code": station_code.upper()},
+                "message": f"Station {station_code} config is now department-based (no-op)",
+            }
+        )
 
     @bp.route("/api/stations/reorder", methods=["POST"])
     @login_required
     def reorder_stations():
-        """Reorder stations (drag-and-drop support)"""
-        data = request.get_json() or {}
-        order = data.get("order", [])  # List of {station_code, position_row, position_order}
-
-        if not order:
-            return jsonify({"success": False, "error": "order list required"}), 400
-
-        try:
-            with get_db_cursor(cursor_factory=None) as (conn, cur):
-
-                for item in order:
-                    cur.execute(
-                        """
-                        UPDATE bridge_stations
-                        SET position_row = %s, position_order = %s, updated_at = NOW()
-                        WHERE station_code = %s
-                    """,
-                        (
-                            item.get("position_row", 0),
-                            item.get("position_order", 0),
-                            item["station_code"].upper(),
-                        ),
-                    )
-
-                return jsonify({"success": True, "message": f"Reordered {len(order)} stations"})
-
-        except Exception as e:
-            logger.error(f"Error reordering stations: {e}")
-            return jsonify({"success": False, "error": "Internal server error"}), 500
+        """Reorder stations — DEPRECATED (station order is now fixed by department layout)."""
+        return jsonify({"success": True, "message": "Station reorder is deprecated (department-based layout)"})
 
     @bp.route("/api/assignments/<int:assignment_id>", methods=["DELETE"])
     @login_required
     def delete_assignment(assignment_id):
-        """Delete a station assignment"""
-        try:
-            with get_db_cursor(cursor_factory=None) as (conn, cur):
+        """Delete a station assignment — DEPRECATED (station_assignments table dropped).
 
+        Now interprets assignment_id as agent_id and sets department to Unassigned.
+        """
+        try:
+            with get_db_cursor() as (conn, cur):
                 cur.execute(
-                    """
-                    DELETE FROM station_assignments WHERE id = %s RETURNING id
-                """,
+                    "UPDATE agents SET department = 'Unassigned', updated_at = NOW() WHERE id = %s RETURNING id",
                     (assignment_id,),
                 )
-
                 deleted = cur.fetchone()
-
                 if not deleted:
-                    return jsonify({"success": False, "error": "Assignment not found"}), 404
-
-                return jsonify({"success": True, "message": "Assignment deleted"})
+                    return jsonify({"success": False, "error": "Agent not found"}), 404
+                return jsonify({"success": True, "message": "Agent unassigned from department"})
 
         except Exception as e:
             logger.error(f"Error deleting assignment: {e}")
@@ -896,44 +735,26 @@ def register_agent_routes(bp, admin_required):
     @bp.route("/api/assignments/<int:assignment_id>", methods=["PUT"])
     @login_required
     def update_assignment(assignment_id):
-        """Update a station assignment"""
+        """Update a station assignment — DEPRECATED (station_assignments table dropped).
+
+        Now interprets assignment_id as agent_id. Only department update is supported.
+        """
         data = request.get_json() or {}
+        department = data.get("department")
 
-        allowed_fields = [
-            "assignment_type",
-            "shift_preference",
-            "priority",
-            "notes",
-            "is_active",
-        ]
-        updates = {k: v for k, v in data.items() if k in allowed_fields}
-
-        if not updates:
-            return jsonify({"success": False, "error": "No valid fields to update"}), 400
+        if not department:
+            return jsonify({"success": False, "error": "department field required"}), 400
 
         try:
             with get_db_cursor() as (conn, cur):
-
-                set_clauses = [f"{k} = %s" for k in updates.keys()]
-                values = list(updates.values())
-                values.append(assignment_id)
-
                 cur.execute(
-                    f"""
-                    UPDATE station_assignments
-                    SET {', '.join(set_clauses)}
-                    WHERE id = %s
-                    RETURNING id, station_id, agent_id, assignment_type
-                """,
-                    values,
+                    "UPDATE agents SET department = %s, updated_at = NOW() WHERE id = %s RETURNING id, department",
+                    (department, assignment_id),
                 )
-
                 updated = cur.fetchone()
-
                 if not updated:
-                    return jsonify({"success": False, "error": "Assignment not found"}), 404
-
-                return jsonify({"success": True, "assignment": updated})
+                    return jsonify({"success": False, "error": "Agent not found"}), 404
+                return jsonify({"success": True, "assignment": dict(updated)})
 
         except Exception as e:
             logger.error(f"Error updating assignment: {e}")
@@ -949,60 +770,28 @@ def register_agent_routes(bp, admin_required):
         """
         Handle additional support requests from modules.
 
-        When a module needs capability beyond its assigned team (primary + secondary),
-        it requests support here. The Bridge checks the additional_support slot and
-        Archie HR determines if support can be allocated.
-
-        Flow:
-        1. Module requests support with task_type and capability_needed
-        2. Bridge checks if additional_support slot is available
-        3. If slot is empty, Bridge/Archie HR finds a suitable agent
-        4. Agent is temporarily assigned to additional_support slot
-        5. Module receives the support agent details
-
-        Workload tracking ensures AI compliance standards (no overworking agents).
+        Rewritten for department-based routing (station_assignments dropped).
+        Finds an available agent outside the mapped departments for this station code.
         """
         data = request.get_json() or {}
         task_type = data.get("task_type", "general")
         capability_needed = data.get("capability_needed", "general capability")
         requesting_module = data.get("requesting_module", "unknown")
 
+        code = station_code.upper()
+        depts = LEGACY_STATION_DEPARTMENT.get(code)
+        if not depts:
+            return jsonify({"success": False, "message": f"Station {station_code} not found"}), 404
+
         logger.info(f"Bridge: Support request from {requesting_module} - {task_type} needs {capability_needed}")
 
         try:
             with get_db_cursor() as (conn, cur):
 
-                # Step 1: Get station info
+                # Step 1: Ensure station has at least one agent in mapped departments
                 cur.execute(
-                    """
-                    SELECT id, station_name FROM bridge_stations
-                    WHERE station_code = %s AND is_active = TRUE
-                """,
-                    (station_code.upper(),),
-                )
-                station = cur.fetchone()
-
-                if not station:
-                    return (
-                        jsonify({"success": False, "message": f"Station {station_code} not found"}),
-                        404,
-                    )
-
-                # Step 2: Enforce 3-slot model (assigned crew + 1 Auxiliary)
-                # Rule: All assigned crew must exist before auxiliary is allowed
-                cur.execute(
-                    "SELECT max_primary, max_auxiliary FROM bridge_stations WHERE id = %s",
-                    (station["id"],),
-                )
-                limits = cur.fetchone()
-                max_aux = limits["max_auxiliary"] if limits else 1
-
-                cur.execute(
-                    """
-                    SELECT COUNT(*) as cnt FROM station_assignments
-                    WHERE station_id = %s AND assignment_type = 'primary' AND is_active = TRUE
-                """,
-                    (station["id"],),
+                    "SELECT COUNT(*) as cnt FROM agents WHERE department = ANY(%s) AND status = 'active'",
+                    (depts,),
                 )
                 assigned_count = cur.fetchone()["cnt"]
                 if assigned_count == 0:
@@ -1010,110 +799,22 @@ def register_agent_routes(bp, admin_required):
                         jsonify(
                             {
                                 "success": False,
-                                "message": (
-                                    "Station has no crew assigned. "
-                                    "At least one agent must be assigned before auxiliary support."
-                                ),
+                                "message": "Station has no crew assigned. At least one agent must be in department before auxiliary support.",
                                 "slot_status": "primary_incomplete",
                             }
                         ),
                         400,
                     )
 
-                # Count ALL auxiliary-type assignments (auxiliary + additional_support)
-                cur.execute(
-                    """
-                    SELECT COUNT(*) as cnt FROM station_assignments
-                    WHERE station_id = %s
-                    AND assignment_type IN ('auxiliary', 'additional_support', 'backup', 'relief')
-                    AND is_active = TRUE
-                """,
-                    (station["id"],),
-                )
-                current_aux = cur.fetchone()["cnt"]
-
-                # Also count running cross-station jobs targeting this station
-                cur.execute(
-                    """
-                    SELECT COUNT(*) as cnt FROM bridge_jobs
-                    WHERE status = 'running'
-                    AND metadata->>'is_cross_station' = 'true'
-                    AND (metadata->>'is_cloud') IS DISTINCT FROM 'true'
-                    AND (
-                        metadata->>'module_station' = %s
-                        OR metadata->>'dispatch_station' = %s
-                    )
-                """,
-                    (station_code.upper(), station_code.upper()),
-                )
-                cross_station_aux = cur.fetchone()["cnt"]
-                total_aux = current_aux + cross_station_aux
-
-                if total_aux >= max_aux:
-                    return (
-                        jsonify(
-                            {
-                                "success": False,
-                                "message": f"Station at max auxiliary capacity ({total_aux}/{max_aux})",
-                                "slot_status": "aux_full",
-                            }
-                        ),
-                        400,
-                    )
-
-                # Step 2b: Check if additional_support slot is already filled
-                cur.execute(
-                    """
-                    SELECT a.id, a.name, a.model, a.tier, a.title
-                    FROM station_assignments sa
-                    JOIN agents a ON sa.agent_id = a.id
-                    WHERE sa.station_id = %s
-                    AND sa.assignment_type = 'additional_support'
-                    AND sa.is_active = TRUE
-                    AND a.status = 'active'
-                """,
-                    (station["id"],),
-                )
-                existing_support = cur.fetchone()
-
-                if existing_support:
-                    # Support slot already filled - return existing support agent
-                    logger.info(f"Bridge: Support slot already filled with {existing_support['name']}")
-                    return jsonify(
-                        {
-                            "success": True,
-                            "agent": dict(existing_support),
-                            "message": "Support agent already assigned",
-                            "slot_status": "occupied",
-                        }
-                    )
-
-                # Step 3: Find a suitable agent for the requested capability
-                # This is where Archie HR logic would go in the future
-                # For now, we look for fast coders not already assigned to this station
-
-                # Define capability keywords and their model mappings
-                # Bridge interprets the capability_needed string to find appropriate agents
-                fast_coder_models = [
-                    "qwen25-classify",
-                    "dolphin3-8k:latest",
-                    "qwen3-coder-cpu:latest",
-                ]  # noqa: F841
-
-                # Determine what kind of agent is needed based on capability description
+                # Step 2: Find a suitable agent outside the mapped departments
                 capability_lower = capability_needed.lower() if capability_needed else ""
                 target_models = []
 
                 if "fast" in capability_lower or "speed" in capability_lower or "batch" in capability_lower:
-                    # Need a fast classifier/tagger
                     target_models = ["qwen25-classify", "dolphin3-8k:latest"]
-                    logger.info(f"Bridge: Looking for fast models: {target_models}")
                 elif "thorough" in capability_lower or "security" in capability_lower or "deep" in capability_lower:
-                    # Need a thorough/security agent - will use tier-based search
                     target_models = []
-                    logger.info("Bridge: Looking for high-tier agent")
 
-                # Find available agent with required capability
                 if target_models:
                     model_placeholders = ",".join(["%s"] * len(target_models))
                     cur.execute(
@@ -1122,37 +823,29 @@ def register_agent_routes(bp, admin_required):
                         FROM agents a
                         WHERE a.status = 'active'
                         AND a.model IN ({model_placeholders})
-                        AND a.id NOT IN (
-                            SELECT agent_id FROM station_assignments
-                            WHERE station_id = %s AND is_active = TRUE
-                        )
+                        AND a.department != ALL(%s)
                         ORDER BY a.tier DESC
                         LIMIT 1
                     """,
-                        (*target_models, station["id"]),
+                        (*target_models, depts),
                     )
                 else:
-                    # For tier-based requirements, find high-tier agents
                     cur.execute(
                         """
                         SELECT a.id, a.name, a.model, a.tier, a.title, a.avatar_url
                         FROM agents a
                         WHERE a.status = 'active'
                         AND a.tier >= 2
-                        AND a.id NOT IN (
-                            SELECT agent_id FROM station_assignments
-                            WHERE station_id = %s AND is_active = TRUE
-                        )
+                        AND a.department != ALL(%s)
                         ORDER BY a.tier DESC
                         LIMIT 1
                     """,
-                        (station["id"],),
+                        (depts,),
                     )
 
                 candidate = cur.fetchone()
 
                 if not candidate:
-                    logger.info(f"Bridge: No suitable agent available for {capability_needed}")
                     return jsonify(
                         {
                             "success": False,
@@ -1161,36 +854,9 @@ def register_agent_routes(bp, admin_required):
                         }
                     )
 
-                # Step 4: Check workload compliance (station assignments + active jobs)
+                # Step 3: Check workload compliance (active jobs only — no station_assignments)
                 cur.execute(
-                    """
-                    SELECT COUNT(*) as assignment_count
-                    FROM station_assignments
-                    WHERE agent_id = %s AND is_active = TRUE
-                """,
-                    (candidate["id"],),
-                )
-                workload = cur.fetchone()
-
-                if workload["assignment_count"] >= 3:
-                    logger.info(
-                        f"Bridge: {candidate['name']} at workload limit ({workload['assignment_count']} assignments)"
-                    )
-                    return jsonify(
-                        {
-                            "success": False,
-                            "message": f"{candidate['name']} is at workload capacity",
-                            "slot_status": "workload_limit",
-                        }
-                    )
-
-                # Check active bridge_jobs to prevent agent overloading
-                cur.execute(
-                    """
-                    SELECT COUNT(*) as active_jobs
-                    FROM bridge_jobs
-                    WHERE agent_name = %s AND status = 'in_progress'
-                """,
+                    "SELECT COUNT(*) as active_jobs FROM bridge_jobs WHERE agent_name = %s AND status = 'in_progress'",
                     (candidate["name"],),
                 )
                 job_workload = cur.fetchone()
@@ -1205,35 +871,16 @@ def register_agent_routes(bp, admin_required):
                         }
                     )
 
-                # Step 5: Assign to additional_support slot
-                cur.execute(
-                    """
-                    INSERT INTO station_assignments
-                    (station_id, agent_id, assignment_type, priority, notes, is_active)
-                    VALUES (%s, %s, 'additional_support', 99, %s, TRUE)
-                    RETURNING id
-                """,
-                    (
-                        station["id"],
-                        candidate["id"],
-                        f"Support for {requesting_module}: {task_type}",
-                    ),
-                )
+                logger.info(f"Bridge: Found support candidate {candidate['name']} for {code}")
 
-                assignment = cur.fetchone()
-
-                logger.info(f"Bridge: Assigned {candidate['name']} as additional_support to {station['station_name']}")
-
-                # Add assignment type to candidate for caller
                 candidate_dict = dict(candidate)
                 candidate_dict["assignment_type"] = "additional_support"
-                candidate_dict["assignment_id"] = assignment["id"]
 
                 return jsonify(
                     {
                         "success": True,
                         "agent": candidate_dict,
-                        "message": f"{candidate['name']} assigned as additional support",
+                        "message": f"{candidate['name']} available as additional support",
                         "slot_status": "assigned",
                     }
                 )
@@ -1245,66 +892,20 @@ def register_agent_routes(bp, admin_required):
     @bp.route("/api/stations/<station_code>/release-support", methods=["POST"])
     @login_required
     def release_station_support(station_code):
+        """Release support — DEPRECATED stub (station_assignments dropped).
+
+        Support is now ephemeral (no persistent assignment row to delete).
         """
-        Release an agent from the additional_support slot.
+        code = station_code.upper()
+        logger.info(f"Bridge: Release support called for {code} (no-op, department-based)")
 
-        Called when module completes work or no longer needs support.
-        This frees the agent for other stations.
-        """
-        data = request.get_json() or {}
-        agent_id = data.get("agent_id")
-
-        try:
-            with get_db_cursor() as (conn, cur):
-
-                # Get station
-                cur.execute(
-                    """
-                    SELECT id FROM bridge_stations WHERE station_code = %s
-                """,
-                    (station_code.upper(),),
-                )
-                station = cur.fetchone()
-
-                if not station:
-                    return jsonify({"success": False, "error": "Station not found"}), 404
-
-                # Remove from additional_support slot
-                if agent_id:
-                    cur.execute(
-                        """
-                        DELETE FROM station_assignments
-                        WHERE station_id = %s AND agent_id = %s AND assignment_type = 'additional_support'
-                        RETURNING id
-                    """,
-                        (station["id"], agent_id),
-                    )
-                else:
-                    # Release all support assignments for this station
-                    cur.execute(
-                        """
-                        DELETE FROM station_assignments
-                        WHERE station_id = %s AND assignment_type = 'additional_support'
-                        RETURNING id
-                    """,
-                        (station["id"],),
-                    )
-
-                deleted = cur.fetchall()
-
-                logger.info(f"Bridge: Released {len(deleted)} support assignment(s) from {station_code}")
-
-                return jsonify(
-                    {
-                        "success": True,
-                        "released_count": len(deleted),
-                        "message": f"Released {len(deleted)} support assignment(s)",
-                    }
-                )
-
-        except Exception as e:
-            logger.error(f"Bridge: Error releasing support: {e}")
-            return jsonify({"success": False, "error": "Internal server error"}), 500
+        return jsonify(
+            {
+                "success": True,
+                "released_count": 0,
+                "message": "Support release is now implicit (department-based routing)",
+            }
+        )
 
     # ============================================================================
     # SKILL GAP / AGENT CREATION ENDPOINTS
@@ -1335,7 +936,7 @@ def register_agent_routes(bp, admin_required):
                         except Exception:
                             ad = {}
                     g["capability"] = ad.get("capability", "unknown")
-                    g["station"] = ad.get("station_code", "unknown")
+                    g["station"] = ad.get("department", ad.get("station_code", "unknown"))
                     g["suggested_name"] = ad.get("suggested_name", "")
                     if g.get("created_at") and hasattr(g["created_at"], "isoformat"):
                         g["created_at"] = g["created_at"].isoformat()

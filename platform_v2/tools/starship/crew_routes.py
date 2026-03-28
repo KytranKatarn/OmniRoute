@@ -14,6 +14,20 @@ from flask_login import current_user
 from database import get_db_cursor, check_fleet_model_unique
 from .helpers import _get_node_for_user_by_int_id
 
+# Legacy station colors for backward-compatible rendering (bridge_stations deprecated)
+_LEGACY_STATION_COLORS = {
+    "COMMAND": "#00e5ff",
+    "ANALYTICS": "#8b5cf6",
+    "CREATIVE": "#f472b6",
+    "ENGINEERING": "#fbbf24",
+    "COMMUNICATIONS": "#22d3ee",
+    "RESEARCH": "#10b981",
+    "SECURITY": "#ef4444",
+    "LOGISTICS": "#f97316",
+    "DIPLOMATIC": "#818cf8",
+    "OPERATIONS": "#a3e635",
+}
+
 logger = logging.getLogger(__name__)
 
 
@@ -77,9 +91,8 @@ def register_crew_routes(bp, auth_decorator):
             available_models = {m["model_name"].split(":")[0].lower() for m in models if m["is_available"]}
             available_exact = {m["model_name"] for m in models if m["is_available"]}
 
-            # Get station colors
-            cur.execute("SELECT station_code, color FROM bridge_stations")
-            station_colors = {s["station_code"]: s["color"] for s in cur.fetchall()}
+            # Station colors — from Python map (bridge_stations deprecated)
+            station_colors = _LEGACY_STATION_COLORS
 
             manifest = []
             for a in agents:
@@ -154,10 +167,10 @@ def register_crew_routes(bp, auth_decorator):
                            a.department, a.bio, a.model, a.status, a.avatar_url,
                            a.pronouns, a.worker_type, a.cost_tier, a.capabilities,
                            a.created_at, a.last_used,
-                           bs.station_code, bs.station_name, bs.color as station_color
+                           a.department as station_code,
+                           a.department as station_name,
+                           NULL as station_color
                     FROM agents a
-                    LEFT JOIN station_assignments sa ON sa.agent_id = a.id AND sa.is_active = TRUE
-                    LEFT JOIN bridge_stations bs ON bs.id = sa.station_id
                     WHERE a.id = %s
                     """,
                     (hub_id,),
@@ -491,12 +504,9 @@ def register_crew_routes(bp, auth_decorator):
                     """
                     SELECT a.id, a.name, a.first_name, a.last_name, a.title,
                            a.model, a.system_prompt, a.capabilities,
-                           array_agg(DISTINCT bs.station_code) as station_codes
+                           ARRAY[a.department] as station_codes
                     FROM agents a
-                    LEFT JOIN station_assignments sa ON sa.agent_id = a.id
-                    LEFT JOIN bridge_stations bs ON bs.id = sa.station_id
                     WHERE a.id = %s AND a.is_cloneable = true AND a.status = 'active'
-                    GROUP BY a.id
                     """,
                     (agent_id,),
                 )
@@ -678,11 +688,11 @@ def register_crew_routes(bp, auth_decorator):
                 )
                 agents = cur.fetchall()
 
-                # Get station metadata
-                cur.execute(
-                    "SELECT id, station_code as code, station_name as name, color, max_primary, max_auxiliary FROM bridge_stations WHERE is_active = true"
-                )
-                all_stations = {s["code"]: dict(s) for s in cur.fetchall()}
+                # Station metadata — from Python map (bridge_stations deprecated)
+                all_stations = {
+                    code: {"code": code, "name": code.title(), "color": color, "max_primary": 10, "max_auxiliary": 5}
+                    for code, color in _LEGACY_STATION_COLORS.items()
+                }
 
                 # Build station list with only this node's stations
                 station_map = {}

@@ -41,18 +41,6 @@ AVAILABLE_DEPARTMENTS = [
     "Administration",
 ]
 
-AVAILABLE_STATIONS = [
-    "COMMAND",
-    "CONSCIOUSNESS",
-    "HR",
-    "RND",
-    "OPERATIONS",
-    "ENGINEERING",
-    "CREATIVE",
-    "SECURITY",
-    "MEDICAL",
-    "AWAY_TEAM",
-]
 
 def _get_available_models():
     """Get available model names from smart router tiers."""
@@ -80,15 +68,15 @@ JSON format:
 {{"model": "string (pick best model for the role)", "first_name": "string", "last_name": "string", "department": "string", "title": "string", "system_prompt": "string (brief role description)", "capabilities": ["string"]}}
 
 JSON:""",
-    "assign_station": """Extract station assignment parameters from this request.
+    "assign_department": """Extract department assignment parameters from this request.
 Return ONLY valid JSON, no explanation.
 
-Available stations: {stations}
+Available departments: {departments}
 
 Request: "{message}"
 
 JSON format:
-{{"agent_name": "string", "station_code": "string (UPPERCASE)", "assignment_type": "primary"}}
+{{"agent_name": "string", "department": "string", "assignment_type": "primary"}}
 
 JSON:""",
     "agent_action": """Extract agent action parameters from this request.
@@ -148,7 +136,6 @@ def extract_params(message: str, action_type: str) -> dict:
         message=message,
         models=", ".join(AVAILABLE_MODELS),
         departments=", ".join(AVAILABLE_DEPARTMENTS),
-        stations=", ".join(AVAILABLE_STATIONS),
     )
 
     try:
@@ -167,9 +154,9 @@ def extract_params(message: str, action_type: str) -> dict:
 
         result = _parse_json_from_response(text)
 
-        # Normalize station codes to uppercase
-        if "station_code" in result:
-            result["station_code"] = result["station_code"].upper()
+        # Normalize department names
+        if "department" in result:
+            result["department"] = result["department"].strip()
 
         return result
 
@@ -203,22 +190,21 @@ def resolve_agent_by_name(name: str, conn) -> dict | None:
     return dict(row) if row else None
 
 
-def resolve_station_by_name(name: str, conn) -> dict | None:
-    """Find station by code or name match."""
+def resolve_department_by_name(name: str, conn) -> dict | None:
+    """Find a department by fuzzy name match against the agents table."""
     from psycopg2.extras import RealDictCursor
 
     cur = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute(
         """
-        SELECT id, station_code, station_name, full_name
-        FROM bridge_stations
-        WHERE UPPER(station_code) = %s
-           OR LOWER(station_name) LIKE %s
-           OR LOWER(full_name) LIKE %s
-        ORDER BY id
+        SELECT DISTINCT department, floor
+        FROM agents
+        WHERE LOWER(department) LIKE %s
+          AND status = 'active'
+        ORDER BY department
         LIMIT 1
     """,
-        (name.upper(), f"%{name.lower()}%", f"%{name.lower()}%"),
+        (f"%{name.lower()}%",),
     )
     row = cur.fetchone()
     cur.close()

@@ -7,79 +7,25 @@ This module must stay dependency-light (no Flask, no DB imports).
 Callers provide agent state as dicts.
 """
 
-# Mirror of CAPABILITY_STATION_MAP from bridge_dispatcher.py
-# Synced to nodes via capability_map config sync
-CAPABILITY_STATION_MAP = {
-    "COMMAND": [
-        "conversation",
-        "dispatch",
-        "governance",
-        "orchestration",
-    ],
-    "ANALYTICS": [
-        "classify",
-        "sentiment",
-        "tagging",
-        "anomaly_detection",
-        "pattern_recognition",
-        "embedding",
-        "vision",
-        "translate",
-        "detect_language",
-    ],
-    "ENGINEERING": [
-        "code",
-        "code_analysis",
-        "code_review",
-        "testing",
-        "debugging",
-        "schema_design",
-        "api_design",
-        "deployment",
-    ],
-    "OPERATIONS": [
-        "operations",
-        "system_monitoring",
-        "backup",
-        "health_check",
-        "security_analysis",
-        "telegram",
-        "email",
-        "notification",
-        "webhook",
-        "ha_integration",
-        "automation",
-    ],
-    "CREATIVE": [
-        "content_writing",
-        "email_composition",
-        "chat_styling",
-        "voice",
-        "ux_writing",
-        "social_media",
-        "image_generation",
-        "video_generation",
-    ],
-    "RESEARCH": [
-        "knowledge_analysis",
-        "summarize",
-        "document_analysis",
-        "fact_checking",
-        "semantic_search",
-        "context_retrieval",
-    ],
-}
-
-# Reverse map: capability -> station
-_CAPABILITY_TO_STATION = {}
-for _station, _caps in CAPABILITY_STATION_MAP.items():
-    for _cap in _caps:
-        _CAPABILITY_TO_STATION[_cap] = _station
+# Import the canonical capability->department map from bridge_dispatcher
+try:
+    from bridge_dispatcher import CAPABILITY_DEPARTMENT_MAP
+except ImportError:
+    # Fallback for nodes that don't have bridge_dispatcher
+    CAPABILITY_DEPARTMENT_MAP = {
+        "conversation": "Executive Office",
+        "code": "Engineering & Technology",
+        "code_review": "Engineering & Technology",
+        "operations": "Operations & Infrastructure",
+        "classify": "Analytics & Intelligence",
+        "content_writing": "Creative & Design",
+        "knowledge_analysis": "Research & Development",
+    }
 
 
-def capability_to_station(capability):
-    """Map a capability string to its home station code."""
-    return _CAPABILITY_TO_STATION.get(capability)
+def capability_to_department(capability):
+    """Map a capability string to its home department."""
+    return CAPABILITY_DEPARTMENT_MAP.get(capability)
 
 
 def can_agent_handle(agent):
@@ -117,20 +63,20 @@ def triage_local(capability, local_agents):
     Args:
         capability: The task capability (e.g., 'code_review')
         local_agents: List of agent dicts with keys:
-            name, station_codes, status, shift_state, stress, energy,
+            name, department, status, shift_state, stress, energy,
             task_count, task_limit, model_loaded (bool)
 
     Returns:
         Best agent dict, or None if escalation needed.
     """
-    station = capability_to_station(capability)
-    if not station:
+    department = capability_to_department(capability)
+    if not department:
         return None  # Unknown capability — escalate
 
     candidates = []
     for agent in local_agents:
-        # Must serve the right station
-        if station not in agent.get("station_codes", []):
+        # Must serve the right department
+        if agent.get("department") != department:
             continue
 
         # Must pass hard-block checks

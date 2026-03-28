@@ -77,11 +77,7 @@ def register_crew_routes(bp, admin_required):
 
             with get_db_cursor() as (conn, cur):
 
-                # Remove from station assignment if any
-                cur.execute(
-                    "UPDATE station_assignments SET is_active = FALSE WHERE agent_id = %s AND is_active = TRUE",
-                    (agent_id,),
-                )
+                # station_assignments DROPPED — department stays on agent row; no deactivation needed
 
                 # Cancel any active training
                 cur.execute(
@@ -198,11 +194,7 @@ def register_crew_routes(bp, admin_required):
                     (stress_end, energy_end, rest_cycle["id"]),
                 )
 
-                # Re-activate station assignment
-                cur.execute(
-                    "UPDATE station_assignments SET is_active = TRUE WHERE agent_id = %s",
-                    (agent_id,),
-                )
+                # station_assignments DROPPED — no re-activation needed (department persists on agent row)
 
                 # Reload agent's LLM if fleet is in workday mode
                 cur.execute("SELECT name, model FROM agents WHERE id = %s", (agent_id,))
@@ -922,16 +914,10 @@ def register_crew_routes(bp, admin_required):
             except Exception as e:
                 logger.warning(f"[crew] Failed to load media contractors: {e}")
 
-            # Stations
-            stations = []
-            try:
-                with get_db_cursor(commit=False) as (conn, cur):
-                    cur.execute(
-                        "SELECT station_code, station_name FROM bridge_stations WHERE is_active = TRUE ORDER BY station_name"
-                    )
-                    stations = [{"code": r["station_code"], "name": r["station_name"]} for r in cur.fetchall()]
-            except Exception as e:
-                logger.warning(f"[crew] Failed to fetch active stations: {e}")
+            # Stations — derived from LEGACY_STATION_DEPARTMENT (bridge_stations deprecated)
+            from .agent_routes import LEGACY_STATION_DEPARTMENT, LEGACY_STATION_COLORS  # noqa: E402
+
+            stations = [{"code": code, "name": code.title()} for code in LEGACY_STATION_DEPARTMENT]
 
             return jsonify(
                 {
@@ -1170,11 +1156,10 @@ def register_crew_routes(bp, admin_required):
                     """
                     SELECT rl.shift_state, rl.started_at, rl.reason,
                            a.name AS agent_name, a.display_name,
-                           bs.station_code,
+                           a.department,
                            ra.name AS replaced_by_name
                     FROM agent_rotation_log rl
                     JOIN agents a ON rl.agent_id = a.id
-                    LEFT JOIN bridge_stations bs ON rl.station_id = bs.id
                     LEFT JOIN agents ra ON rl.replaced_by = ra.id
                     ORDER BY rl.started_at DESC
                     LIMIT %s
@@ -1189,7 +1174,7 @@ def register_crew_routes(bp, admin_required):
                             "started_at": r["started_at"].isoformat() if r["started_at"] else None,
                             "reason": r["reason"],
                             "agent_name": r["display_name"] or r["agent_name"],
-                            "station_code": r["station_code"],
+                            "station_code": r["department"],
                             "replaced_by_name": r["replaced_by_name"],
                         }
                     )
@@ -1551,8 +1536,7 @@ def register_crew_routes(bp, admin_required):
                         a.shift_state,
                         a.status        AS agent_status,
                         a.avatar_url,
-                        bs.station_code,
-                        sa.assignment_type,
+                        a.department,
                         -- Node deployment info (NULL when on hub)
                         na.id           AS node_agent_id,
                         na.status       AS node_agent_status,
@@ -1568,10 +1552,6 @@ def register_crew_routes(bp, admin_required):
                             LIMIT 1
                         ) AS current_job
                     FROM agents a
-                    LEFT JOIN station_assignments sa
-                        ON sa.agent_id = a.id AND sa.is_active = true
-                    LEFT JOIN bridge_stations bs
-                        ON bs.id = sa.station_id
                     LEFT JOIN node_agents na
                         ON na.hub_agent_id = a.id AND na.status = 'active'
                     LEFT JOIN remote_nodes rn
@@ -1618,13 +1598,14 @@ def register_crew_routes(bp, admin_required):
                             "location": location,
                             "node_name": node_name,
                             "shift_state": shift,
-                            "station_code": row["station_code"],
+                            "station_code": row["department"],
+                            "department": row["department"],
                             "model": row["model"],
                             "model_loaded": model_loaded,
                             "current_job": row["current_job"],
                             "title": row["title"],
                             "avatar_url": row["avatar_url"],
-                            "assignment_type": row["assignment_type"],
+                            "assignment_type": "primary",
                         }
                     )
 

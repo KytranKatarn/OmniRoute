@@ -117,43 +117,31 @@ class CommandRouter:
             contributions = []
             for station in stations[:4]:  # Max 4 stations
                 # Get primary agent for this station
+                # Map legacy station names to departments
+                dept_map = {
+                    "ENGINEERING": "Engineering & Technology",
+                    "SECURITY": "Security & Compliance",
+                    "QA": "Engineering & Technology",
+                    "OPERATIONS": "Operations & Infrastructure",
+                    "CREATIVE": "Creative & Design",
+                    "COMMAND": "Executive Office",
+                    "RESEARCH": "Research & Development",
+                    "ANALYTICS": "Analytics & Intelligence",
+                }
+                dept = dept_map.get(station.upper(), "Engineering & Technology")
+
                 cur.execute(
                     """
-                    SELECT a.id, a.name, a.department, a.title, a.model,
-                           a.system_prompt, a.communication_style
-                    FROM station_assignments sa
-                    JOIN bridge_stations bs ON sa.station_id = bs.id
-                    JOIN agents a ON sa.agent_id = a.id
-                    WHERE UPPER(bs.name) = %s
-                    AND sa.role = 'primary'
-                    AND a.status = 'active'
+                    SELECT id, name, department, title, model,
+                           system_prompt, communication_style
+                    FROM agents
+                    WHERE department = %s AND status = 'active'
+                    ORDER BY name
                     LIMIT 1
                 """,
-                    (station.upper(),),
+                    (dept,),
                 )
-
                 agent = cur.fetchone()
-                if not agent:
-                    # Try getting any agent from matching department
-                    dept_map = {
-                        "ENGINEERING": "Engineering",
-                        "SECURITY": "Security",
-                        "QA": "QA",
-                        "OPERATIONS": "Operations",
-                        "CREATIVE": "Creative",
-                    }
-                    dept = dept_map.get(station, "Engineering")
-                    cur.execute(
-                        """
-                        SELECT id, name, department, title, model,
-                               system_prompt, communication_style
-                        FROM agents
-                        WHERE department = %s AND status = 'active'
-                        LIMIT 1
-                    """,
-                        (dept,),
-                    )
-                    agent = cur.fetchone()
 
                 if agent:
                     # Build agent-specific prompt
@@ -429,62 +417,73 @@ Guidelines:
                 if agent_name and station:
                     # Look up agent
                     cur.execute(
-                        "SELECT id, name FROM agents WHERE name ILIKE %s",
+                        "SELECT id, name, department FROM agents WHERE name ILIKE %s",
                         (f"%{agent_name}%",),
                     )
                     agent = cur.fetchone()
 
                     if agent:
-                        # Look up station
-                        cur.execute(
-                            "SELECT id, name FROM bridge_stations WHERE name ILIKE %s",
-                            (f"%{station}%",),
-                        )
-                        station_row = cur.fetchone()
+                        # Update agent's department directly
+                        # Map legacy station name to department if needed
+                        dept_map = {
+                            "ENGINEERING": "Engineering & Technology",
+                            "SECURITY": "Security & Compliance",
+                            "OPERATIONS": "Operations & Infrastructure",
+                            "CREATIVE": "Creative & Design",
+                            "COMMAND": "Executive Office",
+                            "RESEARCH": "Research & Development",
+                        }
+                        target_dept = dept_map.get(station.upper(), station)
 
-                        if station_row:
-                            # Create assignment
+                        # Verify department exists
+                        cur.execute(
+                            "SELECT DISTINCT department FROM agents WHERE department ILIKE %s LIMIT 1",
+                            (f"%{target_dept}%",),
+                        )
+                        dept_row = cur.fetchone()
+
+                        if dept_row:
                             cur.execute(
-                                """
-                                INSERT INTO station_assignments (station_id, agent_id, role, assigned_by)
-                                VALUES (%s, %s, 'primary', %s)
-                                ON CONFLICT (station_id, agent_id) DO UPDATE SET role = 'primary'
-                            """,
-                                (station_row["id"], agent["id"], user_id),
+                                "UPDATE agents SET department = %s WHERE id = %s",
+                                (dept_row["department"], agent["id"]),
                             )
                             conn.commit()
-
-                            response = f"Done! I've assigned {agent['name']} to {station_row['name']}."
+                            response = f"Done! I've assigned {agent['name']} to {dept_row['department']}."
                         else:
-                            response = f"I couldn't find a station matching '{station}'. Available stations include: Command, Engineering, Creative, Operations, Security, Medical, HR, R&D, Consciousness, and Away Team."
+                            response = f"I couldn't find a department matching '{station}'. Available departments include: Executive Office, Engineering & Technology, Creative & Design, Operations & Infrastructure, Security & Compliance, Research & Development, and more."
                     else:
                         response = f"I couldn't find an agent matching '{agent_name}'. Would you like me to show you the current roster?"
                 else:
                     # Need more info - use LLM to help
                     response = await self._ask_for_clarification(
-                        "I'd be happy to help with that assignment! Could you tell me which agent you'd like to assign and to which station?",
+                        "I'd be happy to help with that assignment! Could you tell me which agent you'd like to assign and to which department?",
                         context,
                     )
             else:
-                # Query team status
+                # Query team status by department
                 cur.execute(
                     """
-                    SELECT bs.name as station, a.name as agent, sa.role
-                    FROM station_assignments sa
-                    JOIN bridge_stations bs ON sa.station_id = bs.id
-                    JOIN agents a ON sa.agent_id = a.id
-                    WHERE sa.role = 'primary'
-                    ORDER BY bs.name
+                    SELECT department, name as agent, title
+                    FROM agents
+                    WHERE status = 'active' AND department IS NOT NULL
+                    ORDER BY department, name
                 """
                 )
                 assignments = cur.fetchall()
 
                 if assignments:
-                    response = "Here's the current station roster:\n\n"
+                    response = "Here's the current department roster:\n\n"
+                    current_dept = None
                     for a in assignments:
-                        response += f"**{a['station']}**: {a['agent']}\n"
+                        if a["department"] != current_dept:
+                            current_dept = a["department"]
+                            response += f"\n**{current_dept}**:\n"
+                        response += f"  - {a['agent']}"
+                        if a.get("title"):
+                            response += f" ({a['title']})"
+                        response += "\n"
                 else:
-                    response = "No station assignments found. Would you like me to set some up?"
+                    response = "No department assignments found. Would you like me to set some up?"
 
             cur.close()
             conn.close()

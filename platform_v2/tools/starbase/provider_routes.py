@@ -466,7 +466,13 @@ def register_provider_routes(bp, admin_required):
     @bp.route("/api/bridge/reassign", methods=["POST"])
     @login_required
     def reassign_agent():
-        """Manually reassign an agent to a different station (admin only)"""
+        """Manually reassign an agent to a different department (admin only).
+
+        Accepts station_code (mapped via LEGACY_STATION_DEPARTMENT) or department name.
+        station_assignments table is DROPPED — updates agents.department directly.
+        """
+        from .agent_routes import LEGACY_STATION_DEPARTMENT, DEPARTMENT_TO_STATION
+
         try:
             if not current_user.is_admin:
                 return jsonify({"success": False, "error": "Admin access required"}), 403
@@ -474,51 +480,36 @@ def register_provider_routes(bp, admin_required):
             data = request.get_json() or {}
             agent_id = data.get("agent_id")
             new_station_code = data.get("station_code")
+            department = data.get("department")
 
-            if not agent_id or not new_station_code:
-                return jsonify({"success": False, "error": "agent_id and station_code required"}), 400
+            # Map station_code to department if needed
+            if not department and new_station_code:
+                depts = LEGACY_STATION_DEPARTMENT.get(new_station_code.upper(), [])
+                department = depts[0] if depts else None
+
+            if not agent_id or not department:
+                return jsonify({"success": False, "error": "agent_id and (station_code or department) required"}), 400
 
             with get_db_cursor() as (conn, cur):
-
-                # Verify agent exists
                 cur.execute("SELECT id, name FROM agents WHERE id = %s AND status = 'active'", (agent_id,))
                 agent = cur.fetchone()
                 if not agent:
                     return jsonify({"success": False, "error": "Agent not found or inactive"}), 404
 
-                # Verify station exists
                 cur.execute(
-                    "SELECT id, station_name FROM bridge_stations WHERE station_code = %s AND is_active = TRUE",
-                    (new_station_code,),
-                )
-                station = cur.fetchone()
-                if not station:
-                    return jsonify({"success": False, "error": "Station not found or inactive"}), 404
-
-                # Deactivate old assignments
-                cur.execute(
-                    "UPDATE station_assignments SET is_active = FALSE WHERE agent_id = %s AND is_active = TRUE",
-                    (agent_id,),
+                    "UPDATE agents SET department = %s, updated_at = NOW() WHERE id = %s",
+                    (department, agent_id),
                 )
 
-                # Create new assignment
-                cur.execute(
-                    """
-                    INSERT INTO station_assignments (agent_id, station_id, assignment_type, is_active, priority)
-                    VALUES (%s, %s, 'primary', TRUE, 1)
-                    ON CONFLICT (agent_id, station_id) DO UPDATE SET is_active = TRUE, assignment_type = 'primary'
-                """,
-                    (agent_id, station["id"]),
-                )
-
-                logger.info(f"Agent {agent['name']} reassigned to {station['station_name']} by {current_user.username}")
+                logger.info(f"Agent {agent['name']} reassigned to {department} by {current_user.username}")
 
                 return jsonify(
                     {
                         "success": True,
-                        "message": f"{agent['name']} reassigned to {station['station_name']}",
+                        "message": f"{agent['name']} reassigned to {department}",
                         "agent_id": agent_id,
-                        "station_code": new_station_code,
+                        "station_code": DEPARTMENT_TO_STATION.get(department, new_station_code or ""),
+                        "department": department,
                     }
                 )
 

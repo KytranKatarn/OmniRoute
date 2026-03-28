@@ -13,6 +13,8 @@ import psycopg2
 import psutil
 import requests
 
+from .agent_routes import LEGACY_STATION_DEPARTMENT, LEGACY_STATION_COLORS, DEPARTMENT_TO_STATION
+
 try:
     from ai_bridge.agent_performance_tracker import (
         get_agent_performance,
@@ -40,23 +42,21 @@ def register_station_routes(bp, admin_required):
     # ============================================================================
 
     def get_stations_from_db():
-        """Get all stations from database"""
-        try:
-            with get_db_cursor(commit=False) as (conn, cur):
-                cur.execute(
-                    """
-                    SELECT station_code, station_name, full_name, description,
-                           color, icon, default_llm, modules, position_row, position_order
-                    FROM bridge_stations
-                    WHERE is_active = TRUE
-                    ORDER BY position_row, position_order
-                """
-                )
-                stations = cur.fetchall()
-                return {s["station_code"]: dict(s) for s in stations}
-        except Exception as e:
-            logger.error(f"Error loading stations from DB: {e}")
-            return {}
+        """Get all stations — derived from LEGACY_STATION_DEPARTMENT (bridge_stations deprecated)."""
+        result = {}
+        for code, depts in LEGACY_STATION_DEPARTMENT.items():
+            result[code] = {
+                "station_code": code,
+                "station_name": code.title(),
+                "full_name": code.title(),
+                "description": f"Departments: {', '.join(depts)}",
+                "color": LEGACY_STATION_COLORS.get(code, "#888"),
+                "icon": None,
+                "default_llm": None,
+                "modules": [],
+                "departments": depts,
+            }
+        return result
 
     # Fallback stations if DB unavailable (6 consolidated stations — Project #91)
     STATIONS_FALLBACK = {
@@ -160,89 +160,65 @@ def register_station_routes(bp, admin_required):
     @bp.route("/api/stations")
     @login_required
     def get_stations():
-        """Get all station configurations from database (10 stations)"""
+        """Get all station configurations — department-based (bridge_stations deprecated)."""
         try:
             with get_db_cursor(commit=False) as (conn, cur):
-
-                # Single query: stations + their assigned agents via LEFT JOIN + json_agg
+                # Get all active agents with departments
                 cur.execute(
                     """
-                    SELECT bs.id, bs.station_code, bs.station_name, bs.full_name,
-                           bs.description, bs.color, bs.icon, bs.default_llm,
-                           bs.modules, bs.position_row, bs.position_order,
-                           bs.max_primary, bs.max_auxiliary, bs.allow_overflow,
-                           COALESCE(
-                               json_agg(
-                                   json_build_object(
-                                       'id', a.id,
-                                       'name', a.name,
-                                       'first_name', a.first_name,
-                                       'last_name', a.last_name,
-                                       'title', a.title,
-                                       'avatar_url', a.avatar_url,
-                                       'model', a.model,
-                                       'assignment_type', sa.assignment_type,
-                                       'status', a.status,
-                                       'shift_state', a.shift_state
-                                   ) ORDER BY sa.priority
-                               ) FILTER (WHERE a.id IS NOT NULL),
-                               '[]'::json
-                           ) as assigned_agents
-                    FROM bridge_stations bs
-                    LEFT JOIN station_assignments sa
-                        ON sa.station_id = bs.id AND sa.is_active = TRUE
-                    LEFT JOIN agents a
-                        ON sa.agent_id = a.id
-                    WHERE bs.is_active = TRUE
-                    GROUP BY bs.id, bs.station_code, bs.station_name, bs.full_name,
-                             bs.description, bs.color, bs.icon, bs.default_llm,
-                             bs.modules, bs.position_row, bs.position_order,
-                             bs.max_primary, bs.max_auxiliary, bs.allow_overflow
-                    ORDER BY bs.position_row, bs.position_order
-                """
+                    SELECT a.id, a.name, a.first_name, a.last_name, a.title,
+                           a.avatar_url, a.model, a.status, a.shift_state,
+                           a.department
+                    FROM agents a
+                    WHERE a.status IN ('active', 'idle', 'busy', 'deployed')
+                    ORDER BY a.department, a.name
+                    """
                 )
-                db_stations = cur.fetchall()
-
-                # Inline node coverage (avoids separate /api/stations/coverage call)
-                cur.execute("SELECT * FROM v_station_node_coverage")
-                coverage_rows = cur.fetchall()
-                coverage_map = {c["station_code"]: c for c in coverage_rows}
+                all_agents = cur.fetchall()
 
                 stations_data = []
-                for station in db_stations:
-                    agents = station["assigned_agents"] or []
-                    primary_count = sum(1 for a in agents if a.get("assignment_type") == "primary")
-                    backup_count = sum(1 for a in agents if a.get("assignment_type") == "backup")
-
-                    cov = coverage_map.get(station["station_code"], {})
+                idx = 0
+                for code, depts in LEGACY_STATION_DEPARTMENT.items():
+                    dept_agents = [a for a in all_agents if a["department"] in depts]
+                    agent_list = [
+                        {
+                            "id": a["id"],
+                            "name": a["name"],
+                            "first_name": a["first_name"],
+                            "last_name": a["last_name"],
+                            "title": a["title"],
+                            "avatar_url": a["avatar_url"],
+                            "model": a["model"],
+                            "assignment_type": "primary",
+                            "status": a["status"],
+                            "shift_state": a["shift_state"],
+                        }
+                        for a in dept_agents
+                    ]
                     stations_data.append(
                         {
-                            "id": station["id"],
-                            "code": station["station_code"],
-                            "name": station["station_name"],
-                            "full_name": station["full_name"],
-                            "description": station["description"],
-                            "color": station["color"],
-                            "icon": station["icon"],
-                            "default_llm": station["default_llm"],
-                            "modules": station["modules"] or [],
-                            "position_row": station["position_row"],
-                            "position_order": station["position_order"],
-                            "assigned_agents": agents,
-                            "primary_count": primary_count,
-                            "backup_count": backup_count,
-                            "total_agents": len(agents),
-                            "max_primary": station.get("max_primary", 2),
-                            "max_auxiliary": station.get("max_auxiliary", 1),
-                            "allow_overflow": station.get("allow_overflow", True),
+                            "id": idx,
+                            "code": code,
+                            "name": code.title(),
+                            "full_name": code.title(),
+                            "description": f"Departments: {', '.join(depts)}",
+                            "color": LEGACY_STATION_COLORS.get(code, "#888"),
+                            "icon": None,
+                            "default_llm": None,
+                            "modules": [],
+                            "departments": depts,
+                            "assigned_agents": agent_list,
+                            "primary_count": len(agent_list),
+                            "backup_count": 0,
+                            "total_agents": len(agent_list),
+                            "max_primary": 10,
+                            "max_auxiliary": 5,
+                            "allow_overflow": True,
                             "status": "active",
-                            "node_coverage": {
-                                "total_nodes": cov.get("total_nodes", 0),
-                                "primary_nodes": cov.get("primary_nodes", 0),
-                                "backup_nodes": cov.get("backup_nodes", 0),
-                            },
+                            "node_coverage": {"total_nodes": 0, "primary_nodes": 0, "backup_nodes": 0},
                         }
                     )
+                    idx += 1
 
                 return jsonify(
                     {
@@ -250,9 +226,9 @@ def register_station_routes(bp, admin_required):
                         "stations": stations_data,
                         "total_stations": len(stations_data),
                         "coverage_summary": {
-                            "total_stations": len(coverage_rows),
-                            "stations_with_nodes": len([c for c in coverage_rows if c["total_nodes"] > 0]),
-                            "total_assignments": sum(c["total_nodes"] for c in coverage_rows),
+                            "total_stations": len(stations_data),
+                            "stations_with_nodes": 0,
+                            "total_assignments": 0,
                         },
                     }
                 )
@@ -313,55 +289,39 @@ def register_station_routes(bp, admin_required):
         """Get detailed info for a specific station"""
         station_code = station_code.upper()
 
+        depts = LEGACY_STATION_DEPARTMENT.get(station_code)
+        if not depts:
+            return jsonify({"success": False, "error": f"Station {station_code} not found"}), 404
+
         try:
             with get_db_cursor(commit=False) as (conn, cur):
-
-                # Get station from database
-                cur.execute(
-                    """
-                    SELECT id, station_code, station_name, full_name, description,
-                           color, icon, default_llm, modules, position_row, position_order
-                    FROM bridge_stations
-                    WHERE station_code = %s AND is_active = TRUE
-                """,
-                    (station_code,),
-                )
-                station = cur.fetchone()
-
-                if not station:
-                    return (
-                        jsonify({"success": False, "error": f"Station {station_code} not found"}),
-                        404,
-                    )
-
-                # Get assigned agents with full details
+                # Get agents in mapped departments
                 cur.execute(
                     """
                     SELECT a.id, a.name, a.first_name, a.last_name, a.title, a.avatar_url,
-                           a.model, a.department, a.tier, a.status, a.worker_type,
-                           sa.assignment_type, sa.shift_preference, sa.priority
-                    FROM station_assignments sa
-                    JOIN agents a ON sa.agent_id = a.id
-                    WHERE sa.station_id = %s AND sa.is_active = TRUE
-                    ORDER BY sa.priority
+                           a.model, a.department, a.tier, a.status, a.worker_type
+                    FROM agents a
+                    WHERE a.department = ANY(%s)
+                    ORDER BY a.name
                 """,
-                    (station["id"],),
+                    (depts,),
                 )
-                assigned_agents = cur.fetchall()
+                assigned_agents = [dict(a) for a in cur.fetchall()]
 
                 return jsonify(
                     {
                         "success": True,
                         "station": {
-                            "id": station["id"],
-                            "code": station["station_code"],
-                            "name": station["station_name"],
-                            "full_name": station["full_name"],
-                            "description": station["description"],
-                            "color": station["color"],
-                            "icon": station["icon"],
-                            "default_llm": station["default_llm"],
-                            "modules": station["modules"] or [],
+                            "id": 0,
+                            "code": station_code,
+                            "name": station_code.title(),
+                            "full_name": station_code.title(),
+                            "description": f"Departments: {', '.join(depts)}",
+                            "color": LEGACY_STATION_COLORS.get(station_code, "#888"),
+                            "icon": None,
+                            "default_llm": None,
+                            "modules": [],
+                            "departments": depts,
                             "assigned_agents": assigned_agents,
                             "total_agents": len(assigned_agents),
                         },
@@ -1319,10 +1279,10 @@ def register_station_routes(bp, admin_required):
                            a.communication_style, a.temperature, a.shift_state,
                            a.tier, a.is_cloneable, a.image_model,
                            a.created_at, a.last_used,
-                           bs.station_code, bs.station_name, bs.color as station_color
+                           a.department as station_code,
+                           a.department as station_name,
+                           NULL as station_color
                     FROM agents a
-                    LEFT JOIN station_assignments sa ON sa.agent_id = a.id AND sa.is_active = TRUE
-                    LEFT JOIN bridge_stations bs ON bs.id = sa.station_id
                     WHERE a.id = %s
                 """,
                     (agent_id,),
@@ -1490,10 +1450,10 @@ def register_station_routes(bp, admin_required):
                     """
                     SELECT rl.shift_state, rl.started_at, rl.ended_at,
                            rl.tasks_completed, rl.tasks_failed, rl.reason,
-                           bs.station_code,
+                           a.department as station_code,
                            ra.name as replaced_by_name
                     FROM agent_rotation_log rl
-                    LEFT JOIN bridge_stations bs ON bs.id = rl.station_id
+                    JOIN agents a ON a.id = rl.agent_id
                     LEFT JOIN agents ra ON ra.id = rl.replaced_by
                     WHERE rl.agent_id = %s
                     ORDER BY rl.started_at DESC LIMIT 10

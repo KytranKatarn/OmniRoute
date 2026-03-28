@@ -111,26 +111,26 @@ class ShiftConflictDetector:
             }
 
     def _check_understaffed(self, cur) -> int:
-        """Check for stations with no primary agent"""
-        logger.info("Checking for understaffed stations...")
+        """Check for departments with no active agent for a shift"""
+        logger.info("Checking for understaffed departments...")
 
         cur.execute(
             """
             SELECT
-                bs.id as station_id,
-                bs.station_name,
+                dept.department,
                 sd.id as shift_id,
                 sd.shift_name
-            FROM bridge_stations bs
+            FROM (SELECT DISTINCT department FROM agents WHERE status = 'active' AND department IS NOT NULL) dept
             CROSS JOIN shift_definitions sd
-            LEFT JOIN agent_shifts ash ON bs.id = ash.station_id
-                AND sd.id = ash.shift_id
+            LEFT JOIN agent_shifts ash ON sd.id = ash.shift_id
                 AND ash.is_primary = true
                 AND ash.effective_from <= CURRENT_DATE
                 AND (ash.effective_until IS NULL OR ash.effective_until >= CURRENT_DATE)
-            LEFT JOIN agents a ON ash.agent_id = a.id AND a.status = 'active'
-            WHERE bs.is_active = true AND sd.is_active = true
-            GROUP BY bs.id, bs.station_name, sd.id, sd.shift_name
+            LEFT JOIN agents a ON ash.agent_id = a.id
+                AND a.status = 'active'
+                AND a.department = dept.department
+            WHERE sd.is_active = true
+            GROUP BY dept.department, sd.id, sd.shift_name
             HAVING COUNT(a.id) = 0
         """
         )
@@ -143,54 +143,53 @@ class ShiftConflictDetector:
             cur.execute(
                 """
                 SELECT id FROM shift_conflicts
-                WHERE station_id = %s AND shift_id = %s
+                WHERE description LIKE %s AND shift_id = %s
                 AND conflict_type = 'understaffed'
                 AND conflict_date = CURRENT_DATE
                 AND resolved = false
             """,
-                (row["station_id"], row["shift_id"]),
+                (f"%{row['department']}%", row["shift_id"]),
             )
 
             if not cur.fetchone():
                 cur.execute(
                     """
                     INSERT INTO shift_conflicts
-                    (station_id, shift_id, conflict_date, conflict_type, severity, description)
-                    VALUES (%s, %s, CURRENT_DATE, 'understaffed', 'critical', %s)
+                    (shift_id, conflict_date, conflict_type, severity, description)
+                    VALUES (%s, CURRENT_DATE, 'understaffed', 'critical', %s)
                 """,
                     (
-                        row["station_id"],
                         row["shift_id"],
-                        f"Station {row['station_name']} has no primary agent for {row['shift_name']} shift",
+                        f"Department {row['department']} has no primary agent for {row['shift_name']} shift",
                     ),
                 )
                 count += 1
-                logger.warning(f"CRITICAL: {row['station_name']} understaffed for {row['shift_name']}")
+                logger.warning(f"CRITICAL: {row['department']} understaffed for {row['shift_name']}")
 
         return count
 
     def _check_no_backup(self, cur) -> int:
-        """Check for stations with primary but no backup agent"""
-        logger.info("Checking for stations without backup agents...")
+        """Check for departments with primary but no backup agent"""
+        logger.info("Checking for departments without backup agents...")
 
         cur.execute(
             """
             SELECT
-                bs.id as station_id,
-                bs.station_name,
+                dept.department,
                 sd.id as shift_id,
                 sd.shift_name,
                 COUNT(CASE WHEN ash.is_primary = true THEN 1 END) as primary_count,
                 COUNT(CASE WHEN ash.is_primary = false THEN 1 END) as backup_count
-            FROM bridge_stations bs
+            FROM (SELECT DISTINCT department FROM agents WHERE status = 'active' AND department IS NOT NULL) dept
             CROSS JOIN shift_definitions sd
-            LEFT JOIN agent_shifts ash ON bs.id = ash.station_id
-                AND sd.id = ash.shift_id
+            LEFT JOIN agent_shifts ash ON sd.id = ash.shift_id
                 AND ash.effective_from <= CURRENT_DATE
                 AND (ash.effective_until IS NULL OR ash.effective_until >= CURRENT_DATE)
-            LEFT JOIN agents a ON ash.agent_id = a.id AND a.status = 'active'
-            WHERE bs.is_active = true AND sd.is_active = true
-            GROUP BY bs.id, bs.station_name, sd.id, sd.shift_name
+            LEFT JOIN agents a ON ash.agent_id = a.id
+                AND a.status = 'active'
+                AND a.department = dept.department
+            WHERE sd.is_active = true
+            GROUP BY dept.department, sd.id, sd.shift_name
             HAVING COUNT(CASE WHEN ash.is_primary = true THEN 1 END) > 0
             AND COUNT(CASE WHEN ash.is_primary = false THEN 1 END) = 0
         """
@@ -203,53 +202,49 @@ class ShiftConflictDetector:
             cur.execute(
                 """
                 SELECT id FROM shift_conflicts
-                WHERE station_id = %s AND shift_id = %s
+                WHERE description LIKE %s AND shift_id = %s
                 AND conflict_type = 'no_backup'
                 AND conflict_date = CURRENT_DATE
                 AND resolved = false
             """,
-                (row["station_id"], row["shift_id"]),
+                (f"%{row['department']}%", row["shift_id"]),
             )
 
             if not cur.fetchone():
                 cur.execute(
                     """
                     INSERT INTO shift_conflicts
-                    (station_id, shift_id, conflict_date, conflict_type, severity, description)
-                    VALUES (%s, %s, CURRENT_DATE, 'no_backup', 'warning', %s)
+                    (shift_id, conflict_date, conflict_type, severity, description)
+                    VALUES (%s, CURRENT_DATE, 'no_backup', 'warning', %s)
                 """,
                     (
-                        row["station_id"],
                         row["shift_id"],
-                        f"Station {row['station_name']} has no backup agent for {row['shift_name']} shift",
+                        f"Department {row['department']} has no backup agent for {row['shift_name']} shift",
                     ),
                 )
                 count += 1
-                logger.info(f"WARNING: {row['station_name']} has no backup for {row['shift_name']}")
+                logger.info(f"WARNING: {row['department']} has no backup for {row['shift_name']}")
 
         return count
 
     def _check_overstaffed(self, cur) -> int:
-        """Check for stations with too many agents (resource waste)"""
-        logger.info("Checking for overstaffed stations...")
+        """Check for departments with too many agents on a shift (resource waste)"""
+        logger.info("Checking for overstaffed departments...")
 
         cur.execute(
             """
             SELECT
-                bs.id as station_id,
-                bs.station_name,
+                a.department,
                 sd.id as shift_id,
                 sd.shift_name,
                 COUNT(ash.id) as agent_count
-            FROM bridge_stations bs
-            CROSS JOIN shift_definitions sd
-            JOIN agent_shifts ash ON bs.id = ash.station_id
-                AND sd.id = ash.shift_id
+            FROM agents a
+            JOIN agent_shifts ash ON a.id = ash.agent_id
                 AND ash.effective_from <= CURRENT_DATE
                 AND (ash.effective_until IS NULL OR ash.effective_until >= CURRENT_DATE)
-            JOIN agents a ON ash.agent_id = a.id AND a.status = 'active'
-            WHERE bs.is_active = true AND sd.is_active = true
-            GROUP BY bs.id, bs.station_name, sd.id, sd.shift_name
+            JOIN shift_definitions sd ON ash.shift_id = sd.id AND sd.is_active = true
+            WHERE a.status = 'active' AND a.department IS NOT NULL
+            GROUP BY a.department, sd.id, sd.shift_name
             HAVING COUNT(ash.id) > 3
         """
         )
@@ -261,31 +256,30 @@ class ShiftConflictDetector:
             cur.execute(
                 """
                 SELECT id FROM shift_conflicts
-                WHERE station_id = %s AND shift_id = %s
+                WHERE description LIKE %s AND shift_id = %s
                 AND conflict_type = 'overstaffed'
                 AND conflict_date = CURRENT_DATE
                 AND resolved = false
             """,
-                (row["station_id"], row["shift_id"]),
+                (f"%{row['department']}%", row["shift_id"]),
             )
 
             if not cur.fetchone():
                 cur.execute(
                     """
                     INSERT INTO shift_conflicts
-                    (station_id, shift_id, conflict_date, conflict_type, severity, description, details)
-                    VALUES (%s, %s, CURRENT_DATE, 'overstaffed', 'info', %s, %s)
+                    (shift_id, conflict_date, conflict_type, severity, description, details)
+                    VALUES (%s, CURRENT_DATE, 'overstaffed', 'info', %s, %s)
                 """,
                     (
-                        row["station_id"],
                         row["shift_id"],
-                        f"Station {row['station_name']} has {row['agent_count']} agents for {row['shift_name']} shift (>3)",
+                        f"Department {row['department']} has {row['agent_count']} agents for {row['shift_name']} shift (>3)",
                         json.dumps({"agent_count": row["agent_count"]}),
                     ),
                 )
                 count += 1
                 logger.info(
-                    f"INFO: {row['station_name']} overstaffed ({row['agent_count']} agents) for {row['shift_name']}"
+                    f"INFO: {row['department']} overstaffed ({row['agent_count']} agents) for {row['shift_name']}"
                 )
 
         return count

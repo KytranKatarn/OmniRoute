@@ -6,6 +6,8 @@ from flask import jsonify, request
 from flask_login import login_required
 from database import get_db_cursor
 
+from .agent_routes import LEGACY_STATION_COLORS, DEPARTMENT_TO_STATION
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,18 +25,15 @@ def register_dispatch_routes(bp, admin_required):
         try:
             with get_db_cursor(commit=False) as (conn, cur):
 
-                # Active agents with their station assignments
+                # Active agents with their department (station_assignments DROPPED)
                 cur.execute(
                     """
                     SELECT a.id, a.name, a.first_name, a.last_name, a.title, a.model,
                            a.status, a.avatar_url,
-                           bs.station_code, bs.station_name, bs.color,
-                           sa.assignment_type
+                           a.department
                     FROM agents a
-                    LEFT JOIN station_assignments sa ON sa.agent_id = a.id AND sa.is_active = TRUE
-                    LEFT JOIN bridge_stations bs ON bs.id = sa.station_id AND bs.is_active = TRUE
                     WHERE a.status = 'active'
-                    ORDER BY bs.position_row, bs.position_order, a.name
+                    ORDER BY a.department, a.name
                 """
                 )
                 agents = cur.fetchall()
@@ -78,19 +77,15 @@ def register_dispatch_routes(bp, admin_required):
                 )
                 active_tasks = cur.fetchall()
 
-                # Per-station dispatch counts (last 24h) — use tel.station_code directly
+                # Per-station dispatch counts (last 24h) — bridge_stations deprecated, color from Python map
                 cur.execute(
                     """
                     SELECT COALESCE(tel.station_code, 'UNASSIGNED') as station_code,
-                           COALESCE(bs.station_name, tel.station_code, 'Unassigned') as station_name,
-                           COALESCE(bs.color, '#666') as color,
                            COUNT(*) as dispatch_count,
                            COALESCE(AVG(tel.duration_ms), 0) as avg_ms
                     FROM task_execution_log tel
-                    LEFT JOIN bridge_stations bs ON bs.station_code = tel.station_code
-                          AND bs.is_active = TRUE
                     WHERE tel.created_at > NOW() - INTERVAL '24 hours'
-                    GROUP BY tel.station_code, bs.station_name, bs.color
+                    GROUP BY tel.station_code
                     ORDER BY dispatch_count DESC
                 """
                 )
@@ -109,10 +104,15 @@ def register_dispatch_routes(bp, admin_required):
                                 "model": a["model"],
                                 "status": a["status"],
                                 "avatar_url": a.get("avatar_url"),
-                                "station_code": a.get("station_code"),
-                                "station_name": a.get("station_name"),
-                                "station_color": a.get("color"),
-                                "assignment_type": a.get("assignment_type"),
+                                "station_code": DEPARTMENT_TO_STATION.get(
+                                    a.get("department", ""), a.get("department", "")
+                                ),
+                                "station_name": a.get("department"),
+                                "station_color": LEGACY_STATION_COLORS.get(
+                                    DEPARTMENT_TO_STATION.get(a.get("department", ""), ""), "#666"
+                                ),
+                                "department": a.get("department"),
+                                "assignment_type": "primary",
                             }
                             for a in agents
                         ],
@@ -139,8 +139,8 @@ def register_dispatch_routes(bp, admin_required):
                         "station_activity": [
                             {
                                 "station_code": s["station_code"],
-                                "station_name": s["station_name"],
-                                "color": s["color"],
+                                "station_name": s["station_code"].title() if s["station_code"] else "Unassigned",
+                                "color": LEGACY_STATION_COLORS.get(s["station_code"], "#666"),
                                 "dispatch_count": s["dispatch_count"],
                                 "avg_ms": round(float(s["avg_ms"]), 1),
                             }
@@ -176,11 +176,9 @@ def register_dispatch_routes(bp, admin_required):
                            tel.module_source, tel.task_type, tel.capability,
                            tel.model_used, tel.duration_ms, tel.success,
                            tel.error_message, tel.created_at,
-                           tel.station_code, bs.color as station_color
+                           tel.station_code
                     FROM task_execution_log tel
                     LEFT JOIN agents a ON a.id = tel.agent_id
-                    LEFT JOIN bridge_stations bs ON bs.station_code = tel.station_code
-                          AND bs.is_active = TRUE
                     WHERE tel.created_at > NOW() - INTERVAL '24 hours'
                     ORDER BY tel.created_at DESC
                     LIMIT %s
@@ -206,7 +204,7 @@ def register_dispatch_routes(bp, admin_required):
                                 "error": h.get("error_message"),
                                 "timestamp": h["created_at"].isoformat() if h["created_at"] else None,
                                 "station_code": h.get("station_code"),
-                                "station_color": h.get("station_color"),
+                                "station_color": LEGACY_STATION_COLORS.get(h.get("station_code", ""), "#666"),
                             }
                             for h in history
                         ],
@@ -271,12 +269,9 @@ def register_dispatch_routes(bp, admin_required):
                            tel.module_source, tel.task_type, tel.capability,
                            tel.model_used, tel.duration_ms, tel.success,
                            tel.error_message, tel.created_at,
-                           tel.station_code,
-                           bs.color as station_color
+                           tel.station_code
                     FROM task_execution_log tel
                     LEFT JOIN agents a ON a.id = tel.agent_id
-                    LEFT JOIN bridge_stations bs ON bs.station_code = tel.station_code
-                          AND bs.is_active = TRUE
                     WHERE tel.created_at > NOW() - INTERVAL '24 hours'
                     ORDER BY tel.created_at DESC
                     LIMIT %s
@@ -285,19 +280,15 @@ def register_dispatch_routes(bp, admin_required):
                 )
                 history = cur.fetchall()
 
-                # 3. Per-station activity using tel.station_code directly
+                # 3. Per-station activity — bridge_stations deprecated, color from Python map
                 cur.execute(
                     """
                     SELECT COALESCE(tel.station_code, 'UNASSIGNED') as station_code,
-                           COALESCE(bs.station_name, tel.station_code, 'Unassigned') as station_name,
-                           COALESCE(bs.color, '#666') as color,
                            COUNT(*) as dispatch_count,
                            COALESCE(AVG(tel.duration_ms), 0) as avg_ms
                     FROM task_execution_log tel
-                    LEFT JOIN bridge_stations bs ON bs.station_code = tel.station_code
-                          AND bs.is_active = TRUE
                     WHERE tel.created_at > NOW() - INTERVAL '24 hours'
-                    GROUP BY tel.station_code, bs.station_name, bs.color
+                    GROUP BY tel.station_code
                     ORDER BY dispatch_count DESC
                 """
                 )
@@ -355,15 +346,15 @@ def register_dispatch_routes(bp, admin_required):
                                 "error": h.get("error_message"),
                                 "timestamp": h["created_at"].isoformat() if h["created_at"] else None,
                                 "station_code": h.get("station_code"),
-                                "station_color": h.get("station_color"),
+                                "station_color": LEGACY_STATION_COLORS.get(h.get("station_code", ""), "#666"),
                             }
                             for h in history
                         ],
                         "station_activity": [
                             {
                                 "station_code": s["station_code"],
-                                "station_name": s["station_name"],
-                                "color": s["color"],
+                                "station_name": s["station_code"].title() if s["station_code"] else "Unassigned",
+                                "color": LEGACY_STATION_COLORS.get(s["station_code"], "#666"),
                                 "dispatch_count": s["dispatch_count"],
                                 "avg_ms": round(float(s["avg_ms"]), 1),
                             }
@@ -683,17 +674,14 @@ def register_dispatch_routes(bp, admin_required):
                     cur.execute(
                         """
                         SELECT a.id, a.name, a.display_name, ask.skill_name,
-                               ask.proficiency_level, sa.assignment_type
+                               ask.proficiency_level, a.department
                         FROM agents a
                         JOIN agent_skills ask ON ask.agent_id = a.id
-                        LEFT JOIN station_assignments sa
-                            ON sa.agent_id = a.id AND sa.is_active = true
-                        LEFT JOIN bridge_stations bs ON bs.id = sa.station_id
                         WHERE ask.skill_name ILIKE %s
-                          AND (bs.station_code IS NULL OR bs.station_code != %s)
+                          AND (a.department IS NULL OR a.department != %s)
                         ORDER BY ask.proficiency_level DESC LIMIT 3
                     """,
-                        (f"%{row['capability']}%", row["home_station"]),
+                        (f"%{row['capability']}%", row.get("home_station", "")),
                     )
                     candidates = cur.fetchall()
                     if candidates:

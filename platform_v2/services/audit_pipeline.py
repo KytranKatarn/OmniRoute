@@ -586,6 +586,27 @@ def dispatch_proposal_fix(proposal_id):
     capability = _ISSUE_CAPABILITY_MAP.get(issue_code, "code_review")
     fix_instruction = _FIX_PROMPTS.get(issue_code, f"Fix the {issue_code} issue in this file.")
 
+    # Truncate source to avoid overwhelming the model
+    # For targeted fixes (SQL injection, bare except), extract relevant lines
+    # For analysis (large file), send first 150 lines
+    source_lines = source_content.split("\n")
+    detail_str = meta.get("detail", "")
+    if issue_code in ("SQL_INJECTION_RISK", "BARE_EXCEPT", "HARDCODED_SECRET") and "line" in detail_str:
+        try:
+            line_num = int("".join(c for c in detail_str.split("line")[-1].strip() if c.isdigit())[:5])
+            start_line = max(0, line_num - 20)
+            end_line = min(len(source_lines), line_num + 30)
+            excerpt = "\n".join(
+                f"{i+1}: {l}" for i, l in enumerate(source_lines[start_line:end_line], start=start_line)
+            )
+            source_excerpt = f"(showing lines {start_line+1}-{end_line} of {len(source_lines)})\n{excerpt}"
+        except (ValueError, IndexError):
+            source_excerpt = "\n".join(source_lines[:200])
+    elif issue_code == "LARGE_FILE":
+        source_excerpt = f"(file has {len(source_lines)} lines, showing first 100)\n" + "\n".join(source_lines[:100])
+    else:
+        source_excerpt = "\n".join(source_lines[:200])
+
     prompt = (
         f"You are fixing a Code Health audit finding in the A.R.C.H.I.E. platform.\n\n"
         f"**Issue:** {issue_code}\n"
@@ -593,8 +614,8 @@ def dispatch_proposal_fix(proposal_id):
         f"**Module:** {module_name}\n"
         f"**Detail:** {meta.get('detail', '')}\n\n"
         f"**Instructions:** {fix_instruction}\n\n"
-        f"Return ONLY the complete fixed file content. No explanations, no markdown fences.\n\n"
-        f"--- SOURCE FILE ---\n{source_content}"
+        f"Return a brief, targeted fix or plan. No full file rewrites.\n\n"
+        f"--- SOURCE EXCERPT ---\n{source_excerpt}"
     )
 
     # Dispatch to Bridge

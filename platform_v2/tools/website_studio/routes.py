@@ -11,7 +11,7 @@ Author: A.R.C.H.I.E. Platform
 Date: 2026-01-12
 """
 
-from flask import Blueprint, render_template, request, jsonify, current_app
+from flask import Blueprint, redirect, render_template, request, jsonify, current_app
 from flask_login import login_required, current_user
 from functools import wraps
 import psycopg2
@@ -129,85 +129,13 @@ def get_db_connection():
 @website_studio_bp.route("/")
 @login_required
 def index():
-    """Main Website Studio interface"""
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+    """Website Studio — redirects to Kytran Business Suite.
 
-        # Get user's projects with isolation
-        if is_admin_user():
-            cur.execute(
-                """
-                SELECT p.*, u.username as owner_name,
-                       COUNT(DISTINCT pg.id) as page_count
-                FROM website_builder_projects p
-                LEFT JOIN users u ON p.user_id = u.id
-                LEFT JOIN website_builder_pages pg ON p.id = pg.project_id
-                GROUP BY p.id, u.username
-                ORDER BY p.updated_at DESC
-            """
-            )
-        else:
-            cur.execute(
-                """
-                SELECT p.*, COUNT(DISTINCT pg.id) as page_count
-                FROM website_builder_projects p
-                LEFT JOIN website_builder_pages pg ON p.id = pg.project_id
-                WHERE p.user_id = %s
-                GROUP BY p.id
-                ORDER BY p.updated_at DESC
-            """,
-                (current_user.id,),
-            )
-
-        projects = cur.fetchall()
-
-        # Get user's integrations
-        cur.execute(
-            """
-            SELECT * FROM user_integrations
-            WHERE user_id = %s AND service IN ('github', 'vercel', 'netlify', 'cloudflare')
-        """,
-            (current_user.id,),
-        )
-        integrations = {row["service"]: row for row in cur.fetchall()}
-
-        # Get deployment stats
-        cur.execute(
-            """
-            SELECT deployment_type, COUNT(*) as count
-            FROM website_deployments
-            WHERE deployed_by = %s
-            GROUP BY deployment_type
-        """,
-            (current_user.id,),
-        )
-        deployment_stats = {row["deployment_type"]: row["count"] for row in cur.fetchall()}
-
-        return render_template(
-            "website_studio.html",
-            projects=projects,
-            integrations=integrations,
-            deployment_stats=deployment_stats,
-            is_admin=is_admin_user(),
-            ai_available=AI_AVAILABLE,
-        )
-    except Exception as e:
-        current_app.logger.error(f"[WebsiteStudio] Error loading: {e}")
-        return render_template(
-            "website_studio.html",
-            projects=[],
-            integrations={},
-            deployment_stats={},
-            error=str(e),
-            ai_available=AI_AVAILABLE,
-        )
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            logger.debug("DB cleanup error", exc_info=True)
+    The Website Studio has been consolidated into KBS (kbs_website_builder plugin).
+    This route keeps the ARCHIE module tile functional as a launch link.
+    """
+    KBS_URL = os.getenv("KBS_BASE_URL", "http://192.168.1.200:8091")
+    return redirect(f"{KBS_URL}/plugins/website-builder/")
 
 
 # ============================================================================

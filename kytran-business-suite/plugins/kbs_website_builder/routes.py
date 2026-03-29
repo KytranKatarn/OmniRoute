@@ -1,8 +1,11 @@
-"""Website Builder plugin routes — projects, pages, deployments, stats, templates, AI generation, preview."""
+"""Website Builder plugin routes — projects, pages, deployments, stats, templates, AI generation, preview, chat editing."""
 
+import json as _json
 import logging
 import os
+import re
 
+import requests as http_requests
 from flask import g, jsonify, render_template, request
 from flask_login import login_required
 from psycopg2.extras import Json
@@ -16,6 +19,9 @@ from core.tenant import require_module
 logger = logging.getLogger(__name__)
 
 MODULE = "website-builder"
+
+_BRIDGE_URL = os.environ.get("KBS_BRIDGE_URL", "")
+_BRIDGE_API_KEY = os.environ.get("KBS_BRIDGE_API_KEY", "")
 
 
 def register_routes(bp):
@@ -1046,3 +1052,476 @@ def register_routes(bp):
             response["page_id"] = page_id
 
         return jsonify(response), 201
+
+    # ------------------------------------------------------------------
+    # AI Assistant (ported from ARCHIE Website Studio)
+    # ------------------------------------------------------------------
+
+    @bp.route("/api/ai/suggest-design", methods=["POST"])
+    @login_required
+    @require_module(MODULE)
+    def ai_suggest_design():
+        """AI-powered design suggestions based on business type and description."""
+        data = request.get_json(force=True)
+        description = (data.get("description") or "").strip()
+        website_type = (data.get("website_type") or "business").strip()
+
+        if not description:
+            return jsonify({"error": "description is required"}), 400
+
+        prompt = (
+            f"You are a professional web designer. Suggest a website design for: {description}\n"
+            f"Website type: {website_type}\n\n"
+            "Respond with JSON containing:\n"
+            '- "layout": recommended layout style\n'
+            '- "color_scheme": primary, secondary, accent colors\n'
+            '- "typography": heading and body font suggestions\n'
+            '- "sections": recommended page sections in order\n'
+            '- "style_notes": brief design direction notes'
+        )
+
+        result = _bridge_request(prompt)
+        if result is None:
+            return jsonify(_fallback_design_suggestions(website_type))
+        return jsonify({"suggestion": result})
+
+    @bp.route("/api/ai/generate-content", methods=["POST"])
+    @login_required
+    @require_module(MODULE)
+    def ai_generate_content():
+        """Generate page content with tone control."""
+        data = request.get_json(force=True)
+        page_name = (data.get("page_name") or "").strip()
+        business_description = (data.get("description") or "").strip()
+        business_name = (data.get("business_name") or "").strip()
+        tone = data.get("tone", "professional")
+
+        if not page_name:
+            return jsonify({"error": "page_name is required"}), 400
+
+        prompt = (
+            f"Generate website content for a '{page_name}' page.\n"
+            f"Business: {business_name or 'a company'}\n"
+            f"Description: {business_description or 'No description provided'}\n"
+            f"Tone: {tone}\n\n"
+            "Respond with clean HTML content for this page section. "
+            "Include headings, paragraphs, and any relevant structure. "
+            "Do not include <html>, <head>, or <body> tags — only the inner content."
+        )
+
+        result = _bridge_request(prompt)
+        if result is None:
+            return jsonify({"content": f"<h1>{page_name}</h1>\n<p>Content for {business_name or 'your business'} coming soon.</p>"})
+        return jsonify({"content": result})
+
+    @bp.route("/api/ai/improve-seo", methods=["POST"])
+    @login_required
+    @require_module(MODULE)
+    def ai_improve_seo():
+        """Generate SEO title, description, and keywords for a page."""
+        data = request.get_json(force=True)
+        page_content = (data.get("content") or "").strip()
+        page_title = (data.get("title") or "").strip()
+
+        if not page_content and not page_title:
+            return jsonify({"error": "content or title is required"}), 400
+
+        prompt = (
+            "You are an SEO expert. Analyze this page and suggest improvements.\n\n"
+            f"Page title: {page_title}\n"
+            f"Page content (first 500 chars): {page_content[:500]}\n\n"
+            "Respond with JSON containing:\n"
+            '- "seo_title": optimized page title (max 60 chars)\n'
+            '- "seo_description": meta description (max 160 chars)\n'
+            '- "keywords": array of 5-8 relevant keywords\n'
+            '- "suggestions": array of 3-5 actionable SEO improvement tips'
+        )
+
+        result = _bridge_request(prompt)
+        if result is None:
+            return jsonify({
+                "seo_title": page_title or "Untitled Page",
+                "seo_description": page_content[:155] + "..." if len(page_content) > 155 else page_content,
+                "keywords": [],
+                "suggestions": ["Add a meta description", "Use heading tags", "Add alt text to images"],
+            })
+        return jsonify({"seo": result})
+
+    @bp.route("/api/ai/generate-styles", methods=["POST"])
+    @login_required
+    @require_module(MODULE)
+    def ai_generate_styles():
+        """Generate CSS for a design style."""
+        data = request.get_json(force=True)
+        style = (data.get("style") or "modern").strip()
+        colors = data.get("colors", {})
+
+        prompt = (
+            f"Generate a CSS stylesheet for a {style} website design.\n"
+            f"Color preferences: {_json.dumps(colors) if colors else 'designer choice'}\n\n"
+            "Include styles for: body, headings (h1-h3), paragraphs, links, buttons, "
+            "navigation, hero section, cards, and footer.\n"
+            "Use CSS variables for colors. Make it responsive with media queries.\n"
+            "Return ONLY the CSS code, no explanations."
+        )
+
+        result = _bridge_request(prompt)
+        if result is None:
+            return jsonify({"css": _fallback_css(style)})
+        return jsonify({"css": result})
+
+    # ------------------------------------------------------------------
+    # Chat-Based Editing (ported from ARCHIE Phase 7)
+    # ------------------------------------------------------------------
+
+    @bp.route("/api/projects/<int:project_id>/chat", methods=["POST"])
+    @login_required
+    @require_module(MODULE)
+    def chat_edit(project_id):
+        """Natural language website editing via chat."""
+        data = request.get_json(force=True)
+        message = (data.get("message") or "").strip()
+        if not message:
+            return jsonify({"error": "message is required"}), 400
+
+        with get_db_cursor(commit=True, dict_cursor=True) as (conn, cur):
+            set_tenant_search_path(cur, g.tenant_id)
+
+            # Get project + pages
+            cur.execute(
+                "SELECT id, name, description, settings FROM website_projects WHERE id = %s",
+                (project_id,),
+            )
+            project = cur.fetchone()
+            if project is None:
+                return jsonify({"error": "project not found"}), 404
+
+            cur.execute(
+                "SELECT id, title, slug, content, page_type FROM website_pages WHERE project_id = %s ORDER BY sort_order",
+                (project_id,),
+            )
+            pages = cur.fetchall()
+
+            # Build context
+            role = _detect_task_role(message)
+            site_context = "\n".join(
+                f"--- {p['slug']}.html ---\n{(p['content'] or '')[:2000]}" for p in pages
+            )
+
+            system_prompt = (
+                f"You are a {role} expert helping edit a website called '{project['name']}'.\n"
+                f"The site currently has {len(pages)} page(s).\n\n"
+                f"Current site content:\n{site_context}\n\n"
+                "When the user asks for changes, respond with:\n"
+                "1. A brief explanation of what you'll change\n"
+                "2. The updated HTML wrapped in <page slug=\"SLUG\">...HTML...</page> tags\n"
+                "If no page changes are needed, just respond conversationally."
+            )
+
+            # Call Bridge
+            ai_response = _bridge_chat(system_prompt, message)
+            if ai_response is None:
+                ai_response = "I'm sorry, the AI assistant is currently unavailable. Please try again later."
+
+            # Parse page changes from response
+            changes = _parse_page_changes(ai_response)
+            pages_updated = []
+
+            for slug, new_content in changes.items():
+                cur.execute(
+                    """
+                    UPDATE website_pages SET content = %s, updated_at = NOW()
+                    WHERE project_id = %s AND slug = %s
+                    RETURNING id, slug, title
+                    """,
+                    (new_content, project_id, slug),
+                )
+                updated = cur.fetchone()
+                if updated:
+                    pages_updated.append(updated["slug"])
+
+            # Save to chat history (last 50 messages)
+            cur.execute(
+                "SELECT chat_history FROM website_projects WHERE id = %s",
+                (project_id,),
+            )
+            row = cur.fetchone()
+            history = row.get("chat_history") or []
+            if isinstance(history, str):
+                history = _json.loads(history)
+
+            history.append({"role": "user", "content": message})
+            history.append({"role": "assistant", "content": ai_response})
+            history = history[-100:]  # Keep last 50 exchanges
+
+            cur.execute(
+                "UPDATE website_projects SET chat_history = %s, updated_at = NOW() WHERE id = %s",
+                (Json(history), project_id),
+            )
+
+        if pages_updated:
+            event_bus.emit(
+                "site.chat_edited",
+                {"project_id": project_id, "pages_updated": pages_updated},
+                tenant_id=g.tenant_id,
+            )
+
+        return jsonify({
+            "response": ai_response,
+            "pages_updated": pages_updated,
+            "role_detected": role,
+        })
+
+    @bp.route("/api/projects/<int:project_id>/chat/history", methods=["GET"])
+    @login_required
+    @require_module(MODULE)
+    def get_chat_history(project_id):
+        """Retrieve chat history for a project."""
+        with get_db_cursor(commit=False, dict_cursor=True) as (conn, cur):
+            set_tenant_search_path(cur, g.tenant_id)
+            cur.execute(
+                "SELECT chat_history FROM website_projects WHERE id = %s",
+                (project_id,),
+            )
+            row = cur.fetchone()
+
+        if row is None:
+            return jsonify({"error": "project not found"}), 404
+
+        history = row.get("chat_history") or []
+        if isinstance(history, str):
+            history = _json.loads(history)
+
+        return jsonify({"history": history, "total": len(history)})
+
+    @bp.route("/api/projects/<int:project_id>/chat/history", methods=["DELETE"])
+    @login_required
+    @require_module(MODULE)
+    def clear_chat_history(project_id):
+        """Clear chat history for a project."""
+        with get_db_cursor(commit=True, dict_cursor=True) as (conn, cur):
+            set_tenant_search_path(cur, g.tenant_id)
+            cur.execute(
+                "UPDATE website_projects SET chat_history = '[]'::jsonb, updated_at = NOW() WHERE id = %s RETURNING id",
+                (project_id,),
+            )
+            row = cur.fetchone()
+
+        if row is None:
+            return jsonify({"error": "project not found"}), 404
+        return jsonify({"cleared": True})
+
+    # ------------------------------------------------------------------
+    # Multi-Provider Deployment
+    # ------------------------------------------------------------------
+
+    @bp.route("/api/deploy/providers", methods=["GET"])
+    @login_required
+    @require_module(MODULE)
+    def list_deploy_providers():
+        """List available deployment providers and their connection status."""
+        providers = [
+            {"id": "hostinger", "name": "Hostinger", "builtin": True, "connected": bool(os.environ.get("HOSTINGER_API_KEY"))},
+        ]
+
+        # Check tenant integrations for additional providers
+        with get_db_cursor(commit=False, dict_cursor=True) as (conn, cur):
+            set_tenant_search_path(cur, g.tenant_id)
+            cur.execute(
+                "SELECT service, status FROM tenant_integrations WHERE service IN ('github', 'vercel', 'netlify') AND status = 'active'"
+            )
+            connected = {r["service"]: True for r in cur.fetchall()}
+
+        for provider_id, name in [("github", "GitHub Pages"), ("vercel", "Vercel"), ("netlify", "Netlify")]:
+            providers.append({
+                "id": provider_id,
+                "name": name,
+                "builtin": False,
+                "connected": connected.get(provider_id, False),
+            })
+
+        return jsonify({"providers": providers})
+
+    @bp.route("/api/deploy/test/<provider>", methods=["POST"])
+    @login_required
+    @require_module(MODULE)
+    def test_deploy_provider(provider):
+        """Test provider credentials."""
+        if provider not in ("github", "vercel", "netlify"):
+            return jsonify({"error": "unsupported provider"}), 400
+
+        with get_db_cursor(commit=False, dict_cursor=True) as (conn, cur):
+            set_tenant_search_path(cur, g.tenant_id)
+            cur.execute(
+                "SELECT credentials FROM tenant_integrations WHERE service = %s AND status = 'active'",
+                (provider,),
+            )
+            row = cur.fetchone()
+
+        if not row:
+            return jsonify({"error": f"{provider} not configured", "connected": False}), 400
+
+        creds = row["credentials"]
+        if isinstance(creds, str):
+            creds = _json.loads(creds)
+
+        # Test the connection
+        try:
+            if provider == "github":
+                resp = http_requests.get(
+                    "https://api.github.com/user",
+                    headers={"Authorization": f"token {creds.get('token', '')}"},
+                    timeout=10,
+                )
+                if resp.status_code == 200:
+                    return jsonify({"connected": True, "user": resp.json().get("login")})
+                return jsonify({"connected": False, "error": "Invalid GitHub token"}), 400
+
+            elif provider == "vercel":
+                resp = http_requests.get(
+                    "https://api.vercel.com/v2/user",
+                    headers={"Authorization": f"Bearer {creds.get('token', '')}"},
+                    timeout=10,
+                )
+                if resp.status_code == 200:
+                    return jsonify({"connected": True, "user": resp.json().get("user", {}).get("username")})
+                return jsonify({"connected": False, "error": "Invalid Vercel token"}), 400
+
+            elif provider == "netlify":
+                resp = http_requests.get(
+                    "https://api.netlify.com/api/v1/user",
+                    headers={"Authorization": f"Bearer {creds.get('token', '')}"},
+                    timeout=10,
+                )
+                if resp.status_code == 200:
+                    return jsonify({"connected": True, "user": resp.json().get("email")})
+                return jsonify({"connected": False, "error": "Invalid Netlify token"}), 400
+
+        except Exception as exc:
+            return jsonify({"connected": False, "error": str(exc)}), 502
+
+        return jsonify({"connected": False}), 400
+
+
+# ----------------------------------------------------------------------
+# Helper functions (module-level)
+# ----------------------------------------------------------------------
+
+
+def _bridge_request(prompt):
+    """Send a single prompt to the Bridge API. Returns response text or None."""
+    if not _BRIDGE_URL:
+        return None
+    try:
+        resp = http_requests.post(
+            f"{_BRIDGE_URL}/api/chat",
+            json={"message": prompt, "model": "auto"},
+            headers={"Authorization": f"Bearer {_BRIDGE_API_KEY}"} if _BRIDGE_API_KEY else {},
+            timeout=30,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            return data.get("response") or data.get("message") or data.get("content")
+    except Exception:
+        logger.warning("Bridge API request failed")
+    return None
+
+
+def _bridge_chat(system_prompt, user_message):
+    """Send a chat message with system prompt to Bridge. Returns response text or None."""
+    if not _BRIDGE_URL:
+        return None
+    try:
+        resp = http_requests.post(
+            f"{_BRIDGE_URL}/api/chat",
+            json={
+                "message": user_message,
+                "system_prompt": system_prompt,
+                "model": "auto",
+            },
+            headers={"Authorization": f"Bearer {_BRIDGE_API_KEY}"} if _BRIDGE_API_KEY else {},
+            timeout=60,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            return data.get("response") or data.get("message") or data.get("content")
+    except Exception:
+        logger.warning("Bridge chat request failed")
+    return None
+
+
+def _detect_task_role(message):
+    """Classify a chat message into a task role for prompt specialization."""
+    msg = message.lower()
+    design_words = {"color", "font", "layout", "style", "theme", "design", "look", "visual", "css", "spacing", "align"}
+    content_words = {"text", "write", "heading", "paragraph", "copy", "title", "description", "content", "word"}
+    deploy_words = {"deploy", "publish", "launch", "host", "domain", "live", "upload"}
+
+    words = set(re.findall(r'\w+', msg))
+    scores = {
+        "design": len(words & design_words),
+        "content": len(words & content_words),
+        "deployment": len(words & deploy_words),
+    }
+    best = max(scores, key=scores.get)
+    return best if scores[best] > 0 else "web development"
+
+
+def _parse_page_changes(ai_response):
+    """Parse <page slug="...">HTML</page> tags from AI response."""
+    changes = {}
+    pattern = re.compile(r'<page\s+slug="([^"]+)">(.*?)</page>', re.DOTALL)
+    for match in pattern.finditer(ai_response):
+        slug = match.group(1).strip()
+        html = match.group(2).strip()
+        if slug and html:
+            changes[slug] = html
+    return changes
+
+
+def _fallback_design_suggestions(website_type):
+    """Fallback design suggestions when AI is unavailable."""
+    defaults = {
+        "business": {
+            "layout": "hero + services grid + testimonials + CTA",
+            "color_scheme": {"primary": "#1a365d", "secondary": "#2d3748", "accent": "#3182ce"},
+            "typography": {"heading": "Inter", "body": "Open Sans"},
+            "sections": ["Hero", "Services", "About", "Testimonials", "Contact"],
+            "style_notes": "Clean, professional look with strong call-to-action",
+        },
+        "portfolio": {
+            "layout": "full-width hero + masonry grid + about + contact",
+            "color_scheme": {"primary": "#1a1a2e", "secondary": "#16213e", "accent": "#e94560"},
+            "typography": {"heading": "Playfair Display", "body": "Lato"},
+            "sections": ["Hero", "Portfolio Grid", "About Me", "Skills", "Contact"],
+            "style_notes": "Minimal, image-focused with subtle animations",
+        },
+        "ecommerce": {
+            "layout": "nav + featured products + categories + newsletter",
+            "color_scheme": {"primary": "#1a1a1a", "secondary": "#333333", "accent": "#ff6b35"},
+            "typography": {"heading": "Montserrat", "body": "Roboto"},
+            "sections": ["Navigation", "Featured Products", "Categories", "Reviews", "Newsletter"],
+            "style_notes": "Product-focused with clear CTAs and trust signals",
+        },
+    }
+    return {"suggestion": defaults.get(website_type, defaults["business"])}
+
+
+def _fallback_css(style):
+    """Fallback CSS when AI is unavailable."""
+    return (
+        ":root {\n"
+        "  --primary: #1a365d;\n"
+        "  --secondary: #2d3748;\n"
+        "  --accent: #3182ce;\n"
+        "  --text: #e2e8f0;\n"
+        "  --bg: #0a0a1a;\n"
+        "}\n\n"
+        "body { font-family: 'Open Sans', sans-serif; background: var(--bg); color: var(--text); margin: 0; }\n"
+        "h1, h2, h3 { font-family: 'Inter', sans-serif; color: var(--accent); }\n"
+        "a { color: var(--accent); text-decoration: none; }\n"
+        ".btn { background: var(--accent); color: #fff; padding: 0.75rem 1.5rem; border-radius: 6px; border: none; cursor: pointer; }\n"
+        ".hero { min-height: 60vh; display: flex; align-items: center; justify-content: center; text-align: center; }\n"
+        ".container { max-width: 1200px; margin: 0 auto; padding: 2rem; }\n"
+        "@media (max-width: 768px) { .container { padding: 1rem; } }\n"
+    )

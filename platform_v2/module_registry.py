@@ -581,7 +581,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="website_designer",
         name="Website Designer",
-        description="Design & code your website<br>Live preview • File browser • Git deploy • Custom domains",
+        description="Website builder (now in Kytran Business Suite)<br>AI generation • Chat editing • Multi-provider deploy",
         icon="globe",
         category=ModuleCategory.SAAS_SERVICES,
         route="/tools/website-studio",

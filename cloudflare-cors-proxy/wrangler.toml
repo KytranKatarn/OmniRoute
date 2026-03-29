@@ -1,0 +1,10 @@
+name = "kytran-cors-proxy"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[triggers]
+crons = []
+
+# Deploy with: npx wrangler deploy
+# Or: npx wrangler dev (local testing)
+# Custom domain: cors-proxy.kytranempowerment.com (configure in Cloudflare dashboard)

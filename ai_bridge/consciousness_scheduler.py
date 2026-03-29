@@ -386,11 +386,11 @@ def weekly_memory_consolidation():
             # Mark very old, never-accessed, low-importance entries for review
             cur.execute("""
                 UPDATE knowledge_base
-                SET metadata = metadata || '{"review_suggested": true}'::jsonb
+                SET memory_metadata = COALESCE(memory_metadata, '{}'::jsonb) || '{"review_suggested": true}'::jsonb
                 WHERE created_at < NOW() - INTERVAL '180 days'
                   AND importance_score < 0.3
                   AND access_count = 0
-                  AND (metadata->>'review_suggested') IS NULL
+                  AND (memory_metadata->>'review_suggested') IS NULL
             """)
             review_count = cur.rowcount
 

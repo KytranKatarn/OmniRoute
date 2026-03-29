@@ -408,10 +408,18 @@ def api_generate_video():
 @media_studio_bp.route("/api/video/providers")
 @login_required
 def api_video_providers():
-    """Get available external video providers."""
+    """Get available video providers with configuration status."""
     from .services.generation_service import get_video_providers
 
-    return jsonify({"providers": get_video_providers()})
+    providers = get_video_providers()
+    configured = [p for p in providers if p.get("configured")]
+    return jsonify(
+        {
+            "providers": providers,
+            "configured_count": len(configured),
+            "total_count": len(providers),
+        }
+    )
 
 
 # ─── Audio ────────────────────────────────────────────────────────────

@@ -603,11 +603,13 @@ def generate_video_via_comfyui(queue_id: int) -> Optional[int]:
 
 
 def submit_external_video(queue_id: int, provider: str) -> Optional[str]:
-    """Submit video generation to an external provider (Runway, Kling, Pika).
+    """Submit video generation to a cloud provider.
 
+    Supports: google_veo, replicate, huggingface, ltx_studio (+ legacy Runway/Kling/Pika).
     Returns external job_id for polling, or None on failure.
-    Called by Bridge dispatcher when no local ComfyUI node can handle the request.
     """
+    from tools.media_studio.services.video_providers import get_provider
+
     with get_db_cursor() as (conn, cur):
         cur.execute("SELECT * FROM media_generation_queue WHERE id = %s", (queue_id,))
         queue_row = cur.fetchone()
@@ -626,6 +628,41 @@ def submit_external_video(queue_id: int, provider: str) -> Optional[str]:
             (psycopg2.extras.Json({"external_provider": provider}), queue_id),
         )
 
+    # Try new provider system first
+    vp = get_provider(provider)
+    if vp and vp.is_configured:
+        try:
+            result = vp.submit(params.get("prompt", ""), params)
+            job_id = result.get("job_id")
+
+            if result.get("status") == "completed" and result.get("_binary"):
+                # HuggingFace direct response — save immediately
+                filename = f"video_{provider}_{queue_id}_{int(time.time())}.mp4"
+                dest_path = os.path.join(MEDIA_ROOT, "tmp", filename)
+                os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+                with open(dest_path, "wb") as f:
+                    f.write(result["_binary"])
+                on_generation_complete(queue_id=queue_id, file_path=dest_path, provider=provider)
+                return job_id
+
+            if job_id:
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        """UPDATE media_generation_queue
+                           SET params = params || %s
+                           WHERE id = %s""",
+                        (psycopg2.extras.Json({"external_job_id": job_id}), queue_id),
+                    )
+                return job_id
+            else:
+                on_generation_failed(queue_id, f"Provider {provider}: {result.get('error', 'no job_id')}")
+                return None
+        except Exception as e:
+            logger.error(f"Video provider {provider} submission failed: {e}")
+            on_generation_failed(queue_id, str(e))
+            return None
+
+    # Legacy fallback for old providers (Runway, Kling, Pika)
     try:
         from ai_bridge.external_providers import call_external
 
@@ -634,7 +671,6 @@ def submit_external_video(queue_id: int, provider: str) -> Optional[str]:
             prompt=params.get("prompt", ""),
             model=params.get("external_model"),
         )
-        # Store external job reference for polling
         if result and not result.startswith("Error"):
             with get_db_cursor(commit=True) as (conn, cur):
                 cur.execute(
@@ -654,12 +690,14 @@ def submit_external_video(queue_id: int, provider: str) -> Optional[str]:
 
 
 def poll_external_video(queue_id: int) -> Optional[int]:
-    """Poll an external video provider for job completion.
+    """Poll a video provider for job completion.
 
-    Checks the external_job_id stored in queue params, queries the provider,
-    and if complete, downloads the result and calls on_generation_complete.
+    Uses new provider system for google_veo/replicate/huggingface/ltx_studio,
+    falls back to legacy call_external for old providers.
     Returns media_library ID on success, None if still pending or failed.
     """
+    from tools.media_studio.services.video_providers import get_provider
+
     with get_db_cursor() as (conn, cur):
         cur.execute("SELECT * FROM media_generation_queue WHERE id = %s", (queue_id,))
         queue_row = cur.fetchone()
@@ -675,30 +713,42 @@ def poll_external_video(queue_id: int) -> Optional[int]:
         logger.warning(f"Queue {queue_id} missing external provider/job_id for polling")
         return None
 
+    # Try new provider system
+    vp = get_provider(provider)
+    if vp:
+        try:
+            result = vp.poll(job_id)
+            status = result.get("status", "")
+
+            if status == "completed":
+                url = result.get("url", "")
+                if url:
+                    file_path = download_external_result(provider, url, queue_id)
+                    if file_path:
+                        return on_generation_complete(queue_id=queue_id, file_path=file_path, provider=provider)
+                on_generation_failed(queue_id, "Completed but no video URL")
+                return None
+            elif status in ("failed", "error"):
+                on_generation_failed(queue_id, result.get("error", "Provider failed"))
+                return None
+            return None  # Still processing
+        except Exception as e:
+            logger.error(f"Video poll failed for {provider}: {e}")
+            return None
+
+    # Legacy fallback
     try:
         from ai_bridge.external_providers import call_external
 
-        # Poll provider — result is either a URL (complete), "pending", or error
-        result = call_external(
-            provider_key=provider,
-            prompt=f"poll:{job_id}",
-            model=None,
-        )
-
+        result = call_external(provider_key=provider, prompt=f"poll:{job_id}", model=None)
         if result and result.startswith("http"):
-            # Job complete — download result
             file_path = download_external_result(provider, result, queue_id)
             if file_path:
-                return on_generation_complete(
-                    queue_id=queue_id,
-                    file_path=file_path,
-                    provider=provider,
-                )
-            else:
-                on_generation_failed(queue_id, f"Failed to download from {provider}")
-                return None
+                return on_generation_complete(queue_id=queue_id, file_path=file_path, provider=provider)
+            on_generation_failed(queue_id, f"Failed to download from {provider}")
+            return None
         elif result == "pending":
-            return None  # Still processing
+            return None
         else:
             on_generation_failed(queue_id, f"External poll failed: {result}")
             return None
@@ -708,18 +758,13 @@ def poll_external_video(queue_id: int) -> Optional[int]:
 
 
 def download_external_result(provider: str, url: str, queue_id: int) -> Optional[str]:
-    """Fetch completed video from external API, save locally.
-
-    Downloads the file from the provider URL and saves to MEDIA_ROOT.
-    Returns local file path on success, None on failure.
-    """
+    """Fetch completed video from provider URL, save locally."""
     import requests as http_requests
 
     try:
-        resp = http_requests.get(url, timeout=60, stream=True)
+        resp = http_requests.get(url, timeout=120, stream=True)
         resp.raise_for_status()
 
-        # Determine extension from content-type
         ct = resp.headers.get("content-type", "")
         ext = ".mp4"
         if "gif" in ct:
@@ -727,7 +772,7 @@ def download_external_result(provider: str, url: str, queue_id: int) -> Optional
         elif "webm" in ct:
             ext = ".webm"
 
-        filename = f"external_{provider}_{queue_id}_{int(time.time())}{ext}"
+        filename = f"video_{provider}_{queue_id}_{int(time.time())}{ext}"
         dest_path = os.path.join(MEDIA_ROOT, "tmp", filename)
         os.makedirs(os.path.dirname(dest_path), exist_ok=True)
 
@@ -737,16 +782,21 @@ def download_external_result(provider: str, url: str, queue_id: int) -> Optional
 
         return dest_path
     except Exception as e:
-        logger.error(f"Failed to download external result from {provider}: {e}")
+        logger.error(f"Failed to download from {provider}: {e}")
         return None
 
 
 def get_video_providers() -> list:
-    """Return available external video providers with capabilities.
+    """Return all available video providers with status.
 
-    Reads from contractor_providers table where provider supports video.
+    Combines new cloud providers (Google Veo, Replicate, HuggingFace, LTX Studio)
+    with any legacy DB-registered providers.
     """
-    providers = []
+    from tools.media_studio.services.video_providers import get_provider_status
+
+    providers = get_provider_status()
+
+    # Also include legacy DB providers if any
     try:
         with get_db_cursor() as (conn, cur):
             cur.execute(
@@ -757,9 +807,19 @@ def get_video_providers() -> list:
                    ORDER BY display_name"""
             )
             for row in cur.fetchall():
-                providers.append(dict(row))
-    except Exception as e:
-        logger.warning(f"Failed to query video providers: {e}")
+                providers.append(
+                    {
+                        "name": row["provider_key"],
+                        "display_name": row["display_name"],
+                        "configured": True,
+                        "is_free": False,
+                        "models": [],
+                        "legacy": True,
+                    }
+                )
+    except Exception:
+        pass  # contractor_providers may not exist
+
     return providers
 
 

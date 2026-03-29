@@ -82,12 +82,15 @@ STANDALONE_PRODUCTS = [
         "tier": 1,
         "compliance_packs": ["ubuntu-stig", "docker-stig", "network-stig", "cis-ubuntu"],
     },
+]
+
+# Infrastructure services tracked in Code Health (not customer-facing products)
+INFRASTRUCTURE_SERVICES = [
     {
         "name": "Stalwart Mail Server",
         "path": "/mnt/archie_brain/stalwart-mail",
-        "module_key": "standalone_stalwart_mail",
-        "tier": 1,
-        "compliance_packs": ["ubuntu-stig", "docker-stig", "network-stig"],
+        "module_key": "infra_stalwart_mail",
+        "service_type": "mail",
     },
 ]
 

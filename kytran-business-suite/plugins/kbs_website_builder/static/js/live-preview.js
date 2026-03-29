@@ -37,7 +37,7 @@ const LivePreview = (() => {
   const refreshPreview = async () => {
     try {
       const response = await fetch(
-        `/plugins/website-builder/api/projects/${projectId}/preview`
+        `/plugins/website-builder/api/projects/${projectId}/code-preview`
       );
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();

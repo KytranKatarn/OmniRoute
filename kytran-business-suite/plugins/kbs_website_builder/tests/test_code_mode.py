@@ -282,7 +282,7 @@ class TestCodeMode:
     def test_preview_assembly(self, authed_client, cm_setup):
         pid = cm_setup["project_id"]
         # The project already entered code mode and has index.html from boilerplate
-        resp = authed_client.get(f"{BASE}/api/projects/{pid}/preview")
+        resp = authed_client.get(f"{BASE}/api/projects/{pid}/code-preview")
         assert resp.status_code == 200
         body = resp.data.decode("utf-8")
         assert "<html" in body.lower()

@@ -400,12 +400,12 @@ def register_code_mode_routes(bp):
         return jsonify(dict(new_file)), 201
 
     # ------------------------------------------------------------------
-    # GET /api/projects/<id>/preview  — assemble all files into single HTML
+    # GET /api/projects/<id>/code-preview  — assemble all files into single HTML
     # ------------------------------------------------------------------
-    @bp.route("/api/projects/<int:project_id>/preview", methods=["GET"])
+    @bp.route("/api/projects/<int:project_id>/code-preview", methods=["GET"])
     @login_required
     @require_module(MODULE)
-    def preview_project(project_id):
+    def code_preview_project(project_id):
         with get_db_cursor(commit=False, dict_cursor=True) as (conn, cur):
             set_tenant_search_path(cur, g.tenant_id)
             if not _get_project(cur, project_id):

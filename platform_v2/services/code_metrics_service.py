@@ -840,6 +840,33 @@ def _audit_kbs_plugins():
     }
 
 
+def _has_own_static(path):
+    """Check if a product has its own static assets (CSS/JS/templates).
+
+    Checks root and one level of subdirectories to handle Python package
+    layouts like kytran_server_manager/kytran_server_manager/static/.
+    """
+    check_dirs = ("static", "public", "assets", "templates")
+    # Check root
+    for d in check_dirs:
+        if os.path.isdir(os.path.join(path, d)):
+            return True
+    # Check shared/static (KBS pattern)
+    if os.path.isdir(os.path.join(path, "shared", "static")):
+        return True
+    # Check one level deep (Python package pattern)
+    try:
+        for entry in os.listdir(path):
+            subdir = os.path.join(path, entry)
+            if os.path.isdir(subdir) and not entry.startswith(".") and entry not in SKIP_DIRS:
+                for d in check_dirs:
+                    if os.path.isdir(os.path.join(subdir, d)):
+                        return True
+    except Exception:
+        pass
+    return False
+
+
 def _audit_standalone_products():
     """Audit standalone products against the extraction playbook tiers."""
     results = []
@@ -879,11 +906,7 @@ def _audit_standalone_products():
                 or os.path.isfile(os.path.join(path, "docker-compose.yaml")),
                 "readme": os.path.isfile(os.path.join(path, "README.md")),
                 "health_endpoint": _has_health_endpoint(path),
-                "own_static": os.path.isdir(os.path.join(path, "static"))
-                or os.path.isdir(os.path.join(path, "public"))
-                or os.path.isdir(os.path.join(path, "assets"))
-                or os.path.isdir(os.path.join(path, "shared", "static"))
-                or os.path.isdir(os.path.join(path, "templates")),
+                "own_static": _has_own_static(path),
             }
             audit["tier1"] = checks
 
@@ -967,24 +990,35 @@ def _detect_retired_modules():
             has_redirect = "redirect(" in content and ("KBS_URL" in content or "KBS_BASE_URL" in content)
             has_retired_marker = "RETIRED" in content.upper()[:500]
 
-            # Count functional lines (exclude imports, blanks, comments, docstrings)
+            # Count functional lines across ALL .py files in the module
+            # (not just routes.py — modules like agent_academy split into sub-route files)
             functional_lines = 0
-            in_docstring = False
-            for line in content.splitlines():
-                stripped = line.strip()
-                if stripped.startswith('"""') or stripped.startswith("'''"):
-                    in_docstring = not in_docstring
-                    continue
-                if in_docstring:
-                    continue
-                if (
-                    not stripped
-                    or stripped.startswith("#")
-                    or stripped.startswith("import")
-                    or stripped.startswith("from")
-                ):
-                    continue
-                functional_lines += 1
+            for py_root, py_dirs, py_files in os.walk(module_path):
+                py_dirs[:] = [d for d in py_dirs if d != "__pycache__"]
+                for py_file in py_files:
+                    if not py_file.endswith(".py"):
+                        continue
+                    py_path = os.path.join(py_root, py_file)
+                    try:
+                        with open(py_path, "r", encoding="utf-8", errors="ignore") as pf:
+                            in_docstring = False
+                            for line in pf:
+                                stripped = line.strip()
+                                if stripped.startswith('"""') or stripped.startswith("'''"):
+                                    in_docstring = not in_docstring
+                                    continue
+                                if in_docstring:
+                                    continue
+                                if (
+                                    not stripped
+                                    or stripped.startswith("#")
+                                    or stripped.startswith("import")
+                                    or stripped.startswith("from")
+                                ):
+                                    continue
+                                functional_lines += 1
+                    except Exception:
+                        pass
 
             status = "active"
             redirect_target = None
@@ -997,7 +1031,7 @@ def _detect_retired_modules():
                 match = re.search(r'redirect\(f?"([^"]*)"', content)
                 if match:
                     redirect_target = match.group(1)
-            elif functional_lines < 20:
+            elif functional_lines < 15 and "render_template" not in content and "jsonify" not in content:
                 status = "stub"
 
             if status != "active":

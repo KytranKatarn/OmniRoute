@@ -194,6 +194,8 @@ services:
       - ./watch-api:/mnt/archie_brain/watch-api:ro
       - ./legal-watch:/mnt/archie_brain/legal-watch:ro
       - ./market-watch:/mnt/archie_brain/market-watch:ro
+      - ./kytran-gov-watch:/mnt/archie_brain/kytran-gov-watch:ro
+      - ./stalwart-mail:/mnt/archie_brain/stalwart-mail:ro
     ports:
       - "3000:3000"
     networks:

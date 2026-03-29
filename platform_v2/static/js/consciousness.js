@@ -2865,6 +2865,7 @@ function _renderModuleChart(modules, displayNames) {
 
   // Responsive: show fewer modules on mobile, all on desktop
   var maxBars = window.innerWidth < 480 ? 15 : window.innerWidth < 768 ? 25 : 60;
+  // Sort descending — Chart.js indexAxis:"y" renders index 0 at top
   var names = Object.keys(modules).sort(function(a, b) {
     return (modules[b].lines || 0) - (modules[a].lines || 0);
   }).slice(0, maxBars);

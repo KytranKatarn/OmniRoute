@@ -19,23 +19,32 @@ class DeploymentError(Exception):
     pass
 
 
-def build_site_zip(pages: list[dict]) -> bytes:
-    """Build a ZIP archive from a list of page dicts.
+def build_site_zip(pages: list[dict], code_mode_files: list[dict] | None = None) -> bytes:
+    """Build a ZIP archive from pages or code-mode files.
 
     Args:
-        pages: List of dicts with 'slug' and 'content' keys.
-               The 'index' slug becomes index.html, others become {slug}.html.
+        pages: List of dicts with 'slug' and 'content' keys (visual mode).
+        code_mode_files: List of dicts with 'path', 'content', 'is_directory' keys (code mode).
+               When provided, pages are ignored.
 
     Returns:
         bytes: The ZIP file as bytes.
     """
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        for page in pages:
-            slug = page.get("slug", "page")
-            content = page.get("content", "")
-            filename = f"{slug}.html"
-            zf.writestr(filename, content)
+        if code_mode_files is not None:
+            for f in code_mode_files:
+                if f.get("is_directory"):
+                    continue
+                path = f.get("path", "file.html")
+                content = f.get("content", "")
+                zf.writestr(path, content)
+        else:
+            for page in pages:
+                slug = page.get("slug", "page")
+                content = page.get("content", "")
+                filename = f"{slug}.html"
+                zf.writestr(filename, content)
 
     return buffer.getvalue()
 

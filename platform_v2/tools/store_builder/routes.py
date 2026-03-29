@@ -931,6 +931,258 @@ def connect_integration(service):
 
 
 # ============================================================================
+# CHECKOUT (public — store customer facing)
+# ============================================================================
+
+
+@store_builder_bp.route("/api/stores/<int:store_id>/checkout", methods=["POST"])
+def store_checkout(store_id):
+    """Create a Stripe Checkout Session for a store purchase.
+
+    Public endpoint — no login required (store customers are not platform users).
+    Body: {items: [{product_id, quantity}], customer_email, success_url, cancel_url}
+    """
+    from tools.store_builder.checkout_service import create_store_checkout
+
+    try:
+        data = request.get_json(silent=True) or {}
+        items = data.get("items", [])
+        customer_email = data.get("customer_email")
+
+        if not items or not customer_email:
+            return jsonify({"success": False, "error": "items and customer_email are required"}), 400
+
+        for item in items:
+            if not item.get("product_id") or not item.get("quantity"):
+                return jsonify({"success": False, "error": "Each item needs product_id and quantity"}), 400
+
+        base_url = request.host_url.rstrip("/")
+        success_url = (
+            data.get("success_url") or f"{base_url}/tools/store-builder/api/stores/{store_id}/checkout/success"
+        )
+        cancel_url = data.get("cancel_url") or f"{base_url}/store/{store_id}"
+
+        result = create_store_checkout(
+            store_id=store_id,
+            items=items,
+            customer_email=customer_email,
+            success_url=success_url,
+            cancel_url=cancel_url,
+        )
+
+        return jsonify({"success": True, **result})
+
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+    except Exception as e:
+        current_app.logger.error(f"[StoreBuilder] Checkout error for store {store_id}: {e}")
+        return jsonify({"success": False, "error": "Checkout failed"}), 502
+
+
+@store_builder_bp.route("/api/stores/<int:store_id>/checkout/webhook", methods=["POST"])
+def store_checkout_webhook(store_id):
+    """Handle Stripe webhooks for store payments.
+
+    Public endpoint — verified by Stripe signature using store owner's webhook secret.
+    Always returns 200 to prevent Stripe retry floods.
+    """
+    from tools.store_builder.checkout_service import verify_store_webhook, handle_store_payment_success
+
+    payload = request.get_data(as_text=False)
+    sig_header = request.headers.get("Stripe-Signature", "")
+
+    event, error = verify_store_webhook(store_id, payload, sig_header)
+    if error:
+        current_app.logger.warning(f"[StoreBuilder] Webhook sig error for store {store_id}: {error}")
+        return jsonify({"status": "error", "message": error}), 200
+
+    event_type = event.get("type", "")
+
+    if event_type == "checkout.session.completed":
+        session = event["data"]["object"]
+        session_store_id = session.get("metadata", {}).get("store_id")
+
+        if str(session_store_id) != str(store_id):
+            return jsonify({"status": "skipped", "reason": "store_id mismatch"}), 200
+
+        try:
+            order = handle_store_payment_success(store_id, session["id"])
+
+            # Auto-fulfill via Printful if available
+            try:
+                from tools.store_builder.printful_service import submit_printful_order
+
+                submit_printful_order(order["id"])
+            except Exception as pf_err:
+                current_app.logger.warning(f"[StoreBuilder] Printful auto-fulfill skipped: {pf_err}")
+
+            return jsonify({"status": "ok", "order_id": order["id"]}), 200
+        except Exception as e:
+            current_app.logger.error(f"[StoreBuilder] Payment processing error: {e}")
+            return jsonify({"status": "error", "message": str(e)}), 200
+
+    return jsonify({"status": "ignored", "event_type": event_type}), 200
+
+
+@store_builder_bp.route("/api/stores/<int:store_id>/checkout/success", methods=["GET"])
+def store_checkout_success(store_id):
+    """Return order confirmation after successful payment.
+
+    Public endpoint — takes ?session_id= from Stripe redirect.
+    """
+    from tools.store_builder.checkout_service import get_store_stripe_keys
+
+    session_id = request.args.get("session_id")
+    if not session_id:
+        return jsonify({"success": False, "error": "session_id required"}), 400
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Find order by session_id in metadata
+        cur.execute(
+            """
+            SELECT * FROM store_orders
+            WHERE store_id = %s AND metadata->>'stripe_session_id' = %s
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            (store_id, session_id),
+        )
+        order = cur.fetchone()
+
+        if not order:
+            return jsonify({"success": False, "error": "Order not found"}), 404
+
+        # Get order items
+        cur.execute(
+            "SELECT * FROM store_order_items WHERE order_id = %s",
+            (order["id"],),
+        )
+        items = cur.fetchall()
+
+        return jsonify(
+            {
+                "success": True,
+                "order": {
+                    "id": order["id"],
+                    "order_number": order["order_number"],
+                    "status": order["status"],
+                    "payment_status": order["payment_status"],
+                    "total": float(order["total"]),
+                    "currency": order.get("currency", "cad"),
+                    "customer_email": order["customer_email"],
+                    "items": [
+                        {
+                            "name": item["product_name"],
+                            "quantity": item["quantity"],
+                            "unit_price": float(item["unit_price"]),
+                            "total_price": float(item["total_price"]),
+                        }
+                        for item in items
+                    ],
+                },
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
+
+
+# ============================================================================
+# PRINTFUL FULFILLMENT
+# ============================================================================
+
+
+@store_builder_bp.route("/api/stores/<int:store_id>/printful/products", methods=["GET"])
+@login_required
+def printful_products(store_id):
+    """Fetch available products from user's Printful store."""
+    from tools.store_builder.printful_service import get_printful_products
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT user_id FROM user_stores WHERE id = %s", (store_id,))
+        store = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        if not store or not can_access_resource(store["user_id"]):
+            return jsonify({"success": False, "error": "Access denied"}), 403
+
+        products = get_printful_products(store["user_id"])
+        return jsonify({"success": True, "products": products})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@store_builder_bp.route("/api/stores/<int:store_id>/printful/sync/<int:printful_product_id>", methods=["POST"])
+@login_required
+def printful_sync_product(store_id, printful_product_id):
+    """Import a Printful product into the store."""
+    from tools.store_builder.printful_service import sync_printful_product
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT user_id FROM user_stores WHERE id = %s", (store_id,))
+        store = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        if not store or not can_access_resource(store["user_id"]):
+            return jsonify({"success": False, "error": "Access denied"}), 403
+
+        product = sync_printful_product(store["user_id"], printful_product_id, store_id)
+        if not product:
+            return jsonify({"success": False, "error": "Failed to sync product"}), 502
+
+        return jsonify({"success": True, "product": dict(product)})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@store_builder_bp.route("/api/orders/<int:order_id>/fulfill", methods=["POST"])
+@login_required
+def fulfill_order(order_id):
+    """Manually submit an order to Printful for fulfillment."""
+    from tools.store_builder.printful_service import submit_printful_order
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT so.*, us.user_id as store_owner_id
+            FROM store_orders so
+            JOIN user_stores us ON so.store_id = us.id
+            WHERE so.id = %s
+            """,
+            (order_id,),
+        )
+        order = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        if not order or not can_access_resource(order["store_owner_id"]):
+            return jsonify({"success": False, "error": "Access denied"}), 403
+
+        result = submit_printful_order(order_id)
+        if not result:
+            return jsonify({"success": False, "error": "No Printful-eligible items or API error"}), 400
+
+        return jsonify({"success": True, "printful_order": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
 # CATEGORIES
 # ============================================================================
 

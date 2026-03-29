@@ -856,6 +856,49 @@ def mark_paid(invoice_id):
             pass
 
 
+@invoicing_bp.route("/api/invoices/<int:invoice_id>/stripe-invoice", methods=["POST"])
+@login_required
+def create_stripe_inv(invoice_id):
+    """Create a Stripe Invoice with payment link for a local invoice.
+
+    Sends the invoice via Stripe email with a hosted payment page.
+    Updates the local invoice with stripe_invoice_id and pdf_url.
+    """
+    from tools.invoicing.stripe_invoice_service import create_stripe_invoice
+
+    try:
+        result = create_stripe_invoice(invoice_id, current_user.id)
+        return jsonify({"success": True, **result})
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+    except RuntimeError as e:
+        return jsonify({"success": False, "error": str(e)}), 503
+    except Exception as e:
+        current_app.logger.error(f"[Invoicing] Stripe Invoice error: {e}")
+        return jsonify({"success": False, "error": "Failed to create Stripe Invoice"}), 502
+
+
+@invoicing_bp.route("/api/invoices/<int:invoice_id>/payment-link", methods=["POST"])
+@login_required
+def create_pay_link(invoice_id):
+    """Create a Stripe Payment Link for quick one-off payment.
+
+    Returns a shareable URL the customer can use to pay.
+    """
+    from tools.invoicing.stripe_invoice_service import create_payment_link
+
+    try:
+        result = create_payment_link(invoice_id, current_user.id)
+        return jsonify({"success": True, **result})
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+    except RuntimeError as e:
+        return jsonify({"success": False, "error": str(e)}), 503
+    except Exception as e:
+        current_app.logger.error(f"[Invoicing] Payment link error: {e}")
+        return jsonify({"success": False, "error": "Failed to create payment link"}), 502
+
+
 @invoicing_bp.route("/api/invoices/<int:invoice_id>/void", methods=["POST"])
 @login_required
 def void_invoice(invoice_id):

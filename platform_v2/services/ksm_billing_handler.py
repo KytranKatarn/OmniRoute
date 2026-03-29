@@ -14,6 +14,10 @@ import requests
 from database import get_db_cursor
 
 from services.billing_webhook import register_billing_handler
+from services.stripe_service import (
+    get_subscription_by_stripe_id,
+    update_subscription_from_stripe,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -204,6 +208,10 @@ def handle_ksm_checkout_completed(event):
             pass
 
     success = _push_tier_to_standalone(user_id, tier)
+
+    # Sync to billing_subscriptions
+    _sync_subscription_to_billing(sub, user_id, price_id)
+
     return f"KSM checkout: user={user_id} tier={tier} pushed={success}"
 
 
@@ -237,6 +245,10 @@ def handle_ksm_subscription_updated(event):
         pass
 
     success = _push_tier_to_standalone(user_id, tier)
+
+    # Sync to billing_subscriptions
+    update_subscription_from_stripe(subscription["id"], subscription)
+
     return f"KSM sub updated: user={user_id} tier={tier} pushed={success}"
 
 
@@ -266,7 +278,87 @@ def handle_ksm_subscription_deleted(event):
             pass
 
     success = _push_tier_to_standalone(user_id, "free")
+
+    # Sync cancellation to billing_subscriptions
+    sub_id = subscription.get("id")
+    if sub_id:
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """UPDATE billing_subscriptions
+                       SET status = 'canceled', canceled_at = NOW(), updated_at = NOW()
+                     WHERE stripe_subscription_id = %s""",
+                    (sub_id,),
+                )
+        except Exception as exc:
+            logger.error("Failed to mark billing_subscription canceled: %s", exc)
+
     return f"KSM sub deleted: user={user_id} tier=free pushed={success}"
+
+
+# ---------------------------------------------------------------------------
+# Billing sync helper
+# ---------------------------------------------------------------------------
+
+
+def _sync_subscription_to_billing(stripe_sub, user_id, price_id):
+    """Create or update billing_subscriptions from a Stripe subscription object."""
+    from datetime import datetime, timezone
+
+    def _ts(val):
+        return datetime.fromtimestamp(val, tz=timezone.utc) if val else None
+
+    sub_id = stripe_sub.get("id") or stripe_sub.id
+    status = stripe_sub.get("status", "active")
+    cycle = "year" if stripe_sub.get("plan", {}).get("interval") == "year" else "month"
+
+    try:
+        # Look up billing_customer_id
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                "SELECT id FROM billing_customers WHERE user_id = %s",
+                (user_id,),
+            )
+            row = cur.fetchone()
+            billing_customer_id = row[0] if row else None
+
+        if not billing_customer_id:
+            logger.warning("No billing_customer for user %s — skipping sync", user_id)
+            return
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """INSERT INTO billing_subscriptions
+                       (user_id, billing_customer_id, stripe_subscription_id,
+                        stripe_price_id, module, status, billing_cycle,
+                        current_period_start, current_period_end,
+                        cancel_at_period_end, trial_start, trial_end,
+                        created_at, updated_at)
+                   VALUES (%s, %s, %s, %s, 'ksm', %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                   ON CONFLICT (stripe_subscription_id) DO UPDATE
+                   SET status = EXCLUDED.status,
+                       current_period_start = EXCLUDED.current_period_start,
+                       current_period_end = EXCLUDED.current_period_end,
+                       cancel_at_period_end = EXCLUDED.cancel_at_period_end,
+                       updated_at = NOW()
+                """,
+                (
+                    user_id,
+                    billing_customer_id,
+                    sub_id,
+                    price_id,
+                    status,
+                    cycle,
+                    _ts(stripe_sub.get("current_period_start")),
+                    _ts(stripe_sub.get("current_period_end")),
+                    stripe_sub.get("cancel_at_period_end", False),
+                    _ts(stripe_sub.get("trial_start")),
+                    _ts(stripe_sub.get("trial_end")),
+                ),
+            )
+        logger.info("Synced billing_subscription for stripe_sub=%s user=%s", sub_id, user_id)
+    except Exception as exc:
+        logger.error("Failed to sync billing_subscription: %s", exc)
 
 
 # ---------------------------------------------------------------------------

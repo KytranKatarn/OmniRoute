@@ -1248,6 +1248,170 @@ def api_update_subscription(user_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+# ============================================================================
+# SELF-SERVICE BILLING (user-facing, uses platform Stripe Core)
+# ============================================================================
+
+
+@account_center_bp.route("/api/my/subscription")
+@login_required
+def api_my_subscription():
+    """Get the current user's subscription status and billing info."""
+    try:
+        from services.stripe_service import get_active_subscription, get_customer
+
+        subscription = get_active_subscription(current_user.id)
+        customer = get_customer(current_user.id)
+
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                "SELECT subscription_tier, subscription_status, subscription_expires_at FROM users WHERE id = %s",
+                (current_user.id,),
+            )
+            user = cur.fetchone()
+
+        return jsonify(
+            {
+                "success": True,
+                "tier": user["subscription_tier"] if user else "free",
+                "status": user["subscription_status"] if user else None,
+                "expires_at": (
+                    user["subscription_expires_at"].isoformat()
+                    if user and user.get("subscription_expires_at")
+                    else None
+                ),
+                "has_billing_customer": customer is not None,
+                "subscription": (
+                    {
+                        "stripe_subscription_id": subscription["stripe_subscription_id"],
+                        "module": subscription["module"],
+                        "status": subscription["status"],
+                        "billing_cycle": subscription["billing_cycle"],
+                        "cancel_at_period_end": subscription["cancel_at_period_end"],
+                        "current_period_end": (
+                            subscription["current_period_end"].isoformat()
+                            if subscription.get("current_period_end")
+                            else None
+                        ),
+                    }
+                    if subscription
+                    else None
+                ),
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@account_center_bp.route("/api/my/billing-portal", methods=["POST"])
+@login_required
+def api_my_billing_portal():
+    """Create a Stripe Billing Portal session for the current user.
+
+    The portal lets users manage subscriptions, payment methods, and invoices
+    without custom UI. Redirects to Stripe-hosted portal.
+    """
+    try:
+        from services.stripe_service import get_customer, create_portal_session
+
+        customer = get_customer(current_user.id)
+        if not customer:
+            return jsonify({"success": False, "error": "No billing account found. Subscribe to a plan first."}), 404
+
+        data = request.get_json(silent=True) or {}
+        return_url = data.get("return_url") or request.referrer or "/tools/account-center"
+
+        url = create_portal_session(
+            customer_id=customer["stripe_customer_id"],
+            return_url=return_url,
+        )
+        return jsonify({"success": True, "portal_url": url})
+    except Exception as e:
+        current_app.logger.error(f"[AccountCenter] Billing portal error: {e}")
+        return jsonify({"success": False, "error": "Failed to create billing portal session"}), 502
+
+
+@account_center_bp.route("/api/my/checkout", methods=["POST"])
+@login_required
+def api_my_checkout():
+    """Create a Stripe Checkout session for the current user to subscribe.
+
+    Body: {price_id, success_url (optional), cancel_url (optional)}
+    """
+    try:
+        from services.stripe_service import (
+            get_or_create_customer,
+            create_checkout_session,
+        )
+
+        data = request.get_json(silent=True) or {}
+        price_id = data.get("price_id")
+        if not price_id:
+            return jsonify({"success": False, "error": "price_id is required"}), 400
+
+        customer_id = get_or_create_customer(
+            user_id=current_user.id,
+            email=current_user.email,
+            name=getattr(current_user, "display_name", current_user.email),
+        )
+
+        base_url = request.host_url.rstrip("/")
+        success_url = data.get("success_url") or f"{base_url}/tools/account-center?billing=success"
+        cancel_url = data.get("cancel_url") or f"{base_url}/tools/account-center?billing=cancel"
+
+        url = create_checkout_session(
+            customer_id=customer_id,
+            price_id=price_id,
+            success_url=success_url,
+            cancel_url=cancel_url,
+            metadata={"user_id": str(current_user.id)},
+        )
+
+        return jsonify({"success": True, "checkout_url": url})
+    except Exception as e:
+        current_app.logger.error(f"[AccountCenter] Checkout error: {e}")
+        return jsonify({"success": False, "error": "Failed to create checkout session"}), 502
+
+
+@account_center_bp.route("/api/my/payment-methods")
+@login_required
+def api_my_payment_methods():
+    """List the current user's saved payment methods from Stripe."""
+    try:
+        import stripe
+        from services.stripe_service import get_customer, is_stripe_configured
+
+        if not is_stripe_configured():
+            return jsonify({"success": True, "payment_methods": []})
+
+        customer = get_customer(current_user.id)
+        if not customer:
+            return jsonify({"success": True, "payment_methods": []})
+
+        methods = stripe.PaymentMethod.list(
+            customer=customer["stripe_customer_id"],
+            type="card",
+        )
+
+        return jsonify(
+            {
+                "success": True,
+                "payment_methods": [
+                    {
+                        "id": pm.id,
+                        "brand": pm.card.brand,
+                        "last4": pm.card.last4,
+                        "exp_month": pm.card.exp_month,
+                        "exp_year": pm.card.exp_year,
+                    }
+                    for pm in methods.data
+                ],
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @account_center_bp.route("/api/users/<int:user_id>/usage")
 @login_required
 @admin_required

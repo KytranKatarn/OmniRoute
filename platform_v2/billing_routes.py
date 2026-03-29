@@ -13,13 +13,17 @@ from flask_login import current_user, login_required
 from database import get_db_cursor
 from services.billing_webhook import process_webhook
 from services.stripe_service import (
+    cancel_subscription,
     create_checkout_session,
     create_portal_session,
+    get_active_subscription,
     get_customer,
     get_or_create_customer,
     get_publishable_key,
+    get_subscription_by_stripe_id,
     init_stripe,
     list_module_products,
+    reactivate_subscription,
 )
 
 logger = logging.getLogger(__name__)
@@ -219,7 +223,89 @@ def products(module):
 
 
 # ---------------------------------------------------------------------------
-# 8. Recent webhook events (admin debugging)
+# 8. KSM pricing (public — no auth, consumed by standalone pricing page)
+# ---------------------------------------------------------------------------
+
+# Feature matrix matching KSM standalone subscription_service.py
+_KSM_FEATURES = {
+    "free": {
+        "compliance_packs": ["cis-ubuntu"],
+        "scan_interval_hours": 24,
+        "themes": 2,
+        "support": "community",
+    },
+    "pro": {
+        "compliance_packs": ["cis-ubuntu", "ubuntu-stig", "network-stig"],
+        "scan_interval_hours": 6,
+        "themes": 3,
+        "support": "email",
+    },
+    "business": {
+        "compliance_packs": ["cis-ubuntu", "ubuntu-stig", "network-stig", "docker-bench", "pci-dss"],
+        "scan_interval_hours": 1,
+        "themes": 5,
+        "support": "priority",
+    },
+    "enterprise": {
+        "compliance_packs": ["cis-ubuntu", "ubuntu-stig", "network-stig", "docker-bench", "pci-dss"],
+        "scan_interval_hours": "custom",
+        "themes": 5,
+        "support": "dedicated",
+    },
+}
+
+
+@billing_bp.route("/pricing/ksm", methods=["GET"])
+def pricing_ksm():
+    """Return KSM tier pricing, Stripe price IDs, and feature matrix.
+
+    Public endpoint — no auth required. Consumed by KSM standalone
+    pricing/settings page to show upgrade options and initiate checkout.
+    """
+    rows = list_module_products("ksm")
+
+    # Group products by tier
+    tiers = {}
+    for r in rows:
+        name = r["name"].lower()
+        if "enterprise" in name:
+            tier_key = "enterprise"
+        elif "business" in name:
+            tier_key = "business"
+        elif "pro" in name:
+            tier_key = "pro"
+        else:
+            continue
+
+        interval = r.get("billing_interval", "month")
+        if tier_key not in tiers:
+            tiers[tier_key] = {"name": tier_key.title(), "prices": {}}
+
+        tiers[tier_key]["prices"][interval] = {
+            "stripe_price_id": r["stripe_price_id"],
+            "amount_cents": r["amount_cents"],
+            "currency": r.get("currency", "cad"),
+        }
+        tiers[tier_key]["features"] = _KSM_FEATURES.get(tier_key, {})
+
+    # Always include free tier (no Stripe price)
+    result = [
+        {
+            "tier": "free",
+            "name": "Free",
+            "prices": {},
+            "features": _KSM_FEATURES["free"],
+        }
+    ]
+    for tier_key in ["pro", "business", "enterprise"]:
+        if tier_key in tiers:
+            result.append({"tier": tier_key, **tiers[tier_key]})
+
+    return jsonify({"module": "ksm", "tiers": result})
+
+
+# ---------------------------------------------------------------------------
+# 9. Recent webhook events (admin debugging)
 # ---------------------------------------------------------------------------
 
 
@@ -256,6 +342,108 @@ def events():
             ]
         }
     )
+
+
+# ---------------------------------------------------------------------------
+# 9. Current subscription
+# ---------------------------------------------------------------------------
+
+
+@billing_bp.route("/subscription", methods=["GET"])
+@login_required
+def subscription_get():
+    """Return the current user's active subscription.
+
+    Optional query param: ?module=ksm to filter by module.
+    """
+    module = request.args.get("module")
+    sub = get_active_subscription(current_user.id, module=module)
+    if not sub:
+        return jsonify({"subscription": None})
+    return jsonify(
+        {
+            "subscription": {
+                "id": sub["id"],
+                "stripe_subscription_id": sub["stripe_subscription_id"],
+                "module": sub["module"],
+                "status": sub["status"],
+                "billing_cycle": sub["billing_cycle"],
+                "current_period_start": (
+                    sub["current_period_start"].isoformat() if sub.get("current_period_start") else None
+                ),
+                "current_period_end": (
+                    sub["current_period_end"].isoformat() if sub.get("current_period_end") else None
+                ),
+                "cancel_at_period_end": sub["cancel_at_period_end"],
+                "trial_end": (sub["trial_end"].isoformat() if sub.get("trial_end") else None),
+            }
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# 10. Cancel subscription
+# ---------------------------------------------------------------------------
+
+
+@billing_bp.route("/subscription/cancel", methods=["POST"])
+@login_required
+def subscription_cancel():
+    """Cancel the user's subscription.
+
+    Expects JSON: {stripe_subscription_id, immediate (optional, default false)}.
+    """
+    data = request.get_json(silent=True) or {}
+    stripe_sub_id = data.get("stripe_subscription_id")
+    immediate = data.get("immediate", False)
+
+    if not stripe_sub_id:
+        return jsonify({"error": "stripe_subscription_id is required"}), 400
+
+    # Verify ownership
+    sub = get_subscription_by_stripe_id(stripe_sub_id)
+    if not sub or sub["user_id"] != current_user.id:
+        return jsonify({"error": "Subscription not found"}), 404
+
+    try:
+        result = cancel_subscription(stripe_sub_id, immediate=immediate)
+    except Exception as exc:
+        logger.error("Cancel subscription failed: %s", exc)
+        return jsonify({"error": "Failed to cancel subscription"}), 502
+
+    return jsonify({"status": "canceled" if immediate else "cancel_scheduled"})
+
+
+# ---------------------------------------------------------------------------
+# 11. Reactivate subscription
+# ---------------------------------------------------------------------------
+
+
+@billing_bp.route("/subscription/reactivate", methods=["POST"])
+@login_required
+def subscription_reactivate():
+    """Reactivate a subscription that was set to cancel at period end.
+
+    Expects JSON: {stripe_subscription_id}.
+    """
+    data = request.get_json(silent=True) or {}
+    stripe_sub_id = data.get("stripe_subscription_id")
+
+    if not stripe_sub_id:
+        return jsonify({"error": "stripe_subscription_id is required"}), 400
+
+    # Verify ownership
+    sub = get_subscription_by_stripe_id(stripe_sub_id)
+    if not sub or sub["user_id"] != current_user.id:
+        return jsonify({"error": "Subscription not found"}), 404
+
+    try:
+        result = reactivate_subscription(stripe_sub_id)
+    except Exception as exc:
+        logger.error("Reactivate subscription failed: %s", exc)
+        return jsonify({"error": "Failed to reactivate subscription"}), 502
+
+    return jsonify({"status": "reactivated"})
 
 
 # ---------------------------------------------------------------------------

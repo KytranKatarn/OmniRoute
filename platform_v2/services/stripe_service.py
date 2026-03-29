@@ -252,10 +252,10 @@ def list_module_products(module: str) -> list[dict]:
         cur.execute(
             """
             SELECT stripe_product_id, stripe_price_id, module, name,
-                   amount_cents, currency, interval, active, description,
-                   created_at, updated_at
+                   amount_cents, currency, billing_interval, is_active,
+                   description, created_at, updated_at
               FROM billing_products
-             WHERE module = %s AND active = TRUE
+             WHERE module = %s AND is_active = TRUE
              ORDER BY amount_cents
             """,
             (module,),
@@ -291,19 +291,19 @@ def register_product(
             """
             INSERT INTO billing_products
                 (stripe_product_id, stripe_price_id, module, name,
-                 amount_cents, currency, interval, description, active,
-                 updated_at)
+                 amount_cents, currency, billing_interval, description,
+                 is_active, updated_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
             ON CONFLICT (stripe_product_id) DO UPDATE
-               SET stripe_price_id = EXCLUDED.stripe_price_id,
-                   module          = EXCLUDED.module,
-                   name            = EXCLUDED.name,
-                   amount_cents    = EXCLUDED.amount_cents,
-                   currency        = EXCLUDED.currency,
-                   interval        = EXCLUDED.interval,
-                   description     = EXCLUDED.description,
-                   active          = EXCLUDED.active,
-                   updated_at      = NOW()
+               SET stripe_price_id    = EXCLUDED.stripe_price_id,
+                   module             = EXCLUDED.module,
+                   name               = EXCLUDED.name,
+                   amount_cents       = EXCLUDED.amount_cents,
+                   currency           = EXCLUDED.currency,
+                   billing_interval   = EXCLUDED.billing_interval,
+                   description        = EXCLUDED.description,
+                   is_active          = EXCLUDED.is_active,
+                   updated_at         = NOW()
             RETURNING *
             """,
             (
@@ -330,3 +330,273 @@ def register_product(
         interval,
     )
     return row
+
+
+# ---------------------------------------------------------------------------
+# 12. Subscription — create
+# ---------------------------------------------------------------------------
+
+
+def create_subscription(
+    customer_id: str,
+    price_id: str,
+    module: str,
+    trial_days: int | None = None,
+) -> dict:
+    """Create a Stripe subscription and persist to billing_subscriptions.
+
+    Parameters
+    ----------
+    customer_id : str
+        Stripe customer id (``cus_xxx``).
+    price_id : str
+        Stripe price id (``price_xxx``).
+    module : str
+        Module slug this subscription belongs to (e.g. ``ksm``).
+    trial_days : int, optional
+        Number of trial days.
+
+    Returns
+    -------
+    dict
+        The inserted billing_subscriptions row.
+    """
+    params = {
+        "customer": customer_id,
+        "items": [{"price": price_id}],
+        "metadata": {"module": module},
+    }
+    if trial_days:
+        params["trial_period_days"] = trial_days
+
+    try:
+        sub = stripe.Subscription.create(**params)
+    except stripe.error.StripeError as e:
+        log.error("Subscription create failed for %s: %s", customer_id, e)
+        raise
+
+    from datetime import datetime, timezone
+
+    def _ts(val):
+        return datetime.fromtimestamp(val, tz=timezone.utc) if val else None
+
+    # Look up billing_customer_id
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute(
+            "SELECT id FROM billing_customers WHERE stripe_customer_id = %s",
+            (customer_id,),
+        )
+        row = cur.fetchone()
+        billing_customer_id = row["id"] if row else None
+
+    # Determine billing cycle from price interval
+    cycle = "year" if sub.get("plan", {}).get("interval") == "year" else "month"
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            INSERT INTO billing_subscriptions
+                (user_id, billing_customer_id, stripe_subscription_id,
+                 stripe_price_id, module, status, billing_cycle,
+                 current_period_start, current_period_end,
+                 cancel_at_period_end, trial_start, trial_end,
+                 created_at, updated_at)
+            VALUES (
+                (SELECT user_id FROM billing_customers
+                 WHERE stripe_customer_id = %s),
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()
+            )
+            RETURNING *
+            """,
+            (
+                customer_id,
+                billing_customer_id,
+                sub.id,
+                price_id,
+                module,
+                sub.status,
+                cycle,
+                _ts(sub.current_period_start),
+                _ts(sub.current_period_end),
+                sub.get("cancel_at_period_end", False),
+                _ts(sub.get("trial_start")),
+                _ts(sub.get("trial_end")),
+            ),
+        )
+        result = cur.fetchone()
+
+    log.info(
+        "Created subscription %s for customer %s (module=%s)",
+        sub.id,
+        customer_id,
+        module,
+    )
+    return result
+
+
+# ---------------------------------------------------------------------------
+# 13. Subscription — cancel
+# ---------------------------------------------------------------------------
+
+
+def cancel_subscription(stripe_subscription_id: str, immediate: bool = False) -> dict:
+    """Cancel a subscription in Stripe and update billing_subscriptions.
+
+    If ``immediate`` is True the subscription is deleted now; otherwise it
+    is set to cancel at the end of the current billing period.
+
+    Returns the updated billing_subscriptions row.
+    """
+    try:
+        if immediate:
+            stripe.Subscription.delete(stripe_subscription_id)
+        else:
+            stripe.Subscription.modify(stripe_subscription_id, cancel_at_period_end=True)
+    except stripe.error.StripeError as e:
+        log.error("Subscription cancel failed for %s: %s", stripe_subscription_id, e)
+        raise
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        if immediate:
+            cur.execute(
+                """
+                UPDATE billing_subscriptions
+                   SET status = 'canceled', canceled_at = NOW(), updated_at = NOW()
+                 WHERE stripe_subscription_id = %s
+                RETURNING *
+                """,
+                (stripe_subscription_id,),
+            )
+        else:
+            cur.execute(
+                """
+                UPDATE billing_subscriptions
+                   SET cancel_at_period_end = TRUE, updated_at = NOW()
+                 WHERE stripe_subscription_id = %s
+                RETURNING *
+                """,
+                (stripe_subscription_id,),
+            )
+        result = cur.fetchone()
+
+    log.info("Canceled subscription %s (immediate=%s)", stripe_subscription_id, immediate)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# 14. Subscription — reactivate
+# ---------------------------------------------------------------------------
+
+
+def reactivate_subscription(stripe_subscription_id: str) -> dict:
+    """Reactivate a subscription that was set to cancel at period end.
+
+    Returns the updated billing_subscriptions row.
+    """
+    try:
+        stripe.Subscription.modify(stripe_subscription_id, cancel_at_period_end=False)
+    except stripe.error.StripeError as e:
+        log.error("Subscription reactivate failed for %s: %s", stripe_subscription_id, e)
+        raise
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            UPDATE billing_subscriptions
+               SET cancel_at_period_end = FALSE, canceled_at = NULL, updated_at = NOW()
+             WHERE stripe_subscription_id = %s
+            RETURNING *
+            """,
+            (stripe_subscription_id,),
+        )
+        result = cur.fetchone()
+
+    log.info("Reactivated subscription %s", stripe_subscription_id)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# 15. Subscription — lookup by user
+# ---------------------------------------------------------------------------
+
+
+def get_active_subscription(user_id: int, module: str | None = None) -> dict | None:
+    """Return the active (or trialing) subscription for a user.
+
+    Optionally filter by module.  Returns the most recent match or None.
+    """
+    with get_db_cursor(commit=False) as (conn, cur):
+        if module:
+            cur.execute(
+                """
+                SELECT * FROM billing_subscriptions
+                 WHERE user_id = %s AND module = %s
+                   AND status IN ('active', 'trialing')
+                 ORDER BY created_at DESC LIMIT 1
+                """,
+                (user_id, module),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT * FROM billing_subscriptions
+                 WHERE user_id = %s
+                   AND status IN ('active', 'trialing')
+                 ORDER BY created_at DESC LIMIT 1
+                """,
+                (user_id,),
+            )
+        return cur.fetchone()
+
+
+# ---------------------------------------------------------------------------
+# 16. Subscription — lookup by Stripe ID
+# ---------------------------------------------------------------------------
+
+
+def get_subscription_by_stripe_id(stripe_subscription_id: str) -> dict | None:
+    """Look up a billing_subscriptions row by Stripe subscription id."""
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute(
+            "SELECT * FROM billing_subscriptions WHERE stripe_subscription_id = %s",
+            (stripe_subscription_id,),
+        )
+        return cur.fetchone()
+
+
+# ---------------------------------------------------------------------------
+# 17. Subscription — sync from webhook
+# ---------------------------------------------------------------------------
+
+
+def update_subscription_from_stripe(stripe_subscription_id: str, data: dict) -> dict | None:
+    """Update a billing_subscriptions row from Stripe webhook event data.
+
+    ``data`` should be the subscription object from the event payload.
+    Returns the updated row or None if not found.
+    """
+    from datetime import datetime, timezone
+
+    def _ts(val):
+        return datetime.fromtimestamp(val, tz=timezone.utc) if val else None
+
+    status = data.get("status", "active")
+    cancel_at_period_end = data.get("cancel_at_period_end", False)
+    period_start = _ts(data.get("current_period_start"))
+    period_end = _ts(data.get("current_period_end"))
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            UPDATE billing_subscriptions
+               SET status = %s,
+                   current_period_start = %s,
+                   current_period_end = %s,
+                   cancel_at_period_end = %s,
+                   updated_at = NOW()
+             WHERE stripe_subscription_id = %s
+            RETURNING *
+            """,
+            (status, period_start, period_end, cancel_at_period_end, stripe_subscription_id),
+        )
+        return cur.fetchone()

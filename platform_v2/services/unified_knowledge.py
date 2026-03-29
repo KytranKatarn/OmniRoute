@@ -290,7 +290,8 @@ class UnifiedKnowledgeService:
             """
             )
             for row in cur.fetchall():
-                stats["by_type"][row["knowledge_type"]] = row["count"]
+                kt = row["knowledge_type"] or "unknown"
+                stats["by_type"][kt] = row["count"]
                 stats["total"] += row["count"]
 
             # Count by category

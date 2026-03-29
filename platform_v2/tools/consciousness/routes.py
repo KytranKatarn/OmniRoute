@@ -2967,21 +2967,21 @@ def get_agent_skills():
         cur.execute(
             """
             SELECT
-                all.id,
-                all.agent_id,
+                al.id,
+                al.agent_id,
                 a.name as agent_name,
-                a.role as agent_role,
-                all.skill_name,
-                all.skill_category,
-                all.confidence,
-                all.successful_uses,
-                all.failed_uses,
-                all.learned_from,
-                all.last_used_at,
-                all.created_at
-            FROM agent_learning_log all
-            JOIN agents a ON all.agent_id = a.id
-            ORDER BY all.confidence DESC, all.successful_uses DESC
+                a.title as agent_role,
+                al.skill_name,
+                al.skill_category,
+                al.confidence,
+                al.successful_uses,
+                al.failed_uses,
+                al.learned_from,
+                al.last_used_at,
+                al.created_at
+            FROM agent_learning_log al
+            JOIN agents a ON al.agent_id = a.id
+            ORDER BY al.confidence DESC, al.successful_uses DESC
             LIMIT 50
         """
         )

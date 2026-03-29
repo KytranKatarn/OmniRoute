@@ -358,13 +358,14 @@ function loadNeuralCore() {
     console.error("API error:", err);
   });
 
-  // Emotional state for mood
-  api("/emotional-state").then(function(data) {
-    var mood = (data.mood || "focused").toLowerCase();
+  // Emotional state for mood (from brain-state endpoint)
+  api("/brain-state").then(function(data) {
+    var emotion = data.current_emotion || {};
+    var mood = (emotion.mood || "focused").toLowerCase();
     if (_neuralCore) _neuralCore.setMood(mood);
     else if (_holoSphere) _holoSphere.setMood(mood);
   }).catch(function(err) {
-    console.error("API error:", err);
+    console.warn("Mood fetch failed, using default:", err.message || err);
   });
 
 }

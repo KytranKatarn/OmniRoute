@@ -280,6 +280,11 @@ JOB_DEPARTMENT_MAP = {
     "training_tick": "Human Resources & Culture",
     "approval_queue": "Executive Office",
     "department_metrics_rollup": "Analytics & Intelligence",
+    # Migrated from consciousness_scheduler (APScheduler in app.py)
+    "conversation_consolidation": "Research & Development",
+    "improvement_detection": "Engineering & Technology",
+    "daily_self_reflection": "Executive Office",
+    "weekly_memory_consolidation": "Research & Development",
 }
 
 
@@ -812,6 +817,44 @@ class AgentLoop:
             trigger=IntervalTrigger(hours=6, start_date="2026-01-01 02:30:00"),
             id="agent_auto_remediation",
             name="Agent Loop: Compliance Auto-Remediation",
+            replace_existing=True,
+        )
+
+        # --- Migrated from consciousness_scheduler (APScheduler in app.py) ---
+
+        # Conversation consolidation (hourly)
+        self.scheduler.add_job(
+            with_app_context(self._conversation_consolidation),
+            trigger=IntervalTrigger(hours=1),
+            id="agent_conversation_consolidation",
+            name="Agent Loop: Conversation Consolidation",
+            replace_existing=True,
+        )
+
+        # Improvement detection (every 6h)
+        self.scheduler.add_job(
+            with_app_context(self._improvement_detection),
+            trigger=IntervalTrigger(hours=6),
+            id="agent_improvement_detection",
+            name="Agent Loop: Improvement Detection",
+            replace_existing=True,
+        )
+
+        # Daily self-reflection (midnight)
+        self.scheduler.add_job(
+            with_app_context(self._daily_self_reflection),
+            trigger=CronTrigger(hour=0, minute=0),
+            id="agent_daily_self_reflection",
+            name="Agent Loop: Daily Self-Reflection",
+            replace_existing=True,
+        )
+
+        # Weekly memory consolidation (Sunday 3 AM)
+        self.scheduler.add_job(
+            with_app_context(self._weekly_memory_consolidation),
+            trigger=CronTrigger(day_of_week="sun", hour=3, minute=0),
+            id="agent_weekly_memory_consolidation",
+            name="Agent Loop: Weekly Memory Consolidation",
             replace_existing=True,
         )
 
@@ -2720,25 +2763,92 @@ class AgentLoop:
     # ------------------------------------------------------------------
 
     def _run_ethics_monitoring(self):
-        """Run C.R.E.E.D. ethics monitoring cycle (every 15 min)."""
+        """Run C.R.E.E.D. ethics monitoring cycle (every 15 min).
+
+        Managed by V.I.G.I.L. (Security & Compliance director).
+        Results visible in Department HQ + C.R.E.E.D. institute page.
+        """
         start = time.time()
         try:
             from ai_bridge.ethics_monitor import EthicsMonitor
             monitor = EthicsMonitor()
             result = monitor.run_full_monitoring_cycle()
             duration_ms = int((time.time() - start) * 1000)
-            checked = getattr(result, 'agents_checked', 0)
-            issues = getattr(result, 'issues_found', 0)
-            alerts = getattr(result, 'alerts_created', 0)
-            if checked > 0 or issues > 0 or alerts > 0:
-                logger.info(f"Ethics monitoring: {checked} checked, "
+            checked = getattr(result, 'agents_checked', 0) if result else 0
+            issues = getattr(result, 'issues_found', 0) if result else 0
+            alerts = getattr(result, 'alerts_created', 0) if result else 0
+            if issues > 0 or alerts > 0:
+                logger.info(f"C.R.E.E.D. ethics: {checked} checked, "
                            f"{issues} issues, {alerts} alerts")
-                self._log_cycle("ethics_monitoring", checked, issues, duration_ms,
-                               details={"issues": issues, "alerts": alerts})
+            self._log_cycle("ethics_monitoring", checked, issues, duration_ms,
+                           details={"issues": issues, "alerts": alerts})
         except Exception as e:
-            logger.error(f"Ethics monitoring failed: {e}")
+            logger.error(f"C.R.E.E.D. ethics monitoring failed: {e}")
             duration_ms = int((time.time() - start) * 1000)
             self._log_cycle("ethics_monitoring", 0, 1, duration_ms, error_message=str(e))
+
+    # ------------------------------------------------------------------
+    # Migrated from consciousness_scheduler (centralized into Autonomy)
+    # ------------------------------------------------------------------
+
+    def _conversation_consolidation(self):
+        """Hourly conversation consolidation — migrated from consciousness_scheduler."""
+        start = time.time()
+        try:
+            import sys
+            sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
+            from consciousness_scheduler import hourly_conversation_consolidation
+            result = hourly_conversation_consolidation()
+            duration_ms = int((time.time() - start) * 1000)
+            processed = result.get("messages_processed", 0) if isinstance(result, dict) else 0
+            self._log_cycle("conversation_consolidation", processed, 0, duration_ms)
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("conversation_consolidation", 0, 1, duration_ms, error_message=str(e))
+
+    def _improvement_detection(self):
+        """Improvement detection every 6h — migrated from consciousness_scheduler."""
+        start = time.time()
+        try:
+            import sys
+            sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
+            from consciousness_scheduler import improvement_detection
+            result = improvement_detection()
+            duration_ms = int((time.time() - start) * 1000)
+            found = result.get("improvements_found", 0) if isinstance(result, dict) else 0
+            self._log_cycle("improvement_detection", found, 0, duration_ms)
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("improvement_detection", 0, 1, duration_ms, error_message=str(e))
+
+    def _daily_self_reflection(self):
+        """Daily self-reflection at midnight — migrated from consciousness_scheduler."""
+        start = time.time()
+        try:
+            import sys
+            sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
+            from consciousness_scheduler import daily_self_reflection
+            result = daily_self_reflection()
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("daily_self_reflection", 1, 0, duration_ms)
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("daily_self_reflection", 0, 1, duration_ms, error_message=str(e))
+
+    def _weekly_memory_consolidation(self):
+        """Weekly memory consolidation (Sun 3AM) — migrated from consciousness_scheduler."""
+        start = time.time()
+        try:
+            import sys
+            sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
+            from consciousness_scheduler import weekly_memory_consolidation
+            result = weekly_memory_consolidation()
+            duration_ms = int((time.time() - start) * 1000)
+            decayed = result.get("memories_decayed", 0) if isinstance(result, dict) else 0
+            self._log_cycle("weekly_memory_consolidation", decayed, 0, duration_ms)
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("weekly_memory_consolidation", 0, 1, duration_ms, error_message=str(e))
 
     def _reap_stale_jobs(self):
         """Reap orphaned bridge jobs that stopped updating (every 2 min)."""

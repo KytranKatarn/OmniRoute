@@ -3196,56 +3196,19 @@ def init_consciousness_scheduler(flask_app):
         from apscheduler.triggers.interval import IntervalTrigger
         from apscheduler.triggers.cron import CronTrigger
 
-        # Import scheduler functions
+        # Import scheduler functions (4 consciousness jobs migrated to agent_loop.py)
         import sys
 
         sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-        from consciousness_scheduler import (
-            hourly_conversation_consolidation,
-            improvement_detection,
-            daily_self_reflection,
-            weekly_memory_consolidation,
-        )
         from tools.consciousness.log_ingestor import batch_ingest_logs
         from services.scan_pipeline import batch_medium_issues
 
         scheduler = BackgroundScheduler(timezone="America/Toronto")
 
-        # Hourly conversation consolidation (most critical)
-        scheduler.add_job(
-            hourly_conversation_consolidation,
-            trigger=IntervalTrigger(hours=1),
-            id="hourly_consolidation",
-            name="Hourly Conversation Consolidation",
-            replace_existing=True,
-        )
-
-        # Improvement detection every 6 hours
-        scheduler.add_job(
-            improvement_detection,
-            trigger=IntervalTrigger(hours=6),
-            id="improvement_detection",
-            name="Improvement Detection",
-            replace_existing=True,
-        )
-
-        # Daily self-reflection at midnight
-        scheduler.add_job(
-            daily_self_reflection,
-            trigger=CronTrigger(hour=0, minute=0),
-            id="daily_self_reflection",
-            name="Daily Self-Reflection",
-            replace_existing=True,
-        )
-
-        # Weekly memory consolidation on Sundays at 3 AM
-        scheduler.add_job(
-            weekly_memory_consolidation,
-            trigger=CronTrigger(day_of_week="sun", hour=3, minute=0),
-            id="weekly_memory_consolidation",
-            name="Weekly Memory Consolidation",
-            replace_existing=True,
-        )
+        # NOTE: conversation_consolidation, improvement_detection, daily_self_reflection,
+        # and weekly_memory_consolidation have been migrated to the Autonomy Agent Loop
+        # (agent_loop.py) for centralized department-based tracking. They now log to
+        # autonomy_loop_log instead of consciousness_scheduler_log.
 
         # Weekly medium-issue batch (Sundays at 2 AM)
         scheduler.add_job(
@@ -3523,7 +3486,10 @@ def init_consciousness_scheduler(flask_app):
 
         scheduler.start()
         flask_app.config["CONSCIOUSNESS_SCHEDULER"] = scheduler
-        logger.info("Consciousness scheduler started with 9 scheduled tasks")
+        job_count = len(scheduler.get_jobs())
+        logger.info(
+            f"Infrastructure scheduler started with {job_count} tasks (4 consciousness jobs migrated to Autonomy agent loop)"
+        )
 
         return scheduler
 

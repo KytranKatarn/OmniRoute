@@ -2866,9 +2866,16 @@ function _renderModuleChart(modules, displayNames) {
   // Responsive: show fewer modules on mobile, all on desktop
   var maxBars = window.innerWidth < 480 ? 15 : window.innerWidth < 768 ? 25 : 60;
   // Sort descending — Chart.js indexAxis:"y" renders index 0 at top
-  var names = Object.keys(modules).sort(function(a, b) {
+  // Infrastructure entries ([SHARED], [APP_CORE], etc.) go to the end
+  var infraKeys = {"[SHARED]":1, "[APP_CORE]":1, "[AI_BRIDGE]":1, "[MIGRATIONS]":1};
+  var allKeys = Object.keys(modules);
+  var realKeys = allKeys.filter(function(k) { return !infraKeys[k]; }).sort(function(a, b) {
     return (modules[b].lines || 0) - (modules[a].lines || 0);
-  }).slice(0, maxBars);
+  });
+  var infraSorted = allKeys.filter(function(k) { return infraKeys[k]; }).sort(function(a, b) {
+    return (modules[b].lines || 0) - (modules[a].lines || 0);
+  });
+  var names = realKeys.concat(infraSorted).slice(0, maxBars);
 
   var pyData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.python ? bt.python.lines : 0; });
   var jsData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.js ? bt.js.lines : 0; });

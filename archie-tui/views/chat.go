@@ -4,8 +4,18 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 )
+
+var mdRenderer *glamour.TermRenderer
+
+func init() {
+	mdRenderer, _ = glamour.NewTermRenderer(
+		glamour.WithStylePath("dark"),
+		glamour.WithWordWrap(80),
+	)
+}
 
 type ChatMessage struct {
 	Role    string
@@ -42,7 +52,20 @@ func (c *ChatView) Render() string {
 		case "user":
 			lines = append(lines, text.Render(fmt.Sprintf("  > %s", msg.Content)))
 		case "assistant":
-			lines = append(lines, cyan.Render(fmt.Sprintf("  %s", msg.Content)))
+			if mdRenderer != nil {
+				rendered, err := mdRenderer.Render(msg.Content)
+				if err == nil {
+					// Trim trailing newlines glamour adds, indent each line
+					rendered = strings.TrimRight(rendered, "\n")
+					for _, rl := range strings.Split(rendered, "\n") {
+						lines = append(lines, "  "+rl)
+					}
+				} else {
+					lines = append(lines, cyan.Render(fmt.Sprintf("  %s", msg.Content)))
+				}
+			} else {
+				lines = append(lines, cyan.Render(fmt.Sprintf("  %s", msg.Content)))
+			}
 		case "system":
 			lines = append(lines, dimStyle.Render(fmt.Sprintf("  [%s]", msg.Content)))
 		}

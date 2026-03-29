@@ -1,5 +1,6 @@
 """ARCHIE Engine — main daemon wiring all components."""
 
+import json
 import logging
 from pathlib import Path
 
@@ -21,6 +22,7 @@ from archie_engine.hub.heartbeat import Heartbeat
 from archie_engine.hub.sync import HubSync
 from archie_engine.hub_skills import HubSkillLoader
 from archie_engine.skills import SkillRegistry
+from archie_engine.skills.hub_loader import HubKBSkillLoader
 from archie_engine.skills.executor import SkillExecutor
 from archie_engine.claude.context_bridge import ContextBridge
 from archie_engine.claude.escalation import EscalationDetector
@@ -74,6 +76,7 @@ class Engine:
         self.hub_heartbeat: Heartbeat | None = None
         self.hub_sync: HubSync | None = None
         self.hub_skill_loader: HubSkillLoader | None = None
+        self.hub_kb_loader: HubKBSkillLoader | None = None
         self._hub_status = HubStatus.DISCONNECTED
 
         if is_hub_configured(config):
@@ -93,6 +96,11 @@ class Engine:
             self.router.hub_connector = self.hub_connector
             # Hub skill loader for /archie-* commands
             self.hub_skill_loader = HubSkillLoader(self.hub_connector)
+            # Hub KB loader for /hub:* community skills from GitHub pipeline
+            self.hub_kb_loader = HubKBSkillLoader(
+                hub_url=config.hub_url,
+                api_key=config.hub_api_key or "",
+            )
 
     @property
     def hub_status(self) -> HubStatus:
@@ -116,6 +124,7 @@ class Engine:
         self.config.ensure_dirs()
         await self.db.initialize()
         self.server.set_handler(self.handle_message)
+        self.server.set_stream_handler(self.handle_message_stream)
         await self.server.start()
         if self.hub_heartbeat:
             await self.hub_heartbeat.start()
@@ -129,6 +138,16 @@ class Engine:
                 except Exception as e:
                     logger.warning("Failed to cache hub skills: %s", e)
         self.skill_registry.load()
+        # Load GitHub-ingested skills from Hub knowledge base
+        if self.hub_kb_loader and self.hub_heartbeat and self.hub_heartbeat.status == HubStatus.CONNECTED:
+            try:
+                kb_skills = await self.hub_kb_loader.load_skills()
+                for skill in kb_skills:
+                    self.skill_registry.register(skill)
+                if kb_skills:
+                    logger.info("Registered %d hub KB skills as /hub:* commands", len(kb_skills))
+            except Exception as e:
+                logger.warning("Failed to load hub KB skills: %s", e)
         logger.info("ARCHIE Engine started")
 
     async def stop(self) -> None:
@@ -179,6 +198,67 @@ class Engine:
             return await self._process_chat_message(msg)
 
         return {"type": "error", "error": f"Unknown message type: {msg_type}"}
+
+    async def handle_message_stream(self, msg: dict, ws) -> None:
+        """Process a chat message with streaming response over WebSocket."""
+        content = msg.get("content", "")
+        session_id = msg.get("session_id")
+
+        # Create session if needed
+        if not session_id:
+            session = await self.sessions.create(working_dir=str(Path.cwd()))
+            session_id = session["id"]
+
+        # Record user message
+        await self.sessions.add_message(session_id, "user", content)
+
+        # Slash commands and skills are non-streaming — delegate to normal handler
+        if content.startswith("/"):
+            result = await self._process_chat_message(msg)
+            await ws.send(json.dumps(result))
+            return
+
+        # Classify intent
+        intent = self.intent_parser.classify(content)
+
+        # Only stream for chat/inference intents — others use normal path
+        if intent.get("type") not in ("chat", "question", "unknown"):
+            result = await self._process_chat_message(msg)
+            await ws.send(json.dumps(result))
+            return
+
+        # Build context and get messages for inference
+        context = await self.sessions.build_context(session_id)
+        history = context.get("history", [])
+        messages = [{"role": m["role"], "content": m["content"]} for m in history]
+        messages.append({"role": "user", "content": content})
+
+        model = self.config.default_model
+        full_response = []
+
+        # Send stream_start so TUI knows streaming is beginning
+        await ws.send(json.dumps({
+            "type": "stream_start",
+            "session_id": session_id,
+        }))
+
+        # Stream tokens
+        async for chunk in self.inference.chat_stream(messages, model=model):
+            token = chunk.get("token", "")
+            done = chunk.get("done", False)
+            if token or done:
+                await ws.send(json.dumps({
+                    "type": "stream_token",
+                    "content": token,
+                    "done": done,
+                    "session_id": session_id,
+                }))
+            if token:
+                full_response.append(token)
+
+        # Record the full response
+        response_text = "".join(full_response)
+        await self.sessions.add_message(session_id, "assistant", response_text)
 
     async def _process_chat_message(self, msg: dict) -> dict:
         content = msg.get("content", "")

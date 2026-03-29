@@ -17,6 +17,7 @@ class EngineServer:
         self._requested_port = port
         self.port = port  # may change if port=0
         self._handler: Callable[[dict], Awaitable[dict]] | None = None
+        self._stream_handler: Callable | None = None
         self._server = None
         self._connections: set = set()
 
@@ -27,6 +28,10 @@ class EngineServer:
     def set_handler(self, handler: Callable[[dict], Awaitable[dict]]) -> None:
         """Set the message handler callback (called by Engine)."""
         self._handler = handler
+
+    def set_stream_handler(self, handler: Callable) -> None:
+        """Set the streaming message handler (called by Engine for stream-capable messages)."""
+        self._stream_handler = handler
 
     async def start(self) -> None:
         self._server = await serve(
@@ -57,6 +62,20 @@ class EngineServer:
                         "type": "error", "error": "Invalid JSON"
                     }))
                     continue
+
+                msg_type = msg.get("type", "")
+
+                # Use streaming handler for chat messages when available
+                if msg_type == "message" and self._stream_handler:
+                    try:
+                        await self._stream_handler(msg, websocket)
+                        continue
+                    except Exception as e:
+                        logger.error("Stream handler error: %s", e)
+                        await websocket.send(json.dumps({
+                            "type": "error", "error": str(e)
+                        }))
+                        continue
 
                 response = await self._process_message(msg)
                 await websocket.send(json.dumps(response))

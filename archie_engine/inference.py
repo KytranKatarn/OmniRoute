@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from typing import AsyncIterator
+
 import aiohttp
 
 
@@ -53,6 +56,66 @@ class InferenceClient:
                     return await resp.json()
         except Exception as e:
             return {"error": str(e)}
+
+    async def generate_stream(
+        self,
+        prompt: str,
+        model: str,
+        system: str | None = None,
+    ) -> AsyncIterator[dict]:
+        """POST /api/generate — streaming text generation, yielding tokens."""
+        payload: dict = {"model": model, "prompt": prompt, "stream": True}
+        if system:
+            payload["system"] = system
+        try:
+            async with aiohttp.ClientSession(timeout=self.timeout) as session:
+                async with session.post(
+                    f"{self.ollama_host}/api/generate", json=payload
+                ) as resp:
+                    async for line in resp.content:
+                        if line:
+                            try:
+                                chunk = json.loads(line)
+                                token = chunk.get("response", "")
+                                done = chunk.get("done", False)
+                                if token:
+                                    yield {"token": token, "done": done}
+                                if done:
+                                    return
+                            except json.JSONDecodeError:
+                                continue
+        except Exception as e:
+            yield {"token": "", "done": True, "error": str(e)}
+
+    async def chat_stream(
+        self,
+        messages: list[dict],
+        model: str,
+        system: str | None = None,
+    ) -> AsyncIterator[dict]:
+        """POST /api/chat — streaming chat completion, yielding tokens."""
+        payload: dict = {"model": model, "messages": messages, "stream": True}
+        if system:
+            payload["system"] = system
+        try:
+            async with aiohttp.ClientSession(timeout=self.timeout) as session:
+                async with session.post(
+                    f"{self.ollama_host}/api/chat", json=payload
+                ) as resp:
+                    async for line in resp.content:
+                        if line:
+                            try:
+                                chunk = json.loads(line)
+                                token = chunk.get("message", {}).get("content", "")
+                                done = chunk.get("done", False)
+                                if token:
+                                    yield {"token": token, "done": done}
+                                if done:
+                                    return
+                            except json.JSONDecodeError:
+                                continue
+        except Exception as e:
+            yield {"token": "", "done": True, "error": str(e)}
 
     async def list_models(self) -> list[dict]:
         """GET /api/tags — return list of available models."""

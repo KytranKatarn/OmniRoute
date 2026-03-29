@@ -307,3 +307,64 @@ def register_code_health_routes(bp, admin_required):
             )
 
         return jsonify({"success": True, "websites": results})
+
+    @bp.route("/api/code-health/structural-audit")
+    @login_required
+    @admin_required
+    def code_health_structural_audit():
+        """Full structural audit — KBS plugins, standalone tiers, retired modules, health score."""
+        from services.code_metrics_service import (
+            _audit_kbs_plugins,
+            _audit_standalone_products,
+            _calculate_health_score,
+            _detect_retired_modules,
+            _find_orphan_files,
+        )
+
+        # Gather orphan data (need module names from scan)
+        from services.code_metrics_service import _get_module_stats
+
+        module_stats = _get_module_stats()
+        orphans = _find_orphan_files(set(module_stats.keys()))
+
+        kbs_audit = _audit_kbs_plugins()
+        standalone_audit = _audit_standalone_products()
+        retired_modules = _detect_retired_modules()
+
+        # Build partial report for health score calculation
+        partial = {
+            "orphans": orphans,
+            "kbs_audit": kbs_audit,
+            "standalone_audit": standalone_audit,
+            "retired_modules": retired_modules,
+        }
+        health_score = _calculate_health_score(partial)
+
+        return jsonify(
+            {
+                "success": True,
+                "health_score": health_score,
+                "orphans": {k: len(v) for k, v in orphans.items()},
+                "kbs_audit": {
+                    "total": kbs_audit["total"],
+                    "healthy": kbs_audit["healthy"],
+                    "issues": kbs_audit["issues"],
+                },
+                "standalone_audit": {
+                    "total": standalone_audit["total"],
+                    "healthy": standalone_audit["healthy"],
+                    "issues": standalone_audit["issues"],
+                    "products": [
+                        {
+                            "name": p["name"],
+                            "type": p["type"],
+                            "exists": p["exists"],
+                            "tier1": p["tier1"],
+                            "issues": p["issues"],
+                        }
+                        for p in standalone_audit["products"]
+                    ],
+                },
+                "retired_modules": retired_modules,
+            }
+        )

@@ -651,6 +651,12 @@ def scan_codebase():
                 result[lang]["files"] += lang_stats.get("files", 0)
                 result[lang]["lines"] += lang_stats.get("lines", 0)
 
+    # Structural audits
+    result["kbs_audit"] = _audit_kbs_plugins()
+    result["standalone_audit"] = _audit_standalone_products()
+    result["retired_modules"] = _detect_retired_modules()
+    result["health_score"] = _calculate_health_score(result)
+
     return result
 
 
@@ -751,6 +757,324 @@ def _find_orphan_files(module_names):
                 orphans["css"].append({"file": fname, "lines": lines})
 
     return orphans
+
+
+# ============================================================================
+# STRUCTURAL AUDITS — KBS, Standalones, Retired Modules, Health Score
+# ============================================================================
+
+KBS_PLUGINS_ROOT = "/mnt/archie_brain/kytran-business-suite/plugins"
+KBS_MANIFEST_REQUIRED = {"slug", "name", "version", "category", "tier_required", "dependencies"}
+
+
+def _audit_kbs_plugins():
+    """Audit KBS plugin structure — verify manifest, routes, migrations, templates."""
+    if not os.path.isdir(KBS_PLUGINS_ROOT):
+        return {"plugins": [], "issues": [], "total": 0, "healthy": 0}
+
+    plugins = []
+    issues = []
+
+    for entry in sorted(os.listdir(KBS_PLUGINS_ROOT)):
+        plugin_path = os.path.join(KBS_PLUGINS_ROOT, entry)
+        if not os.path.isdir(plugin_path) or entry.startswith("."):
+            continue
+
+        plugin = {
+            "name": entry,
+            "path": plugin_path,
+            "has_manifest": False,
+            "has_init": False,
+            "has_routes": False,
+            "has_migrations": False,
+            "has_templates": False,
+            "has_static": False,
+            "has_tests": False,
+            "manifest_valid": False,
+            "manifest_fields_missing": [],
+            "issues": [],
+        }
+
+        # Check required files
+        manifest_path = os.path.join(plugin_path, "manifest.json")
+        if os.path.isfile(manifest_path):
+            plugin["has_manifest"] = True
+            try:
+                import json
+
+                with open(manifest_path) as f:
+                    manifest = json.load(f)
+                missing = KBS_MANIFEST_REQUIRED - set(manifest.keys())
+                if missing:
+                    plugin["manifest_fields_missing"] = sorted(missing)
+                    plugin["issues"].append(f"manifest missing fields: {', '.join(sorted(missing))}")
+                else:
+                    plugin["manifest_valid"] = True
+            except Exception as exc:
+                plugin["issues"].append(f"manifest parse error: {exc}")
+        else:
+            plugin["issues"].append("missing manifest.json")
+
+        plugin["has_init"] = os.path.isfile(os.path.join(plugin_path, "__init__.py"))
+        if not plugin["has_init"]:
+            plugin["issues"].append("missing __init__.py")
+
+        plugin["has_routes"] = os.path.isfile(os.path.join(plugin_path, "routes.py"))
+        if not plugin["has_routes"]:
+            plugin["issues"].append("missing routes.py")
+
+        plugin["has_migrations"] = os.path.isdir(os.path.join(plugin_path, "migrations"))
+        plugin["has_templates"] = os.path.isdir(os.path.join(plugin_path, "templates"))
+        plugin["has_static"] = os.path.isdir(os.path.join(plugin_path, "static"))
+        plugin["has_tests"] = os.path.isdir(os.path.join(plugin_path, "tests"))
+
+        plugins.append(plugin)
+        issues.extend([f"[{entry}] {i}" for i in plugin["issues"]])
+
+    healthy = sum(1 for p in plugins if not p["issues"])
+    return {
+        "plugins": plugins,
+        "issues": issues,
+        "total": len(plugins),
+        "healthy": healthy,
+    }
+
+
+def _audit_standalone_products():
+    """Audit standalone products against the extraction playbook tiers."""
+    results = []
+    issues = []
+
+    all_products = (
+        [(p, "standalone") for p in STANDALONE_PRODUCTS]
+        + [(w, "website") for w in WEBSITE_PRODUCTS]
+        + [(s, "infrastructure") for s in INFRASTRUCTURE_SERVICES]
+    )
+
+    for product, product_type in all_products:
+        path = product["path"]
+        name = product["name"]
+        exists = os.path.isdir(path)
+
+        audit = {
+            "name": name,
+            "path": path,
+            "type": product_type,
+            "exists": exists,
+            "tier1": {},
+            "issues": [],
+        }
+
+        if not exists:
+            audit["issues"].append("directory does not exist")
+            issues.append(f"[{name}] directory does not exist: {path}")
+            results.append(audit)
+            continue
+
+        if product_type == "standalone":
+            # Tier 1 checks
+            checks = {
+                "dockerfile": os.path.isfile(os.path.join(path, "Dockerfile")),
+                "docker_compose": os.path.isfile(os.path.join(path, "docker-compose.yml"))
+                or os.path.isfile(os.path.join(path, "docker-compose.yaml")),
+                "readme": os.path.isfile(os.path.join(path, "README.md")),
+                "health_endpoint": _has_health_endpoint(path),
+                "own_static": os.path.isdir(os.path.join(path, "static"))
+                or os.path.isdir(os.path.join(path, "public"))
+                or os.path.isdir(os.path.join(path, "assets"))
+                or os.path.isdir(os.path.join(path, "shared", "static"))
+                or os.path.isdir(os.path.join(path, "templates")),
+            }
+            audit["tier1"] = checks
+
+            for check_name, passed in checks.items():
+                if not passed:
+                    label = check_name.replace("_", " ").title()
+                    audit["issues"].append(f"Tier 1: missing {label}")
+                    issues.append(f"[{name}] Tier 1: missing {label}")
+
+        elif product_type == "website":
+            has_index = os.path.isfile(os.path.join(path, "index.html"))
+            audit["tier1"] = {"index_html": has_index}
+            if not has_index:
+                audit["issues"].append("missing index.html")
+                issues.append(f"[{name}] missing index.html")
+
+        elif product_type == "infrastructure":
+            has_config = (
+                os.path.isfile(os.path.join(path, "docker-compose.yml"))
+                or os.path.isfile(os.path.join(path, "docker-compose.yaml"))
+                or os.path.isfile(os.path.join(path, "config.toml"))
+                or os.path.isfile(os.path.join(path, "config.yml"))
+            )
+            has_readme = os.path.isfile(os.path.join(path, "README.md"))
+            audit["tier1"] = {"config": has_config, "readme": has_readme}
+            if not has_config:
+                audit["issues"].append("missing config/docker-compose")
+                issues.append(f"[{name}] missing config/docker-compose")
+
+        results.append(audit)
+
+    healthy = sum(1 for r in results if not r["issues"])
+    return {
+        "products": results,
+        "issues": issues,
+        "total": len(results),
+        "healthy": healthy,
+    }
+
+
+def _has_health_endpoint(product_path):
+    """Check if a product has a health endpoint defined in any routes file."""
+    for root, dirs, files in os.walk(product_path):
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
+        for fname in files:
+            if not fname.endswith(".py"):
+                continue
+            filepath = os.path.join(root, fname)
+            try:
+                with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read(10000)
+                    if "/health" in content or "/api/health" in content:
+                        return True
+            except Exception:
+                pass
+    return False
+
+
+def _detect_retired_modules():
+    """Detect ARCHIE modules that are stubs, redirects, or retired."""
+    tools_dir = os.path.join(PLATFORM_ROOT, "tools")
+    if not os.path.isdir(tools_dir):
+        return []
+
+    retired = []
+
+    for entry in sorted(os.listdir(tools_dir)):
+        module_path = os.path.join(tools_dir, entry)
+        if not os.path.isdir(module_path) or entry.startswith(".") or entry == "__pycache__":
+            continue
+
+        routes_file = os.path.join(module_path, "routes.py")
+        if not os.path.isfile(routes_file):
+            continue
+
+        try:
+            with open(routes_file, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+
+            # Check for redirect pattern
+            has_redirect = "redirect(" in content and ("KBS_URL" in content or "KBS_BASE_URL" in content)
+            has_retired_marker = "RETIRED" in content.upper()[:500]
+
+            # Count functional lines (exclude imports, blanks, comments, docstrings)
+            functional_lines = 0
+            in_docstring = False
+            for line in content.splitlines():
+                stripped = line.strip()
+                if stripped.startswith('"""') or stripped.startswith("'''"):
+                    in_docstring = not in_docstring
+                    continue
+                if in_docstring:
+                    continue
+                if (
+                    not stripped
+                    or stripped.startswith("#")
+                    or stripped.startswith("import")
+                    or stripped.startswith("from")
+                ):
+                    continue
+                functional_lines += 1
+
+            status = "active"
+            redirect_target = None
+
+            if has_redirect or has_retired_marker:
+                status = "retired"
+                # Extract redirect target
+                import re
+
+                match = re.search(r'redirect\(f?"([^"]*)"', content)
+                if match:
+                    redirect_target = match.group(1)
+            elif functional_lines < 20:
+                status = "stub"
+
+            if status != "active":
+                retired.append(
+                    {
+                        "module": entry,
+                        "status": status,
+                        "functional_lines": functional_lines,
+                        "redirect_target": redirect_target,
+                    }
+                )
+
+        except Exception:
+            pass
+
+    return retired
+
+
+def _calculate_health_score(report):
+    """Calculate a 0-100 health score from the full audit report."""
+    score = 100
+    deductions = []
+
+    # Orphan files: -5 each
+    orphans = report.get("orphans", {})
+    orphan_count = sum(len(v) for v in orphans.values())
+    if orphan_count:
+        penalty = orphan_count * 5
+        score -= penalty
+        deductions.append(f"-{penalty}: {orphan_count} orphan file(s)")
+
+    # KBS plugin issues: -3 each
+    kbs = report.get("kbs_audit", {})
+    kbs_issues = len(kbs.get("issues", []))
+    if kbs_issues:
+        penalty = kbs_issues * 3
+        score -= penalty
+        deductions.append(f"-{penalty}: {kbs_issues} KBS plugin issue(s)")
+
+    # Standalone issues: -5 each Tier 1 failure
+    standalone = report.get("standalone_audit", {})
+    standalone_issues = len(standalone.get("issues", []))
+    if standalone_issues:
+        penalty = standalone_issues * 5
+        score -= penalty
+        deductions.append(f"-{penalty}: {standalone_issues} standalone issue(s)")
+
+    # Retired modules without redirect: -2 each
+    retired = report.get("retired_modules", [])
+    stubs = [m for m in retired if m["status"] == "stub"]
+    if stubs:
+        penalty = len(stubs) * 2
+        score -= penalty
+        deductions.append(f"-{penalty}: {len(stubs)} stub module(s) without redirect")
+
+    return {
+        "score": max(score, 0),
+        "grade": _score_to_grade(max(score, 0)),
+        "deductions": deductions,
+    }
+
+
+def _score_to_grade(score):
+    """Convert numeric score to letter grade."""
+    if score >= 95:
+        return "A+"
+    if score >= 90:
+        return "A"
+    if score >= 85:
+        return "B+"
+    if score >= 80:
+        return "B"
+    if score >= 70:
+        return "C"
+    if score >= 60:
+        return "D"
+    return "F"
 
 
 def _get_commit_hash(repo_path="/mnt/archie_brain"):

@@ -21,6 +21,11 @@ class SkillRegistry:
         self._skills = {s.name: s for s in skills}
         logger.info("Loaded %d skills", len(self._skills))
 
+    def register(self, skill: Skill) -> None:
+        """Register a single skill (e.g., from hub KB loader)."""
+        if skill.name:
+            self._skills[skill.name] = skill
+
     def get(self, name: str) -> Skill | None:
         return self._skills.get(name)
 

@@ -1,7 +1,6 @@
 /* ==========================================================================
    Kytran News — Air Quality Layer
-   World Air Quality Index (WAQI) — free with token
-   Falls back to Open-Meteo air quality (no key needed)
+   WAQI (World Air Quality Index) live map bounds API
    ========================================================================== */
 
 var AirQuality = (function () {
@@ -20,15 +19,36 @@ var AirQuality = (function () {
 
     function refresh() {
         if (!_visible) return;
-        /* Use static curated dataset of major city AQI readings */
-        Fetcher.get('data/airquality-cities.json', {
+        /* WAQI map bounds: latlng=lat1,lng1,lat2,lng2 (world view) */
+        var url = Config.API.air_quality.replace('{bounds}', '-90,-180,90,180');
+        Fetcher.get(url, {
             sourceKey: 'airquality',
             fallbackUrl: 'data/airquality-cities.json',
-            cacheTTL: 600000 /* 10 min */
+            useCorsProxy: true,
+            cacheTTL: 600000, /* 10 min */
+            transform: _transformWaqi
         }).then(function (data) {
-            _data = (data && data.cities) || [];
+            _data = data || [];
             App.updateLayerCount('airquality', _data.length);
             _render();
+        });
+    }
+
+    function _transformWaqi(raw) {
+        /* WAQI returns {status: "ok", data: [{lat, lon, aqi, station: {name}}]} */
+        if (!raw || raw.status !== 'ok' || !Array.isArray(raw.data)) return [];
+        return raw.data.filter(function (d) {
+            return d.lat && d.lon && d.aqi && d.aqi !== '-';
+        }).map(function (d) {
+            return {
+                id: (d.station && d.station.name) || (d.lat + ',' + d.lon),
+                lon: parseFloat(d.lon),
+                lat: parseFloat(d.lat),
+                aqi: parseInt(d.aqi, 10) || 0,
+                type: 'airquality',
+                title: (d.station && d.station.name) || 'Air Quality Station',
+                timestamp: Date.now()
+            };
         });
     }
 

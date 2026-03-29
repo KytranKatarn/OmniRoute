@@ -14,9 +14,11 @@ var Config = (function () {
     var WATCH_API = 'https://civic.kytranempowerment.com/api';
 
     /* -- API Endpoints ---------------------------------------------------- */
+    /* GDELT removed — 429 rate-limited as of 2026-03-29. Replaced with RSS + free APIs. */
     var API = {
-        /* Conflicts (GDELT DOC — GEO endpoint is dead as of 2026-03) */
-        conflicts: 'https://api.gdeltproject.org/api/v2/doc/doc?query=(conflict OR war OR attack OR military strike)&mode=artlist&format=json&maxrecords=75&timespan={timespan}',
+        /* Conflicts — RSS feeds via rss2json (free, no key, no CORS issues) */
+        conflicts_bbc: 'https://api.rss2json.com/v1/api.json?rss_url=https://feeds.bbci.co.uk/news/world/rss.xml',
+        conflicts_aj:  'https://api.rss2json.com/v1/api.json?rss_url=https://www.aljazeera.com/xml/rss/all.xml',
 
         /* Earthquakes (USGS — free, no key) */
         earthquakes_hour:  'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_hour.geojson',
@@ -26,26 +28,47 @@ var Config = (function () {
         /* Natural disasters (NASA EONET — free, no key) */
         eonet: 'https://eonet.gsfc.nasa.gov/api/v3/events?status=open&limit=50',
 
-        /* Weather alerts US (NWS — free, no key) */
+        /* Weather alerts US (NWS — free, needs User-Agent) */
         nws_alerts: 'https://api.weather.gov/alerts/active?status=actual',
 
-        /* News (GDELT DOC — free, no key, includes Canada) */
-        news: 'https://api.gdeltproject.org/api/v2/doc/doc?query=(conflict OR disaster OR earthquake OR cyber attack OR sanctions OR Canada)&mode=artlist&format=json&maxrecords=100&timespan={timespan}',
+        /* News ticker — RSS feeds (replaces GDELT DOC) */
+        news_bbc:    'https://api.rss2json.com/v1/api.json?rss_url=https://feeds.bbci.co.uk/news/world/rss.xml',
+        news_aj:     'https://api.rss2json.com/v1/api.json?rss_url=https://www.aljazeera.com/xml/rss/all.xml',
+        news_canada: 'https://api.rss2json.com/v1/api.json?rss_url=https://www.cbc.ca/cmlink/rss-world',
 
-        /* Canadian news specifically */
-        news_canada: 'https://api.gdeltproject.org/api/v2/doc/doc?query=sourcecountry:CA&mode=artlist&format=json&maxrecords=30&timespan={timespan}',
+        /* Protests — RSS filtered (replaces GDELT DOC) */
+        protests: 'https://api.rss2json.com/v1/api.json?rss_url=https://feeds.bbci.co.uk/news/world/rss.xml',
 
-        /* Protests (GDELT DOC — GEO endpoint dead) */
-        protests: 'https://api.gdeltproject.org/api/v2/doc/doc?query=(protest OR demonstration OR rally OR unrest)&mode=artlist&format=json&maxrecords=50&timespan={timespan}',
+        /* Terrorism — RSS filtered (replaces GDELT DOC) */
+        terrorism: 'https://api.rss2json.com/v1/api.json?rss_url=https://feeds.bbci.co.uk/news/world/rss.xml',
 
-        /* Terrorism (GDELT DOC — GEO endpoint dead) */
-        terrorism: 'https://api.gdeltproject.org/api/v2/doc/doc?query=(terrorism OR terrorist attack OR bombing OR extremist)&mode=artlist&format=json&maxrecords=50&timespan={timespan}',
+        /* Outages — IODA (Georgia Tech, free) */
+        outages: 'https://api.ioda.inetintel.cc.gatech.edu/v2/signals/raw/country/US?from={from}&until={until}',
 
-        /* Outages (GDELT DOC — GEO endpoint dead) */
-        outages: 'https://api.gdeltproject.org/api/v2/doc/doc?query=(power outage OR internet outage OR blackout OR grid failure)&mode=artlist&format=json&maxrecords=50&timespan={timespan}',
+        /* Cyber threats — simulated from public stats */
+        cyber_stats: 'data/fallback-cyber.json',
 
-        /* Cyber threats — simulated from public country-level stats */
-        cyber_stats: 'data/fallback-cyber.json'
+        /* Air quality — WAQI (free demo token) */
+        air_quality: 'https://api.waqi.info/v2/map/bounds/?latlng={bounds}&token=demo',
+
+        /* Disease outbreaks — disease.sh (free, no key) */
+        disease: 'https://disease.sh/v3/covid-19/countries?sort=todayCases&yesterday=true',
+
+        /* Ship traffic — MarineTraffic public */
+        ships: 'https://www.marinetraffic.com/getData/get_data_json_4/z:2/X:0/Y:0/station:0',
+
+        /* Space weather (NOAA SWPC — free, no key) */
+        space_weather: 'https://services.swpc.noaa.gov/products/alerts.json',
+
+        /* Radiation — Safecast (free, no key) */
+        radiation: 'https://api.safecast.org/measurements.json?distance=10000&latitude=35.6762&longitude=139.6503&limit=50',
+
+        /* Markets — ExchangeRate-API + CoinGecko (both free) */
+        exchange_rates: 'https://open.er-api.com/v6/latest/USD',
+        crypto: 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd&include_24hr_change=true',
+
+        /* Flights — OpenSky (free, no key) */
+        flights: 'https://opensky-network.org/api/states/all?lamin={lamin}&lomin={lomin}&lamax={lamax}&lomax={lomax}'
     };
 
     /* -- Refresh Intervals (ms) ------------------------------------------- */

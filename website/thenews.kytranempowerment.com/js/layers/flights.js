@@ -22,8 +22,13 @@ var Flights = (function () {
     }
 
     function refresh() {
-        /* OpenSky Network — returns all aircraft in bounding box or worldwide */
-        Fetcher.get('https://opensky-network.org/api/states/all', {
+        /* OpenSky Network — use bounding box from Config for better results */
+        var url = Config.API.flights
+            .replace('{lamin}', '-60')
+            .replace('{lomin}', '-180')
+            .replace('{lamax}', '70')
+            .replace('{lomax}', '180');
+        Fetcher.get(url, {
             sourceKey: 'flights',
             fallbackUrl: 'data/fallback-flights.json',
             useCorsProxy: true,

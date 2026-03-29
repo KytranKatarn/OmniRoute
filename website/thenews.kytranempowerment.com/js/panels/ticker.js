@@ -1,6 +1,6 @@
 /* ==========================================================================
    Kytran News — News Ticker
-   Scrolling headlines from GDELT DOC API
+   Scrolling headlines from RSS feeds (BBC World, Al Jazeera, CBC)
    ========================================================================== */
 
 var Ticker = (function () {
@@ -17,16 +17,43 @@ var Ticker = (function () {
         Scheduler.start('news', refresh, Config.INTERVALS.news);
     }
 
+    function _transformRss(data) {
+        var items = (data && data.items) ? data.items : [];
+        return items.map(function (item) {
+            var title = item.title || '';
+            var category = 'world';
+            var lc = title.toLowerCase();
+            if (lc.indexOf('war') !== -1 || lc.indexOf('attack') !== -1 || lc.indexOf('conflict') !== -1) category = 'conflict';
+            else if (lc.indexOf('earthquake') !== -1 || lc.indexOf('flood') !== -1 || lc.indexOf('storm') !== -1) category = 'disaster';
+            else if (lc.indexOf('protest') !== -1 || lc.indexOf('rally') !== -1) category = 'protest';
+            else if (lc.indexOf('cyber') !== -1 || lc.indexOf('hack') !== -1) category = 'cyber';
+            else if (lc.indexOf('market') !== -1 || lc.indexOf('economy') !== -1) category = 'economy';
+            return { title: title, url: item.link || '#', category: category, pubDate: item.pubDate || '' };
+        });
+    }
+
     function refresh() {
-        var url = Config.getApiUrl('news', App.getTimeRange());
-        Fetcher.get(url, {
-            sourceKey: 'news',
-            fallbackUrl: Config.FALLBACKS.news,
-            useCorsProxy: true,
-            cacheTTL: Config.INTERVALS.news,
-            transform: Transforms.gdeltNews
-        }).then(function (data) {
-            _articles = data || [];
+        var feeds = [Config.API.news_bbc, Config.API.news_aj, Config.API.news_canada].filter(Boolean);
+        var promises = feeds.map(function (url) {
+            return Fetcher.get(url, {
+                sourceKey: 'news_' + url.slice(-20),
+                cacheTTL: Config.INTERVALS.news,
+                transform: _transformRss
+            }).catch(function () { return []; });
+        });
+
+        Promise.all(promises).then(function (results) {
+            var all = [];
+            results.forEach(function (r) { if (r) all = all.concat(r); });
+            /* Deduplicate by title */
+            var seen = {};
+            _articles = all.filter(function (a) {
+                if (!a.title || seen[a.title]) return false;
+                seen[a.title] = true;
+                return true;
+            });
+            /* Sort newest first */
+            _articles.sort(function (a, b) { return (b.pubDate || '').localeCompare(a.pubDate || ''); });
             if (_countEl) _countEl.textContent = _articles.length;
             _render();
         });

@@ -1,6 +1,6 @@
 /* ==========================================================================
    Kytran News — Nuclear Radiation Monitoring Layer
-   Static IAEA-style monitoring station dataset as ScatterplotLayer
+   Safecast API — live radiation measurements
    ========================================================================== */
 
 var Radiation = (function () {
@@ -12,44 +12,36 @@ var Radiation = (function () {
     function init() {
         _visible = App.isLayerActive('radiation');
         EventBus.on('layer:toggle', function (e) {
-            if (e.key === 'radiation') { _visible = e.visible; _render(); }
+            if (e.key === 'radiation') { _visible = e.visible; if (_visible && _data.length === 0) refresh(); _render(); }
         });
-        /* Static data — load once */
-        Fetcher.get('data/radiation-monitors.json', {
-            sourceKey: 'radiation',
-            cacheTTL: 86400000, /* 24 hours */
-            transform: _transform
-        }).then(function (data) {
-            _data = data || [];
-            App.updateLayerCount('radiation', _data.length);
-            _render();
-        });
+        if (_visible) refresh();
     }
 
     function _transform(raw) {
-        if (!raw || !Array.isArray(raw)) return [];
-        return raw.map(function (station) {
-            var reading = station.reading_nsvh || 0;
+        /* Safecast returns [{latitude, longitude, value, unit, captured_at, ...}] */
+        if (!Array.isArray(raw)) return [];
+        return raw.filter(function (m) {
+            return m.latitude && m.longitude && m.value != null;
+        }).map(function (m) {
+            var cpm = parseFloat(m.value) || 0;
+            /* Convert CPM to approx nSv/h (rough: 1 CPM ~ 10 nSv/h for typical GM tube) */
+            var nsvh = Math.round(cpm * 10);
             var status = 'normal';
-            if (reading > 500) {
-                status = 'critical';
-            } else if (reading > 300) {
-                status = 'elevated';
-            } else if (reading > 150) {
-                status = 'moderate';
-            }
+            if (nsvh > 500) status = 'critical';
+            else if (nsvh > 300) status = 'elevated';
+            else if (nsvh > 150) status = 'moderate';
             return {
-                id: station.id || Math.random().toString(36).substr(2, 9),
-                lon: station.lon || 0,
-                lat: station.lat || 0,
+                id: m.id || Math.random().toString(36).substr(2, 9),
+                lon: parseFloat(m.longitude),
+                lat: parseFloat(m.latitude),
                 type: 'radiation',
-                title: station.name || 'Monitoring station',
-                country: station.country || '',
-                reading: reading,
+                title: (m.device_id ? 'Device ' + m.device_id : 'Safecast Sensor') + ' — ' + nsvh + ' nSv/h',
+                country: '',
+                reading: nsvh,
                 unit: 'nSv/h',
                 status: status,
-                network: station.network || 'IAEA',
-                timestamp: station.last_update ? new Date(station.last_update).getTime() : Date.now()
+                network: 'Safecast',
+                timestamp: m.captured_at ? new Date(m.captured_at).getTime() : Date.now()
             };
         });
     }
@@ -85,7 +77,20 @@ var Radiation = (function () {
         KytranMap.setLayer('radiation', layer);
     }
 
-    function refresh() { /* static data, no refresh needed */ }
+    function refresh() {
+        if (!_visible) return;
+        Fetcher.get(Config.API.radiation, {
+            sourceKey: 'radiation',
+            fallbackUrl: 'data/radiation-monitors.json',
+            useCorsProxy: true,
+            cacheTTL: 600000, /* 10 min */
+            transform: _transform
+        }).then(function (data) {
+            _data = data || [];
+            App.updateLayerCount('radiation', _data.length);
+            _render();
+        });
+    }
     function getData() { return _data; }
 
     return { init: init, refresh: refresh, getData: getData };

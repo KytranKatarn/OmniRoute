@@ -24,15 +24,51 @@ var Ships = (function () {
     }
 
     function refresh() {
-        Fetcher.get('data/shipping-data.json', {
+        /* Try MarineTraffic public endpoint first, fall back to static data */
+        Fetcher.get(Config.API.ships, {
             sourceKey: 'ships',
-            cacheTTL: 600000
+            fallbackUrl: 'data/shipping-data.json',
+            useCorsProxy: true,
+            cacheTTL: 600000,
+            transform: _transformMarineTraffic
         }).then(function (data) {
-            if (!data) return;
-            _routes = data.routes || [];
-            _vessels = _generateVessels(data);
+            if (data && data.length > 0) {
+                /* Live MarineTraffic data */
+                _routes = [];
+                _vessels = data;
+            } else {
+                /* Fallback to static shipping data */
+                return Fetcher.get('data/shipping-data.json', {
+                    sourceKey: 'ships_fallback',
+                    cacheTTL: 600000
+                }).then(function (staticData) {
+                    if (!staticData) return;
+                    _routes = staticData.routes || [];
+                    _vessels = _generateVessels(staticData);
+                });
+            }
+        }).then(function () {
             App.updateLayerCount('ships', _vessels.length);
             if (_visible) _render();
+        });
+    }
+
+    function _transformMarineTraffic(data) {
+        if (!Array.isArray(data)) return [];
+        return data.filter(function (v) {
+            return v.LAT || v.lat || v.LON || v.lon;
+        }).slice(0, 500).map(function (v) {
+            return {
+                id: v.MMSI || v.mmsi || Math.random().toString(36).substr(2, 9),
+                lon: parseFloat(v.LON || v.lon || 0),
+                lat: parseFloat(v.LAT || v.lat || 0),
+                type: 'ship',
+                subtype: 'transit',
+                title: v.SHIPNAME || v.shipname || v.MMSI || 'Vessel',
+                country: v.FLAG || v.flag || '',
+                speed: v.SPEED || v.speed || 0,
+                heading: v.HEADING || v.heading || 0
+            };
         });
     }
 

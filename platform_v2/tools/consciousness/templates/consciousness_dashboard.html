@@ -2146,6 +2146,38 @@
 .ch-stats-row .ch-stat-card.ch-hero::before { opacity: 1; background: linear-gradient(90deg, transparent, #8b5cf6, transparent); }
 .ch-stats-row .ch-stat-card.ch-hero .ch-stat-value { font-size: 2.2rem; color: #F8FAFC; }
 
+/* Structural Audit cards */
+.ch-audit-card {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    padding: 1rem;
+}
+.ch-audit-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.ch-audit-score {
+    font-size: 1.4rem;
+    font-weight: 700;
+}
+.ch-audit-issues { margin-top: 0.5rem; }
+.ch-audit-issue {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.4);
+    padding: 2px 0;
+}
+.ch-audit-retired-row {
+    font-size: 0.8rem;
+    padding: 3px 0;
+    display: flex;
+    align-items: center;
+}
+
 /* Language color indicator bar */
 .ch-stat-indicator {
     width: 24px;
@@ -3171,6 +3203,11 @@
 
             <!-- Stats Row -->
             <div class="ch-stats-row">
+                <div class="ch-stat-card ch-hero" style="grid-row:span 2;">
+                    <div class="ch-stat-indicator" style="background:#10b981;"></div>
+                    <div id="chHealthScore" style="text-align:center;padding:4px 0;">—</div>
+                    <div class="ch-stat-label">HEALTH SCORE</div>
+                </div>
                 <div class="ch-stat-card ch-hero">
                     <div class="ch-stat-indicator" style="background:#22d3ee;"></div>
                     <div class="ch-stat-value" id="chTotalFiles">—</div>
@@ -3332,6 +3369,15 @@
                     Orphan Files (unmapped)
                 </div>
                 <div class="ch-table-body" id="chOrphanTable"></div>
+            </div>
+
+            <!-- Structural Audit -->
+            <div class="cs-card" style="margin-top:1rem;">
+                <div class="cs-card-title" style="display:flex;align-items:center;gap:8px;">
+                    <span class="ch-header-icon"></span>
+                    Structural Audit
+                </div>
+                <div id="chStructuralAudit" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:0.75rem;margin-top:0.75rem;"></div>
             </div>
 
             <div class="ch-section-divider"></div>

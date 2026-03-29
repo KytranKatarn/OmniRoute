@@ -2737,6 +2737,7 @@ function loadCodeHealth() {
     _renderStandaloneTable(standaloneModules, moduleStatusMap, standaloneTierMap);
     _renderWebsiteTable(websiteModules);
     _renderOrphanTable(d.orphans || {});
+    _renderStructuralAudit(d);
     _renderAuditTable(entries);
   }).catch(function(err) {
     console.error("Code health load error:", err);
@@ -2810,6 +2811,27 @@ function _renderCodeHealthStats(d) {
   var fmt = function(n) { return (n || 0).toLocaleString(); };
   setHtml("chTotalFiles", fmt(d.total_files));
   setHtml("chTotalLines", fmt(d.total_lines));
+  // Health score badge (safe DOM construction — data from our own scanner)
+  var hs = d.health_score || {};
+  var scoreEl = document.getElementById("chHealthScore");
+  if (scoreEl) {
+    scoreEl.textContent = "";
+    var score = hs.score || 0;
+    var grade = hs.grade || "?";
+    var color = score >= 90 ? "#10b981" : score >= 70 ? "#3b82f6" : score >= 50 ? "#f59e0b" : "#ef4444";
+    var numSpan = document.createElement("span");
+    numSpan.style.cssText = "font-size:2rem;font-weight:700;color:" + color;
+    numSpan.textContent = score;
+    var maxSpan = document.createElement("span");
+    maxSpan.style.cssText = "font-size:0.9rem;color:rgba(255,255,255,0.5);margin-left:4px";
+    maxSpan.textContent = "/100";
+    var gradeDiv = document.createElement("div");
+    gradeDiv.style.cssText = "font-size:1.2rem;font-weight:600;color:" + color + ";margin-top:2px";
+    gradeDiv.textContent = "Grade: " + grade;
+    scoreEl.appendChild(numSpan);
+    scoreEl.appendChild(maxSpan);
+    scoreEl.appendChild(gradeDiv);
+  }
   var langs = [
     {id: "chPythonLines", key: "python"},
     {id: "chJsLines", key: "js"},
@@ -3096,6 +3118,71 @@ function _renderOrphanTable(orphans) {
   });
   html += '</tbody></table>';
   setHtml(el, html);
+}
+
+function _renderStructuralAudit(d) {
+  var el = document.getElementById("chStructuralAudit");
+  if (!el) return;
+
+  var kbs = d.kbs_audit || {};
+  var sa = d.standalone_audit || {};
+  var retired = d.retired_modules || [];
+  var hs = d.health_score || {};
+
+  var sections = [];
+
+  // KBS Plugins
+  var kbsColor = kbs.healthy === kbs.total ? "#10b981" : "#f59e0b";
+  sections.push(
+    '<div class="ch-audit-card">' +
+    '<div class="ch-audit-title">KBS Plugins</div>' +
+    '<div class="ch-audit-score" style="color:' + kbsColor + '">' + (kbs.healthy || 0) + '/' + (kbs.total || 0) + ' healthy</div>' +
+    '</div>'
+  );
+
+  // Standalone Products
+  var saColor = sa.healthy === sa.total ? "#10b981" : sa.healthy >= sa.total - 2 ? "#3b82f6" : "#f59e0b";
+  var saIssues = (sa.issues || []).map(function(i) { return '<div class="ch-audit-issue">' + escHtml(i) + '</div>'; }).join('');
+  sections.push(
+    '<div class="ch-audit-card">' +
+    '<div class="ch-audit-title">Standalone Products</div>' +
+    '<div class="ch-audit-score" style="color:' + saColor + '">' + (sa.healthy || 0) + '/' + (sa.total || 0) + ' passing Tier 1</div>' +
+    (saIssues ? '<div class="ch-audit-issues">' + saIssues + '</div>' : '') +
+    '</div>'
+  );
+
+  // Retired Modules
+  if (retired.length > 0) {
+    var retiredRows = retired.map(function(m) {
+      var badge = m.status === 'retired' ? 'ch-badge-cyan' : 'ch-badge-amber';
+      var target = m.redirect_target ? ' &rarr; ' + escHtml(String(m.redirect_target)) : '';
+      return '<div class="ch-audit-retired-row">' +
+        '<span class="ch-badge ' + badge + '"><span class="ch-badge-dot"></span>' + escHtml(m.status) + '</span> ' +
+        '<span style="margin-left:6px">' + escHtml(m.module) + '</span>' +
+        '<span style="color:rgba(255,255,255,0.35);margin-left:6px;font-size:0.75rem">' + target + '</span>' +
+        '</div>';
+    }).join('');
+    sections.push(
+      '<div class="ch-audit-card">' +
+      '<div class="ch-audit-title">Retired Modules (' + retired.length + ')</div>' +
+      retiredRows +
+      '</div>'
+    );
+  }
+
+  // Deductions
+  var deductions = hs.deductions || [];
+  if (deductions.length > 0) {
+    var dedRows = deductions.map(function(d) { return '<div class="ch-audit-issue">' + escHtml(d) + '</div>'; }).join('');
+    sections.push(
+      '<div class="ch-audit-card">' +
+      '<div class="ch-audit-title">Score Deductions</div>' +
+      dedRows +
+      '</div>'
+    );
+  }
+
+  setHtml(el, sections.join(''));
 }
 
 window.chRunScan = function() {

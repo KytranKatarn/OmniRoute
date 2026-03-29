@@ -4545,13 +4545,13 @@ class AgentLoop:
 
                 # Also check for open high/critical proposals per module
                 cur.execute(
-                    """SELECT file_path, COUNT(*) as cnt
+                    """SELECT title, COUNT(*) as cnt
                        FROM improvement_proposals
                        WHERE status NOT IN ('deployed', 'rejected', 'archived')
-                         AND severity IN ('high', 'critical')
-                       GROUP BY file_path"""
+                         AND priority IN ('high', 'critical')
+                       GROUP BY title"""
                 )
-                proposal_files = {r["file_path"]: r["cnt"] for r in cur.fetchall()}
+                proposal_files = {r["title"]: r["cnt"] for r in cur.fetchall()}
 
             audited = 0
             clean = 0
@@ -4579,8 +4579,9 @@ class AgentLoop:
 
                 # Check proposals affecting this module
                 proposal_issues = 0
-                for fpath, cnt in proposal_files.items():
-                    if f"/tools/{module_name}/" in fpath:
+                module_clean = module_name.replace("_", " ").replace("-", " ").lower()
+                for ptitle, cnt in proposal_files.items():
+                    if module_clean in (ptitle or "").lower() or module_name in (ptitle or "").lower():
                         proposal_issues += cnt
                 if proposal_issues > 0:
                     issues_found += proposal_issues
@@ -4694,9 +4695,9 @@ class AgentLoop:
             with get_db_cursor() as (conn, cur):
                 # Get latest code metrics snapshot
                 cur.execute("""
-                    SELECT id, total_files, total_lines, snapshot_data, created_at
+                    SELECT id, total_files, total_lines, scanned_at
                     FROM code_metrics_snapshots
-                    ORDER BY created_at DESC LIMIT 1
+                    ORDER BY scanned_at DESC LIMIT 1
                 """)
                 snapshot = cur.fetchone()
 
@@ -5029,15 +5030,10 @@ class AgentLoop:
                         %s, 'agent_skills',
                         %s, 0.90
                     )
-                    ON CONFLICT ON CONSTRAINT knowledge_base_pkey DO NOTHING
+                    ON CONFLICT (title) WHERE title IS NOT NULL DO UPDATE SET
+                        content = EXCLUDED.content,
+                        updated_at = NOW()
                 """, (content, ["skill-sync", "auto-generated", "claude-rules"]))
-                # Update existing if title matches
-                cur2.execute("""
-                    UPDATE knowledge_base
-                    SET content = %s, updated_at = NOW()
-                    WHERE title = 'Claude Learned Skills Index (Auto-Generated)'
-                    AND knowledge_type = 'vault_note'
-                """, (content,))
 
             # Register newly discovered skills in github_skills table
             try:

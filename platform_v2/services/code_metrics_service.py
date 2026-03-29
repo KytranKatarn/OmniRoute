@@ -957,7 +957,7 @@ def _has_health_endpoint(product_path):
             filepath = os.path.join(root, fname)
             try:
                 with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
-                    content = f.read(10000)
+                    content = f.read(50000)
                     if "/health" in content or "/api/health" in content:
                         return True
             except Exception:

@@ -474,7 +474,7 @@ def ai_preferences():
 @login_required
 def code_editor():
     """Enhanced code editor with AI assistance"""
-    return render_template("tools/code_editor.html", ai_available=AI_BRIDGE_AVAILABLE, user=current_user)
+    return render_template("dev_pipeline/code_editor.html", ai_available=AI_BRIDGE_AVAILABLE, user=current_user)
 
 
 # ============================================================================

@@ -44,7 +44,7 @@ obsidian_vault_bp = Blueprint(
     "obsidian_vault",
     __name__,
     url_prefix="/tools/obsidian-vault",
-    template_folder="../../templates/tools",
+    template_folder="templates",
 )
 
 
@@ -77,7 +77,7 @@ def vault_dashboard():
         can_admin = has_permission(Permission.OBSIDIAN_ADMIN, current_user)
 
         return render_template(
-            "tools/obsidian_vault.html",
+            "obsidian_vault.html",
             vault_stats=vault_stats,
             indexing_stats=indexing_stats,
             watcher_status=watcher_status,
@@ -142,7 +142,7 @@ def note_editor(note_id):
         can_delete = has_permission(Permission.OBSIDIAN_DELETE, current_user)
 
         return render_template(
-            "tools/obsidian_note_editor.html",
+            "obsidian_note_editor.html",
             note=note,
             backlinks=backlinks,
             can_write=can_write,

@@ -115,7 +115,7 @@ def tools_code_editor(subpath=None):
     Code editor in sandbox mode
     """
     return render_template(
-        "tools/code_editor.html",
+        "dev_pipeline/code_editor.html",
         sandbox_mode=True,
         schema_name="sandbox",
         sandbox_prefix="/sandbox",

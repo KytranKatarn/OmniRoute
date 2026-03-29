@@ -48,7 +48,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-starbase_bp = Blueprint("starbase", __name__, url_prefix="/tools/starbase")
+starbase_bp = Blueprint("starbase", __name__, url_prefix="/tools/starbase", template_folder="templates")
 
 
 # Cache functions imported from helpers.py — single source of truth
@@ -81,7 +81,7 @@ def starbase_dashboard():
     deployment_mode = os.getenv("DEPLOYMENT_MODE", "hub")
     if deployment_mode == "business_node":
         return render_template(
-            "tools/starbase_hub.html",
+            "starbase_hub.html",
             deployment_mode=deployment_mode,
             node_id=os.getenv("NODE_ID", ""),
             hub_url=os.getenv("HUB_URL", ""),
@@ -102,7 +102,7 @@ def starbase_dashboard():
         except Exception as e:
             logger.warning("Failed to pre-fetch status bar data: %s", e)
         return render_template(
-            "tools/starbase.html",
+            "starbase.html",
             deployment_mode=deployment_mode,
             initial_agent_count=agent_count,
             initial_interactions_24h=interactions_24h,

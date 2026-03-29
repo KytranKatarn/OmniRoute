@@ -17,6 +17,16 @@ type Skill struct {
 	Source      string `json:"source"`
 }
 
+type StreamTokenMsg struct {
+	Content   string
+	Done      bool
+	SessionID string
+}
+
+type StreamStartMsg struct {
+	SessionID string
+}
+
 type ConnectedMsg struct {
 	SessionID string
 	Client    *Client

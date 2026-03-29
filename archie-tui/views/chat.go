@@ -36,6 +36,21 @@ func (c *ChatView) AddMessage(role, content string) {
 	c.Messages = append(c.Messages, ChatMessage{Role: role, Content: content})
 }
 
+// AppendToLast appends content to the last message (used for streaming tokens).
+func (c *ChatView) AppendToLast(content string) {
+	if len(c.Messages) > 0 {
+		c.Messages[len(c.Messages)-1].Content += content
+	}
+}
+
+// FinalizeLastMarkdown re-renders the last message content through glamour
+// after streaming is complete, so the full markdown is properly formatted.
+func (c *ChatView) FinalizeLastMarkdown() {
+	// No-op needed — Render() already applies glamour per-message.
+	// This method exists as an explicit signal that streaming is done
+	// and can be extended for post-processing if needed.
+}
+
 func (c *ChatView) Render() string {
 	if len(c.Messages) == 0 {
 		dim := lipgloss.NewStyle().Foreground(lipgloss.Color("#6b7280"))

@@ -37,11 +37,13 @@ type model struct {
 	skillPicker *views.SkillPicker
 	client      *Client
 	msgChan     chan EngineResponseMsg
+	streamChan  chan interface{}
 	sessionID   string
 	width       int
 	height      int
 	connected   bool
 	thinking    bool
+	streaming   bool
 	booting     bool
 	err         error
 }
@@ -63,6 +65,7 @@ func initialModel(wsURL string) model {
 	sp.Style = lipgloss.NewStyle().Foreground(ColorCyan)
 
 	ch := make(chan EngineResponseMsg, 64)
+	sch := make(chan interface{}, 256)
 
 	return model{
 		input:       ti,
@@ -72,6 +75,7 @@ func initialModel(wsURL string) model {
 		skillPicker: views.NewSkillPicker(),
 		client:      NewClient(wsURL),
 		msgChan:     ch,
+		streamChan:  sch,
 		booting:     true,
 	}
 }
@@ -91,13 +95,37 @@ func waitForEngine(ch chan EngineResponseMsg) tea.Cmd {
 	}
 }
 
+// waitForStream listens on the stream channel for streaming tokens
+func waitForStream(ch chan interface{}) tea.Cmd {
+	return func() tea.Msg {
+		return <-ch
+	}
+}
+
 func (m model) connectCmd() tea.Cmd {
 	ch := m.msgChan
+	sch := m.streamChan
 	return func() tea.Msg {
 		client := NewClient(m.client.url)
 
 		// Wire onMessage to push into the channel
 		client.SetOnMessage(func(raw map[string]interface{}) {
+			msgType, _ := raw["type"].(string)
+
+			// Route streaming messages to the stream channel
+			if msgType == "stream_token" {
+				content, _ := raw["content"].(string)
+				done, _ := raw["done"].(bool)
+				sessionID, _ := raw["session_id"].(string)
+				sch <- StreamTokenMsg{Content: content, Done: done, SessionID: sessionID}
+				return
+			}
+			if msgType == "stream_start" {
+				sessionID, _ := raw["session_id"].(string)
+				sch <- StreamStartMsg{SessionID: sessionID}
+				return
+			}
+
 			data, _ := json.Marshal(raw)
 			var msg EngineResponseMsg
 			_ = json.Unmarshal(data, &msg)
@@ -220,7 +248,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.client = msg.Client
 		}
 		m.chat.AddMessage("system", "Connected to ARCHIE Engine")
-		return m, waitForEngine(m.msgChan)
+		return m, tea.Batch(waitForEngine(m.msgChan), waitForStream(m.streamChan))
 
 	case DisconnectedMsg:
 		m.connected = false
@@ -229,6 +257,31 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.chat.AddMessage("system", fmt.Sprintf("Engine not running: %v", msg.Err))
 			m.chat.AddMessage("system", "Start engine: python -m archie_engine")
 		}
+
+	case StreamStartMsg:
+		m.thinking = false
+		m.streaming = true
+		if msg.SessionID != "" {
+			m.sessionID = msg.SessionID
+		}
+		// Add an empty assistant message that we'll append tokens to
+		m.chat.AddMessage("assistant", "")
+		return m, waitForStream(m.streamChan)
+
+	case StreamTokenMsg:
+		if msg.SessionID != "" {
+			m.sessionID = msg.SessionID
+		}
+		if msg.Content != "" {
+			m.chat.AppendToLast(msg.Content)
+		}
+		if msg.Done {
+			m.streaming = false
+			// Re-render the final message with markdown
+			m.chat.FinalizeLastMarkdown()
+			return m, waitForStream(m.streamChan)
+		}
+		return m, waitForStream(m.streamChan)
 
 	case EngineResponseMsg:
 		m.thinking = false
@@ -280,11 +333,16 @@ func (m model) View() string {
 	chatContent := m.chat.Render()
 	sections = append(sections, chatContent)
 
-	// Thinking indicator
+	// Thinking/streaming indicator
 	if m.thinking {
 		thinkStyle := lipgloss.NewStyle().Foreground(ColorCyan).Italic(true)
 		sections = append(sections, thinkStyle.Render(
 			fmt.Sprintf("  %s ARCHIE is thinking...", m.spinner.View()),
+		))
+	} else if m.streaming {
+		streamStyle := lipgloss.NewStyle().Foreground(ColorCyan).Italic(true)
+		sections = append(sections, streamStyle.Render(
+			fmt.Sprintf("  %s streaming...", m.spinner.View()),
 		))
 	}
 

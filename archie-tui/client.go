@@ -60,6 +60,10 @@ func (c *Client) Close() {
 	}
 }
 
+type RawMessage struct {
+	Data map[string]interface{}
+}
+
 func (c *Client) SetOnMessage(fn func(map[string]interface{})) {
 	c.onMessage = fn
 }

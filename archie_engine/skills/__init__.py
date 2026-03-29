@@ -36,7 +36,42 @@ class SkillRegistry:
         skill = self._skills.get(name)
         if not skill:
             return {"success": False, "response": f"Skill not found: {name}"}
+
+        # Built-in archie-stats returns real metrics without inference
+        if name == "archie-stats":
+            return self._render_stats()
+
         return await self.executor.execute(skill, args=args, context=context)
+
+    def _render_stats(self) -> dict:
+        """Render skill usage metrics from the executor's tracker."""
+        summary = self.executor.metrics.get_summary()
+        if summary["total_invocations"] == 0:
+            text = (
+                "No skills have been invoked yet this session.\n"
+                "Try /archie-commit, /archie-review, or /archie-test to get started."
+            )
+        else:
+            lines = [
+                "A.R.C.H.I.E. Skill Metrics",
+                "=" * 28,
+                "",
+                "Session Stats:",
+                f"  Skills used:     {summary['total_skills_used']}",
+                f"  Total calls:     {summary['total_invocations']}",
+                f"  Success rate:    {summary['overall_success_rate']:.1f}%",
+                f"  Most used:       /{summary['most_used']}",
+                "",
+                "Per-Skill Breakdown:",
+            ]
+            for s in summary["skills"]:
+                lines.append(
+                    f"  /{s['name']:<20s} {s['invocations']:>3d} calls  |  "
+                    f"{s['success_rate']:>5.1f}% success  |  avg {s['avg_duration_ms']:.0f}ms"
+                )
+            text = "\n".join(lines)
+
+        return {"success": True, "response": text, "skill": "archie-stats"}
 
     @staticmethod
     def parse_command(text: str) -> tuple[str, str]:

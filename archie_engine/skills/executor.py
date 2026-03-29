@@ -2,6 +2,7 @@
 
 import logging
 from archie_engine.skills.skill import Skill
+from archie_engine.skills.metrics import SkillMetricsTracker
 from archie_engine.inference import InferenceClient
 from archie_engine.tools import ToolRegistry
 
@@ -13,9 +14,12 @@ class SkillExecutor:
         self.inference = inference
         self.tools = tools
         self.default_model = default_model
+        self.metrics = SkillMetricsTracker()
 
     async def execute(self, skill: Skill, args: dict, context: dict | None = None) -> dict:
-        """Execute a skill — render template, call inference."""
+        """Execute a skill — render template, call inference, track metrics."""
+        start_time = self.metrics.record_start(skill.name)
+
         rendered = self._render_template(skill.body, args)
         system = f"You are executing the /{skill.name} skill: {skill.description}"
         messages = [
@@ -29,6 +33,7 @@ class SkillExecutor:
         try:
             result = await self.inference.chat(messages=messages, model=self.default_model)
             response = result.get("message", {}).get("content", "")
+            self.metrics.record_success(skill.name, start_time)
             return {
                 "success": True,
                 "response": response,
@@ -37,6 +42,7 @@ class SkillExecutor:
             }
         except Exception as e:
             logger.error("Skill %s execution failed: %s", skill.name, e)
+            self.metrics.record_failure(skill.name, start_time)
             return {"success": False, "response": f"Skill error: {e}", "skill": skill.name}
 
     def _render_template(self, body: str, args: dict) -> str:

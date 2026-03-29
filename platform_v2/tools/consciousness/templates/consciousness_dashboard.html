@@ -3198,198 +3198,293 @@
         <!-- ════════════════════════════════════════════════════════ -->
         <div class="cs-panel" id="panel-codehealth">
 
-            <!-- Status Summary (populated by loadCodeHealth) -->
-            <div id="chStatusSummary"></div>
-
-            <!-- Stats Row -->
-            <div class="ch-stats-row">
-                <div class="ch-stat-card ch-hero" style="grid-row:span 2;">
-                    <div class="ch-stat-indicator" style="background:#10b981;"></div>
-                    <div id="chHealthScore" style="text-align:center;padding:4px 0;">—</div>
-                    <div class="ch-stat-label">HEALTH SCORE</div>
+            <!-- ═══ SECTION 1: SYSTEM HEALTH OVERVIEW ═══ -->
+            <div class="ch-narrative-section">
+                <div class="ch-narrative-header">
+                    <span class="ch-narrative-num">01</span>
+                    <span class="ch-narrative-title">SYSTEM HEALTH</span>
+                    <span class="ch-narrative-line"></span>
                 </div>
-                <div class="ch-stat-card ch-hero">
-                    <div class="ch-stat-indicator" style="background:#22d3ee;"></div>
-                    <div class="ch-stat-value" id="chTotalFiles">—</div>
-                    <div class="ch-stat-label">TOTAL FILES</div>
-                </div>
-                <div class="ch-stat-card ch-hero">
-                    <div class="ch-stat-indicator" style="background:#8b5cf6;"></div>
-                    <div class="ch-stat-value" id="chTotalLines">—</div>
-                    <div class="ch-stat-label">TOTAL LINES</div>
-                </div>
-                <div class="ch-stat-card">
-                    <div class="ch-stat-indicator" style="background:#3b82f6;"></div>
-                    <div class="ch-stat-value" id="chPythonLines">—</div>
-                    <div class="ch-stat-label">PYTHON</div>
-                </div>
-                <div class="ch-stat-card">
-                    <div class="ch-stat-indicator" style="background:#f59e0b;"></div>
-                    <div class="ch-stat-value" id="chJsLines">—</div>
-                    <div class="ch-stat-label">JAVASCRIPT</div>
-                </div>
-                <div class="ch-stat-card">
-                    <div class="ch-stat-indicator" style="background:#ef4444;"></div>
-                    <div class="ch-stat-value" id="chHtmlLines">—</div>
-                    <div class="ch-stat-label">HTML</div>
-                </div>
-                <div class="ch-stat-card">
-                    <div class="ch-stat-indicator" style="background:#22d3ee;"></div>
-                    <div class="ch-stat-value" id="chCssLines">—</div>
-                    <div class="ch-stat-label">CSS</div>
-                </div>
-                <div class="ch-stat-card">
-                    <div class="ch-stat-indicator" style="background:#a78bfa;"></div>
-                    <div class="ch-stat-value" id="chSqlLines">—</div>
-                    <div class="ch-stat-label">SQL</div>
-                </div>
-                <div class="ch-stat-card">
-                    <div class="ch-stat-indicator" style="background:#22c55e;"></div>
-                    <div class="ch-stat-value" id="chShellLines">—</div>
-                    <div class="ch-stat-label">SHELL</div>
-                </div>
-                <div class="ch-stat-card">
-                    <div class="ch-stat-indicator" style="background:#f97316;"></div>
-                    <div class="ch-stat-value" id="chJsonLines">—</div>
-                    <div class="ch-stat-label">JSON</div>
+                <div id="chStatusSummary"></div>
+                <div class="ch-stats-row">
+                    <div class="ch-stat-card ch-hero" style="grid-row:span 2;">
+                        <div class="ch-stat-indicator" style="background:#10b981;"></div>
+                        <div id="chHealthScore" style="text-align:center;padding:4px 0;">—</div>
+                        <div class="ch-stat-label">HEALTH SCORE</div>
+                    </div>
+                    <div class="ch-stat-card ch-hero">
+                        <div class="ch-stat-indicator" style="background:#22d3ee;"></div>
+                        <div class="ch-stat-value" id="chTotalFiles">—</div>
+                        <div class="ch-stat-label">TOTAL FILES</div>
+                    </div>
+                    <div class="ch-stat-card ch-hero">
+                        <div class="ch-stat-indicator" style="background:#8b5cf6;"></div>
+                        <div class="ch-stat-value" id="chTotalLines">—</div>
+                        <div class="ch-stat-label">TOTAL LINES</div>
+                    </div>
+                    <div class="ch-stat-card">
+                        <div class="ch-stat-indicator" style="background:#3b82f6;"></div>
+                        <div class="ch-stat-value" id="chPythonLines">—</div>
+                        <div class="ch-stat-label">PYTHON</div>
+                    </div>
+                    <div class="ch-stat-card">
+                        <div class="ch-stat-indicator" style="background:#f59e0b;"></div>
+                        <div class="ch-stat-value" id="chJsLines">—</div>
+                        <div class="ch-stat-label">JAVASCRIPT</div>
+                    </div>
+                    <div class="ch-stat-card">
+                        <div class="ch-stat-indicator" style="background:#ef4444;"></div>
+                        <div class="ch-stat-value" id="chHtmlLines">—</div>
+                        <div class="ch-stat-label">HTML</div>
+                    </div>
+                    <div class="ch-stat-card">
+                        <div class="ch-stat-indicator" style="background:#22d3ee;"></div>
+                        <div class="ch-stat-value" id="chCssLines">—</div>
+                        <div class="ch-stat-label">CSS</div>
+                    </div>
+                    <div class="ch-stat-card">
+                        <div class="ch-stat-indicator" style="background:#a78bfa;"></div>
+                        <div class="ch-stat-value" id="chSqlLines">—</div>
+                        <div class="ch-stat-label">SQL</div>
+                    </div>
+                    <div class="ch-stat-card">
+                        <div class="ch-stat-indicator" style="background:#22c55e;"></div>
+                        <div class="ch-stat-value" id="chShellLines">—</div>
+                        <div class="ch-stat-label">SHELL</div>
+                    </div>
+                    <div class="ch-stat-card">
+                        <div class="ch-stat-indicator" style="background:#f97316;"></div>
+                        <div class="ch-stat-value" id="chJsonLines">—</div>
+                        <div class="ch-stat-label">JSON</div>
+                    </div>
                 </div>
             </div>
 
-            <div class="ch-section-divider"></div>
-
-            <!-- Charts Row -->
-            <div class="ch-charts-row">
-                <div class="cs-card">
-                    <div class="cs-card-title" style="display:flex;align-items:center;gap:8px;">
-                        <span class="ch-chart-card-header"><span class="ch-header-icon"></span></span>
-                        Lines by Module / Standalone / Websites
-                    </div>
-                    <div class="ch-chart-container" style="position:relative;height:420px;border-radius:8px;background:linear-gradient(180deg,rgba(15,23,42,0.6) 0%,rgba(2,6,23,0.8) 100%);padding:12px 8px 8px;margin-top:8px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.03),0 4px 20px rgba(0,0,0,0.3);overflow-y:auto;">
-                        <canvas id="chModuleChart"></canvas>
-                    </div>
+            <!-- ═══ SECTION 2: WHAT'S GOOD ═══ -->
+            <div class="ch-narrative-section">
+                <div class="ch-narrative-header">
+                    <span class="ch-narrative-num">02</span>
+                    <span class="ch-narrative-title">CODEBASE OVERVIEW</span>
+                    <span class="ch-narrative-line"></span>
                 </div>
-                <div class="cs-card">
-                    <div class="cs-card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-                        <span style="display:flex;align-items:center;gap:8px;">
-                            Lines Over Time
-                            <span style="font-size:10px;color:rgba(255,255,255,0.3);font-weight:400;letter-spacing:0;">Drag to zoom &middot; Pinch on mobile</span>
-                        </span>
-                        <div class="ch-controls" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
-                            <button onclick="chFilterHistory('1w')" class="ch-range-btn" data-range="1w">1W</button>
-                            <button onclick="chFilterHistory('1m')" class="ch-range-btn" data-range="1m">1M</button>
-                            <button onclick="chFilterHistory('3m')" class="ch-range-btn" data-range="3m">3M</button>
-                            <button onclick="chFilterHistory('all')" class="ch-range-btn active" data-range="all">ALL</button>
-                            <span class="ch-divider"></span>
-                            <button id="chMilestoneToggle" onclick="chToggleMilestones()" class="ch-milestone-btn" title="Toggle milestone markers">Milestones</button>
-                            <button onclick="chResetZoom()" class="ch-reset-btn" title="Reset zoom">&#x21ba;</button>
+                <div class="ch-charts-row">
+                    <div class="cs-card">
+                        <div class="cs-card-title" style="display:flex;align-items:center;gap:8px;">
+                            <span class="ch-chart-card-header"><span class="ch-header-icon"></span></span>
+                            Lines by Module / Standalone / Websites
+                        </div>
+                        <div class="ch-chart-container" style="position:relative;height:420px;border-radius:8px;background:linear-gradient(180deg,rgba(15,23,42,0.6) 0%,rgba(2,6,23,0.8) 100%);padding:12px 8px 8px;margin-top:8px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.03),0 4px 20px rgba(0,0,0,0.3);overflow-y:auto;">
+                            <canvas id="chModuleChart"></canvas>
                         </div>
                     </div>
-                    <div class="ch-chart-container" style="position:relative;height:420px;border-radius:8px;background:linear-gradient(180deg,rgba(15,23,42,0.6) 0%,rgba(2,6,23,0.8) 100%);padding:12px 8px 8px;margin-top:8px;">
-                        <canvas id="chHistoryChart"></canvas>
+                    <div class="cs-card">
+                        <div class="cs-card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                            <span style="display:flex;align-items:center;gap:8px;">
+                                Lines Over Time
+                                <span style="font-size:10px;color:rgba(255,255,255,0.3);font-weight:400;letter-spacing:0;">Drag to zoom &middot; Pinch on mobile</span>
+                            </span>
+                            <div class="ch-controls" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+                                <button onclick="chFilterHistory('1w')" class="ch-range-btn" data-range="1w">1W</button>
+                                <button onclick="chFilterHistory('1m')" class="ch-range-btn" data-range="1m">1M</button>
+                                <button onclick="chFilterHistory('3m')" class="ch-range-btn" data-range="3m">3M</button>
+                                <button onclick="chFilterHistory('all')" class="ch-range-btn active" data-range="all">ALL</button>
+                                <span class="ch-divider"></span>
+                                <button id="chMilestoneToggle" onclick="chToggleMilestones()" class="ch-milestone-btn" title="Toggle milestone markers">Milestones</button>
+                                <button onclick="chResetZoom()" class="ch-reset-btn" title="Reset zoom">&#x21ba;</button>
+                            </div>
+                        </div>
+                        <div class="ch-chart-container" style="position:relative;height:420px;border-radius:8px;background:linear-gradient(180deg,rgba(15,23,42,0.6) 0%,rgba(2,6,23,0.8) 100%);padding:12px 8px 8px;margin-top:8px;">
+                            <canvas id="chHistoryChart"></canvas>
+                        </div>
+                        <style>
+                            .ch-range-btn {
+                                min-width:36px;min-height:36px;padding:6px 12px;
+                                border:1px solid rgba(139,92,246,0.3);background:rgba(139,92,246,0.05);
+                                color:#8b5cf6;border-radius:8px;cursor:pointer;
+                                font-size:11px;font-weight:600;letter-spacing:0.03em;
+                                transition:all 0.2s ease;
+                            }
+                            .ch-range-btn:hover { background:rgba(139,92,246,0.15);border-color:rgba(139,92,246,0.6); }
+                            .ch-range-btn.active {
+                                background:rgba(139,92,246,0.2);border-color:#8b5cf6;
+                                box-shadow:0 0 8px rgba(139,92,246,0.3);
+                            }
+                            .ch-milestone-btn {
+                                min-height:36px;padding:6px 12px;
+                                border:1px solid rgba(245,158,11,0.3);background:rgba(245,158,11,0.05);
+                                color:#f59e0b;border-radius:8px;cursor:pointer;
+                                font-size:11px;font-weight:600;transition:all 0.2s ease;
+                            }
+                            .ch-milestone-btn:hover { background:rgba(245,158,11,0.15);border-color:rgba(245,158,11,0.6); }
+                            .ch-milestone-btn.active {
+                                background:rgba(245,158,11,0.2);border-color:#f59e0b;
+                                box-shadow:0 0 8px rgba(245,158,11,0.3);
+                            }
+                            .ch-reset-btn {
+                                min-width:36px;min-height:36px;padding:6px 10px;
+                                border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.03);
+                                color:rgba(255,255,255,0.5);border-radius:8px;cursor:pointer;
+                                font-size:14px;transition:all 0.2s ease;
+                            }
+                            .ch-reset-btn:hover { background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.8); }
+                            .ch-divider { width:1px;height:20px;background:rgba(255,255,255,0.1);margin:0 4px; }
+                            .ch-chart-container { box-shadow:inset 0 1px 0 rgba(255,255,255,0.03),0 4px 20px rgba(0,0,0,0.3); }
+                            @media (max-width:768px) {
+                                .ch-controls { gap:3px; }
+                                .ch-range-btn,.ch-milestone-btn,.ch-reset-btn { min-height:44px;min-width:44px;padding:8px 12px;font-size:12px; }
+                            }
+                            @media (max-width:480px) {
+                                .ch-controls { justify-content:center;width:100%; }
+                            }
+                        </style>
                     </div>
-                    <style>
-                        .ch-range-btn {
-                            min-width:36px;min-height:36px;padding:6px 12px;
-                            border:1px solid rgba(139,92,246,0.3);background:rgba(139,92,246,0.05);
-                            color:#8b5cf6;border-radius:8px;cursor:pointer;
-                            font-size:11px;font-weight:600;letter-spacing:0.03em;
-                            transition:all 0.2s ease;
-                        }
-                        .ch-range-btn:hover { background:rgba(139,92,246,0.15);border-color:rgba(139,92,246,0.6); }
-                        .ch-range-btn.active {
-                            background:rgba(139,92,246,0.2);border-color:#8b5cf6;
-                            box-shadow:0 0 8px rgba(139,92,246,0.3);
-                        }
-                        .ch-milestone-btn {
-                            min-height:36px;padding:6px 12px;
-                            border:1px solid rgba(245,158,11,0.3);background:rgba(245,158,11,0.05);
-                            color:#f59e0b;border-radius:8px;cursor:pointer;
-                            font-size:11px;font-weight:600;transition:all 0.2s ease;
-                        }
-                        .ch-milestone-btn:hover { background:rgba(245,158,11,0.15);border-color:rgba(245,158,11,0.6); }
-                        .ch-milestone-btn.active {
-                            background:rgba(245,158,11,0.2);border-color:#f59e0b;
-                            box-shadow:0 0 8px rgba(245,158,11,0.3);
-                        }
-                        .ch-reset-btn {
-                            min-width:36px;min-height:36px;padding:6px 10px;
-                            border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.03);
-                            color:rgba(255,255,255,0.5);border-radius:8px;cursor:pointer;
-                            font-size:14px;transition:all 0.2s ease;
-                        }
-                        .ch-reset-btn:hover { background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.8); }
-                        .ch-divider { width:1px;height:20px;background:rgba(255,255,255,0.1);margin:0 4px; }
-                        .ch-chart-container { box-shadow:inset 0 1px 0 rgba(255,255,255,0.03),0 4px 20px rgba(0,0,0,0.3); }
-                        @media (max-width:768px) {
-                            .ch-controls { gap:3px; }
-                            .ch-range-btn,.ch-milestone-btn,.ch-reset-btn { min-height:44px;min-width:44px;padding:8px 12px;font-size:12px; }
-                        }
-                        @media (max-width:480px) {
-                            .ch-controls { justify-content:center;width:100%; }
-                        }
-                    </style>
+                </div>
+                <!-- Module Breakdown Table -->
+                <div class="ch-table-card" style="margin-top:16px;">
+                    <div class="ch-table-header ch-purple">
+                        <span class="ch-header-icon"></span>
+                        Module Breakdown
+                    </div>
+                    <div class="ch-table-body" id="chModuleTable"></div>
+                </div>
+                <!-- Standalone Products -->
+                <div class="ch-table-card ch-accent-amber" style="margin-top:16px;">
+                    <div class="ch-table-header ch-amber">
+                        <span class="ch-header-icon"></span>
+                        Standalone Products
+                    </div>
+                    <div class="ch-table-body" id="chStandaloneTable"></div>
+                </div>
+                <!-- Websites -->
+                <div class="ch-table-card ch-accent-cyan" style="margin-top:16px;">
+                    <div class="ch-table-header" style="background:linear-gradient(135deg,rgba(0,229,255,0.15),rgba(0,229,255,0.05));color:#00e5ff;">
+                        <span class="ch-header-icon"></span>
+                        Websites
+                    </div>
+                    <div class="ch-table-body" id="chWebsiteTable"></div>
                 </div>
             </div>
 
-            <div class="ch-section-divider"></div>
-
-            <!-- Module Breakdown Table -->
-            <div class="ch-table-card">
-                <div class="ch-table-header ch-purple">
-                    <span class="ch-header-icon"></span>
-                    Module Breakdown
+            <!-- ═══ SECTION 3: WHAT NEEDS ATTENTION ═══ -->
+            <div class="ch-narrative-section">
+                <div class="ch-narrative-header">
+                    <span class="ch-narrative-num">03</span>
+                    <span class="ch-narrative-title">NEEDS ATTENTION</span>
+                    <span class="ch-narrative-line"></span>
                 </div>
-                <div class="ch-table-body" id="chModuleTable"></div>
+                <div id="chAttentionItems"></div>
+                <!-- Orphan Files -->
+                <div class="ch-table-card ch-accent-red" style="margin-top:16px;" id="chOrphanSection">
+                    <div class="ch-table-header ch-red">
+                        <span class="ch-header-icon"></span>
+                        Orphan Files (unmapped)
+                    </div>
+                    <div class="ch-table-body" id="chOrphanTable"></div>
+                </div>
+                <!-- Structural Audit -->
+                <div class="cs-card" style="margin-top:1rem;">
+                    <div class="cs-card-title" style="display:flex;align-items:center;gap:8px;">
+                        <span class="ch-header-icon"></span>
+                        Structural Audit
+                    </div>
+                    <div id="chStructuralAudit" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:0.75rem;margin-top:0.75rem;"></div>
+                </div>
+                <!-- Audit Progress -->
+                <div class="ch-table-card ch-accent-cyan" style="margin-top:16px;">
+                    <div class="ch-table-header ch-cyan">
+                        <span class="ch-header-icon"></span>
+                        Audit Progress
+                    </div>
+                    <div class="ch-table-body" id="chAuditTable"></div>
+                </div>
             </div>
 
-            <div class="ch-section-divider"></div>
-
-            <!-- Standalone Products -->
-            <div class="ch-table-card ch-accent-amber">
-                <div class="ch-table-header ch-amber">
-                    <span class="ch-header-icon"></span>
-                    Standalone Products
+            <!-- ═══ SECTION 4: REPAIR BAY PIPELINE ═══ -->
+            <div class="ch-narrative-section">
+                <div class="ch-narrative-header">
+                    <span class="ch-narrative-num">04</span>
+                    <span class="ch-narrative-title">REPAIR BAY PIPELINE</span>
+                    <span class="ch-narrative-line"></span>
+                    <a href="/tools/dev-pipeline" class="ch-narrative-action">Open Repair Bay</a>
                 </div>
-                <div class="ch-table-body" id="chStandaloneTable"></div>
+                <div id="chRepairBayPipeline">
+                    <div style="padding:2rem;text-align:center;color:rgba(255,255,255,0.3);font-size:0.85rem;">Loading pipeline data...</div>
+                </div>
             </div>
 
-            <!-- Website Products -->
-            <div class="ch-table-card ch-accent-cyan" style="margin-top:16px;">
-                <div class="ch-table-header" style="background:linear-gradient(135deg,rgba(0,229,255,0.15),rgba(0,229,255,0.05));color:#00e5ff;">
-                    <span class="ch-header-icon"></span>
-                    Websites
-                </div>
-                <div class="ch-table-body" id="chWebsiteTable"></div>
-            </div>
-
-            <!-- Orphan Files -->
-            <div class="ch-table-card ch-accent-red" style="margin-top:16px;">
-                <div class="ch-table-header ch-red">
-                    <span class="ch-header-icon"></span>
-                    Orphan Files (unmapped)
-                </div>
-                <div class="ch-table-body" id="chOrphanTable"></div>
-            </div>
-
-            <!-- Structural Audit -->
-            <div class="cs-card" style="margin-top:1rem;">
-                <div class="cs-card-title" style="display:flex;align-items:center;gap:8px;">
-                    <span class="ch-header-icon"></span>
-                    Structural Audit
-                </div>
-                <div id="chStructuralAudit" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:0.75rem;margin-top:0.75rem;"></div>
-            </div>
-
-            <div class="ch-section-divider"></div>
-
-            <!-- Audit Progress -->
-            <div class="ch-table-card ch-accent-cyan">
-                <div class="ch-table-header ch-cyan">
-                    <span class="ch-header-icon"></span>
-                    Audit Progress
-                </div>
-                <div class="ch-table-body" id="chAuditTable"></div>
-            </div>
+            <style>
+                .ch-narrative-section { margin-bottom:2rem; }
+                .ch-narrative-header {
+                    display:flex;align-items:center;gap:12px;margin-bottom:1rem;padding-bottom:0.5rem;
+                    border-bottom:1px solid rgba(139,92,246,0.15);
+                }
+                .ch-narrative-num {
+                    font-family:'Orbitron',monospace;font-size:0.7rem;font-weight:700;
+                    color:#8b5cf6;background:rgba(139,92,246,0.1);
+                    padding:4px 10px;border-radius:4px;letter-spacing:0.1em;
+                }
+                .ch-narrative-title {
+                    font-family:'Antonio',sans-serif;font-size:0.9rem;font-weight:600;
+                    color:rgba(255,255,255,0.7);letter-spacing:0.15em;text-transform:uppercase;
+                }
+                .ch-narrative-line { flex:1;height:1px;background:rgba(139,92,246,0.1); }
+                .ch-narrative-action {
+                    font-size:0.75rem;font-weight:600;color:#00e5ff;text-decoration:none;
+                    padding:4px 12px;border:1px solid rgba(0,229,255,0.3);border-radius:6px;
+                    transition:all 0.2s;
+                }
+                .ch-narrative-action:hover { background:rgba(0,229,255,0.1);border-color:#00e5ff; }
+                .ch-pipeline-flow {
+                    display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:1rem;
+                }
+                .ch-pipeline-card {
+                    background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);
+                    border-radius:8px;padding:12px;text-align:center;position:relative;
+                }
+                .ch-pipeline-card::after {
+                    content:'\2192';position:absolute;right:-10px;top:50%;transform:translateY(-50%);
+                    color:rgba(255,255,255,0.15);font-size:1.2rem;
+                }
+                .ch-pipeline-card:last-child::after { display:none; }
+                .ch-pipeline-count {
+                    font-size:1.8rem;font-weight:700;font-family:'Orbitron',monospace;
+                }
+                .ch-pipeline-label {
+                    font-size:0.65rem;text-transform:uppercase;letter-spacing:0.1em;
+                    color:rgba(255,255,255,0.4);margin-top:4px;
+                }
+                .ch-pipeline-detail {
+                    font-size:0.6rem;color:rgba(255,255,255,0.25);margin-top:4px;
+                }
+                .ch-governance-table {
+                    width:100%;border-collapse:collapse;margin-top:0.75rem;
+                }
+                .ch-governance-table th {
+                    text-align:left;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.1em;
+                    color:rgba(255,255,255,0.35);padding:6px 10px;
+                    border-bottom:1px solid rgba(255,255,255,0.06);
+                }
+                .ch-governance-table td {
+                    font-size:0.8rem;color:rgba(255,255,255,0.6);padding:8px 10px;
+                    border-bottom:1px solid rgba(255,255,255,0.03);
+                }
+                .ch-attention-card {
+                    display:flex;align-items:center;justify-content:space-between;
+                    padding:10px 14px;background:rgba(255,255,255,0.03);
+                    border:1px solid rgba(255,255,255,0.06);border-radius:8px;
+                    margin-bottom:8px;
+                }
+                .ch-attention-card .ch-attn-label {
+                    font-size:0.8rem;color:rgba(255,255,255,0.7);
+                }
+                .ch-attention-card .ch-attn-count {
+                    font-size:0.85rem;font-weight:600;margin-right:auto;margin-left:8px;
+                }
+                .ch-attention-card .ch-attn-action {
+                    font-size:0.7rem;font-weight:600;padding:4px 10px;border-radius:4px;
+                    cursor:pointer;border:1px solid;transition:all 0.2s;
+                }
+            </style>
 
         </div>
 

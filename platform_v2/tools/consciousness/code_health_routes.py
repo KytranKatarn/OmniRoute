@@ -368,3 +368,82 @@ def register_code_health_routes(bp, admin_required):
                 "retired_modules": retired_modules,
             }
         )
+
+    @bp.route("/api/code-health/repair-pipeline")
+    @login_required
+    @admin_required
+    def code_health_repair_pipeline():
+        """Aggregate Repair Bay data for Code Health integration."""
+        try:
+            with get_db_cursor() as (conn, cur):
+                # Repair queue stats by status
+                cur.execute(
+                    """
+                    SELECT status, COUNT(*) as count
+                    FROM repair_queue
+                    GROUP BY status
+                """
+                )
+                queue_by_status = {r["status"]: r["count"] for r in cur.fetchall()}
+
+                # Repair queue by severity (pending/triaged only)
+                cur.execute(
+                    """
+                    SELECT severity, COUNT(*) as count
+                    FROM repair_queue
+                    WHERE status IN ('pending', 'triaged', 'in_progress')
+                    GROUP BY severity
+                """
+                )
+                queue_by_severity = {r["severity"]: r["count"] for r in cur.fetchall()}
+
+                # Proposal stats by status
+                cur.execute(
+                    """
+                    SELECT status, COUNT(*) as count
+                    FROM improvement_proposals
+                    GROUP BY status
+                """
+                )
+                proposals_by_status = {r["status"]: r["count"] for r in cur.fetchall()}
+
+                # Recent governance actions (self-healing)
+                cur.execute(
+                    """
+                    SELECT event_category, action, details, timestamp,
+                           agent_id, reason
+                    FROM governance_audit_log
+                    WHERE event_category = 'forge_self_heal'
+                    ORDER BY timestamp DESC
+                    LIMIT 10
+                """
+                )
+                governance = [
+                    {
+                        "event": r["event_category"],
+                        "action": r["action"],
+                        "details": r["details"],
+                        "reason": r["reason"],
+                        "timestamp": r["timestamp"].isoformat() if r["timestamp"] else None,
+                    }
+                    for r in cur.fetchall()
+                ]
+
+            return jsonify(
+                {
+                    "success": True,
+                    "queue": {
+                        "by_status": queue_by_status,
+                        "by_severity": queue_by_severity,
+                        "total": sum(queue_by_status.values()),
+                    },
+                    "proposals": {
+                        "by_status": proposals_by_status,
+                        "total": sum(proposals_by_status.values()),
+                    },
+                    "governance": governance,
+                    "repair_bay_url": "/tools/dev-pipeline",
+                }
+            )
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e), "queue": {}, "proposals": {}, "governance": []})

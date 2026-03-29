@@ -2671,12 +2671,14 @@ function loadCodeHealth() {
     api("/api/code-health/current"),
     api("/api/code-health/audit-log"),
     api("/api/code-health/module-status").catch(function() { return {modules: [], summary: {}}; }),
-    api("/api/code-health/standalone-status").catch(function() { return {standalones: []}; })
+    api("/api/code-health/standalone-status").catch(function() { return {standalones: []}; }),
+    api("/api/code-health/repair-pipeline").catch(function() { return {success: false, queue: {}, proposals: {}, governance: []}; })
   ]).then(function(results) {
     var d = results[0];
     var auditData = results[1];
     var statusData = results[2];
     var standaloneStatusData = results[3];
+    var repairData = results[4];
     var entries = auditData.entries || [];
     window._chAuditEntries = entries;
 
@@ -2738,8 +2740,10 @@ function loadCodeHealth() {
     _renderStandaloneTable(standaloneModules, moduleStatusMap, standaloneTierMap);
     _renderWebsiteTable(websiteModules);
     _renderOrphanTable(d.orphans || {});
+    _renderAttentionItems(statusData.summary || {}, d.orphans || {}, d);
     _renderStructuralAudit(d);
     _renderAuditTable(entries);
+    _renderRepairBayPipeline(repairData);
   }).catch(function(err) {
     console.error("Code health load error:", err);
   });
@@ -2766,6 +2770,7 @@ function _renderCodeHealthSummaryBar(summary, counts) {
   var g = summary.green || 0;
   var y = summary.yellow || 0;
   var r = summary.red || 0;
+  window._chUnauditedCount = r;
   var total = g + y + r;
 
   // Build summary bar using safe DOM methods
@@ -2774,7 +2779,7 @@ function _renderCodeHealthSummaryBar(summary, counts) {
 
   var label = document.createElement("span");
   label.style.cssText = "font-size:0.8rem;color:rgba(255,255,255,0.5);margin-right:0.5rem;";
-  label.textContent = "Module Health";
+  label.textContent = "System Health";
   el.appendChild(label);
 
   var items = [
@@ -2832,6 +2837,15 @@ function _renderCodeHealthStats(d) {
     scoreEl.appendChild(numSpan);
     scoreEl.appendChild(maxSpan);
     scoreEl.appendChild(gradeDiv);
+    // Show unaudited warning if applicable
+    var deductions = hs.deductions || [];
+    var unaudited = window._chUnauditedCount || 0;
+    if (unaudited > 0 || deductions.length > 0) {
+      var warnDiv = document.createElement("div");
+      warnDiv.style.cssText = "font-size:0.6rem;color:#f59e0b;margin-top:4px;opacity:0.8;";
+      warnDiv.textContent = unaudited > 0 ? unaudited + " modules not audited" : deductions.length + " deduction(s)";
+      scoreEl.appendChild(warnDiv);
+    }
   }
   var langs = [
     {id: "chPythonLines", key: "python"},
@@ -2857,6 +2871,222 @@ function _renderCodeHealthStats(d) {
       sub.textContent = fmt(data.files) + " files";
     }
   });
+}
+
+function _renderAttentionItems(summary, orphans, d) {
+  var el = document.getElementById("chAttentionItems");
+  if (!el) return;
+  while (el.firstChild) el.removeChild(el.firstChild);
+
+  var items = [];
+  var r = summary.red || 0;
+  var y = summary.yellow || 0;
+  if (r > 0) items.push({label: "Unaudited modules", count: r, color: "#ef4444", action: "Scan", actionColor: "#ef4444"});
+  if (y > 0) items.push({label: "Stale audits (needs re-scan)", count: y, color: "#f59e0b", action: "Re-scan", actionColor: "#f59e0b"});
+
+  var orphanTotal = (orphans.templates || 0) + (orphans.js || 0) + (orphans.css || 0);
+  if (orphanTotal > 0) items.push({label: "Orphan files (unmapped)", count: orphanTotal, color: "#f97316", action: "Review", actionColor: "#f97316"});
+
+  // KBS / standalone issues from structural audit
+  var hs = d.health_score || {};
+  var deductions = hs.deductions || [];
+  deductions.forEach(function(ded) {
+    items.push({label: ded.reason || ded, count: "-" + (ded.points || "?"), color: "#ef4444", action: null, actionColor: null});
+  });
+
+  if (items.length === 0) {
+    var allGood = document.createElement("div");
+    allGood.style.cssText = "padding:1rem;text-align:center;color:#10b981;font-size:0.85rem;font-weight:600;background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.15);border-radius:8px;";
+    allGood.textContent = "All clear — no issues detected";
+    el.appendChild(allGood);
+    // Hide orphan section if empty
+    var orphSec = document.getElementById("chOrphanSection");
+    if (orphSec && orphanTotal === 0) orphSec.style.display = "none";
+    return;
+  }
+
+  items.forEach(function(item) {
+    var card = document.createElement("div");
+    card.className = "ch-attention-card";
+    card.style.borderLeftColor = item.color;
+    card.style.borderLeftWidth = "3px";
+
+    var label = document.createElement("span");
+    label.className = "ch-attn-label";
+    label.textContent = item.label;
+    card.appendChild(label);
+
+    var count = document.createElement("span");
+    count.className = "ch-attn-count";
+    count.style.color = item.color;
+    count.textContent = item.count;
+    card.appendChild(count);
+
+    if (item.action) {
+      var btn = document.createElement("button");
+      btn.className = "ch-attn-action";
+      btn.style.color = item.actionColor;
+      btn.style.borderColor = item.actionColor;
+      btn.style.background = "rgba(255,255,255,0.03)";
+      btn.textContent = item.action;
+      btn.onclick = function() { window.location.href = "/tools/dev-pipeline"; };
+      card.appendChild(btn);
+    }
+
+    el.appendChild(card);
+  });
+
+  // Hide orphan section if no orphans (already shown in attention items)
+  var orphSec = document.getElementById("chOrphanSection");
+  if (orphSec && orphanTotal === 0) orphSec.style.display = "none";
+}
+
+function _renderRepairBayPipeline(data) {
+  var el = document.getElementById("chRepairBayPipeline");
+  if (!el) return;
+  while (el.firstChild) el.removeChild(el.firstChild);
+
+  if (!data || !data.success) {
+    var msg = document.createElement("div");
+    msg.style.cssText = "padding:1.5rem;text-align:center;color:rgba(255,255,255,0.3);font-size:0.85rem;";
+    msg.textContent = "Repair Bay data unavailable";
+    el.appendChild(msg);
+    return;
+  }
+
+  var qStatus = data.queue && data.queue.by_status ? data.queue.by_status : {};
+  var qSeverity = data.queue && data.queue.by_severity ? data.queue.by_severity : {};
+  var pStatus = data.proposals && data.proposals.by_status ? data.proposals.by_status : {};
+
+  // Pipeline flow cards
+  var flow = document.createElement("div");
+  flow.className = "ch-pipeline-flow";
+
+  var stages = [
+    {label: "PENDING", count: qStatus.pending || 0, color: "#f59e0b", detail: _severityDetail(qSeverity)},
+    {label: "TRIAGED", count: qStatus.triaged || 0, color: "#3b82f6", detail: ""},
+    {label: "IN PROGRESS", count: qStatus.in_progress || 0, color: "#8b5cf6", detail: ""},
+    {label: "DEPLOYED", count: qStatus.deployed || 0, color: "#10b981", detail: ""}
+  ];
+
+  stages.forEach(function(s) {
+    var card = document.createElement("div");
+    card.className = "ch-pipeline-card";
+
+    var num = document.createElement("div");
+    num.className = "ch-pipeline-count";
+    num.style.color = s.color;
+    num.textContent = s.count;
+    card.appendChild(num);
+
+    var lbl = document.createElement("div");
+    lbl.className = "ch-pipeline-label";
+    lbl.textContent = s.label;
+    card.appendChild(lbl);
+
+    if (s.detail) {
+      var det = document.createElement("div");
+      det.className = "ch-pipeline-detail";
+      det.textContent = s.detail;
+      card.appendChild(det);
+    }
+
+    flow.appendChild(card);
+  });
+  el.appendChild(flow);
+
+  // Proposals summary
+  var pTotal = data.proposals ? data.proposals.total || 0 : 0;
+  if (pTotal > 0 || Object.keys(pStatus).length > 0) {
+    var propRow = document.createElement("div");
+    propRow.style.cssText = "display:flex;gap:12px;flex-wrap:wrap;margin-bottom:1rem;padding:10px 14px;background:rgba(139,92,246,0.05);border:1px solid rgba(139,92,246,0.12);border-radius:8px;";
+
+    var propLabel = document.createElement("span");
+    propLabel.style.cssText = "font-size:0.75rem;color:rgba(255,255,255,0.4);font-weight:600;text-transform:uppercase;letter-spacing:0.1em;";
+    propLabel.textContent = "Proposals";
+    propRow.appendChild(propLabel);
+
+    Object.keys(pStatus).forEach(function(k) {
+      var chip = document.createElement("span");
+      chip.style.cssText = "font-size:0.8rem;color:rgba(255,255,255,0.6);";
+      chip.textContent = pStatus[k] + " " + k;
+      propRow.appendChild(chip);
+    });
+
+    el.appendChild(propRow);
+  }
+
+  // Governance actions table
+  var govActions = data.governance || [];
+  if (govActions.length > 0) {
+    var tableWrap = document.createElement("div");
+    tableWrap.style.cssText = "overflow-x:auto;";
+
+    var table = document.createElement("table");
+    table.className = "ch-governance-table";
+
+    var thead = document.createElement("thead");
+    var hrow = document.createElement("tr");
+    ["Action", "Details", "When"].forEach(function(h) {
+      var th = document.createElement("th");
+      th.textContent = h;
+      hrow.appendChild(th);
+    });
+    thead.appendChild(hrow);
+    table.appendChild(thead);
+
+    var tbody = document.createElement("tbody");
+    govActions.forEach(function(g) {
+      var row = document.createElement("tr");
+
+      var tdAction = document.createElement("td");
+      tdAction.style.cssText = "color:#f59e0b;font-weight:600;font-size:0.75rem;white-space:nowrap;";
+      tdAction.textContent = (g.event || "").replace(/_/g, " ");
+      row.appendChild(tdAction);
+
+      var tdDetails = document.createElement("td");
+      var details = g.details || "";
+      if (typeof details === "object") details = JSON.stringify(details);
+      tdDetails.textContent = details.length > 80 ? details.substring(0, 80) + "..." : details;
+      row.appendChild(tdDetails);
+
+      var tdWhen = document.createElement("td");
+      tdWhen.style.cssText = "white-space:nowrap;color:rgba(255,255,255,0.35);font-size:0.75rem;";
+      tdWhen.textContent = g.timestamp ? _timeAgo(new Date(g.timestamp)) : "—";
+      row.appendChild(tdWhen);
+
+      tbody.appendChild(row);
+    });
+    table.appendChild(tbody);
+    tableWrap.appendChild(table);
+    el.appendChild(tableWrap);
+  } else {
+    var noGov = document.createElement("div");
+    noGov.style.cssText = "padding:1rem;text-align:center;color:rgba(255,255,255,0.25);font-size:0.8rem;";
+    noGov.textContent = "No self-healing actions recorded yet";
+    el.appendChild(noGov);
+  }
+}
+
+function _severityDetail(sev) {
+  if (!sev) return "";
+  var parts = [];
+  if (sev.critical) parts.push(sev.critical + " crit");
+  if (sev.high) parts.push(sev.high + " high");
+  if (sev.medium) parts.push(sev.medium + " med");
+  if (sev.low) parts.push(sev.low + " low");
+  return parts.join(", ");
+}
+
+function _timeAgo(date) {
+  var secs = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (secs < 60) return secs + "s ago";
+  var mins = Math.floor(secs / 60);
+  if (mins < 60) return mins + "m ago";
+  var hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + "h ago";
+  var days = Math.floor(hrs / 24);
+  return days + "d ago";
 }
 
 function _renderModuleChart(modules, displayNames) {

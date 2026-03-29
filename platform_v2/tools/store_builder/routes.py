@@ -11,7 +11,7 @@ Author: A.R.C.H.I.E. Platform
 Date: 2026-01-12
 """
 
-from flask import Blueprint, render_template, request, jsonify, current_app
+from flask import Blueprint, redirect, render_template, request, jsonify, current_app
 from flask_login import login_required, current_user
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -72,91 +72,13 @@ def get_db_connection():
 @store_builder_bp.route("/")
 @login_required
 def index():
-    """Main Store Builder interface"""
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+    """Store Builder — redirects to Kytran Business Suite.
 
-        # Get user's stores with stats
-        if is_admin_user():
-            cur.execute(
-                """
-                SELECT s.*, u.username as owner_name,
-                       COUNT(DISTINCT p.id) as product_count,
-                       COUNT(DISTINCT o.id) as order_count,
-                       COALESCE(SUM(o.total) FILTER (WHERE o.payment_status = 'paid'), 0) as revenue
-                FROM user_stores s
-                LEFT JOIN users u ON s.user_id = u.id
-                LEFT JOIN store_products p ON s.id = p.store_id
-                LEFT JOIN store_orders o ON s.id = o.store_id
-                GROUP BY s.id, u.username
-                ORDER BY s.updated_at DESC
-            """
-            )
-        else:
-            cur.execute(
-                """
-                SELECT s.*,
-                       COUNT(DISTINCT p.id) as product_count,
-                       COUNT(DISTINCT o.id) as order_count,
-                       COALESCE(SUM(o.total) FILTER (WHERE o.payment_status = 'paid'), 0) as revenue
-                FROM user_stores s
-                LEFT JOIN store_products p ON s.id = p.store_id
-                LEFT JOIN store_orders o ON s.id = o.store_id
-                WHERE s.user_id = %s
-                GROUP BY s.id
-                ORDER BY s.updated_at DESC
-            """,
-                (current_user.id,),
-            )
-
-        stores = cur.fetchall()
-
-        # Get user's payment integrations
-        cur.execute(
-            """
-            SELECT * FROM user_integrations
-            WHERE user_id = %s AND service IN ('stripe', 'paypal', 'printful')
-        """,
-            (current_user.id,),
-        )
-        integrations = {row["service"]: row for row in cur.fetchall()}
-
-        # Get recent orders summary
-        cur.execute(
-            """
-            SELECT COUNT(*) as total,
-                   COUNT(*) FILTER (WHERE status = 'pending') as pending,
-                   COALESCE(SUM(total) FILTER (WHERE payment_status = 'paid'), 0) as revenue
-            FROM store_orders
-            WHERE user_id = %s AND created_at > NOW() - INTERVAL '30 days'
-        """,
-            (current_user.id,),
-        )
-        order_stats = cur.fetchone()
-
-        return render_template(
-            "store_builder.html",
-            stores=stores,
-            integrations=integrations,
-            order_stats=order_stats,
-            is_admin=is_admin_user(),
-        )
-    except Exception as e:
-        current_app.logger.error(f"[StoreBuilder] Error loading: {e}")
-        return render_template(
-            "store_builder.html",
-            stores=[],
-            integrations={},
-            order_stats={"total": 0, "pending": 0, "revenue": 0},
-            error=str(e),
-        )
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
+    The Store Builder has been consolidated into KBS (kbs_store plugin).
+    This route keeps the ARCHIE module tile functional as a launch link.
+    """
+    KBS_URL = os.getenv("KBS_BASE_URL", "http://192.168.1.200:8091")
+    return redirect(f"{KBS_URL}/plugins/store/")
 
 
 # ============================================================================

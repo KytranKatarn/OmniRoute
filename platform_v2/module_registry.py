@@ -605,7 +605,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="store_builder",
         name="Store Builder",
-        description="Launch your online store<br>Product catalog • Stripe payments • Order management",
+        description="Online store (now in Kytran Business Suite)<br>Product catalog • Stripe payments • Printful fulfillment",
         icon="shopping-cart",
         category=ModuleCategory.SAAS_SERVICES,
         route="/tools/store-builder",

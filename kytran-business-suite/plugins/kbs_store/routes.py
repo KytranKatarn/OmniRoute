@@ -1,7 +1,8 @@
-"""Store plugin routes — products, orders, categories, stats."""
+"""Store plugin routes — products, orders, categories, stats, embed, preview."""
 
 import json as _json
 import logging
+import os
 import uuid
 
 from flask import g, jsonify, render_template, request
@@ -13,6 +14,8 @@ from core.event_bus import event_bus
 from core.printful_client import get_printful_client
 from core.stripe_checkout import create_order_checkout_session
 from core.tenant import require_module
+
+_BASE_URL = os.getenv("KBS_BASE_URL", "https://app.kytranempowerment.com")
 
 logger = logging.getLogger(__name__)
 
@@ -734,6 +737,402 @@ def register_routes(bp):
             product = cur.fetchone()
 
         return jsonify(product)
+
+
+    # ------------------------------------------------------------------
+    # Embed Code & Storefront Config
+    # ------------------------------------------------------------------
+
+    @bp.route("/api/embed-code", methods=["GET"])
+    @login_required
+    @require_module("store")
+    def embed_code():
+        """Generate an embeddable iFrame snippet for the public storefront."""
+        width = request.args.get("width", "100%")
+        height = request.args.get("height", "800px")
+        theme = request.args.get("theme", "light")
+
+        # Build public storefront URL from tenant slug
+        with get_db_cursor(commit=False, dict_cursor=True) as (conn, cur):
+            cur.execute(
+                "SELECT slug, name FROM tenants WHERE id = %s",
+                (g.tenant_id,),
+            )
+            tenant = cur.fetchone()
+
+        if not tenant:
+            return jsonify({"error": "tenant not found"}), 404
+
+        storefront_url = f"{_BASE_URL}/store/public/products?theme={theme}"
+
+        iframe_code = (
+            f'<iframe src="{storefront_url}" '
+            f'width="{width}" height="{height}" '
+            f'frameborder="0" style="border:none; border-radius:8px;" '
+            f'title="{tenant["name"]} Store" '
+            f'allow="payment"></iframe>'
+        )
+
+        snippet = (
+            f'<!-- {tenant["name"]} Store Widget -->\n'
+            f'<div id="kbs-store-embed">\n'
+            f"  {iframe_code}\n"
+            f"</div>"
+        )
+
+        return jsonify({
+            "embed_code": snippet,
+            "storefront_url": storefront_url,
+            "instructions": (
+                "Paste this HTML snippet into your website where you want the store to appear. "
+                "Adjust width and height as needed. The store will handle checkout via Stripe."
+            ),
+            "options": {
+                "width": width,
+                "height": height,
+                "theme": theme,
+            },
+        })
+
+    @bp.route("/api/storefront-config", methods=["GET"])
+    @login_required
+    @require_module("store")
+    def storefront_config():
+        """Return tenant store branding and configuration."""
+        with get_db_cursor(commit=False, dict_cursor=True) as (conn, cur):
+            set_tenant_search_path(cur, g.tenant_id)
+
+            # Tenant info
+            cur.execute(
+                "SELECT name, slug, settings FROM tenants WHERE id = %s",
+                (g.tenant_id,),
+            )
+            tenant = cur.fetchone() or {}
+
+            # Product stats
+            cur.execute(
+                "SELECT COUNT(*) AS total FROM store_products WHERE status = 'active'"
+            )
+            product_count = cur.fetchone()["total"]
+
+            # Category list
+            cur.execute(
+                "SELECT name FROM store_categories ORDER BY sort_order, name"
+            )
+            categories = [r["name"] for r in cur.fetchall()]
+
+        settings = tenant.get("settings", {}) or {}
+
+        return jsonify({
+            "store_name": tenant.get("name", ""),
+            "slug": tenant.get("slug", ""),
+            "logo_url": settings.get("logo_url", ""),
+            "accent_color": settings.get("accent_color", "#00e5ff"),
+            "currency": settings.get("currency", "CAD"),
+            "description": settings.get("store_description", ""),
+            "product_count": product_count,
+            "categories": categories,
+        })
+
+    # ------------------------------------------------------------------
+    # Admin Store Preview
+    # ------------------------------------------------------------------
+
+    @bp.route("/preview", methods=["GET"])
+    @login_required
+    @require_module("store")
+    def preview():
+        """Preview the public storefront as a customer would see it."""
+        with get_db_cursor(commit=False, dict_cursor=True) as (conn, cur):
+            set_tenant_search_path(cur, g.tenant_id)
+
+            cur.execute(
+                """
+                SELECT id, name, description, price, compare_at_price,
+                       category, images, inventory_count
+                FROM store_products
+                WHERE status = 'active'
+                ORDER BY created_at DESC
+                LIMIT 50
+                """
+            )
+            products = cur.fetchall()
+
+            cur.execute(
+                "SELECT name FROM store_categories ORDER BY sort_order, name"
+            )
+            categories = [r["name"] for r in cur.fetchall()]
+
+            # Tenant branding
+            cur.execute(
+                "SELECT name, settings FROM tenants WHERE id = %s",
+                (g.tenant_id,),
+            )
+            tenant = cur.fetchone() or {}
+
+        settings = tenant.get("settings", {}) or {}
+
+        return render_template(
+            "store_preview.html",
+            products=products,
+            categories=categories,
+            store_name=tenant.get("name", "Store"),
+            accent_color=settings.get("accent_color", "#00e5ff"),
+            currency=settings.get("currency", "CAD"),
+            preview_mode=True,
+        )
+
+    # ------------------------------------------------------------------
+    # Integration Management (per-tenant Stripe/Printful keys)
+    # ------------------------------------------------------------------
+
+    @bp.route("/api/integrations", methods=["GET"])
+    @login_required
+    @require_module("store")
+    def list_integrations():
+        """List configured integrations for this tenant."""
+        with get_db_cursor(commit=False, dict_cursor=True) as (conn, cur):
+            set_tenant_search_path(cur, g.tenant_id)
+            cur.execute(
+                """
+                SELECT id, service, status,
+                       CASE WHEN credentials != '{}'::jsonb THEN TRUE ELSE FALSE END AS configured,
+                       created_at, updated_at
+                FROM tenant_integrations
+                ORDER BY service
+                """
+            )
+            integrations = cur.fetchall()
+
+        return jsonify({"integrations": integrations})
+
+    @bp.route("/api/integrations/<service>", methods=["GET"])
+    @login_required
+    @require_module("store")
+    def get_integration(service):
+        """Get integration status (credentials are masked)."""
+        if service not in ("stripe", "printful"):
+            return jsonify({"error": "unsupported service"}), 400
+
+        with get_db_cursor(commit=False, dict_cursor=True) as (conn, cur):
+            set_tenant_search_path(cur, g.tenant_id)
+            cur.execute(
+                "SELECT id, service, credentials, status, created_at, updated_at FROM tenant_integrations WHERE service = %s",
+                (service,),
+            )
+            row = cur.fetchone()
+
+        if not row:
+            return jsonify({"service": service, "configured": False, "status": "inactive"})
+
+        # Mask credentials — only show last 4 chars of keys
+        creds = row["credentials"] or {}
+        if isinstance(creds, str):
+            creds = _json.loads(creds)
+        masked = {}
+        for key, val in creds.items():
+            if isinstance(val, str) and len(val) > 8:
+                masked[key] = "****" + val[-4:]
+            else:
+                masked[key] = "****" if val else ""
+
+        return jsonify({
+            "service": service,
+            "configured": True,
+            "status": row["status"],
+            "credentials": masked,
+            "updated_at": row["updated_at"],
+        })
+
+    @bp.route("/api/integrations/<service>", methods=["PUT"])
+    @login_required
+    @require_module("store")
+    def save_integration(service):
+        """Save or update integration credentials for this tenant."""
+        if service not in ("stripe", "printful"):
+            return jsonify({"error": "unsupported service"}), 400
+
+        data = request.get_json(force=True)
+        credentials = data.get("credentials", {})
+
+        # Validate required fields per service
+        if service == "stripe":
+            if not credentials.get("secret_key"):
+                return jsonify({"error": "secret_key is required for Stripe"}), 400
+        elif service == "printful":
+            if not credentials.get("api_key"):
+                return jsonify({"error": "api_key is required for Printful"}), 400
+
+        with get_db_cursor(commit=True, dict_cursor=True) as (conn, cur):
+            set_tenant_search_path(cur, g.tenant_id)
+            cur.execute(
+                """
+                INSERT INTO tenant_integrations (service, credentials, status, updated_at)
+                VALUES (%s, %s, 'active', NOW())
+                ON CONFLICT (service) DO UPDATE
+                SET credentials = %s, status = 'active', updated_at = NOW()
+                RETURNING id, service, status, updated_at
+                """,
+                (service, Json(credentials), Json(credentials)),
+            )
+            row = cur.fetchone()
+
+        logger.info("Tenant %s saved %s integration", g.tenant_id, service)
+        return jsonify({"saved": True, "service": row["service"], "status": row["status"]})
+
+    @bp.route("/api/integrations/<service>", methods=["DELETE"])
+    @login_required
+    @require_module("store")
+    def delete_integration(service):
+        """Remove integration credentials."""
+        if service not in ("stripe", "printful"):
+            return jsonify({"error": "unsupported service"}), 400
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            set_tenant_search_path(cur, g.tenant_id)
+            cur.execute(
+                "UPDATE tenant_integrations SET status = 'inactive', credentials = '{}'::jsonb, updated_at = NOW() WHERE service = %s",
+                (service,),
+            )
+
+        return jsonify({"deleted": True, "service": service})
+
+    # ------------------------------------------------------------------
+    # Analytics
+    # ------------------------------------------------------------------
+
+    @bp.route("/api/analytics/revenue", methods=["GET"])
+    @login_required
+    @require_module("store")
+    def analytics_revenue():
+        """Revenue by day for the last 30 days."""
+        days = request.args.get("days", 30, type=int)
+        days = min(days, 365)
+
+        with get_db_cursor(commit=False, dict_cursor=True) as (conn, cur):
+            set_tenant_search_path(cur, g.tenant_id)
+            cur.execute(
+                """
+                SELECT DATE(created_at) AS date,
+                       COUNT(*) AS order_count,
+                       COALESCE(SUM(total), 0) AS revenue
+                FROM store_orders
+                WHERE status NOT IN ('cancelled', 'refunded')
+                  AND created_at >= NOW() - INTERVAL '%s days'
+                GROUP BY DATE(created_at)
+                ORDER BY date
+                """,
+                (days,),
+            )
+            data = cur.fetchall()
+
+            # Summary totals
+            cur.execute(
+                """
+                SELECT COUNT(*) AS total_orders,
+                       COALESCE(SUM(total), 0) AS total_revenue,
+                       COALESCE(AVG(total), 0) AS avg_order_value
+                FROM store_orders
+                WHERE status NOT IN ('cancelled', 'refunded')
+                  AND created_at >= NOW() - INTERVAL '%s days'
+                """,
+                (days,),
+            )
+            summary = cur.fetchone()
+
+        return jsonify({
+            "daily": data,
+            "summary": {
+                "total_orders": summary["total_orders"],
+                "total_revenue": float(summary["total_revenue"]),
+                "avg_order_value": round(float(summary["avg_order_value"]), 2),
+                "period_days": days,
+            },
+        })
+
+    @bp.route("/api/analytics/customers", methods=["GET"])
+    @login_required
+    @require_module("store")
+    def analytics_customers():
+        """Customer acquisition by day (unique emails from orders)."""
+        days = request.args.get("days", 30, type=int)
+        days = min(days, 365)
+
+        with get_db_cursor(commit=False, dict_cursor=True) as (conn, cur):
+            set_tenant_search_path(cur, g.tenant_id)
+            cur.execute(
+                """
+                SELECT DATE(MIN(created_at)) AS date,
+                       COUNT(*) AS new_customers
+                FROM (
+                    SELECT customer_email, MIN(created_at) AS created_at
+                    FROM store_orders
+                    WHERE customer_email IS NOT NULL
+                    GROUP BY customer_email
+                ) first_orders
+                WHERE created_at >= NOW() - INTERVAL '%s days'
+                GROUP BY DATE(created_at)
+                ORDER BY date
+                """,
+                (days,),
+            )
+            data = cur.fetchall()
+
+            cur.execute(
+                "SELECT COUNT(DISTINCT customer_email) AS total FROM store_orders WHERE customer_email IS NOT NULL"
+            )
+            total = cur.fetchone()["total"]
+
+        return jsonify({
+            "daily": data,
+            "total_customers": total,
+            "period_days": days,
+        })
+
+
+# ----------------------------------------------------------------------
+# Tenant integration helpers (used by public_routes for checkout)
+# ----------------------------------------------------------------------
+
+
+def get_tenant_stripe_keys(tenant_id):
+    """Fetch per-tenant Stripe credentials. Returns dict or None."""
+    try:
+        with get_db_cursor(commit=False, dict_cursor=True) as (conn, cur):
+            set_tenant_search_path(cur, tenant_id)
+            cur.execute(
+                "SELECT credentials FROM tenant_integrations WHERE service = 'stripe' AND status = 'active'"
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            creds = row["credentials"]
+            if isinstance(creds, str):
+                creds = _json.loads(creds)
+            return creds if creds.get("secret_key") else None
+    except Exception:
+        logger.warning("Failed to load tenant %s Stripe keys", tenant_id)
+        return None
+
+
+def get_tenant_printful_key(tenant_id):
+    """Fetch per-tenant Printful API key. Returns string or None."""
+    try:
+        with get_db_cursor(commit=False, dict_cursor=True) as (conn, cur):
+            set_tenant_search_path(cur, tenant_id)
+            cur.execute(
+                "SELECT credentials FROM tenant_integrations WHERE service = 'printful' AND status = 'active'"
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            creds = row["credentials"]
+            if isinstance(creds, str):
+                creds = _json.loads(creds)
+            return creds.get("api_key")
+    except Exception:
+        logger.warning("Failed to load tenant %s Printful key", tenant_id)
+        return None
 
 
 # ----------------------------------------------------------------------

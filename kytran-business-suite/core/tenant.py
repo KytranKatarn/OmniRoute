@@ -39,7 +39,8 @@ def load_tenant():
     endpoint = request.endpoint or ""
 
     # Skip public routes (exact match and prefix for "static" blueprint)
-    if endpoint in PUBLIC_ROUTES or endpoint.startswith("static"):
+    # Also skip plugin public sub-blueprints (e.g. store_public, appointments_public)
+    if endpoint in PUBLIC_ROUTES or endpoint.startswith("static") or "_public." in endpoint:
         return None
 
     tenant_id = session.get("tenant_id")

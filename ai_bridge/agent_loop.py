@@ -285,6 +285,15 @@ JOB_DEPARTMENT_MAP = {
     "improvement_detection": "Engineering & Technology",
     "daily_self_reflection": "Executive Office",
     "weekly_memory_consolidation": "Research & Development",
+    # Migrated from infrastructure scheduler (APScheduler in app.py)
+    "batch_medium_issues": "Engineering & Technology",
+    "auto_log_ingestion": "Research & Development",
+    "weekly_dependency_scan": "Security & Compliance",
+    "health_probe": "Operations & Infrastructure",
+    "crew_wellness_tick": "Human Resources & Culture",
+    "ollama_model_health": "Operations & Infrastructure",
+    "media_queue_cleanup": "Creative & Design",
+    "media_export_cleanup": "Creative & Design",
 }
 
 
@@ -855,6 +864,82 @@ class AgentLoop:
             trigger=CronTrigger(day_of_week="sun", hour=3, minute=0),
             id="agent_weekly_memory_consolidation",
             name="Agent Loop: Weekly Memory Consolidation",
+            replace_existing=True,
+        )
+
+        # --- Migrated from infrastructure scheduler (app.py) ---
+
+        # Batch medium issues (Sunday 2 AM)
+        self.scheduler.add_job(
+            with_app_context(self._batch_medium_issues),
+            trigger=CronTrigger(day_of_week="sun", hour=2, minute=0),
+            id="agent_batch_medium_issues",
+            name="Agent Loop: Weekly Code Issue Batch",
+            replace_existing=True,
+        )
+
+        # Auto log ingestion (every 30 min)
+        self.scheduler.add_job(
+            with_app_context(self._auto_log_ingestion),
+            trigger=IntervalTrigger(minutes=30),
+            id="agent_auto_log_ingestion",
+            name="Agent Loop: Auto Log Ingestion",
+            replace_existing=True,
+        )
+
+        # Weekly dependency scan (Sunday 4 AM)
+        self.scheduler.add_job(
+            with_app_context(self._weekly_dependency_scan),
+            trigger=CronTrigger(day_of_week="sun", hour=4, minute=0),
+            id="agent_weekly_dependency_scan",
+            name="Agent Loop: Weekly Dependency Scan",
+            replace_existing=True,
+        )
+
+        # Health probe (every 15 min)
+        self.scheduler.add_job(
+            with_app_context(self._health_probe),
+            trigger=IntervalTrigger(minutes=15),
+            id="agent_health_probe",
+            name="Agent Loop: Service Health Probe",
+            replace_existing=True,
+        )
+
+        # Crew wellness tick (every 5 min)
+        self.scheduler.add_job(
+            with_app_context(self._crew_wellness_tick),
+            trigger=IntervalTrigger(minutes=5),
+            id="agent_crew_wellness_tick",
+            name="Agent Loop: Crew Wellness Tick",
+            replace_existing=True,
+        )
+
+        # Ollama model health (every 30 min)
+        self.scheduler.add_job(
+            with_app_context(self._ollama_model_health),
+            trigger=IntervalTrigger(minutes=30),
+            id="agent_ollama_model_health",
+            name="Agent Loop: Ollama Model Health",
+            replace_existing=True,
+        )
+
+        # Media queue cleanup (every 1h)
+        self.scheduler.add_job(
+            with_app_context(self._media_queue_cleanup),
+            trigger=IntervalTrigger(hours=1),
+            id="agent_media_queue_cleanup",
+            name="Agent Loop: Media Queue Cleanup",
+            misfire_grace_time=300,
+            replace_existing=True,
+        )
+
+        # Media export cleanup (every 1h)
+        self.scheduler.add_job(
+            with_app_context(self._media_export_cleanup),
+            trigger=IntervalTrigger(hours=1),
+            id="agent_media_export_cleanup",
+            name="Agent Loop: Media Export Cleanup",
+            misfire_grace_time=300,
             replace_existing=True,
         )
 
@@ -2849,6 +2934,215 @@ class AgentLoop:
         except Exception as e:
             duration_ms = int((time.time() - start) * 1000)
             self._log_cycle("weekly_memory_consolidation", 0, 1, duration_ms, error_message=str(e))
+
+    # ------------------------------------------------------------------
+    # Migrated from infrastructure scheduler (app.py) — fully centralized
+    # ------------------------------------------------------------------
+
+    def _batch_medium_issues(self):
+        """Weekly code issue batch (Sun 2AM) — migrated from app.py."""
+        start = time.time()
+        try:
+            from services.scan_pipeline import batch_medium_issues
+            result = batch_medium_issues()
+            duration_ms = int((time.time() - start) * 1000)
+            processed = result.get("proposals_created", 0) if isinstance(result, dict) else 0
+            self._log_cycle("batch_medium_issues", processed, 0, duration_ms)
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("batch_medium_issues", 0, 1, duration_ms, error_message=str(e))
+
+    def _auto_log_ingestion(self):
+        """Auto-ingest conversation logs every 30 min — migrated from app.py."""
+        start = time.time()
+        try:
+            from tools.consciousness.log_ingestor import batch_ingest_logs
+            result = batch_ingest_logs(limit=100)
+            duration_ms = int((time.time() - start) * 1000)
+            created = result.get("created", 0) if isinstance(result, dict) else 0
+            if created > 0:
+                logger.info(f"Auto-ingested {created} conversation logs")
+            self._log_cycle("auto_log_ingestion", created, 0, duration_ms)
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("auto_log_ingestion", 0, 1, duration_ms, error_message=str(e))
+
+    def _weekly_dependency_scan(self):
+        """Weekly dependency scan (Sun 4AM) — migrated from app.py."""
+        start = time.time()
+        try:
+            import base64
+            import requests
+            from tools.consciousness.dependency_scanner import DependencyScanner
+            from tools.consciousness.routes import _store_dependency_scan
+            from database import get_db_cursor
+
+            github_token = os.getenv("GITHUB_TOKEN")
+            if not github_token:
+                try:
+                    with open("/mnt/archie_brain/secrets/api/github_token.txt", "r") as f:
+                        github_token = f.read().strip()
+                except FileNotFoundError:
+                    pass
+
+            scanner = DependencyScanner(github_token=github_token)
+            headers = {}
+            if github_token:
+                headers["Authorization"] = f"Bearer {github_token}"
+                headers["Accept"] = "application/vnd.github.v3+json"
+
+            total_scans = 0
+            total_entries = 0
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute("SELECT id, repo_name FROM github_repositories WHERE status IN ('cloned', 'indexed')")
+                repos = cur.fetchall()
+
+                for repo in repos:
+                    owner_repo = repo["repo_name"]
+                    for dep_file in ["package.json", "requirements.txt"]:
+                        try:
+                            resp = requests.get(
+                                f"https://api.github.com/repos/{owner_repo}/contents/{dep_file}",
+                                headers=headers, timeout=10,
+                            )
+                            if resp.status_code != 200:
+                                continue
+                            content = base64.b64decode(resp.json().get("content", "")).decode("utf-8")
+                            scan = scanner.scan_dependency_file(content, dep_file, owner_repo)
+                            total_entries += _store_dependency_scan(cur, scan)
+                            total_scans += 1
+                        except Exception as e:
+                            logger.warning(f"Dep scan failed for {owner_repo}/{dep_file}: {e}")
+
+                # Local platform requirements.txt
+                try:
+                    with open("/app/requirements.txt", "r") as f:
+                        content = f.read()
+                    scan = scanner.scan_dependency_file(content, "requirements.txt", "local/platform_v2")
+                    total_entries += _store_dependency_scan(cur, scan)
+                    total_scans += 1
+                except Exception as e:
+                    logger.warning(f"Dep scan failed for local requirements: {e}")
+
+            duration_ms = int((time.time() - start) * 1000)
+            logger.info(f"Weekly dep scan: {total_scans} files, {total_entries} suggestions")
+            self._log_cycle("weekly_dependency_scan", total_scans, 0, duration_ms,
+                           details={"files_scanned": total_scans, "entries_stored": total_entries})
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("weekly_dependency_scan", 0, 1, duration_ms, error_message=str(e))
+
+    def _health_probe(self):
+        """Service health probe every 15 min — migrated from app.py."""
+        start = time.time()
+        try:
+            from tools.dev_hq.routes import _run_and_store_health_check
+            _run_and_store_health_check()
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("health_probe", 1, 0, duration_ms)
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("health_probe", 0, 1, duration_ms, error_message=str(e))
+
+    def _crew_wellness_tick(self):
+        """Crew wellness tick every 5 min — migrated from app.py."""
+        start = time.time()
+        try:
+            from app import crew_wellness_tick
+            crew_wellness_tick(self.flask_app)
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("crew_wellness_tick", 1, 0, duration_ms)
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("crew_wellness_tick", 0, 1, duration_ms, error_message=str(e))
+
+    def _ollama_model_health(self):
+        """Ollama model health check every 30 min — migrated from app.py."""
+        start = time.time()
+        try:
+            import requests as req
+            import psutil
+
+            ollama_host = os.getenv("OLLAMA_HOST", "http://archie_ollama:11434")
+            if not ollama_host.startswith("http"):
+                ollama_host = f"http://{ollama_host}"
+
+            from app import _get_agent_models
+            desired = {}
+            for model_name, endpoint in _get_agent_models():
+                desired[model_name] = endpoint
+
+            resp = req.get(f"{ollama_host}/api/ps", timeout=10)
+            if resp.status_code != 200:
+                self._log_cycle("ollama_model_health", 0, 0, int((time.time() - start) * 1000))
+                return
+            ps_models = resp.json().get("models", [])
+            loaded = {m["name"] for m in ps_models}
+            gpu_models = set()
+            for m in ps_models:
+                if m.get("size_vram", 0) > 0:
+                    gpu_models.add(m["name"])
+                    gpu_models.add(m["name"].replace(":latest", ""))
+
+            missing = {m for m in desired if m not in loaded and f"{m}:latest" not in loaded}
+            if not missing:
+                self._log_cycle("ollama_model_health", len(loaded), 0, int((time.time() - start) * 1000))
+                return
+
+            ram_free = psutil.virtual_memory().available / (1024**3)
+            reloaded = 0
+            for model_name in missing:
+                ram_free = psutil.virtual_memory().available / (1024**3)
+                if ram_free < 10:
+                    break
+                endpoint = desired[model_name]
+                use_gpu = model_name in gpu_models or f"{model_name}:latest" in gpu_models
+                try:
+                    if endpoint == "embed":
+                        data = {"model": model_name, "input": "health", "keep_alive": -1}
+                    else:
+                        opts = {"num_predict": 1}
+                        if not use_gpu:
+                            opts["num_gpu"] = 0
+                        data = {"model": model_name, "prompt": "health", "stream": False, "options": opts, "keep_alive": -1}
+                    timeout = 600 if "coder" in model_name else 300
+                    r = req.post(f"{ollama_host}/api/{endpoint}", json=data, timeout=timeout)
+                    if r.status_code == 200:
+                        reloaded += 1
+                except Exception as e:
+                    logger.warning(f"Ollama health: {model_name} failed: {e}")
+
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("ollama_model_health", reloaded, len(missing) - reloaded, duration_ms,
+                           details={"missing": len(missing), "reloaded": reloaded})
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("ollama_model_health", 0, 1, duration_ms, error_message=str(e))
+
+    def _media_queue_cleanup(self):
+        """Media queue cleanup every 1h — migrated from app.py."""
+        start = time.time()
+        try:
+            from tools.media_studio.services.batch_service import cleanup_stale_queue
+            cleaned = cleanup_stale_queue(max_age_hours=24)
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("media_queue_cleanup", cleaned or 0, 0, duration_ms)
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("media_queue_cleanup", 0, 1, duration_ms, error_message=str(e))
+
+    def _media_export_cleanup(self):
+        """Media export cleanup every 1h — migrated from app.py."""
+        start = time.time()
+        try:
+            from tools.media_studio.services.batch_service import cleanup_expired_exports
+            cleaned = cleanup_expired_exports()
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("media_export_cleanup", cleaned or 0, 0, duration_ms)
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("media_export_cleanup", 0, 1, duration_ms, error_message=str(e))
 
     def _reap_stale_jobs(self):
         """Reap orphaned bridge jobs that stopped updating (every 2 min)."""

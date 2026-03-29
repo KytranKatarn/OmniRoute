@@ -51,13 +51,14 @@
 </head>
 <body>
 
-<!-- Loading Overlay -->
-<div class="loading-overlay" id="loading-overlay">
-    <div class="loading-overlay__title">KYTRAN NEWS</div>
-    <div class="loading-overlay__bar">
-        <div class="loading-overlay__fill" id="loading-bar"></div>
+<!-- Boot Screen -->
+<div class="boot-screen" id="boot-screen">
+    <div class="boot-screen__logo">KYTRAN NEWS</div>
+    <div class="boot-screen__subtitle">GLOBAL INTELLIGENCE NETWORK</div>
+    <div class="boot-screen__progress">
+        <div class="boot-screen__bar" id="boot-bar"></div>
     </div>
-    <div class="loading-overlay__status" id="loading-status">Initializing...</div>
+    <div class="boot-screen__status" id="boot-status">INITIALIZING FEEDS...</div>
 </div>
 
 <!-- App Shell -->
@@ -154,6 +155,15 @@
     <!-- DEFCON Bar -->
     <div class="defcon-bar" data-level="5" aria-label="Threat level indicator"></div>
 
+    <!-- Status Bar -->
+    <div class="status-bar">
+        <div class="status-bar__item"><span class="status-bar__dot status-bar__dot--active"></span><span class="status-bar__count" id="sb-feeds">18</span><span class="status-bar__label">FEEDS</span></div>
+        <div class="status-bar__item"><span class="status-bar__count" id="sb-events">0</span><span class="status-bar__label">EVENTS</span></div>
+        <div class="status-bar__item"><span class="status-bar__count" id="sb-countries">0</span><span class="status-bar__label">COUNTRIES</span></div>
+        <div class="status-bar__item"><span class="status-bar__count" id="sb-sources">0</span><span class="status-bar__label">SOURCES</span></div>
+        <div class="status-bar__item"><span class="status-bar__dot status-bar__dot--live"></span><span class="status-bar__label">LIVE</span></div>
+    </div>
+
     <!-- Sidebar -->
     <aside class="sidebar">
 
@@ -188,156 +198,212 @@
             </div>
         </div>
 
-        <!-- Layer Toggles -->
-        <div class="sidebar__section">
+        <!-- Layer Toggles — Collapsible Categories -->
+        <div class="sidebar__section sidebar__section--layers">
             <div class="sidebar__title">Data Layers</div>
 
-            <label class="layer-toggle active" data-layer="conflicts" style="--layer-color: var(--layer-conflicts)">
-                <div class="layer-toggle__dot"></div>
-                <div class="layer-toggle__switch"></div>
-                <span class="layer-toggle__label">Conflicts</span>
-                <span class="layer-toggle__count">0</span>
-            </label>
+            <!-- ACTIVE THREATS (default open) -->
+            <div class="layer-category open" data-category="active-threats">
+                <button class="layer-category__header" aria-expanded="true">
+                    <svg class="layer-category__chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    <span class="layer-category__title">ACTIVE THREATS</span>
+                    <span class="layer-category__count">4</span>
+                </button>
+                <div class="layer-category__body">
+                    <label class="layer-toggle active" data-layer="conflicts" style="--layer-color: var(--layer-conflicts)">
+                        <div class="layer-toggle__dot"></div>
+                        <div class="layer-toggle__switch"></div>
+                        <span class="layer-toggle__label">Conflicts</span>
+                        <span class="layer-toggle__count">0</span>
+                    </label>
+                    <label class="layer-toggle" data-layer="terrorism" style="--layer-color: #b71c1c">
+                        <div class="layer-toggle__dot"></div>
+                        <div class="layer-toggle__switch"></div>
+                        <span class="layer-toggle__label">Terrorism</span>
+                        <span class="layer-toggle__count">0</span>
+                    </label>
+                    <label class="layer-toggle" data-layer="protests" style="--layer-color: #ff1493">
+                        <div class="layer-toggle__dot"></div>
+                        <div class="layer-toggle__switch"></div>
+                        <span class="layer-toggle__label">Protests / Unrest</span>
+                        <span class="layer-toggle__count">0</span>
+                    </label>
+                    <label class="layer-toggle active" data-layer="cyber" style="--layer-color: var(--layer-cyber)">
+                        <div class="layer-toggle__dot"></div>
+                        <div class="layer-toggle__switch"></div>
+                        <span class="layer-toggle__label">Cyber Threats</span>
+                        <span class="layer-toggle__count">0</span>
+                    </label>
+                </div>
+            </div>
 
-            <label class="layer-toggle active" data-layer="disasters" style="--layer-color: var(--layer-disasters)">
-                <div class="layer-toggle__dot"></div>
-                <div class="layer-toggle__switch"></div>
-                <span class="layer-toggle__label">Disasters</span>
-                <span class="layer-toggle__count">0</span>
-            </label>
+            <!-- NATURAL (default open) -->
+            <div class="layer-category open" data-category="natural">
+                <button class="layer-category__header" aria-expanded="true">
+                    <svg class="layer-category__chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    <span class="layer-category__title">NATURAL</span>
+                    <span class="layer-category__count">4</span>
+                </button>
+                <div class="layer-category__body">
+                    <label class="layer-toggle active" data-layer="disasters" style="--layer-color: var(--layer-disasters)">
+                        <div class="layer-toggle__dot"></div>
+                        <div class="layer-toggle__switch"></div>
+                        <span class="layer-toggle__label">Disasters</span>
+                        <span class="layer-toggle__count">0</span>
+                    </label>
+                    <label class="layer-toggle active" data-layer="weather" style="--layer-color: var(--layer-weather)">
+                        <div class="layer-toggle__dot"></div>
+                        <div class="layer-toggle__switch"></div>
+                        <span class="layer-toggle__label">Weather</span>
+                        <span class="layer-toggle__count">0</span>
+                    </label>
+                    <label class="layer-toggle" data-layer="spaceweather" style="--layer-color: #ffd700">
+                        <div class="layer-toggle__dot"></div>
+                        <div class="layer-toggle__switch"></div>
+                        <span class="layer-toggle__label">Space Weather</span>
+                        <span class="layer-toggle__count">0</span>
+                    </label>
+                    <label class="layer-toggle" data-layer="radiation" style="--layer-color: #c6ff00">
+                        <div class="layer-toggle__dot"></div>
+                        <div class="layer-toggle__switch"></div>
+                        <span class="layer-toggle__label">Radiation</span>
+                        <span class="layer-toggle__count">0</span>
+                    </label>
+                </div>
+            </div>
 
-            <label class="layer-toggle active" data-layer="weather" style="--layer-color: var(--layer-weather)">
-                <div class="layer-toggle__dot"></div>
-                <div class="layer-toggle__switch"></div>
-                <span class="layer-toggle__label">Weather</span>
-                <span class="layer-toggle__count">0</span>
-            </label>
+            <!-- INFRASTRUCTURE (default closed) -->
+            <div class="layer-category" data-category="infrastructure">
+                <button class="layer-category__header" aria-expanded="false">
+                    <svg class="layer-category__chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    <span class="layer-category__title">INFRASTRUCTURE</span>
+                    <span class="layer-category__count">3</span>
+                </button>
+                <div class="layer-category__body">
+                    <label class="layer-toggle" data-layer="outages" style="--layer-color: var(--layer-outages)">
+                        <div class="layer-toggle__dot"></div>
+                        <div class="layer-toggle__switch"></div>
+                        <span class="layer-toggle__label">Outages</span>
+                        <span class="layer-toggle__count">0</span>
+                    </label>
+                    <label class="layer-toggle" data-layer="internet" style="--layer-color: #ff4081">
+                        <div class="layer-toggle__dot"></div>
+                        <div class="layer-toggle__switch"></div>
+                        <span class="layer-toggle__label">Internet Outages</span>
+                        <span class="layer-toggle__count">0</span>
+                    </label>
+                    <label class="layer-toggle" data-layer="airquality" style="--layer-color: #a0ff00">
+                        <div class="layer-toggle__dot"></div>
+                        <div class="layer-toggle__switch"></div>
+                        <span class="layer-toggle__label">Air Quality</span>
+                        <span class="layer-toggle__count">0</span>
+                    </label>
+                </div>
+            </div>
 
-            <label class="layer-toggle active" data-layer="cyber" style="--layer-color: var(--layer-cyber)">
-                <div class="layer-toggle__dot"></div>
-                <div class="layer-toggle__switch"></div>
-                <span class="layer-toggle__label">Cyber Threats</span>
-                <span class="layer-toggle__count">0</span>
-            </label>
+            <!-- TRANSPORT (default closed) -->
+            <div class="layer-category" data-category="transport">
+                <button class="layer-category__header" aria-expanded="false">
+                    <svg class="layer-category__chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    <span class="layer-category__title">TRANSPORT</span>
+                    <span class="layer-category__count">2</span>
+                </button>
+                <div class="layer-category__body">
+                    <label class="layer-toggle" data-layer="flights" style="--layer-color: #00c8ff">
+                        <div class="layer-toggle__dot"></div>
+                        <div class="layer-toggle__switch"></div>
+                        <span class="layer-toggle__label">Live Flights</span>
+                        <span class="layer-toggle__count">0</span>
+                    </label>
+                    <label class="layer-toggle" data-layer="ships" style="--layer-color: #00b4d8">
+                        <div class="layer-toggle__dot"></div>
+                        <div class="layer-toggle__switch"></div>
+                        <span class="layer-toggle__label">Ship Traffic</span>
+                        <span class="layer-toggle__count">0</span>
+                    </label>
+                </div>
+            </div>
 
-            <label class="layer-toggle" data-layer="outages" style="--layer-color: var(--layer-outages)">
-                <div class="layer-toggle__dot"></div>
-                <div class="layer-toggle__switch"></div>
-                <span class="layer-toggle__label">Outages</span>
-                <span class="layer-toggle__count">0</span>
-            </label>
+            <!-- INTELLIGENCE (default closed) -->
+            <div class="layer-category" data-category="intelligence">
+                <button class="layer-category__header" aria-expanded="false">
+                    <svg class="layer-category__chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    <span class="layer-category__title">INTELLIGENCE</span>
+                    <span class="layer-category__count">3</span>
+                </button>
+                <div class="layer-category__body">
+                    <label class="layer-toggle" data-layer="sanctions" style="--layer-color: var(--layer-sanctions)">
+                        <div class="layer-toggle__dot"></div>
+                        <div class="layer-toggle__switch"></div>
+                        <span class="layer-toggle__label">Sanctions</span>
+                        <span class="layer-toggle__count">0</span>
+                    </label>
+                    <label class="layer-toggle" data-layer="military" style="--layer-color: var(--layer-military)">
+                        <div class="layer-toggle__dot"></div>
+                        <div class="layer-toggle__switch"></div>
+                        <span class="layer-toggle__label">Military / Nuclear</span>
+                        <span class="layer-toggle__count">0</span>
+                    </label>
+                    <label class="layer-toggle" data-layer="disease" style="--layer-color: #00ff88">
+                        <div class="layer-toggle__dot"></div>
+                        <div class="layer-toggle__switch"></div>
+                        <span class="layer-toggle__label">Disease Outbreaks</span>
+                        <span class="layer-toggle__count">0</span>
+                    </label>
+                </div>
+            </div>
 
-            <label class="layer-toggle" data-layer="sanctions" style="--layer-color: var(--layer-sanctions)">
-                <div class="layer-toggle__dot"></div>
-                <div class="layer-toggle__switch"></div>
-                <span class="layer-toggle__label">Sanctions</span>
-                <span class="layer-toggle__count">0</span>
-            </label>
+            <!-- ECONOMY (default closed) -->
+            <div class="layer-category" data-category="economy">
+                <button class="layer-category__header" aria-expanded="false">
+                    <svg class="layer-category__chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    <span class="layer-category__title">ECONOMY</span>
+                    <span class="layer-category__count">2</span>
+                </button>
+                <div class="layer-category__body">
+                    <label class="layer-toggle" data-layer="economic" style="--layer-color: #ffc107">
+                        <div class="layer-toggle__dot"></div>
+                        <div class="layer-toggle__switch"></div>
+                        <span class="layer-toggle__label">Markets / Economy</span>
+                        <span class="layer-toggle__count">0</span>
+                    </label>
+                    <label class="layer-toggle" data-layer="social" style="--layer-color: #e040fb">
+                        <div class="layer-toggle__dot"></div>
+                        <div class="layer-toggle__switch"></div>
+                        <span class="layer-toggle__label">Social Trends</span>
+                        <span class="layer-toggle__count">0</span>
+                    </label>
+                </div>
+            </div>
 
-            <label class="layer-toggle" data-layer="military" style="--layer-color: var(--layer-military)">
-                <div class="layer-toggle__dot"></div>
-                <div class="layer-toggle__switch"></div>
-                <span class="layer-toggle__label">Military / Nuclear</span>
-                <span class="layer-toggle__count">0</span>
-            </label>
-
-            <label class="layer-toggle" data-layer="flights" style="--layer-color: #00c8ff">
-                <div class="layer-toggle__dot"></div>
-                <div class="layer-toggle__switch"></div>
-                <span class="layer-toggle__label">Live Flights</span>
-                <span class="layer-toggle__count">0</span>
-            </label>
-
-            <label class="layer-toggle" data-layer="airquality" style="--layer-color: #a0ff00">
-                <div class="layer-toggle__dot"></div>
-                <div class="layer-toggle__switch"></div>
-                <span class="layer-toggle__label">Air Quality</span>
-                <span class="layer-toggle__count">0</span>
-            </label>
-
-            <label class="layer-toggle" data-layer="disease" style="--layer-color: #00ff88">
-                <div class="layer-toggle__dot"></div>
-                <div class="layer-toggle__switch"></div>
-                <span class="layer-toggle__label">Disease Outbreaks</span>
-                <span class="layer-toggle__count">0</span>
-            </label>
-
-            <label class="layer-toggle" data-layer="ships" style="--layer-color: #00b4d8">
-                <div class="layer-toggle__dot"></div>
-                <div class="layer-toggle__switch"></div>
-                <span class="layer-toggle__label">Ship Traffic</span>
-                <span class="layer-toggle__count">0</span>
-            </label>
-
-            <label class="layer-toggle" data-layer="spaceweather" style="--layer-color: #ffd700">
-                <div class="layer-toggle__dot"></div>
-                <div class="layer-toggle__switch"></div>
-                <span class="layer-toggle__label">Space Weather</span>
-                <span class="layer-toggle__count">0</span>
-            </label>
-
-            <label class="layer-toggle" data-layer="radiation" style="--layer-color: #c6ff00">
-                <div class="layer-toggle__dot"></div>
-                <div class="layer-toggle__switch"></div>
-                <span class="layer-toggle__label">Radiation</span>
-                <span class="layer-toggle__count">0</span>
-            </label>
-
-            <label class="layer-toggle" data-layer="protests" style="--layer-color: #ff1493">
-                <div class="layer-toggle__dot"></div>
-                <div class="layer-toggle__switch"></div>
-                <span class="layer-toggle__label">Protests / Unrest</span>
-                <span class="layer-toggle__count">0</span>
-            </label>
-
-            <label class="layer-toggle" data-layer="internet" style="--layer-color: #ff4081">
-                <div class="layer-toggle__dot"></div>
-                <div class="layer-toggle__switch"></div>
-                <span class="layer-toggle__label">Internet Outages</span>
-                <span class="layer-toggle__count">0</span>
-            </label>
-
-            <label class="layer-toggle" data-layer="terrorism" style="--layer-color: #b71c1c">
-                <div class="layer-toggle__dot"></div>
-                <div class="layer-toggle__switch"></div>
-                <span class="layer-toggle__label">Terrorism</span>
-                <span class="layer-toggle__count">0</span>
-            </label>
-
-            <label class="layer-toggle" data-layer="economic" style="--layer-color: #ffc107">
-                <div class="layer-toggle__dot"></div>
-                <div class="layer-toggle__switch"></div>
-                <span class="layer-toggle__label">Markets / Economy</span>
-                <span class="layer-toggle__count">0</span>
-            </label>
-
-            <label class="layer-toggle" data-layer="social" style="--layer-color: #e040fb">
-                <div class="layer-toggle__dot"></div>
-                <div class="layer-toggle__switch"></div>
-                <span class="layer-toggle__label">Social Trends</span>
-                <span class="layer-toggle__count">0</span>
-            </label>
-
-            <label class="layer-toggle" data-layer="contracts" style="--layer-color: #00bfa5">
-                <div class="layer-toggle__dot"></div>
-                <div class="layer-toggle__switch"></div>
-                <span class="layer-toggle__label">Gov Contracts</span>
-                <span class="layer-toggle__count">0</span>
-            </label>
-
-            <label class="layer-toggle" data-layer="parliament" style="--layer-color: #ffd740">
-                <div class="layer-toggle__dot"></div>
-                <div class="layer-toggle__switch"></div>
-                <span class="layer-toggle__label">Parliament</span>
-                <span class="layer-toggle__count">0</span>
-            </label>
-
-            <label class="layer-toggle" data-layer="spending" style="--layer-color: #69f0ae">
-                <div class="layer-toggle__dot"></div>
-                <div class="layer-toggle__switch"></div>
-                <span class="layer-toggle__label">Public Spending</span>
-                <span class="layer-toggle__count">0</span>
-            </label>
+            <!-- CIVIC (default closed) -->
+            <div class="layer-category" data-category="civic">
+                <button class="layer-category__header" aria-expanded="false">
+                    <svg class="layer-category__chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    <span class="layer-category__title">CIVIC</span>
+                    <span class="layer-category__count">3</span>
+                </button>
+                <div class="layer-category__body">
+                    <label class="layer-toggle" data-layer="contracts" style="--layer-color: #00bfa5">
+                        <div class="layer-toggle__dot"></div>
+                        <div class="layer-toggle__switch"></div>
+                        <span class="layer-toggle__label">Gov Contracts</span>
+                        <span class="layer-toggle__count">0</span>
+                    </label>
+                    <label class="layer-toggle" data-layer="parliament" style="--layer-color: #ffd740">
+                        <div class="layer-toggle__dot"></div>
+                        <div class="layer-toggle__switch"></div>
+                        <span class="layer-toggle__label">Parliament</span>
+                        <span class="layer-toggle__count">0</span>
+                    </label>
+                    <label class="layer-toggle" data-layer="spending" style="--layer-color: #69f0ae">
+                        <div class="layer-toggle__dot"></div>
+                        <div class="layer-toggle__switch"></div>
+                        <span class="layer-toggle__label">Public Spending</span>
+                        <span class="layer-toggle__count">0</span>
+                    </label>
+                </div>
+            </div>
         </div>
 
         <!-- Stats -->
@@ -359,6 +425,30 @@
                 <div class="stat-card">
                     <div class="stat-card__value" id="stat-news">--</div>
                     <div class="stat-card__label">Articles</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Time Machine -->
+        <div class="sidebar__section sidebar__section--timeline">
+            <div class="sidebar__title">Time Machine</div>
+            <div class="timeline-slider">
+                <div class="timeline-slider__labels">
+                    <button class="timeline-slider__btn" data-range="6h">6H</button>
+                    <button class="timeline-slider__btn" data-range="12h">12H</button>
+                    <button class="timeline-slider__btn active" data-range="24h">24H</button>
+                    <button class="timeline-slider__btn" data-range="3d">3D</button>
+                    <button class="timeline-slider__btn" data-range="7d">7D</button>
+                    <button class="timeline-slider__btn" data-range="30d">30D</button>
+                    <button class="timeline-slider__btn" data-range="all">ALL</button>
+                </div>
+                <div class="timeline-slider__track">
+                    <input type="range" id="time-slider" min="0" max="100" value="100">
+                    <div class="timeline-slider__range" id="time-range-label">LIVE</div>
+                </div>
+                <div class="timeline-slider__modes">
+                    <button class="timeline-slider__mode active" id="tm-live">LIVE</button>
+                    <button class="timeline-slider__mode" id="tm-replay">REPLAY</button>
                 </div>
             </div>
         </div>
@@ -487,11 +577,9 @@
 
 </div>
 
-<!-- Sidebar Mobile Toggle -->
-<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle sidebar">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M3 12h18M3 6h18M3 18h18"/>
-    </svg>
+<!-- Sidebar Mobile Toggle (hamburger) -->
+<button class="topbar__hamburger" id="sidebar-toggle" aria-label="Toggle sidebar">
+    <span></span><span></span><span></span>
 </button>
 <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 
@@ -546,6 +634,11 @@
 
 <!-- Effects -->
 <script src="js/effects.js"></script>
+
+<!-- Sidebar & Time Machine -->
+<script src="js/panels/sidebar-collapse.js"></script>
+<script src="js/panels/timemachine.js"></script>
+<script src="js/boot.js"></script>
 
 <!-- App entry (must be last) -->
 <script defer src="js/app.js"></script>

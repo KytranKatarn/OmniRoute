@@ -1,28 +1,43 @@
 /* ==========================================================================
    Kytran News — Responsive Breakpoints
-   480px (mobile) / 768px (tablet) / 1024px (desktop)
+   1440px / 1024px / 768px / 412px (Fold5 cover) / 375px (iPhone SE)
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
-   Tablet (< 1024px)
+   Large Desktop (< 1440px)
+   -------------------------------------------------------------------------- */
+@media (max-width: 1440px) {
+    :root {
+        --sidebar-width: 260px;
+    }
+    .topbar__search { width: 200px; }
+}
+
+/* --------------------------------------------------------------------------
+   Tablet Landscape / Fold5 Open (< 1024px)
    -------------------------------------------------------------------------- */
 @media (max-width: 1024px) {
     :root {
         --sidebar-width: 240px;
     }
-    .topbar__search { width: 180px; }
+    .topbar__search { width: 160px; }
+
+    /* Status bar — tighter */
+    .status-bar { gap: var(--space-md); }
 }
 
 /* --------------------------------------------------------------------------
-   Small Tablet / Large Phone (< 768px)
+   Tablet Portrait (< 768px)
+   Sidebar becomes a slide-out drawer, topbar simplifies
    -------------------------------------------------------------------------- */
 @media (max-width: 768px) {
     .app {
         grid-template-columns: 1fr;
-        grid-template-rows: var(--topbar-height) var(--defcon-height) 1fr var(--ticker-height);
+        grid-template-rows: var(--topbar-height) var(--defcon-height) var(--statusbar-height) 1fr var(--ticker-height);
         grid-template-areas:
             "topbar"
             "defcon"
+            "statusbar"
             "map"
             "ticker";
     }
@@ -42,7 +57,7 @@
     .sidebar.open {
         transform: translateX(0);
     }
-    .sidebar-toggle { display: flex; }
+    .topbar__hamburger { display: flex; }
     .sidebar-backdrop {
         position: fixed;
         inset: 0;
@@ -64,6 +79,14 @@
     .topbar__spacer { flex: 0; }
     .topbar { gap: var(--space-sm); padding: 0 var(--space-sm); }
 
+    /* Status bar — scroll horizontally on small screens */
+    .status-bar {
+        gap: var(--space-md);
+        justify-content: flex-start;
+        padding: 0 var(--space-md);
+        overflow-x: auto;
+    }
+
     /* Legend compact — single row at bottom */
     .map-legend {
         bottom: var(--space-sm);
@@ -77,15 +100,22 @@
     /* Map controls — smaller on mobile */
     .map-controls { top: var(--space-sm); right: var(--space-sm); }
     .map-view-toggle { top: var(--space-sm); right: 44px; }
+
+    /* Detail panel — full width on tablet */
+    .detail-panel {
+        width: 340px;
+    }
 }
 
 /* --------------------------------------------------------------------------
-   Phone (< 480px)
+   Samsung Fold5 Cover Display (< 412px)
+   Single column, minimal controls, sidebar fully hidden, bottom sheet concept
    -------------------------------------------------------------------------- */
-@media (max-width: 480px) {
+@media (max-width: 412px) {
     :root {
         --topbar-height: 44px;
         --ticker-height: 30px;
+        --statusbar-height: 24px;
     }
 
     /* Topbar — minimal */
@@ -108,6 +138,11 @@
     .topbar__share { display: none; }
     .topbar__live-dot { width: 6px; height: 6px; }
 
+    /* Status bar — compact */
+    .status-bar { gap: var(--space-sm); padding: 0 var(--space-sm); }
+    .status-bar__label { font-size: 8px; }
+    .status-bar__count { font-size: 10px; }
+
     /* Ticker — compact */
     .ticker__label {
         padding: 0 var(--space-xs);
@@ -119,7 +154,7 @@
     .ticker__category { font-size: 8px; padding: 0 4px; }
     .ticker__separator { display: none; }
 
-    /* Legend — hide on very small screens, use sidebar instead */
+    /* Legend — hide on small screens, use sidebar instead */
     .map-legend {
         font-size: 8px;
         gap: 2px var(--space-xs);
@@ -128,36 +163,47 @@
     .map-legend__item { gap: 3px; }
     .map-view-toggle { display: none; }
 
-    /* Sidebar toggle — smaller */
-    .sidebar-toggle {
+    /* Hamburger — smaller */
+    .topbar__hamburger {
         width: 38px;
         height: 38px;
         bottom: calc(var(--ticker-height) + var(--space-sm));
     }
+    .topbar__hamburger span { width: 16px; }
+
+    /* Detail panel — full width */
+    .detail-panel {
+        width: 100vw;
+        max-width: 100vw;
+    }
 }
 
 /* --------------------------------------------------------------------------
-   Fold 5 / Ultra-narrow (< 360px)
+   iPhone SE / Small Phones (< 375px)
    -------------------------------------------------------------------------- */
-@media (max-width: 360px) {
+@media (max-width: 375px) {
     :root {
         --topbar-height: 40px;
         --ticker-height: 28px;
+        --statusbar-height: 22px;
     }
 
     .topbar__logo { font-size: 11px; }
     .topbar__select { font-size: 9px; padding: 2px 4px; }
     .topbar__live { display: none; }
-    .topbar__clock { display: none; }
     .topbar { gap: 4px; padding: 0 4px; }
+
+    .status-bar { gap: 6px; }
+    .status-bar__item:nth-child(n+4) { display: none; }
 
     .ticker__label { gap: 3px; }
     .ticker__item { font-size: 9px; }
 
     .map-legend { display: none; }
 
-    .sidebar-toggle {
+    .topbar__hamburger {
         width: 34px;
         height: 34px;
     }
+    .topbar__hamburger span { width: 14px; }
 }

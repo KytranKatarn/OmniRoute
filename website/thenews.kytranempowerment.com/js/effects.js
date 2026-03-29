@@ -25,6 +25,14 @@ var Effects = (function () {
             /* Update topbar event counter */
             var topEl = document.getElementById('topbar-event-count');
             if (topEl) topEl.textContent = total.toLocaleString();
+            /* Update status bar counts */
+            var sbEvents = document.getElementById('sb-events');
+            if (sbEvents) sbEvents.textContent = total.toLocaleString();
+            var sbCountries = document.getElementById('sb-countries');
+            if (sbCountries) sbCountries.textContent = countriesSet.size;
+            var sbSources = document.getElementById('sb-sources');
+            var sourceCount = Object.keys(_counts).filter(function (k) { return _counts[k] > 0; }).length;
+            if (sbSources) sbSources.textContent = sourceCount;
         }
 
         EventBus.on('data:conflicts:updated', function (d) {

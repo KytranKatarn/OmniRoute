@@ -113,25 +113,28 @@
 }
 
 /* --------------------------------------------------------------------------
-   Sidebar Mobile Toggle
+   Event Pulse Rings (active event markers)
    -------------------------------------------------------------------------- */
-.sidebar-toggle {
-    display: none;
-    position: fixed;
-    bottom: calc(var(--ticker-height) + var(--space-md));
-    left: var(--space-md);
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    background: var(--color-glass-bg);
-    border: 1px solid var(--color-glass-border);
-    color: var(--color-primary);
-    font-size: var(--text-xl);
-    align-items: center;
-    justify-content: center;
-    z-index: 200;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+@keyframes event-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+    70% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
 }
+.event-pulse { animation: event-pulse 2s infinite; }
+
+@keyframes event-pulse-warning {
+    0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5); }
+    70% { box-shadow: 0 0 0 12px rgba(245, 158, 11, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+.event-pulse--warning { animation: event-pulse-warning 2s infinite; }
+
+@keyframes event-pulse-info {
+    0% { box-shadow: 0 0 0 0 rgba(0, 229, 255, 0.5); }
+    70% { box-shadow: 0 0 0 12px rgba(0, 229, 255, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(0, 229, 255, 0); }
+}
+.event-pulse--info { animation: event-pulse-info 2s infinite; }
 
 /* --------------------------------------------------------------------------
    Search Results Dropdown

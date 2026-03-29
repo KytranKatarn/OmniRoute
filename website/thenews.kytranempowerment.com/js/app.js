@@ -33,9 +33,9 @@ var App = (function () {
     var _loadProgress = 0;
 
     function init() {
-        _loadingEl = document.getElementById('loading-overlay');
-        _loadBar = document.getElementById('loading-bar');
-        _loadStatus = document.getElementById('loading-status');
+        _loadingEl = document.getElementById('boot-screen');
+        _loadBar = document.getElementById('boot-bar');
+        _loadStatus = document.getElementById('boot-status');
 
         _setLoadProgress(10, 'Initializing map...');
 
@@ -145,23 +145,9 @@ var App = (function () {
         });
     }
 
-    /* -- Sidebar Mobile Toggle -------------------------------------------- */
+    /* -- Sidebar Mobile Toggle (handled by sidebar-collapse.js) ----------- */
     function _initSidebarToggle() {
-        var toggle = document.getElementById('sidebar-toggle');
-        var sidebar = document.querySelector('.sidebar');
-        var backdrop = document.getElementById('sidebar-backdrop');
-        if (!toggle || !sidebar) return;
-
-        function openSidebar() {
-            sidebar.classList.add('open');
-            if (backdrop) backdrop.classList.add('open');
-        }
-        function closeSidebar() {
-            sidebar.classList.remove('open');
-            if (backdrop) backdrop.classList.remove('open');
-        }
-        toggle.addEventListener('click', openSidebar);
-        if (backdrop) backdrop.addEventListener('click', closeSidebar);
+        /* Now handled by js/panels/sidebar-collapse.js */
     }
 
     /* -- Zoom Controls ---------------------------------------------------- */

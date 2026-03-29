@@ -75,6 +75,20 @@ STANDALONE_PRODUCTS = [
         "tier": 1,
         "compliance_packs": ["ubuntu-stig", "docker-stig", "network-stig", "cis-ubuntu"],
     },
+    {
+        "name": "Kytran Gov Watch",
+        "path": "/mnt/archie_brain/kytran-gov-watch",
+        "module_key": "standalone_kytran_gov_watch",
+        "tier": 1,
+        "compliance_packs": ["ubuntu-stig", "docker-stig", "network-stig", "cis-ubuntu"],
+    },
+    {
+        "name": "Stalwart Mail Server",
+        "path": "/mnt/archie_brain/stalwart-mail",
+        "module_key": "standalone_stalwart_mail",
+        "tier": 1,
+        "compliance_packs": ["ubuntu-stig", "docker-stig", "network-stig"],
+    },
 ]
 
 # Website products tracked in Code Health (static sites deployed to Hostinger)

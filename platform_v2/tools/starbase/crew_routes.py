@@ -1,27 +1,16 @@
-"""Starbase Command — Fleet & model routes.
+"""Starbase Command — Crew manifest route.
 
-DEPRECATED ENDPOINTS (301 stubs):
-  /api/lounge, /api/agents/<id>/send-to-lounge, /api/agents/<id>/return-from-lounge,
-  /api/training/*, /api/lounge/wellness, /api/lounge/history,
-  /api/creed/check-move/<id>, /api/bridge/agent-form-context, /api/bridge/rotation-log
-  → All moved to Department HQ.
-
-REMOVED ENDPOINTS (not called by starbase.js):
-  /api/cluster/models, /api/cluster/agents
-  → Were fleet-wide inventory views; use Department HQ model management instead.
+Kept here because it's fleet operations data (dispatcher + capacity + nodes),
+not agent CRUD.  All agent management, model catalog, model-control, and
+fleet-mode endpoints now live in Department HQ.
 
 KEPT ENDPOINTS:
-  /api/model-catalog          — slim DB lookup (no Ollama calls)
   /api/bridge/crew/manifest   — full implementation (complex capacity logic for Starbase UI)
-  /api/bridge/fleet-mode      — full implementation (workday/weekend toggle)
-  /api/bridge/model-control   — slim Ollama proxy (load/unload on hub or node)
 """
 
-import os
 import logging
-import threading
-from flask import jsonify, request
-from flask_login import login_required, current_user
+from flask import jsonify
+from flask_login import login_required
 from database import get_db_cursor
 import requests
 
@@ -35,102 +24,9 @@ from .helpers import (
 
 logger = logging.getLogger(__name__)
 
-_MOVED_MSG = "Agent roster management moved to Department HQ."
-_REDIRECT = "/tools/department-hq"
-
 
 def register_crew_routes(bp, admin_required):
-    """Register fleet/model routes + deprecated roster redirect stubs."""
-
-    # ========================================================================
-    # DEPRECATED — redirect stubs for endpoints moved to Department HQ
-    # ========================================================================
-
-    @bp.route("/api/lounge", methods=["GET"])
-    @login_required
-    def get_lounge_agents():
-        return jsonify({"message": _MOVED_MSG, "redirect": _REDIRECT}), 301
-
-    @bp.route("/api/agents/<int:agent_id>/send-to-lounge", methods=["POST"])
-    @login_required
-    def send_agent_to_lounge(agent_id):
-        return jsonify({"message": _MOVED_MSG, "redirect": _REDIRECT}), 301
-
-    @bp.route("/api/agents/<int:agent_id>/return-from-lounge", methods=["POST"])
-    @login_required
-    def return_agent_from_lounge(agent_id):
-        return jsonify({"message": _MOVED_MSG, "redirect": _REDIRECT}), 301
-
-    @bp.route("/api/training/active", methods=["GET"])
-    @login_required
-    def get_active_training():
-        return jsonify({"message": _MOVED_MSG, "redirect": _REDIRECT}), 301
-
-    @bp.route("/api/training/assign", methods=["POST"])
-    @login_required
-    def assign_training():
-        return jsonify({"message": _MOVED_MSG, "redirect": _REDIRECT}), 301
-
-    @bp.route("/api/training/<int:training_id>/cancel", methods=["POST"])
-    @login_required
-    def cancel_training(training_id):
-        return jsonify({"message": _MOVED_MSG, "redirect": _REDIRECT}), 301
-
-    @bp.route("/api/training/history", methods=["GET"])
-    @login_required
-    def get_training_history():
-        return jsonify({"message": _MOVED_MSG, "redirect": _REDIRECT}), 301
-
-    @bp.route("/api/training/recommendations", methods=["GET"])
-    @login_required
-    def get_training_recommendations():
-        return jsonify({"message": _MOVED_MSG, "redirect": _REDIRECT}), 301
-
-    @bp.route("/api/training/templates", methods=["GET", "POST"])
-    @login_required
-    def training_templates():
-        return jsonify({"message": _MOVED_MSG, "redirect": _REDIRECT}), 301
-
-    @bp.route("/api/lounge/wellness", methods=["GET"])
-    @login_required
-    def get_lounge_wellness():
-        return jsonify({"message": _MOVED_MSG, "redirect": _REDIRECT}), 301
-
-    @bp.route("/api/lounge/history", methods=["GET"])
-    @login_required
-    def get_lounge_history():
-        return jsonify({"message": _MOVED_MSG, "redirect": _REDIRECT}), 301
-
-    @bp.route("/api/creed/check-move/<int:agent_id>", methods=["GET"])
-    @login_required
-    def check_creed_move_compliance(agent_id):
-        return jsonify({"message": _MOVED_MSG, "redirect": _REDIRECT}), 301
-
-    @bp.route("/api/bridge/agent-form-context", methods=["GET"])
-    @login_required
-    def get_agent_form_context():
-        return jsonify({"message": _MOVED_MSG, "redirect": _REDIRECT}), 301
-
-    @bp.route("/api/bridge/rotation-log", methods=["GET"])
-    @login_required
-    def get_rotation_log():
-        return jsonify({"message": _MOVED_MSG, "redirect": _REDIRECT}), 301
-
-    # ========================================================================
-    # KEPT — Fleet & model infrastructure endpoints
-    # ========================================================================
-
-    @bp.route("/api/model-catalog")
-    @login_required
-    def api_model_catalog():
-        """Slim model catalog lookup — DB only, no Ollama calls."""
-        with get_db_cursor() as (conn, cur):
-            cur.execute(
-                "SELECT model_name, display_name, description, tier, category, size_gb, parameter_size "
-                "FROM model_catalog WHERE is_active = true ORDER BY category, size_gb"
-            )
-            catalog = {m["model_name"]: dict(m) for m in cur.fetchall()}
-            return jsonify({"success": True, "catalog": catalog})
+    """Register crew manifest route."""
 
     @bp.route("/api/bridge/crew/manifest")
     @login_required
@@ -339,154 +235,3 @@ def register_crew_routes(bp, admin_required):
         except Exception as e:
             logger.error(f"Error getting crew manifest: {e}")
             return jsonify({"success": False, "error": "Internal server error"}), 500
-
-    @bp.route("/api/bridge/fleet-mode", methods=["POST"])
-    @login_required
-    def toggle_fleet_mode():
-        """Toggle between workday (all models warm) and weekend (all unloaded)."""
-        try:
-            if not current_user.is_admin:
-                return jsonify({"success": False, "error": "Admin access required"}), 403
-
-            data = request.get_json() or {}
-            mode = data.get("mode", "").strip().lower()
-            if mode not in ("workday", "weekend"):
-                return jsonify({"success": False, "error": "mode must be 'workday' or 'weekend'"}), 400
-
-            # Save to system_config
-            with get_db_cursor(commit=True) as (conn, cur):
-                cur.execute(
-                    """INSERT INTO system_config (key, value, description, updated_at)
-                       VALUES ('fleet_mode', %s, 'Fleet operating mode: workday (warm) or weekend (unloaded)', NOW())
-                       ON CONFLICT (key) DO UPDATE SET value = %s, updated_at = NOW()""",
-                    (mode, mode),
-                )
-
-            ollama_url = OLLAMA_LOCAL_URL
-
-            if mode == "weekend":
-
-                def _unload_all():
-                    try:
-                        from ai_bridge.bridge_dispatcher import get_dispatcher
-
-                        _dispatcher = get_dispatcher()
-                        ps_resp = requests.get(f"{ollama_url}/api/ps", timeout=10)
-                        if ps_resp.status_code == 200:
-                            for m in ps_resp.json().get("models", []):
-                                mname = m.get("name", "")
-                                result = _dispatcher.unload_model(mname)
-                                if result.get("success"):
-                                    logger.info(f"[FleetMode] Weekend: unloaded {mname}")
-                                else:
-                                    logger.warning(
-                                        f"[FleetMode] Weekend: failed to unload {mname}: {result.get('message')}"
-                                    )
-                    except Exception as e:
-                        logger.error(f"[FleetMode] Weekend Ollama unload error: {e}")
-
-                    try:
-                        comfyui_host = os.getenv("COMFYUI_HOST", "http://archie_comfyui:8188")
-                        requests.post(
-                            f"{comfyui_host}/free",
-                            json={"unload_models": True},
-                            timeout=10,
-                        )
-                        logger.info("[FleetMode] Weekend: freed ComfyUI VRAM")
-                    except Exception as e:
-                        logger.warning(f"[FleetMode] Weekend ComfyUI free error: {e}")
-
-                t = threading.Thread(target=_unload_all, daemon=True, name="fleet-weekend")
-                t.start()
-                return jsonify({"success": True, "mode": "weekend", "message": "Unloading all models..."})
-            else:
-
-                def _warmup():
-                    try:
-                        from app import _warmup_ollama_models
-
-                        _warmup_ollama_models()
-                    except Exception as e:
-                        logger.error(f"[FleetMode] Workday Ollama warmup error: {e}")
-
-                    try:
-                        from ai_bridge.comfyui_service import get_comfyui_service
-
-                        svc = get_comfyui_service()
-                        svc.warmup()
-                    except Exception as e:
-                        logger.warning(f"[FleetMode] Workday ComfyUI warmup error: {e}")
-
-                t = threading.Thread(target=_warmup, daemon=True, name="fleet-workday")
-                t.start()
-                return jsonify({"success": True, "mode": "workday", "message": "Warming up all models..."})
-
-        except Exception as e:
-            logger.error(f"Error toggling fleet mode: {e}")
-            return jsonify({"success": False, "error": "Internal server error"}), 500
-
-    @bp.route("/api/bridge/model-control", methods=["POST"])
-    @login_required
-    def model_control():
-        """Model load/unload — primary implementation now in Department HQ.
-
-        This is a slim proxy that calls Ollama directly for backward compat
-        with starbase.js.  Supports hub and node targets.
-
-        Body: { "model": "phi3.5:latest", "action": "load"|"unload", "node_id": null }
-        """
-        if not current_user.is_admin:
-            return jsonify({"success": False, "error": "Admin access required"}), 403
-
-        data = request.get_json() or {}
-        model = data.get("model", "").strip()
-        action = data.get("action", "").strip()
-        node_db_id = data.get("node_id")
-
-        if not model or action not in ("load", "unload"):
-            return jsonify({"success": False, "error": "model and action (load|unload) required"}), 400
-
-        # Determine Ollama target URL
-        ollama_url = OLLAMA_LOCAL_URL
-        target_name = "hub"
-
-        if node_db_id:
-            try:
-                with get_db_cursor() as (conn, cur):
-                    cur.execute(
-                        "SELECT hostname, port FROM remote_nodes WHERE id = %s AND is_active = true",
-                        (int(node_db_id),),
-                    )
-                    node = cur.fetchone()
-                    if not node:
-                        return jsonify({"success": False, "error": "Node not found"}), 404
-                    ollama_url = f"http://{node['hostname']}:{node['port']}"
-                    target_name = f"node {node_db_id}"
-            except Exception as e:
-                return jsonify({"success": False, "error": f"Node lookup failed: {e}"}), 500
-
-        if not ollama_url.startswith("http"):
-            ollama_url = f"http://{ollama_url}"
-
-        try:
-            if action == "load":
-                resp = requests.post(
-                    f"{ollama_url}/api/generate",
-                    json={"model": model, "prompt": "", "keep_alive": "24h"},
-                    timeout=300,
-                )
-            else:
-                resp = requests.post(
-                    f"{ollama_url}/api/generate",
-                    json={"model": model, "keep_alive": 0},
-                    timeout=30,
-                )
-
-            if resp.ok:
-                return jsonify({"success": True, "message": f"{model} {action}ed on {target_name}"})
-            return jsonify({"success": False, "error": f"Ollama returned {resp.status_code}"}), 502
-        except requests.Timeout:
-            return jsonify({"success": False, "error": "Model load timed out (300s)"}), 504
-        except Exception as e:
-            logger.error(f"model_control error: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500

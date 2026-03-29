@@ -185,7 +185,7 @@ function executeFleetModeToggle(mode) {
     btn.classList.add('transitioning');
     closeCreedCapacityModal();
 
-    fetch('/tools/starbase/api/bridge/fleet-mode', {
+    fetch('/tools/department-hq/api/models/fleet-mode', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({mode: mode})
@@ -9600,7 +9600,7 @@ function _toggleAgentModel(agent, btn, nodeDbId) {
         };
         if (nodeDbId) payload.node_id = nodeDbId;
 
-        fetch('/tools/starbase/api/bridge/model-control', {
+        fetch('/tools/department-hq/api/models/control', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -9920,7 +9920,7 @@ function openAgentFormModal(agentId) {
 
     // Fetch model catalog for descriptions (non-blocking, best-effort)
     if (!window._modelCatalog) {
-        fetch('/tools/starbase/api/model-catalog')
+        fetch('/tools/department-hq/api/models/catalog')
             .then(function(r) { return r.json(); })
             .then(function(d) { if (d.success) window._modelCatalog = d.catalog || {}; })
             .catch(function() { window._modelCatalog = {}; });

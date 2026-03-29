@@ -569,14 +569,47 @@ def get_portraits(agent_id):
 
 
 def add_portrait(agent_id, prompt, style="professional", negative_prompt=""):
-    """Add a portrait entry (pending generation). Returns portrait_id."""
+    """Add a portrait entry and trigger generation via Media Studio pipeline.
+
+    Inserts metadata row, then dispatches to portrait_service.generate_canonical()
+    which queues the job through the Bridge dispatcher for GPU-aware routing.
+    Returns portrait_id.
+    """
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
             """INSERT INTO agent_portraits (agent_id, prompt, negative_prompt, style, generation_status)
-               VALUES (%s, %s, %s, %s, 'pending') RETURNING id""",
+               VALUES (%s, %s, %s, %s, 'queued') RETURNING id""",
             (agent_id, prompt, negative_prompt, style),
         )
-        return cur.fetchone()["id"]
+        portrait_id = cur.fetchone()["id"]
+
+    # Trigger actual image generation through Media Studio's portrait service
+    try:
+        from tools.media_studio.services.portrait_service import generate_canonical
+
+        result = generate_canonical(agent_id, prompt_override=prompt)
+        if result.get("error"):
+            logger.warning(
+                "Portrait generation failed for agent %s: %s",
+                agent_id,
+                result["error"],
+            )
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "UPDATE agent_portraits SET generation_status = 'failed' WHERE id = %s",
+                    (portrait_id,),
+                )
+        else:
+            logger.info("Portrait generation queued for agent %s (portrait %s)", agent_id, portrait_id)
+    except Exception as e:
+        logger.warning("Could not trigger portrait generation for agent %s: %s", agent_id, e)
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "UPDATE agent_portraits SET generation_status = 'failed' WHERE id = %s",
+                (portrait_id,),
+            )
+
+    return portrait_id
 
 
 def set_primary_portrait(agent_id, portrait_id):

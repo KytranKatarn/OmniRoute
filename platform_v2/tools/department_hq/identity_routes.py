@@ -147,7 +147,7 @@ def register_identity_routes(bp, admin_required):
                 {
                     "success": True,
                     "portrait_id": portrait_id,
-                    "message": "Portrait queued (pending generation)",
+                    "message": "Portrait generation dispatched via Media Studio",
                 }
             )
         except Exception as e:

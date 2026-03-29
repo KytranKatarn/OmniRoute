@@ -130,6 +130,17 @@
         const actions = document.createElement("div");
         actions.className = "kbs-list-item-actions";
 
+        // Code Mode button — always available
+        const codeBtn = document.createElement("button");
+        codeBtn.className = "kbs-btn kbs-btn-sm kbs-btn-secondary";
+        codeBtn.textContent = "\u270E Code Mode";
+        codeBtn.title = "Open in Code Editor";
+        codeBtn.addEventListener("click", () => {
+            window.currentProjectId = p.id;
+            CodeMode.enter(p.id);
+        });
+        actions.appendChild(codeBtn);
+
         if (p.status !== "published") {
             const pubBtn = document.createElement("button");
             pubBtn.className = "kbs-btn kbs-btn-sm kbs-btn-success";
@@ -184,4 +195,56 @@
     loadWbStats();
     loadWbProjects();
 </script>
+
+<!-- Code Mode Container (hidden until activated) -->
+<div class="code-mode-container">
+    <div class="cm-toolbar">
+        <button class="cm-back-btn">&#8592; BACK</button>
+        <span class="cm-project-name"></span>
+        <div class="cm-device-toggles">
+            <button data-device="mobile">MOBILE</button>
+            <button data-device="tablet">TABLET</button>
+            <button data-device="desktop" class="active">DESKTOP</button>
+        </div>
+        <button class="cm-refresh-btn">&#8635; REFRESH</button>
+        <button class="cm-newtab-btn">&#8599; NEW TAB</button>
+    </div>
+    <div class="cm-panels" style="position:relative;">
+        <div class="cm-file-tree">
+            <div class="cm-file-tree-header">
+                FILES <input type="text" placeholder="Filter..." />
+            </div>
+            <div class="cm-file-tree-body"></div>
+        </div>
+        <div class="cm-resize-handle" data-resize="tree"></div>
+        <div class="cm-editor-panel">
+            <div class="cm-tabs"></div>
+            <div class="cm-editor-area"></div>
+        </div>
+        <div class="cm-resize-handle" data-resize="preview"></div>
+        <div class="cm-preview-panel">
+            <div class="cm-preview-header">LIVE PREVIEW</div>
+            <iframe class="cm-preview-iframe" sandbox="allow-scripts allow-same-origin"></iframe>
+        </div>
+        <div class="cm-ai-overlay">
+            <div class="cm-ai-overlay-header">
+                <span>AI ASSISTANT</span>
+                <button onclick="AIChatOverlay.close()" style="background:none;border:none;color:#8b5cf6;cursor:pointer;font-size:18px;">&times;</button>
+            </div>
+            <div class="cm-ai-messages"></div>
+            <div class="cm-ai-input-area">
+                <textarea placeholder="Ask AI to edit your code..." rows="2"></textarea>
+                <button onclick="AIChatOverlay.sendMessage()" style="padding:8px 12px;background:#8b5cf6;border:none;color:#fff;border-radius:4px;cursor:pointer;">Send</button>
+            </div>
+        </div>
+        <div class="cm-ai-toggle" onclick="AIChatOverlay.toggle()">AI</div>
+    </div>
+</div>
+
+<link rel="stylesheet" href="/static/website-builder/css/code-mode.css" />
+<script src="/static/website-builder/js/monaco-setup.js"></script>
+<script src="/static/website-builder/js/file-tree.js"></script>
+<script src="/static/website-builder/js/live-preview.js"></script>
+<script src="/static/website-builder/js/ai-chat-overlay.js"></script>
+<script src="/static/website-builder/js/code-mode.js"></script>
 {% endblock %}

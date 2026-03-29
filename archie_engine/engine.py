@@ -1,5 +1,6 @@
 """ARCHIE Engine — main daemon wiring all components."""
 
+import asyncio
 import json
 import logging
 from pathlib import Path
@@ -24,6 +25,7 @@ from archie_engine.hub_skills import HubSkillLoader
 from archie_engine.skills import SkillRegistry
 from archie_engine.skills.hub_loader import HubKBSkillLoader
 from archie_engine.skills.executor import SkillExecutor
+from archie_engine.skills.sync import SkillSyncService
 from archie_engine.claude.context_bridge import ContextBridge
 from archie_engine.claude.escalation import EscalationDetector
 from archie_engine.claude.mcp_server import MCPToolServer
@@ -77,6 +79,8 @@ class Engine:
         self.hub_sync: HubSync | None = None
         self.hub_skill_loader: HubSkillLoader | None = None
         self.hub_kb_loader: HubKBSkillLoader | None = None
+        self.skill_sync: SkillSyncService | None = None
+        self._skill_sync_task: asyncio.Task | None = None
         self._hub_status = HubStatus.DISCONNECTED
 
         if is_hub_configured(config):
@@ -148,9 +152,28 @@ class Engine:
                     logger.info("Registered %d hub KB skills as /hub:* commands", len(kb_skills))
             except Exception as e:
                 logger.warning("Failed to load hub KB skills: %s", e)
+        # Start skill sync loop if Hub is connected
+        if (
+            self.hub_connector
+            and self.hub_heartbeat
+            and self.hub_heartbeat.status == HubStatus.CONNECTED
+            and self.config.hub_api_key
+        ):
+            self.skill_sync = SkillSyncService(
+                hub_url=self.config.hub_url,
+                api_key=self.config.hub_api_key,
+                skills_dir=str(Path(__file__).parent / "skills" / "community"),
+            )
+            self._skill_sync_task = asyncio.create_task(
+                self.skill_sync.start_loop(interval_seconds=3600)
+            )
+            logger.info("Skill sync loop started (every 1h)")
         logger.info("ARCHIE Engine started")
 
     async def stop(self) -> None:
+        if self._skill_sync_task:
+            self._skill_sync_task.cancel()
+            self._skill_sync_task = None
         if self.hub_heartbeat:
             await self.hub_heartbeat.stop()
         await self.server.stop()

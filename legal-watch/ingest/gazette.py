@@ -1,24 +1,20 @@
 """Canada Gazette RSS ingestion — regulations and public notices."""
 import json
+import requests
 import feedparser
 from datetime import datetime, timezone
 from db import get_db
 
 GAZETTE_FEEDS = {
     "part1": {
-        "url": "https://gazette.gc.ca/rss/part1-eng.xml",
+        "url": "https://gazette.gc.ca/rss/p1-eng.xml",
         "part": "Part I",
         "type": "proposed",
     },
     "part2": {
-        "url": "https://gazette.gc.ca/rss/part2-eng.xml",
+        "url": "https://gazette.gc.ca/rss/p2-eng.xml",
         "part": "Part II",
         "type": "enacted",
-    },
-    "part3": {
-        "url": "https://gazette.gc.ca/rss/part3-eng.xml",
-        "part": "Part III",
-        "type": "act",
     },
 }
 
@@ -37,11 +33,49 @@ def _log_ingest(conn, source, fetched, inserted, status, error=None):
     conn.commit()
 
 
+def _fetch_entries(url):
+    """Fetch feed entries — direct feedparser with requests fallback for CORS proxy."""
+    # Try direct feedparser first (works for server-side requests)
+    try:
+        raw = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0 (compatible; GavelBot/1.0)"})
+        raw.raise_for_status()
+        feed = feedparser.parse(raw.content)
+        if feed.entries:
+            return [
+                {
+                    "title": e.get("title", "Untitled"),
+                    "link": e.get("link", ""),
+                    "summary": e.get("summary", "")[:500],
+                    "published": e.get("published", ""),
+                }
+                for e in feed.entries
+            ]
+    except Exception:
+        pass
+    # Fallback: rss2json proxy
+    try:
+        proxy_url = f"https://api.rss2json.com/v1/api.json?rss_url={url}"
+        resp = requests.get(proxy_url, timeout=15)
+        data = resp.json()
+        if data.get("status") == "ok" and "items" in data:
+            return [
+                {
+                    "title": item.get("title", "Untitled"),
+                    "link": item.get("link", ""),
+                    "summary": item.get("description", "")[:500],
+                    "published": item.get("pubDate", ""),
+                }
+                for item in data["items"]
+            ]
+    except Exception:
+        pass
+    return []
+
+
 def _ingest_feed(feed_key, config):
     conn = get_db()
     try:
-        feed = feedparser.parse(config["url"])
-        entries = feed.entries
+        entries = _fetch_entries(config["url"])
         inserted = 0
 
         for entry in entries:
@@ -94,6 +128,7 @@ def _ingest_feed(feed_key, config):
 
         conn.commit()
         _log_ingest(conn, f"gazette_{feed_key}", len(entries), inserted, "ok")
+        print(f"[G.A.V.E.L.] gazette_{feed_key}: {len(entries)} fetched, {inserted} inserted")
         return inserted
     except Exception as e:
         _log_ingest(conn, f"gazette_{feed_key}", 0, 0, "error", str(e))

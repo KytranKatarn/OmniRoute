@@ -26,9 +26,11 @@ def create_app():
     from routes.health import health_bp
     from routes.events import events_bp
     from routes.regulations import regulations_bp
+    from routes.canlii import canlii_bp
     app.register_blueprint(health_bp)
     app.register_blueprint(events_bp)
     app.register_blueprint(regulations_bp)
+    app.register_blueprint(canlii_bp)
     return app
 
 

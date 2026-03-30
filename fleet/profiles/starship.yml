@@ -1,0 +1,25 @@
+name: starship
+description: Full compute node with AI inference and generation
+min_requirements:
+  cpu_cores: 4
+  ram_gb: 16
+  disk_gb: 100
+  gpu: recommended
+services:
+  required:
+    - sync-daemon
+    - node-api
+    - reverse-proxy
+    - ollama
+    - postgres
+  optional:
+    - comfyui
+    - smtp-relay
+    - monitoring-agent
+network:
+  mesh_vpn: required
+  ports:
+    - 80
+    - 443
+    - 3001
+    - 11434

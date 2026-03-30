@@ -1,0 +1,20 @@
+name: outpost
+description: Lightweight proxy and relay node for regional presence
+min_requirements:
+  cpu_cores: 1
+  ram_gb: 2
+  disk_gb: 20
+services:
+  required:
+    - sync-daemon
+    - node-api
+    - reverse-proxy
+  optional:
+    - smtp-relay
+    - monitoring-agent
+network:
+  mesh_vpn: required
+  ports:
+    - 80
+    - 443
+    - 3001

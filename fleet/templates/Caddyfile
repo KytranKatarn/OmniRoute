@@ -1,0 +1,4 @@
+:80 {
+    respond /health "OK" 200
+    reverse_proxy /api/* archie_outpost_api:3001
+}

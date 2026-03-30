@@ -200,3 +200,108 @@ def register_node():
 def node_heartbeat(node_id):
     """Receive heartbeat from a CLI node."""
     return jsonify({"status": "ok", "node_id": node_id})
+
+
+# ─────────────────────────────────────────────
+# Chat gateway — for Claude CLI / MCP / external tools
+# ─────────────────────────────────────────────
+
+
+@api_gateway_bp.route("/api/v1/chat", methods=["POST"])
+@require_api_key
+def gateway_chat():
+    """Send a message to ARCHIE Chat from external tools (Claude CLI, MCP).
+
+    Body (JSON):
+        message         str  — required. The user's message.
+        conversation_id str  — optional UUID. Resume an existing conversation.
+        agent_target    str  — optional. Target agent name (default: ARCHIE).
+
+    Returns:
+        {success, response, conversation_id, agent_used, model_used, duration_ms}
+    """
+    import time as _time
+
+    body = request.get_json(silent=True) or {}
+    message = (body.get("message") or "").strip()
+    if not message:
+        return jsonify({"success": False, "error": "message is required"}), 400
+
+    conversation_id_param = body.get("conversation_id")
+    agent_target = body.get("agent_target") or "ARCHIE"
+
+    start = _time.time()
+
+    try:
+        from tools.archie_chat.chat_service import (
+            create_conversation,
+            get_conversation_by_uuid,
+            save_message,
+            auto_title_conversation,
+            get_conversation_context,
+            get_conversation_messages,
+        )
+        from ai_bridge.orchestration_engine import OrchestrationEngine
+
+        # Use a synthetic gateway user_id (admin user id 1, or derive from API key)
+        gateway_user_id = 1
+
+        conv = None
+        if conversation_id_param:
+            conv = get_conversation_by_uuid(conversation_id_param, gateway_user_id, team_id=1)
+        if not conv:
+            conv = create_conversation(gateway_user_id, team_id=1, agent_target=agent_target)
+
+        save_message(conv["id"], "user", message)
+
+        if not conversation_id_param:
+            auto_title_conversation(conv["id"], message)
+
+        # Build conversation context for multi-turn memory
+        conv_context = get_conversation_context(conv["id"], max_messages=20, max_chars=4000)
+        recent_messages = get_conversation_messages(conv["id"], limit=20)
+        conversation_history = []
+        for m in recent_messages[:-1]:
+            if m["role"] in ("user", "assistant") and m.get("content"):
+                conversation_history.append({"role": m["role"], "content": m["content"][:500]})
+
+        contextual_message = f"{conv_context}{message}" if conv_context else message
+
+        engine = OrchestrationEngine()
+        result = engine.orchestrate(
+            message=contextual_message,
+            user_id=gateway_user_id,
+            conversation_id=str(conv["conversation_uuid"]),
+            agent_target=agent_target,
+            user_context={
+                "username": "gateway",
+                "conversation_history": conversation_history,
+                "original_message": message,
+            },
+        )
+
+        duration_ms = int((_time.time() - start) * 1000)
+
+        save_message(
+            conv["id"],
+            "assistant",
+            result.response,
+            agent_used=result.agent_used,
+            model_used=result.model_used,
+            duration_ms=duration_ms,
+        )
+
+        return jsonify(
+            {
+                "success": True,
+                "response": result.response,
+                "conversation_id": str(conv["conversation_uuid"]),
+                "agent_used": result.agent_used,
+                "model_used": result.model_used,
+                "duration_ms": duration_ms,
+            }
+        )
+
+    except Exception as exc:
+        logger.exception("Gateway chat failed: %s", exc)
+        return jsonify({"success": False, "error": str(exc)[:300]}), 500

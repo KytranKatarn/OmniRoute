@@ -357,6 +357,11 @@ services:
     cpus: 2.0
     cap_drop:
       - ALL
+    cap_add:
+      - DAC_OVERRIDE
+      - CHOWN
+      - SETGID
+      - SETUID
     deploy:
       resources:
         reservations:
@@ -419,7 +424,7 @@ services:
 
   # Tailscale client for hub — joins the mesh as archie-hub (100.64.0.1)
   archie_tailscale:
-    image: tailscale/tailscale:stable
+    image: tailscale/tailscale:v1.80.3
     container_name: archie_tailscale
     restart: unless-stopped
     read_only: true
@@ -448,6 +453,12 @@ services:
     depends_on:
       archie_headscale:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "tailscale", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
   # Kytran Business Suite — standalone SaaS product
   kytran-business-suite:
@@ -458,26 +469,53 @@ services:
     env_file: ./kytran-business-suite/.env
     read_only: true
     tmpfs:
-      - /tmp
+      - /tmp:size=256m
+      - /var/run:size=16m
     depends_on:
       - archie_database
       - kbs-redis
     mem_limit: 512m
     cpus: 1.0
+    cap_drop:
+      - ALL
+    cap_add:
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
     restart: unless-stopped
     networks:
       - archie_internal
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   kbs-redis:
     image: redis:7-alpine
     container_name: kbs_redis
+    # read_only not feasible — Redis writes AOF/RDB persistence files to /data volume
     volumes:
       - kbs-redis-data:/data
+    tmpfs:
+      - /tmp:size=64m
+      - /var/run:size=16m
     mem_limit: 128m
     cpus: 0.25
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETGID
+      - SETUID
     restart: unless-stopped
     networks:
       - archie_internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
 
   kbs-worker:
     build: ./kytran-business-suite
@@ -486,15 +524,28 @@ services:
     env_file: ./kytran-business-suite/.env
     read_only: true
     tmpfs:
-      - /tmp
+      - /tmp:size=256m
+      - /var/run:size=16m
     depends_on:
       - archie_database
       - kbs-redis
     mem_limit: 256m
     cpus: 0.5
+    cap_drop:
+      - ALL
+    cap_add:
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
     restart: unless-stopped
     networks:
       - archie_internal
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
   kytran_market_api:
     build: ./market-watch
@@ -510,13 +561,23 @@ services:
       - ALPACA_BASE_URL=https://paper-api.alpaca.markets
     read_only: true
     tmpfs:
-      - /tmp
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 128M
+      - /tmp:size=128m
+      - /var/run:size=16m
+    mem_limit: 128m
+    cpus: 0.5
+    cap_drop:
+      - ALL
+    cap_add:
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
 secrets:
   db_password:

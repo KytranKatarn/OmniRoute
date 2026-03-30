@@ -328,6 +328,21 @@ class ArchieMCPServer:
 
         tool = self.tools[name]
 
+        # Sanitize params: MCP transport may send integers as strings or arrays as JSON strings
+        schema_props = tool.input_schema.get("properties", {}) if tool.input_schema else {}
+        for key, val in params.items():
+            if not isinstance(val, str):
+                continue
+            prop_schema = schema_props.get(key, {})
+            prop_type = prop_schema.get("type")
+            if prop_type == "integer" and val.isdigit():
+                params[key] = int(val)
+            elif prop_type == "array" and val.startswith("["):
+                try:
+                    params[key] = json.loads(val)
+                except (json.JSONDecodeError, ValueError):
+                    pass
+
         try:
             # If tool has a direct handler, use it
             if tool.handler:
@@ -344,7 +359,7 @@ class ArchieMCPServer:
 
             # Log successful call with output info
             execution_time = (datetime.now() - start_time).total_seconds() * 1000
-            result_str = json.dumps(result) if result else ""
+            result_str = json.dumps(result, cls=MCPJSONEncoder) if result else ""
             output_size = len(result_str)
             # Build a short summary from result keys or message
             output_summary = None

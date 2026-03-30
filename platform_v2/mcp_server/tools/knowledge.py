@@ -154,9 +154,18 @@ async def search_knowledge_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             "conversation_memory": 0.8,
         }
 
-        # Build query conditions
-        conditions = ["(title ILIKE %s OR content ILIKE %s)"]
-        params = [f"%{query}%", f"%{query}%"]
+        # Build query conditions — split multi-word queries into AND'd terms
+        words = query.strip().split()
+        if len(words) > 1:
+            word_conditions = []
+            params = []
+            for word in words:
+                word_conditions.append("(title ILIKE %s OR content ILIKE %s)")
+                params.extend([f"%{word}%", f"%{word}%"])
+            conditions = ["(" + " AND ".join(word_conditions) + ")"]
+        else:
+            conditions = ["(title ILIKE %s OR content ILIKE %s)"]
+            params = [f"%{query}%", f"%{query}%"]
 
         if types:
             if isinstance(types, str):

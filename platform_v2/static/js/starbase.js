@@ -839,7 +839,7 @@ const MODULE_INFO = {
 
     // DEVELOPMENT TOOLS
     'code_editor': { icon: 'code-2', route: '/tools/code-editor', name: 'Code Editor' },
-    'dev_pipeline': { icon: 'workflow', route: '/tools/dev-pipeline', name: 'Dev Pipeline' },
+    'repair_bay': { icon: 'workflow', route: '/tools/repair-bay', name: 'Repair Bay' },
     'blueprint': { icon: 'layout-dashboard', route: '/tools/blueprint', name: 'Blueprint' },
     'testing_suite': { icon: 'test-tube-2', route: '/tools/testing-suite', name: 'Testing Suite' },
     'cursor_integration': { icon: 'mouse-pointer', route: '/tools/cursor-integration', name: 'Cursor Integration' },

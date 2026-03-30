@@ -2929,7 +2929,7 @@ function _renderAttentionItems(summary, orphans, d) {
       btn.style.borderColor = item.actionColor;
       btn.style.background = "rgba(255,255,255,0.03)";
       btn.textContent = item.action;
-      btn.onclick = function() { window.location.href = "/tools/dev-pipeline"; };
+      btn.onclick = function() { window.location.href = "/tools/repair-bay"; };
       card.appendChild(btn);
     }
 

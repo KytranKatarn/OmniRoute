@@ -4,7 +4,7 @@
  * Usage:
  *   var ops = new DepartmentOps({
  *     stationCode: "ENGINEERING",
- *     moduleSource: "dev_pipeline",
+ *     moduleSource: "repair_bay",
  *     agentsElId: "engOpsAgents",
  *     jobsElId: "engOpsJobs",
  *     commandsElId: "engOpsCommands",
@@ -42,7 +42,7 @@
 
   function DepartmentOps(config) {
     this.stationCode = config.stationCode;         // "ENGINEERING", "ANALYTICS", etc.
-    this.moduleSource = config.moduleSource;         // "dev_pipeline", "consciousness"
+    this.moduleSource = config.moduleSource;         // "repair_bay", "consciousness"
     this.agentsElId = config.agentsElId;             // element id for crew list
     this.jobsElId = config.jobsElId;                 // element id for job progress
     this.commandsElId = config.commandsElId;         // element id for command buttons
@@ -562,7 +562,7 @@
    * Returns a promise resolving to an array of action objects.
    *
    * Usage:
-   *   DepartmentOps.fetchActions("dev_pipeline").then(function(actions) { ... });
+   *   DepartmentOps.fetchActions("repair_bay").then(function(actions) { ... });
    */
   DepartmentOps.fetchActions = function(moduleSource) {
     return fetch("/tools/starbase/api/station-actions?module_source=" + encodeURIComponent(moduleSource))
@@ -578,8 +578,8 @@
    * If createsJob is true, starts polling via the instance's pollJob method.
    *
    * @param {DepartmentOps} ops   - DepartmentOps instance (for pollJob)
-   * @param {string} actionKey - e.g. "dev_pipeline.scan.batch"
-   * @param {string} endpointPath - e.g. "/tools/dev-pipeline/api/scan/batch"
+   * @param {string} actionKey - e.g. "repair_bay.scan.batch"
+   * @param {string} endpointPath - e.g. "/tools/repair-bay/api/scan/batch"
    * @param {string} httpMethod - "POST" or "GET"
    * @param {boolean} createsJob - whether to poll for job progress
    * @param {object} params - optional body params

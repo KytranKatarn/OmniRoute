@@ -3770,14 +3770,14 @@ function addMultiAgentMessage(data, meta = {}) {
 
 // Module action button configuration
 const moduleActions = {
-    'dev_pipeline': { icon: 'workflow', label: 'Dev Pipeline', color: '#00FFFF' },
+    'repair_bay': { icon: 'workflow', label: 'Repair Bay', color: '#00FFFF' },
     'blueprint': { icon: 'clipboard-list', label: 'Blueprint Tasks', color: '#3b82f6' }
 };
 
 // Open a module in a new tab or navigate to it
 function openModule(moduleName) {
     const moduleUrls = {
-        'dev_pipeline': '/tools/dev-pipeline',
+        'repair_bay': '/tools/repair-bay',
         'blueprint': '/tools/blueprint'
     };
     const url = moduleUrls[moduleName];

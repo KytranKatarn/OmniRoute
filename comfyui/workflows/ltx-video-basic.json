@@ -1,0 +1,52 @@
+{
+  "1": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {"ckpt_name": "ltx-video-2b-v0.9.safetensors"}
+  },
+  "2": {
+    "class_type": "CLIPLoader",
+    "inputs": {"clip_name": "t5xxl_fp8_e4m3fn.safetensors", "type": "ltxv"}
+  },
+  "3": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {"text": "A cat walking on a sunny street", "clip": ["2", 0]}
+  },
+  "4": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {"text": "blurry, low quality", "clip": ["2", 0]}
+  },
+  "5": {
+    "class_type": "STGGuiderAdvanced",
+    "inputs": {
+      "model": ["1", 0],
+      "positive": ["3", 0],
+      "negative": ["4", 0],
+      "skip_steps_sigma_threshold": 0.998,
+      "cfg_star_rescale": true,
+      "sigmas": "1.0, 0.9933, 0.9850, 0.9767, 0.9008, 0.6180",
+      "cfg_values": "8, 6, 6, 4, 3, 1",
+      "stg_scale_values": "4, 4, 3, 2, 1, 0",
+      "stg_rescale_values": "1, 1, 1, 1, 1, 1",
+      "stg_layers_indices": "[29], [29], [29], [29], [29], [29]"
+    }
+  },
+  "6": {"class_type": "KSamplerSelect", "inputs": {"sampler_name": "euler"}},
+  "7": {"class_type": "BasicScheduler", "inputs": {"model": ["1", 0], "scheduler": "normal", "steps": 8, "denoise": 1.0}},
+  "8": {"class_type": "RandomNoise", "inputs": {"noise_seed": 42}},
+  "9": {
+    "class_type": "LTXVBaseSampler",
+    "inputs": {
+      "model": ["1", 0], "vae": ["1", 2],
+      "width": 256, "height": 256, "num_frames": 9,
+      "guider": ["5", 0], "sampler": ["6", 0], "sigmas": ["7", 0], "noise": ["8", 0]
+    }
+  },
+  "10": {
+    "class_type": "LTXVTiledVAEDecode",
+    "inputs": {"vae": ["1", 2], "latents": ["9", 0], "horizontal_tiles": 1, "vertical_tiles": 1, "overlap": 1, "last_frame_fix": false}
+  },
+  "11": {
+    "class_type": "SaveAnimatedWEBP",
+    "inputs": {"images": ["10", 0], "filename_prefix": "ltx_video", "fps": 8.0, "lossless": false, "quality": 80, "method": "default"}
+  }
+}

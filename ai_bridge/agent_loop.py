@@ -961,8 +961,17 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Job #61: Fleet SSL wildcard cert renewal (daily 03:00 UTC)
+        self.scheduler.add_job(
+            with_app_context(self._renew_fleet_ssl),
+            trigger=CronTrigger(hour=3, minute=0),
+            id="fleet_ssl_renewal",
+            name="Agent Loop: Fleet SSL Renewal",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 60 jobs")
+        logger.info("Agent loop started with 61 jobs")
 
     def _update_stock_prices(self):
         """Job #27: Refresh cached stock prices, check price alerts, and auto-scan watchlist every 5 minutes."""
@@ -6757,6 +6766,43 @@ Respond with ONLY a JSON object (no markdown, no explanation):
                 "department_metrics_rollup", 0, 1, 0, error_message=str(e)
             )
             logger.warning("Department metrics rollup failed: %s", e)
+
+    def _renew_fleet_ssl(self):
+        """Job #61: Renew wildcard SSL cert if expiring within 30 days.
+        Owned by Security & Compliance (V.I.G.I.L.)."""
+        try:
+            from ai_bridge.cert_manager import check_cert_expiry, renew_wildcard_cert
+
+            cert_dir = "/opt/archie-fleet/certs/wildcard"
+            cert_path = os.path.join(cert_dir, "fullchain.pem")
+            days_left = check_cert_expiry(cert_path)
+
+            if days_left > 30:
+                logger.info(f"[SSL] Wildcard cert valid for {days_left} more days, skipping renewal")
+                return
+
+            if days_left == -1:
+                logger.info("[SSL] No wildcard cert found, attempting first issuance...")
+            else:
+                logger.info(f"[SSL] Cert expires in {days_left} days, starting renewal...")
+
+            success, message = renew_wildcard_cert("kytranempowerment.com", cert_dir)
+
+            if success:
+                logger.info(f"[SSL] Renewal successful: {message}")
+            else:
+                logger.error(f"[SSL] Renewal failed: {message}")
+                from database import get_db_cursor
+
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        """INSERT INTO system_notifications
+                           (type, title, message, source, priority, visibility, is_read, created_at)
+                           VALUES ('error', 'SSL Renewal Failed', %s, 'agent_loop', 'high', 'admin', FALSE, NOW())""",
+                        (message,),
+                    )
+        except Exception as e:
+            logger.error(f"[SSL] Fleet SSL renewal error: {e}")
 
 
 # ---------------------------------------------------------------------------

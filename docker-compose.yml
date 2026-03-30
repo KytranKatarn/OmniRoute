@@ -136,6 +136,8 @@ services:
       - ./host_monitor_data.json:/mnt/archie_brain/host_monitor_data.json:ro
       # Fleet app catalog (YAML entries for KSO app store)
       - ./fleet/catalog:/mnt/archie_brain/fleet/catalog:ro
+      # Fleet SSL cert storage (wildcard cert for *.kytranempowerment.com)
+      - /opt/archie-fleet/certs:/opt/archie-fleet/certs:rw
       - ./bandwidth_history.json:/mnt/archie_brain/bandwidth_history.json:ro
       - ./n8n_workflows:/mnt/archie_brain/n8n_workflows:rw
       - ./persistence/n8n:/mnt/archie_brain/persistence/n8n:ro

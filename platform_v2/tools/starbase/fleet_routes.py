@@ -20,7 +20,10 @@ from psycopg2.extras import Json, RealDictCursor
 from database import get_db_cursor
 
 VALID_NODE_TYPES = ("outpost", "starship", "satellite")
-CATALOG_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "fleet", "catalog", "apps")
+CATALOG_DIR = os.environ.get(
+    "FLEET_CATALOG_DIR",
+    "/mnt/archie_brain/fleet/catalog/apps",
+)
 
 
 def register_fleet_routes(bp, admin_required):
@@ -363,7 +366,7 @@ def register_fleet_routes(bp, admin_required):
 
                     # Filter by node_type compatibility if requested
                     if node_type_filter:
-                        compatible = app_def.get("compatible_node_types", [])
+                        compatible = app_def.get("compatible_nodes", [])
                         if compatible and node_type_filter not in compatible:
                             continue
 

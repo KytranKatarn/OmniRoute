@@ -21,6 +21,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN cd /comfyui/custom_nodes && \
     git clone https://github.com/ltdrdata/ComfyUI-Manager.git
 
+# Install LTX-Video node (Lightricks video generation)
+RUN cd /comfyui/custom_nodes && \
+    git clone https://github.com/Lightricks/ComfyUI-LTXVideo.git && \
+    cd ComfyUI-LTXVideo && \
+    pip install --no-cache-dir -r requirements.txt 2>/dev/null || true
+
 EXPOSE 8188
 
 RUN mkdir -p /comfyui/user/default/workflows

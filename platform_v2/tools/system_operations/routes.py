@@ -1,17 +1,35 @@
 """
-System Operations Routes
-API endpoints for system monitoring and management
+System Operations Routes — RETIRED. Redirects to Kytran System Operations standalone.
+
+All system management features have been consolidated into the Kytran System Operations
+standalone product at port 8085:
+- Docker stack management
+- Process/storage/network monitoring
+- Firewall management
+- Proxy/SSL management
+- Compliance scanning
+
+See: kytran-server-manager/
+Decision: #193 (task #1400)
 """
 
-from flask import render_template, jsonify, request, redirect, url_for, flash
-from flask_login import login_required, current_user
-import psycopg2
-from psycopg2.extras import RealDictCursor, Json
 import os
-from datetime import datetime
+
+from flask import redirect
+from flask_login import login_required
 
 from . import system_operations_bp
-from .system_service import get_system_service
+from .helpers import (
+    get_db,
+    audit_log,
+    record_metric,
+    require_reauth,
+    parse_compose_host_port,
+    find_compose_file,
+    BASE_DIR,
+    HOST_DATA_FILE,
+    load_host_monitor_data,
+)
 from .host_command_client import (
     submit_host_command,
     submit_and_wait,
@@ -20,20 +38,15 @@ from .host_command_client import (
     HostCommandTimeout,
     HostCommandQueueUnavailable,
 )
-from .helpers import (
-    BASE_DIR,
-    HOST_DATA_FILE,
-    load_host_monitor_data,
-    get_db,
-    audit_log,
-    record_metric,
-    require_reauth,
-    parse_compose_host_port,
-    find_compose_file,
-)
+from .system_service import get_system_service
+
 import json as json_lib
 import time as time_mod
-
+from flask import jsonify, request
+import psycopg2
+from psycopg2.extras import RealDictCursor, Json
+from datetime import datetime
+from flask_login import current_user
 
 # admin_required via rbac (ADR-045 — same decorator used in __init__.py)
 from rbac import require_permission, Permission
@@ -48,14 +61,15 @@ admin_required = require_permission(Permission.ADMIN_ACCESS)
 
 @system_operations_bp.route("/")
 @login_required
-@admin_required
 def index():
-    """Main System Operations — launch page for standalone"""
-    standalone_url = os.getenv("STANDALONE_SYSOPS_URL", "http://192.168.1.200:8085")
-    return render_template(
-        "tools/system_operations/system_operations_launch.html",
-        standalone_url=standalone_url,
-    )
+    """Redirect to Kytran System Operations standalone."""
+    KSO_URL = os.getenv("KSO_BASE_URL", "http://192.168.1.200:8085")
+    return redirect(KSO_URL)
+
+
+@system_operations_bp.route("/health")
+def health_check():
+    return {"status": "retired", "redirect": "kytran-system-operations"}, 200
 
 
 # ============================================================================

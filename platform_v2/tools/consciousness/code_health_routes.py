@@ -442,7 +442,7 @@ def register_code_health_routes(bp, admin_required):
                         "total": sum(proposals_by_status.values()),
                     },
                     "governance": governance,
-                    "repair_bay_url": "/tools/dev-pipeline",
+                    "repair_bay_url": "/tools/repair-bay",
                 }
             )
         except Exception as e:

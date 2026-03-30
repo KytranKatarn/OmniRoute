@@ -16,11 +16,11 @@ logger = logging.getLogger("archie_mcp.tools.forge")
 async def forge_health_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """Check F.O.R.G.E. pipeline health — GitHub auth + repo access."""
     try:
-        from tools.dev_pipeline.services.github_service import health_check
+        from tools.repair_bay.services.github_service import health_check
 
         health_data = health_check()
         try:
-            from tools.dev_pipeline.services.dependabot_service import get_repair_queue
+            from tools.repair_bay.services.dependabot_service import get_repair_queue
 
             queue = get_repair_queue()
             health_data["repair_queue_depth"] = queue.get("count", 0) if queue.get("success") else "error"
@@ -34,7 +34,7 @@ async def forge_health_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
 async def forge_stats_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """Get F.O.R.G.E. pipeline statistics — PRs, reviews, proposals, self-healing."""
     try:
-        from tools.dev_pipeline.services.github_service import list_pipeline_prs, health_check
+        from tools.repair_bay.services.github_service import list_pipeline_prs, health_check
 
         import psycopg2
         from psycopg2.extras import RealDictCursor
@@ -78,7 +78,7 @@ async def forge_stats_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             "self_heal_actions": heal_actions,
         }
         try:
-            from tools.dev_pipeline.services.dependabot_service import get_repair_queue
+            from tools.repair_bay.services.dependabot_service import get_repair_queue
 
             queue = get_repair_queue()
             items = queue.get("items", []) if queue.get("success") else []
@@ -103,7 +103,7 @@ async def forge_self_heal_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
         return {"success": False, "error": "proposal_id is required"}
 
     try:
-        from tools.dev_pipeline.services.forge_self_heal import run_self_heal_cycle
+        from tools.repair_bay.services.forge_self_heal import run_self_heal_cycle
 
         return run_self_heal_cycle(int(proposal_id))
     except Exception as e:
@@ -113,7 +113,7 @@ async def forge_self_heal_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
 async def forge_list_prs_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """List open F.O.R.G.E. pipeline PRs on GitHub."""
     try:
-        from tools.dev_pipeline.services.github_service import list_pipeline_prs
+        from tools.repair_bay.services.github_service import list_pipeline_prs
 
         state = arguments.get("state", "open")
         return list_pipeline_prs(state)
@@ -128,7 +128,7 @@ async def forge_deploy_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
         return {"success": False, "error": "pr_number is required"}
 
     try:
-        from tools.dev_pipeline.services.forge_pipeline import deploy_via_merge
+        from tools.repair_bay.services.forge_pipeline import deploy_via_merge
 
         proposal_id = arguments.get("proposal_id")
         return deploy_via_merge(int(pr_number), proposal_id)
@@ -138,7 +138,7 @@ async def forge_deploy_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
 async def forge_scan_vulns_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """Trigger on-demand Dependabot poll + manifest discovery."""
-    from tools.dev_pipeline.services.dependabot_service import (
+    from tools.repair_bay.services.dependabot_service import (
         poll_and_ingest,
         sync_manifest_registry,
         get_repair_queue,

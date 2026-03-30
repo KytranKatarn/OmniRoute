@@ -110,7 +110,7 @@ class Permission(Enum):
     ADMIN_ACCESS = "admin:access"
     ADMIN_AGENTS = "admin:agents"
     ADMIN_IMPROVEMENTS = "admin:improvements"
-    ADMIN_DEV_PIPELINE = "admin:dev_pipeline"
+    ADMIN_DEV_PIPELINE = "admin:repair_bay"
     ADMIN_USERS = "admin:users"
     ADMIN_BACKUPS = "admin:backups"
     ADMIN_LOGS = "admin:logs"

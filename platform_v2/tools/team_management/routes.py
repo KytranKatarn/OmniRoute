@@ -9824,7 +9824,7 @@ AGENT_TEMPLATES = [
         "last_name": "Sharma",
         "role": "Code Quality Analyst",
         "department": "Development Tools",
-        "module_id": "dev_pipeline",
+        "module_id": "repair_bay",
         "category": "ai_command",
         "icon": "code",
         "system_prompt": (
@@ -9847,7 +9847,7 @@ AGENT_TEMPLATES = [
         "last_name": "Lindqvist",
         "role": "Testing & Sandbox Specialist",
         "department": "Development Tools",
-        "module_id": "dev_pipeline",
+        "module_id": "repair_bay",
         "category": "ai_command",
         "icon": "flask-conical",
         "system_prompt": (
@@ -9870,7 +9870,7 @@ AGENT_TEMPLATES = [
         "last_name": "Al-Rashid",
         "role": "Platform Improvement Analyst",
         "department": "Development Tools",
-        "module_id": "dev_pipeline",
+        "module_id": "repair_bay",
         "category": "ai_command",
         "icon": "lightbulb",
         "system_prompt": (

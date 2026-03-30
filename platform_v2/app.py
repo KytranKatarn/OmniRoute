@@ -474,7 +474,7 @@ def ai_preferences():
 @login_required
 def code_editor():
     """Enhanced code editor with AI assistance"""
-    return render_template("dev_pipeline/code_editor.html", ai_available=AI_BRIDGE_AVAILABLE, user=current_user)
+    return render_template("repair_bay/code_editor.html", ai_available=AI_BRIDGE_AVAILABLE, user=current_user)
 
 
 # ============================================================================
@@ -1754,9 +1754,9 @@ app.config["MODULE_REGISTRY_FAILED"] = failed_modules
 # NOTE: consciousness_bp and backup_manager_bp are now loaded via module_registry
 # NOTE: archie_api_bp removed — endpoints migrated directly into app.py above
 from tools.github_integration.github_routes import github_bp  # noqa: E402
-from tools.dev_pipeline.services.sandbox_routes import sandbox_bp  # noqa: E402
+from tools.repair_bay.services.sandbox_routes import sandbox_bp  # noqa: E402
 
-from tools.dev_pipeline.services.cursor_api import cursor_bp  # noqa: E402
+from tools.repair_bay.services.cursor_api import cursor_bp  # noqa: E402
 
 # OAuth authentication (Phase 6.5 - User Management & Subscription System)
 from oauth_routes import oauth_bp, init_oauth  # noqa: E402
@@ -1789,7 +1789,7 @@ from services.ksm_billing_handler import register_ksm_billing_handlers  # noqa: 
 register_ksm_billing_handlers()
 
 # Register additional blueprints
-# Note: app_builder_bp, archie_chat_bp, consciousness_bp, backup_manager_bp, dev_pipeline_bp loaded via module_registry
+# Note: app_builder_bp, archie_chat_bp, consciousness_bp, backup_manager_bp, repair_bay_bp loaded via module_registry
 app.register_blueprint(github_bp)
 app.register_blueprint(sandbox_bp)  # Sandbox environment for testing proposals
 app.register_blueprint(cursor_bp)  # Cursor IDE integration API

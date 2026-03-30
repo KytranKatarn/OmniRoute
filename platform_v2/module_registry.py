@@ -38,7 +38,7 @@ class ModuleCategory(Enum):
 
     # New category structure from consolidation plan (2026-02-03)
     ADMIN_OPERATIONS = "admin_operations"  # backup_manager, security_network, account_center, system_ops
-    AI_COMMAND = "ai_command"  # blueprint, consciousness, team_management, bridge, dev_pipeline
+    AI_COMMAND = "ai_command"  # blueprint, consciousness, team_management, bridge, repair_bay
     SAAS_SERVICES = "saas_services"  # crm, website_studio, store_builder, call_center, etc.
     PROJECT_KNOWLEDGE = "project_knowledge"  # project_manager, obsidian_vault, api_docs
     MEDIA_HOME = "media_home"  # media_hub
@@ -521,18 +521,18 @@ MODULES: List[ModuleDefinition] = [
     ),
     # Repair Bay — F.O.R.G.E.'s primary tool
     ModuleDefinition(
-        id="dev_pipeline",
+        id="repair_bay",
         name="Repair Bay",
         description="F.O.R.G.E.'s Repair Bay<br>Scan \u2022 Fix \u2022 Test \u2022 PR \u2022 Review \u2022 Deploy",
         icon="git-branch",
         category=ModuleCategory.AI_COMMAND,
-        route="/tools/dev-pipeline",
-        blueprint_import="tools.dev_pipeline:dev_pipeline_bp",
+        route="/tools/repair-bay",
+        blueprint_import="tools.repair_bay:repair_bay_bp",
         required_permissions=[],
         minimum_role="ADMIN",
         enabled=True,
         coming_soon=False,
-        health_check=lambda: check_service_health("dev_pipeline", "/tools/dev-pipeline/api/status"),
+        health_check=lambda: check_service_health("repair_bay", "/tools/repair-bay/api/status"),
         priority=0,
         tags=[
             "development",

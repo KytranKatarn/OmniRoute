@@ -79,9 +79,8 @@ async def search_knowledge_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
         semantic_results = semantic_search(
             query,
-            table="knowledge_base",
+            source_types=types if types else None,
             limit=limit,
-            filter_sql=filter_sql,
         )
         if semantic_results:
             # Apply type weighting to semantic results
@@ -817,9 +816,8 @@ async def github_search_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
             results = semantic_search(
                 query,
-                table="knowledge_base",
+                source_types=["github_file"],
                 limit=limit,
-                filter_sql="AND (source_type = 'github_selective' OR knowledge_type = 'github_file')",
             )
             if results:
                 return {

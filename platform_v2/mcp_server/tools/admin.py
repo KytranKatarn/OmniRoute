@@ -1400,6 +1400,8 @@ async def run_backup_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             "python3",
             "-c",
             f"""
+import sys
+sys.path.insert(0, '/app')
 import json
 from tools.backup_manager.backup_manager_routes import create_backup_programmatic
 result = create_backup_programmatic("{safe_description}", "mcp_system")

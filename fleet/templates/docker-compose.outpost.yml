@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   archie_sync:
     image: python:3.11-slim
@@ -30,7 +28,7 @@ services:
     container_name: archie_outpost_api
     restart: unless-stopped
     working_dir: /app
-    command: python3 node_api.py
+    command: bash -c "pip install flask requests psutil psycopg2-binary --quiet && python3 node_api.py"
     ports:
       - "3001:3001"
     environment:

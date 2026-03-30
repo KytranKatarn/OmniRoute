@@ -1,0 +1,13 @@
+{
+  "name": "A.R.C.H.I.E. Satellite",
+  "short_name": "Satellite",
+  "start_url": "/fleet/satellite/",
+  "display": "standalone",
+  "background_color": "#0a0e17",
+  "theme_color": "#00e5ff",
+  "description": "Fleet satellite node — mobile presence for A.R.C.H.I.E. mesh network",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#00e5ff">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>A.R.C.H.I.E. Satellite</title>
+  <link rel="manifest" href="/fleet/satellite/manifest.json">
+  <link rel="stylesheet" href="/fleet/satellite/satellite.css">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Header -->
+  <header class="sat-header">
+    <h1>A.R.C.H.I.E. SATELLITE</h1>
+    <div id="status-dot" class="sat-status-dot"></div>
+  </header>
+
+  <!-- Registration Screen -->
+  <div id="screen-register" class="sat-screen active">
+    <div class="sat-register">
+      <h2>JOIN FLEET</h2>
+      <p style="color: #6b7280; margin-bottom: 24px; font-size: 13px;">
+        Register this device as a satellite node in the A.R.C.H.I.E. mesh network.
+      </p>
+      <input id="node-name" class="sat-input" type="text" placeholder="Satellite name (e.g., my-phone)">
+      <button id="register-btn" class="sat-btn" onclick="satellite.register()">JOIN FLEET</button>
+      <div id="waiting-msg" class="sat-waiting" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- Dashboard Screen -->
+  <div id="screen-dashboard" class="sat-screen">
+    <div class="sat-stats">
+      <div class="sat-stat-card">
+        <div class="label">Status</div>
+        <div class="value" id="stat-status">-</div>
+      </div>
+      <div class="sat-stat-card">
+        <div class="label">Type</div>
+        <div class="value" id="stat-type">-</div>
+      </div>
+    </div>
+    <div class="sat-stat-card" style="margin-bottom: 24px;">
+      <div class="label">Node ID</div>
+      <div class="value" id="stat-node-id" style="font-size: 12px; word-break: break-all;">-</div>
+    </div>
+  </div>
+
+  <!-- Fleet Screen -->
+  <div id="screen-fleet" class="sat-screen">
+    <h3 style="font-family: 'Orbitron', monospace; color: #00e5ff; font-size: 14px; margin-bottom: 16px;">FLEET NODES</h3>
+    <ul id="fleet-list" class="sat-fleet-list">
+      <li class="sat-fleet-item">
+        <div><div class="node-name" style="color: #6b7280;">Fleet data loading...</div></div>
+      </li>
+    </ul>
+  </div>
+
+  <!-- Settings Screen -->
+  <div id="screen-settings" class="sat-screen">
+    <h3 style="font-family: 'Orbitron', monospace; color: #00e5ff; font-size: 14px; margin-bottom: 16px;">SETTINGS</h3>
+    <div class="sat-stat-card" style="margin-bottom: 12px; text-align: left;">
+      <div class="label">Hub URL</div>
+      <div style="font-size: 12px; margin-top: 4px; word-break: break-all;" id="settings-hub-url"></div>
+    </div>
+    <button class="sat-btn" style="background: #ef4444; margin-top: 24px;" onclick="satellite.disconnect()">
+      DISCONNECT FROM FLEET
+    </button>
+  </div>
+
+  <!-- Bottom Nav -->
+  <nav class="sat-nav" style="display:none">
+    <button data-screen="dashboard" class="active" onclick="satellite.showScreen('dashboard')">STATUS</button>
+    <button data-screen="fleet" onclick="satellite.showScreen('fleet')">FLEET</button>
+    <button data-screen="settings" onclick="satellite.showScreen('settings')">SETTINGS</button>
+  </nav>
+
+  <script src="/fleet/satellite/satellite.js"></script>
+</body>
+</html>

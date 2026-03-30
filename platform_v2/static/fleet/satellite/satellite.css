@@ -1,0 +1,381 @@
+/* A.R.C.H.I.E. Satellite PWA — LCARS Mobile Theme */
+
+:root {
+  --sat-bg: #0a0e17;
+  --sat-panel: #111827;
+  --sat-accent: #00e5ff;
+  --sat-accent-dim: rgba(0, 229, 255, 0.15);
+  --sat-text: #e5e7eb;
+  --sat-text-dim: #6b7280;
+  --sat-green: #10b981;
+  --sat-amber: #f59e0b;
+  --sat-red: #ef4444;
+  --sat-border: rgba(255, 255, 255, 0.06);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  background: var(--sat-bg);
+  color: var(--sat-text);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* ── Header ─────────────────────────────────────────── */
+
+.sat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: var(--sat-panel);
+  border-bottom: 1px solid var(--sat-border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.sat-header h1 {
+  font-family: 'Orbitron', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--sat-accent);
+  letter-spacing: 2px;
+}
+
+/* ── Status Dot ─────────────────────────────────────── */
+
+.sat-status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--sat-text-dim);
+  flex-shrink: 0;
+  transition: background 0.3s ease;
+}
+
+.sat-status-dot.online {
+  background: var(--sat-green);
+  box-shadow: 0 0 8px var(--sat-green);
+  animation: sat-pulse 2s ease-in-out infinite;
+}
+
+.sat-status-dot.pending {
+  background: var(--sat-amber);
+  box-shadow: 0 0 8px var(--sat-amber);
+  animation: sat-pulse 1.5s ease-in-out infinite;
+}
+
+.sat-status-dot.offline {
+  background: var(--sat-red);
+  box-shadow: 0 0 6px var(--sat-red);
+}
+
+@keyframes sat-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ── Screens ────────────────────────────────────────── */
+
+.sat-screen {
+  display: none;
+  padding: 24px 20px;
+  padding-bottom: 100px;
+  min-height: calc(100vh - 57px);
+}
+
+.sat-screen.active {
+  display: block;
+}
+
+/* ── Registration ───────────────────────────────────── */
+
+.sat-register {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: calc(100vh - 160px);
+  max-width: 360px;
+  margin: 0 auto;
+}
+
+.sat-register h2 {
+  font-family: 'Orbitron', monospace;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--sat-accent);
+  letter-spacing: 3px;
+  margin-bottom: 8px;
+}
+
+/* ── Input ──────────────────────────────────────────── */
+
+.sat-input {
+  width: 100%;
+  padding: 14px 16px;
+  background: var(--sat-bg);
+  border: 1px solid var(--sat-border);
+  border-radius: 8px;
+  color: var(--sat-text);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  margin-bottom: 16px;
+}
+
+.sat-input::placeholder {
+  color: var(--sat-text-dim);
+}
+
+.sat-input:focus {
+  border-color: var(--sat-accent);
+  box-shadow: 0 0 0 3px var(--sat-accent-dim);
+}
+
+/* ── Button ─────────────────────────────────────────── */
+
+.sat-btn {
+  width: 100%;
+  padding: 14px 24px;
+  background: var(--sat-accent);
+  color: var(--sat-bg);
+  border: none;
+  border-radius: 8px;
+  font-family: 'Orbitron', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.1s ease;
+}
+
+.sat-btn:hover {
+  opacity: 0.9;
+}
+
+.sat-btn:active {
+  transform: scale(0.98);
+}
+
+.sat-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ── Waiting Message ────────────────────────────────── */
+
+.sat-waiting {
+  margin-top: 24px;
+  padding: 16px;
+  background: var(--sat-panel);
+  border: 1px solid var(--sat-border);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--sat-text-dim);
+  line-height: 1.6;
+}
+
+.sat-waiting .status-text {
+  color: var(--sat-amber);
+  font-weight: 600;
+}
+
+/* ── Stats Grid ─────────────────────────────────────── */
+
+.sat-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+/* ── Stat Card ──────────────────────────────────────── */
+
+.sat-stat-card {
+  background: var(--sat-panel);
+  border: 1px solid var(--sat-border);
+  border-left: 3px solid var(--sat-accent);
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+}
+
+.sat-stat-card .label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--sat-text-dim);
+  margin-bottom: 6px;
+}
+
+.sat-stat-card .value {
+  font-family: 'Orbitron', monospace;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--sat-accent);
+}
+
+/* ── Fleet List ─────────────────────────────────────── */
+
+.sat-fleet-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.sat-fleet-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: var(--sat-panel);
+  border: 1px solid var(--sat-border);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.sat-fleet-item .node-name {
+  font-family: 'Orbitron', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sat-text);
+  margin-bottom: 2px;
+}
+
+.sat-fleet-item .node-type {
+  font-size: 11px;
+  color: var(--sat-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* ── Badge ──────────────────────────────────────────── */
+
+.sat-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+.sat-badge.online {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--sat-green);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.sat-badge.offline {
+  background: rgba(107, 114, 128, 0.15);
+  color: var(--sat-text-dim);
+  border: 1px solid rgba(107, 114, 128, 0.3);
+}
+
+.sat-badge.pending {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--sat-amber);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+/* ── Bottom Nav ─────────────────────────────────────── */
+
+.sat-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  background: var(--sat-panel);
+  border-top: 1px solid var(--sat-border);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  z-index: 100;
+}
+
+.sat-nav button {
+  flex: 1;
+  padding: 14px 8px;
+  background: none;
+  border: none;
+  color: var(--sat-text-dim);
+  font-family: 'Orbitron', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease;
+  position: relative;
+}
+
+.sat-nav button.active {
+  color: var(--sat-accent);
+}
+
+.sat-nav button.active::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 20%;
+  right: 20%;
+  height: 2px;
+  background: var(--sat-accent);
+  border-radius: 0 0 2px 2px;
+}
+
+.sat-nav button:active {
+  background: var(--sat-accent-dim);
+}
+
+/* ── Responsive ─────────────────────────────────────── */
+
+@media (min-width: 480px) {
+  .sat-register {
+    max-width: 400px;
+  }
+
+  .sat-header h1 {
+    font-size: 18px;
+  }
+}
+
+@media (min-width: 768px) {
+  .sat-screen {
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .sat-stats {
+    gap: 16px;
+  }
+}
+
+/* ── Safe area for notched phones ───────────────────── */
+
+@supports (padding: env(safe-area-inset-bottom)) {
+  .sat-screen {
+    padding-bottom: calc(100px + env(safe-area-inset-bottom));
+  }
+
+  .sat-header {
+    padding-top: calc(16px + env(safe-area-inset-top));
+  }
+}

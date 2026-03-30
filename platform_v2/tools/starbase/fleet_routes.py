@@ -13,7 +13,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 import yaml
-from flask import jsonify, request
+from flask import jsonify, request, send_from_directory
 from flask_login import current_user
 from psycopg2.extras import Json, RealDictCursor
 
@@ -25,6 +25,17 @@ CATALOG_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "fleet",
 
 def register_fleet_routes(bp, admin_required):
     """Register fleet registration, approval, and catalog routes."""
+
+    # ------------------------------------------------------------------ #
+    # Satellite PWA — serve static files
+    # ------------------------------------------------------------------ #
+    satellite_dir = os.path.join(os.path.dirname(__file__), "..", "..", "static", "fleet", "satellite")
+
+    @bp.route("/fleet/satellite/")
+    @bp.route("/fleet/satellite/<path:filename>")
+    def fleet_satellite(filename="index.html"):
+        """Serve satellite PWA static files."""
+        return send_from_directory(satellite_dir, filename)
 
     # ------------------------------------------------------------------ #
     # POST /api/fleet/token/generate — admin generates registration token

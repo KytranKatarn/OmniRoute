@@ -873,26 +873,26 @@
     <div class="dp-header">
         <div>
             <div class="dp-title">Repair Bay</div>
-            <div class="dp-subtitle">F.O.R.G.E.'s Repair Bay &bull; Scan &bull; Propose &bull; Test &bull; Deploy</div>
+            <div class="dp-subtitle">F.O.R.G.E.'s Repair Bay &bull; Diagnose &bull; Repair &bull; Test &bull; Ship</div>
         </div>
     </div>
 
     <!-- Stats Overview -->
     <div class="dp-stats">
         <div class="dp-stat-card" style="--card-accent: var(--archie-cyan, #00d4ff);">
-            <div class="dp-stat-label">Scans (24h)</div>
+            <div class="dp-stat-label">Diagnoses (24h)</div>
             <div class="dp-stat-value" id="statScans">0</div>
         </div>
         <div class="dp-stat-card" style="--card-accent: #f59e0b;">
-            <div class="dp-stat-label">Proposals</div>
+            <div class="dp-stat-label">Repairs</div>
             <div class="dp-stat-value" id="statProposals">0</div>
         </div>
         <div class="dp-stat-card" style="--card-accent: #8b5cf6;">
-            <div class="dp-stat-label">Sandboxes</div>
+            <div class="dp-stat-label">Test Runs</div>
             <div class="dp-stat-value" id="statSandboxes">0</div>
         </div>
         <div class="dp-stat-card" style="--card-accent: #00ff41;">
-            <div class="dp-stat-label">Deployed</div>
+            <div class="dp-stat-label">Shipped</div>
             <div class="dp-stat-value" id="statDeployed">0</div>
         </div>
     </div>
@@ -919,10 +919,10 @@
         {'id': 'repair-queue', 'label': 'Repair Queue', 'icon': 'shield-alert'},
         {'id': 'vulnerabilities', 'label': 'Vulnerabilities', 'icon': 'bug'},
         {'id': 'reviews', 'label': 'Reviews', 'icon': 'message-square'},
-        {'id': 'scan', 'label': 'Scan', 'icon': 'shield-check'},
-        {'id': 'proposals', 'label': 'Proposals', 'icon': 'wrench'},
-        {'id': 'sandbox', 'label': 'Sandbox', 'icon': 'test-tube-2'},
-        {'id': 'deploy', 'label': 'Deploy', 'icon': 'rocket'}
+        {'id': 'scan', 'label': 'Diagnose', 'icon': 'shield-check'},
+        {'id': 'proposals', 'label': 'Repairs', 'icon': 'wrench'},
+        {'id': 'sandbox', 'label': 'Test Bay', 'icon': 'test-tube-2'},
+        {'id': 'deploy', 'label': 'Ship', 'icon': 'rocket'}
     ], onswitch='switchTab') }}
 
     <!-- Repair Queue Tab (default) -->

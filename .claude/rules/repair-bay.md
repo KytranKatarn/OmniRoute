@@ -2,10 +2,10 @@
 globs: ["platform_v2/tools/dev_pipeline/**", "platform_v2/services/scan_service.py", "platform_v2/services/proposal_service.py", "platform_v2/services/scan_pipeline.py"]
 ---
 
-# Dev Pipeline Rules
+# Repair Bay Rules
 
 ## Structure
-- Route: `/tools/dev-pipeline` | 4 tabs: Scan, Proposals, Sandbox, Deploy + ENGINEERING station panel
+- Route: `/tools/repair-bay` | 4 tabs: Diagnose, Repairs, Test Bay, Ship + ENGINEERING station panel
 - Service layer: `scan_service.py`, `proposal_service.py`, `sandbox_service.py` (business logic)
 - Route files are thin HTTP handlers calling service functions
 - Category: `AI_COMMAND` (not DEVELOPMENT_TOOLS — deleted)

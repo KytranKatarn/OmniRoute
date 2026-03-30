@@ -1,4 +1,4 @@
-"""Dev Pipeline — Proposals tab routes.
+"""Repair Bay — Proposals tab routes.
 
 Thin HTTP layer calling services.proposal_service for all business logic.
 Migrated from proxy pattern in Project #103, Phase 2.
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def register_proposal_routes(bp, admin_required):
-    """Register proposal-related routes on the dev_pipeline blueprint."""
+    """Register proposal-related routes on the repair_bay blueprint."""
 
     from services import proposal_service
 

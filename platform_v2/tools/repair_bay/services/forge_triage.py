@@ -4,7 +4,7 @@ import re
 import logging
 from typing import Dict, Optional
 
-from tools.dev_pipeline.services.dependabot_service import update_repair_item
+from tools.repair_bay.services.dependabot_service import update_repair_item
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +132,7 @@ def triage_alert(alert: Dict) -> Dict:
 
 def triage_pending_queue() -> Dict:
     """Triage all pending items in the repair queue."""
-    from tools.dev_pipeline.services.dependabot_service import get_repair_queue
+    from tools.repair_bay.services.dependabot_service import get_repair_queue
 
     pending = get_repair_queue(status="pending")
     if not pending["success"]:

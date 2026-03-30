@@ -7,12 +7,12 @@ logger = logging.getLogger(__name__)
 
 
 def register_repair_routes(bp, admin_required):
-    """Register repair queue routes on the dev_pipeline blueprint."""
+    """Register repair queue routes on the repair_bay blueprint."""
 
     @bp.route("/api/repair/queue")
     @admin_required
     def repair_queue_list():
-        from tools.dev_pipeline.services.dependabot_service import get_repair_queue
+        from tools.repair_bay.services.dependabot_service import get_repair_queue
 
         status = request.args.get("status")
         severity = request.args.get("severity")
@@ -23,7 +23,7 @@ def register_repair_routes(bp, admin_required):
     @bp.route("/api/repair/queue/<int:item_id>", methods=["PATCH"])
     @admin_required
     def repair_queue_update(item_id):
-        from tools.dev_pipeline.services.dependabot_service import update_repair_item
+        from tools.repair_bay.services.dependabot_service import update_repair_item
 
         data = request.get_json() or {}
         result = update_repair_item(item_id, **data)
@@ -32,8 +32,8 @@ def register_repair_routes(bp, admin_required):
     @bp.route("/api/repair/queue/<int:item_id>/triage", methods=["POST"])
     @admin_required
     def repair_queue_triage(item_id):
-        from tools.dev_pipeline.services.dependabot_service import get_repair_queue
-        from tools.dev_pipeline.services.forge_triage import triage_alert
+        from tools.repair_bay.services.dependabot_service import get_repair_queue
+        from tools.repair_bay.services.forge_triage import triage_alert
 
         queue = get_repair_queue()
         item = next((i for i in queue["items"] if i["id"] == item_id), None)
@@ -45,7 +45,7 @@ def register_repair_routes(bp, admin_required):
     @bp.route("/api/repair/poll", methods=["POST"])
     @admin_required
     def repair_poll_now():
-        from tools.dev_pipeline.services.dependabot_service import poll_and_ingest
+        from tools.repair_bay.services.dependabot_service import poll_and_ingest
 
         result = poll_and_ingest()
         return jsonify(result)
@@ -53,7 +53,7 @@ def register_repair_routes(bp, admin_required):
     @bp.route("/api/repair/manifests")
     @admin_required
     def repair_manifests():
-        from tools.dev_pipeline.services.dependabot_service import discover_manifests
+        from tools.repair_bay.services.dependabot_service import discover_manifests
 
         manifests = discover_manifests()
         return jsonify({"success": True, "manifests": manifests, "count": len(manifests)})
@@ -61,7 +61,7 @@ def register_repair_routes(bp, admin_required):
     @bp.route("/api/repair/stats")
     @admin_required
     def repair_stats():
-        from tools.dev_pipeline.services.dependabot_service import get_repair_queue
+        from tools.repair_bay.services.dependabot_service import get_repair_queue
 
         all_items = get_repair_queue()
         if not all_items["success"]:

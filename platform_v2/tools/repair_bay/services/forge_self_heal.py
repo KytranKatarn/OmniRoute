@@ -191,7 +191,7 @@ def escalate_to_human(proposal_id: int, reason: str, context: Dict):
         f"Proposal #{proposal_id} needs human intervention\n"
         f"Reason: {reason}\n"
         f"Attempts: {context.get('attempt', '?')}\n\n"
-        f"[View Pipeline](http://192.168.1.200:3000/tools/dev-pipeline)"
+        f"[View Pipeline](http://192.168.1.200:3000/tools/repair-bay)"
     )
 
     logger.info(f"[FORGE] Escalated proposal #{proposal_id}: {reason}")

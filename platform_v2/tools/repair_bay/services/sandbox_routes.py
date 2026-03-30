@@ -115,7 +115,7 @@ def tools_code_editor(subpath=None):
     Code editor in sandbox mode
     """
     return render_template(
-        "dev_pipeline/code_editor.html",
+        "repair_bay/code_editor.html",
         sandbox_mode=True,
         schema_name="sandbox",
         sandbox_prefix="/sandbox",
@@ -225,7 +225,7 @@ def api_status():
 def api_compare():
     """Compare sandbox vs production schemas"""
     from flask import jsonify
-    from tools.dev_pipeline.services.sandbox_schema import SchemaSandboxManager
+    from tools.repair_bay.services.sandbox_schema import SchemaSandboxManager
 
     manager = SchemaSandboxManager()
     result = manager.compare_schemas("sandbox", "public")

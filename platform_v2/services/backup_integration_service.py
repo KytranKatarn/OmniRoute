@@ -1,4 +1,4 @@
-"""Backup integration with Dev Pipeline — pre-change snapshots.
+"""Backup integration with Repair Bay — pre-change snapshots.
 
 Creates a lightweight backup before code changes are deployed.
 Integrates with deployment_notifier for notifications.

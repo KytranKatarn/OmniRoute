@@ -1,5 +1,5 @@
 """
-Dev Pipeline Module — Unified Development Tools
+Repair Bay Module — Unified Development Tools
 
 Consolidates Code Sentinel + Improvements Lab + Sandbox Manager into
 a single module with 4 tabs: Scan, Proposals, Sandbox, Deploy.
@@ -9,10 +9,10 @@ All routes require admin authentication via @admin_required decorator.
 
 from flask import Blueprint
 
-dev_pipeline_bp = Blueprint(
-    "dev_pipeline",
+repair_bay_bp = Blueprint(
+    "repair_bay",
     __name__,
-    url_prefix="/tools/dev-pipeline",
+    url_prefix="/tools/repair-bay",
     template_folder="templates",
 )
 
@@ -27,13 +27,13 @@ from .github_routes import register_github_routes  # noqa: E402
 from .repair_routes import register_repair_routes  # noqa: E402
 
 # Register all route groups (service layer — no more proxy imports)
-register_scan_routes(dev_pipeline_bp, admin_required)
-register_proposal_routes(dev_pipeline_bp, admin_required)
-register_sandbox_routes(dev_pipeline_bp, admin_required)
-register_deploy_routes(dev_pipeline_bp, admin_required)
-register_station_routes(dev_pipeline_bp, admin_required)
-register_github_routes(dev_pipeline_bp, admin_required)
-register_repair_routes(dev_pipeline_bp, admin_required)
+register_scan_routes(repair_bay_bp, admin_required)
+register_proposal_routes(repair_bay_bp, admin_required)
+register_sandbox_routes(repair_bay_bp, admin_required)
+register_deploy_routes(repair_bay_bp, admin_required)
+register_station_routes(repair_bay_bp, admin_required)
+register_github_routes(repair_bay_bp, admin_required)
+register_repair_routes(repair_bay_bp, admin_required)
 
 # Register station actions so Bridge ACTN tab can discover them
 try:
@@ -42,15 +42,15 @@ try:
     register_station_actions(
         [
             {
-                "action_key": "dev_pipeline.scan.batch",
+                "action_key": "repair_bay.scan.batch",
                 "station_code": "ENGINEERING",
-                "module_source": "dev_pipeline",
+                "module_source": "repair_bay",
                 "label": "BATCH SCAN",
                 "description": "Run code scan across all tracked files",
                 "icon": "search",
                 "color_class": "green",
                 "sort_order": 10,
-                "endpoint_path": "/tools/dev-pipeline/api/scan/batch",
+                "endpoint_path": "/tools/repair-bay/api/scan/batch",
                 "creates_job": True,
                 "job_type": "code_scan",
                 "test_config": {
@@ -61,15 +61,15 @@ try:
                 },
             },
             {
-                "action_key": "dev_pipeline.scan.run",
+                "action_key": "repair_bay.scan.run",
                 "station_code": "ENGINEERING",
-                "module_source": "dev_pipeline",
+                "module_source": "repair_bay",
                 "label": "SCAN FILE",
                 "description": "Scan a specific file for issues",
                 "icon": "file",
                 "color_class": "green",
                 "sort_order": 20,
-                "endpoint_path": "/tools/dev-pipeline/api/scan/run",
+                "endpoint_path": "/tools/repair-bay/api/scan/run",
                 "params_schema": [
                     {
                         "key": "file_path",
@@ -88,15 +88,15 @@ try:
                 },
             },
             {
-                "action_key": "dev_pipeline.sandbox.run",
+                "action_key": "repair_bay.sandbox.run",
                 "station_code": "ENGINEERING",
-                "module_source": "dev_pipeline",
+                "module_source": "repair_bay",
                 "label": "RUN TESTS",
                 "description": "Execute sandbox test suite",
                 "icon": "terminal",
                 "color_class": "green",
                 "sort_order": 30,
-                "endpoint_path": "/tools/dev-pipeline/api/sandbox/run",
+                "endpoint_path": "/tools/repair-bay/api/sandbox/run",
                 "creates_job": True,
                 "job_type": "sandbox_test",
                 "test_config": {

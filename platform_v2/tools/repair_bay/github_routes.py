@@ -29,7 +29,7 @@ def _get_db():
 
 
 def register_github_routes(bp, admin_required):
-    """Register all F.O.R.G.E. GitHub routes on the dev_pipeline blueprint."""
+    """Register all F.O.R.G.E. GitHub routes on the repair_bay blueprint."""
 
     @bp.route("/api/forge/health", methods=["GET"])
     @login_required

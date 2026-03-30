@@ -113,7 +113,7 @@ def test_all_modules(base_url="http://192.168.1.200:3000"):
         "/tools/consciousness",
         "/tools/dev-hq",
         "/creed",
-        "/tools/dev-pipeline",
+        "/tools/repair-bay",
         "/tools/system-operations",
         "/tools/security-network",
         "/tools/media-hub",

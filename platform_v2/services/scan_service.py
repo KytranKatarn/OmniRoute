@@ -446,7 +446,7 @@ Only return valid JSON, no other text."""
             result = _dispatcher.request_work(
                 capability="code_review",
                 prompt=prompt,
-                module_id="dev_pipeline",
+                module_id="repair_bay",
                 json_mode=True,
                 user_id=user_id,
                 timeout=120,
@@ -626,7 +626,7 @@ def batch_scan(file_paths, scanned_by="system", user_id=4):
 
     job_id = _dispatcher.create_job(
         job_type="code_scan",
-        module_source="dev_pipeline",
+        module_source="repair_bay",
         description=f"Code scan: {len(file_paths)} files",
         total_steps=len(file_paths),
         capability="code_review",
@@ -1581,7 +1581,7 @@ Return only valid JSON."""
                 dispatch_result = _dispatcher.request_work(
                     capability="code_review",
                     prompt=prompt,
-                    module_id="dev_pipeline",
+                    module_id="repair_bay",
                     system_prompt=prompt_prefix,
                     json_mode=True,
                 )

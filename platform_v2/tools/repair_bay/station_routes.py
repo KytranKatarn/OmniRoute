@@ -1,7 +1,7 @@
-"""Dev Pipeline — Station integration routes.
+"""Repair Bay — Station integration routes.
 
 Proxies Starbase Command APIs filtered to ENGINEERING station and
-dev_pipeline module_source. Provides crew roster, job status, and
+repair_bay module_source. Provides crew roster, job status, and
 active job polling for the station panel UI.
 """
 
@@ -13,11 +13,11 @@ from flask_login import login_required
 logger = logging.getLogger(__name__)
 
 STATION_CODE = "ENGINEERING"
-MODULE_SOURCE = "dev_pipeline"
+MODULE_SOURCE = "repair_bay"
 
 
 def register_station_routes(bp, admin_required):
-    """Register station-related routes on the dev_pipeline blueprint."""
+    """Register station-related routes on the repair_bay blueprint."""
 
     @bp.route("/api/station/crew")
     @login_required
@@ -70,7 +70,7 @@ def register_station_routes(bp, admin_required):
     @bp.route("/api/station/jobs")
     @login_required
     def station_jobs():
-        """Get active Dev Pipeline jobs from Starbase."""
+        """Get active Repair Bay jobs from Starbase."""
         try:
             import requests as req
 
@@ -86,7 +86,7 @@ def register_station_routes(bp, admin_required):
             if not data.get("success"):
                 return jsonify({"success": True, "jobs": [], "count": 0})
 
-            # Filter to dev_pipeline module only
+            # Filter to repair_bay module only
             my_jobs = [j for j in data.get("jobs", []) if j.get("module_source") == MODULE_SOURCE]
 
             return jsonify(

@@ -1,4 +1,4 @@
-"""Dev Pipeline — Deploy tab routes.
+"""Repair Bay — Deploy tab routes.
 
 Thin HTTP layer calling services.proposal_service for deployment data.
 Migrated from direct DB queries in Project #103, Phase 2.
@@ -103,7 +103,7 @@ def _run_pre_deploy_health_check(file_paths=None):
 
 
 def register_deploy_routes(bp, admin_required):
-    """Register deployment-related routes on the dev_pipeline blueprint."""
+    """Register deployment-related routes on the repair_bay blueprint."""
 
     from services import proposal_service
 

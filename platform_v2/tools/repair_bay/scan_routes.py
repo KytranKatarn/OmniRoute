@@ -1,4 +1,4 @@
-"""Dev Pipeline — Scan tab routes.
+"""Repair Bay — Scan tab routes.
 
 Thin HTTP layer calling services.scan_service for all business logic.
 Migrated from proxy pattern in Project #103, Phase 1.
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def register_scan_routes(bp, admin_required):
-    """Register scan-related routes on the dev_pipeline blueprint."""
+    """Register scan-related routes on the repair_bay blueprint."""
 
     from services import scan_service
 
@@ -356,7 +356,7 @@ def register_scan_routes(bp, admin_required):
                                 f"### Details\n{description[:2000]}\n\n"
                                 f"---\n"
                                 f"*Auto-created by F.O.R.G.E. scan pipeline*\n"
-                                f"*Platform: http://192.168.1.200:3000/tools/dev-pipeline*"
+                                f"*Platform: http://192.168.1.200:3000/tools/repair-bay*"
                             )
                             gh_create_issue(
                                 title=f"[SCAN] {title}",

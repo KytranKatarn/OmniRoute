@@ -1,4 +1,4 @@
-"""Dev Pipeline — Sandbox tab routes.
+"""Repair Bay — Sandbox tab routes.
 
 Thin HTTP layer calling services.sandbox_service for all business logic.
 Migrated from proxy pattern in Project #103, Phase 3.
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def register_sandbox_routes(bp, admin_required):
-    """Register sandbox-related routes on the dev_pipeline blueprint."""
+    """Register sandbox-related routes on the repair_bay blueprint."""
 
     from services import sandbox_service
 

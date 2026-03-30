@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # Department-to-module mapping for self-modification detection
 _DEPARTMENT_MODULE_MAP = {
     "Engineering & Technology": [
-        "dev_pipeline",
+        "repair_bay",
         "consciousness",
         "dev_hq",
     ],

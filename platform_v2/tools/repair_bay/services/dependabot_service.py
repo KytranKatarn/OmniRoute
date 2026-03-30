@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from database import get_db_cursor
-from tools.dev_pipeline.services.github_service import get_dependabot_alerts
+from tools.repair_bay.services.github_service import get_dependabot_alerts
 
 logger = logging.getLogger(__name__)
 

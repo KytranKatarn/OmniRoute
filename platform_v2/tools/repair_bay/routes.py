@@ -1,4 +1,4 @@
-"""Dev Pipeline — main routes and admin_required decorator."""
+"""Repair Bay — main routes and admin_required decorator."""
 
 import logging
 from functools import wraps
@@ -40,24 +40,24 @@ def admin_required(f):
     return decorated_function
 
 
-from . import dev_pipeline_bp  # noqa: E402
+from . import repair_bay_bp  # noqa: E402
 
 
-@dev_pipeline_bp.route("/")
+@repair_bay_bp.route("/")
 @login_required
 @admin_required
 def index():
-    """Dev Pipeline main page — renders 4-tab LCARS interface."""
-    return render_template("tools/dev_pipeline.html")
+    """Repair Bay main page — renders 4-tab LCARS interface."""
+    return render_template("tools/repair_bay.html")
 
 
-@dev_pipeline_bp.route("/api/status")
+@repair_bay_bp.route("/api/status")
 @login_required
 def status():
     """Health check endpoint."""
     return jsonify(
         {
-            "module": "dev_pipeline",
+            "module": "repair_bay",
             "status": "active",
             "healthy": True,
         }

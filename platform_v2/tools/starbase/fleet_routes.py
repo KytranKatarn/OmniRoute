@@ -378,3 +378,77 @@ def register_fleet_routes(bp, admin_required):
             return jsonify({"success": True, "apps": apps, "count": len(apps)})
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
+
+    # ── Cert Distribution ────────────────────────────────────────────
+
+    WILDCARD_CERT_DIR = os.path.join(os.environ.get("FLEET_CERT_DIR", "/opt/archie-fleet/certs"), "wildcard")
+
+    @bp.route("/api/fleet/certs/wildcard/check", methods=["GET"])
+    def fleet_cert_check():
+        """Lightweight cert metadata check for fleet nodes."""
+        remote_ip = request.remote_addr or ""
+        if not remote_ip.startswith("100.64."):
+            api_key = request.headers.get("X-Node-API-Key")
+            if not api_key:
+                return jsonify({"success": False, "error": "Mesh or API key required"}), 403
+
+        cert_path = os.path.join(WILDCARD_CERT_DIR, "fullchain.pem")
+        if not os.path.exists(cert_path):
+            return jsonify({"success": False, "error": "No wildcard cert available"}), 404
+
+        try:
+            from cryptography import x509 as x509_mod
+
+            with open(cert_path, "rb") as f:
+                cert_pem = f.read()
+            cert = x509_mod.load_pem_x509_certificate(cert_pem)
+            cert_hash = hashlib.sha256(cert_pem).hexdigest()
+
+            return jsonify(
+                {
+                    "success": True,
+                    "expires_at": cert.not_valid_after_utc.isoformat(),
+                    "sha256": cert_hash,
+                    "domain": "*.kytranempowerment.com",
+                }
+            )
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/fleet/certs/wildcard", methods=["GET"])
+    def fleet_cert_download():
+        """Full cert + key download for fleet nodes. Mesh-only or API key required."""
+        remote_ip = request.remote_addr or ""
+        if not remote_ip.startswith("100.64."):
+            api_key = request.headers.get("X-Node-API-Key")
+            if not api_key:
+                return jsonify({"success": False, "error": "Mesh or API key required"}), 403
+
+        cert_path = os.path.join(WILDCARD_CERT_DIR, "fullchain.pem")
+        key_path = os.path.join(WILDCARD_CERT_DIR, "privkey.pem")
+
+        if not os.path.exists(cert_path) or not os.path.exists(key_path):
+            return jsonify({"success": False, "error": "No wildcard cert available"}), 404
+
+        try:
+            from cryptography import x509 as x509_mod
+
+            with open(cert_path, "rb") as f:
+                cert_pem = f.read()
+            with open(key_path, "rb") as f:
+                key_pem = f.read()
+
+            cert = x509_mod.load_pem_x509_certificate(cert_pem)
+            cert_hash = hashlib.sha256(cert_pem).hexdigest()
+
+            return jsonify(
+                {
+                    "success": True,
+                    "cert_pem": cert_pem.decode(),
+                    "key_pem": key_pem.decode(),
+                    "expires_at": cert.not_valid_after_utc.isoformat(),
+                    "sha256": cert_hash,
+                }
+            )
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500

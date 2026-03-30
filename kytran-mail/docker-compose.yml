@@ -1,0 +1,31 @@
+services:
+  kytran-mail:
+    build: .
+    container_name: kytran_mail_dev
+    ports:
+      - "25:25"
+      - "587:587"
+      - "465:465"
+      - "993:993"
+      - "8025:8025"
+      - "8443:443"
+    environment:
+      - MAIL_DOMAIN=kytranempowerment.com
+      - MAIL_ADMIN_PASSWORD=KytranMail2026!
+      - MAIL_HOSTNAME=mail.kytranempowerment.com
+      - FLASK_SECRET_KEY=dev-secret-key
+      - MAIL_RELAY_HOST=
+      - MAIL_RELAY_PORT=587
+    volumes:
+      - mail-data:/opt/stalwart-mail
+      - ./dkim:/opt/stalwart-mail/dkim:ro
+      - ./certs:/opt/stalwart-mail/certs:ro
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+
+volumes:
+  mail-data:

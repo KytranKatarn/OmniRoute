@@ -7290,7 +7290,7 @@ class BridgeDispatcher:
             cur.execute(
                 """
                 SELECT id, node_name, deployment_mode, last_heartbeat,
-                       (last_heartbeat > NOW() - INTERVAL '30 seconds') AS heartbeat_fresh
+                       (last_heartbeat > NOW() - INTERVAL '2 minutes') AS heartbeat_fresh
                 FROM remote_nodes
                 WHERE is_active = true
                   AND deployment_mode != 'starbase'
@@ -7351,14 +7351,7 @@ class BridgeDispatcher:
             logger.info(
                 "[BridgeDispatcher] Node %s offline but had no active agents", node_name
             )
-            # Still log notification for visibility
-            cur.execute(
-                """
-                INSERT INTO system_notifications (type, message, created_at)
-                VALUES ('warning', %s, NOW())
-                """,
-                (f"Node {node_name} went offline — 0 agents affected",),
-            )
+            # Nagios handles monitoring alerts — no system_notification needed
             conn.commit()
             return
 
@@ -7383,17 +7376,10 @@ class BridgeDispatcher:
             (node_id,),
         )
 
-        # 4. Log notification
+        # 4. Log (Nagios handles monitoring alerts — no system_notification)
         msg = (
             f"Node {node_name} went offline — "
             f"{len(agent_ids)} agents returned to barracks: {', '.join(agent_names)}"
-        )
-        cur.execute(
-            """
-            INSERT INTO system_notifications (type, message, created_at)
-            VALUES ('warning', %s, NOW())
-            """,
-            (msg,),
         )
         conn.commit()
         logger.warning("[BridgeDispatcher] %s", msg)
@@ -7474,14 +7460,8 @@ class BridgeDispatcher:
         if skipped:
             parts.append(f"{len(skipped)} already reassigned: {', '.join(skipped)}")
 
+        # Nagios handles monitoring alerts — no system_notification
         msg = " — ".join(parts)
-        cur.execute(
-            """
-            INSERT INTO system_notifications (type, message, created_at)
-            VALUES ('info', %s, NOW())
-            """,
-            (msg,),
-        )
         conn.commit()
         logger.info("[BridgeDispatcher] %s", msg)
 

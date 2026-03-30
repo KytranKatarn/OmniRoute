@@ -1773,6 +1773,11 @@ from oauth_provider import init_oauth_provider  # noqa: E402
 init_oauth_provider(app)
 logger.info("OAuth provider initialized (authorize + token endpoints)")
 
+# OAuth Userinfo — /oauth/userinfo returns profile + subscription entitlements
+from oauth_userinfo import oauth_userinfo_bp  # noqa: E402
+
+app.register_blueprint(oauth_userinfo_bp)
+
 # Standalone Product API — compliance report receiver
 from api_standalone import init_standalone_api  # noqa: E402
 

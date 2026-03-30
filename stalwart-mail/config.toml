@@ -87,11 +87,28 @@ set-body-length = false
 report = true
 private-key = "%{file:/opt/stalwart-mail/dkim/private.pem}%"
 
-[auth.dkim.sign]
-"if" = "is_local_domain('*', sender_domain)"
-"then" = "['default']"
+[auth.dkim]
+sign = [ { if = "is_local_domain('*', sender_domain)", then = "['default']" },
+         { else = false } ]
 
-[session.auth.mechanisms]
-"if" = "listener != 'smtp'"
-"then" = "['plain', 'login']"
-"else" = "false"
+[session.auth]
+mechanisms = [ { if = "listener != 'smtp'", then = "['plain', 'login']" },
+               { else = false } ]
+
+# Outbound routing — relay all external mail through US outpost VPS
+[queue.strategy]
+route = [ { if = "is_local_domain('', rcpt_domain)", then = "'local'" },
+          { else = "'outpost-us'" } ]
+
+[queue.route."outpost-us"]
+type = "relay"
+address = "100.64.0.1"
+port = 25
+protocol = "smtp"
+
+[queue.route."outpost-us".tls]
+implicit = false
+allow-invalid-certs = true
+
+[queue.route."local"]
+type = "local"

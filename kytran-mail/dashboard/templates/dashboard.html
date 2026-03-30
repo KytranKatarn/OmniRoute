@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Kytran Mail — Dashboard{% endblock %}
+
+{% block content %}
+<div class="km-tabs">
+    <button class="km-tab active" data-tab="dashboard" onclick="kmail.switchTab('dashboard')">Dashboard</button>
+    <button class="km-tab" data-tab="mailboxes" onclick="kmail.switchTab('mailboxes')">Mailboxes</button>
+    <button class="km-tab" data-tab="settings" onclick="kmail.switchTab('settings')">Settings</button>
+</div>
+
+<!-- Dashboard Tab -->
+<div id="tab-dashboard" class="km-tab-panel active">
+    <div class="km-stats">
+        <div class="km-stat-card">
+            <div class="label">Mailboxes</div>
+            <div class="value" id="stat-mailboxes">--</div>
+        </div>
+        <div class="km-stat-card">
+            <div class="label">Storage</div>
+            <div class="value" id="stat-storage">--</div>
+        </div>
+        <div class="km-stat-card">
+            <div class="label">Queue</div>
+            <div class="value" id="stat-queue">--</div>
+        </div>
+        <div class="km-stat-card">
+            <div class="label">Status</div>
+            <div class="value" id="stat-status">--</div>
+        </div>
+    </div>
+</div>
+
+<!-- Mailboxes Tab -->
+<div id="tab-mailboxes" class="km-tab-panel">
+    <div class="km-section-header">
+        <span class="km-section-title" id="mailbox-count">Mailboxes (0)</span>
+        <button class="km-btn-sm" onclick="kmail.showCreateModal()">CREATE MAILBOX</button>
+    </div>
+    <div class="km-table-wrap">
+        <table class="km-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Display Name</th>
+                    <th>Status</th>
+                    <th>Storage</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="mailbox-tbody"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Settings Tab -->
+<div id="tab-settings" class="km-tab-panel">
+    <div class="km-settings-item">
+        <div class="label">Domain</div>
+        <div class="value">{{ domain }}</div>
+    </div>
+    <div class="km-settings-item">
+        <div class="label">DKIM Status</div>
+        <div class="value" id="settings-dkim">Checking...</div>
+    </div>
+    <div class="km-settings-item">
+        <div class="label">Stalwart Admin</div>
+        <div class="value"><a href="https://{{ hostname }}:8443" target="_blank" rel="noopener">https://{{ hostname }}:8443</a></div>
+    </div>
+    <div class="km-settings-item">
+        <div class="label">Relay Config</div>
+        <div class="value" id="settings-relay">--</div>
+    </div>
+</div>
+
+<!-- Create Mailbox Modal -->
+<div class="km-modal-overlay" id="create-modal">
+    <div class="km-modal">
+        <div class="km-modal-header">CREATE MAILBOX</div>
+        <div class="km-modal-body">
+            <label for="new-name">Name</label>
+            <input type="text" id="new-name" class="km-input" placeholder="e.g. john">
+
+            <label for="new-display-name">Display Name</label>
+            <input type="text" id="new-display-name" class="km-input" placeholder="e.g. John Smith">
+
+            <label for="new-password">Password</label>
+            <input type="password" id="new-password" class="km-input" placeholder="Min 8 characters">
+
+            <label for="new-quota">Quota (MB)</label>
+            <input type="number" id="new-quota" class="km-input" placeholder="1024" value="1024">
+        </div>
+        <div class="km-modal-footer">
+            <button class="km-btn-sm" onclick="kmail.closeModal()">CANCEL</button>
+            <button class="km-btn-sm ok" onclick="kmail.createMailbox()">CREATE</button>
+        </div>
+    </div>
+</div>
+{% endblock %}

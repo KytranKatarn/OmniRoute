@@ -26,6 +26,7 @@ from .chat_service import (
     get_conversation_messages,
     archive_conversation,
     auto_title_conversation,
+    get_conversation_context,
 )
 
 log = logging.getLogger(__name__)
@@ -166,12 +167,21 @@ def register_routes(bp, admin_required):
         # Default to ARCHIE when no agent targeted (she's primary on COMMAND)
         effective_target = agent_target if agent_target and agent_target != "auto" else "ARCHIE"
 
-        # Build conversation history for context (last 10 messages)
-        recent_messages = get_conversation_messages(conv["id"], include_thinking=False, limit=10)
+        # Build conversation context for multi-turn memory (up to 20 msgs / 4000 chars)
+        conv_context = get_conversation_context(conv["id"], max_messages=20, max_chars=4000)
+
+        # Build structured history list for orchestration engine (newest excluded — already in prompt)
+        recent_messages = get_conversation_messages(conv["id"], include_thinking=False, limit=20)
         conversation_history = []
-        for m in recent_messages:
+        for m in recent_messages[:-1]:  # exclude the user message just saved
             if m["role"] in ("user", "assistant") and m.get("content"):
                 conversation_history.append({"role": m["role"], "content": m["content"][:500]})
+
+        # Prepend conversation title + context to the message for the AI
+        title_prefix = ""
+        if conv.get("title") and conversation_id_param:
+            title_prefix = f"[This conversation is about: {conv['title']}]\n\n"
+        contextual_message = f"{title_prefix}{conv_context}{message}" if (title_prefix or conv_context) else message
 
         # Call orchestration engine
         try:
@@ -179,13 +189,14 @@ def register_routes(bp, admin_required):
 
             engine = OrchestrationEngine()
             result = engine.orchestrate(
-                message=message,
+                message=contextual_message,
                 user_id=user_id,
                 conversation_id=str(conv.get("conversation_uuid")),
                 agent_target=effective_target,
                 user_context={
                     "username": user.get("username", ""),
                     "conversation_history": conversation_history,
+                    "original_message": message,
                 },
             )
         except Exception as exc:

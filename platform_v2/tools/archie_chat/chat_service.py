@@ -390,6 +390,40 @@ def search_conversations(user_id, query, team_id=None, limit=20):
     ]
 
 
+def get_conversation_context(conversation_id, max_messages=20, max_chars=4000):
+    """Build conversation history context for AI dispatch.
+
+    Fetches the last N messages, formats them oldest-first, and truncates
+    from the oldest end when the character budget is exceeded.
+
+    Returns a formatted string ready to prepend to the system prompt,
+    or empty string if there are no prior messages.
+    """
+    messages = get_conversation_messages(conversation_id, limit=max_messages)
+
+    # Exclude the very last message (the user turn just saved — already in prompt)
+    # and build from oldest to newest within the char budget.
+    context_parts = []
+    total_chars = 0
+    for msg in messages[:-1]:  # skip the message just saved
+        role = msg.get("role", "user")
+        if role not in ("user", "assistant"):
+            continue
+        content = (msg.get("content") or "").strip()
+        if not content:
+            continue
+        entry = f"{role}: {content}"
+        if total_chars + len(entry) > max_chars:
+            break
+        context_parts.append(entry)
+        total_chars += len(entry)
+
+    if not context_parts:
+        return ""
+
+    return "Previous conversation:\n" + "\n".join(context_parts) + "\n\n"
+
+
 def auto_title_conversation(conversation_id, first_message):
     """Auto-generate a conversation title from the first message.
 

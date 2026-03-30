@@ -2371,6 +2371,43 @@ def api_toggle_2fa(user_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@account_center_bp.route("/api/preferences", methods=["GET", "POST"])
+@login_required
+def api_preferences():
+    """Get or update the current user's preferences including language.
+
+    GET  — returns {preferred_language}
+    POST — body {preferred_language: "en"} updates the preference
+    """
+    user_id = current_user.id
+    try:
+        if request.method == "GET":
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT preferred_language FROM users WHERE id = %s",
+                    (user_id,),
+                )
+                row = cur.fetchone()
+            return jsonify(
+                {
+                    "success": True,
+                    "preferred_language": (row["preferred_language"] if row else "en") or "en",
+                }
+            )
+
+        # POST — update language preference
+        body = request.get_json(silent=True) or {}
+        lang = (body.get("preferred_language") or "en").strip()[:10]
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "UPDATE users SET preferred_language = %s WHERE id = %s",
+                (lang, user_id),
+            )
+        return jsonify({"success": True, "preferred_language": lang})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @account_center_bp.route("/api/security/unlock/<int:user_id>", methods=["POST"])
 @login_required
 @admin_required

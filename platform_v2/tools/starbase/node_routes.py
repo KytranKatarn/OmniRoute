@@ -1078,6 +1078,27 @@ def register_node_routes(bp, admin_required):
                     except Exception as e:
                         logger.warning(f"Failed to update fleet welfare cache: {e}")
 
+                # Store apps_running and device_info from fleet nodes
+                apps_running = data.get("apps_running")
+                if apps_running is not None:
+                    try:
+                        cur.execute(
+                            "UPDATE remote_nodes SET apps_running = %s WHERE node_id = %s",
+                            (psycopg2.extras.Json(apps_running), node_id),
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to store apps_running for {node_id}: {e}")
+
+                device_info = data.get("device_info")
+                if device_info is not None:
+                    try:
+                        cur.execute(
+                            "UPDATE remote_nodes SET device_info = %s WHERE node_id = %s",
+                            (psycopg2.extras.Json(device_info), node_id),
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to store device_info for {node_id}: {e}")
+
                 # Check if update was requested for this node
                 cur.execute(
                     "SELECT update_requested FROM remote_nodes WHERE id = %s",

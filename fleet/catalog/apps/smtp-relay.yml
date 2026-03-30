@@ -1,0 +1,30 @@
+name: SMTP Relay
+id: smtp-relay
+description: Lightweight Postfix relay for outbound email through fleet mesh
+image: ghcr.io/kytrankatarn/smtp-relay:latest
+version: "1.0.0"
+port: 587
+env:
+  - name: RELAY_HOST
+    required: true
+    default: ""
+  - name: RELAY_PORT
+    required: false
+    default: "587"
+  - name: RELAY_USER
+    required: false
+    default: ""
+  - name: RELAY_PASSWORD
+    required: false
+    default: ""
+volumes: []
+resources:
+  min_ram_mb: 64
+  min_disk_mb: 100
+  gpu: false
+compatible_nodes:
+  - outpost
+  - starship
+category: infrastructure
+health_endpoint: null
+depends_on: []

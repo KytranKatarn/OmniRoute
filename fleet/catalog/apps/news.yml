@@ -1,0 +1,26 @@
+name: Kytran News
+id: news
+description: Global intelligence dashboard — 18 news layers, deck.gl visualization, PWA
+image: ghcr.io/kytrankatarn/kytran-news:latest
+version: "1.0.0"
+port: 8098
+env:
+  - name: FLASK_SECRET_KEY
+    required: true
+    generate: true
+  - name: DATABASE_URL
+    required: false
+    default: "sqlite:///data/news.db"
+volumes:
+  - name: data
+    path: /app/data
+resources:
+  min_ram_mb: 256
+  min_disk_mb: 500
+  gpu: false
+compatible_nodes:
+  - outpost
+  - starship
+category: products
+health_endpoint: /api/health
+depends_on: []

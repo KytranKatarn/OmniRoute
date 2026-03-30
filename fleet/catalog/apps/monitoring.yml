@@ -1,0 +1,25 @@
+name: Nagios Monitoring
+id: monitoring
+description: Infrastructure monitoring with Nagios Core — service checks, alerts, status dashboard
+image: ghcr.io/kytrankatarn/nagios:latest
+version: "1.0.0"
+port: 8080
+env:
+  - name: NAGIOS_ADMIN_PASSWORD
+    required: true
+    generate: true
+volumes:
+  - name: config
+    path: /opt/nagios/etc
+  - name: data
+    path: /opt/nagios/var
+resources:
+  min_ram_mb: 128
+  min_disk_mb: 200
+  gpu: false
+compatible_nodes:
+  - outpost
+  - starship
+category: infrastructure
+health_endpoint: null
+depends_on: []

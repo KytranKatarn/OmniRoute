@@ -1,0 +1,28 @@
+name: Kytran Business Suite
+id: business-suite
+description: Modular SaaS platform — CRM, invoicing, website builder, communications, AI tools
+image: ghcr.io/kytrankatarn/kytran-business-suite:latest
+version: "1.0.0"
+port: 8091
+env:
+  - name: FLASK_SECRET_KEY
+    required: true
+    generate: true
+  - name: DATABASE_URL
+    required: false
+    default: "sqlite:///data/kbs.db"
+  - name: STRIPE_SECRET_KEY
+    required: false
+    default: ""
+volumes:
+  - name: data
+    path: /app/data
+resources:
+  min_ram_mb: 512
+  min_disk_mb: 1000
+  gpu: false
+compatible_nodes:
+  - starship
+category: products
+health_endpoint: /api/health
+depends_on: []

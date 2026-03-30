@@ -111,6 +111,52 @@ def load_all_packs():
 
 
 # ============================================================================
+# Container Context Detection
+# ============================================================================
+
+_container_detection_cache = None
+
+
+def _is_running_in_container():
+    """Return True if this process is running inside a Docker/container environment.
+
+    Uses multiple detection methods and caches the result for the process lifetime.
+    Rules marked container_not_applicable=true are skipped when this returns True.
+    """
+    global _container_detection_cache
+    if _container_detection_cache is not None:
+        return _container_detection_cache
+
+    # Method 1: /.dockerenv file (most reliable Docker indicator)
+    if os.path.exists("/.dockerenv"):
+        _container_detection_cache = True
+        return True
+
+    # Method 2: cgroup v1 — Docker writes container ID into cgroup paths
+    try:
+        with open("/proc/1/cgroup", "r") as f:
+            content = f.read()
+            if "docker" in content or "containerd" in content or "kubepods" in content:
+                _container_detection_cache = True
+                return True
+    except (OSError, IOError):
+        pass
+
+    # Method 3: cgroup v2 — check if init process cgroup is a container slice
+    try:
+        with open("/proc/self/cgroup", "r") as f:
+            content = f.read()
+            if "docker" in content or "containerd" in content:
+                _container_detection_cache = True
+                return True
+    except (OSError, IOError):
+        pass
+
+    _container_detection_cache = False
+    return False
+
+
+# ============================================================================
 # Scanning
 # ============================================================================
 
@@ -174,6 +220,54 @@ def run_scan(pack_ids=None, triggered_by="manual"):
             total += 1
             pack_total += 1
             rule_id = rule.get("rule_id", f"unknown-{total}")
+
+            # Skip rules that don't apply in a container context
+            if rule.get("container_not_applicable") and _is_running_in_container():
+                na_reason = rule.get(
+                    "container_reason",
+                    "Rule does not apply inside a container — check must be performed on the host OS.",
+                )
+                # accepted_risk takes precedence in the status label
+                if rule.get("status") == "accepted_risk":
+                    na_status = "not_applicable"
+                    na_details = (
+                        f"ACCEPTED RISK: {rule.get('accepted_risk_reason', na_reason)}"
+                    )
+                else:
+                    na_status = "not_applicable"
+                    na_details = f"CONTAINER CONTEXT: {na_reason}"
+                result = {
+                    "status": na_status,
+                    "actual": "running inside container",
+                    "expected": rule.get("check", {}).get("expected", ""),
+                    "details": na_details,
+                }
+                errors += 1  # not_applicable counts as non-pass (doesn't inflate score)
+                try:
+                    soc2 = rule.get("soc2_mapping", [])
+                    with _db_cursor(commit=True) as (conn, cur):
+                        cur.execute(
+                            """
+                            INSERT INTO compliance_scan_results
+                                (scan_id, pack_id, rule_id, severity, status,
+                                 actual_value, expected_value, details, soc2_controls)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                scan_id,
+                                pack_id,
+                                rule_id,
+                                rule.get("severity", "medium"),
+                                na_status,
+                                result["actual"][:2000],
+                                result["expected"][:2000],
+                                result["details"],
+                                json.dumps(soc2) if soc2 else None,
+                            ),
+                        )
+                except Exception as exc:
+                    logger.error("Failed to store not_applicable result for %s: %s", rule_id, exc)
+                continue
 
             try:
                 # Always try the check — handlers now try direct methods first,

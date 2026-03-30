@@ -20,6 +20,7 @@ from .crew_routes import register_crew_routes
 from .mission_routes import register_mission_routes
 from .provider_routes import register_provider_routes
 from .mesh_routes import register_mesh_routes
+from .fleet_routes import register_fleet_routes
 from flask_login import login_required  # noqa: F401
 from rbac import require_permission, Permission
 
@@ -33,5 +34,6 @@ register_crew_routes(starbase_bp, admin_required)
 register_mission_routes(starbase_bp, admin_required)
 register_provider_routes(starbase_bp, admin_required)
 register_mesh_routes(starbase_bp, admin_required)
+register_fleet_routes(starbase_bp, admin_required)
 
 __all__ = ["starbase_bp"]

@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>A.R.C.H.I.E. Code — AI-Powered Development CLI</title>
+  <meta name="description" content="A.R.C.H.I.E. Code — AI-Powered Development CLI with local LLM inference, hub connectivity, and 122 agents across 16 departments.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #0a0a1a;
+      --bg-card: #0d0d22;
+      --bg-code: #111127;
+      --accent: #00e5ff;
+      --accent-dim: rgba(0, 229, 255, 0.12);
+      --accent-glow: rgba(0, 229, 255, 0.25);
+      --purple: #8b5cf6;
+      --purple-dim: rgba(139, 92, 246, 0.12);
+      --text: #e0e0e0;
+      --text-muted: #7a8099;
+      --border: rgba(0, 229, 255, 0.18);
+      --border-purple: rgba(139, 92, 246, 0.25);
+      --font-display: 'Orbitron', monospace;
+      --font-mono: 'IBM Plex Mono', monospace;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-mono);
+      line-height: 1.6;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(10, 10, 26, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+    }
+
+    .nav-brand {
+      font-family: var(--font-display);
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.12em;
+      text-decoration: none;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 1.5rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover {
+      color: var(--accent);
+    }
+
+    /* ── Hero ── */
+    .hero {
+      position: relative;
+      padding: 6rem 2rem 5rem;
+      text-align: center;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 40% at 50% 0%, rgba(0, 229, 255, 0.08) 0%, transparent 70%),
+        radial-gradient(ellipse 40% 30% at 80% 60%, rgba(139, 92, 246, 0.06) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .hero-eyebrow {
+      font-size: 0.7rem;
+      letter-spacing: 0.25em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 1.25rem;
+    }
+
+    .hero h1 {
+      font-family: var(--font-display);
+      font-size: clamp(2.4rem, 7vw, 5rem);
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      line-height: 1.05;
+      color: #fff;
+      margin-bottom: 0.5rem;
+    }
+
+    .hero h1 span {
+      color: var(--accent);
+      text-shadow: 0 0 24px rgba(0, 229, 255, 0.5);
+    }
+
+    .hero-tagline {
+      font-family: var(--font-display);
+      font-size: clamp(0.85rem, 2vw, 1.1rem);
+      font-weight: 400;
+      color: var(--text-muted);
+      letter-spacing: 0.15em;
+      margin-bottom: 2.5rem;
+    }
+
+    .install-block {
+      display: inline-flex;
+      align-items: center;
+      gap: 1rem;
+      background: var(--bg-code);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.85rem 1.5rem;
+      font-size: 1rem;
+      color: var(--accent);
+      font-family: var(--font-mono);
+      margin-bottom: 2.5rem;
+      box-shadow: 0 0 0 1px var(--accent-glow), inset 0 0 20px rgba(0, 229, 255, 0.03);
+    }
+
+    .install-block .prompt {
+      color: var(--text-muted);
+      user-select: none;
+    }
+
+    .hero-badges {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      padding: 0.3rem 0.8rem;
+      border-radius: 3px;
+      border: 1px solid var(--border-purple);
+      color: var(--purple);
+      background: var(--purple-dim);
+    }
+
+    .badge.cyan {
+      border-color: var(--border);
+      color: var(--accent);
+      background: var(--accent-dim);
+    }
+
+    /* ── Divider ── */
+    .lcars-divider {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin: 0 2rem;
+    }
+
+    .lcars-divider .elbow {
+      width: 48px;
+      height: 48px;
+      border-left: 4px solid var(--accent);
+      border-bottom: 4px solid var(--accent);
+      border-bottom-left-radius: 20px;
+      flex-shrink: 0;
+    }
+
+    .lcars-divider .bar {
+      flex: 1;
+      height: 4px;
+      background: linear-gradient(90deg, var(--accent) 0%, var(--purple) 100%);
+    }
+
+    .lcars-divider .cap {
+      width: 24px;
+      height: 4px;
+      background: var(--purple);
+      border-radius: 0 2px 2px 0;
+    }
+
+    /* ── Sections ── */
+    section {
+      padding: 4rem 2rem;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .section-label {
+      font-size: 0.65rem;
+      letter-spacing: 0.3em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+    }
+
+    .section-title {
+      font-family: var(--font-display);
+      font-size: clamp(1.3rem, 3vw, 1.8rem);
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 2.5rem;
+      letter-spacing: 0.05em;
+    }
+
+    /* ── Feature Grid ── */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.75rem;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.25s, box-shadow 0.25s;
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent), transparent);
+    }
+
+    .feature-card:nth-child(2)::before { background: linear-gradient(90deg, var(--purple), transparent); }
+    .feature-card:nth-child(3)::before { background: linear-gradient(90deg, var(--accent), var(--purple)); }
+    .feature-card:nth-child(4)::before { background: linear-gradient(90deg, var(--purple), var(--accent)); }
+
+    .feature-card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 24px var(--accent-glow);
+    }
+
+    .feature-icon {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+      display: block;
+    }
+
+    .feature-card h3 {
+      font-family: var(--font-display);
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.08em;
+      margin-bottom: 0.75rem;
+    }
+
+    .feature-card:nth-child(2) h3 { color: var(--purple); }
+    .feature-card:nth-child(4) h3 { color: var(--purple); }
+
+    .feature-card p {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+    }
+
+    /* ── Quick Start ── */
+    .quickstart-block {
+      background: var(--bg-code);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .quickstart-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0, 229, 255, 0.04);
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .dot-red { background: #ef4444; }
+    .dot-yellow { background: #f59e0b; }
+    .dot-green { background: #10b981; }
+
+    .quickstart-filename {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-left: 0.5rem;
+      letter-spacing: 0.08em;
+    }
+
+    .quickstart-body {
+      padding: 1.5rem 1.75rem;
+    }
+
+    .code-line {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+      font-size: 0.88rem;
+      line-height: 1.6;
+    }
+
+    .code-line:last-child {
+      margin-bottom: 0;
+    }
+
+    .code-line .ln {
+      color: #2a2a4a;
+      user-select: none;
+      min-width: 1.5rem;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .code-line .cmd {
+      color: var(--accent);
+    }
+
+    .code-line .comment {
+      color: #404060;
+    }
+
+    .code-line .export-kw {
+      color: var(--purple);
+    }
+
+    .code-line .string {
+      color: #34d399;
+    }
+
+    .code-line .plain {
+      color: var(--text);
+    }
+
+    /* ── Links ── */
+    .links-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .link-card {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border-purple);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      text-decoration: none;
+      color: var(--text);
+      transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+    }
+
+    .link-card:hover {
+      border-color: var(--purple);
+      box-shadow: 0 0 20px rgba(139, 92, 246, 0.2);
+      transform: translateY(-2px);
+    }
+
+    .link-icon {
+      font-size: 1.4rem;
+      flex-shrink: 0;
+    }
+
+    .link-card-content h4 {
+      font-family: var(--font-display);
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--purple);
+      letter-spacing: 0.08em;
+      margin-bottom: 0.2rem;
+    }
+
+    .link-card-content p {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2rem;
+      text-align: center;
+    }
+
+    .footer-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .footer-brand {
+      font-family: var(--font-display);
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+    }
+
+    .footer-sub {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    .footer-copy {
+      font-size: 0.65rem;
+      color: #3a3a5a;
+      margin-top: 0.25rem;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      nav {
+        padding: 0 1rem;
+      }
+
+      .nav-links {
+        gap: 1rem;
+      }
+
+      .hero {
+        padding: 4rem 1rem 3.5rem;
+      }
+
+      .install-block {
+        font-size: 0.85rem;
+        padding: 0.75rem 1rem;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      .lcars-divider {
+        margin: 0 1rem;
+      }
+
+      section {
+        padding: 3rem 1rem;
+      }
+
+      .feature-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .links-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .hero h1 {
+        font-size: 2rem;
+      }
+
+      .nav-links {
+        display: none;
+      }
+
+      .install-block {
+        font-size: 0.78rem;
+      }
+
+      .quickstart-body {
+        padding: 1rem;
+        overflow-x: auto;
+      }
+
+      .code-line {
+        font-size: 0.78rem;
+      }
+    }
+
+    /* ── Animations ── */
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    .hero h1 span {
+      animation: pulse-glow 4s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav>
+    <a href="#" class="nav-brand">A.R.C.H.I.E. CODE</a>
+    <ul class="nav-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#quickstart">Quick Start</a></li>
+      <li><a href="#links">Links</a></li>
+    </ul>
+  </nav>
+
+  <!-- Hero -->
+  <div class="hero">
+    <p class="hero-eyebrow">Kytran Empowerment Inc.</p>
+    <h1><span>A.R.C.H.I.E.</span> Code</h1>
+    <p class="hero-tagline">AI-Powered Development CLI</p>
+
+    <div class="install-block">
+      <span class="prompt">$</span>
+      <span>pip install archie-engine</span>
+    </div>
+
+    <div class="hero-badges">
+      <span class="badge cyan">Python 3.10+</span>
+      <span class="badge">Local LLM</span>
+      <span class="badge cyan">Hub Connected</span>
+      <span class="badge">122 Agents</span>
+      <span class="badge cyan">Go TUI</span>
+    </div>
+  </div>
+
+  <!-- Divider -->
+  <div class="lcars-divider">
+    <div class="elbow"></div>
+    <div class="bar"></div>
+    <div class="cap"></div>
+  </div>
+
+  <!-- Features -->
+  <section id="features">
+    <p class="section-label">Capabilities</p>
+    <h2 class="section-title">Built for AI-First Development</h2>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <span class="feature-icon">&#9679;</span>
+        <h3>Local LLM Inference</h3>
+        <p>Run Ollama models locally with zero data leaving your machine. Supports qwen2.5-coder, phi3.5, and any model in your Ollama registry. GPU-aware routing included.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">&#9632;</span>
+        <h3>Hub Connected</h3>
+        <p>Connect to your A.R.C.H.I.E. platform for RAG-powered context from 18,000+ knowledge base entries and real-time agent dispatch across the fleet.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">&#9650;</span>
+        <h3>Agent Routing</h3>
+        <p>122 specialized agents across 16 departments auto-selected for your task. From F.O.R.G.E. engineering to V.I.G.I.L. security — the right agent, every time.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">&#9670;</span>
+        <h3>Go TUI</h3>
+        <p>Bubble Tea terminal interface with full LCARS theme. WebSocket streaming, skill picker, session management — a complete dev environment in your terminal.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Divider -->
+  <div class="lcars-divider">
+    <div class="elbow"></div>
+    <div class="bar"></div>
+    <div class="cap"></div>
+  </div>
+
+  <!-- Quick Start -->
+  <section id="quickstart">
+    <p class="section-label">Installation</p>
+    <h2 class="section-title">Up in 60 Seconds</h2>
+
+    <div class="quickstart-block">
+      <div class="quickstart-header">
+        <span class="dot dot-red"></span>
+        <span class="dot dot-yellow"></span>
+        <span class="dot dot-green"></span>
+        <span class="quickstart-filename">terminal</span>
+      </div>
+      <div class="quickstart-body">
+        <div class="code-line">
+          <span class="ln">1</span>
+          <span><span class="comment"># Install from PyPI</span></span>
+        </div>
+        <div class="code-line">
+          <span class="ln">2</span>
+          <span><span class="prompt plain">$ </span><span class="cmd">pip install archie-engine</span></span>
+        </div>
+        <div class="code-line">
+          <span class="ln">3</span>
+          <span>&nbsp;</span>
+        </div>
+        <div class="code-line">
+          <span class="ln">4</span>
+          <span><span class="comment"># Configure your Ollama host</span></span>
+        </div>
+        <div class="code-line">
+          <span class="ln">5</span>
+          <span><span class="prompt plain">$ </span><span class="export-kw">export </span><span class="plain">OLLAMA_HOST</span><span class="plain">=</span><span class="string">http://localhost:11434</span></span>
+        </div>
+        <div class="code-line">
+          <span class="ln">6</span>
+          <span><span class="prompt plain">$ </span><span class="export-kw">export </span><span class="plain">ARCHIE_MODEL</span><span class="plain">=</span><span class="string">qwen2.5-coder:7b</span></span>
+        </div>
+        <div class="code-line">
+          <span class="ln">7</span>
+          <span>&nbsp;</span>
+        </div>
+        <div class="code-line">
+          <span class="ln">8</span>
+          <span><span class="comment"># Launch</span></span>
+        </div>
+        <div class="code-line">
+          <span class="ln">9</span>
+          <span><span class="prompt plain">$ </span><span class="cmd">python3 -m archie_engine</span></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Divider -->
+  <div class="lcars-divider">
+    <div class="elbow"></div>
+    <div class="bar"></div>
+    <div class="cap"></div>
+  </div>
+
+  <!-- Links -->
+  <section id="links">
+    <p class="section-label">Resources</p>
+    <h2 class="section-title">Get Started</h2>
+
+    <div class="links-grid">
+      <a href="https://github.com/KytranKatarn/archie-code" class="link-card" rel="noopener noreferrer" target="_blank">
+        <span class="link-icon">&#9670;</span>
+        <div class="link-card-content">
+          <h4>GitHub</h4>
+          <p>KytranKatarn/archie-code</p>
+        </div>
+      </a>
+
+      <a href="https://pypi.org/project/archie-engine" class="link-card" rel="noopener noreferrer" target="_blank">
+        <span class="link-icon">&#9632;</span>
+        <div class="link-card-content">
+          <h4>PyPI</h4>
+          <p>pypi.org/project/archie-engine</p>
+        </div>
+      </a>
+
+      <a href="https://archie.kytranempowerment.com" class="link-card" rel="noopener noreferrer" target="_blank">
+        <span class="link-icon">&#9650;</span>
+        <div class="link-card-content">
+          <h4>Platform</h4>
+          <p>archie.kytranempowerment.com</p>
+        </div>
+      </a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-inner">
+      <span class="footer-brand">A.R.C.H.I.E. CODE</span>
+      <span class="footer-sub">Built by Kytran Empowerment Inc.</span>
+      <span class="footer-copy">Copyright 2026 Kytran Empowerment Inc. All rights reserved.</span>
+    </div>
+  </footer>
+
+</body>
+</html>

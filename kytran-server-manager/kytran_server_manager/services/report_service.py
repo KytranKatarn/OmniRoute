@@ -26,7 +26,7 @@ _SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 def _reports_dir():
     """Return (and create) the reports output directory."""
     data_dir = current_app.config.get(
-        "DATA_DIR", "/var/lib/kytran-server-manager"
+        "DATA_DIR", "/var/lib/kytran-system-operations"
     )
     path = os.path.join(data_dir, "reports")
     os.makedirs(path, exist_ok=True)

@@ -46,7 +46,7 @@ def report_compliance(scan_result: dict) -> bool:
     endpoint = f"{hub_url}/api/standalone/compliance-report"
 
     payload = {
-        "product_name": "kytran-server-manager",
+        "product_name": "kytran-system-operations",
         "overall_score": scan_result.get("overall_score", 0),
         "pack_scores": scan_result.get("pack_scores", {}),
         "total_rules": scan_result.get("total_rules", 0),

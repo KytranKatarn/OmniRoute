@@ -36,5 +36,5 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/kytrankatarn/kytran-server-manager:latest
-            ghcr.io/kytrankatarn/kytran-server-manager:${{ github.sha }}
+            ghcr.io/kytrankatarn/kytran-system-operations:latest
+            ghcr.io/kytrankatarn/kytran-system-operations:${{ github.sha }}

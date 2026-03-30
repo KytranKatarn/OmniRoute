@@ -32,7 +32,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://server.kytranempowerment.com"
-Repository = "https://github.com/KytranKatarn/kytran-server-manager"
+Repository = "https://github.com/KytranKatarn/kytran-system-operations"
 Documentation = "https://kytranempowerment.com/products"
 
 [project.scripts]

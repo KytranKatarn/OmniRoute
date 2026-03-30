@@ -705,6 +705,7 @@ def register_node_routes(bp, auth_decorator):
                            rn.cpu_model, rn.cpu_cores, rn.deployment_mode,
                            -- Latest heartbeat metrics (correlated subquery)
                            hb.cpu_usage, hb.memory_usage, hb.gpu_usage, hb.current_load,
+                           hb.details AS hb_details,
                            -- Active agent count on this node
                            (SELECT COUNT(*) FROM node_agents na
                             WHERE na.node_id = rn.id AND na.status = 'active') AS agent_count,
@@ -713,7 +714,7 @@ def register_node_routes(bp, auth_decorator):
                             WHERE nom.node_id = rn.node_id AND nom.is_available = true) AS models_loaded
                     FROM remote_nodes rn
                     LEFT JOIN LATERAL (
-                        SELECT cpu_usage, memory_usage, gpu_usage, current_load
+                        SELECT cpu_usage, memory_usage, gpu_usage, current_load, details
                         FROM node_heartbeats nh
                         WHERE nh.node_id = rn.id
                         ORDER BY nh.created_at DESC
@@ -754,6 +755,11 @@ def register_node_routes(bp, auth_decorator):
                 ram_used = round(ram_total * mem_pct / 100, 1) if ram_total else 0
                 vram_used = round(node_vram_used.get(n["node_id"], 0), 1)
 
+                # Extract outpost-specific data from heartbeat details
+                hb_details = n.get("hb_details") or {}
+                uptime_secs = hb_details.get("uptime", 0) if computed_status != "offline" else 0
+                services_count = sum(1 for v in hb_details.values() if v is True) if hb_details else 0
+
                 nodes.append(
                     {
                         "node_id": n["node_id"],
@@ -772,6 +778,9 @@ def register_node_routes(bp, auth_decorator):
                         "gpu_model": n["gpu_model"],
                         "cpu_model": n["cpu_model"],
                         "cpu_cores": n["cpu_cores"],
+                        "mem_usage": round(mem_pct, 1),
+                        "uptime_secs": uptime_secs,
+                        "services_count": services_count,
                     }
                 )
 

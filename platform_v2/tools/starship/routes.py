@@ -118,36 +118,53 @@ def api_fleet_agents():
         with get_db_cursor() as (conn, cur):
             cur.execute(
                 """SELECT rn.id, rn.node_id, rn.hostname, rn.port,
-                          rn.gpu_vram_gb, rn.ram_gb,
+                          rn.gpu_vram_gb, rn.ram_gb, rn.deployment_mode,
+                          rn.last_heartbeat,
+                          hb.cpu_usage, hb.memory_usage, hb.details AS hb_details,
                           (SELECT COUNT(*) FROM node_agents na
                            WHERE na.node_id = rn.id AND na.status = 'active') as agent_count
                    FROM remote_nodes rn
+                   LEFT JOIN LATERAL (
+                       SELECT cpu_usage, memory_usage, details
+                       FROM node_heartbeats nh
+                       WHERE nh.node_id = rn.id
+                       ORDER BY nh.created_at DESC LIMIT 1
+                   ) hb ON true
                    WHERE rn.is_active = true AND rn.deployment_mode != 'starbase'"""
             )
             nodes = []
             for r in cur.fetchall():
+                hb_details = r.get("hb_details") or {}
+                uptime_secs = hb_details.get("uptime", 0)
+                services_count = sum(1 for v in hb_details.values() if v is True)
                 node = {
                     "node_id": r["node_id"],
+                    "deployment_mode": r["deployment_mode"],
                     "agent_count": r["agent_count"],
                     "vram_total": float(r["gpu_vram_gb"] or 0),
                     "vram_used": 0,
                     "ram_total": float(r["ram_gb"] or 0),
                     "ram_used": 0,
                     "models_loaded": 0,
+                    "cpu_usage": round(float(r["cpu_usage"] or 0), 1),
+                    "mem_usage": round(float(r["memory_usage"] or 0), 1),
+                    "uptime_secs": uptime_secs,
+                    "services_count": services_count,
                 }
-                # Live usage from node Ollama /api/ps
-                try:
-                    ps = _req.get(f"http://{r['hostname']}:{r['port']}/api/ps", timeout=3)
-                    if ps.status_code == 200:
-                        models = ps.json().get("models", [])
-                        node["models_loaded"] = len(models)
-                        node["vram_used"] = round(sum(m.get("size_vram", 0) for m in models) / 1e9, 1)
-                        node["ram_used"] = round(
-                            sum(m.get("size", 0) - m.get("size_vram", 0) for m in models) / 1e9,
-                            1,
-                        )
-                except Exception:
-                    pass
+                # Live usage from node Ollama /api/ps (skip for outposts — no Ollama)
+                if r["deployment_mode"] != "outpost":
+                    try:
+                        ps = _req.get(f"http://{r['hostname']}:{r['port']}/api/ps", timeout=3)
+                        if ps.status_code == 200:
+                            models = ps.json().get("models", [])
+                            node["models_loaded"] = len(models)
+                            node["vram_used"] = round(sum(m.get("size_vram", 0) for m in models) / 1e9, 1)
+                            node["ram_used"] = round(
+                                sum(m.get("size", 0) - m.get("size_vram", 0) for m in models) / 1e9,
+                                1,
+                            )
+                    except Exception:
+                        pass
                 nodes.append(node)
         return jsonify({"success": True, "nodes": nodes})
     except Exception as e:

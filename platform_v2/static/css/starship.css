@@ -131,6 +131,15 @@
 .sc-node-dot.pending { background: var(--sc-amber); }
 .sc-node-name { font-family: 'Antonio', sans-serif; color: #fff; font-size: 1.1rem; letter-spacing: 2px; }
 .sc-node-mode { font-family: 'IBM Plex Mono', monospace; color: var(--sc-accent); font-size: 0.75rem; text-transform: uppercase; margin-left: auto; padding: 2px 8px; border: 1px solid rgba(0, 229, 255, 0.3); border-radius: 3px; }
+.sc-node-mode.mode-starship { color: var(--sc-accent); border-color: rgba(0, 229, 255, 0.3); }
+.sc-node-mode.mode-outpost { color: #fbbf24; border-color: rgba(251, 191, 36, 0.3); }
+.sc-node-mode.mode-satellite { color: #8b5cf6; border-color: rgba(139, 92, 246, 0.3); }
+.docked-ship.outpost .docked-ship-name { color: #fbbf24; }
+.docked-ship.outpost .docked-ship-connector { background: linear-gradient(90deg, transparent, rgba(251, 191, 36, 0.3)); }
+.docked-ship-mode { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 1px; margin-left: auto; padding: 1px 6px; border-radius: 2px; }
+.docked-ship-mode.mode-starship { color: var(--sc-accent); border: 1px solid rgba(0, 229, 255, 0.2); }
+.docked-ship-mode.mode-outpost { color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.2); }
+.docked-ship-mode.mode-satellite { color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.2); }
 .sc-node-body { padding: 16px 20px; }
 .sc-node-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .sc-stat { text-align: center; }

@@ -65,16 +65,37 @@
         <div class="docked-fleet-grid" id="docked-fleet-grid">
             {% for node in fleet_nodes %}
             {% if node.deployment_mode != 'starbase' %}
-            <div class="docked-ship" data-node-id="{{ node.node_id }}">
+            <div class="docked-ship {{ node.deployment_mode }}" data-node-id="{{ node.node_id }}" data-mode="{{ node.deployment_mode }}">
                 <div class="docked-ship-connector"></div>
                 <div class="docked-ship-body">
                     <div class="docked-ship-header">
                         <span class="sc-node-dot {{ node.status }}"></span>
                         <span class="docked-ship-name">{{ node.node_name }}</span>
+                        <span class="docked-ship-mode mode-{{ node.deployment_mode }}">{{ node.deployment_mode }}</span>
                         {% if node.owner_name %}
                         <span class="docked-ship-owner">{{ node.owner_name }}</span>
                         {% endif %}
                     </div>
+                    {% if node.deployment_mode == 'outpost' %}
+                    <div class="docked-ship-stats">
+                        <div class="docked-ship-stat">
+                            <span class="docked-ship-val" id="dock-cpu-{{ node.node_id }}">--</span>
+                            <span class="docked-ship-label">CPU %</span>
+                        </div>
+                        <div class="docked-ship-stat">
+                            <span class="docked-ship-val" id="dock-mem-{{ node.node_id }}">--</span>
+                            <span class="docked-ship-label">MEM %</span>
+                        </div>
+                        <div class="docked-ship-stat">
+                            <span class="docked-ship-val" id="dock-services-{{ node.node_id }}">--</span>
+                            <span class="docked-ship-label">SERVICES</span>
+                        </div>
+                        <div class="docked-ship-stat">
+                            <span class="docked-ship-val" id="dock-uptime-{{ node.node_id }}">--</span>
+                            <span class="docked-ship-label">UPTIME</span>
+                        </div>
+                    </div>
+                    {% else %}
                     <div class="docked-ship-stats">
                         <div class="docked-ship-stat">
                             <span class="docked-ship-val" id="dock-agents-{{ node.node_id }}">--</span>
@@ -93,6 +114,7 @@
                             <span class="docked-ship-label">RAM</span>
                         </div>
                     </div>
+                    {% endif %}
                 </div>
             </div>
             {% endif %}
@@ -221,13 +243,33 @@
     <div class="sc-fleet-grid" id="sc-fleet-grid">
         {% for node in nodes %}
         {% if node.deployment_mode != 'starbase' %}
-        <div class="sc-node-card" id="card-{{ node.node_id }}" data-node-id="{{ node.node_id }}">
+        <div class="sc-node-card" id="card-{{ node.node_id }}" data-node-id="{{ node.node_id }}" data-mode="{{ node.deployment_mode }}">
             <div class="sc-node-header" onclick="selectNode('{{ node.node_id }}')">
                 <div class="sc-node-dot {{ 'online' if node.status == 'online' and node.is_active else 'offline' if node.status == 'offline' else 'pending' }}"></div>
                 <span class="sc-node-name">{{ node.node_name }}</span>
-                <span class="sc-node-mode">{{ node.deployment_mode }}</span>
+                <span class="sc-node-mode mode-{{ node.deployment_mode }}">{{ node.deployment_mode }}</span>
             </div>
             <div class="sc-node-body">
+                {% if node.deployment_mode == 'outpost' %}
+                <div class="sc-node-stats">
+                    <div class="sc-stat">
+                        <span class="sc-stat-val" id="fleet-cpu-{{ node.node_id }}">--</span>
+                        <span class="sc-stat-label">CPU %</span>
+                    </div>
+                    <div class="sc-stat">
+                        <span class="sc-stat-val" id="fleet-mem-{{ node.node_id }}">--</span>
+                        <span class="sc-stat-label">MEM %</span>
+                    </div>
+                    <div class="sc-stat">
+                        <span class="sc-stat-val" id="fleet-services-{{ node.node_id }}">--</span>
+                        <span class="sc-stat-label">Services</span>
+                    </div>
+                    <div class="sc-stat">
+                        <span class="sc-stat-val" id="fleet-uptime-{{ node.node_id }}">--</span>
+                        <span class="sc-stat-label">Uptime</span>
+                    </div>
+                </div>
+                {% else %}
                 <div class="sc-node-stats">
                     <div class="sc-stat">
                         <span class="sc-stat-val" id="fleet-agents-{{ node.node_id }}">--</span>
@@ -246,6 +288,7 @@
                         <span class="sc-stat-label">Models</span>
                     </div>
                 </div>
+                {% endif %}
             </div>
         </div>
         {% endif %}

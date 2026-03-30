@@ -234,6 +234,16 @@ function _setLive(el, value, isLive) {
     el.classList.toggle('sc-static', !isLive);
 }
 
+function _formatUptime(secs) {
+    if (!secs || secs <= 0) return '--';
+    var d = Math.floor(secs / 86400);
+    var h = Math.floor((secs % 86400) / 3600);
+    var m = Math.floor((secs % 3600) / 60);
+    if (d > 0) return d + 'd ' + h + 'h';
+    if (h > 0) return h + 'h ' + m + 'm';
+    return m + 'm';
+}
+
 async function loadHeroStats() {
     try {
         var resp = await fetch('/tools/starship/api/starbase-stats');
@@ -268,30 +278,38 @@ function loadDockedFleetStats() {
         if (ramEl && ramEl.textContent !== '-- GB') _setLive(ramEl, ramEl.textContent, true);
     });
 
-    // Fetch agent counts from public starbase stats API
-    fetch('/tools/starship/api/starbase-stats')
+    // Fetch node stats via the fleet endpoint
+    fetch('/tools/starship/api/fleet-agents')
         .then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (!data.success) return;
-            // Get node agent counts via the fleet endpoint
-            return fetch('/tools/starship/api/fleet-agents');
-        })
-        .then(function(r) { return r ? r.json() : null; })
         .then(function(data) {
             if (!data || !data.success) return;
             (data.nodes || []).forEach(function(n) {
-                // Docked fleet strip
-                var agentEl = document.getElementById('dock-agents-' + n.node_id);
-                if (agentEl) _setLive(agentEl, n.agent_count, true);
-                var vramEl = document.getElementById('dock-vram-' + n.node_id);
-                if (vramEl) _setLive(vramEl, n.vram_used + '/' + n.vram_total + ' GB', true);
-                var ramEl = document.getElementById('dock-ram-' + n.node_id);
-                if (ramEl) _setLive(ramEl, n.ram_used + '/' + n.ram_total + ' GB', true);
-                // Fleet grid cards (same data)
-                _setLive(document.getElementById('fleet-agents-' + n.node_id), n.agent_count, true);
-                _setLive(document.getElementById('fleet-ram-' + n.node_id), n.ram_used + '/' + n.ram_total, true);
-                _setLive(document.getElementById('fleet-vram-' + n.node_id), n.vram_used + '/' + n.vram_total, true);
-                _setLive(document.getElementById('fleet-models-' + n.node_id), n.models_loaded, true);
+                var isOutpost = n.deployment_mode === 'outpost';
+                if (isOutpost) {
+                    // Outpost: CPU%, MEM%, services, uptime
+                    _setLive(document.getElementById('dock-cpu-' + n.node_id), n.cpu_usage + '%', true);
+                    _setLive(document.getElementById('dock-mem-' + n.node_id), n.mem_usage + '%', true);
+                    _setLive(document.getElementById('dock-services-' + n.node_id), n.services_count || 0, true);
+                    _setLive(document.getElementById('dock-uptime-' + n.node_id), _formatUptime(n.uptime_secs), true);
+                    // Fleet grid cards
+                    _setLive(document.getElementById('fleet-cpu-' + n.node_id), n.cpu_usage + '%', true);
+                    _setLive(document.getElementById('fleet-mem-' + n.node_id), n.mem_usage + '%', true);
+                    _setLive(document.getElementById('fleet-services-' + n.node_id), n.services_count || 0, true);
+                    _setLive(document.getElementById('fleet-uptime-' + n.node_id), _formatUptime(n.uptime_secs), true);
+                } else {
+                    // Starship: agents, GPU, VRAM, RAM
+                    var agentEl = document.getElementById('dock-agents-' + n.node_id);
+                    if (agentEl) _setLive(agentEl, n.agent_count, true);
+                    var vramEl = document.getElementById('dock-vram-' + n.node_id);
+                    if (vramEl) _setLive(vramEl, n.vram_used + '/' + n.vram_total + ' GB', true);
+                    var ramEl = document.getElementById('dock-ram-' + n.node_id);
+                    if (ramEl) _setLive(ramEl, n.ram_used + '/' + n.ram_total + ' GB', true);
+                    // Fleet grid cards
+                    _setLive(document.getElementById('fleet-agents-' + n.node_id), n.agent_count, true);
+                    _setLive(document.getElementById('fleet-ram-' + n.node_id), n.ram_used + '/' + n.ram_total, true);
+                    _setLive(document.getElementById('fleet-vram-' + n.node_id), n.vram_used + '/' + n.vram_total, true);
+                    _setLive(document.getElementById('fleet-models-' + n.node_id), n.models_loaded, true);
+                }
             });
         })
         .catch(function(e) {
@@ -1216,9 +1234,13 @@ function renderDetail(data) {
 
     // System Ops gauges (live metrics from heartbeat)
     var lm = data.live_metrics || {};
+    var isOutpost = (n.deployment_mode === 'outpost');
     renderOpsGauge('ops-cpu', 'ops-cpu-bar', lm.cpu_usage);
     renderOpsGauge('ops-ram', 'ops-ram-bar', lm.memory_usage);
-    renderOpsGauge('ops-gpu', 'ops-gpu-bar', lm.gpu_usage);
+    // Hide GPU gauge for outpost nodes (no GPU)
+    var gpuGaugeRow = document.getElementById('ops-gpu') ? document.getElementById('ops-gpu').closest('.sc-row, .sc-ops-gauge, div') : null;
+    if (gpuGaugeRow) gpuGaugeRow.style.display = isOutpost ? 'none' : '';
+    renderOpsGauge('ops-gpu', 'ops-gpu-bar', isOutpost ? null : lm.gpu_usage);
 
     // Fleet Summary — live from node status
     var ss = data.station_summary || {};

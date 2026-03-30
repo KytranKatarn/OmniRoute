@@ -5,10 +5,21 @@ Unified health status from Nagios + ARCHIE heartbeats.
 """
 
 import logging
+from datetime import datetime, timezone
 
 from flask import jsonify
 
 logger = logging.getLogger(__name__)
+
+
+def _epoch_to_iso(val):
+    """Convert Nagios epoch timestamp string to ISO format."""
+    if not val or val == "0":
+        return None
+    try:
+        return datetime.fromtimestamp(int(val), tz=timezone.utc).isoformat()
+    except (ValueError, TypeError):
+        return None
 
 
 def register_health_routes(bp, auth_decorator):
@@ -40,13 +51,13 @@ def register_health_routes(bp, auth_decorator):
                     {
                         "node_id": node_id,
                         "summary": data["summary"],
-                        "host_status": (data["host"]["status"] if data["host"] else "unknown"),
+                        "host_status": (data["host"].get("status", "unknown") if data["host"] else "unknown"),
                         "services": [
                             {
-                                "name": s["check_name"],
-                                "status": s["status"],
-                                "output": s["output"],
-                                "last_check": s["last_check"],
+                                "name": s.get("service_description", s.get("check_name", "unknown")),
+                                "status": s.get("status", "unknown"),
+                                "output": s.get("plugin_output", ""),
+                                "last_check": _epoch_to_iso(s.get("last_check")),
                             }
                             for s in data["services"]
                         ],

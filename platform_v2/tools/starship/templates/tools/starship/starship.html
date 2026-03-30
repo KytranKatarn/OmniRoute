@@ -127,6 +127,7 @@
     {% if is_owner or is_admin %}
     <div class="sc-page-tabs">
         <button class="sc-page-tab active" data-page-tab="fleet">FLEET</button>
+        <button class="sc-page-tab" data-page-tab="health" onclick="switchPageTab('health')">HEALTH</button>
     </div>
 
     <!-- Connect a Machine Modal (LCARS tablet) -->
@@ -298,6 +299,18 @@
     </div>
     {% endif %}
     </div><!-- /page-fleet -->
+
+    <!-- Health tab — unified Nagios + heartbeat monitoring -->
+    <div class="sc-page-panel" id="page-health">
+        <div class="sc-health-summary" id="health-summary">
+            <span class="sc-health-badge ok" id="health-ok">-- OK</span>
+            <span class="sc-health-badge warning" id="health-warn">-- WARNING</span>
+            <span class="sc-health-badge critical" id="health-crit">-- CRITICAL</span>
+        </div>
+        <div class="sc-health-hosts" id="health-hosts">
+            <p class="sc-static">Loading health checks...</p>
+        </div>
+    </div>
 
     <!-- Operations tab removed — OTA controls now live in each node's detail modal -->
     {% endif %}

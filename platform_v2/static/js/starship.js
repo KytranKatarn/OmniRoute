@@ -319,6 +319,88 @@ function loadDockedFleetStats() {
         });
 }
 
+// ── Health Tab — Nagios + heartbeat unified view ──
+async function loadHealthStatus() {
+    try {
+        var resp = await fetch('/tools/starship/api/health-status');
+        var data = await resp.json();
+        if (!data.success) return;
+
+        var s = data.summary;
+        var okEl = document.getElementById('health-ok');
+        var warnEl = document.getElementById('health-warn');
+        var critEl = document.getElementById('health-crit');
+        if (okEl) okEl.textContent = s.ok + ' OK';
+        if (warnEl) warnEl.textContent = s.warning + ' WARNING';
+        if (critEl) critEl.textContent = s.critical + ' CRITICAL';
+
+        var container = document.getElementById('health-hosts');
+        if (!container) return;
+        container.textContent = '';
+
+        (data.hosts || []).forEach(function(host) {
+            var div = document.createElement('div');
+            div.className = 'sc-health-host';
+
+            // Header
+            var header = document.createElement('div');
+            header.className = 'sc-health-host-header';
+            var dot = document.createElement('span');
+            dot.className = 'sc-health-dot ' + (host.host_status || 'unknown');
+            header.appendChild(dot);
+            var name = document.createElement('span');
+            name.className = 'sc-health-host-name';
+            name.textContent = host.node_id;
+            header.appendChild(name);
+            var badge = document.createElement('span');
+            badge.className = 'sc-health-host-badge ' + host.summary;
+            badge.textContent = (host.summary || 'unknown').toUpperCase();
+            header.appendChild(badge);
+            header.addEventListener('click', function() {
+                var checks = div.querySelector('.sc-health-checks');
+                if (checks) checks.style.display = checks.style.display === 'none' ? '' : 'none';
+            });
+            div.appendChild(header);
+
+            // Service checks
+            var checks = document.createElement('div');
+            checks.className = 'sc-health-checks';
+            (host.services || []).forEach(function(svc) {
+                var row = document.createElement('div');
+                row.className = 'sc-health-check';
+                var sDot = document.createElement('span');
+                sDot.className = 'sc-health-dot ' + (svc.status || 'unknown');
+                row.appendChild(sDot);
+                var sName = document.createElement('span');
+                sName.className = 'sc-health-check-name';
+                sName.textContent = svc.name || '';
+                row.appendChild(sName);
+                var sOut = document.createElement('span');
+                sOut.className = 'sc-health-check-output';
+                sOut.textContent = svc.output || '';
+                row.appendChild(sOut);
+                var sTime = document.createElement('span');
+                sTime.className = 'sc-health-check-time';
+                sTime.textContent = svc.last_check ? new Date(svc.last_check).toLocaleTimeString() : '--';
+                row.appendChild(sTime);
+                checks.appendChild(row);
+            });
+            div.appendChild(checks);
+            container.appendChild(div);
+        });
+    } catch (e) {
+        console.warn('Health status load failed:', e);
+    }
+}
+
+// Auto-refresh health tab every 30s
+setInterval(function() {
+    var healthPanel = document.getElementById('page-health');
+    if (healthPanel && healthPanel.classList.contains('active')) {
+        loadHealthStatus();
+    }
+}, 30000);
+
 // ── Page-Level Tab Switching ──
 function switchPageTab(tab) {
     document.querySelectorAll('.sc-page-tab').forEach(function(t) {
@@ -329,6 +411,9 @@ function switchPageTab(tab) {
     });
     if (tab === 'operations') {
         loadOpsModelCatalog();
+    }
+    if (tab === 'health') {
+        loadHealthStatus();
     }
 }
 

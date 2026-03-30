@@ -4,7 +4,7 @@
 
 {% block styles %}
 
-/* Dev Pipeline Module Styles */
+/* Repair Bay Module Styles */
 .dp-container {
     padding: 20px;
     max-width: 100%;
@@ -1309,7 +1309,7 @@
 
 <script src="{{ url_for('static', filename='js/department-ops.js') }}"></script>
 <script>
-var API = '/tools/dev-pipeline/api';
+var API = '/tools/repair-bay/api';
 var _selectedFiles = [];
 var _currentIssueFilter = 'open';
 var _scanMode = 'browse';
@@ -3145,7 +3145,7 @@ var _stationMaxFails = 3;
 
 var _engOps = new DepartmentOps({
     stationCode: 'ENGINEERING',
-    moduleSource: 'dev_pipeline',
+    moduleSource: 'repair_bay',
     agentsElId: 'engOpsAgents',
     jobsElId: 'engOpsJobs',
     commandsElId: 'engOpsCommands',

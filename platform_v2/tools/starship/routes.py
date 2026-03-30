@@ -118,7 +118,7 @@ def api_fleet_agents():
         with get_db_cursor() as (conn, cur):
             cur.execute(
                 """SELECT rn.id, rn.node_id, rn.hostname, rn.port,
-                          rn.gpu_vram_gb, rn.ram_gb, rn.deployment_mode,
+                          rn.gpu_vram_gb, rn.ram_gb, rn.cpu_cores, rn.deployment_mode,
                           rn.last_heartbeat,
                           hb.cpu_usage, hb.memory_usage, hb.details AS hb_details,
                           (SELECT COUNT(*) FROM node_agents na
@@ -147,6 +147,7 @@ def api_fleet_agents():
                     "ram_used": 0,
                     "models_loaded": 0,
                     "cpu_usage": round(float(r["cpu_usage"] or 0), 1),
+                    "cpu_cores": r["cpu_cores"] or 0,
                     "mem_usage": round(float(r["memory_usage"] or 0), 1),
                     "uptime_secs": uptime_secs,
                     "services_count": services_count,

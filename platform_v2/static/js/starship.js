@@ -286,14 +286,16 @@ function loadDockedFleetStats() {
             (data.nodes || []).forEach(function(n) {
                 var isOutpost = n.deployment_mode === 'outpost';
                 if (isOutpost) {
-                    // Outpost: CPU%, MEM%, services, uptime
-                    _setLive(document.getElementById('dock-cpu-' + n.node_id), n.cpu_usage + '%', true);
-                    _setLive(document.getElementById('dock-mem-' + n.node_id), n.mem_usage + '%', true);
+                    // Outpost: CPU%, MEM%, services, uptime — with totals
+                    var cpuLabel = n.cpu_usage + '%' + (n.cpu_cores ? ' · ' + n.cpu_cores + 'C' : '');
+                    var memLabel = n.mem_usage + '%' + (n.ram_total ? ' · ' + n.ram_total + ' GB' : '');
+                    _setLive(document.getElementById('dock-cpu-' + n.node_id), cpuLabel, true);
+                    _setLive(document.getElementById('dock-mem-' + n.node_id), memLabel, true);
                     _setLive(document.getElementById('dock-services-' + n.node_id), n.services_count || 0, true);
                     _setLive(document.getElementById('dock-uptime-' + n.node_id), _formatUptime(n.uptime_secs), true);
                     // Fleet grid cards
-                    _setLive(document.getElementById('fleet-cpu-' + n.node_id), n.cpu_usage + '%', true);
-                    _setLive(document.getElementById('fleet-mem-' + n.node_id), n.mem_usage + '%', true);
+                    _setLive(document.getElementById('fleet-cpu-' + n.node_id), cpuLabel, true);
+                    _setLive(document.getElementById('fleet-mem-' + n.node_id), memLabel, true);
                     _setLive(document.getElementById('fleet-services-' + n.node_id), n.services_count || 0, true);
                     _setLive(document.getElementById('fleet-uptime-' + n.node_id), _formatUptime(n.uptime_secs), true);
                 } else {

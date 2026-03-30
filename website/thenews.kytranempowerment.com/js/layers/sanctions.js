@@ -19,7 +19,23 @@ var Sanctions = (function () {
             sourceKey: 'sanctions',
             cacheTTL: 86400000
         }).then(function (data) {
-            _data = (data && data.countries) || [];
+            var raw = (data && data.countries) || [];
+            /* Normalize to ensure detail panel fields are present */
+            _data = raw.map(function (d) {
+                return {
+                    type: 'sanction',
+                    title: d.name || d.code || 'Sanctioned Entity',
+                    lat: d.lat,
+                    lon: d.lon,
+                    severity: d.severity || 'targeted',
+                    description: d.description || '',
+                    url: d.url || ('https://ofac.treasury.gov/sanctions-programs-and-country-information'),
+                    timestamp: null,
+                    sources: d.sources || [],
+                    code: d.code || '',
+                    name: d.name || ''
+                };
+            });
             App.updateLayerCount('sanctions', _data.length);
             _render();
         });

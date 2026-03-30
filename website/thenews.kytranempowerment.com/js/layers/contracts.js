@@ -1,6 +1,6 @@
 /* ==========================================================================
    Kytran News — Government Contracts Layer
-   W.A.T.C.H. civic data — contract awards by jurisdiction
+   Open Canada proactive disclosure API — falls back to static JSON
    ========================================================================== */
 
 var Contracts = (function () {
@@ -8,6 +8,20 @@ var Contracts = (function () {
 
     var _data = [];
     var _visible = false;
+
+    /* Capital city coordinates for Canadian provinces / federal */
+    var CANADA_CITIES = [
+        { name: 'Ottawa',      lat: 45.4215,  lon: -75.6972, level: 'federal'    },
+        { name: 'Toronto',     lat: 43.6532,  lon: -79.3832, level: 'provincial' },
+        { name: 'Vancouver',   lat: 49.2827,  lon: -123.1207, level: 'provincial' },
+        { name: 'Montreal',    lat: 45.5017,  lon: -73.5673, level: 'provincial' },
+        { name: 'Calgary',     lat: 51.0447,  lon: -114.0719, level: 'provincial' },
+        { name: 'Edmonton',    lat: 53.5461,  lon: -113.4938, level: 'provincial' },
+        { name: 'Winnipeg',    lat: 49.8951,  lon: -97.1384, level: 'provincial' },
+        { name: 'Halifax',     lat: 44.6488,  lon: -63.5752, level: 'provincial' },
+        { name: 'Quebec City', lat: 46.8139,  lon: -71.2080, level: 'provincial' },
+        { name: 'Regina',      lat: 50.4452,  lon: -104.6189, level: 'provincial' }
+    ];
 
     function init() {
         _visible = App.isLayerActive('contracts');
@@ -20,19 +34,90 @@ var Contracts = (function () {
     }
 
     function refresh() {
-        /* Civic data uses 30d minimum — government contracts don't update hourly */
-        var url = Config.WATCH_API + '/events?type=contract&timespan=30d&limit=200';
-        Fetcher.get(url, {
-            sourceKey: 'contracts',
-            fallbackUrl: Config.FALLBACKS.contracts,
-            useCorsProxy: false,
-            cacheTTL: Config.INTERVALS.contracts || 600000
-        }).then(function (data) {
-            _data = data || [];
-            App.updateLayerCount('contracts', _data.length);
-            EventBus.emit('data:contracts:updated', _data);
-            _render();
-        });
+        var url = Config.API.contracts_canada;
+        fetch(url)
+            .then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            })
+            .then(function (data) {
+                var parsed = _parseOpenCanada(data);
+                if (parsed.length > 0) {
+                    _data = parsed;
+                    _finalize();
+                } else {
+                    _loadFallback();
+                }
+            })
+            .catch(function () { _loadFallback(); });
+    }
+
+    function _parseOpenCanada(data) {
+        try {
+            var results = data.result && data.result.results ? data.result.results : [];
+            var cityIdx = 0;
+            return results.map(function (pkg) {
+                var city = CANADA_CITIES[cityIdx % CANADA_CITIES.length];
+                cityIdx++;
+                /* Jitter coordinates slightly so dots don't stack */
+                var jitter = function () { return (Math.random() - 0.5) * 1.5; };
+                /* Rough amount from title/notes — default to a mid-range value */
+                var titleLower = (pkg.title && pkg.title.en ? pkg.title.en : (pkg.title || '')).toLowerCase();
+                var amount = 500000;
+                if (/million/.test(titleLower)) amount = 5000000;
+                if (/billion/.test(titleLower)) amount = 500000000;
+                var title = pkg.title && pkg.title.en ? pkg.title.en : (pkg.title || 'Government Contract');
+                var notes = pkg.notes && pkg.notes.en ? pkg.notes.en : (pkg.notes || '');
+                return {
+                    type: 'contract',
+                    title: title,
+                    lat: city.lat + jitter(),
+                    lon: city.lon + jitter(),
+                    amount: amount,
+                    level: city.level,
+                    description: notes ? notes.substring(0, 200) : 'Canadian government contract disclosure',
+                    url: pkg.url || ('https://open.canada.ca/data/en/dataset/' + (pkg.name || '')),
+                    timestamp: pkg.metadata_modified ? new Date(pkg.metadata_modified).toISOString() : null,
+                    source: 'Open Canada'
+                };
+            });
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function _loadFallback() {
+        fetch(Config.FALLBACKS.contracts)
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                _data = Array.isArray(data) ? data : (data.contracts || data.events || []);
+                /* Ensure required fields on fallback records */
+                _data = _data.map(function (d) {
+                    return {
+                        type: d.type || 'contract',
+                        title: d.title || d.name || 'Government Contract',
+                        lat: d.lat,
+                        lon: d.lon,
+                        amount: d.amount || 0,
+                        level: d.level || 'federal',
+                        description: d.description || '',
+                        url: d.url || null,
+                        timestamp: d.timestamp || null,
+                        source: d.source || 'Fallback'
+                    };
+                });
+                _finalize();
+            })
+            .catch(function () {
+                _data = [];
+                _finalize();
+            });
+    }
+
+    function _finalize() {
+        App.updateLayerCount('contracts', _data.length);
+        EventBus.emit('data:contracts:updated', _data);
+        _render();
     }
 
     function _render() {

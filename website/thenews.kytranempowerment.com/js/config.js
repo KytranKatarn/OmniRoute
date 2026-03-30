@@ -68,7 +68,22 @@ var Config = (function () {
         crypto: 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd&include_24hr_change=true',
 
         /* Flights — OpenSky (free, no key) */
-        flights: 'https://opensky-network.org/api/states/all?lamin={lamin}&lomin={lomin}&lamax={lamax}&lomax={lomax}'
+        flights: 'https://opensky-network.org/api/states/all?lamin={lamin}&lomin={lomin}&lamax={lamax}&lomax={lomax}',
+
+        /* Government Contracts — Open Canada proactive disclosure (free, no key) */
+        contracts_canada: 'https://open.canada.ca/data/api/3/action/package_search?q=contract&rows=20&sort=metadata_modified+desc',
+
+        /* Parliament — Canadian bills via rss2json (free, no key) */
+        parliament_bills: 'https://api.rss2json.com/v1/api.json?rss_url=https://www.parl.ca/legisinfo/en/bills/rss',
+
+        /* Public Spending — World Bank government expenditure (free, no key) */
+        spending_worldbank: 'https://api.worldbank.org/v2/country/CAN;USA;GBR;FRA;DEU;JPN;AUS;BRA;IND;CHN/indicator/GC.XPN.TOTL.GD.ZS?format=json&date=2020:2024&per_page=100',
+
+        /* Social Trends — Reddit r/worldnews hot (free, no key) */
+        social_reddit: 'https://www.reddit.com/r/worldnews/hot.json?limit=25',
+
+        /* Internet — The Verge tech/internet RSS via rss2json (free, no key) */
+        internet_verge: 'https://api.rss2json.com/v1/api.json?rss_url=https://www.theverge.com/rss/tech/index.xml'
     };
 
     /* -- Refresh Intervals (ms) ------------------------------------------- */

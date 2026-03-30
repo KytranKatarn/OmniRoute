@@ -1414,6 +1414,9 @@ print(json.dumps(result, default=str))
         if result.returncode != 0:
             return {"success": False, "error": f"Docker exec failed: {result.stderr}"}
 
+        if not result.stdout.strip():
+            return {"success": False, "error": "Backup command produced no output"}
+
         # Parse the JSON output
         try:
             backup_result = json.loads(result.stdout.strip())

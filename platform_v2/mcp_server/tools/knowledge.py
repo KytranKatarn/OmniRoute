@@ -324,6 +324,8 @@ async def store_memory_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
         )
 
         result = cur.fetchone()
+        if not result:
+            return {"success": False, "error": "Record not found"}
         memory_id = result["id"]
         created_at = result["created_at"]
 

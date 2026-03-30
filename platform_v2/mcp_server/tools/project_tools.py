@@ -924,6 +924,9 @@ async def log_decision_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
         result = cur.fetchone()
         conn.commit()
 
+        if not result:
+            return {"success": False, "error": "Record not found"}
+
         return {
             "success": True,
             "decision_id": result["id"],
@@ -1389,6 +1392,9 @@ async def update_project_understanding_handler(
         result = cur.fetchone()
         conn.commit()
 
+        if not result:
+            return {"success": False, "error": "Record not found"}
+
         return {
             "success": True,
             "understanding": result["understanding_level"],
@@ -1468,6 +1474,8 @@ async def get_knowledge_processing_status_handler(
         """
         )
         row = cur.fetchone()
+        if not row:
+            return {"success": False, "error": "Record not found"}
         total, embedded, analyzed = row[0], row[1], row[2]
 
         # Backlog by source type (exclude archived)
@@ -1695,6 +1703,8 @@ async def start_working_on_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
                 (work_on, slug),
             )
             result = cur.fetchone()
+            if not result:
+                return {"success": False, "error": "Record not found"}
             project_id = result["id"]
             project_name = result["name"]
             is_new = True

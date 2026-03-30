@@ -528,6 +528,8 @@ async def get_rate_limit_status_handler(arguments: Dict[str, Any]) -> Dict[str, 
                 (api_key_id, window_type, window_start),
             )
             result = cur.fetchone()
+            if not result:
+                return {"success": False, "error": "Query returned no result"}
             current_usage = int(result["count"])
 
             return {

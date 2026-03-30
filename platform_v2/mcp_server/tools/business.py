@@ -386,7 +386,10 @@ async def send_email_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             (to, subject, body, status, scheduled_for),
         )
 
-        result = dict(cur.fetchone())
+        row = cur.fetchone()
+        if not row:
+            return {"success": False, "error": "Record not found"}
+        result = dict(row)
         email_id = result["id"]
 
         # Log the email

@@ -6718,16 +6718,7 @@ Respond with ONLY a JSON object (no markdown, no explanation):
                     status = data.get("status", "unknown")
                     if status in ("healthy", "operational"):
                         if was_down:
-                            # Recovered — send recovery notification
-                            with get_db_cursor(commit=True) as (conn, cur):
-                                cur.execute(
-                                    """INSERT INTO system_notifications
-                                       (type, title, message, source, priority, visibility, is_read, created_at)
-                                       VALUES (%s, %s, %s, %s, %s, %s, FALSE, NOW())""",
-                                    ("success", f"{key} Back Online",
-                                     f"{key} has recovered and is operational.",
-                                     "agent_loop", "normal", "admin"),
-                                )
+                            # Nagios handles monitoring alerts — log only
                             logger.info(f"[Standalone Health] {key} recovered")
                         self._standalone_last_status[key] = "up"
                         continue
@@ -6737,19 +6728,7 @@ Respond with ONLY a JSON object (no markdown, no explanation):
 
             except Exception as e:
                 if not was_down:
-                    # Just went down — alert
-                    try:
-                        with get_db_cursor(commit=True) as (conn, cur):
-                            cur.execute(
-                                """INSERT INTO system_notifications
-                                   (type, title, message, source, priority, visibility, is_read, created_at)
-                                   VALUES (%s, %s, %s, %s, %s, %s, FALSE, NOW())""",
-                                ("error", f"{key} is DOWN",
-                                 f"{key} health check failed: {str(e)[:200]}",
-                                 "agent_loop", "high", "admin"),
-                            )
-                    except Exception:
-                        pass
+                    # Nagios handles monitoring alerts — log only
                     logger.error(f"[Standalone Health] {key} is DOWN: {e}")
                 self._standalone_last_status[key] = "down"
 

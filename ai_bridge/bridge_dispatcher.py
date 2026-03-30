@@ -997,17 +997,11 @@ class BridgeDispatcher:
             (new_state, agent_id),
         )
 
-        # Create system notification
-        cur.execute("""
-            INSERT INTO system_notifications (type, title, message, metadata, created_at)
-            VALUES ('info', %s, %s, %s, NOW())
-        """, (
-            f"Shift transition: {agent_name}",
-            f"{agent_name} transitioned to {new_state} in {department} (reason: {reason})",
-            Json({"agent_id": agent_id, "agent_name": agent_name,
-                  "new_state": new_state, "department": department,
-                  "reason": reason}),
-        ))
+        # Shift transitions managed via Department HQ — no Telegram notification needed
+        logger.debug(
+            "[BridgeDispatcher] Shift: %s → %s in %s (reason: %s)",
+            agent_name, new_state, department, reason,
+        )
 
         # If cooldown, find a replacement in the same department
         if new_state == "cooldown":
@@ -6139,23 +6133,7 @@ class BridgeDispatcher:
                 )
                 remaining = cur.fetchone()["cnt"]
                 if remaining <= 5:
-                    cur.execute(
-                        """
-                        INSERT INTO system_notifications
-                            (type, title, message, created_at)
-                        VALUES
-                            ('alert',
-                             'Low barracked agent pool',
-                             %s,
-                             NOW())
-                        """,
-                        (
-                            f"Only {remaining} barracked agents remaining after "
-                            f"assigning {len(assigned)} to node {node_db_id}. "
-                            f"Consider promoting or creating new agents.",
-                        ),
-                    )
-                    conn.commit()
+                    # Advisory only — Department HQ shows pool status
                     logger.warning(
                         "Barracked agent pool low: %d remaining", remaining
                     )

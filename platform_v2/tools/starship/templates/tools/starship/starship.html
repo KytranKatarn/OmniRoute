@@ -33,27 +33,27 @@
         </div>
         <div class="starbase-hero-stats">
             <div class="starbase-hero-stat">
-                <span class="starbase-hero-stat-val" id="hero-agents">--</span>
+                <span class="starbase-hero-stat-val sc-live" id="hero-agents">{{ hero.active_agents }}</span>
                 <span class="starbase-hero-stat-label">ON DUTY</span>
             </div>
             <div class="starbase-hero-stat">
-                <span class="starbase-hero-stat-val" id="hero-deployed">--</span>
+                <span class="starbase-hero-stat-val sc-live" id="hero-deployed">{{ hero.deployed_agents }}</span>
                 <span class="starbase-hero-stat-label">DEPLOYED</span>
             </div>
             <div class="starbase-hero-stat">
-                <span class="starbase-hero-stat-val" id="hero-barracked">--</span>
+                <span class="starbase-hero-stat-val sc-live" id="hero-barracked">{{ hero.barracked_agents }}</span>
                 <span class="starbase-hero-stat-label">BARRACKED</span>
             </div>
             <div class="starbase-hero-stat">
-                <span class="starbase-hero-stat-val" id="hero-models">--</span>
+                <span class="starbase-hero-stat-val sc-live" id="hero-models">{{ hero.loaded_models }}</span>
                 <span class="starbase-hero-stat-label">MODELS LOADED</span>
             </div>
             <div class="starbase-hero-stat">
-                <span class="starbase-hero-stat-val" id="hero-jobs">--</span>
+                <span class="starbase-hero-stat-val sc-live" id="hero-jobs">{{ hero.active_jobs }}</span>
                 <span class="starbase-hero-stat-label">ACTIVE JOBS</span>
             </div>
             <div class="starbase-hero-stat">
-                <span class="starbase-hero-stat-val" id="hero-nodes">--</span>
+                <span class="starbase-hero-stat-val sc-live" id="hero-nodes">{{ hero.online_nodes }}/{{ hero.total_nodes }}</span>
                 <span class="starbase-hero-stat-label">NODES ONLINE</span>
             </div>
         </div>
@@ -79,26 +79,27 @@
                     {% if node.deployment_mode == 'outpost' %}
                     <div class="docked-ship-stats">
                         <div class="docked-ship-stat">
-                            <span class="docked-ship-val" id="dock-cpu-{{ node.node_id }}">--</span>
+                            <span class="docked-ship-val sc-live" id="dock-cpu-{{ node.node_id }}">{{ node.cpu_usage }}%{{ ' · %sC' % node.cpu_cores if node.cpu_cores else '' }}</span>
                             <span class="docked-ship-label">CPU %</span>
                         </div>
                         <div class="docked-ship-stat">
-                            <span class="docked-ship-val" id="dock-mem-{{ node.node_id }}">--</span>
+                            <span class="docked-ship-val sc-live" id="dock-mem-{{ node.node_id }}">{{ node.mem_usage }}%{{ ' · %s GB' % (node.ram_gb|int) if node.ram_gb else '' }}</span>
                             <span class="docked-ship-label">MEM %</span>
                         </div>
                         <div class="docked-ship-stat">
-                            <span class="docked-ship-val" id="dock-services-{{ node.node_id }}">--</span>
+                            <span class="docked-ship-val sc-live" id="dock-services-{{ node.node_id }}">{{ node.services_count }}</span>
                             <span class="docked-ship-label">SERVICES</span>
                         </div>
                         <div class="docked-ship-stat">
-                            <span class="docked-ship-val" id="dock-uptime-{{ node.node_id }}">--</span>
+                            {% set h = (node.uptime_secs // 3600) %}{% set m = ((node.uptime_secs % 3600) // 60) %}
+                            <span class="docked-ship-val sc-live" id="dock-uptime-{{ node.node_id }}">{% if h > 0 %}{{ h }}h {{ m }}m{% elif m > 0 %}{{ m }}m{% else %}--{% endif %}</span>
                             <span class="docked-ship-label">UPTIME</span>
                         </div>
                     </div>
                     {% else %}
                     <div class="docked-ship-stats">
                         <div class="docked-ship-stat">
-                            <span class="docked-ship-val" id="dock-agents-{{ node.node_id }}">--</span>
+                            <span class="docked-ship-val sc-live" id="dock-agents-{{ node.node_id }}">{{ node.agent_count }}</span>
                             <span class="docked-ship-label">AGENTS</span>
                         </div>
                         <div class="docked-ship-stat">
@@ -253,26 +254,27 @@
                 {% if node.deployment_mode == 'outpost' %}
                 <div class="sc-node-stats">
                     <div class="sc-stat">
-                        <span class="sc-stat-val" id="fleet-cpu-{{ node.node_id }}">--</span>
+                        <span class="sc-stat-val sc-live" id="fleet-cpu-{{ node.node_id }}">{{ node.cpu_usage }}%{{ ' · %sC' % node.cpu_cores if node.cpu_cores else '' }}</span>
                         <span class="sc-stat-label">CPU %</span>
                     </div>
                     <div class="sc-stat">
-                        <span class="sc-stat-val" id="fleet-mem-{{ node.node_id }}">--</span>
+                        <span class="sc-stat-val sc-live" id="fleet-mem-{{ node.node_id }}">{{ node.mem_usage }}%{{ ' · %s GB' % (node.ram_gb|int) if node.ram_gb else '' }}</span>
                         <span class="sc-stat-label">MEM %</span>
                     </div>
                     <div class="sc-stat">
-                        <span class="sc-stat-val" id="fleet-services-{{ node.node_id }}">--</span>
+                        <span class="sc-stat-val sc-live" id="fleet-services-{{ node.node_id }}">{{ node.services_count }}</span>
                         <span class="sc-stat-label">Services</span>
                     </div>
                     <div class="sc-stat">
-                        <span class="sc-stat-val" id="fleet-uptime-{{ node.node_id }}">--</span>
+                        {% set h = (node.uptime_secs // 3600) %}{% set m = ((node.uptime_secs % 3600) // 60) %}
+                        <span class="sc-stat-val sc-live" id="fleet-uptime-{{ node.node_id }}">{% if h > 0 %}{{ h }}h {{ m }}m{% elif m > 0 %}{{ m }}m{% else %}--{% endif %}</span>
                         <span class="sc-stat-label">Uptime</span>
                     </div>
                 </div>
                 {% else %}
                 <div class="sc-node-stats">
                     <div class="sc-stat">
-                        <span class="sc-stat-val" id="fleet-agents-{{ node.node_id }}">--</span>
+                        <span class="sc-stat-val sc-live" id="fleet-agents-{{ node.node_id }}">{{ node.agent_count }}</span>
                         <span class="sc-stat-label">Agents</span>
                     </div>
                     <div class="sc-stat">

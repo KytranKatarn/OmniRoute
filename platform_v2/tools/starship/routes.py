@@ -33,10 +33,30 @@ def starship_dashboard():
     nodes = []
     try:
         raw_nodes = _get_user_nodes(user_id, is_admin=is_admin)
-        for n in raw_nodes:
-            d = dict(n)
-            d["status"] = _compute_node_status(n)
-            nodes.append(d)
+        with get_db_cursor() as (conn, cur):
+            for n in raw_nodes:
+                d = dict(n)
+                d["status"] = _compute_node_status(n)
+                # Enrich with heartbeat data for instant rendering
+                cur.execute(
+                    """SELECT cpu_usage, memory_usage, details
+                       FROM node_heartbeats WHERE node_id = %s
+                       ORDER BY created_at DESC LIMIT 1""",
+                    (d["id"],),
+                )
+                hb = cur.fetchone()
+                hb_details = (hb["details"] if hb and hb["details"] else {}) or {}
+                d["cpu_usage"] = round(float(hb["cpu_usage"] or 0), 1) if hb and d["status"] != "offline" else 0
+                d["mem_usage"] = round(float(hb["memory_usage"] or 0), 1) if hb and d["status"] != "offline" else 0
+                d["uptime_secs"] = hb_details.get("uptime", 0) if d["status"] != "offline" else 0
+                d["services_count"] = sum(1 for v in hb_details.values() if v is True)
+                cur.execute(
+                    """SELECT COUNT(*) as cnt FROM node_agents
+                       WHERE node_id = %s AND status = 'active'""",
+                    (d["id"],),
+                )
+                d["agent_count"] = cur.fetchone()["cnt"]
+                nodes.append(d)
     except Exception as e:
         logger.warning(f"Failed to load user nodes: {e}")
 
@@ -46,26 +66,68 @@ def starship_dashboard():
         with get_db_cursor() as (conn, cur):
             cur.execute(
                 """SELECT rn.node_id, rn.node_name, rn.deployment_mode, rn.status,
-                          rn.gpu_model, rn.gpu_vram_gb, rn.ram_gb, rn.last_heartbeat,
-                          u.username as owner_name
+                          rn.gpu_model, rn.gpu_vram_gb, rn.ram_gb, rn.cpu_cores,
+                          rn.last_heartbeat,
+                          u.username as owner_name,
+                          hb.cpu_usage, hb.memory_usage, hb.details AS hb_details,
+                          (SELECT COUNT(*) FROM node_agents na
+                           WHERE na.node_id = rn.id AND na.status = 'active') AS agent_count
                    FROM remote_nodes rn
                    LEFT JOIN users u ON u.id = rn.registered_by
+                   LEFT JOIN LATERAL (
+                       SELECT cpu_usage, memory_usage, details
+                       FROM node_heartbeats nh
+                       WHERE nh.node_id = rn.id
+                       ORDER BY nh.created_at DESC LIMIT 1
+                   ) hb ON true
                    WHERE rn.is_active = true
                    ORDER BY rn.bridge_priority DESC, rn.node_name"""
             )
             for n in cur.fetchall():
                 d = dict(n)
                 d["status"] = _compute_node_status(n)
+                hb_details = d.get("hb_details") or {}
+                d["cpu_usage"] = round(float(d.get("cpu_usage") or 0), 1) if d["status"] != "offline" else 0
+                d["mem_usage"] = round(float(d.get("memory_usage") or 0), 1) if d["status"] != "offline" else 0
+                d["uptime_secs"] = hb_details.get("uptime", 0) if d["status"] != "offline" else 0
+                d["services_count"] = sum(1 for v in hb_details.values() if v is True)
                 fleet_nodes.append(d)
     except Exception as e:
         logger.warning(f"Failed to load fleet nodes: {e}")
 
     hub_url = request.host_url.rstrip("/")
 
+    # Pre-compute hero stats for instant render (JS refreshes live)
+    hero = {
+        "active_agents": 0,
+        "deployed_agents": 0,
+        "barracked_agents": 0,
+        "loaded_models": 0,
+        "active_jobs": 0,
+        "online_nodes": 0,
+        "total_nodes": 0,
+    }
+    try:
+        from ai_bridge.bridge_dispatcher import get_dispatcher
+
+        dispatcher = get_dispatcher()
+        manifest = dispatcher.get_crew_manifest()
+        hub_agents = [a for a in manifest if not a.get("name", "").startswith("fleet:")]
+        hero["active_agents"] = sum(1 for a in hub_agents if a.get("shift_state") == "active")
+        hero["deployed_agents"] = sum(1 for a in hub_agents if a.get("shift_state") == "deployed")
+        hero["barracked_agents"] = sum(1 for a in hub_agents if a.get("shift_state") == "barracked")
+        hero["loaded_models"] = sum(1 for a in manifest if a.get("llm_status") == "loaded")
+        hero["active_jobs"] = sum(1 for a in manifest if a.get("current_job"))
+        hero["total_nodes"] = len(fleet_nodes)
+        hero["online_nodes"] = sum(1 for n in fleet_nodes if n.get("status") == "online")
+    except Exception as e:
+        logger.warning(f"Failed to pre-compute hero stats: {e}")
+
     return render_template(
         "tools/starship/starship.html",
         nodes=nodes,
         fleet_nodes=fleet_nodes,
+        hero=hero,
         is_admin=is_admin,
         is_owner=len(nodes) > 0,
         hub_url=hub_url,

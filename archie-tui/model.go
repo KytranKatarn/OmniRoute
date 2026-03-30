@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -35,6 +37,7 @@ type model struct {
 	chat        *views.ChatView
 	statusBar   *views.StatusBar
 	skillPicker *views.SkillPicker
+	diffReview  *views.DiffReviewView
 	client      *Client
 	msgChan     chan EngineResponseMsg
 	streamChan  chan interface{}
@@ -73,6 +76,7 @@ func initialModel(wsURL string) model {
 		chat:        views.NewChatView(),
 		statusBar:   views.NewStatusBar(),
 		skillPicker: views.NewSkillPicker(),
+		diffReview:  views.NewDiffReviewView(),
 		client:      NewClient(wsURL),
 		msgChan:     ch,
 		streamChan:  sch,
@@ -176,6 +180,49 @@ func (m model) connectCmd() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// ── Diff review mode intercepts all keys ──
+		if m.diffReview.Visible {
+			switch msg.String() {
+			case "a":
+				if err := m.diffReview.Accept(); err != nil {
+					m.chat.AddMessage("system", fmt.Sprintf("Accept failed: %v", err))
+				}
+				if m.diffReview.Done() {
+					m.chat.AddMessage("system", m.diffReview.SummaryMessage())
+				}
+			case "r":
+				m.diffReview.Reject()
+				if m.diffReview.Done() {
+					m.chat.AddMessage("system", m.diffReview.SummaryMessage())
+				}
+			case "e":
+				// Launch $EDITOR — must suspend Bubble Tea, then resume
+				return m, tea.ExecProcess(buildEditorCmd(m.diffReview), func(err error) tea.Msg {
+					return DiffEditorDoneMsg{Err: err}
+				})
+			case "n":
+				if !m.diffReview.Done() {
+					m.diffReview.Accept() // treat n as accept-and-next for convenience
+					if m.diffReview.Done() {
+						m.chat.AddMessage("system", m.diffReview.SummaryMessage())
+					}
+				}
+			case "p":
+				// Previous: go back one if possible
+				if m.diffReview.Current > 0 {
+					m.diffReview.Current--
+				}
+			case "up", "k":
+				m.diffReview.ScrollUp()
+			case "down", "j":
+				m.diffReview.ScrollDown()
+			case "q", "esc":
+				m.diffReview.Visible = false
+				m.chat.AddMessage("system", "Diff review cancelled.")
+			}
+			return m, nil
+		}
+
 		switch msg.String() {
 		case "ctrl+c", "ctrl+d":
 			m.client.Close()
@@ -277,11 +324,57 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.Done {
 			m.streaming = false
-			// Re-render the final message with markdown
 			m.chat.FinalizeLastMarkdown()
+			// Check if AI response contains code blocks with file paths
+			if len(m.chat.Messages) > 0 {
+				last := m.chat.Messages[len(m.chat.Messages)-1]
+				if last.Role == "assistant" {
+					changes := views.ParseCodeChanges(last.Content)
+					if len(changes) > 0 {
+						return m, func() tea.Msg { return DiffReviewMsg{Response: last.Content} }
+					}
+				}
+			}
 			return m, waitForStream(m.streamChan)
 		}
 		return m, waitForStream(m.streamChan)
+
+	case DiffReviewMsg:
+		changes := views.ParseCodeChanges(msg.Response)
+		if len(changes) > 0 {
+			m.diffReview.Width = m.width
+			m.diffReview.Height = m.height
+			m.diffReview.Load(changes)
+			noun := "change"
+			if len(changes) > 1 {
+				noun = "changes"
+			}
+			m.chat.AddMessage("system", fmt.Sprintf(
+				"AI suggested %d file %s. Press [a]ccept / [r]eject / [e]dit / [q]uit.",
+				len(changes), noun,
+			))
+		}
+		return m, waitForStream(m.streamChan)
+
+	case DiffEditorDoneMsg:
+		// $EDITOR subprocess finished — mark the change as edited and advance
+		if msg.Err != nil {
+			m.chat.AddMessage("system", fmt.Sprintf("Editor error: %v", msg.Err))
+		} else {
+			ch := m.diffReview.CurrentChange()
+			if ch != nil {
+				m.diffReview.Results = append(m.diffReview.Results, views.DiffResult{
+					FilePath: ch.FilePath,
+					Action:   "edited",
+				})
+				m.diffReview.Current++
+				if m.diffReview.Done() {
+					m.diffReview.Visible = false
+					m.chat.AddMessage("system", m.diffReview.SummaryMessage())
+				}
+			}
+		}
+		return m, nil
 
 	case EngineResponseMsg:
 		m.thinking = false
@@ -310,6 +403,40 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
 	return m, cmd
+}
+
+// buildEditorCmd writes the current diff change to a temp file and returns
+// an *exec.Cmd that opens it in $EDITOR, for use with tea.ExecProcess.
+func buildEditorCmd(d *views.DiffReviewView) *exec.Cmd {
+	ch := d.CurrentChange()
+	if ch == nil {
+		editor := os.Getenv("EDITOR")
+		if editor == "" {
+			editor = "vi"
+		}
+		return exec.Command(editor, "/dev/null")
+	}
+
+	ext := "txt"
+	if ch.Lang != "" {
+		ext = ch.Lang
+	} else if idx := strings.LastIndex(ch.FilePath, "."); idx >= 0 {
+		ext = ch.FilePath[idx+1:]
+	}
+
+	tmp, err := os.CreateTemp("", "archie-diff-*."+ext)
+	if err == nil {
+		_, _ = tmp.WriteString(ch.Content)
+		tmp.Close()
+		// Store the temp path in the change so DiffEditorDoneMsg can read it back
+		d.Changes[d.Current].Content = tmp.Name() // temporarily holds temp path
+	}
+
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		editor = "vi"
+	}
+	return exec.Command(editor, tmp.Name())
 }
 
 func (m model) View() string {
@@ -346,8 +473,10 @@ func (m model) View() string {
 		))
 	}
 
-	// Skill picker overlay
-	if m.skillPicker.Visible {
+	// Diff review overlay (takes priority over skill picker)
+	if m.diffReview.Visible {
+		sections = append(sections, m.diffReview.Render())
+	} else if m.skillPicker.Visible {
 		sections = append(sections, m.skillPicker.Render())
 	}
 

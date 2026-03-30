@@ -39,3 +39,14 @@ type DisconnectedMsg struct {
 type ErrorMsg struct {
 	Err error
 }
+
+// DiffReviewMsg triggers opening the diff review panel with detected code changes.
+type DiffReviewMsg struct {
+	Response string // full AI response text to parse for code blocks
+}
+
+// DiffEditorDoneMsg is sent after the $EDITOR subprocess exits so Bubble Tea
+// can reclaim the terminal.
+type DiffEditorDoneMsg struct {
+	Err error
+}

@@ -1,0 +1,44 @@
+name: Kytran Mail
+id: kytran-mail
+description: Branded mail server with LCARS admin — mailbox management, health monitoring, fleet-deployable
+image: ghcr.io/kytrankatarn/kytran-mail:latest
+version: "1.0.0"
+port: 8025
+env:
+  - name: MAIL_DOMAIN
+    required: true
+    default: "kytranempowerment.com"
+  - name: MAIL_ADMIN_PASSWORD
+    required: true
+    generate: true
+  - name: MAIL_HOSTNAME
+    required: false
+    default: ""
+  - name: MAIL_RELAY_HOST
+    required: false
+    default: ""
+  - name: MAIL_RELAY_PORT
+    required: false
+    default: "587"
+  - name: MAIL_RELAY_USER
+    required: false
+    default: ""
+  - name: MAIL_RELAY_PASSWORD
+    required: false
+    default: ""
+  - name: FLASK_SECRET_KEY
+    required: true
+    generate: true
+volumes:
+  - name: mail
+    path: /opt/stalwart-mail
+resources:
+  min_ram_mb: 512
+  min_disk_mb: 1000
+  gpu: false
+compatible_nodes:
+  - outpost
+  - starship
+category: products
+health_endpoint: /api/health
+depends_on: []

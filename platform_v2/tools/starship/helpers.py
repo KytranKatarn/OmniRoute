@@ -7,8 +7,8 @@ Constants and utility functions used across starship route modules.
 from database import get_db_cursor
 
 
-# 2 minutes — node heartbeats every 30s
-HEARTBEAT_TIMEOUT_SECONDS = 120
+# 3 minutes — outposts heartbeat every 60s, starships every 30s
+HEARTBEAT_TIMEOUT_SECONDS = 180
 
 # Current node package version (update this when releasing new packages)
 LATEST_NODE_VERSION = "3.0.0"

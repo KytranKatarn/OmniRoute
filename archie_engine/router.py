@@ -5,6 +5,7 @@ import re
 
 from archie_engine.tools import ToolRegistry
 from archie_engine.inference import InferenceClient
+from archie_engine.agent_router import AgentRouter
 
 logger = logging.getLogger(__name__)
 
@@ -15,22 +16,47 @@ class CommandRouter:
         self.inference = inference
         self.default_model = default_model
         self.hub_connector = hub_connector  # Set when hub is connected
+        self.agent_router = AgentRouter(hub_connector=hub_connector)
 
     async def _infer(self, messages: list[dict], system: str | None = None) -> dict:
-        """Route inference through hub (if connected) or local Ollama."""
+        """Route inference through hub (if connected) or local Ollama.
+
+        When connected to the hub, attempts agent-aware routing: detects the
+        task type from the last user message, finds an available specialist
+        agent in the matching department, and dispatches to that agent/model.
+        Falls back to the default model if no specialist is found or hub fails.
+        """
         if self.hub_connector:
-            # Hub mode — use Bridge dispatcher
             prompt = messages[-1]["content"] if messages else ""
+
+            # Agent-aware routing — pick specialist agent if available
+            routing = await self.agent_router.resolve(prompt)
+            agent_target = routing["agent_name"] or "ARCHIE"
+            model = routing["agent_model"] or self.default_model
+
+            if routing["agent_name"]:
+                logger.info(
+                    "AgentRouter: task=%s → dept=%s → agent=%s (model=%s)",
+                    routing["task_type"], routing["department"],
+                    routing["agent_name"], model,
+                )
+            else:
+                logger.debug(
+                    "AgentRouter: task=%s → no specialist found, using default model",
+                    routing["task_type"],
+                )
+
             result = await self.hub_connector.dispatch(
                 prompt=prompt,
-                model=self.default_model,
-                agent_target="ARCHIE",
+                model=model,
+                agent_target=agent_target,
                 user_context={"messages": messages, "system": system},
             )
             if "error" not in result:
                 return {
                     "message": {"role": "assistant", "content": result.get("response", "")},
-                    "model": result.get("model_used", self.default_model),
+                    "model": result.get("model_used", model),
+                    "agent_routing": routing,
                 }
             # Fall through to local on hub error
             logger.warning("Hub dispatch failed, falling back to local: %s", result.get("error"))

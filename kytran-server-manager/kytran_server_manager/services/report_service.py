@@ -133,11 +133,13 @@ def get_scan_report_data(scan_id):
         }
 
         # Fetch AI analysis from hub (if connected)
+        # fetch_ai_analysis() already unwraps the hub envelope and returns
+        # {executive_summary, remediation_plan, trend_analysis, ...} or None
         ai_analysis = None
         try:
             from .hub_client import is_hub_configured, fetch_ai_analysis
             if is_hub_configured():
-                ai_analysis = fetch_ai_analysis()
+                ai_analysis = fetch_ai_analysis(scan_target="Kytran System Operations")
         except Exception:
             pass
 

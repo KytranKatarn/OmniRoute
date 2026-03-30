@@ -416,6 +416,51 @@ def run_scan(pack_ids=None, triggered_by="manual"):
         passed,
         total,
     )
+
+    # Report to ARCHIE hub and trigger S.H.I.E.L.D. AI analysis (best-effort)
+    try:
+        from .hub_client import is_hub_configured, trigger_ai_analysis
+
+        if is_hub_configured():
+            # Build failed_rules list for AI context
+            failed_rules = []
+            try:
+                results = get_scan_results(scan_id, status="fail")
+                failed_rules = [
+                    {
+                        "rule_id": r.get("rule_id", ""),
+                        "severity": r.get("severity", ""),
+                        "description": r.get("description", ""),
+                    }
+                    for r in (results or [])[:30]
+                ]
+            except Exception:
+                pass
+
+            pack_scores_flat = {
+                pid: info.get("score", 0) for pid, info in pack_scores.items()
+            }
+            pack_ids_list = list(pack_scores.keys())
+
+            hub_payload = {
+                "scan_id": scan_id,
+                "score": score,
+                "overall_score": score,
+                "total_rules": total,
+                "passed": passed,
+                "failed": failed,
+                "errors": errors,
+                "pack_ids": pack_ids_list,
+                "pack_scores": pack_scores_flat,
+                "failed_rules": failed_rules,
+                "started_at": started_at.isoformat(),
+                "completed_at": completed_at.isoformat(),
+                "triggered_by": triggered_by,
+            }
+            trigger_ai_analysis(hub_payload)
+    except Exception as exc:
+        logger.warning("Hub AI analysis trigger failed (non-fatal): %s", exc)
+
     return summary
 
 

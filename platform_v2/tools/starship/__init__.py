@@ -11,11 +11,13 @@ from .routes import starship_bp
 from .node_routes import register_node_routes
 from .crew_routes import register_crew_routes
 from .ota_routes import register_ota_routes
+from .health_routes import register_health_routes
 
 admin_required = require_permission(Permission.ADMIN_ACCESS)
 
 register_node_routes(starship_bp, login_required)
 register_crew_routes(starship_bp, login_required)
 register_ota_routes(starship_bp, admin_required)
+register_health_routes(starship_bp, login_required)
 
 __all__ = ["starship_bp"]

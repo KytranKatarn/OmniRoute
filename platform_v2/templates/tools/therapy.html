@@ -5,8 +5,19 @@
 {% block module_name %}therapy{% endblock %}
 
 {% block content %}
-<!-- Include Standalone Apps Navigation -->
-{% include 'includes/standalone_apps_nav.html' %}
+{% set cat_accent = '#EF4444' %}
+{% set cat_accent_rgb = '239,68,68' %}
+{% set cat_accent_light = '#dc2626' %}
+{% set cat_label = 'APPS' %}
+{% set cat_icon = 'heart-pulse' %}
+{% set cat_modules = [
+    {'url': url_for('doc.index'), 'endpoint_prefix': 'doc', 'icon': 'stethoscope', 'label': 'DOC', 'title': 'DOC'},
+    {'url': url_for('therapy.index'), 'endpoint_prefix': 'therapy', 'icon': 'flower-2', 'label': 'Therapy', 'title': 'Therapy'},
+    {'url': url_for('fitness.index'), 'endpoint_prefix': 'fitness', 'icon': 'dumbbell', 'label': 'Fitness', 'title': 'Fitness'},
+    {'url': url_for('archie_pool.index'), 'endpoint_prefix': 'archie_pool', 'icon': 'pickaxe', 'label': 'Pool', 'title': 'Archie Pool'},
+    {'url': url_for('media_hub.index'), 'endpoint_prefix': 'media_hub', 'icon': 'tv-2', 'label': 'Media', 'title': 'Media Hub'}
+] %}
+{% include 'includes/category_nav.html' %}
 
 <!-- Scanline Overlay -->
 <div class="scanline-overlay"></div>

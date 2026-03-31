@@ -27,8 +27,24 @@
 
   <!-- Lightweight Charts -->
   <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+
+  <!-- Auth state (populated by initAuth below) -->
+  <script>
+    window.MW_USER = null;
+    window.MW_TIER = 'free';
+    window.MW_IS_ADMIN = false;
+  </script>
 </head>
 <body>
+
+  <!-- USER MENU (shown after auth check) -->
+  <div id="user-menu" style="position:fixed;top:10px;right:20px;z-index:1000;display:none;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span id="user-tier-badge" style="padding:3px 10px;border-radius:3px;font-size:0.75rem;font-weight:700;text-transform:uppercase;"></span>
+      <span id="user-name" style="color:#e0e0e0;font-size:0.85rem;"></span>
+      <a href="/auth/logout" style="color:#6b7280;font-size:0.8rem;text-decoration:none;margin-left:8px;">Logout</a>
+    </div>
+  </div>
 
   <!-- LCARS HEADER -->
   <header class="lcars-header" role="banner">
@@ -150,7 +166,7 @@
             <label for="watchlist-ticker">Ticker</label>
             <input id="watchlist-ticker" type="text" class="filter-input" placeholder="e.g. AAPL" style="text-transform:uppercase;" />
           </div>
-          <button type="button" class="filter-btn" id="watchlist-add-btn">Add to Watchlist</button>
+          <button type="button" class="filter-btn" id="watchlist-add-btn" data-tier-disable="ai">Add to Watchlist</button>
         </div>
 
         <div style="overflow-x: auto;">
@@ -242,7 +258,7 @@
             <label for="alert-value">Value</label>
             <input id="alert-value" type="number" step="0.01" class="filter-input" placeholder="150.00" />
           </div>
-          <button type="button" class="filter-btn" id="alert-create-btn">Create Alert</button>
+          <button type="button" class="filter-btn" id="alert-create-btn" data-tier-disable="ai">Create Alert</button>
         </div>
 
         <div style="overflow-x: auto;">
@@ -272,7 +288,7 @@
       <div class="page-content">
 
         <div class="filters">
-          <button type="button" class="filter-btn" id="analysis-run-btn">Run Analysis Cycle</button>
+          <button type="button" class="filter-btn" id="analysis-run-btn" data-tier-disable="ai">Run Analysis Cycle</button>
           <div class="filter-group" style="margin-left:auto;">
             <label>Last Cycle</label>
             <span id="analysis-last-cycle" class="filter-input" style="border:none;background:transparent;color:var(--text-dim);">&mdash;</span>
@@ -308,7 +324,7 @@
                   <input id="buy-qty" type="number" min="1" class="form-input" placeholder="10" />
                 </div>
                 <div class="form-group form-group--full">
-                  <button type="button" class="btn btn--primary" id="buy-submit-btn" style="background:var(--positive);">Execute Buy</button>
+                  <button type="button" class="btn btn--primary" id="buy-submit-btn" style="background:var(--positive);" data-tier-disable="ai">Execute Buy</button>
                 </div>
               </div>
             </div>
@@ -330,7 +346,7 @@
                   <input id="sell-qty" type="number" min="1" class="form-input" placeholder="10" />
                 </div>
                 <div class="form-group form-group--full">
-                  <button type="button" class="btn btn--danger" id="sell-submit-btn">Execute Sell</button>
+                  <button type="button" class="btn btn--danger" id="sell-submit-btn" data-tier-disable="ai">Execute Sell</button>
                 </div>
               </div>
             </div>
@@ -419,7 +435,7 @@
               <option value="2Y">2 Years</option>
             </select>
           </div>
-          <button type="button" class="filter-btn" id="backtest-run-btn">Run Backtest</button>
+          <button type="button" class="filter-btn" id="backtest-run-btn" data-tier-disable="ai">Run Backtest</button>
         </div>
 
         <!-- Backtest Results -->
@@ -486,7 +502,7 @@
               <textarea id="strategy-rules" class="form-textarea" placeholder='{"min_score": 70, "max_risk": "medium"}'></textarea>
             </div>
             <div class="form-group form-group--full">
-              <button type="button" class="btn btn--purple" id="strategy-create-btn">Create Strategy</button>
+              <button type="button" class="btn btn--purple" id="strategy-create-btn" data-tier-disable="ai">Create Strategy</button>
             </div>
           </div>
         </div>
@@ -532,6 +548,64 @@
   <script src="/static/js/charts.js"></script>
   <script src="/static/js/backtest.js"></script>
   <script src="/static/js/strategies.js"></script>
+
+  <!-- Auth Init: check session, gate UI by tier -->
+  <script>
+    (async function initAuth() {
+        try {
+            const resp = await fetch('/api/me');
+            const data = await resp.json();
+
+            if (!data.authenticated) {
+                window.location.href = '/';
+                return;
+            }
+
+            window.MW_USER = data;
+            window.MW_TIER = data.tier;
+            window.MW_IS_ADMIN = data.is_admin;
+
+            // Show user menu
+            var menu = document.getElementById('user-menu');
+            menu.style.display = 'block';
+            document.getElementById('user-name').textContent = data.name || data.username;
+
+            var badge = document.getElementById('user-tier-badge');
+            if (data.tier === 'ai') {
+                badge.textContent = 'AI TRADER';
+                badge.style.background = '#fbbf24';
+                badge.style.color = '#000';
+            } else {
+                badge.textContent = 'VIEWER';
+                badge.style.background = '#00e5ff';
+                badge.style.color = '#000';
+            }
+
+            // Hide AI-only elements for viewers
+            if (data.tier === 'viewer') {
+                document.querySelectorAll('[data-tier="ai"]').forEach(function(el) {
+                    el.style.display = 'none';
+                });
+                document.querySelectorAll('[data-tier-disable="ai"]').forEach(function(el) {
+                    el.disabled = true;
+                    el.title = 'Upgrade to AI Trader tier';
+                    el.style.opacity = '0.4';
+                    el.style.cursor = 'not-allowed';
+                });
+            }
+
+            // Show admin-only elements
+            if (data.is_admin) {
+                document.querySelectorAll('[data-tier="admin"]').forEach(function(el) {
+                    el.style.display = '';
+                });
+            }
+        } catch (e) {
+            console.error('Auth check failed:', e);
+            window.location.href = '/';
+        }
+    })();
+  </script>
 
 </body>
 </html>

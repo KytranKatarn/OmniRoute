@@ -11915,6 +11915,23 @@ function loadFleetData() {
     });
 }
 
+var PROVIDER_STYLES = {
+    'openai':      { color: '#10a37f', bg: 'rgba(16,163,127,0.3)', label: 'AI' },
+    'anthropic':   { color: '#d4a27f', bg: 'rgba(212,162,127,0.3)', label: 'An' },
+    'google':      { color: '#4285f4', bg: 'rgba(66,133,244,0.3)', label: 'G' },
+    'gemini':      { color: '#4285f4', bg: 'rgba(66,133,244,0.3)', label: 'Ge' },
+    'mistral':     { color: '#ff7000', bg: 'rgba(255,112,0,0.3)', label: 'Mi' },
+    'cohere':      { color: '#39594d', bg: 'rgba(57,89,77,0.3)', label: 'Co' },
+    'grok':        { color: '#1da1f2', bg: 'rgba(29,161,242,0.3)', label: 'X' },
+    'together':    { color: '#6366f1', bg: 'rgba(99,102,241,0.3)', label: 'To' },
+    'huggingface': { color: '#ff9d00', bg: 'rgba(255,157,0,0.3)', label: '\u{1F917}' },
+    'cloudflare':  { color: '#f38020', bg: 'rgba(243,128,32,0.3)', label: 'CF' },
+    'ollama':      { color: '#ffffff', bg: 'rgba(255,255,255,0.2)', label: '\u{1F999}' },
+    'groq':        { color: '#f55036', bg: 'rgba(245,80,54,0.3)', label: 'Gq' },
+    'deepseek':    { color: '#4d6bfe', bg: 'rgba(77,107,254,0.3)', label: 'DS' },
+    'cerebras':    { color: '#00d4aa', bg: 'rgba(0,212,170,0.3)', label: 'Ce' },
+};
+
 function renderFleetPins(data) {
     fleetMarkers.forEach(function(m) { fleetMap.removeLayer(m); });
     fleetMarkers = [];
@@ -11960,12 +11977,14 @@ function renderFleetPins(data) {
 
     (data.providers || []).forEach(function(prov) {
         if (!prov.lat || !prov.lon) return;
+        var key = (prov.provider_key || '').toLowerCase();
+        var style = PROVIDER_STYLES[key] || { color: '#f97316', bg: 'rgba(249,115,22,0.3)', label: (prov.provider_key || '?').charAt(0).toUpperCase() };
         var marker = L.marker([prov.lat, prov.lon], {
             icon: L.divIcon({
-                className: 'fleet-marker-provider ' + (prov.is_active ? '' : 'inactive'),
-                html: (prov.provider_key || '?').charAt(0).toUpperCase(),
-                iconSize: [22, 22],
-                iconAnchor: [11, 11],
+                className: 'fleet-marker-provider-custom ' + (prov.is_active ? '' : 'inactive'),
+                html: '<span style="background:' + style.bg + ';border-color:' + style.color + ';color:' + style.color + '">' + style.label + '</span>',
+                iconSize: [28, 28],
+                iconAnchor: [14, 14],
             }),
         }).addTo(fleetMap);
 
@@ -12108,11 +12127,12 @@ async function loadFleetUsage() {
                 const spent = p.current_month_cost_usd || 0;
                 const pct = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0;
                 const barColor = pct > 90 ? '#ef4444' : pct > 70 ? '#fbbf24' : '#10b981';
-                const initial = (p.provider_key || '?').charAt(0).toUpperCase();
+                const pKey = (p.provider_key || '').toLowerCase();
+                const pStyle = PROVIDER_STYLES[pKey] || { color: '#f97316', bg: 'rgba(249,115,22,0.3)', label: (p.provider_key || '?').charAt(0).toUpperCase() };
 
                 return `<tr>
                     <td><div class="fleet-provider-name">
-                        <div class="fleet-provider-icon">${initial}</div>
+                        <div class="fleet-provider-icon" style="background:${pStyle.bg};border-color:${pStyle.color};color:${pStyle.color}">${pStyle.label}</div>
                         ${p.provider_key || '--'}
                     </div></td>
                     <td>${p.tier_position || '--'}</td>

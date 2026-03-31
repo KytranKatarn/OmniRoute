@@ -7981,6 +7981,32 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
     box-shadow: none;
 }
 
+.fleet-marker-provider-custom {
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.fleet-marker-provider-custom span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid;
+    font-size: 10px;
+    font-weight: bold;
+    font-family: 'IBM Plex Mono', monospace;
+    box-shadow: 0 0 10px currentColor;
+    line-height: 1;
+}
+
+.fleet-marker-provider-custom.inactive span {
+    opacity: 0.4;
+    box-shadow: none;
+}
+
 /* Marker popups */
 .fleet-popup {
     font-family: 'IBM Plex Mono', monospace;

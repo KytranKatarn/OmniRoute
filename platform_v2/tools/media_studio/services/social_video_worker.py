@@ -23,9 +23,10 @@ logger = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-VIDEO_OUTPUT_DIR = os.getenv("SOCIAL_VIDEO_DIR", "/mnt/archie_brain/platform_v2/static/social_videos")
-COMFYUI_URL = os.getenv("COMFYUI_URL", "http://192.168.1.200:8188")
-LTX_WORKFLOW_PATH = "/mnt/archie_brain/comfyui/workflows/ltx-video-basic.json"
+_APP_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+VIDEO_OUTPUT_DIR = os.getenv("SOCIAL_VIDEO_DIR", os.path.join(_APP_ROOT, "static", "social_videos"))
+COMFYUI_URL = os.getenv("COMFYUI_URL", "http://archie_comfyui:8188")
+LTX_WORKFLOW_PATH = os.path.join(_APP_ROOT, "static", "workflows", "ltx-video-basic.json")
 
 # ---------------------------------------------------------------------------
 # Public entry point

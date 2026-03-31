@@ -50,7 +50,6 @@ class Permission(Enum):
 
     Module Consolidation (2026-02-03):
     - media_hub uses: No special permissions (USER access)
-    - website_studio uses: WEBSITE_BUILDER_* permissions
     - project_manager uses: ADMIN_PROJECTS permission
     - automations uses: AUTOMATION_* permissions
     - sandbox_manager uses: ADMIN_SANDBOX, ADMIN_TESTING permissions
@@ -82,8 +81,6 @@ class Permission(Enum):
     APP_BUILDER_CREATE = "app_builder:create"
     APP_BUILDER_DEPLOY = "app_builder:deploy"
     APP_BUILDER_UNLIMITED = "app_builder:unlimited"
-    WEBSITE_BUILDER_CREATE = "website_builder:create"
-    WEBSITE_BUILDER_DEPLOY = "website_builder:deploy"
     SOCIAL_MEDIA_CREATE = "social_media:create"
     SOCIAL_MEDIA_SCHEDULE = "social_media:schedule"
     MEDIA_STUDIO_GENERATE = "media_studio:generate"
@@ -93,12 +90,6 @@ class Permission(Enum):
     ANALYTICS_VIEW = "analytics:view"
     STOCK_BOT_SCAN = "stock_bot:scan"
     STOCK_BOT_ALERTS = "stock_bot:alerts"
-
-    # Business Tools permissions
-    STORE_CREATE = "store:create"
-    STORE_MANAGE = "store:manage"
-    TELEPHONY_ACCESS = "telephony:access"
-    TELEPHONY_ADMIN = "telephony:admin"
 
     # Obsidian Vault permissions
     OBSIDIAN_READ = "obsidian:read"
@@ -164,10 +155,6 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.GOOGLE_CALENDAR,
         # Obsidian Vault (read-only for free users)
         Permission.OBSIDIAN_READ,
-        # Business Tools (basic - limited)
-        Permission.WEBSITE_BUILDER_CREATE,
-        Permission.STORE_CREATE,
-        Permission.TELEPHONY_ACCESS,
     },
     Role.PREMIUM: {
         # Inherit USER
@@ -188,8 +175,6 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         # PREMIUM specific
         Permission.APP_BUILDER_DEPLOY,
         Permission.APP_BUILDER_UNLIMITED,  # Unlimited projects
-        Permission.WEBSITE_BUILDER_CREATE,
-        Permission.WEBSITE_BUILDER_DEPLOY,
         Permission.SOCIAL_MEDIA_CREATE,
         Permission.SOCIAL_MEDIA_SCHEDULE,
         Permission.MEDIA_STUDIO_GENERATE,
@@ -200,11 +185,6 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.STOCK_BOT_SCAN,
         Permission.STOCK_BOT_ALERTS,
         Permission.OBSIDIAN_WRITE,  # Create/edit notes
-        # Business Tools (full for premium)
-        Permission.STORE_CREATE,
-        Permission.STORE_MANAGE,
-        Permission.TELEPHONY_ACCESS,
-        Permission.TELEPHONY_ADMIN,
     },
     Role.ADMIN: {
         # Inherit PREMIUM
@@ -219,8 +199,6 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.APP_BUILDER_CREATE,
         Permission.APP_BUILDER_DEPLOY,
         Permission.APP_BUILDER_UNLIMITED,
-        Permission.WEBSITE_BUILDER_CREATE,
-        Permission.WEBSITE_BUILDER_DEPLOY,
         Permission.SOCIAL_MEDIA_CREATE,
         Permission.SOCIAL_MEDIA_SCHEDULE,
         Permission.MEDIA_STUDIO_GENERATE,
@@ -258,11 +236,6 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.WRITE_ALL,
         Permission.OBSIDIAN_DELETE,  # Delete notes
         Permission.OBSIDIAN_ADMIN,  # Re-indexing, migration
-        # Business Tools (all for admin)
-        Permission.STORE_CREATE,
-        Permission.STORE_MANAGE,
-        Permission.TELEPHONY_ACCESS,
-        Permission.TELEPHONY_ADMIN,
     },
     Role.SUPER_ADMIN: set(Permission),  # All permissions
 }

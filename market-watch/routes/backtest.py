@@ -4,11 +4,11 @@ import json
 import logging
 from flask import Blueprint, jsonify, request
 from db import get_db
-from services.backtest_engine import run_backtest, get_available_strategies
+from services.backtest_engine import run_backtest
 from services.monte_carlo import run_monte_carlo
 from services.walk_forward import run_walk_forward
-from services.optimizer import grid_search, random_search
-from services.strategy_library import STRATEGY_RUNNERS
+from services.optimizer import optimize_strategy, grid_search, random_search
+from services.strategy_library import STRATEGIES, get_strategy_list, _RUNNERS
 from services.market_data import get_history
 from auth import tier_required
 
@@ -72,7 +72,7 @@ def results():
 @tier_required("viewer")
 def strategies():
     """List available strategies with descriptions."""
-    return jsonify({"success": True, "strategies": get_available_strategies()})
+    return jsonify({"success": True, "strategies": get_strategy_list()})
 
 
 @backtest_bp.route("/api/backtest/monte-carlo", methods=["POST"])
@@ -139,7 +139,7 @@ def walk_forward():
     step_size = int(data.get("step_size", 63))
     params = data.get("params")
 
-    runner = STRATEGY_RUNNERS.get(strategy)
+    runner = _RUNNERS.get(strategy)
     if not runner:
         return jsonify({"success": False, "error": f"Unknown strategy: {strategy}"}), 400
 
@@ -188,7 +188,7 @@ def optimize():
     window_size = int(data.get("window_size", 252))
     step_size = int(data.get("step_size", 63))
 
-    runner = STRATEGY_RUNNERS.get(strategy)
+    runner = _RUNNERS.get(strategy)
     if not runner:
         return jsonify({"success": False, "error": f"Unknown strategy: {strategy}"}), 400
 

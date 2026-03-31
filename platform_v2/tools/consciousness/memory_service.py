@@ -174,7 +174,13 @@ def semantic_search(
         results = []
         for row in rows:
             if row["embedding"]:
-                similarity = cosine_similarity(query_embedding, row["embedding"])
+                emb = row["embedding"]
+                if isinstance(emb, str):
+                    try:
+                        emb = json.loads(emb)
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+                similarity = cosine_similarity(query_embedding, emb)
                 if similarity >= min_similarity:
                     results.append(
                         {

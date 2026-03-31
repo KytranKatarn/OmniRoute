@@ -20,6 +20,23 @@ services:
       - ALPACA_API_KEY=${ALPACA_API_KEY:-}
       - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY:-}
       - ALPACA_BASE_URL=https://paper-api.alpaca.markets
+      # Risk Gates
+      - MW_MIN_ORACLE_CONFIDENCE=${MW_MIN_ORACLE_CONFIDENCE:-0.65}
+      - MW_MAX_DAILY_LOSS_PCT=${MW_MAX_DAILY_LOSS_PCT:-3.0}
+      - MW_MAX_DRAWDOWN_PCT=${MW_MAX_DRAWDOWN_PCT:-5.0}
+      - MW_MAX_POSITIONS=${MW_MAX_POSITIONS:-5}
+      - MW_MAX_POSITION_PCT=${MW_MAX_POSITION_PCT:-10.0}
+      - MW_MAX_SECTOR_POSITIONS=${MW_MAX_SECTOR_POSITIONS:-2}
+      - MW_VOLATILITY_ATR_LIMIT=${MW_VOLATILITY_ATR_LIMIT:-5.0}
+      - MW_COOLOFF_LOSS_PCT=${MW_COOLOFF_LOSS_PCT:-2.0}
+      # Position Management
+      - MW_DEFAULT_HOLD_DAYS=${MW_DEFAULT_HOLD_DAYS:-5}
+      # Cycle Control
+      - MW_CYCLE_DEDUP_MINUTES=${MW_CYCLE_DEDUP_MINUTES:-15}
+      # Safety (DRY_RUN defaults true in Docker — safe by default)
+      - MW_DRY_RUN=${MW_DRY_RUN:-true}
+      - MW_TRADING_ENABLED=${MW_TRADING_ENABLED:-true}
+      - MW_LIVE_TRADING=${MW_LIVE_TRADING:-false}
     read_only: true
     tmpfs:
       - /tmp

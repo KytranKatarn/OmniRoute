@@ -1,6 +1,6 @@
 services:
   stalwart-mail:
-    image: stalwartlabs/mail-server:v0.11
+    image: stalwartlabs/mail-server:v0.11.8
     container_name: stalwart_mail
     ports:
       - "25:25"
@@ -14,6 +14,8 @@ services:
       - ./config.toml:/opt/stalwart-mail/etc/config.toml:ro
       - ./dkim:/opt/stalwart-mail/dkim:ro
       - ./certs:/opt/stalwart-mail/certs:ro
+    extra_hosts:
+      - "relay.kytranempowerment.com:100.64.0.1"
     environment:
       - STALWART_ADMIN_PASSWORD=${STALWART_ADMIN_PASSWORD:-KytranMail2026!}
     mem_limit: 512m

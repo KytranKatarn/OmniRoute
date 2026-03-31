@@ -896,39 +896,71 @@ async def session_briefing_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             "agent_status": {},
         }
 
-        # 1. Relevant knowledge for the topic
-        cur.execute(
-            """
-            SELECT id, knowledge_type, title, LEFT(content, 300) as content,
-                   importance_score, category
-            FROM knowledge_base
-            WHERE (title ILIKE %s OR content ILIKE %s)
-            AND knowledge_type != 'github_file'
-            ORDER BY
-                CASE
-                    WHEN knowledge_type = 'mistake_learned' THEN importance_score * 1.3
-                    WHEN knowledge_type = 'vault_note' THEN importance_score * 1.2
-                    ELSE importance_score
-                END DESC
-            LIMIT 10
-        """,
-            (f"%{topic}%", f"%{topic}%"),
-        )
-        briefing["knowledge_context"] = [dict(r) for r in cur.fetchall()]
+        # 1. Relevant knowledge for the topic (semantic search first, text fallback)
+        try:
+            from tools.consciousness.memory_service import semantic_search
 
-        # 2. Mistakes to avoid (always load, critical for preventing repeat errors)
-        cur.execute(
-            """
-            SELECT title, LEFT(content, 200) as content, importance_score
-            FROM knowledge_base
-            WHERE knowledge_type = 'mistake_learned'
-            AND (title ILIKE %s OR content ILIKE %s)
-            ORDER BY importance_score DESC
-            LIMIT 5
-        """,
-            (f"%{topic}%", f"%{topic}%"),
-        )
-        briefing["mistakes_to_avoid"] = [dict(r) for r in cur.fetchall()]
+            sem_results = semantic_search(topic, limit=10)
+            if sem_results:
+                briefing["knowledge_context"] = [
+                    {
+                        "id": r.get("id"),
+                        "knowledge_type": r.get("knowledge_type", r.get("source_type", "")),
+                        "title": r.get("title", ""),
+                        "content": (r.get("content", "") or "")[:300],
+                        "category": r.get("category"),
+                        "relevance_score": r.get("similarity", 0),
+                    }
+                    for r in sem_results
+                    if r.get("knowledge_type", r.get("source_type", "")) != "github_file"
+                ][:10]
+        except Exception as e:
+            logger.warning(f"Semantic search failed in briefing, falling back to text: {e}")
+
+        # Text fallback if semantic returned nothing
+        if not briefing["knowledge_context"]:
+            cur.execute(
+                """
+                SELECT id, knowledge_type, title, LEFT(content, 300) as content,
+                       importance_score, category
+                FROM knowledge_base
+                WHERE (title ILIKE %s OR content ILIKE %s)
+                AND knowledge_type != 'github_file'
+                ORDER BY importance_score DESC
+                LIMIT 10
+            """,
+                (f"%{topic}%", f"%{topic}%"),
+            )
+            briefing["knowledge_context"] = [dict(r) for r in cur.fetchall()]
+
+        # 2. Mistakes to avoid (semantic search + text fallback)
+        try:
+            mistake_results = semantic_search(topic, source_types=["mistake_learned"], limit=5)
+            if mistake_results:
+                briefing["mistakes_to_avoid"] = [
+                    {
+                        "title": r.get("title", ""),
+                        "content": (r.get("content", "") or "")[:200],
+                        "importance_score": r.get("similarity", 0),
+                    }
+                    for r in mistake_results
+                ]
+        except Exception as e:
+            logger.warning(f"Semantic mistake search failed: {e}")
+
+        if not briefing["mistakes_to_avoid"]:
+            cur.execute(
+                """
+                SELECT title, LEFT(content, 200) as content, importance_score
+                FROM knowledge_base
+                WHERE knowledge_type = 'mistake_learned'
+                AND (title ILIKE %s OR content ILIKE %s)
+                ORDER BY importance_score DESC
+                LIMIT 5
+            """,
+                (f"%{topic}%", f"%{topic}%"),
+            )
+            briefing["mistakes_to_avoid"] = [dict(r) for r in cur.fetchall()]
 
         # 3. Active projects
         cur.execute(

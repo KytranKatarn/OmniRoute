@@ -59,6 +59,10 @@ def create_app():
     app.register_blueprint(auth_bp)
     limiter.limit("10/minute")(auth_bp)
 
+    from routes.public import public_bp
+    app.register_blueprint(public_bp)
+    limiter.limit("30/minute")(public_bp)
+
     from routes.health import health_bp
     app.register_blueprint(health_bp)
 

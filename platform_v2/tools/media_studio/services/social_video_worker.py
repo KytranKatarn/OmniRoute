@@ -1,0 +1,292 @@
+"""
+Social Video Worker — Generation Queue Processor
+=================================================
+Processes items in "generating" status from social_content_queue.
+Routes draft quality to local ComfyUI (Quadro M4000),
+standard/high quality to RunPod cloud.
+"""
+
+import json
+import logging
+import os
+import subprocess
+import time
+import uuid
+
+import requests
+
+from . import social_video_service as svs
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+VIDEO_OUTPUT_DIR = os.getenv("SOCIAL_VIDEO_DIR", "/mnt/archie_brain/platform_v2/static/social_videos")
+COMFYUI_URL = os.getenv("COMFYUI_URL", "http://192.168.1.200:8188")
+LTX_WORKFLOW_PATH = "/mnt/archie_brain/comfyui/workflows/ltx-video-basic.json"
+
+# ---------------------------------------------------------------------------
+# Public entry point
+# ---------------------------------------------------------------------------
+
+
+def process_queue():
+    """
+    Fetch up to 5 items in 'generating' status and process each.
+    On unhandled exception per item, mark status as 'failed'.
+    """
+    items = svs.get_queue_items(status="generating", limit=5)
+    for item in items:
+        try:
+            _process_item(item)
+        except Exception as exc:
+            logger.exception("Unhandled error processing queue item %s: %s", item.get("id"), exc)
+            try:
+                svs.update_queue_item(
+                    item["id"],
+                    status="failed",
+                    error_message=str(exc),
+                )
+            except Exception:
+                logger.exception("Failed to mark item %s as failed", item.get("id"))
+
+
+# ---------------------------------------------------------------------------
+# Item processor
+# ---------------------------------------------------------------------------
+
+
+def _process_item(item):
+    """
+    Process a single queue item: route to local or cloud, update status.
+    """
+    item_id = item["id"]
+    generation_params = item.get("generation_params") or {}
+    if isinstance(generation_params, str):
+        generation_params = json.loads(generation_params)
+
+    quality = generation_params.get("quality", "standard")
+    prompt = item.get("prompt") or generation_params.get("prompt", "")
+
+    logger.info("Processing queue item %s (quality=%s)", item_id, quality)
+
+    if quality == "draft":
+        result = _generate_local(prompt, generation_params)
+    else:
+        result = _generate_cloud(prompt, generation_params)
+
+    if result.get("success"):
+        video_path = result["path"]
+        # Derive thumbnail path alongside the video
+        base, _ = os.path.splitext(video_path)
+        thumb_path = base + "_thumb.jpg"
+        _extract_thumbnail(video_path, thumb_path)
+
+        update_kwargs = dict(
+            status="ready",
+            video_path=video_path,
+            thumbnail_path=thumb_path if os.path.exists(thumb_path) else None,
+            cloud_cost=result.get("cost", 0),
+        )
+        svs.update_queue_item(item_id, **update_kwargs)
+
+        # Log GPU usage for cloud providers
+        if result.get("provider") not in (None, "local"):
+            try:
+                svs.log_gpu_usage(
+                    queue_item_id=item_id,
+                    provider=result["provider"],
+                    gpu_seconds=result.get("gpu_seconds", 0),
+                    cost=result.get("cost", 0),
+                )
+            except Exception:
+                logger.exception("Failed to log GPU usage for item %s", item_id)
+    else:
+        error_msg = result.get("error", "Unknown generation error")
+        logger.error("Generation failed for item %s: %s", item_id, error_msg)
+        svs.update_queue_item(item_id, status="failed", error_message=error_msg)
+
+
+# ---------------------------------------------------------------------------
+# Local generation (ComfyUI)
+# ---------------------------------------------------------------------------
+
+
+def _generate_local(prompt, params):
+    """
+    Submit the LTX-Video workflow to local ComfyUI and poll for completion.
+    Downloads the output to VIDEO_OUTPUT_DIR.
+
+    Returns dict with keys: success, path (on success) or error (on failure).
+    """
+    try:
+        # Load workflow
+        with open(LTX_WORKFLOW_PATH, "r") as f:
+            workflow = json.load(f)
+
+        # Inject prompt into the positive CLIPTextEncode node
+        for node_id, node in workflow.items():
+            if node.get("class_type") == "CLIPTextEncode":
+                meta_title = (node.get("_meta") or {}).get("title", "")
+                if "positive" in meta_title.lower():
+                    node["inputs"]["text"] = prompt
+                    break
+
+        # Submit to ComfyUI
+        resp = requests.post(
+            f"{COMFYUI_URL}/prompt",
+            json={"prompt": workflow},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        prompt_id = resp.json().get("prompt_id")
+        if not prompt_id:
+            return {"success": False, "error": "ComfyUI did not return a prompt_id"}
+
+        # Poll history
+        for _ in range(120):
+            time.sleep(5)
+            history_resp = requests.get(f"{COMFYUI_URL}/history/{prompt_id}", timeout=15)
+            if history_resp.status_code == 200:
+                history = history_resp.json()
+                if prompt_id in history:
+                    outputs = history[prompt_id].get("outputs", {})
+                    # Find first image/video output
+                    for _node_id, node_out in outputs.items():
+                        images = node_out.get("images") or node_out.get("gifs") or []
+                        if images:
+                            file_info = images[0]
+                            filename = file_info.get("filename", "")
+                            subfolder = file_info.get("subfolder", "")
+                            # Download the file
+                            dl_url = f"{COMFYUI_URL}/view?filename={filename}"
+                            if subfolder:
+                                dl_url += f"&subfolder={subfolder}"
+                            dl_resp = requests.get(dl_url, timeout=60)
+                            dl_resp.raise_for_status()
+
+                            os.makedirs(VIDEO_OUTPUT_DIR, exist_ok=True)
+                            uid_hex = uuid.uuid4().hex
+                            dst = os.path.join(VIDEO_OUTPUT_DIR, f"sv_{uid_hex[:12]}.webp")
+                            with open(dst, "wb") as out_f:
+                                out_f.write(dl_resp.content)
+
+                            return {
+                                "success": True,
+                                "path": dst,
+                                "provider": "local",
+                                "cost": 0,
+                            }
+
+        return {"success": False, "error": "ComfyUI generation timed out after 10 minutes"}
+
+    except requests.RequestException as exc:
+        return {"success": False, "error": f"ComfyUI request error: {exc}"}
+    except OSError as exc:
+        return {"success": False, "error": f"File I/O error: {exc}"}
+    except Exception as exc:
+        return {"success": False, "error": f"Local generation error: {exc}"}
+
+
+# ---------------------------------------------------------------------------
+# Cloud generation (RunPod)
+# ---------------------------------------------------------------------------
+
+
+def _generate_cloud(prompt, params):
+    """
+    Submit to RunPod cloud provider and poll for completion.
+    Falls back to local if RunPod is not configured.
+
+    Returns dict with keys: success, path, provider, cost, gpu_seconds (on success)
+    or error (on failure).
+    """
+    try:
+        from .runpod_provider import RunPodVideoProvider
+    except ImportError:
+        logger.warning("RunPod provider not importable — falling back to local")
+        return _generate_local(prompt, params)
+
+    provider = RunPodVideoProvider()
+    if not provider.is_configured():
+        logger.info("RunPod not configured — falling back to local generation")
+        return _generate_local(prompt, params)
+
+    try:
+        submit_result = provider.generate(prompt, params)
+        job_id = submit_result.get("job_id") or submit_result.get("id")
+        if not job_id:
+            return {"success": False, "error": "RunPod did not return a job_id"}
+
+        # Poll status
+        for _ in range(60):
+            time.sleep(5)
+            status_result = provider.get_status(job_id)
+            status = status_result.get("status", "").upper()
+
+            if status == "COMPLETED":
+                os.makedirs(VIDEO_OUTPUT_DIR, exist_ok=True)
+                uid_hex = uuid.uuid4().hex
+                dst = os.path.join(VIDEO_OUTPUT_DIR, f"sv_{uid_hex}.mp4")
+                provider.download_result(job_id, dst)
+
+                gpu_seconds = status_result.get("gpu_seconds", 0)
+                estimated_cost = status_result.get("cost", gpu_seconds * 0.00036)
+
+                return {
+                    "success": True,
+                    "path": dst,
+                    "provider": "runpod",
+                    "cost": estimated_cost,
+                    "gpu_seconds": gpu_seconds,
+                }
+
+            if status == "FAILED":
+                error_msg = status_result.get("error") or "RunPod job failed"
+                return {"success": False, "error": error_msg}
+
+        return {"success": False, "error": "RunPod generation timed out after 5 minutes"}
+
+    except Exception as exc:
+        logger.exception("Cloud generation error for RunPod")
+        return {"success": False, "error": f"Cloud generation error: {exc}"}
+
+
+# ---------------------------------------------------------------------------
+# Thumbnail extraction
+# ---------------------------------------------------------------------------
+
+
+def _extract_thumbnail(video_path, thumb_path):
+    """
+    Extract a single frame thumbnail from the video using ffmpeg.
+    Logs a warning on failure — does not raise.
+    """
+    try:
+        result = subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                "-i",
+                video_path,
+                "-vframes",
+                "1",
+                "-vf",
+                "scale=320:-1",
+                thumb_path,
+            ],
+            capture_output=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            logger.warning(
+                "ffmpeg thumbnail extraction failed for %s: %s",
+                video_path,
+                result.stderr.decode(errors="replace"),
+            )
+    except subprocess.TimeoutExpired:
+        logger.warning("ffmpeg thumbnail extraction timed out for %s", video_path)
+    except Exception as exc:
+        logger.warning("ffmpeg thumbnail extraction error for %s: %s", video_path, exc)

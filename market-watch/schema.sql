@@ -184,3 +184,48 @@ CREATE TABLE IF NOT EXISTS users (
     last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Open positions tracked by autonomous trading loop
+CREATE TABLE IF NOT EXISTS open_positions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticker TEXT NOT NULL,
+    quantity REAL NOT NULL,
+    entry_price REAL NOT NULL,
+    stop_loss REAL NOT NULL,
+    target_price REAL NOT NULL,
+    max_hold_days INTEGER DEFAULT 5,
+    sector TEXT,
+    thesis_id INTEGER REFERENCES analyses(id),
+    alpaca_order_id TEXT,
+    opened_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status TEXT DEFAULT 'open' CHECK (status IN ('open', 'closed', 'stopped', 'target_hit', 'expired', 'reeval'))
+);
+
+-- Trade journal — every entry/exit with reasoning
+CREATE TABLE IF NOT EXISTS trade_journal (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticker TEXT NOT NULL,
+    action TEXT NOT NULL CHECK (action IN ('buy', 'sell')),
+    quantity REAL NOT NULL,
+    price REAL NOT NULL,
+    position_id INTEGER REFERENCES open_positions(id),
+    thesis_id INTEGER REFERENCES analyses(id),
+    exit_reason TEXT,
+    pnl REAL,
+    pnl_pct REAL,
+    risk_gates_log TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Portfolio lifetime metrics (single row)
+CREATE TABLE IF NOT EXISTS portfolio_metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    peak_value REAL NOT NULL DEFAULT 100000.0,
+    total_trades INTEGER DEFAULT 0,
+    winning_trades INTEGER DEFAULT 0,
+    total_pnl REAL DEFAULT 0.0,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Seed portfolio metrics if empty
+INSERT OR IGNORE INTO portfolio_metrics (id, peak_value) VALUES (1, 100000.0);

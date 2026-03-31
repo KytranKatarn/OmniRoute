@@ -2665,7 +2665,7 @@ body.light-mode .module-card-accent {
 }
 .external-badge {
     position: absolute;
-    top: 8px;
+    bottom: 8px;
     right: 8px;
     background: rgba(251, 191, 36, 0.2);
     color: #fbbf24;

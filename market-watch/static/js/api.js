@@ -71,4 +71,10 @@ const API = {
   /* Backtest */
   runBacktest(data) { return this.post('/api/backtest/run', data); },
   getBacktestResults() { return this.get('/api/backtest/results'); },
+
+  /* Strategies */
+  getStrategies() { return this.get('/api/strategies'); },
+  createStrategy(data) { return this.post('/api/strategies', data); },
+  deleteStrategy(id) { return this.del('/api/strategies/' + id); },
+  updateStrategy(id, data) { return this._fetch('/api/strategies/' + id, { method: 'PUT', body: data }); },
 };

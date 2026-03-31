@@ -76,86 +76,116 @@ var Analysis = {
       }
 
       reports.forEach(function(report) {
-        var card = document.createElement('div');
-        card.className = 'report-card';
+        /* Ticker header */
+        var tickerHeader = document.createElement('div');
+        tickerHeader.className = 'analysis-ticker-header';
 
-        /* Header */
-        var header = document.createElement('div');
-        header.className = 'report-card__header';
+        var sym = document.createElement('span');
+        sym.className = 'analysis-ticker-header__sym';
+        sym.textContent = report.ticker || '--';
+        tickerHeader.appendChild(sym);
 
-        var ticker = document.createElement('span');
-        ticker.className = 'report-card__ticker';
-        ticker.textContent = report.ticker || '--';
-        header.appendChild(ticker);
+        var meta = document.createElement('span');
+        meta.className = 'analysis-ticker-header__meta';
+        meta.textContent = report.created_at ? 'Analyzed: ' + App.formatDateTime(report.created_at) : '';
+        tickerHeader.appendChild(meta);
+        container.appendChild(tickerHeader);
 
-        if (report.recommendation) {
-          header.appendChild(App.createBadge(report.recommendation, report.recommendation));
-        }
-        card.appendChild(header);
+        /* 6-agent cards grid */
+        var grid = document.createElement('div');
+        grid.className = 'agent-cards-grid';
 
-        /* Director thesis */
-        if (report.director_thesis) {
-          var section1 = document.createElement('div');
-          section1.className = 'report-card__section';
-          var label1 = document.createElement('div');
-          label1.className = 'report-card__label';
-          label1.textContent = 'Director Thesis';
-          section1.appendChild(label1);
-          var body1 = document.createElement('div');
-          body1.className = 'report-card__body';
-          body1.textContent = report.director_thesis;
-          section1.appendChild(body1);
-          card.appendChild(section1);
-        }
+        var agentDefs = [
+          { key: 'quant',   cls: 'quant',  name: 'Quant',   persona: 'Raj Mehta',      reportKey: 'quant_report',  scoreKey: 'quant_score' },
+          { key: 'value',   cls: 'value',  name: 'Value',   persona: 'Maya Chen',      reportKey: 'value_report',  scoreKey: 'value_score' },
+          { key: 'pulse',   cls: 'pulse',  name: 'Pulse',   persona: 'Jordan Rivera',  reportKey: 'pulse_report',  scoreKey: 'pulse_score' },
+          { key: 'shield',  cls: 'shield', name: 'Shield',  persona: 'Alex Storm',     reportKey: 'risk_assessment', scoreKey: null },
+          { key: 'oracle',  cls: 'oracle', name: 'Oracle',  persona: 'Director',       reportKey: 'oracle_synthesis', scoreKey: null, isOracle: true },
+          { key: 'market',  cls: 'market', name: 'M.A.R.K.E.T.', persona: 'Execution', reportKey: 'market_execution', scoreKey: null, isMarket: true },
+        ];
 
-        /* Quant score */
-        if (report.quant_score != null) {
-          var section2 = document.createElement('div');
-          section2.className = 'report-card__section';
-          var label2 = document.createElement('div');
-          label2.className = 'report-card__label';
-          label2.textContent = 'Quant Score';
-          section2.appendChild(label2);
-          var body2 = document.createElement('div');
-          body2.className = 'report-card__body';
-          body2.textContent = report.quant_score + '/100';
-          if (report.quant_details) {
-            var details = document.createElement('div');
-            details.style.marginTop = '4px';
-            details.style.fontSize = '0.8rem';
-            details.textContent = report.quant_details;
-            body2.appendChild(details);
+        agentDefs.forEach(function(def) {
+          var reportText = report[def.reportKey];
+          if (!reportText && !def.isOracle && !def.isMarket) return;
+
+          var card = document.createElement('div');
+          card.className = 'agent-card ' + def.cls + (def.isOracle ? ' agent-card--oracle' : '');
+
+          /* Card header */
+          var cardHeader = document.createElement('div');
+          cardHeader.className = 'agent-card__header';
+
+          var nameWrap = document.createElement('div');
+          var nameEl = document.createElement('span');
+          nameEl.className = 'agent-card__name';
+          nameEl.textContent = def.name;
+          nameWrap.appendChild(nameEl);
+          var personaEl = document.createElement('span');
+          personaEl.className = 'agent-card__persona';
+          personaEl.textContent = '— ' + def.persona;
+          nameWrap.appendChild(personaEl);
+          cardHeader.appendChild(nameWrap);
+
+          /* Score bar (if applicable) */
+          if (def.scoreKey && report[def.scoreKey] != null) {
+            var scoreWrap = document.createElement('div');
+            scoreWrap.className = 'agent-card__score';
+            var bar = document.createElement('div');
+            bar.className = 'score-bar';
+            var fill = document.createElement('div');
+            fill.className = 'score-bar__fill';
+            fill.style.width = report[def.scoreKey] + '%';
+            bar.appendChild(fill);
+            scoreWrap.appendChild(bar);
+            var scoreVal = document.createElement('span');
+            scoreVal.className = 'score-value';
+            scoreVal.textContent = report[def.scoreKey] + '/100';
+            scoreWrap.appendChild(scoreVal);
+            cardHeader.appendChild(scoreWrap);
           }
-          section2.appendChild(body2);
-          card.appendChild(section2);
-        }
 
-        /* Risk assessment */
-        if (report.risk_assessment) {
-          var section3 = document.createElement('div');
-          section3.className = 'report-card__section';
-          var label3 = document.createElement('div');
-          label3.className = 'report-card__label';
-          label3.textContent = 'Risk Assessment';
-          section3.appendChild(label3);
-          var body3 = document.createElement('div');
-          body3.className = 'report-card__body';
-          body3.textContent = report.risk_assessment;
-          section3.appendChild(body3);
-          card.appendChild(section3);
-        }
+          card.appendChild(cardHeader);
 
-        /* Timestamp */
-        if (report.created_at) {
-          var footer = document.createElement('div');
-          footer.style.marginTop = '8px';
-          footer.style.fontSize = '0.7rem';
-          footer.style.color = 'var(--text-dim)';
-          footer.textContent = 'Analyzed: ' + App.formatDateTime(report.created_at);
-          card.appendChild(footer);
-        }
+          /* Report body */
+          var body = document.createElement('div');
+          body.className = 'agent-card__body';
+          body.textContent = reportText || (def.isOracle ? 'No synthesis available.' : def.isMarket ? 'No execution data.' : '');
+          card.appendChild(body);
 
-        container.appendChild(card);
+          /* Oracle footer: recommendation + confidence */
+          if (def.isOracle && (report.recommendation || report.oracle_confidence != null)) {
+            var footer = document.createElement('div');
+            footer.className = 'agent-card__footer';
+
+            if (report.recommendation) {
+              var recBadge = document.createElement('span');
+              recBadge.className = 'badge-' + report.recommendation.toLowerCase();
+              recBadge.textContent = report.recommendation.toUpperCase();
+              footer.appendChild(recBadge);
+            }
+
+            if (report.oracle_confidence != null) {
+              var conf = document.createElement('span');
+              conf.className = 'confidence-pct';
+              conf.textContent = 'Confidence: ' + report.oracle_confidence + '%';
+              footer.appendChild(conf);
+            }
+
+            card.appendChild(footer);
+          }
+
+          /* M.A.R.K.E.T. execution line */
+          if (def.isMarket && report.market_execution) {
+            var execLine = document.createElement('div');
+            execLine.className = 'agent-card__execution';
+            execLine.textContent = report.market_execution;
+            card.appendChild(execLine);
+          }
+
+          grid.appendChild(card);
+        });
+
+        container.appendChild(grid);
       });
     } catch (e) {
       App.clearEl(container);

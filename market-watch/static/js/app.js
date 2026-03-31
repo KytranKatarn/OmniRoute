@@ -67,6 +67,7 @@ const App = {
       case 'trading': if (typeof Trading !== 'undefined') Trading.load(); break;
       case 'charts': if (typeof Charts !== 'undefined') Charts.init(); break;
       case 'backtest': if (typeof Backtest !== 'undefined') Backtest.init(); break;
+      case 'strategies': if (typeof Strategies !== 'undefined') Strategies.load(); break;
     }
   },
 

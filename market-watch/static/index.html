@@ -46,6 +46,7 @@
       <button class="lcars-tab" data-tab="trading" aria-selected="false" role="tab">Trading</button>
       <button class="lcars-tab" data-tab="charts" aria-selected="false" role="tab">Charts</button>
       <button class="lcars-tab" data-tab="backtest" aria-selected="false" role="tab">Backtest</button>
+      <button class="lcars-tab" data-tab="strategies" aria-selected="false" role="tab">Strategies</button>
     </nav>
 
     <div class="lcars-header__status" aria-label="Live status">
@@ -458,6 +459,41 @@
       </div>
     </section>
 
+    <!-- TAB: STRATEGIES -->
+    <section id="tab-strategies" class="tab-content hidden" role="tabpanel" aria-label="Strategies">
+      <div class="page-content">
+
+        <!-- Strategy List -->
+        <h3 style="font-family:var(--font-nav);font-size:0.9rem;letter-spacing:2px;text-transform:uppercase;margin:0 0 16px;color:var(--text-dim);">Active Strategies</h3>
+        <div id="strategies-list">
+          <div class="loading">Loading strategies&hellip;</div>
+        </div>
+
+        <!-- Create Strategy Form -->
+        <div class="strategy-form" style="margin-top:24px;">
+          <h4>Create Strategy</h4>
+          <div class="form-grid strategy-form__grid">
+            <div class="form-group">
+              <label for="strategy-name">Name</label>
+              <input id="strategy-name" type="text" class="form-input" placeholder="My Strategy" />
+            </div>
+            <div class="form-group">
+              <label for="strategy-desc">Description</label>
+              <input id="strategy-desc" type="text" class="form-input" placeholder="Brief description" />
+            </div>
+            <div class="form-group form-group--full">
+              <label for="strategy-rules">Rules (JSON)</label>
+              <textarea id="strategy-rules" class="form-textarea" placeholder='{"min_score": 70, "max_risk": "medium"}'></textarea>
+            </div>
+            <div class="form-group form-group--full">
+              <button type="button" class="btn btn--purple" id="strategy-create-btn">Create Strategy</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
   </main>
 
   <!-- FOOTER -->
@@ -495,6 +531,7 @@
   <script src="/static/js/trading.js"></script>
   <script src="/static/js/charts.js"></script>
   <script src="/static/js/backtest.js"></script>
+  <script src="/static/js/strategies.js"></script>
 
 </body>
 </html>

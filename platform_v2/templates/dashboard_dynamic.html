@@ -320,7 +320,11 @@
                 <div class="lcars-body">
                     <div class="featured-cards-row" id="featuredCardsRow">
                         {% for module in dashboard_data.featured_modules %}
-                        <a href="{{ module.route }}" class="featured-card" data-module-id="{{ module.id }}" data-category="{{ module.category }}">
+                        <a href="{{ module.external_url if module.external_url else module.route }}"
+                           class="featured-card{% if module.external_url %} external-product{% endif %}"
+                           {% if module.external_url %}target="_blank" rel="noopener"{% endif %}
+                           data-module-id="{{ module.id }}" data-category="{{ module.category }}">
+                            {% if module.external_url %}<span class="external-badge">PRODUCT</span>{% endif %}
                             <!-- Pin/unpin toggle -->
                             <button class="featured-pin-btn pinned" data-pin-id="{{ module.id }}" title="Unpin module" onclick="event.preventDefault(); event.stopPropagation(); togglePin(this, '{{ module.id }}');">
                                 <i data-lucide="star"></i>
@@ -388,13 +392,16 @@
                 <div class="lcars-body" id="cat-{{ cat_key }}">
                     <div class="module-grid">
                         {% for module in dashboard_data.modules_by_category[cat_key] %}
-                        <a href="{{ module.route }}" class="module-card{% if module.coming_soon %} coming-soon{% endif %}"
+                        <a href="{{ module.external_url if module.external_url else module.route }}"
+                           class="module-card{% if module.coming_soon %} coming-soon{% endif %}{% if module.external_url %} external-product{% endif %}"
+                           {% if module.external_url %}target="_blank" rel="noopener"{% endif %}
                            data-module-id="{{ module.id }}"
                            data-module-name="{{ module.name }}"
                            data-module-icon="{{ module.icon }}"
                            data-module-desc="{{ module.description | replace('<br>', ' • ') | replace('<br/>', ' • ') | replace('<br />', ' • ') | striptags | truncate(120) }}"
                            data-module-category="{{ cat_key }}"
                            {% if module.coming_soon %}onclick="return false;"{% endif %}>
+                            {% if module.external_url %}<span class="external-badge">PRODUCT</span>{% endif %}
                             <div class="module-card-accent"></div>
                             <div class="module-card-icon">
                                 <i data-lucide="{{ module.icon }}"></i>

@@ -44,6 +44,7 @@ def get_featured_modules(user, pinned_ids: Optional[List[str]] = None) -> list:
                     "icon": icon_name,
                     "route": module.route,
                     "category": module.category.value,
+                    "external_url": module.external_url,
                 }
             )
 
@@ -104,6 +105,7 @@ def get_user_dashboard_data(user) -> Dict:
                 "coming_soon": module.coming_soon,
                 "priority": module.priority,
                 "accessible": True,
+                "external_url": module.external_url,
             }
         )
 

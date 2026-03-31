@@ -2649,3 +2649,30 @@ body.light-mode .module-card-accent {
 [lang="de"] .module-card-name {
     letter-spacing: 0.5px;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EXTERNAL PRODUCT CARDS — Gold badge styling
+   ═══════════════════════════════════════════════════════════════════════════ */
+.featured-card.external-product,
+.module-card.external-product {
+    border-color: rgba(251, 191, 36, 0.4);
+    position: relative;
+}
+.featured-card.external-product:hover,
+.module-card.external-product:hover {
+    border-color: rgba(251, 191, 36, 0.8);
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.15);
+}
+.external-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(251, 191, 36, 0.2);
+    color: #fbbf24;
+    font-size: 0.6rem;
+    font-family: 'Orbitron', monospace;
+    padding: 2px 6px;
+    border-radius: 3px;
+    letter-spacing: 0.05em;
+    z-index: 2;
+}

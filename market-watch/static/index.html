@@ -512,6 +512,67 @@
 
   </main>
 
+  <!-- Admin Trading Operations Panel -->
+  <div id="trading-ops-panel" data-tier="admin" style="display:none; padding: 20px; margin-top: 20px;">
+      <h2 style="font-family:'Orbitron',sans-serif; color:#fbbf24; margin-bottom:16px;">TRADING OPERATIONS</h2>
+
+      <!-- Mode Controls -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px;">
+          <div style="background:#111827; border:1px solid #1f2937; border-radius:8px; padding:16px;">
+              <h3 style="color:#00e5ff; font-size:0.9rem; margin-bottom:12px;">MODE CONTROLS</h3>
+              <div style="display:flex; flex-direction:column; gap:8px;">
+                  <label style="display:flex; justify-content:space-between; align-items:center; color:#e0e0e0;">
+                      Dry Run <input type="checkbox" id="toggle-dry-run" onchange="toggleMode('dry-run', this.checked)">
+                  </label>
+                  <label style="display:flex; justify-content:space-between; align-items:center; color:#e0e0e0;">
+                      Trading Enabled <input type="checkbox" id="toggle-enabled" onchange="toggleMode('enabled', this.checked)">
+                  </label>
+                  <label style="display:flex; justify-content:space-between; align-items:center; color:#e0e0e0;">
+                      Live Trading <input type="checkbox" id="toggle-live" onchange="toggleMode('live', this.checked)">
+                  </label>
+                  <label style="display:flex; justify-content:space-between; align-items:center; color:#e0e0e0;">
+                      Paused <input type="checkbox" id="toggle-paused" onchange="toggleMode('paused', this.checked)">
+                  </label>
+              </div>
+          </div>
+          <div style="background:#111827; border:1px solid #1f2937; border-radius:8px; padding:16px;">
+              <h3 style="color:#00e5ff; font-size:0.9rem; margin-bottom:12px;">ACTIONS</h3>
+              <div style="display:flex; flex-direction:column; gap:8px;">
+                  <button onclick="runCycleNow()" style="background:#10b981; color:#000; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-weight:700;">RUN CYCLE NOW</button>
+                  <button onclick="closeAllPositions()" style="background:#ef4444; color:#fff; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-weight:700;">CLOSE ALL POSITIONS</button>
+              </div>
+          </div>
+      </div>
+
+      <!-- Portfolio Snapshot -->
+      <div id="admin-portfolio-snapshot" style="background:#111827; border:1px solid #1f2937; border-radius:8px; padding:16px; margin-bottom:20px;">
+          <h3 style="color:#00e5ff; font-size:0.9rem; margin-bottom:12px;">PORTFOLIO SNAPSHOT</h3>
+          <div id="portfolio-stats" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; color:#e0e0e0; font-size:0.85rem;"></div>
+      </div>
+
+      <!-- Open Positions -->
+      <div style="background:#111827; border:1px solid #1f2937; border-radius:8px; padding:16px; margin-bottom:20px;">
+          <h3 style="color:#00e5ff; font-size:0.9rem; margin-bottom:12px;">OPEN POSITIONS</h3>
+          <div id="admin-positions-list" style="color:#e0e0e0; font-size:0.85rem;"></div>
+      </div>
+
+      <!-- Risk Gate Config -->
+      <div style="background:#111827; border:1px solid #1f2937; border-radius:8px; padding:16px; margin-bottom:20px;">
+          <h3 style="color:#00e5ff; font-size:0.9rem; margin-bottom:12px;">RISK GATE CONFIG</h3>
+          <div id="risk-gate-fields" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;"></div>
+          <div style="margin-top:12px; display:flex; gap:8px;">
+              <button onclick="saveRiskConfig()" style="background:#00e5ff; color:#000; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-weight:700;">SAVE</button>
+              <button onclick="resetRiskConfig()" style="background:#6b7280; color:#fff; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-weight:700;">RESET TO DEFAULTS</button>
+          </div>
+      </div>
+
+      <!-- Last Cycle Results -->
+      <div style="background:#111827; border:1px solid #1f2937; border-radius:8px; padding:16px;">
+          <h3 style="color:#00e5ff; font-size:0.9rem; margin-bottom:12px;">LAST CYCLE RESULTS</h3>
+          <div id="last-cycle-info" style="color:#e0e0e0; font-size:0.85rem;"></div>
+      </div>
+  </div>
+
   <!-- FOOTER -->
   <footer role="contentinfo" style="
     border-top: 1px solid var(--border);
@@ -605,6 +666,192 @@
             window.location.href = '/';
         }
     })();
+  </script>
+
+  <script>
+  // --- Admin Trading Ops ---
+  async function loadAdminPanel() {
+      if (!window.MW_IS_ADMIN) return;
+
+      // Load config
+      try {
+          var resp = await fetch('/api/trading/config');
+          var data = await resp.json();
+          if (!data.success) return;
+
+          // Toggles
+          document.getElementById('toggle-dry-run').checked = data.toggles.dry_run;
+          document.getElementById('toggle-enabled').checked = data.toggles.trading_enabled;
+          document.getElementById('toggle-live').checked = data.toggles.live_trading;
+          document.getElementById('toggle-paused').checked = data.toggles.paused;
+
+          // Risk gate fields — built with DOM, no innerHTML with API data
+          var fieldsDiv = document.getElementById('risk-gate-fields');
+          fieldsDiv.textContent = '';
+          var labels = {
+              min_oracle_confidence: 'Oracle Confidence',
+              max_daily_loss_pct: 'Max Daily Loss %',
+              max_drawdown_pct: 'Max Drawdown %',
+              max_positions: 'Max Positions',
+              max_position_pct: 'Position Size %',
+              max_sector_positions: 'Sector Limit',
+              volatility_atr_limit: 'Volatility ATR %',
+              cooloff_loss_pct: 'Cool-off Loss %',
+              default_hold_days: 'Hold Days',
+          };
+          Object.keys(data.risk_gates).forEach(function(key) {
+              var label = document.createElement('label');
+              label.style.cssText = 'display:flex; justify-content:space-between; align-items:center; color:#e0e0e0;';
+              label.textContent = labels[key] || key;
+              var input = document.createElement('input');
+              input.type = 'number';
+              input.id = 'rg-' + key;
+              input.value = data.risk_gates[key];
+              input.step = data.validation[key] && data.validation[key].type === 'float' ? '0.01' : '1';
+              input.min = data.validation[key] ? data.validation[key].min : '';
+              input.max = data.validation[key] ? data.validation[key].max : '';
+              input.style.cssText = 'width:80px; background:#0a0a1a; color:#e0e0e0; border:1px solid #374151; border-radius:4px; padding:4px 8px; text-align:right;';
+              label.appendChild(input);
+              fieldsDiv.appendChild(label);
+          });
+      } catch (e) { console.error('Failed to load admin config:', e); }
+
+      // Load portfolio snapshot
+      try {
+          var resp2 = await fetch('/api/trading/positions');
+          var pos = await resp2.json();
+          var statsDiv = document.getElementById('portfolio-stats');
+          statsDiv.textContent = 'Loading...';
+          var resp3 = await fetch('/api/public/track-record');
+          var tr = await resp3.json();
+          if (tr.success) {
+              var t = tr.track_record;
+              statsDiv.textContent = '';
+              var items = [
+                  'Cash: $' + (t.cash_balance || 0).toLocaleString(),
+                  'P&L: $' + (t.total_pnl || 0).toFixed(2),
+                  'Win Rate: ' + (t.win_rate_pct || 0) + '%',
+                  'Open: ' + (t.open_positions || 0) + ' positions',
+                  'Trades: ' + (t.total_trades || 0),
+                  'Return: ' + (t.total_return_pct || 0) + '%',
+              ];
+              items.forEach(function(text) {
+                  var span = document.createElement('span');
+                  span.textContent = text;
+                  statsDiv.appendChild(span);
+              });
+          }
+
+          // Positions list — built with DOM, no innerHTML with API data
+          var listDiv = document.getElementById('admin-positions-list');
+          listDiv.textContent = '';
+          if (pos.success && pos.positions && pos.positions.length > 0) {
+              pos.positions.forEach(function(p) {
+                  var row = document.createElement('div');
+                  row.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #1f2937;';
+                  var info = document.createElement('span');
+                  info.textContent = p.ticker + '  ' + p.quantity + ' @ $' + p.entry_price.toFixed(2) + ' \u2192 $' + p.current_price.toFixed(2) + '  P&L: $' + p.pnl.toFixed(2);
+                  var btn = document.createElement('button');
+                  btn.textContent = 'CLOSE';
+                  btn.style.cssText = 'background:#ef4444; color:#fff; border:none; padding:4px 12px; border-radius:3px; cursor:pointer; font-size:0.75rem;';
+                  btn.onclick = function() { closePosition(p.ticker, p.position_id || 0); };
+                  row.appendChild(info);
+                  row.appendChild(btn);
+                  listDiv.appendChild(row);
+              });
+          } else {
+              listDiv.textContent = 'No open positions';
+          }
+      } catch (e) { console.error('Failed to load positions:', e); }
+
+      // Load cycle status
+      try {
+          var resp4 = await fetch('/api/trading/cycle-status');
+          var cs = await resp4.json();
+          var cycleDiv = document.getElementById('last-cycle-info');
+          if (cs.success && cs.last_cycle) {
+              var c = cs.last_cycle;
+              cycleDiv.textContent = 'Analyzed: ' + c.stocks_analyzed + ' | Traded: ' + c.trades_made + ' | Skipped: ' + c.trades_skipped + ' | Errors: ' + c.errors + ' | Status: ' + c.status + (cs.paused ? ' | PAUSED' : '');
+          } else {
+              cycleDiv.textContent = 'No cycles yet' + (cs.paused ? ' | PAUSED' : '');
+          }
+      } catch (e) { console.error('Failed to load cycle status:', e); }
+  }
+
+  async function toggleMode(mode, enabled) {
+      var endpoints = {
+          'dry-run': '/api/trading/toggle-dry-run',
+          'enabled': '/api/trading/toggle-enabled',
+          'live': '/api/trading/toggle-live',
+          'paused': '/api/trading/pause-autonomy',
+      };
+      var body = mode === 'paused' ? {paused: enabled} : {enabled: enabled};
+      if (mode === 'dry-run' && !enabled && !confirm('Disable dry run? Trades will execute on paper account.')) {
+          document.getElementById('toggle-dry-run').checked = true;
+          return;
+      }
+      if (mode === 'live' && enabled && !confirm('WARNING: Enable LIVE trading? This uses real money.')) {
+          document.getElementById('toggle-live').checked = false;
+          return;
+      }
+      var resp = await fetch(endpoints[mode], {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+      var data = await resp.json();
+      if (!data.success) alert(data.error || 'Toggle failed');
+  }
+
+  async function runCycleNow() {
+      if (!confirm('Run a trading cycle now?')) return;
+      var resp = await fetch('/api/trading/run-cycle', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({source:'admin_manual', force:true})});
+      var data = await resp.json();
+      if (data.success) {
+          alert('Cycle complete: ' + data.tickers_analyzed + ' analyzed, ' + data.trades_executed + ' executed');
+          loadAdminPanel();
+      } else {
+          alert('Cycle failed: ' + (data.error || 'unknown'));
+      }
+  }
+
+  async function closePosition(ticker, posId) {
+      if (!confirm('Close ' + ticker + ' position?')) return;
+      var resp = await fetch('/api/trading/close-position/' + posId, {method:'POST'});
+      var data = await resp.json();
+      if (data.success) loadAdminPanel();
+      else alert('Failed: ' + (data.error || 'unknown'));
+  }
+
+  async function closeAllPositions() {
+      if (!confirm('EMERGENCY: Close ALL open positions?')) return;
+      var resp = await fetch('/api/trading/close-all', {method:'POST'});
+      var data = await resp.json();
+      if (data.success) {
+          alert('Closed ' + data.total_closed + ' positions');
+          loadAdminPanel();
+      } else {
+          alert('Failed: ' + (data.error || 'unknown'));
+      }
+  }
+
+  async function saveRiskConfig() {
+      var gates = {};
+      document.querySelectorAll('[id^="rg-"]').forEach(function(el) {
+          var key = el.id.replace('rg-', '');
+          gates[key] = parseFloat(el.value);
+      });
+      var resp = await fetch('/api/trading/config', {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({risk_gates: gates})});
+      var data = await resp.json();
+      if (data.success) alert('Config saved');
+      else alert('Errors: ' + (data.errors || []).join(', '));
+  }
+
+  async function resetRiskConfig() {
+      if (!confirm('Reset all risk gates to env var defaults?')) return;
+      var resp = await fetch('/api/trading/config/reset', {method:'POST'});
+      var data = await resp.json();
+      if (data.success) { alert('Reset to defaults'); loadAdminPanel(); }
+  }
+
+  // Load admin panel after auth resolves
+  setTimeout(function() { if (window.MW_IS_ADMIN) loadAdminPanel(); }, 1000);
   </script>
 
 </body>

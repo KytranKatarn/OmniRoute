@@ -142,6 +142,29 @@ class JobService:
         job["enabled"] = False
         return True
 
+    def reschedule_job(self, name, interval_hours):
+        """Change a job's interval. Updates metadata and APScheduler if available."""
+        job = self._jobs.get(name)
+        if not job:
+            return False
+        job["interval_hours"] = interval_hours
+        # Update APScheduler if the job was scheduled by us
+        if self._scheduler:
+            try:
+                sched_id = f"jobsvc_{name}"
+                existing = self._scheduler.get_job(sched_id)
+                if existing:
+                    from apscheduler.triggers.interval import IntervalTrigger
+
+                    self._scheduler.reschedule_job(
+                        sched_id,
+                        trigger=IntervalTrigger(hours=interval_hours),
+                    )
+            except Exception as e:
+                logger.warning("[JobService] Could not reschedule '%s' in APScheduler: %s", name, e)
+        logger.info("[JobService] Rescheduled '%s' to every %.1fh", name, interval_hours)
+        return True
+
     def _log_to_db(self, job_name, status, items_processed, items_failed, duration_ms, department, error_message=None):
         try:
             from database import get_db_cursor

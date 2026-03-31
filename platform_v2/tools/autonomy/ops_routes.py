@@ -604,6 +604,131 @@ def register_ops_routes(bp, admin_required):
             return jsonify({"error": str(e)}), 500
 
     # ------------------------------------------------------------------
+    # 3b. GET /api/ops-jobs — list all jobs from JobService
+    # ------------------------------------------------------------------
+    @bp.route("/api/ops-jobs")
+    @login_required
+    @admin_required
+    def api_ops_jobs():
+        """List all registered jobs from JobService."""
+        try:
+            svc = current_app.config.get("JOB_SERVICE")
+            if not svc:
+                return jsonify({"error": "JobService not initialized"}), 503
+            jobs = svc.list_jobs()
+            jobs.sort(key=lambda j: (j.get("department", ""), j.get("name", "")))
+            return jsonify({"jobs": jobs, "total": len(jobs)})
+        except Exception as e:
+            logger.exception("api_ops_jobs error")
+            return jsonify({"error": str(e)}), 500
+
+    # ------------------------------------------------------------------
+    # 3c. GET /api/ops-jobs/<name> — single job status
+    # ------------------------------------------------------------------
+    @bp.route("/api/ops-jobs/<name>")
+    @login_required
+    @admin_required
+    def api_ops_job_status(name):
+        """Get detailed status for a single job."""
+        try:
+            svc = current_app.config.get("JOB_SERVICE")
+            if not svc:
+                return jsonify({"error": "JobService not initialized"}), 503
+            status = svc.get_job_status(name)
+            if not status:
+                return jsonify({"error": f"Job '{name}' not found"}), 404
+            return jsonify(status)
+        except Exception as e:
+            logger.exception("api_ops_job_status error")
+            return jsonify({"error": str(e)}), 500
+
+    # ------------------------------------------------------------------
+    # 3d. POST /api/ops-jobs/<name>/disable — disable a job
+    # ------------------------------------------------------------------
+    @bp.route("/api/ops-jobs/<name>/disable", methods=["POST"])
+    @login_required
+    @admin_required
+    def api_ops_job_disable(name):
+        """Disable a job by name."""
+        try:
+            svc = current_app.config.get("JOB_SERVICE")
+            if not svc:
+                return jsonify({"error": "JobService not initialized"}), 503
+            ok = svc.disable_job(name)
+            if not ok:
+                return jsonify({"error": f"Job '{name}' not found"}), 404
+            return jsonify({"success": True, "job": name, "enabled": False})
+        except Exception as e:
+            logger.exception("api_ops_job_disable error")
+            return jsonify({"error": str(e)}), 500
+
+    # ------------------------------------------------------------------
+    # 3e. POST /api/ops-jobs/<name>/enable — enable a job
+    # ------------------------------------------------------------------
+    @bp.route("/api/ops-jobs/<name>/enable", methods=["POST"])
+    @login_required
+    @admin_required
+    def api_ops_job_enable(name):
+        """Enable a job by name."""
+        try:
+            svc = current_app.config.get("JOB_SERVICE")
+            if not svc:
+                return jsonify({"error": "JobService not initialized"}), 503
+            ok = svc.enable_job(name)
+            if not ok:
+                return jsonify({"error": f"Job '{name}' not found"}), 404
+            return jsonify({"success": True, "job": name, "enabled": True})
+        except Exception as e:
+            logger.exception("api_ops_job_enable error")
+            return jsonify({"error": str(e)}), 500
+
+    # ------------------------------------------------------------------
+    # 3f. POST /api/ops-jobs/<name>/reschedule — change job interval
+    # ------------------------------------------------------------------
+    @bp.route("/api/ops-jobs/<name>/reschedule", methods=["POST"])
+    @login_required
+    @admin_required
+    def api_ops_job_reschedule(name):
+        """Reschedule a job with a new interval."""
+        try:
+            data = request.get_json() or {}
+            interval_hours = data.get("interval_hours")
+            if interval_hours is None:
+                return jsonify({"error": "interval_hours required"}), 400
+            interval_hours = float(interval_hours)
+            if interval_hours <= 0:
+                return jsonify({"error": "interval_hours must be positive"}), 400
+
+            svc = current_app.config.get("JOB_SERVICE")
+            if not svc:
+                return jsonify({"error": "JobService not initialized"}), 503
+            ok = svc.reschedule_job(name, interval_hours)
+            if not ok:
+                return jsonify({"error": f"Job '{name}' not found"}), 404
+            return jsonify({"success": True, "job": name, "interval_hours": interval_hours})
+        except Exception as e:
+            logger.exception("api_ops_job_reschedule error")
+            return jsonify({"error": str(e)}), 500
+
+    # ------------------------------------------------------------------
+    # 3g. POST /api/ops-jobs/<name>/run — manually trigger a job
+    # ------------------------------------------------------------------
+    @bp.route("/api/ops-jobs/<name>/run", methods=["POST"])
+    @login_required
+    @admin_required
+    def api_ops_job_run(name):
+        """Manually trigger a job by name."""
+        try:
+            svc = current_app.config.get("JOB_SERVICE")
+            if not svc:
+                return jsonify({"error": "JobService not initialized"}), 503
+            result = svc.run_job(name)
+            return jsonify(result)
+        except Exception as e:
+            logger.exception("api_ops_job_run error")
+            return jsonify({"error": str(e)}), 500
+
+    # ------------------------------------------------------------------
     # 4. GET /api/ops-history — unified history
     # ------------------------------------------------------------------
     @bp.route("/api/ops-history")

@@ -188,7 +188,8 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
 .ops-job-dot.enabled { background:var(--au-green);box-shadow:0 0 6px var(--au-green); }
 .ops-job-dot.disabled { background:var(--au-muted);opacity:0.4; }
 .ops-job-name { font-family:'Antonio',sans-serif;font-weight:600;color:var(--au-text);letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
-.ops-job-interval { font-family:'Orbitron',sans-serif;font-size:0.65rem;color:var(--au-cyan); }
+.ops-job-interval { font-family:'Orbitron',sans-serif;font-size:0.65rem;color:var(--au-cyan);transition:color 0.2s,text-decoration 0.2s; }
+.ops-job-interval:hover { color:#fff;text-decoration:underline;text-decoration-color:var(--au-cyan); }
 .ops-job-lastrun { font-size:0.68rem;color:var(--au-muted); }
 .ops-job-status { font-size:0.68rem; }
 .ops-job-actions { display:flex;gap:4px;justify-content:flex-end; }
@@ -1090,10 +1091,18 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
                     jname.title = job.name;
                     row.appendChild(jname);
 
-                    /* Interval */
+                    /* Interval (clickable to reschedule) */
                     var jint = document.createElement('div');
                     jint.className = 'ops-job-interval';
                     jint.textContent = fmtInterval(job.interval_hours);
+                    jint.style.cursor = 'pointer';
+                    jint.title = 'Click to change interval';
+                    jint.addEventListener('click', (function(name, hours) {
+                        return function(e) {
+                            e.stopPropagation();
+                            rescheduleJob(name, hours);
+                        };
+                    })(job.name, job.interval_hours));
                     row.appendChild(jint);
 
                     /* Last status */
@@ -1185,6 +1194,27 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
             /* Refresh after a short delay to allow the job to complete */
             setTimeout(loadOpsJobs, 1500);
         } catch (e) { console.error('Run ops job failed:', e); }
+    }
+
+    async function rescheduleJob(name, currentHours) {
+        var label = currentHours ? fmtInterval(currentHours) : 'unknown';
+        var input = prompt('Reschedule "' + name + '"\nCurrent interval: ' + label + '\n\nEnter new interval in hours:', currentHours || '');
+        if (input === null || input.trim() === '') return;
+        var hours = parseFloat(input);
+        if (isNaN(hours) || hours <= 0) {
+            alert('Invalid interval. Must be a positive number.');
+            return;
+        }
+        try {
+            var resp = await fetch(BASE + '/ops-jobs/' + encodeURIComponent(name) + '/reschedule', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({interval_hours: hours})
+            });
+            var data = await resp.json();
+            if (data.error) { alert('Reschedule failed: ' + data.error); return; }
+            loadOpsJobs();
+        } catch (e) { console.error('Reschedule failed:', e); alert('Reschedule failed: ' + e.message); }
     }
 
     /* ══════════════════════════════════════════════════════════════════════

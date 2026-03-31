@@ -43,6 +43,33 @@ Also evaluate for deletion:
 - No 500 errors on any remaining routes
 - Module count in registry matches actual tools/ directories
 
+## Phase 1b: Dashboard Cleanup + Standalone Launchers
+
+The dashboard at archie.kytranempowerment.com still shows cards for deleted modules. Clean it up and add launch links for standalone products.
+
+### Remove from dashboard:
+- All 7 deleted KBS duplicate modules (CRM, Invoicing, Store Builder, Website Studio, Social Media, Call Center, Content Studio)
+- Any other broken/placeholder cards that no longer have backing routes
+
+### Add standalone product launchers:
+Add a new "Standalone Products" category (or "Kytran Products") to the dashboard with cards that open external URLs:
+
+| Product | URL | Icon/Description |
+|---------|-----|-----------------|
+| **Kytran System Operations** | `https://server.kytranempowerment.com` (or :8085) | Server management + compliance engine |
+| **Kytran Business Suite** | `https://business.kytranempowerment.com` (or :8091) | Modular SaaS platform (CRM, invoicing, store, etc.) |
+| **Kytran Gov Watch** | `https://gov.kytranempowerment.com` (or :8102) | Government tender monitoring |
+| **Kytran Market Watch** | `https://market.kytranempowerment.com` (or :8101) | Market intelligence + autonomous trading |
+| **Kytran News** | `https://news.kytranempowerment.com` | Global intelligence dashboard |
+| **Kytran Legal Watch** | `https://legal.kytranempowerment.com` (or :8100) | Legal intelligence |
+
+These cards should visually stand out (different accent color or badge) to distinguish external standalones from internal platform modules. Clicking opens a new tab.
+
+### Implementation:
+- Update `module_registry.py` to support an "external" module type with a `launch_url` field
+- Update `dashboard_generator.py` or dashboard template to render external modules as launch cards (open in new tab, distinct styling)
+- Remove deleted module entries from the registry
+
 ## Phase 2: StockBot → Market Watch Migration
 
 Migrate StockBot's full UI, data capabilities, and trading logic into Market Watch standalone at market.kytranempowerment.com (port 8101).

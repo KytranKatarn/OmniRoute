@@ -155,10 +155,30 @@ def _background_news_ingest(app):
                 time.sleep(60)  # Retry after 1 min on error
 
 
+def _background_position_monitor(app):
+    """Background thread for real-time position exit monitoring."""
+    time.sleep(30)  # Wait for app to settle
+    with app.app_context():
+        logger.info(
+            "Background position monitor started (every %ds)",
+            int(os.environ.get("MW_POSITION_CHECK_INTERVAL", 60)),
+        )
+        while True:
+            try:
+                from ingest.position_monitor import run_position_check, POSITION_CHECK_INTERVAL
+                run_position_check()
+                time.sleep(POSITION_CHECK_INTERVAL)
+            except Exception as e:
+                logger.error("Position monitor failed: %s", e)
+                time.sleep(10)
+
+
 if __name__ == "__main__":
     app = create_app()
     ingest_thread = threading.Thread(target=_background_ingest, args=(app,), daemon=True)
     ingest_thread.start()
     news_thread = threading.Thread(target=_background_news_ingest, args=(app,), daemon=True)
     news_thread.start()
+    position_thread = threading.Thread(target=_background_position_monitor, args=(app,), daemon=True)
+    position_thread.start()
     app.run(host="0.0.0.0", port=8080, debug=False)

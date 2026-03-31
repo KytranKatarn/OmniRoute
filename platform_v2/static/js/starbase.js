@@ -12066,16 +12066,79 @@ function closeFleetDetail() {
                 setTimeout(function() {
                     initFleetMap();
                     if (fleetMap) fleetMap.invalidateSize();
+                    loadFleetUsage();
                 }, 100);
             }
         };
     }
 })();
 
+/* Fleet Usage Dashboard */
+async function loadFleetUsage() {
+    try {
+        const [usageResp, mapResp] = await Promise.all([
+            fetch('/tools/starbase/api/fleet-usage'),
+            fetch('/tools/starbase/api/fleet-map'),
+        ]);
+        const usage = await usageResp.json();
+        const map = await mapResp.json();
+
+        // Summary cards
+        const costEl = document.getElementById('fleetUsageCost');
+        const provEl = document.getElementById('fleetUsageProviders');
+        const callEl = document.getElementById('fleetUsageCalls');
+        if (costEl) costEl.textContent = '$' + (usage.total_cost || 0).toFixed(2);
+        if (provEl) provEl.textContent = (map.providers || []).filter(p => p.is_active).length;
+        if (callEl) callEl.textContent = (usage.total_calls || 0).toLocaleString();
+
+        // Provider budget table
+        const tbody = document.getElementById('fleetBudgetTableBody');
+        if (!tbody) return;
+
+        const providers = map.providers || [];
+        if (providers.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#6b7280;">No providers configured</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = providers
+            .sort((a, b) => (b.current_month_cost_usd || 0) - (a.current_month_cost_usd || 0))
+            .map(p => {
+                const budget = p.monthly_budget_usd || 0;
+                const spent = p.current_month_cost_usd || 0;
+                const pct = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0;
+                const barColor = pct > 90 ? '#ef4444' : pct > 70 ? '#fbbf24' : '#10b981';
+                const initial = (p.provider_key || '?').charAt(0).toUpperCase();
+
+                return `<tr>
+                    <td><div class="fleet-provider-name">
+                        <div class="fleet-provider-icon">${initial}</div>
+                        ${p.provider_key || '--'}
+                    </div></td>
+                    <td>${p.tier_position || '--'}</td>
+                    <td>${budget > 0 ? '$' + budget.toFixed(2) : '--'}</td>
+                    <td>${spent > 0 ? '$' + spent.toFixed(2) : '$0.00'}</td>
+                    <td>
+                        <div class="fleet-budget-bar">
+                            <div class="fleet-budget-bar-fill" style="width:${pct}%;background:${barColor}"></div>
+                        </div>
+                        ${pct > 0 ? pct.toFixed(0) + '%' : '--'}
+                    </td>
+                    <td><span class="fleet-status-dot ${p.is_active ? 'active' : 'inactive'}"></span></td>
+                </tr>`;
+            }).join('');
+    } catch (e) {
+        console.error('Fleet usage load failed:', e);
+    }
+}
+
 // Init if fleet-map is the default active tab
 document.addEventListener('DOMContentLoaded', function() {
     setTimeout(function() {
         var activePanel = document.querySelector('.bridge-tab-panel.active[data-panel="fleet-map"]');
-        if (activePanel) initFleetMap();
+        if (activePanel) {
+            initFleetMap();
+            loadFleetUsage();
+        }
     }, 500);
 });

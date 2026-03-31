@@ -8082,3 +8082,137 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
     .fleet-map-header { flex-direction: column; gap: 8px; }
     .fleet-detail-panel { width: 100%; }
 }
+
+/* Fleet Usage Dashboard */
+.fleet-usage-dashboard {
+    margin-top: 16px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(0, 229, 255, 0.15);
+    border-radius: 4px;
+}
+
+.fleet-usage-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    font-family: 'Orbitron', monospace;
+    font-size: 12px;
+    color: #00e5ff;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    border-bottom: 1px solid rgba(0, 229, 255, 0.15);
+}
+
+.fleet-usage-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    padding: 16px;
+}
+
+.fleet-usage-card {
+    background: rgba(0, 229, 255, 0.05);
+    border: 1px solid rgba(0, 229, 255, 0.1);
+    border-radius: 4px;
+    padding: 16px;
+    text-align: center;
+}
+
+.fleet-usage-card-value {
+    font-family: 'Orbitron', monospace;
+    font-size: 24px;
+    color: #00e5ff;
+    margin-bottom: 4px;
+}
+
+.fleet-usage-card-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.fleet-budget-table-wrap {
+    padding: 0 16px 16px;
+    overflow-x: auto;
+}
+
+.fleet-budget-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+}
+
+.fleet-budget-table th {
+    text-align: left;
+    padding: 8px 12px;
+    color: #6b7280;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.fleet-budget-table td {
+    padding: 8px 12px;
+    color: #b0c4de;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+
+.fleet-budget-table tr:hover td {
+    background: rgba(0, 229, 255, 0.03);
+}
+
+.fleet-budget-bar {
+    width: 100px;
+    height: 6px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 3px;
+    overflow: hidden;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+
+.fleet-budget-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s;
+}
+
+.fleet-provider-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.fleet-provider-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(249, 115, 22, 0.3);
+    border: 1px solid #f97316;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: bold;
+    color: #f97316;
+}
+
+.fleet-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.fleet-status-dot.active { background: #10b981; box-shadow: 0 0 6px #10b981; }
+.fleet-status-dot.inactive { background: #6b7280; }
+
+@media (max-width: 768px) {
+    .fleet-usage-cards { grid-template-columns: 1fr; }
+}

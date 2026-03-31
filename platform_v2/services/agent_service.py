@@ -671,3 +671,97 @@ def get_photo_gallery(agent_id):
             (agent_id,),
         )
         return [dict(r) for r in cur.fetchall()]
+
+
+# ---------------------------------------------------------------------------
+# Budget reset (Phase 1 — Agent Lifecycle Coordination)
+# ---------------------------------------------------------------------------
+
+COOLDOWN_STRESS_THRESHOLD = 0.85
+COOLDOWN_ENERGY_THRESHOLD = 0.15
+
+
+def reset_budgets():
+    """Zero out all agent budget counters. Called daily by job_service.
+
+    Returns dict with reset_count.
+    """
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            UPDATE agent_budgets
+            SET current_task_count = 0,
+                tokens_used_today = 0,
+                token_reset_at = NOW()
+            WHERE current_task_count > 0 OR tokens_used_today > 0
+        """
+        )
+        count = cur.rowcount
+    logger.info("[BudgetReset] Reset %d agent budgets", count)
+    return {"reset_count": count}
+
+
+def transition_cleared_cooldowns():
+    """Transition cooldown agents back to active if their budgets are clear
+    and their welfare is acceptable.
+
+    Only transitions agents where:
+    - shift_state = 'cooldown'
+    - status = 'active' (not deactivated)
+    - current_task_count = 0 (budget was reset)
+    - stress < COOLDOWN_STRESS_THRESHOLD or energy > COOLDOWN_ENERGY_THRESHOLD
+
+    Returns dict with transitioned_count and agent names.
+    """
+    transitioned = []
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            SELECT a.id, a.name, a.department,
+                   COALESCE(ab.current_task_count, 0) AS task_count,
+                   COALESCE(es.stress_level, 0.0) AS stress,
+                   COALESCE(es.energy_level, 0.8) AS energy
+            FROM agents a
+            LEFT JOIN agent_budgets ab ON a.id = ab.agent_id
+            LEFT JOIN agent_emotional_state es ON a.id = es.agent_id
+            WHERE a.shift_state = 'cooldown'
+              AND a.status = 'active'
+              AND COALESCE(ab.current_task_count, 0) = 0
+        """
+        )
+        candidates = cur.fetchall()
+
+        for agent in candidates:
+            if agent["stress"] >= COOLDOWN_STRESS_THRESHOLD and agent["energy"] <= COOLDOWN_ENERGY_THRESHOLD:
+                logger.info(
+                    "[BudgetReset] Skipping %s — stress=%.2f energy=%.2f",
+                    agent["name"],
+                    agent["stress"],
+                    agent["energy"],
+                )
+                continue
+
+            cur.execute(
+                "UPDATE agents SET shift_state = 'active' WHERE id = %s",
+                (agent["id"],),
+            )
+
+            # Log the rotation
+            cur.execute(
+                """
+                INSERT INTO agent_rotation_log
+                    (agent_id, shift_state, reason, started_at)
+                VALUES (%s, 'active', 'budget_reset_recovery', NOW())
+            """,
+                (agent["id"],),
+            )
+
+            transitioned.append(agent["name"])
+            logger.info("[BudgetReset] %s -> active (budget cleared)", agent["name"])
+
+    logger.info(
+        "[BudgetReset] Transitioned %d agents: %s",
+        len(transitioned),
+        ", ".join(transitioned) if transitioned else "none",
+    )
+    return {"transitioned_count": len(transitioned), "agents": transitioned}

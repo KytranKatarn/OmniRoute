@@ -36,6 +36,15 @@ DRY_RUN = _bool("MW_DRY_RUN", False)
 TRADING_ENABLED = _bool("MW_TRADING_ENABLED", True)
 LIVE_TRADING = _bool("MW_LIVE_TRADING", False)
 
+# Short selling
+SHORTS_ENABLED = _bool("MW_SHORTS_ENABLED", False)
+MAX_SHORT_POSITIONS = _int("MW_MAX_SHORT_POSITIONS", 2)
+SHORT_POSITION_PCT = _float("MW_SHORT_POSITION_PCT", 5.0)
+
+# Order types
+DEFAULT_TRAIL_PERCENT = _float("MW_DEFAULT_TRAIL_PERCENT", 3.0)
+BRACKET_ORDERS_ENABLED = _bool("MW_BRACKET_ORDERS_ENABLED", True)
+
 
 def reload():
     """Reload config from DB overrides. Call after saving config changes."""

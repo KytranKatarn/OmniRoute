@@ -287,8 +287,11 @@ def get_fleet_map_data():
     nodes_raw = list_nodes()
     nodes = []
     for n in nodes_raw:
+        node_id = n.get("id")
+        agents = get_node_agents(node_id) if node_id else []
         nodes.append(
             {
+                "node_id": node_id,
                 "name": n.get("node_name", "Unknown"),
                 "hostname": n.get("hostname", ""),
                 "lat": float(n["latitude"]) if n.get("latitude") else None,
@@ -297,6 +300,15 @@ def get_fleet_map_data():
                 "gpu": n.get("gpu_model", ""),
                 "ram": n.get("ram_gb"),
                 "deployment_mode": n.get("deployment_mode", ""),
+                "agents": [
+                    {
+                        "hub_agent_id": a.get("hub_agent_id"),
+                        "display_name": a.get("display_name") or a.get("node_display_name", "Unknown"),
+                        "department": a.get("department", ""),
+                        "status": a.get("status", ""),
+                    }
+                    for a in agents
+                ],
             }
         )
 

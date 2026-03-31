@@ -718,11 +718,8 @@ function switchBridgeTab(tabName) {
     history.replaceState(null, '', '#' + tabName);
     // Trigger data load for the tab if needed
     if (tabName === 'overview') loadOverviewData();
-    if (tabName === 'stations') {
-        loadStations();
-        // Trigger warp-in intro + entrance animations
-        triggerWarpIntro();
-    }
+    // DEPRECATED: Stations tab replaced by Fleet Map in Phase 4
+    // if (tabName === 'stations') { loadStations(); triggerWarpIntro(); }
     if (tabName === 'dispatch') { startDispatchRefresh(); } else { stopDispatchRefresh(); }
     if (tabName === 'crew') { startCrewRefresh(); } else { stopCrewRefresh(); }
     if (tabName === 'network') { loadNodes(); loadModelAvailability(); loadMeshLoans(); loadMeshLearning(); loadMeshAvailableAgents(); }
@@ -1139,7 +1136,7 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(loadStatusBarStats, 30000);
 
     loadOverviewData();
-    loadStations();
+    // DEPRECATED: loadStations() removed — Stations tab replaced by Fleet Map
     loadCREEDStatus();
     loadStaffingStatus();
 
@@ -1155,10 +1152,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Refresh intervals
     setInterval(loadOverviewData, 60000);
-    setInterval(loadStations, 30000);
+    // DEPRECATED: loadStations/loadViewscreenData intervals removed — Stations tab replaced by Fleet Map
     setInterval(loadCREEDStatus, 30000);
     setInterval(loadStaffingStatus, 60000);
-    setInterval(loadViewscreenData, 30000);
 
     // Initialize Lucide icons
     if (typeof lucide !== 'undefined') {
@@ -1176,737 +1172,14 @@ function updateClock() {
     document.getElementById('bridge-time').textContent = time;
 }
 
-// ============================================================================
-// LOAD STATIONS
-// ============================================================================
-
-async function loadStations() {
-    try {
-        const [stationResp, jobsResp] = await Promise.all([
-            fetch('/tools/starbase/api/stations'),
-            fetch('/tools/starbase/api/bridge/jobs?status=running')
-        ]);
-        const data = await stationResp.json();
-        if (!data.success) return;
-
-        allStations = data.stations;
-
-        // Build coverage map from inline data (no separate API call needed)
-        stationNodeCoverage = {};
-        for (const s of data.stations) {
-            if (s.node_coverage) {
-                stationNodeCoverage[s.code] = s.node_coverage;
-            }
-        }
-
-        // Parse running jobs
-        let runningJobs = [];
-        try {
-            const jobsData = await jobsResp.json();
-            if (jobsData.success) runningJobs = jobsData.jobs || [];
-        } catch (e) { /* ignore job fetch failures */ }
-
-        renderStations(data.stations, runningJobs);
-        renderOpsStrip(data.stations, runningJobs);
-        updateStationStats(data.stations);
-        loadViewscreenData();
-    } catch (error) {
-        console.error('Error loading stations:', error);
-    }
-}
-
-// ── Isometric bridge render functions ──
-
-function renderStations(stations, runningJobs) {
-    const container = document.getElementById('bridgeSpatialStations');
-    if (!container) return;
-    container.textContent = '';
-    runningJobs = runningJobs || [];
-
-    // Build lookup: agent code name → list of running jobs
-    const agentJobMap = {};
-    for (const job of runningJobs) {
-        const callsign = job.agent_callsign;
-        if (callsign) {
-            if (!agentJobMap[callsign]) agentJobMap[callsign] = [];
-            agentJobMap[callsign].push(job);
-        }
-    }
-
-    // Group stations by isometric zone
-    const zoneData = {};
-    for (const [zoneName, zoneInfo] of Object.entries(ISOMETRIC_ZONE_MAP)) {
-        zoneData[zoneName] = {
-            agents: [],
-            modules: [],
-            totalNodes: 0,
-            primaryStation: null,
-            activeJobs: []
-        };
-    }
-
-    for (const station of stations) {
-        const zoneName = STATION_TO_ISO_ZONE[station.code];
-        if (!zoneName || !zoneData[zoneName]) continue;
-        const zd = zoneData[zoneName];
-        if (!zd.primaryStation) zd.primaryStation = station;
-        zd.modules = zd.modules.concat(station.modules || []);
-        zd.agents = zd.agents.concat(station.assigned_agents || []);
-        zd.maxPrimary = station.max_primary || 2;
-        zd.maxAuxiliary = station.max_auxiliary || 1;
-        const cov = stationNodeCoverage[station.code] || {};
-        zd.totalNodes += (cov.total_nodes || 0);
-    }
-
-    // Match running jobs to zones via agent callsign OR station_code fallback
-    const matchedJobIds = new Set();
-    for (const [zoneName, zd] of Object.entries(zoneData)) {
-        for (const agent of zd.agents) {
-            const jobs = agentJobMap[agent.name];
-            if (jobs) {
-                zd.activeJobs = zd.activeJobs.concat(jobs);
-                jobs.forEach(j => matchedJobIds.add(j.id));
-            }
-        }
-    }
-    // Cross-station jobs: also add to DISPATCH zone so destination sees the helper
-    for (const job of runningJobs) {
-        const meta = job.metadata || {};
-        if (!meta.is_cross_station || !meta.dispatch_station) continue;
-        const dispatchZone = STATION_TO_ISO_ZONE[meta.dispatch_station];
-        const homeZone = STATION_TO_ISO_ZONE[meta.home_station];
-        if (dispatchZone && zoneData[dispatchZone] && dispatchZone !== homeZone) {
-            // Add to dispatch zone as helper job (avoid duplicate)
-            if (!zoneData[dispatchZone].activeJobs.some(j => j.id === job.id)) {
-                zoneData[dispatchZone].activeJobs.push(job);
-            }
-        }
-    }
-    // Fallback: jobs with station_code but no agent (budget-blocked dispatch)
-    for (const job of runningJobs) {
-        if (matchedJobIds.has(job.id)) continue;
-        const sc = job.station_code || (job.metadata && job.metadata.dispatch_station);
-        if (!sc) continue;
-        const zoneName = STATION_TO_ISO_ZONE[sc];
-        if (zoneName && zoneData[zoneName]) {
-            zoneData[zoneName].activeJobs.push(job);
-        }
-    }
-
-    // Create an isometric zone element for each of the 6 zones
-    for (const [zoneName, zoneInfo] of Object.entries(ISOMETRIC_ZONE_MAP)) {
-        const zd = zoneData[zoneName];
-        const zoneEl = createIsometricZone(zoneName, zoneInfo, zd);
-        container.appendChild(zoneEl);
-    }
-
-    // Draw cross-station connector lines for active cross-station jobs
-    drawCrossStationLines(runningJobs);
-}
-
-/**
- * Draw SVG dashed lines between stations when an agent is helping another station.
- * Scans running jobs for metadata.is_cross_station=true and draws connectors
- * from the home station zone to the dispatch station zone.
- */
-function drawCrossStationLines(runningJobs) {
-    const overlay = document.getElementById('dispatchArcOverlay');
-    const container = document.getElementById('bridgeSpatialLayout');
-    if (!overlay || !container || window.innerWidth < 500) return;
-
-    // Clear any previous cross-station lines (keep dispatch arcs)
-    overlay.querySelectorAll('.cross-station-group').forEach(function(g) { g.remove(); });
-
-    if (!runningJobs || !runningJobs.length) return;
-
-    // Use local coordinates (offsetLeft/Top) to avoid CSS 3D transform distortion
-    const inner = overlay.parentElement; // iso-bridge-room-inner
-    const vw = inner ? inner.offsetWidth : container.offsetWidth;
-    const vh = inner ? inner.offsetHeight : container.offsetHeight;
-    overlay.setAttribute('viewBox', '0 0 ' + vw + ' ' + vh);
-
-    for (const job of runningJobs) {
-        const meta = job.metadata || {};
-        if (!meta.is_cross_station) continue;
-
-        // Determine source (home) and target (dispatch) zones
-        const homeStation = meta.home_station;
-        const dispatchStation = meta.dispatch_station;
-        if (!homeStation || !dispatchStation) continue;
-        if (dispatchStation === 'CLOUD') continue; // Cloud handled by contractor badge
-
-        const homeZone = STATION_TO_ISO_ZONE[homeStation];
-        const dispatchZone = STATION_TO_ISO_ZONE[dispatchStation];
-        if (!homeZone || !dispatchZone || homeZone === dispatchZone) continue;
-
-        const fromEl = document.querySelector('.iso-station-zone[data-station-code="' + homeZone + '"]');
-        const toEl = document.querySelector('.iso-station-zone[data-station-code="' + dispatchZone + '"]');
-        if (!fromEl || !toEl) continue;
-
-        // Use offsetLeft/Top for coordinates in the untransformed container space
-        const fromX = fromEl.offsetLeft + fromEl.offsetWidth / 2;
-        const fromY = fromEl.offsetTop + fromEl.offsetHeight / 2;
-        const toX = toEl.offsetLeft + toEl.offsetWidth / 2;
-        const toY = toEl.offsetTop + toEl.offsetHeight / 2;
-
-        // Determine colors: use dispatch zone color
-        const zoneColor = (ISOMETRIC_ZONE_MAP[dispatchZone] && ISOMETRIC_ZONE_MAP[dispatchZone].color) || '#00FFFF';
-
-        // Create a group for line + label + dots
-        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        g.setAttribute('class', 'cross-station-group');
-
-        // Dashed line
-        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        line.setAttribute('x1', fromX);
-        line.setAttribute('y1', fromY);
-        line.setAttribute('x2', toX);
-        line.setAttribute('y2', toY);
-        line.setAttribute('stroke', zoneColor);
-        line.setAttribute('class', 'bridge-cross-station-line');
-        g.appendChild(line);
-
-        // Pulsing dots at each end
-        var dot1 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        dot1.setAttribute('cx', fromX);
-        dot1.setAttribute('cy', fromY);
-        dot1.setAttribute('r', '3');
-        dot1.setAttribute('fill', zoneColor);
-        dot1.setAttribute('class', 'bridge-cross-station-dot');
-        g.appendChild(dot1);
-        var dot2 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        dot2.setAttribute('cx', toX);
-        dot2.setAttribute('cy', toY);
-        dot2.setAttribute('r', '3');
-        dot2.setAttribute('fill', zoneColor);
-        dot2.setAttribute('class', 'bridge-cross-station-dot');
-        g.appendChild(dot2);
-
-        // Task label at midpoint
-        const midX = (fromX + toX) / 2;
-        const midY = (fromY + toY) / 2;
-        const taskLabel = job.description || job.job_type || 'Cross-station';
-        // Label background (dark pill behind text)
-        const labelBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        const textLen = Math.min(taskLabel.length * 5.5, 120);
-        labelBg.setAttribute('x', midX - textLen / 2 - 4);
-        labelBg.setAttribute('y', midY - 8);
-        labelBg.setAttribute('width', textLen + 8);
-        labelBg.setAttribute('height', 16);
-        labelBg.setAttribute('rx', '4');
-        labelBg.setAttribute('fill', 'rgba(0,0,0,0.8)');
-        labelBg.setAttribute('stroke', zoneColor);
-        labelBg.setAttribute('stroke-width', '0.5');
-        labelBg.setAttribute('stroke-opacity', '0.4');
-        g.appendChild(labelBg);
-
-        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        text.setAttribute('x', midX);
-        text.setAttribute('y', midY);
-        text.setAttribute('class', 'bridge-cross-station-label');
-        text.setAttribute('fill', zoneColor);
-        text.textContent = taskLabel.length > 22 ? taskLabel.substring(0, 20) + '..' : taskLabel;
-        g.appendChild(text);
-
-        overlay.appendChild(g);
-    }
-}
-
-function renderOpsStrip(stations, runningJobs) {
-    const strip = document.getElementById('bridgeOpsStrip');
-    if (!strip) return;
-    runningJobs = runningJobs || [];
-
-    // Build agent callsign → jobs lookup
-    const agentJobMap = {};
-    for (const job of runningJobs) {
-        if (job.agent_callsign) {
-            if (!agentJobMap[job.agent_callsign]) agentJobMap[job.agent_callsign] = [];
-            agentJobMap[job.agent_callsign].push(job);
-        }
-    }
-
-    // Build zone data with jobs (same logic as renderStations)
-    const zoneJobs = {};
-    const zoneAgents = {};
-    for (const zoneName of Object.keys(ISOMETRIC_ZONE_MAP)) {
-        zoneJobs[zoneName] = [];
-        zoneAgents[zoneName] = [];
-    }
-    for (const station of stations) {
-        const zoneName = STATION_TO_ISO_ZONE[station.code];
-        if (!zoneName) continue;
-        zoneAgents[zoneName] = (zoneAgents[zoneName] || []).concat(station.assigned_agents || []);
-    }
-    const opsMatchedIds = new Set();
-    for (const [zoneName, agents] of Object.entries(zoneAgents)) {
-        for (const agent of agents) {
-            const jobs = agentJobMap[agent.name];
-            if (jobs) {
-                zoneJobs[zoneName] = zoneJobs[zoneName].concat(jobs);
-                jobs.forEach(j => opsMatchedIds.add(j.id));
-            }
-        }
-    }
-    // Fallback: match unassigned jobs by station_code
-    for (const job of runningJobs) {
-        if (opsMatchedIds.has(job.id)) continue;
-        const sc = job.station_code || (job.metadata && job.metadata.dispatch_station);
-        if (!sc) continue;
-        const zoneName = STATION_TO_ISO_ZONE[sc];
-        if (zoneName && zoneJobs[zoneName]) {
-            zoneJobs[zoneName].push(job);
-        }
-    }
-
-    // Build status section only once — persist across rebuilds to avoid flicker
-    if (!document.getElementById('opsRoutingMode')) {
-        strip.textContent = '';
-
-        var statusSec = document.createElement('div');
-        statusSec.className = 'bridge-ops-status';
-
-        // Online dot + text (ops- prefix to avoid duplicate IDs with status bar HTML)
-        var s1 = document.createElement('div'); s1.className = 'bridge-ops-status-item';
-        var statusDot = document.createElement('span'); statusDot.className = 'bridge-ops-status-dot'; statusDot.id = 'opsBridgeStatusDot';
-        var dtx = document.createElement('span'); dtx.className = 'bridge-ops-status-value'; dtx.id = 'opsBridgeStatusText'; dtx.textContent = 'Online';
-        s1.appendChild(statusDot); s1.appendChild(dtx); statusSec.appendChild(s1);
-
-        // Route mode — seed from hidden status bar if available
-        var s2 = document.createElement('div'); s2.className = 'bridge-ops-status-item';
-        var ri = document.createElement('i'); ri.setAttribute('data-lucide', 'route'); ri.className = 'bridge-ops-status-icon';
-        var rv = document.createElement('span'); rv.className = 'bridge-ops-status-value'; rv.id = 'opsRoutingMode';
-        rv.textContent = (document.getElementById('statusRoutingMode') || {}).textContent || '--';
-        s2.appendChild(ri); s2.appendChild(rv); statusSec.appendChild(s2);
-
-        // Agent count — seed from hidden status bar (server-side rendered)
-        var s3 = document.createElement('div'); s3.className = 'bridge-ops-status-item';
-        var ai = document.createElement('i'); ai.setAttribute('data-lucide', 'users'); ai.className = 'bridge-ops-status-icon';
-        var av = document.createElement('span'); av.className = 'bridge-ops-status-value'; av.id = 'opsAgentCount';
-        av.textContent = (document.getElementById('statusAgentCount') || {}).textContent || '--';
-        s3.appendChild(ai); s3.appendChild(av); statusSec.appendChild(s3);
-
-        // Clock
-        var s4 = document.createElement('div'); s4.className = 'bridge-ops-status-item';
-        var ci = document.createElement('i'); ci.setAttribute('data-lucide', 'clock'); ci.className = 'bridge-ops-status-icon';
-        var cv = document.createElement('span'); cv.className = 'bridge-ops-status-value'; cv.id = 'opsBarClock';
-        cv.textContent = (document.getElementById('statusBarClock') || {}).textContent || '--:--';
-        s4.appendChild(ci); s4.appendChild(cv); statusSec.appendChild(s4);
-
-        strip.appendChild(statusSec);
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-
-        // Label
-        var label = document.createElement('div');
-        label.className = 'bridge-ops-label';
-        label.textContent = 'STATIONS';
-        strip.appendChild(label);
-    }
-
-    // Remove old zones row and rebuild (status section + label persist)
-    var oldZones = strip.querySelector('.bridge-ops-zones');
-    if (oldZones) oldZones.remove();
-
-    // Zone squares container
-    var zonesRow = document.createElement('div');
-    zonesRow.className = 'bridge-ops-zones';
-
-    for (const [zoneName, zoneInfo] of Object.entries(ISOMETRIC_ZONE_MAP)) {
-        var jobs = zoneJobs[zoneName] || [];
-        var hasJob = jobs.length > 0;
-
-        var zoneEl = document.createElement('div');
-        zoneEl.className = 'bridge-ops-zone' + (hasJob ? ' has-job' : '');
-
-        // Zone status dot
-        var zoneDot = document.createElement('div');
-        zoneDot.className = 'bridge-ops-zone-dot';
-        if (!hasJob) {
-            var hex = zoneInfo.color;
-            var r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
-            zoneDot.style.background = 'rgba(' + r + ',' + g + ',' + b + ',0.2)';
-        }
-        zoneEl.appendChild(zoneDot);
-
-        // Zone name
-        var nameEl = document.createElement('div');
-        nameEl.className = 'bridge-ops-zone-name';
-        nameEl.textContent = zoneInfo.abbr;
-        if (!hasJob) nameEl.style.color = zoneInfo.color;
-        zoneEl.appendChild(nameEl);
-
-        // Progress bar (only visible when has-job)
-        if (hasJob) {
-            var job = jobs[0];
-            var pct = job.total_steps > 0 ? Math.round((job.completed_steps / job.total_steps) * 100) : 0;
-
-            var progTrack = document.createElement('div');
-            progTrack.className = 'bridge-ops-zone-progress';
-            var progBar = document.createElement('div');
-            progBar.className = 'bridge-ops-zone-bar';
-            progBar.style.width = pct + '%';
-            progTrack.appendChild(progBar);
-            zoneEl.appendChild(progTrack);
-
-            // Job summary text
-            var jobText = document.createElement('div');
-            jobText.className = 'bridge-ops-zone-job';
-            jobText.textContent = pct + '% ' + (job.completed_steps + '/' + job.total_steps);
-            zoneEl.appendChild(jobText);
-        }
-
-        // Click → open LCARS console for this zone
-        (function(zn, zi) {
-            zoneEl.addEventListener('click', function() {
-                // Build zd from current allStations
-                var zd = { agents: [], modules: [], totalNodes: 0, primaryStation: null, activeJobs: zoneJobs[zn] || [] };
-                for (var s of allStations) {
-                    if (STATION_TO_ISO_ZONE[s.code] === zn) {
-                        if (!zd.primaryStation) zd.primaryStation = s;
-                        zd.modules = zd.modules.concat(s.modules || []);
-                        zd.agents = zd.agents.concat(s.assigned_agents || []);
-                    }
-                }
-                openStationConsole(zn, zi, zd);
-            });
-        })(zoneName, zoneInfo);
-
-        zonesRow.appendChild(zoneEl);
-    }
-
-    strip.appendChild(zonesRow);
-}
-
-function createIsometricZone(zoneName, zoneInfo, zd) {
-    const el = document.createElement('div');
-    const zoneKey = zoneName.toLowerCase();
-    el.className = 'iso-station-zone iso-zone-' + zoneKey;
-    el.dataset.stationCode = zoneName;
-    if (zd.primaryStation) el.dataset.stationId = zd.primaryStation.id;
-
-    const hasAgents = zd.agents.length > 0;
-    const hasActiveJobs = zd.activeJobs && zd.activeJobs.length > 0;
-    el.classList.add(hasAgents ? 'is-active' : 'is-idle');
-    if (hasActiveJobs) el.classList.add('has-active-job');
-
-    const moduleCount = zd.modules.length;
-    const utilPct = Math.min(100, Math.round(moduleCount * 10));
-
-    // Build DOM elements instead of innerHTML for security
-    // -- Station name row --
-    const nameDiv = document.createElement('div');
-    nameDiv.className = 'iso-station-name';
-    const dot = document.createElement('span');
-    dot.className = 'iso-status-dot';
-    nameDiv.appendChild(dot);
-    nameDiv.appendChild(document.createTextNode(' ' + zoneInfo.label + ' '));
-    const modSpan = document.createElement('span');
-    modSpan.className = 'iso-module-count';
-    modSpan.textContent = moduleCount + ' mod';
-    nameDiv.appendChild(modSpan);
-    el.appendChild(nameDiv);
-
-    // -- Crew avatars --
-    const isDual = zd.agents.length > 1;
-    const crewRow = document.createElement('div');
-    crewRow.className = 'iso-crew-row' + (isDual ? ' dual' : '');
-
-    if (hasAgents) {
-        const displayed = zd.agents.slice(0, 2);
-        let commanderAssigned = false;
-        for (const agent of displayed) {
-            const firstName = agent.first_name || '';
-            const lastName = agent.last_name || '';
-            const fullName = (firstName + ' ' + lastName).trim() || agent.name || 'Unknown';
-            const displayName = firstName || fullName.split(' ')[0];
-            const isPrimary = agent.assignment_type === 'primary';
-            // Only the first primary agent at COMMAND gets the commander badge
-            const isCommander = zoneName === 'COMMAND' && isPrimary && !commanderAssigned;
-            if (isCommander) commanderAssigned = true;
-
-            // Check if agent is away on cross-station duty
-            const awayJob = (zd.activeJobs || []).find(function(j) {
-                const m = j.metadata || {};
-                return m.is_cross_station && (j.agent_callsign || j.agent_name || '').toLowerCase() === agent.name.toLowerCase()
-                    && STATION_TO_ISO_ZONE[m.home_station] === zoneName
-                    && STATION_TO_ISO_ZONE[m.dispatch_station] !== zoneName;
-            });
-            const isAway = !!awayJob;
-
-            const avatarSlug = displayName.toLowerCase();
-            const agentAvatarUrl = ag.avatar_url || '';
-            const svgFallback = '/static/avatars/' + avatarSlug + '.svg';
-            const dicebearFallback = 'https://api.dicebear.com/9.x/adventurer/svg?seed=' + encodeURIComponent(displayName) + '&backgroundColor=transparent';
-
-            const member = document.createElement('div');
-            member.className = 'iso-crew-member';
-            if (isAway) member.style.opacity = '0.35';
-            if (isAway) member.style.filter = 'grayscale(0.8)';
-
-            const ring = document.createElement('div');
-            ring.className = 'iso-avatar-ring';
-            if (isAway) ring.style.animationPlayState = 'paused';
-
-            const img = document.createElement('img');
-            img.className = 'iso-avatar-img';
-            img.src = agentAvatarUrl || svgFallback;
-            img.alt = displayName;
-            img.loading = 'lazy';
-            img.onerror = function() {
-                if (this.src !== svgFallback && this.src !== dicebearFallback) { this.src = svgFallback; }
-                else if (this.src === svgFallback) { this.src = dicebearFallback; }
-            };
-            ring.appendChild(img);
-
-            if (isCommander) {
-                const badge = document.createElement('span');
-                badge.className = 'iso-commander-badge';
-                badge.title = 'Commander';
-                badge.textContent = '\u2605';
-                ring.appendChild(badge);
-            }
-
-            member.appendChild(ring);
-
-            const nameSpan = document.createElement('span');
-            nameSpan.className = 'iso-crew-name';
-            nameSpan.textContent = displayName;
-            if (isCommander) {
-                nameSpan.style.color = '#FFD700';
-                nameSpan.style.opacity = '1';
-            }
-            member.appendChild(nameSpan);
-            crewRow.appendChild(member);
-        }
-    } else {
-        const member = document.createElement('div');
-        member.className = 'iso-crew-member';
-        const ring = document.createElement('div');
-        ring.className = 'iso-avatar-ring';
-        ring.style.opacity = '0.3';
-        const placeholder = document.createElement('div');
-        placeholder.className = 'iso-avatar-img';
-        placeholder.style.cssText = 'display:flex;align-items:center;justify-content:center;font-size:0.5rem;opacity:0.4;';
-        placeholder.textContent = '--';
-        ring.appendChild(placeholder);
-        member.appendChild(ring);
-        const nameSpan = document.createElement('span');
-        nameSpan.className = 'iso-crew-name';
-        nameSpan.style.opacity = '0.3';
-        nameSpan.textContent = 'Unstaffed';
-        member.appendChild(nameSpan);
-        crewRow.appendChild(member);
-    }
-    el.appendChild(crewRow);
-
-    // -- Console --
-    const console = document.createElement('div');
-    console.className = 'iso-console';
-    const screen = document.createElement('div');
-    screen.className = 'iso-console-screen';
-
-    const statusDiv = document.createElement('div');
-    statusDiv.className = 'iso-console-status ' + (hasAgents ? 'active' : 'idle');
-    const iconSpan = document.createElement('span');
-    iconSpan.textContent = hasActiveJobs ? '\u2699' : (hasAgents ? '\u25B6' : '\u25FC');
-    statusDiv.appendChild(iconSpan);
-    statusDiv.appendChild(document.createTextNode(' ' + (hasAgents ? moduleCount + ' modules active' : 'Standing by')));
-    if (hasAgents && !hasActiveJobs) {
-        const cursor = document.createElement('span');
-        cursor.className = 'iso-typing-cursor';
-        statusDiv.appendChild(cursor);
-    }
-    screen.appendChild(statusDiv);
-
-    // Show active job info + progress bars (one per running job)
-    if (hasActiveJobs) {
-        for (var ji = 0; ji < zd.activeJobs.length; ji++) {
-            const job = zd.activeJobs[ji];
-            const jobLine = document.createElement('div');
-            jobLine.className = 'iso-job-status-line';
-            var jobText = (job.description || job.job_type || 'Working');
-            if (job.total_steps > 0) {
-                jobText += ' ' + job.completed_steps + '/' + job.total_steps;
-            }
-            jobLine.textContent = jobText;
-            screen.appendChild(jobLine);
-
-            const progressTrack = document.createElement('div');
-            progressTrack.className = 'iso-console-progress';
-            const progressBar = document.createElement('div');
-            progressBar.className = 'iso-console-progress-bar';
-            const jobPct = job.total_steps > 0 ? Math.round((job.completed_steps / job.total_steps) * 100) : 0;
-            progressBar.style.width = jobPct + '%';
-            progressBar.style.background = '#10b981';
-            progressTrack.appendChild(progressBar);
-            screen.appendChild(progressTrack);
-        }
-    }
-
-    console.appendChild(screen);
-
-    const glow = document.createElement('div');
-    glow.className = 'iso-console-glow';
-    console.appendChild(glow);
-    el.appendChild(console);
-
-    // -- Contractor badge (cloud provider indicator, below console) --
-    if (hasActiveJobs) {
-        const cloudJob = zd.activeJobs.find(function(j) {
-            const name = (j.agent_callsign || '').toLowerCase();
-            const meta = j.metadata || {};
-            return name.startsWith('cloud') || meta.is_cloud || meta.dispatch_station === 'CLOUD';
-        });
-        if (cloudJob) {
-            const brand = getProviderBrand(cloudJob.agent_callsign || cloudJob.metadata.cloud_model || '');
-            if (brand) {
-                const badge = document.createElement('div');
-                badge.className = 'iso-contractor-badge';
-                badge.style.setProperty('--contractor-color', brand.color);
-                badge.style.setProperty('--contractor-rgb', brand.rgb);
-                const icon = document.createElement('span');
-                icon.className = 'contractor-icon';
-                icon.textContent = '\u2601'; // cloud icon
-                badge.appendChild(icon);
-                const dot = document.createElement('span');
-                dot.className = 'contractor-dot';
-                badge.appendChild(dot);
-                const nameEl = document.createElement('span');
-                nameEl.className = 'contractor-name';
-                nameEl.textContent = brand.label;
-                badge.appendChild(nameEl);
-                el.appendChild(badge);
-            }
-        }
-    }
-
-    // -- Floor glow --
-    const floorGlow = document.createElement('div');
-    floorGlow.className = 'iso-station-floor-glow';
-    el.appendChild(floorGlow);
-
-    // Click handler → open LCARS station console
-    el.addEventListener('click', function() {
-        openStationConsole(zoneName, zoneInfo, zd);
-    });
-
-    return el;
-}
-
-function showZoneInfo(zoneName, zoneInfo, zd) {
-    const modal = document.getElementById('iso-zone-info-modal');
-    const title = document.getElementById('iso-zone-info-title');
-    const body = document.getElementById('iso-zone-info-body');
-    if (!modal || !title || !body) return;
-
-    title.textContent = zoneInfo.label + ' Station';
-    title.style.color = zoneInfo.color;
-    body.textContent = '';
-
-    // -- Status summary --
-    const statusDiv = document.createElement('div');
-    statusDiv.style.cssText = 'display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;';
-
-    const statItems = [
-        { label: 'Modules', value: zd.modules.length, color: zoneInfo.color },
-        { label: 'Crew', value: zd.agents.length, color: zoneInfo.color },
-        { label: 'Nodes', value: zd.totalNodes, color: zoneInfo.color }
-    ];
-    for (const si of statItems) {
-        const pill = document.createElement('div');
-        pill.style.cssText = 'background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:8px 14px;text-align:center;flex:1;min-width:80px;';
-        const val = document.createElement('div');
-        val.style.cssText = 'font-size:1.3rem;font-weight:700;font-family:Orbitron,sans-serif;color:' + si.color + ';';
-        val.textContent = si.value;
-        const lbl = document.createElement('div');
-        lbl.style.cssText = 'font-size:0.65rem;opacity:0.5;margin-top:2px;letter-spacing:0.1em;text-transform:uppercase;';
-        lbl.textContent = si.label;
-        pill.appendChild(val);
-        pill.appendChild(lbl);
-        statusDiv.appendChild(pill);
-    }
-    body.appendChild(statusDiv);
-
-    // -- Crew section --
-    if (zd.agents.length > 0) {
-        const crewHeader = document.createElement('div');
-        crewHeader.style.cssText = 'font-size:0.7rem;font-weight:600;opacity:0.5;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:8px;';
-        crewHeader.textContent = 'CREW';
-        body.appendChild(crewHeader);
-
-        const crewList = document.createElement('div');
-        crewList.style.cssText = 'display:flex;flex-direction:column;gap:6px;margin-bottom:16px;';
-
-        for (const agent of zd.agents) {
-            const firstName = agent.first_name || '';
-            const lastName = agent.last_name || '';
-            const fullName = (firstName + ' ' + lastName).trim() || agent.name || 'Unknown';
-            const displayName = firstName || fullName.split(' ')[0];
-            const role = agent.title || agent.name || 'Staff';
-            const isPrimary = agent.assignment_type === 'primary';
-            const avatarSlug = displayName.toLowerCase();
-            const fallback = 'https://api.dicebear.com/9.x/adventurer/svg?seed=' + encodeURIComponent(displayName) + '&backgroundColor=transparent';
-
-            const row = document.createElement('div');
-            row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(255,255,255,0.03);border-radius:8px;border-left:3px solid ' + zoneInfo.color + ';';
-
-            const img = document.createElement('img');
-            img.src = agent.avatar_url || ('/static/avatars/' + avatarSlug + '.svg');
-            img.alt = displayName;
-            img.style.cssText = 'width:36px;height:36px;border-radius:50%;background:rgba(10,14,20,0.9);flex-shrink:0;object-fit:cover;';
-            img.onerror = function() {
-                if (this.src.indexOf('dicebear') < 0) this.src = fallback;
-            };
-            row.appendChild(img);
-
-            const info = document.createElement('div');
-            info.style.cssText = 'flex:1;min-width:0;';
-
-            const nameEl = document.createElement('div');
-            nameEl.style.cssText = 'font-weight:600;font-size:0.85rem;';
-            nameEl.textContent = fullName;
-            info.appendChild(nameEl);
-
-            const roleEl = document.createElement('div');
-            roleEl.style.cssText = 'font-size:0.7rem;opacity:0.5;';
-            roleEl.textContent = role;
-            info.appendChild(roleEl);
-
-            row.appendChild(info);
-
-            if (isPrimary) {
-                const badge = document.createElement('span');
-                badge.style.cssText = 'font-size:0.6rem;padding:2px 8px;border-radius:10px;background:rgba(255,255,255,0.06);color:' + zoneInfo.color + ';white-space:nowrap;';
-                badge.textContent = 'Primary';
-                row.appendChild(badge);
-            }
-
-            crewList.appendChild(row);
-        }
-        body.appendChild(crewList);
-    }
-
-    // -- Modules section --
-    if (zd.modules.length > 0) {
-        const modHeader = document.createElement('div');
-        modHeader.style.cssText = 'font-size:0.7rem;font-weight:600;opacity:0.5;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:8px;';
-        modHeader.textContent = 'MODULES';
-        body.appendChild(modHeader);
-
-        const modGrid = document.createElement('div');
-        modGrid.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;';
-
-        for (const mod of zd.modules) {
-            const chip = document.createElement('span');
-            chip.style.cssText = 'font-size:0.7rem;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);white-space:nowrap;';
-            chip.textContent = mod;
-            modGrid.appendChild(chip);
-        }
-        body.appendChild(modGrid);
-    }
-
-    modal.classList.add('active');
-}
+// DEPRECATED: Stations tab code removed in Phase 4 cleanup.
+// ~730 lines removed: renderStations(), drawCrossStationLines(),
+// renderOpsStrip(), createIsometricZone(), showZoneInfo().
+// The Stations tab was replaced by Fleet Map.
+
+// Stub: loadStations() is called from many places after node operations.
+// Kept as no-op to avoid ReferenceErrors.
+function loadStations() { /* no-op — Stations tab removed */ }
 
 // === LCARS STATION CONSOLE ===
 
@@ -5914,288 +5187,11 @@ async function showModulePreview(mod) {
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
-// ── Warp-In Intro ──
-function triggerWarpIntro() {
-    const overlay = document.getElementById('isoWarpOverlay');
-    const room = document.getElementById('bridgeSpatialLayout');
-    if (!overlay || !room) return;
 
-    // Add warp-active to delay hull/viewscreen/station animations
-    room.classList.add('warp-active');
-
-    // Reset overlay: remove played class, make visible, force reflow
-    overlay.classList.remove('played');
-    overlay.style.opacity = '1';
-    overlay.style.visibility = 'visible';
-    overlay.offsetHeight; // force reflow
-
-    // Reset hull/viewscreen/station animations so they replay after warp
-    const hull = document.querySelector('.iso-bridge-hull');
-    const vs = document.querySelector('.iso-viewscreen');
-    if (hull) { hull.style.animation = 'none'; hull.offsetHeight; hull.style.animation = ''; }
-    if (vs) { vs.style.animation = 'none'; vs.offsetHeight; vs.style.animation = ''; }
-    document.querySelectorAll('.iso-station-zone').forEach(function(z) {
-        z.style.animation = 'none'; z.offsetHeight; z.style.animation = '';
-    });
-
-    // Start the warp sequence
-    overlay.classList.add('played');
-
-    // Remove warp-active after all animations complete (~2.5s)
-    setTimeout(function() {
-        room.classList.remove('warp-active');
-    }, 2500);
-}
-
-function getInitials(name) {
-    if (!name) return '??';
-    const parts = name.trim().split(/\s+/);
-    if (parts.length === 1) {
-        return parts[0].substring(0, 2).toUpperCase();
-    }
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
-
-function updateStationStats(stations) {
-    const totalAgents = stations.reduce((sum, s) => sum + (s.assigned_agents?.length || 0), 0);
-
-    // Update viewscreen agent count
-    const agentCountEl = document.getElementById('viewscreenAgentCount');
-    if (agentCountEl) {
-        agentCountEl.textContent = totalAgents + ' agents';
-    }
-
-    // Also update overview HUD counters if they exist
-    const stationCountEl = document.getElementById('station-count');
-    if (stationCountEl) stationCountEl.textContent = stations.length;
-    const agentHudEl = document.getElementById('agent-count');
-    if (agentHudEl) agentHudEl.textContent = totalAgents;
-}
-
-// ============================================================================
-// VIEWSCREEN DATA LOADING
-// ============================================================================
-
-function getStationForModule(moduleName) {
-    if (!moduleName) return 'COMMAND';
-
-    // First: check allStations for an exact module match
-    if (allStations && allStations.length > 0) {
-        for (const station of allStations) {
-            if (station.modules && station.modules.includes(moduleName)) {
-                return station.code;
-            }
-        }
-    }
-
-    // Fallback heuristics on lowercased name
-    const lower = moduleName.toLowerCase();
-    if (lower.includes('consciousness') || lower.includes('knowledge')) return 'CONSCIOUSNESS';
-    if (lower.includes('security') || lower.includes('vigil')) return 'SECURITY';
-    if (lower.includes('bridge') || lower.includes('chat')) return 'COMMAND';
-    if (lower.includes('email') || lower.includes('telegram')) return 'OPERATIONS';
-    return 'COMMAND';
-}
-
-function renderViewscreen(events, trafficData) {
-    const feedEl = document.getElementById('viewscreenFeed');
-    if (!feedEl) return;
-
-    // Handle empty state
-    if (!events || events.length === 0) {
-        feedEl.innerHTML = '<div class="bridge-viewscreen-empty">No recent dispatch activity</div>';
-    } else {
-        let html = '';
-        for (const evt of events) {
-            const rawStationCode = getStationForModule(evt.module_source);
-            // Map to isometric zone for arc targeting and display
-            const zoneName = STATION_TO_ISO_ZONE[rawStationCode] || rawStationCode;
-            const zoneInfo = ISOMETRIC_ZONE_MAP[zoneName];
-            const zoneColor = zoneInfo ? zoneInfo.color : (STATION_COLORS[rawStationCode] || '#00FFFF');
-            const zoneAbbr = zoneInfo ? zoneInfo.abbr : rawStationCode;
-
-            // Parse time from created_at (ISO string)
-            let timeStr = '--:--:--';
-            if (evt.created_at) {
-                timeStr = ArchieTime.time(evt.created_at);
-            }
-
-            // Success status icon
-            let statusHtml = '<span class="viewscreen-status pending">&hellip;</span>';
-            if (evt.success === true) {
-                statusHtml = '<span class="viewscreen-status success">&check;</span>';
-            } else if (evt.success === false) {
-                statusHtml = '<span class="viewscreen-status fail">&cross;</span>';
-            }
-
-            // Build short task description from task_type/capability
-            var taskDesc = evt.task_type || evt.capability || '';
-            // Clean up common prefixes and make readable
-            taskDesc = taskDesc.replace(/_/g, ' ');
-
-            html += '<div class="bridge-viewscreen-event" data-station-code="' + escapeHtml(zoneName) + '">'
-                + '<span class="viewscreen-time">' + escapeHtml(timeStr) + '</span>'
-                + '<span class="viewscreen-agent">' + escapeHtml(evt.agent_name || 'Unknown') + '</span>'
-                + '<span class="viewscreen-arrow">&rarr;</span>'
-                + '<span class="viewscreen-station" style="color:' + zoneColor + '">' + escapeHtml(zoneAbbr) + '</span>'
-                + '<span class="viewscreen-task">' + escapeHtml(taskDesc) + '</span>'
-                + statusHtml
-                + '</div>';
-        }
-        feedEl.innerHTML = html;
-    }
-
-    // Update statusbar: throughput
-    const throughputEl = document.getElementById('viewscreenThroughput');
-    if (throughputEl && trafficData) {
-        const rpm = parseFloat(trafficData.requests_per_minute) || 0;
-        throughputEl.textContent = rpm.toFixed(1) + ' req/min';
-    }
-
-    // Update statusbar: success rate from events
-    const successEl = document.getElementById('viewscreenSuccess');
-    if (successEl && events && events.length > 0) {
-        const successCount = events.filter(function(e) { return e.success === true; }).length;
-        const pct = Math.round(successCount / events.length * 100);
-        successEl.textContent = pct + '% success';
-    }
-
-    // Trigger arc animation for newest event
-    setTimeout(triggerArcsFromViewscreen, 100);
-}
-
-async function loadViewscreenData() {
-    try {
-        const [activityResp, trafficResp] = await Promise.all([
-            fetch('/tools/starbase/api/dispatch/activity-history'),
-            fetch('/tools/starbase/api/traffic')
-        ]);
-
-        const activityData = await activityResp.json();
-        const trafficData = await trafficResp.json();
-
-        const events = Array.isArray(activityData) ? activityData : (activityData.events || []);
-        renderViewscreen(events.slice(0, 5), trafficData);
-    } catch (error) {
-        console.error('Error loading viewscreen data:', error);
-    }
-}
-
-// ============================================================================
-// DISPATCH ARC ANIMATIONS
-// ============================================================================
-
-const MAX_ACTIVE_ARCS = 3;
-let activeArcs = [];
-let _lastViewscreenEventId = null;
-
-/**
- * Creates an animated SVG bezier arc from the viewscreen to a target station zone.
- */
-function createDispatchArc(stationCode) {
-    // Skip on mobile — arcs hidden by CSS anyway
-    if (window.innerWidth < 768) return;
-
-    // Map raw station code to isometric zone
-    const zoneName = STATION_TO_ISO_ZONE[stationCode] || stationCode;
-
-    const overlay = document.getElementById('dispatchArcOverlay');
-    const viewscreen = document.getElementById('bridgeViewscreen');
-    const stationZone = document.querySelector('.iso-station-zone[data-station-code="' + zoneName + '"]');
-    const container = document.getElementById('bridgeSpatialLayout');
-
-    if (!overlay || !viewscreen || !stationZone || !container) return;
-
-    const containerRect = container.getBoundingClientRect();
-    const vsRect = viewscreen.getBoundingClientRect();
-    const szRect = stationZone.getBoundingClientRect();
-
-    // Positions relative to the spatial layout container
-    const fromX = (vsRect.left + vsRect.width / 2) - containerRect.left;
-    const fromY = vsRect.bottom - containerRect.top;
-    const toX = (szRect.left + szRect.width / 2) - containerRect.left;
-    const toY = szRect.top - containerRect.top;
-
-    // Set SVG viewBox to container dimensions
-    overlay.setAttribute('viewBox', '0 0 ' + containerRect.width + ' ' + containerRect.height);
-
-    // Create quadratic bezier path
-    const midY = (fromY + toY) / 2;
-    const cpX = (fromX + toX) / 2 + (fromX > toX ? 40 : -40);
-    const d = 'M ' + fromX + ' ' + fromY + ' Q ' + cpX + ' ' + midY + ' ' + toX + ' ' + toY;
-
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', d);
-    path.setAttribute('class', 'bridge-dispatch-arc');
-    const arcColor = (ISOMETRIC_ZONE_MAP[zoneName] && ISOMETRIC_ZONE_MAP[zoneName].color) || STATION_COLORS[stationCode] || '#00FFFF';
-    path.setAttribute('stroke', arcColor);
-
-    // Estimate path length for dash animation
-    const pathLen = Math.sqrt((toX - fromX) ** 2 + (toY - fromY) ** 2) * 1.3;
-    path.setAttribute('stroke-dasharray', pathLen);
-    path.setAttribute('stroke-dashoffset', pathLen);
-    path.style.setProperty('--arc-length', pathLen);
-    path.style.animation = 'arc-draw 0.8s ease forwards';
-
-    // Cap active arcs — remove oldest if at limit
-    if (activeArcs.length >= MAX_ACTIVE_ARCS) {
-        const oldest = activeArcs.shift();
-        if (oldest && oldest.parentNode) {
-            oldest.parentNode.removeChild(oldest);
-        }
-    }
-
-    overlay.appendChild(path);
-    activeArcs.push(path);
-
-    // Highlight the target station zone
-    stationZone.classList.add('dispatch-active');
-
-    // Fade out after 2.8s
-    setTimeout(function() {
-        path.classList.add('fading');
-        stationZone.classList.remove('dispatch-active');
-    }, 2800);
-
-    // Remove from DOM after 4s
-    setTimeout(function() {
-        if (path.parentNode) {
-            path.parentNode.removeChild(path);
-        }
-        const idx = activeArcs.indexOf(path);
-        if (idx !== -1) activeArcs.splice(idx, 1);
-    }, 4000);
-}
-
-/**
- * Check if the viewscreen has new events since last call and trigger an arc.
- */
-function triggerArcsFromViewscreen() {
-    const firstEvent = document.querySelector('.bridge-viewscreen-event');
-    if (!firstEvent) return;
-
-    const stationCode = firstEvent.getAttribute('data-station-code');
-    const timeEl = firstEvent.querySelector('.viewscreen-time');
-    const eventKey = stationCode + '|' + (timeEl ? timeEl.textContent : '');
-
-    if (eventKey !== _lastViewscreenEventId) {
-        _lastViewscreenEventId = eventKey;
-        if (stationCode) {
-            createDispatchArc(stationCode);
-        }
-    }
-}
-
-// Clear arcs + cross-station lines on window resize (positions become stale)
-let _resizeTimer = null;
-window.addEventListener('resize', function() {
-    clearTimeout(_resizeTimer);
-    _resizeTimer = setTimeout(function() {
-        const overlay = document.getElementById('dispatchArcOverlay');
-        if (overlay) overlay.innerHTML = '';
-        activeArcs = [];
-    }, 250);
-});
+// DEPRECATED: Warp intro, station stats, viewscreen, and dispatch arc code removed in Phase 4 cleanup.
+// ~280 lines removed: triggerWarpIntro(), getInitials(), updateStationStats(),
+// getStationForModule(), renderViewscreen(), loadViewscreenData(),
+// createDispatchArc(), triggerArcsFromViewscreen().
 
 // ============================================================================
 // C.R.E.E.D. STATUS
@@ -12052,24 +11048,24 @@ function showNodeDetail(node) {
     var body = document.getElementById('fleetDetailBody');
     if (!panel || !titleEl || !body) return;
 
-    titleEl.textContent = node.node_name || node.hostname;
+    titleEl.textContent = node.node_name || node.name || node.hostname;
 
     // Build detail content using DOM methods (trusted server data)
     body.textContent = '';
     var sections = [
         { title: 'Hardware', rows: [
-            ['GPU', node.gpu_model || 'None'],
+            ['GPU', node.gpu_model || node.gpu || 'None'],
             ['VRAM', node.gpu_vram_gb ? node.gpu_vram_gb + ' GB' : '--'],
-            ['RAM', node.ram_gb ? node.ram_gb + ' GB' : '--'],
+            ['RAM', (node.ram_gb || node.ram) ? (node.ram_gb || node.ram) + ' GB' : '--'],
             ['Region', node.region || '--']
         ]},
         { title: 'Network', rows: [
-            ['Hostname', node.hostname],
+            ['Hostname', node.hostname || '--'],
             ['Mesh IP', node.mesh_ip || '--'],
             ['Mode', node.deployment_mode || '--']
         ]},
         { title: 'Status', rows: [
-            ['Status', node.status],
+            ['Status', node.status || '--'],
             ['Last Heartbeat', node.last_heartbeat || '--']
         ]}
     ];
@@ -12092,6 +11088,52 @@ function showNodeDetail(node) {
             body.appendChild(row);
         });
     });
+
+    // Deployed Agents section with Department HQ cross-links
+    var agents = node.agents || [];
+    var agentHeader = document.createElement('div');
+    agentHeader.className = 'detail-section-title';
+    agentHeader.textContent = 'Deployed Agents (' + agents.length + ')';
+    body.appendChild(agentHeader);
+
+    if (agents.length === 0) {
+        var noAgents = document.createElement('div');
+        noAgents.className = 'detail-row';
+        noAgents.style.opacity = '0.5';
+        noAgents.textContent = 'No agents deployed';
+        body.appendChild(noAgents);
+    } else {
+        agents.forEach(function(agent) {
+            var row = document.createElement('div');
+            row.className = 'detail-row';
+            var link = document.createElement('a');
+            link.href = '/tools/department-hq#agent-' + (agent.hub_agent_id || '');
+            link.style.cssText = 'color:#8b5cf6;text-decoration:none;font-weight:500;cursor:pointer;';
+            link.textContent = agent.display_name || 'Unknown';
+            link.title = 'View in Department HQ';
+            link.addEventListener('mouseenter', function() { link.style.textDecoration = 'underline'; });
+            link.addEventListener('mouseleave', function() { link.style.textDecoration = 'none'; });
+            row.appendChild(link);
+            if (agent.department) {
+                var dept = document.createElement('span');
+                dept.className = 'detail-value';
+                dept.style.cssText = 'font-size:0.7rem;opacity:0.6;margin-left:8px;';
+                dept.textContent = agent.department;
+                row.appendChild(dept);
+            }
+            body.appendChild(row);
+        });
+
+        // "View all in Department HQ" link
+        var viewAll = document.createElement('a');
+        viewAll.href = '/tools/department-hq#agents';
+        viewAll.style.cssText = 'display:block;margin-top:8px;color:#8b5cf6;text-decoration:none;font-size:0.75rem;text-align:center;opacity:0.8;';
+        viewAll.textContent = 'View all in Department HQ \u2192';
+        viewAll.addEventListener('mouseenter', function() { viewAll.style.opacity = '1'; });
+        viewAll.addEventListener('mouseleave', function() { viewAll.style.opacity = '0.8'; });
+        body.appendChild(viewAll);
+    }
+
     panel.style.display = 'block';
 }
 

@@ -868,7 +868,7 @@ const MODULE_INFO = {
     'doc': { icon: 'file-text', route: '/tools/doc', name: 'DOC Medical' },
     'therapy': { icon: 'heart-pulse', route: '/tools/therapy', name: 'Therapy' },
     'fitness': { icon: 'dumbbell', route: '/tools/fitness', name: 'Fitness' },
-    'stockbot': { icon: 'trending-up', route: '/tools/stockbot', name: 'StockBot' },
+    'market_watch': { icon: 'trending-up', route: 'https://market.kytranempowerment.com', name: 'Market Watch', external: true },
 
     // ADMIN OPS
     'team_management': { icon: 'users-2', route: '/tools/team-management', name: 'Team Management' },

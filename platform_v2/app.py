@@ -317,6 +317,24 @@ def bridge_compat_redirect(subpath):
     return redirect(new_url, code=307)
 
 
+@app.route("/tools/stockbot")
+@app.route("/tools/stockbot/")
+@app.route("/tools/stockbot/<path:subpath>")
+def stockbot_redirect(subpath=None):
+    """StockBot removed — redirect to Market Watch standalone product."""
+    from flask import redirect
+
+    return redirect("https://market.kytranempowerment.com", code=301)
+
+
+@app.route("/tools/market-watch-redirect")
+def market_watch_redirect():
+    """Module registry redirect to Market Watch standalone product."""
+    from flask import redirect
+
+    return redirect("https://market.kytranempowerment.com", code=302)
+
+
 # ============================================================================
 # AI BRIDGE ROUTES
 # ============================================================================

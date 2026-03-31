@@ -9,7 +9,7 @@ MODULE_CONTEXT_MAP = {
     "media_studio": ["media-studio", "comfyui", "image generation", "gallery"],
     "game_studio": ["game-studio", "canvas engine", "multiplayer", "game builder"],
     "google_work_suite": ["gmail", "calendar", "drive", "google oauth"],
-    "stockbot": ["trading", "yfinance", "market data", "portfolio"],
+    "market_watch": ["market watch", "trading", "market data", "autonomous trading"],
     "website_studio": ["website-designer", "monaco", "hostinger", "deployment"],
     "content_studio": ["content writing", "writing pipeline", "seo"],
     "social_media": ["social media", "publishing", "instagram"],

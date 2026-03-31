@@ -88,8 +88,9 @@ class Permission(Enum):
     # DEPRECATED 2026-02-03: Not needed
     # FIGMA_IMPORT = "figma:import"
     ANALYTICS_VIEW = "analytics:view"
-    STOCK_BOT_SCAN = "stock_bot:scan"
-    STOCK_BOT_ALERTS = "stock_bot:alerts"
+    # DEPRECATED 2026-03-31: StockBot removed — replaced by Market Watch standalone
+    # STOCK_BOT_SCAN = "stock_bot:scan"
+    # STOCK_BOT_ALERTS = "stock_bot:alerts"
 
     # Obsidian Vault permissions
     OBSIDIAN_READ = "obsidian:read"

@@ -8497,10 +8497,19 @@ function renderCrewManifest(crew, capacity, nodeCapacities) {
     var grid = document.getElementById('crew-manifest-grid');
     var countEl = document.getElementById('crew-manifest-count');
     if (!grid) return;
-    // Store crew data for instant profile previews
+    // Store full crew data for instant profile previews
     window._lastCrewData = crew;
-    // Also populate training/lounge selects
+    // Also populate training/lounge selects (uses full roster)
     populateTrainingLoungeSelects(crew);
+
+    // --- Fleet-only filter: Starbase shows deployed/fleet agents only ---
+    // Department HQ now owns the full internal roster.
+    crew = crew.filter(function(a) {
+        var state = a.shift_state || 'active';
+        var name = a.name || '';
+        // Show: deployed agents, fleet agents (node-assigned), or any with node info
+        return state === 'deployed' || name.startsWith('fleet:') || !!a.node_id;
+    });
 
     // --- Hardware capacity bars (GPU + CPU/RAM, insert before grid) ---
     var capBarId = 'roster-capacity-bar';
@@ -11880,6 +11889,22 @@ function saveProvider() {
 
 var fleetMap = null;
 var fleetMarkers = [];
+var _fleetRefreshInterval = null;
+
+function startFleetRefresh() {
+    if (_fleetRefreshInterval) return;
+    _fleetRefreshInterval = setInterval(function() {
+        loadFleetData();
+        loadFleetUsage();
+    }, 30000);
+}
+
+function stopFleetRefresh() {
+    if (_fleetRefreshInterval) {
+        clearInterval(_fleetRefreshInterval);
+        _fleetRefreshInterval = null;
+    }
+}
 
 function initFleetMap() {
     if (fleetMap) return;
@@ -12086,7 +12111,10 @@ function closeFleetDetail() {
                     initFleetMap();
                     if (fleetMap) fleetMap.invalidateSize();
                     loadFleetUsage();
+                    startFleetRefresh();
                 }, 100);
+            } else {
+                stopFleetRefresh();
             }
         };
     }
@@ -12159,6 +12187,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (activePanel) {
             initFleetMap();
             loadFleetUsage();
+            startFleetRefresh();
         }
     }, 500);
 });

@@ -3240,6 +3240,18 @@ if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
             logger.error(f"Failed to initialize agent loop: {e}")
             app.config["AGENT_LOOP"] = None
 
+        # Phase 1: Job Service — runs alongside AgentLoop
+        try:
+            from services.job_service import JobService
+            from services.budget_jobs import register_budget_jobs
+
+            _job_service = JobService(scheduler=_scheduler)
+            register_budget_jobs(_job_service)
+            app.config["JOB_SERVICE"] = _job_service
+            logger.info("[Startup] JobService initialized with budget reset jobs")
+        except Exception as e:
+            logger.error("[Startup] JobService failed to initialize: %s", e)
+
         # Initialize Telegram Gateway (Project Autonomy Phase 3)
         _tg_token = os.getenv("TELEGRAM_BOT_TOKEN")
         if _tg_token:

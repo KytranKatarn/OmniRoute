@@ -375,7 +375,7 @@ def pick_agent_for_content(content_type):
             """
             SELECT id, name, display_name, department, personality, backstory, skill_category
             FROM agents
-            WHERE shift_state = 'active' AND is_active = true
+            WHERE shift_state = 'active' AND status = 'active'
             ORDER BY RANDOM()
             LIMIT 5
             """

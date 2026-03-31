@@ -29,6 +29,25 @@ def register_social_video_routes(bp, admin_required):
             return jsonify({"error": "Template not found"}), 404
         return jsonify(result)
 
+    # ── Agents ────────────────────────────────────────────────────────────────
+
+    @bp.route("/api/social-video/agents", methods=["GET"])
+    @admin_required
+    def sv_get_agents():
+        from database import get_db_cursor
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT id, name, display_name, department
+                FROM agents
+                WHERE status = 'active' AND shift_state = 'active'
+                ORDER BY display_name
+            """
+            )
+            agents = [dict(row) for row in cur.fetchall()]
+        return jsonify({"agents": agents})
+
     # ── Queue ─────────────────────────────────────────────────────────────────
 
     @bp.route("/api/social-video/queue", methods=["GET"])
@@ -45,7 +64,15 @@ def register_social_video_routes(bp, admin_required):
         except (ValueError, TypeError):
             offset = 0
         items = svs.get_queue_items(status=status, content_type=content_type, limit=limit, offset=offset)
-        return jsonify(items)
+        # Add aliases the frontend JS expects
+        for item in items:
+            item["agent_name"] = item.get("agent_display_name", "")
+            item["platforms"] = item.get("target_platforms", [])
+            # Convert container path to web-accessible URL
+            vp = item.get("video_path") or ""
+            if vp and "/static/" in vp:
+                item["video_path"] = "/static/" + vp.split("/static/", 1)[1]
+        return jsonify({"items": items})
 
     @bp.route("/api/social-video/queue/<int:item_id>", methods=["GET"])
     @admin_required
@@ -183,7 +210,16 @@ def register_social_video_routes(bp, admin_required):
     def sv_get_stats():
         stats = svs.get_queue_stats()
         budget = svs.check_budget()
-        return jsonify({"stats": stats, "budget": budget})
+        return jsonify(
+            {
+                "stats": stats,
+                "budget": budget,
+                "daily_budget": f"${budget['daily_spent']:.2f} / ${budget['daily_spent'] + budget['daily_remaining']:.2f}",
+                "monthly_budget": f"${budget['monthly_spent']:.2f} / ${budget['monthly_spent'] + budget['monthly_remaining']:.2f}",
+                "posted_week": stats.get("posted_this_week", 0),
+                "awaiting_review": stats.get("status_counts", {}).get("ready", 0),
+            }
+        )
 
     @bp.route("/api/social-video/budget", methods=["GET"])
     @admin_required

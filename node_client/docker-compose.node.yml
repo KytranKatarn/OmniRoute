@@ -35,8 +35,8 @@ services:
       test: ["CMD", "ollama", "list"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 30s
+      retries: 10
+      start_period: 120s
     networks:
       - archie_net
 
@@ -54,12 +54,16 @@ services:
       test: ["CMD-SHELL", "pg_isready -U archie_node"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 30s
     networks:
       - archie_net
 
   sync:
-    image: ghcr.io/kytrankatarn/archie-node:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    image: archie-node:local
     container_name: archie_node_sync
     restart: unless-stopped
     depends_on:
@@ -80,7 +84,7 @@ services:
       NODE_TIMEZONE: ${NODE_TIMEZONE:-America/Toronto}
       COMFYUI_PORT: "${COMFYUI_PORT:-8188}"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock
       - comfyui_data:/comfyui/models
     command: ["python3", "-u", "node_sync.py"]
     healthcheck:
@@ -92,7 +96,10 @@ services:
       - archie_net
 
   node_api:
-    image: ghcr.io/kytrankatarn/archie-node:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    image: archie-node:local
     container_name: archie_node_api
     restart: unless-stopped
     depends_on:
@@ -104,7 +111,7 @@ services:
       NODE_ID: ${NODE_ID}
       NODE_TIMEZONE: ${NODE_TIMEZONE:-America/Toronto}
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock
     command: ["python3", "-u", "node_api.py"]
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3001/health || exit 1"]

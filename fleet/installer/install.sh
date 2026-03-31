@@ -8,7 +8,7 @@ set -euo pipefail
 FLEET_VERSION="1.0.0"
 HUB_URL="${ARCHIE_HUB_URL:-http://100.64.0.2:3000}"
 MESH_SERVER="${ARCHIE_MESH_SERVER:-https://mesh.kytranempowerment.com}"
-KSO_IMAGE="ghcr.io/kytrankatarn/kso:latest"
+KSO_IMAGE="ghcr.io/kytrankatarn/kytran-system-operations:latest"
 INSTALL_DIR="/opt/archie-fleet"
 APPS_DIR="${INSTALL_DIR}/apps"
 

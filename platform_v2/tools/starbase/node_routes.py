@@ -363,6 +363,25 @@ def register_node_routes(bp, admin_required):
             )
         return jsonify({"success": False, "error": "node_triage.py not found"}), 404
 
+    @bp.route("/api/nodes/bootstrap-wsl2.sh", methods=["GET"])
+    def get_node_bootstrap_wsl2():
+        """Serve the WSL2 bootstrap script for Windows GPU nodes"""
+        script_path = "/mnt/archie_brain/node_client/bootstrap-wsl2.sh"
+        if os.path.exists(script_path):
+            with open(script_path, "r") as f:
+                script_content = f.read()
+            server_url = request.host_url.rstrip("/")
+            script_content = script_content.replace("http://192.168.1.200:3000", server_url)
+            return (
+                script_content,
+                200,
+                {
+                    "Content-Type": "text/plain; charset=utf-8",
+                    "Content-Disposition": 'inline; filename="bootstrap-wsl2.sh"',
+                },
+            )
+        return jsonify({"success": False, "error": "bootstrap-wsl2.sh not found"}), 404
+
     @bp.route("/api/nodes/installer.py", methods=["GET"])
     def get_gui_installer():
         """Serve the LCARS GUI installer (tkinter, PyInstaller-compatible)"""

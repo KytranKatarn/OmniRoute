@@ -7,7 +7,16 @@ services:
     volumes:
       - market_data:/app/data
     environment:
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-change-me}
+      - MW_DB_PATH=/app/data/market.db
+      - KYTRAN_CLIENT_ID=${KYTRAN_CLIENT_ID:-market-watch-viewer}
+      - KYTRAN_CLIENT_SECRET=${KYTRAN_CLIENT_SECRET:-}
+      - KYTRAN_AUTH_URL=${KYTRAN_AUTH_URL:-http://192.168.1.200:3000}
+      - KYTRAN_REDIRECT_URI=${KYTRAN_REDIRECT_URI:-http://192.168.1.200:8101/auth/kytran/callback}
       - ARCHIE_HUB_URL=http://192.168.1.200:3000
+      - ARCHIE_SERVICE_TOKEN=${ARCHIE_SERVICE_TOKEN:-}
+      - CORS_ORIGINS=https://market.kytranempowerment.com,http://192.168.1.200:8101
+      - RATELIMIT_STORAGE_URI=memory://
       - ALPACA_API_KEY=${ALPACA_API_KEY:-}
       - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY:-}
       - ALPACA_BASE_URL=https://paper-api.alpaca.markets

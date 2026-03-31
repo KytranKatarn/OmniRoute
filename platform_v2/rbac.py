@@ -88,9 +88,6 @@ class Permission(Enum):
     # DEPRECATED 2026-02-03: Not needed
     # FIGMA_IMPORT = "figma:import"
     ANALYTICS_VIEW = "analytics:view"
-    # DEPRECATED 2026-03-31: StockBot removed — replaced by Market Watch standalone
-    # STOCK_BOT_SCAN = "stock_bot:scan"
-    # STOCK_BOT_ALERTS = "stock_bot:alerts"
 
     # Obsidian Vault permissions
     OBSIDIAN_READ = "obsidian:read"
@@ -183,8 +180,6 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         # DEPRECATED 2026-02-03: Not needed
         # Permission.FIGMA_IMPORT,
         Permission.ANALYTICS_VIEW,
-        Permission.STOCK_BOT_SCAN,
-        Permission.STOCK_BOT_ALERTS,
         Permission.OBSIDIAN_WRITE,  # Create/edit notes
     },
     Role.ADMIN: {
@@ -214,8 +209,6 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.GOOGLE_EMAIL,
         Permission.GOOGLE_CONTACTS,
         Permission.GOOGLE_CALENDAR,
-        Permission.STOCK_BOT_SCAN,
-        Permission.STOCK_BOT_ALERTS,
         Permission.OBSIDIAN_READ,
         Permission.OBSIDIAN_WRITE,
         # ADMIN specific

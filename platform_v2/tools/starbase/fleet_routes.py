@@ -379,6 +379,38 @@ def register_fleet_routes(bp, admin_required):
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
 
+    # ------------------------------------------------------------------ #
+    # GET /api/fleet-map — fleet map data (hub + nodes + cloud providers)
+    # ------------------------------------------------------------------ #
+    @bp.route("/api/fleet-map")
+    @admin_required
+    def api_fleet_map():
+        """Fleet map data: hub + nodes + cloud providers with coordinates."""
+        try:
+            from services.fleet_service import get_fleet_map_data
+
+            data = get_fleet_map_data()
+            return jsonify(data)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ------------------------------------------------------------------ #
+    # GET /api/fleet-usage — cloud provider usage summary
+    # ------------------------------------------------------------------ #
+    @bp.route("/api/fleet-usage")
+    @admin_required
+    def api_fleet_usage():
+        """Cloud provider usage summary."""
+        try:
+            from services.fleet_service import get_usage_summary
+
+            provider = request.args.get("provider")
+            days = int(request.args.get("days", 30))
+            data = get_usage_summary(provider_key=provider, days=days)
+            return jsonify(data)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
     # ── Cert Distribution ────────────────────────────────────────────
 
     WILDCARD_CERT_DIR = os.path.join(os.environ.get("FLEET_CERT_DIR", "/opt/archie-fleet/certs"), "wildcard")

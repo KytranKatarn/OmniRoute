@@ -2731,6 +2731,30 @@ COMMAND_REGISTRY = {
             "action": {"required": True, "regex": r"^(allow|deny)$"},
         },
     },
+    "fail2ban_status": {
+        "handler": "handle_fail2ban_status",
+        "params": {},
+    },
+    "fail2ban_jail_status": {
+        "handler": "handle_fail2ban_jail_status",
+        "params": {
+            "jail": {"required": True, "regex": _NAME_RE},
+        },
+    },
+    "fail2ban_ban": {
+        "handler": "handle_fail2ban_ban",
+        "params": {
+            "jail": {"required": True, "regex": _NAME_RE},
+            "ip": {"required": True, "regex": r"^[0-9a-fA-F.:]+$"},
+        },
+    },
+    "fail2ban_unban": {
+        "handler": "handle_fail2ban_unban",
+        "params": {
+            "jail": {"required": True, "regex": _NAME_RE},
+            "ip": {"required": True, "regex": r"^[0-9a-fA-F.:]+$"},
+        },
+    },
     "arp_scan": {
         "handler": "handle_arp_scan",
         "params": {},
@@ -2839,6 +2863,59 @@ def validate_command(cmd_data):
 # ============================================================================
 # COMMAND HANDLERS
 # ============================================================================
+
+
+def handle_fail2ban_status(params):
+    """Get fail2ban overall status and jail list."""
+    output = run_command(["fail2ban-client", "status"], timeout=10)
+    if output is None:
+        return {"success": False, "error": "fail2ban-client not available"}
+    jails = []
+    for line in output.splitlines():
+        if "Jail list:" in line:
+            jails_str = line.split("Jail list:")[1].strip()
+            jails = [j.strip() for j in jails_str.split(",") if j.strip()]
+    return {"success": True, "running": True, "jails": jails, "raw": output.strip()}
+
+
+def handle_fail2ban_jail_status(params):
+    """Get detailed status for a specific fail2ban jail."""
+    jail = params["jail"]
+    output = run_command(["fail2ban-client", "status", jail], timeout=10)
+    if output is None:
+        return {"success": False, "error": f"Failed to get status for jail {jail}"}
+    status = {"jail": jail, "currently_failed": 0, "total_failed": 0,
+              "currently_banned": 0, "total_banned": 0, "banned_ips": []}
+    for line in output.splitlines():
+        line = line.strip()
+        if "Currently failed:" in line:
+            status["currently_failed"] = int(line.split(":")[-1].strip())
+        elif "Total failed:" in line:
+            status["total_failed"] = int(line.split(":")[-1].strip())
+        elif "Currently banned:" in line:
+            status["currently_banned"] = int(line.split(":")[-1].strip())
+        elif "Total banned:" in line:
+            status["total_banned"] = int(line.split(":")[-1].strip())
+        elif "Banned IP list:" in line:
+            ips_str = line.split(":")[-1].strip()
+            status["banned_ips"] = [ip.strip() for ip in ips_str.split() if ip.strip()]
+    return {"success": True, **status}
+
+
+def handle_fail2ban_ban(params):
+    """Ban an IP in a specific fail2ban jail."""
+    jail = params["jail"]
+    ip = params["ip"]
+    output = run_command(["fail2ban-client", "set", jail, "banip", ip], timeout=10)
+    return {"success": output is not None, "output": (output or "").strip()}
+
+
+def handle_fail2ban_unban(params):
+    """Unban an IP from a specific fail2ban jail."""
+    jail = params["jail"]
+    ip = params["ip"]
+    output = run_command(["fail2ban-client", "set", jail, "unbanip", ip], timeout=10)
+    return {"success": output is not None, "output": (output or "").strip()}
 
 
 def handle_arp_scan(params):
@@ -5520,6 +5597,11 @@ _HANDLER_MAP = {
     "handle_firewall_deny": handle_firewall_deny,
     "handle_firewall_delete": handle_firewall_delete,
     "handle_firewall_update": handle_firewall_update,
+    # fail2ban handlers
+    "handle_fail2ban_status": handle_fail2ban_status,
+    "handle_fail2ban_jail_status": handle_fail2ban_jail_status,
+    "handle_fail2ban_ban": handle_fail2ban_ban,
+    "handle_fail2ban_unban": handle_fail2ban_unban,
     # Network discovery
     "handle_arp_scan": handle_arp_scan,
     # Nginx handlers

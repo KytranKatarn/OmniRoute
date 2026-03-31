@@ -51,10 +51,11 @@ def register_noc_routes(bp, admin_required_decorator):
             from .ntopng_service import NtopngService
 
             nt = NtopngService()
-            nt_status = nt.get_status()
-            services["ntopng"] = {"status": "online" if nt_status else "offline"}
-            iface_stats = nt.get_interface_stats(None) or {}
-            hero_stats["traffic_bytes"] = iface_stats.get("bytes", 0)
+            nt_healthy = nt.is_healthy()
+            services["ntopng"] = {"status": "online" if nt_healthy else "offline"}
+            if nt_healthy:
+                iface_stats = nt.get_interface_stats(0) or {}
+                hero_stats["traffic_bytes"] = iface_stats.get("bytes", 0)
         except Exception as exc:
             logger.warning("noc_overview ntopng error: %s", exc)
             services["ntopng"] = {"status": "error"}
@@ -64,8 +65,11 @@ def register_noc_routes(bp, admin_required_decorator):
             from .nagios_service import NagiosService
 
             nag = NagiosService()
-            nag_status = nag.get_status()
-            services["nagios"] = {"status": "online" if nag_status else "offline"}
+            nag_healthy = nag.is_healthy()
+            services["nagios"] = {"status": "online" if nag_healthy else "offline"}
+            if nag_healthy:
+                counts = nag.get_host_count()
+                hero_stats["nagios_hosts_up"] = counts.get("data", {}).get("count", {}).get("up", 0)
         except Exception as exc:
             logger.warning("noc_overview nagios error: %s", exc)
             services["nagios"] = {"status": "error"}
@@ -95,13 +99,12 @@ def register_noc_routes(bp, admin_required_decorator):
             logger.warning("noc_overview ddns error: %s", exc)
             services["ddns"] = {"status": "error"}
 
-        # UFW
+        # UFW (via host command client)
         try:
-            from .ufw_service import UfwService
+            from .security_service import get_firewall_status
 
-            ufw = UfwService()
-            ufw_status = ufw.get_status()
-            services["ufw"] = {"status": "online" if ufw_status else "offline"}
+            fw = get_firewall_status()
+            services["ufw"] = {"status": "online" if fw.get("enabled") or fw.get("status") == "active" else "offline"}
         except Exception as exc:
             logger.warning("noc_overview ufw error: %s", exc)
             services["ufw"] = {"status": "error"}

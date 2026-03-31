@@ -36,7 +36,7 @@ def register_device_routes(bp, admin_required_decorator):
                         ndu.updated_at,
                         nd.ip_address,
                         nd.hostname,
-                        nd.vendor
+                        nd.manufacturer
                     FROM network_device_users ndu
                     LEFT JOIN network_devices nd ON nd.mac_address = ndu.mac_address
                     ORDER BY ndu.user_name, ndu.device_label

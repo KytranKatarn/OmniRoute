@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_HOST = os.getenv("NAGIOS_HOST", "192.168.1.200")
 DEFAULT_PORT = int(os.getenv("NAGIOS_PORT", "8082"))
-DEFAULT_USER = os.getenv("NAGIOS_USER", "archie_admin")
+DEFAULT_USER = os.getenv("NAGIOS_USER", "nagiosadmin")
 DEFAULT_PASS = os.getenv("NAGIOS_PASS", "")
 TIMEOUT = 10
 
@@ -37,7 +37,11 @@ class NagiosService:
 
     def is_healthy(self) -> bool:
         try:
-            resp = self.session.get(f"http://{self.host}:{self.port}/nagios/", timeout=5)
+            resp = self.session.get(
+                f"{self.base_url}/statusjson.cgi",
+                params={"query": "hostcount"},
+                timeout=5,
+            )
             return resp.status_code == 200
         except Exception:
             return False

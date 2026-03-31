@@ -1,15 +1,19 @@
 # platform_v2/tools/security_network/ntopng_service.py
-"""ntopng REST API client — bandwidth, flows, hosts, protocol data."""
+"""ntopng REST API client — bandwidth, flows, hosts, protocol data.
+
+Uses cookie-based session auth (POST /authorize.html) since ntopng
+does not support basic auth for REST API endpoints.
+"""
 import logging
 import os
 import requests
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_HOST = os.getenv("NTOPNG_HOST", "127.0.0.1")
+DEFAULT_HOST = os.getenv("NTOPNG_HOST", "192.168.1.200")
 DEFAULT_PORT = int(os.getenv("NTOPNG_PORT", "3001"))
 DEFAULT_USER = os.getenv("NTOPNG_USER", "admin")
-DEFAULT_PASS = os.getenv("NTOPNG_ADMIN_PASSWORD", "")
+DEFAULT_PASS = os.getenv("NTOPNG_ADMIN_PASSWORD", "admin")
 TIMEOUT = 10
 
 
@@ -23,32 +27,68 @@ class NtopngService:
         self.password = password or DEFAULT_PASS
         self.base_url = f"http://{self.host}:{self.port}"
         self.session = requests.Session()
-        self.session.auth = (self.user, self.password)
+        self._authenticated = False
+
+    def _ensure_auth(self):
+        """Authenticate via cookie-based session if not already done."""
+        if self._authenticated:
+            return
+        try:
+            resp = self.session.post(
+                f"{self.base_url}/authorize.html",
+                data={"user": self.user, "password": self.password},
+                allow_redirects=False,
+                timeout=TIMEOUT,
+            )
+            # 302 redirect to / means success; redirect to /lua/login.lua means failure
+            location = resp.headers.get("Location", "")
+            if "login" in location or "wrong" in location:
+                logger.error("ntopng auth failed — wrong credentials")
+                return
+            self._authenticated = True
+        except Exception as e:
+            logger.error(f"ntopng auth error: {e}")
 
     def _get(self, endpoint: str, params: dict = None) -> dict:
-        """Make a GET request to ntopng API."""
+        """Make a GET request to ntopng API with session auth."""
+        self._ensure_auth()
         try:
             url = f"{self.base_url}{endpoint}"
             resp = self.session.get(url, params=params, timeout=TIMEOUT)
             resp.raise_for_status()
-            return resp.json()
+            ct = resp.headers.get("Content-Type", "")
+            if "json" in ct or resp.text.strip().startswith("{"):
+                return resp.json()
+            # Got HTML instead of JSON — auth may have expired
+            if self._authenticated:
+                self._authenticated = False
+                self._ensure_auth()
+                resp = self.session.get(url, params=params, timeout=TIMEOUT)
+                if "json" in resp.headers.get("Content-Type", ""):
+                    return resp.json()
+            logger.warning(f"ntopng returned HTML for {endpoint}")
+            return {"rc": -1}
         except Exception as e:
             logger.error(f"ntopng API error: {endpoint} — {e}")
             return {"rc": -1}
 
     def is_healthy(self) -> bool:
-        """Check if ntopng is reachable."""
+        """Check if ntopng is reachable and authenticated."""
         try:
-            resp = self.session.get(f"{self.base_url}/lua/rest/v2/get/ntopng/interfaces.lua", timeout=5)
+            self._ensure_auth()
+            resp = self.session.get(
+                f"{self.base_url}/lua/rest/v2/get/ntopng/interfaces.lua",
+                timeout=5,
+            )
             return resp.status_code == 200
         except Exception:
             return False
 
-    def get_interfaces(self) -> list[dict]:
+    def get_interfaces(self) -> list:
         data = self._get("/lua/rest/v2/get/ntopng/interfaces.lua")
         return data.get("rsp", [])
 
-    def get_hosts(self, ifid: int = 0) -> list[dict]:
+    def get_hosts(self, ifid: int = 0) -> list:
         data = self._get("/lua/rest/v2/get/host/active.lua", {"ifid": ifid})
         return data.get("rsp", [])
 
@@ -60,11 +100,11 @@ class NtopngService:
         data = self._get("/lua/rest/v2/get/interface/data.lua", {"ifid": ifid})
         return data.get("rsp", {})
 
-    def get_top_talkers(self, ifid: int = 0) -> list[dict]:
+    def get_top_talkers(self, ifid: int = 0) -> list:
         data = self._get("/lua/rest/v2/get/host/top.lua", {"ifid": ifid})
         return data.get("rsp", [])
 
-    def get_flows(self, ifid: int = 0) -> list[dict]:
+    def get_flows(self, ifid: int = 0) -> list:
         data = self._get("/lua/rest/v2/get/flow/active.lua", {"ifid": ifid})
         return data.get("rsp", [])
 
@@ -72,6 +112,6 @@ class NtopngService:
         data = self._get("/lua/rest/v2/get/interface/l7/stats.lua", {"ifid": ifid})
         return data.get("rsp", {})
 
-    def get_host_traffic_history(self, host_ip: str, ifid: int = 0) -> list[dict]:
+    def get_host_traffic_history(self, host_ip: str, ifid: int = 0) -> list:
         data = self._get("/lua/rest/v2/get/host/ts.lua", {"ifid": ifid, "host": host_ip})
         return data.get("rsp", [])

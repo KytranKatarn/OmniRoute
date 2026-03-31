@@ -296,6 +296,54 @@
       font-size: 12px;
     }
 
+    /* ── MARKET SIGNALS ── */
+    .mw-signals-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .mw-signal-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--mw-panel);
+      border: 1px solid var(--mw-border);
+      border-radius: 4px;
+      padding: 10px 14px;
+    }
+    .mw-signal-ticker {
+      flex-shrink: 0;
+      background: var(--mw-cyan);
+      color: #000;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      padding: 2px 8px;
+      border-radius: 3px;
+      min-width: 44px;
+      text-align: center;
+    }
+    .mw-signal-headline {
+      flex: 1;
+      font-size: 13px;
+      color: var(--mw-text);
+      line-height: 1.4;
+    }
+    .mw-signal-sent {
+      flex-shrink: 0;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      padding: 2px 8px;
+      border-radius: 3px;
+    }
+    .mw-signal-source {
+      flex-shrink: 0;
+      font-size: 10px;
+      color: var(--mw-muted);
+      letter-spacing: 0.05em;
+    }
+
     /* ── TIERS ── */
     .mw-tiers-grid {
       display: grid;
@@ -502,6 +550,21 @@
     <div class="mw-section-sub">Most recent AI analysis outputs &mdash; full history available after sign-in</div>
     <div id="recentCallsContainer">
       <div class="mw-calls-loading">[ LOADING ANALYSIS DATA&hellip; ]</div>
+    </div>
+  </section>
+
+  <div class="mw-divider">
+    <div class="mw-divider-line"></div>
+    <div class="mw-divider-label">LATEST MARKET SIGNALS</div>
+    <div class="mw-divider-line"></div>
+  </div>
+
+  <!-- MARKET SIGNALS -->
+  <section class="mw-section">
+    <div class="mw-section-title">Latest Market Signals</div>
+    <div class="mw-section-sub">Real-time headlines with VADER sentiment scoring</div>
+    <div id="marketSignalsContainer">
+      <div class="mw-calls-loading">[ LOADING MARKET SIGNALS&hellip; ]</div>
     </div>
   </section>
 
@@ -739,6 +802,89 @@
             var errDiv = document.createElement('div');
             errDiv.className = 'mw-calls-error';
             errDiv.textContent = '[ TRACK RECORD UNAVAILABLE — SIGN IN FOR LIVE DATA ]';
+            container.appendChild(errDiv);
+          }
+        });
+
+      // ── render market signals ─────────────────────────────────────────────────
+      function renderMarketSignals(items) {
+        var container = document.getElementById('marketSignalsContainer');
+        if (!container) return;
+        container.textContent = '';
+
+        if (!items || items.length === 0) {
+          var empty = document.createElement('div');
+          empty.className = 'mw-calls-loading';
+          empty.textContent = 'No market signals yet';
+          container.appendChild(empty);
+          return;
+        }
+
+        var list = document.createElement('div');
+        list.className = 'mw-signals-list';
+
+        items.slice(0, 5).forEach(function (item) {
+          var row = document.createElement('div');
+          row.className = 'mw-signal-row';
+
+          // Ticker badge
+          var tickerBadge = document.createElement('span');
+          tickerBadge.className = 'mw-signal-ticker';
+          tickerBadge.textContent = item.ticker || '--';
+          row.appendChild(tickerBadge);
+
+          // Headline
+          var headline = document.createElement('span');
+          headline.className = 'mw-signal-headline';
+          headline.textContent = item.headline || '';
+          row.appendChild(headline);
+
+          // VADER sentiment badge
+          var sentBadge = document.createElement('span');
+          var sent = (item.vader_sentiment || 'neutral').toLowerCase();
+          sentBadge.className = 'mw-signal-sent';
+          if (sent === 'positive') {
+            sentBadge.style.background = '#10b981';
+            sentBadge.style.color = '#000';
+          } else if (sent === 'negative') {
+            sentBadge.style.background = '#ef4444';
+            sentBadge.style.color = '#fff';
+          } else {
+            sentBadge.style.background = '#6b7280';
+            sentBadge.style.color = '#fff';
+          }
+          sentBadge.textContent = sent.toUpperCase();
+          row.appendChild(sentBadge);
+
+          // Source label
+          var source = document.createElement('span');
+          source.className = 'mw-signal-source';
+          source.textContent = item.source || '';
+          row.appendChild(source);
+
+          list.appendChild(row);
+        });
+
+        container.appendChild(list);
+      }
+
+      // ── fetch public news ─────────────────────────────────────────────────────
+      fetch('/api/public/news')
+        .then(function (res) {
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          return res.json();
+        })
+        .then(function (data) {
+          renderMarketSignals(data.news || []);
+        })
+        .catch(function (err) {
+          console.warn('Market Watch: news fetch failed', err);
+          var container = document.getElementById('marketSignalsContainer');
+          if (container) {
+            container.textContent = '';
+            var errDiv = document.createElement('div');
+            errDiv.className = 'mw-calls-loading';
+            errDiv.textContent = 'No market signals yet';
             container.appendChild(errDiv);
           }
         });

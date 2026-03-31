@@ -229,3 +229,12 @@ CREATE TABLE IF NOT EXISTS portfolio_metrics (
 
 -- Seed portfolio metrics if empty
 INSERT OR IGNORE INTO portfolio_metrics (id, peak_value) VALUES (1, 100000.0);
+
+-- Trading configuration (single row, DB overrides env var defaults)
+CREATE TABLE IF NOT EXISTS trading_config (
+    id INTEGER PRIMARY KEY,
+    config JSON NOT NULL DEFAULT '{}',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT OR IGNORE INTO trading_config (id, config) VALUES (1, '{}');

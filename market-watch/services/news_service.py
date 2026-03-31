@@ -29,19 +29,35 @@ def fetch_yfinance_news(ticker):
         news = t.news or []
         results = []
         for item in news[:20]:
-            headline = item.get("title", "")
+            # yfinance 0.2.54+: news items nested under 'content' key
+            content = item.get("content", item)
+            headline = content.get("title", "")
             if not headline:
                 continue
             published = None
-            pub_ts = item.get("providerPublishTime")
-            if pub_ts:
+            pub_date = content.get("pubDate")
+            if pub_date and isinstance(pub_date, str):
                 try:
-                    published = datetime.fromtimestamp(pub_ts).isoformat()
+                    published = datetime.fromisoformat(pub_date.replace("Z", "+00:00")).isoformat()
+                except (ValueError, TypeError):
+                    published = pub_date
+            elif content.get("providerPublishTime"):
+                try:
+                    published = datetime.fromtimestamp(content["providerPublishTime"]).isoformat()
                 except (ValueError, TypeError, OSError):
                     pass
+            # URL may be nested under canonicalUrl or clickThroughUrl
+            url = ""
+            canon = content.get("canonicalUrl") or content.get("clickThroughUrl")
+            if isinstance(canon, dict):
+                url = canon.get("url", "")
+            elif isinstance(canon, str):
+                url = canon
+            else:
+                url = content.get("link", "")
             results.append({
                 "headline": headline,
-                "url": item.get("link", ""),
+                "url": url,
                 "published_at": published,
                 "source": "yfinance",
             })

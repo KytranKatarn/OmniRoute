@@ -19,7 +19,12 @@ Usage:
 
 import json
 import os
-from db import _get_db_password
+try:
+    from db import _get_db_password
+except ImportError:
+    def _get_db_password():
+        """Fallback: read DB password from env."""
+        return os.getenv("DB_PASSWORD", "")
 import logging
 import re
 import psycopg2

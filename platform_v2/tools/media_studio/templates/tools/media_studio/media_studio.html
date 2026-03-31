@@ -27,6 +27,247 @@
         cursor: not-allowed;
         pointer-events: none;
     }
+
+    /* ── Social Video Tab (sv- prefix) ──────────────── */
+
+    /* Stats bar */
+    .sv-stats-bar {
+        display: flex;
+        gap: 12px;
+        padding: 16px 20px 12px;
+        flex-wrap: wrap;
+    }
+    .sv-stat-box {
+        flex: 1;
+        min-width: 120px;
+        background: rgba(0,0,0,0.25);
+        border: 1px solid rgba(0,229,255,0.15);
+        border-radius: 6px;
+        padding: 12px 16px;
+        text-align: center;
+    }
+    .sv-stat-num {
+        font-family: 'Orbitron', sans-serif;
+        font-size: 1.5rem;
+        color: #00e5ff;
+        line-height: 1;
+        margin-bottom: 4px;
+    }
+    .sv-stat-label {
+        font-size: 0.7rem;
+        color: rgba(255,255,255,0.5);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    /* Create section */
+    .sv-create-section,
+    .sv-queue-section {
+        padding: 0 20px 20px;
+    }
+    .sv-form-grid {
+        background: rgba(0,0,0,0.2);
+        border: 1px solid rgba(0,229,255,0.1);
+        border-radius: 8px;
+        padding: 16px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    .sv-form-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    .sv-label {
+        font-size: 0.75rem;
+        color: rgba(255,255,255,0.6);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        min-width: 100px;
+        padding-top: 8px;
+        flex-shrink: 0;
+    }
+    .sv-select,
+    .sv-textarea {
+        flex: 1;
+        background: rgba(0,0,0,0.3);
+        border: 1px solid rgba(0,229,255,0.2);
+        border-radius: 4px;
+        color: #e0f7ff;
+        padding: 7px 10px;
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.82rem;
+        outline: none;
+        transition: border-color 0.2s;
+    }
+    .sv-select:focus,
+    .sv-textarea:focus {
+        border-color: #00e5ff;
+    }
+    .sv-textarea { resize: vertical; }
+    .sv-platform-checks {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        padding-top: 6px;
+    }
+    .sv-check-label {
+        font-size: 0.82rem;
+        color: rgba(255,255,255,0.75);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+    }
+    .sv-check-label input { accent-color: #00e5ff; }
+    .sv-form-actions {
+        display: flex;
+        justify-content: flex-end;
+        padding-top: 4px;
+    }
+
+    /* Filter bar */
+    .sv-filter-bar {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+    }
+    .sv-filter-btn {
+        background: rgba(0,0,0,0.25);
+        border: 1px solid rgba(0,229,255,0.15);
+        border-radius: 4px;
+        color: rgba(255,255,255,0.6);
+        padding: 5px 14px;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .sv-filter-btn:hover { border-color: #00e5ff; color: #00e5ff; }
+    .sv-filter-btn.active {
+        background: rgba(0,229,255,0.12);
+        border-color: #00e5ff;
+        color: #00e5ff;
+    }
+
+    /* Queue list */
+    .sv-queue-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    .sv-queue-empty {
+        text-align: center;
+        color: rgba(255,255,255,0.35);
+        font-size: 0.85rem;
+        padding: 32px 0;
+    }
+    .sv-queue-card {
+        background: rgba(0,0,0,0.22);
+        border: 1px solid rgba(0,229,255,0.1);
+        border-radius: 6px;
+        padding: 12px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .sv-card-top {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .sv-badge {
+        font-size: 0.68rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 2px 8px;
+        border-radius: 3px;
+    }
+    .sv-badge-type-agent_moment   { background: rgba(244,114,182,0.2); color: #f472b6; border: 1px solid rgba(244,114,182,0.3); }
+    .sv-badge-type-motivational   { background: rgba(251,191,36,0.2);  color: #fbbf24; border: 1px solid rgba(251,191,36,0.3); }
+    .sv-badge-type-employer_branding { background: rgba(139,92,246,0.2); color: #a78bfa; border: 1px solid rgba(139,92,246,0.3); }
+    .sv-badge-type-recruitment    { background: rgba(16,185,129,0.2);  color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+    .sv-badge-status {
+        background: rgba(0,229,255,0.12);
+        color: #00e5ff;
+        border: 1px solid rgba(0,229,255,0.25);
+    }
+    .sv-card-agent {
+        font-size: 0.78rem;
+        color: rgba(255,255,255,0.5);
+        margin-left: auto;
+    }
+    .sv-card-date {
+        font-size: 0.72rem;
+        color: rgba(255,255,255,0.35);
+    }
+    .sv-card-prompt {
+        font-size: 0.82rem;
+        color: rgba(255,255,255,0.75);
+        font-family: 'IBM Plex Mono', monospace;
+    }
+    .sv-card-caption {
+        font-size: 0.78rem;
+        color: rgba(255,255,255,0.5);
+        font-style: italic;
+    }
+    .sv-card-platforms {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+    .sv-platform-tag {
+        font-size: 0.68rem;
+        padding: 2px 7px;
+        border-radius: 3px;
+        background: rgba(255,255,255,0.08);
+        color: rgba(255,255,255,0.5);
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+    .sv-card-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 4px;
+    }
+    .sv-action-btn {
+        font-size: 0.72rem;
+        padding: 4px 12px;
+        border-radius: 4px;
+        border: 1px solid rgba(0,229,255,0.3);
+        background: rgba(0,229,255,0.08);
+        color: #00e5ff;
+        cursor: pointer;
+        transition: all 0.15s;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    .sv-action-btn:hover { background: rgba(0,229,255,0.18); }
+    .sv-action-btn.sv-btn-reject {
+        border-color: rgba(239,68,68,0.3);
+        background: rgba(239,68,68,0.08);
+        color: #f87171;
+    }
+    .sv-action-btn.sv-btn-reject:hover { background: rgba(239,68,68,0.18); }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .sv-stats-bar { gap: 8px; padding: 12px 12px 8px; }
+        .sv-stat-num  { font-size: 1.2rem; }
+        .sv-form-row  { flex-direction: column; gap: 4px; }
+        .sv-label     { min-width: unset; padding-top: 0; }
+        .sv-create-section, .sv-queue-section { padding: 0 12px 16px; }
+    }
+    @media (max-width: 480px) {
+        .sv-stat-box  { min-width: 80px; padding: 8px 10px; }
+        .sv-stat-num  { font-size: 1rem; }
+        .sv-form-grid { padding: 12px; }
+    }
 </style>
 
 <!-- ================================================================
@@ -55,6 +296,10 @@
         <button class="glass-nav-item" data-tab="queue">
             <i data-lucide="list-ordered" style="width:16px;height:16px;"></i>
             <span data-i18n="media_studio.queue">Queue</span>
+        </button>
+        <button class="glass-nav-item" data-tab="social-video">
+            <i data-lucide="video" style="width:16px;height:16px;"></i>
+            <span>Social Video</span>
         </button>
     </div>
 </nav>
@@ -716,6 +961,113 @@
         </div>
     </div>
 
+    <!-- ================================================================
+         S06  SOCIAL VIDEO TAB
+         ================================================================ -->
+    <div id="ms-tab-social-video" class="ms-tab-pane">
+
+        <!-- Stats Bar -->
+        <div class="sv-stats-bar">
+            <div class="sv-stat-box">
+                <div class="sv-stat-num" id="svStatDailyBudget">--</div>
+                <div class="sv-stat-label">Daily Budget</div>
+            </div>
+            <div class="sv-stat-box">
+                <div class="sv-stat-num" id="svStatMonthlyBudget">--</div>
+                <div class="sv-stat-label">Monthly Budget</div>
+            </div>
+            <div class="sv-stat-box">
+                <div class="sv-stat-num" id="svStatPostedWeek">--</div>
+                <div class="sv-stat-label">Posted This Week</div>
+            </div>
+            <div class="sv-stat-box">
+                <div class="sv-stat-num" id="svStatAwaiting">--</div>
+                <div class="sv-stat-label">Awaiting Review</div>
+            </div>
+        </div>
+
+        <!-- Create Form -->
+        <div class="sv-create-section">
+            <div class="ms-section-header">
+                <div class="ms-section-cap"></div>
+                <span class="ms-section-title">Create Social Video</span>
+            </div>
+            <div class="sv-form-grid">
+                <div class="sv-form-row">
+                    <label class="sv-label">Content Type</label>
+                    <select id="svContentType" class="sv-select" onchange="svOnContentTypeChange()">
+                        <option value="agent_moment">Agent Moment</option>
+                        <option value="motivational">Motivational</option>
+                        <option value="employer_branding">Employer Branding</option>
+                        <option value="recruitment">Recruitment</option>
+                    </select>
+                </div>
+                <div class="sv-form-row" id="svAgentPickerRow">
+                    <label class="sv-label">Agent</label>
+                    <select id="svAgentPicker" class="sv-select">
+                        <option value="">Loading agents…</option>
+                    </select>
+                </div>
+                <div class="sv-form-row">
+                    <label class="sv-label">Template</label>
+                    <select id="svTemplate" class="sv-select" onchange="svPreviewTemplate()">
+                        <option value="">Select template…</option>
+                    </select>
+                </div>
+                <div class="sv-form-row">
+                    <label class="sv-label">Prompt</label>
+                    <textarea id="svPrompt" class="sv-textarea" rows="3" placeholder="Video prompt…"></textarea>
+                </div>
+                <div class="sv-form-row">
+                    <label class="sv-label">Caption</label>
+                    <textarea id="svCaption" class="sv-textarea" rows="2" placeholder="Post caption (leave blank for AI-generated)"></textarea>
+                </div>
+                <div class="sv-form-row">
+                    <label class="sv-label">Platforms</label>
+                    <div class="sv-platform-checks">
+                        <label class="sv-check-label"><input type="checkbox" name="svPlatform" value="instagram" checked> Instagram</label>
+                        <label class="sv-check-label"><input type="checkbox" name="svPlatform" value="facebook" checked> Facebook</label>
+                        <label class="sv-check-label"><input type="checkbox" name="svPlatform" value="indeed"> Indeed</label>
+                    </div>
+                </div>
+                <div class="sv-form-row">
+                    <label class="sv-label">Quality</label>
+                    <select id="svQuality" class="sv-select">
+                        <option value="draft">Draft — 256px (local)</option>
+                        <option value="standard" selected>Standard — 512px (cloud)</option>
+                        <option value="high">High — 768px (cloud)</option>
+                    </select>
+                </div>
+                <div class="sv-form-actions">
+                    <button class="ms-btn ms-btn-primary" onclick="svGenerate()">
+                        <i data-lucide="video" style="width:14px;height:14px;margin-right:6px;vertical-align:-2px;"></i>
+                        Generate Video
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Queue Section -->
+        <div class="sv-queue-section">
+            <div class="ms-section-header">
+                <div class="ms-section-cap"></div>
+                <span class="ms-section-title">Video Queue</span>
+            </div>
+            <div class="sv-filter-bar" id="svFilterBar">
+                <button class="sv-filter-btn active" onclick="svFilterQueue(this,'')">All</button>
+                <button class="sv-filter-btn" onclick="svFilterQueue(this,'ready')">Ready</button>
+                <button class="sv-filter-btn" onclick="svFilterQueue(this,'approved')">Approved</button>
+                <button class="sv-filter-btn" onclick="svFilterQueue(this,'scheduled')">Scheduled</button>
+                <button class="sv-filter-btn" onclick="svFilterQueue(this,'posted')">Posted</button>
+                <button class="sv-filter-btn" onclick="svFilterQueue(this,'generating')">Generating</button>
+            </div>
+            <div id="svQueueList" class="sv-queue-list">
+                <div class="sv-queue-empty">No items in queue.</div>
+            </div>
+        </div>
+
+    </div>
+
 </div><!-- /.ms-page -->
 
 
@@ -956,6 +1308,7 @@
         else if (tabId === "queue") loadQueue();
         else if (tabId === "generate") { loadModels(); loadVideoProviders(); loadAudioVoices(); loadAudioProviders(); }
         else if (tabId === "portraits") loadPortraits();
+        else if (tabId === "social-video") initSocialVideo();
 
         if (tabId !== "queue" && queuePollTimer) {
             clearInterval(queuePollTimer);
@@ -3834,6 +4187,276 @@
             closeShareModal();
             alert(data.status === 'scheduled' ? 'Post scheduled!' : 'Post queued for publishing!');
         });
+    };
+
+    /* ── Social Video ──────────────────────────────── */
+
+    var svCurrentFilter = "";
+
+    window.initSocialVideo = function() {
+        svLoadStats();
+        svLoadAgents();
+        svLoadTemplates();
+        svLoadQueue();
+    };
+
+    window.svLoadStats = function() {
+        api("GET", "/api/social-video/stats").then(function(data) {
+            document.getElementById("svStatDailyBudget").textContent   = data.daily_budget   != null ? data.daily_budget   : "--";
+            document.getElementById("svStatMonthlyBudget").textContent = data.monthly_budget != null ? data.monthly_budget : "--";
+            document.getElementById("svStatPostedWeek").textContent    = data.posted_week    != null ? data.posted_week    : "--";
+            document.getElementById("svStatAwaiting").textContent      = data.awaiting_review != null ? data.awaiting_review : "--";
+        }).catch(function(err) {
+            console.error("svLoadStats failed:", err);
+        });
+    };
+
+    function svLoadAgents() {
+        api("GET", "/api/social-video/agents").then(function(data) {
+            var sel = document.getElementById("svAgentPicker");
+            sel.textContent = "";
+            var blank = document.createElement("option");
+            blank.value = "";
+            blank.textContent = "Select agent…";
+            sel.appendChild(blank);
+            var agents = data.agents || data || [];
+            agents.forEach(function(a) {
+                var opt = document.createElement("option");
+                opt.value = String(a.id);
+                opt.textContent = a.display_name || a.name;
+                sel.appendChild(opt);
+            });
+        }).catch(function(err) {
+            console.error("svLoadAgents failed:", err);
+        });
+    }
+
+    window.svOnContentTypeChange = function() {
+        var ct = document.getElementById("svContentType").value;
+        var row = document.getElementById("svAgentPickerRow");
+        row.style.display = ct === "agent_moment" ? "flex" : "none";
+        svLoadTemplates();
+    };
+
+    window.svLoadTemplates = function() {
+        var ct = document.getElementById("svContentType").value;
+        api("GET", "/api/social-video/templates?content_type=" + encodeURIComponent(ct)).then(function(data) {
+            var sel = document.getElementById("svTemplate");
+            sel.textContent = "";
+            var blank = document.createElement("option");
+            blank.value = "";
+            blank.textContent = "Select template…";
+            sel.appendChild(blank);
+            var templates = data.templates || data || [];
+            templates.forEach(function(t) {
+                var opt = document.createElement("option");
+                opt.value = String(t.id);
+                opt.textContent = t.name;
+                sel.appendChild(opt);
+            });
+        }).catch(function(err) {
+            console.error("svLoadTemplates failed:", err);
+        });
+    };
+
+    window.svPreviewTemplate = function() {
+        var tplId = document.getElementById("svTemplate").value;
+        if (!tplId) return;
+        var agentId = document.getElementById("svAgentPicker").value || null;
+        api("POST", "/api/social-video/templates/" + tplId + "/render", { agent_id: agentId }).then(function(data) {
+            if (data.prompt)  document.getElementById("svPrompt").value  = data.prompt;
+            if (data.caption) document.getElementById("svCaption").value = data.caption;
+        }).catch(function(err) {
+            console.error("svPreviewTemplate failed:", err);
+        });
+    };
+
+    window.svGenerate = function() {
+        var platforms = [];
+        document.querySelectorAll('input[name="svPlatform"]:checked').forEach(function(cb) {
+            platforms.push(cb.value);
+        });
+        if (!platforms.length) { alert("Select at least one platform."); return; }
+
+        var payload = {
+            content_type: document.getElementById("svContentType").value,
+            agent_id:     document.getElementById("svAgentPicker").value || null,
+            template_id:  document.getElementById("svTemplate").value    || null,
+            prompt:       document.getElementById("svPrompt").value.trim(),
+            caption:      document.getElementById("svCaption").value.trim() || null,
+            platforms:    platforms,
+            quality:      document.getElementById("svQuality").value
+        };
+
+        api("POST", "/api/social-video/generate", payload).then(function(data) {
+            alert(data.message || "Generation queued!");
+            svLoadStats();
+            svLoadQueue();
+        }).catch(function(err) {
+            alert("Generate failed: " + err.message);
+        });
+    };
+
+    window.svLoadQueue = function() {
+        var url = "/api/social-video/queue";
+        if (svCurrentFilter) url += "?status=" + encodeURIComponent(svCurrentFilter);
+        api("GET", url).then(function(data) {
+            var container = document.getElementById("svQueueList");
+            container.textContent = "";
+            var items = data.items || data || [];
+            if (!items.length) {
+                var empty = document.createElement("div");
+                empty.className = "sv-queue-empty";
+                empty.textContent = "No items in queue.";
+                container.appendChild(empty);
+                return;
+            }
+            items.forEach(function(item) {
+                container.appendChild(svBuildCard(item));
+            });
+        }).catch(function(err) {
+            console.error("svLoadQueue failed:", err);
+        });
+    };
+
+    function svBuildCard(item) {
+        var card = document.createElement("div");
+        card.className = "sv-queue-card";
+
+        // Top row: type badge, status badge, agent name, date
+        var top = document.createElement("div");
+        top.className = "sv-card-top";
+
+        var typeBadge = document.createElement("span");
+        typeBadge.className = "sv-badge sv-badge-type-" + (item.content_type || "");
+        typeBadge.textContent = (item.content_type || "").replace(/_/g, " ");
+        top.appendChild(typeBadge);
+
+        var statusBadge = document.createElement("span");
+        statusBadge.className = "sv-badge sv-badge-status";
+        statusBadge.textContent = item.status || "";
+        top.appendChild(statusBadge);
+
+        if (item.agent_name) {
+            var agentEl = document.createElement("span");
+            agentEl.className = "sv-card-agent";
+            agentEl.textContent = item.agent_name;
+            top.appendChild(agentEl);
+        }
+
+        var dateEl = document.createElement("span");
+        dateEl.className = "sv-card-date";
+        dateEl.textContent = item.created_at ? item.created_at.slice(0, 16).replace("T", " ") : "";
+        top.appendChild(dateEl);
+        card.appendChild(top);
+
+        // Prompt
+        if (item.prompt) {
+            var promptEl = document.createElement("div");
+            promptEl.className = "sv-card-prompt";
+            promptEl.textContent = truncate(item.prompt, 120);
+            card.appendChild(promptEl);
+        }
+
+        // Caption
+        if (item.caption) {
+            var captionEl = document.createElement("div");
+            captionEl.className = "sv-card-caption";
+            captionEl.textContent = truncate(item.caption, 100);
+            card.appendChild(captionEl);
+        }
+
+        // Platforms
+        var platforms = item.platforms || [];
+        if (typeof platforms === "string") {
+            try { platforms = JSON.parse(platforms); } catch(e) { platforms = [platforms]; }
+        }
+        if (platforms.length) {
+            var plRow = document.createElement("div");
+            plRow.className = "sv-card-platforms";
+            platforms.forEach(function(p) {
+                var tag = document.createElement("span");
+                tag.className = "sv-platform-tag";
+                tag.textContent = p;
+                plRow.appendChild(tag);
+            });
+            card.appendChild(plRow);
+        }
+
+        // Actions
+        var actions = document.createElement("div");
+        actions.className = "sv-card-actions";
+
+        if (item.status === "ready") {
+            var approveBtn = document.createElement("button");
+            approveBtn.className = "sv-action-btn";
+            approveBtn.textContent = "Approve";
+            approveBtn.onclick = (function(id) { return function() { svApprove(id); }; })(item.id);
+            actions.appendChild(approveBtn);
+
+            var rejectBtn = document.createElement("button");
+            rejectBtn.className = "sv-action-btn sv-btn-reject";
+            rejectBtn.textContent = "Reject";
+            rejectBtn.onclick = (function(id) { return function() { svReject(id); }; })(item.id);
+            actions.appendChild(rejectBtn);
+        }
+
+        if (item.status === "approved") {
+            var schedBtn = document.createElement("button");
+            schedBtn.className = "sv-action-btn";
+            schedBtn.textContent = "Schedule";
+            schedBtn.onclick = (function(id) { return function() { svSchedule(id); }; })(item.id);
+            actions.appendChild(schedBtn);
+        }
+
+        if (item.video_path) {
+            var previewBtn = document.createElement("button");
+            previewBtn.className = "sv-action-btn";
+            previewBtn.textContent = "Preview";
+            previewBtn.onclick = (function(path) {
+                return function() { window.open(path, "_blank"); };
+            })(item.video_path);
+            actions.appendChild(previewBtn);
+        }
+
+        if (actions.childNodes.length) card.appendChild(actions);
+        return card;
+    }
+
+    window.svFilterQueue = function(btn, status) {
+        document.querySelectorAll(".sv-filter-btn").forEach(function(b) {
+            b.classList.remove("active");
+        });
+        btn.classList.add("active");
+        svCurrentFilter = status;
+        svLoadQueue();
+    };
+
+    window.svApprove = function(id) {
+        api("POST", "/api/social-video/queue/" + id + "/approve", {}).then(function() {
+            alert("Approved!");
+            svLoadQueue();
+            svLoadStats();
+        }).catch(function(err) { alert("Approve failed: " + err.message); });
+    };
+
+    window.svReject = function(id) {
+        var reason = window.prompt("Rejection reason (optional):");
+        if (reason === null) return; // cancelled
+        api("POST", "/api/social-video/queue/" + id + "/reject", { reason: reason || "" }).then(function() {
+            alert("Rejected.");
+            svLoadQueue();
+            svLoadStats();
+        }).catch(function(err) { alert("Reject failed: " + err.message); });
+    };
+
+    window.svSchedule = function(id) {
+        var dt = window.prompt("Schedule datetime (ISO, e.g. 2026-04-01T10:00:00):");
+        if (!dt) return;
+        api("POST", "/api/social-video/queue/" + id + "/schedule", { scheduled_at: dt }).then(function() {
+            alert("Scheduled!");
+            svLoadQueue();
+        }).catch(function(err) { alert("Schedule failed: " + err.message); });
     };
 
 })();

@@ -33,38 +33,43 @@
 /* Tab Navigation */
 .tab-nav {
     display: flex;
-    gap: 4px;
+    gap: 6px;
     margin-bottom: 20px;
     overflow-x: auto;
     scrollbar-width: thin;
-    padding-bottom: 4px;
+    padding: 8px 0;
+    flex-wrap: wrap;
 }
 .tab-btn {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 10px 16px;
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 8px 8px 0 0;
+    padding: 8px 18px;
+    background: transparent;
+    border: 1px solid var(--archie-accent-alpha-20);
+    border-radius: 20px;
     color: var(--archie-text-muted);
     cursor: pointer;
-    font-size: 0.85rem;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.8rem;
     font-weight: 500;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
     white-space: nowrap;
-    transition: all 0.2s;
+    transition: all 0.3s ease;
 }
 .tab-btn:hover {
     color: var(--archie-text-primary);
     border-color: var(--archie-accent);
     background: var(--archie-accent-alpha-10);
+    box-shadow: 0 0 12px var(--archie-accent-alpha-20);
 }
 .tab-btn.active {
-    color: var(--archie-accent);
+    color: #010409;
+    background: var(--archie-accent);
     border-color: var(--archie-accent);
-    border-bottom-color: transparent;
-    background: var(--archie-bg-primary);
-    box-shadow: 0 -2px 8px var(--archie-accent-alpha-20);
+    box-shadow: 0 0 16px var(--archie-accent-alpha-30);
+    font-weight: 600;
 }
 .tab-content {
     display: none;
@@ -249,42 +254,53 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 8px 16px;
-    border: 1px solid var(--archie-border-default);
-    border-radius: 6px;
+    padding: 8px 18px;
+    border: 1px solid var(--archie-accent-alpha-20);
+    border-radius: 20px;
     cursor: pointer;
-    font-size: 0.82rem;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.78rem;
     font-weight: 500;
-    transition: all 0.2s;
-    background: var(--archie-bg-secondary);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    transition: all 0.3s ease;
+    background: transparent;
     color: var(--archie-text-secondary);
 }
 .btn:hover {
     border-color: var(--archie-accent);
     color: var(--archie-accent);
+    background: var(--archie-accent-alpha-10);
+    box-shadow: 0 0 12px var(--archie-accent-alpha-20);
 }
-.btn-sm { padding: 5px 10px; font-size: 0.75rem; }
+.btn-sm { padding: 5px 12px; font-size: 0.7rem; border-radius: 14px; }
 .btn-primary {
     background: var(--archie-accent);
-    color: #000;
+    color: #010409;
     border-color: var(--archie-accent);
     font-weight: 600;
+    box-shadow: 0 0 8px var(--archie-accent-alpha-20);
 }
 .btn-primary:hover {
-    box-shadow: 0 0 12px var(--archie-accent-alpha-30);
+    box-shadow: 0 0 20px var(--archie-accent-alpha-30);
     transform: translateY(-1px);
-    color: #000;
+    color: #010409;
+    filter: brightness(1.1);
 }
 .btn-danger {
     color: var(--archie-red);
-    border-color: var(--archie-red);
+    border: 1px solid var(--archie-red);
+    border-radius: 20px;
+    background: transparent;
 }
-.btn-danger:hover { background: var(--archie-red-alpha-10); color: var(--archie-red); }
+.btn-danger:hover { background: var(--archie-red-alpha-10); color: var(--archie-red); box-shadow: 0 0 12px rgba(239, 68, 68, 0.2); }
 .btn-success {
     color: var(--archie-green);
-    border-color: var(--archie-green);
+    border: 1px solid var(--archie-green);
+    border-radius: 20px;
+    background: transparent;
 }
-.btn-success:hover { background: var(--archie-green-alpha-10); color: var(--archie-green); }
+.btn-success:hover { background: var(--archie-green-alpha-10); color: var(--archie-green); box-shadow: 0 0 12px rgba(0, 255, 65, 0.2); }
 
 /* Status Badges */
 .badge {

@@ -19,6 +19,8 @@ const FLOOR_ORDER = ['BRIDGE', 'OPERATIONS', 'ENGINEERING', 'CREATIVE', 'SERVICE
 // Track which tabs have been loaded
 const loaded = {};
 let rosterDebounce = null;
+let rosterView = 'cards'; // 'cards' or 'table'
+let lastRosterData = null; // cache for view switching
 
 // ───────────────────────────────────────────────────────────────
 // Helpers
@@ -270,6 +272,16 @@ function debounceRoster() {
     rosterDebounce = setTimeout(loadRoster, 300);
 }
 
+function setRosterView(view) {
+    rosterView = view;
+    document.querySelectorAll('.dhq-view-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.view === view);
+    });
+    if (lastRosterData) {
+        renderRoster(lastRosterData);
+    }
+}
+
 async function loadRoster() {
     var el = document.getElementById('rosterContent');
     var search = document.getElementById('rosterSearch').value;
@@ -284,6 +296,7 @@ async function loadRoster() {
     try {
         var data = await api('/api/roster?' + params.toString());
         loaded['roster'] = true;
+        lastRosterData = data;
 
         document.getElementById('rosterCount').textContent = data.total + ' agents';
 
@@ -292,29 +305,119 @@ async function loadRoster() {
             return;
         }
 
-        var html = '<table class="dhq-roster-table">'
-            + '<thead><tr>'
-            + '<th>Agent</th><th>Department</th><th>Floor</th><th>Shift</th><th>Role</th><th>Actions</th>'
-            + '</tr></thead><tbody>';
-
-        for (var i = 0; i < data.agents.length; i++) {
-            var a = data.agents[i];
-            var color = floorColor(a.floor);
-            html += '<tr class="dhq-roster-row" onclick="openAgentDetail(' + a.id + ')">'
-                + '<td><div style="font-weight:600">' + esc(a.display_name || a.name) + '</div>'
-                + '<div style="font-size:0.7rem;color:var(--dhq-text-dim)">' + esc(a.name) + '</div></td>'
-                + '<td style="color:' + color + '">' + esc(a.department) + '</td>'
-                + '<td>' + esc(a.floor) + '</td>'
-                + '<td>' + shiftBadge(a.shift_state) + '</td>'
-                + '<td>' + (a.is_department_ai ? '<span class="dhq-role-director">DIRECTOR</span>' : 'Staff') + '</td>'
-                + '<td><button class="dhq-action-btn" onclick="event.stopPropagation();toggleShift(' + a.id + ',\'' + esc(a.shift_state) + '\')">Shift</button></td>'
-                + '</tr>';
-        }
-        html += '</tbody></table>';
-        setHtml(el, html);
+        renderRoster(data);
     } catch (err) {
         setHtml(el, '<div class="dhq-empty">Error loading roster: ' + esc(err.message) + '</div>');
     }
+}
+
+function renderRoster(data) {
+    var el = document.getElementById('rosterContent');
+    if (rosterView === 'table') {
+        renderRosterTable(data, el);
+    } else {
+        renderRosterCards(data, el);
+    }
+}
+
+function renderRosterTable(data, el) {
+    var html = '<table class="dhq-roster-table">'
+        + '<thead><tr>'
+        + '<th>Agent</th><th>Department</th><th>Floor</th><th>Shift</th><th>Role</th><th>Actions</th>'
+        + '</tr></thead><tbody>';
+
+    for (var i = 0; i < data.agents.length; i++) {
+        var a = data.agents[i];
+        var color = floorColor(a.floor);
+        html += '<tr class="dhq-roster-row" onclick="openAgentDetail(' + a.id + ')">'
+            + '<td><div style="font-weight:600">' + esc(a.display_name || a.name) + '</div>'
+            + '<div style="font-size:0.7rem;color:var(--dhq-text-dim)">' + esc(a.name) + '</div></td>'
+            + '<td style="color:' + color + '">' + esc(a.department) + '</td>'
+            + '<td>' + esc(a.floor) + '</td>'
+            + '<td>' + shiftBadge(a.shift_state) + '</td>'
+            + '<td>' + (a.is_department_ai ? '<span class="dhq-role-director">DIRECTOR</span>' : 'Staff') + '</td>'
+            + '<td><button class="dhq-action-btn" onclick="event.stopPropagation();toggleShift(' + a.id + ',\'' + esc(a.shift_state) + '\')">Shift</button></td>'
+            + '</tr>';
+    }
+    html += '</tbody></table>';
+    setHtml(el, html);
+}
+
+// ── Shift group config ──
+var SHIFT_GROUPS = [
+    { key: 'active',       label: 'ON DUTY',       color: '#10b981', icon: '\u25CF' },
+    { key: 'winding_down', label: 'WINDING DOWN',  color: '#f97316', icon: '\u25D6' },
+    { key: 'deployed',     label: 'DEPLOYED',       color: '#0ea5e9', icon: '\u2B06' },
+    { key: 'barracked',    label: 'BARRACKED',      color: '#6b7280', icon: '\u2588' },
+    { key: 'cooldown',     label: 'COOLDOWN',       color: '#f59e0b', icon: '\u2744' },
+    { key: 'off_duty',     label: 'OFF DUTY',       color: '#4b5563', icon: '\u2014' },
+];
+
+function renderRosterCards(data, el) {
+    // Group agents by shift state
+    var groups = {};
+    SHIFT_GROUPS.forEach(function(g) { groups[g.key] = []; });
+
+    data.agents.forEach(function(a) {
+        var key = a.shift_state || 'off_duty';
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(a);
+    });
+
+    var html = '';
+
+    SHIFT_GROUPS.forEach(function(g) {
+        var agents = groups[g.key];
+        if (!agents || agents.length === 0) return;
+
+        var groupId = 'crew-group-' + g.key;
+        html += '<div class="dhq-crew-group">'
+            + '<div class="dhq-crew-group-header" onclick="toggleCrewGroup(\'' + groupId + '\')" style="--group-color:' + g.color + '">'
+            + '<span class="dhq-crew-group-icon" style="color:' + g.color + '">' + g.icon + '</span>'
+            + '<span class="dhq-crew-group-label" style="color:' + g.color + '">' + g.label + '</span>'
+            + '<span class="dhq-crew-group-count">' + agents.length + '</span>'
+            + '<span class="dhq-crew-group-chevron" id="chevron-' + groupId + '">\u25BC</span>'
+            + '</div>'
+            + '<div class="dhq-crew-grid" id="' + groupId + '">';
+
+        agents.forEach(function(a) {
+            var color = floorColor(a.floor);
+            var initials = (a.display_name || a.name || '?').split(' ').map(function(w) { return w[0]; }).join('').substring(0, 2).toUpperCase();
+
+            html += '<div class="dhq-crew-card" onclick="openAgentDetail(' + a.id + ')" style="--card-accent:' + color + '">'
+                + '<div class="dhq-crew-card-top">'
+                + '<div class="dhq-crew-avatar" style="border-color:' + color + '">'
+                + '<span>' + esc(initials) + '</span>'
+                + '</div>'
+                + '<div class="dhq-crew-card-info">'
+                + '<div class="dhq-crew-card-name">' + esc(a.display_name || a.name) + '</div>'
+                + '<div class="dhq-crew-card-code">' + esc(a.name) + '</div>'
+                + '</div>'
+                + '</div>'
+                + '<div class="dhq-crew-card-meta">'
+                + '<div class="dhq-crew-card-dept" style="color:' + color + '">' + esc(a.department) + '</div>'
+                + '<span class="dhq-crew-floor-badge" style="background:' + color + '20;color:' + color + '">' + esc(a.floor) + '</span>'
+                + '</div>'
+                + '<div class="dhq-crew-card-bottom">'
+                + shiftBadge(a.shift_state)
+                + (a.is_department_ai ? ' <span class="dhq-role-director">DIRECTOR</span>' : '')
+                + (a.model ? '<span class="dhq-crew-model">' + esc(a.model) + '</span>' : '')
+                + '</div>'
+                + '</div>';
+        });
+
+        html += '</div></div>';
+    });
+
+    setHtml(el, html);
+}
+
+function toggleCrewGroup(groupId) {
+    var grid = document.getElementById(groupId);
+    var chevron = document.getElementById('chevron-' + groupId);
+    if (!grid) return;
+    var collapsed = grid.classList.toggle('dhq-crew-grid-collapsed');
+    if (chevron) chevron.textContent = collapsed ? '\u25B6' : '\u25BC';
 }
 
 async function toggleShift(agentId, currentState) {

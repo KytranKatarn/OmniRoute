@@ -3,3 +3,4 @@ yfinance==0.2.54
 alpaca-py==0.38.0
 requests==2.33.0
 gunicorn==23.0.0
+flask-limiter==3.12

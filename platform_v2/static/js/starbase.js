@@ -10892,6 +10892,7 @@ function startFleetRefresh() {
     _fleetRefreshInterval = setInterval(function() {
         loadFleetData();
         loadFleetUsage();
+        loadProviderManagement();
     }, 30000);
 }
 
@@ -11153,6 +11154,7 @@ function closeFleetDetail() {
                     initFleetMap();
                     if (fleetMap) fleetMap.invalidateSize();
                     loadFleetUsage();
+                    loadProviderManagement();
                     startFleetRefresh();
                 }, 100);
             } else {
@@ -11222,6 +11224,72 @@ async function loadFleetUsage() {
     }
 }
 
+/* Cloud Provider Management Panel */
+async function loadProviderManagement() {
+    try {
+        const resp = await fetch('/tools/starbase/api/providers');
+        const data = await resp.json();
+        const providers = data.providers || [];
+
+        var countEl = document.getElementById('fleetProviderCount');
+        if (countEl) countEl.textContent = providers.filter(function(p) { return p.is_active; }).length + ' active';
+
+        var grid = document.getElementById('fleetProvidersGrid');
+        if (!grid) return;
+
+        if (providers.length === 0) {
+            grid.innerHTML = '<div style="text-align:center;color:#6b7280;padding:24px;">No providers configured</div>';
+            return;
+        }
+
+        grid.innerHTML = providers
+            .sort(function(a, b) { return (a.tier_position || 99) - (b.tier_position || 99); })
+            .map(function(p) {
+                var key = (p.provider_key || '').toLowerCase();
+                var style = PROVIDER_STYLES[key] || { color: '#f97316', bg: 'rgba(249,115,22,0.3)', label: key.charAt(0).toUpperCase() };
+                var budget = p.monthly_budget_usd || 0;
+                var spent = p.current_month_cost_usd || 0;
+                var pct = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0;
+                var barColor = pct > 90 ? '#ef4444' : pct > 70 ? '#fbbf24' : '#10b981';
+                var caps = (p.capabilities || []).slice(0, 4);
+
+                return '<div class="fleet-prov-card ' + (p.is_active ? '' : 'inactive') + '">' +
+                    '<div class="fleet-prov-header">' +
+                        '<span class="fleet-prov-icon" style="background:' + style.bg + ';border-color:' + style.color + ';color:' + style.color + '">' + style.label + '</span>' +
+                        '<span class="fleet-prov-name">' + (p.provider_key || '--') + '</span>' +
+                        '<button class="fleet-prov-toggle ' + (p.is_active ? 'active' : '') + '" onclick="toggleProvider(\'' + p.provider_key + '\')">' +
+                            (p.is_active ? 'ON' : 'OFF') +
+                        '</button>' +
+                    '</div>' +
+                    '<div class="fleet-prov-details">' +
+                        '<div class="fleet-prov-row"><span>Tier</span><span>' + (p.tier_position || '--') + '</span></div>' +
+                        '<div class="fleet-prov-row"><span>Model</span><span>' + (p.default_model || '--') + '</span></div>' +
+                        '<div class="fleet-prov-row"><span>Budget</span><span>$' + budget.toFixed(2) + '</span></div>' +
+                        '<div class="fleet-prov-row">' +
+                            '<span>Spent</span>' +
+                            '<span>$' + spent.toFixed(2) + ' (' + pct.toFixed(0) + '%)</span>' +
+                        '</div>' +
+                        '<div class="fleet-prov-bar"><div class="fleet-prov-bar-fill" style="width:' + pct + '%;background:' + barColor + '"></div></div>' +
+                    '</div>' +
+                    '<div class="fleet-prov-caps">' + caps.map(function(c) { return '<span class="fleet-cap-tag">' + c + '</span>'; }).join('') + '</div>' +
+                '</div>';
+            }).join('');
+    } catch (e) {
+        console.error('Provider management load failed:', e);
+    }
+}
+
+async function toggleProvider(key) {
+    try {
+        await fetch('/tools/starbase/api/providers/' + key + '/toggle', { method: 'POST' });
+        loadProviderManagement();
+        loadFleetData();
+        loadFleetUsage();
+    } catch (e) {
+        console.error('Toggle provider failed:', e);
+    }
+}
+
 // Init if fleet-map is the default active tab
 document.addEventListener('DOMContentLoaded', function() {
     setTimeout(function() {
@@ -11229,6 +11297,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (activePanel) {
             initFleetMap();
             loadFleetUsage();
+            loadProviderManagement();
             startFleetRefresh();
         }
     }, 500);

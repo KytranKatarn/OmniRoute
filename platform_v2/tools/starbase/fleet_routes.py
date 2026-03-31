@@ -411,6 +411,87 @@ def register_fleet_routes(bp, admin_required):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+    # ------------------------------------------------------------------ #
+    # GET /api/providers — list all cloud providers
+    # ------------------------------------------------------------------ #
+    @bp.route("/api/providers")
+    @admin_required
+    def api_list_providers():
+        """List all cloud providers."""
+        try:
+            from services.fleet_service import list_providers
+
+            return jsonify({"providers": list_providers()})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ------------------------------------------------------------------ #
+    # POST /api/providers/<key>/toggle — toggle provider active/inactive
+    # ------------------------------------------------------------------ #
+    @bp.route("/api/providers/<provider_key>/toggle", methods=["POST"])
+    @admin_required
+    def api_toggle_provider(provider_key):
+        """Toggle a provider active/inactive."""
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    UPDATE contractor_providers
+                    SET is_active = NOT is_active
+                    WHERE provider_key = %s
+                    RETURNING is_active
+                    """,
+                    (provider_key,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return jsonify({"error": "Provider not found"}), 404
+                return jsonify(
+                    {
+                        "success": True,
+                        "provider_key": provider_key,
+                        "is_active": row["is_active"],
+                    }
+                )
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ------------------------------------------------------------------ #
+    # POST /api/providers/<key>/budget — update provider budget
+    # ------------------------------------------------------------------ #
+    @bp.route("/api/providers/<provider_key>/budget", methods=["POST"])
+    @admin_required
+    def api_update_provider_budget(provider_key):
+        """Update a provider's monthly budget."""
+        try:
+            from database import get_db_cursor
+
+            data = request.get_json() or {}
+            budget = float(data.get("monthly_budget_usd", 0))
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    UPDATE external_api_keys
+                    SET monthly_budget_usd = %s
+                    WHERE provider = %s
+                    RETURNING monthly_budget_usd
+                    """,
+                    (budget, provider_key),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return jsonify({"error": "Provider not found in api_keys"}), 404
+                return jsonify(
+                    {
+                        "success": True,
+                        "monthly_budget_usd": float(row["monthly_budget_usd"]),
+                    }
+                )
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
     # ── Cert Distribution ────────────────────────────────────────────
 
     WILDCARD_CERT_DIR = os.path.join(os.environ.get("FLEET_CERT_DIR", "/opt/archie-fleet/certs"), "wildcard")

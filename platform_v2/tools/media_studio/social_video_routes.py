@@ -149,7 +149,15 @@ def register_social_video_routes(bp, admin_required):
             if budget_ok.get("allowed") is False:
                 return jsonify({"error": "Budget limit reached", "budget": budget_ok}), 429
 
-        approval_tier = svs.should_auto_approve(content_type=content_type, quality=quality)
+        approval_tier = "manual"
+        if agent_id:
+            if svs.should_auto_approve(agent_id, content_type):
+                approval_tier = "auto"
+        elif content_type == "motivational":
+            approval_tier = "auto"
+
+        gen_params = dict(video_params)
+        gen_params["quality"] = quality
 
         item = svs.create_queue_item(
             content_type=content_type,
@@ -158,10 +166,9 @@ def register_social_video_routes(bp, admin_required):
             hashtags=hashtags,
             target_platforms=target_platforms,
             agent_id=agent_id,
-            quality=quality,
-            video_params=video_params,
             template_id=template_id,
             approval_tier=approval_tier,
+            generation_params=gen_params,
         )
 
         svs.update_queue_item(item["id"], status="generating")

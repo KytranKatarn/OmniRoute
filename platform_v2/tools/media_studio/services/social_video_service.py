@@ -42,8 +42,7 @@ def get_templates(content_type=None, active_only=True):
 
     with get_db_cursor() as (conn, cur):
         cur.execute(sql, params)
-        cols = [d.name for d in cur.description]
-        return [dict(zip(cols, row)) for row in cur.fetchall()]
+        return [dict(row) for row in cur.fetchall()]
 
 
 def get_template(template_id):
@@ -53,8 +52,7 @@ def get_template(template_id):
         row = cur.fetchone()
         if row is None:
             return None
-        cols = [d.name for d in cur.description]
-        return dict(zip(cols, row))
+        return dict(row)
 
 
 def render_template(template_id, variables):
@@ -114,7 +112,7 @@ def create_queue_item(
             ) VALUES (
                 %s, %s, %s, %s, %s,
                 %s, %s, %s, %s,
-                %s, %s, 'pending', NOW(), NOW()
+                %s, %s, 'draft', NOW(), NOW()
             )
             RETURNING *
             """,
@@ -122,8 +120,8 @@ def create_queue_item(
                 content_type,
                 prompt,
                 caption,
-                json.dumps(hashtags or []),
-                json.dumps(target_platforms or []),
+                hashtags or [],
+                target_platforms or [],
                 agent_id,
                 template_id,
                 approval_tier,
@@ -133,8 +131,7 @@ def create_queue_item(
             ),
         )
         row = cur.fetchone()
-        cols = [d.name for d in cur.description]
-        return dict(zip(cols, row))
+        return dict(row)
 
 
 def get_queue_items(status=None, content_type=None, limit=50, offset=0):
@@ -163,8 +160,7 @@ def get_queue_items(status=None, content_type=None, limit=50, offset=0):
 
     with get_db_cursor() as (conn, cur):
         cur.execute(sql, params)
-        cols = [d.name for d in cur.description]
-        return [dict(zip(cols, row)) for row in cur.fetchall()]
+        return [dict(row) for row in cur.fetchall()]
 
 
 def get_queue_item(item_id):
@@ -182,8 +178,7 @@ def get_queue_item(item_id):
         row = cur.fetchone()
         if row is None:
             return None
-        cols = [d.name for d in cur.description]
-        return dict(zip(cols, row))
+        return dict(row)
 
 
 _ALLOWED_UPDATE_FIELDS = {
@@ -226,8 +221,7 @@ def update_queue_item(item_id, **kwargs):
         row = cur.fetchone()
         if row is None:
             return None
-        cols = [d.name for d in cur.description]
-        return dict(zip(cols, row))
+        return dict(row)
 
 
 # ---------------------------------------------------------------------------
@@ -307,7 +301,7 @@ def should_auto_approve(agent_id, content_type):
             (agent_id, content_type),
         )
         row = cur.fetchone()
-        return bool(row and row[0])
+        return bool(row and row["auto_approved"])
 
 
 # ---------------------------------------------------------------------------
@@ -330,8 +324,8 @@ def check_budget():
             """
         )
         row = cur.fetchone()
-        daily_spent = float(row[0])
-        monthly_spent = float(row[1])
+        daily_spent = float(row["daily_spent"])
+        monthly_spent = float(row["monthly_spent"])
 
     daily_remaining = max(0.0, SOCIAL_VIDEO_DAILY_BUDGET - daily_spent)
     monthly_remaining = max(0.0, SOCIAL_VIDEO_MONTHLY_BUDGET - monthly_spent)
@@ -363,7 +357,7 @@ def log_gpu_usage(provider, job_type, cost, gpu_seconds=None, metadata=None):
                 json.dumps(metadata or {}),
             ),
         )
-        return cur.fetchone()[0]
+        return cur.fetchone()["id"]
 
 
 # ---------------------------------------------------------------------------
@@ -386,8 +380,7 @@ def pick_agent_for_content(content_type):
             LIMIT 5
             """
         )
-        cols = [d.name for d in cur.description]
-        candidates = [dict(zip(cols, row)) for row in cur.fetchall()]
+        candidates = [dict(row) for row in cur.fetchall()]
 
     if not candidates:
         return None
@@ -404,7 +397,7 @@ def get_queue_stats():
     with get_db_cursor() as (conn, cur):
         # Status counts
         cur.execute("SELECT status, COUNT(*) FROM social_content_queue GROUP BY status")
-        status_counts = {row[0]: row[1] for row in cur.fetchall()}
+        status_counts = {row["status"]: row["count"] for row in cur.fetchall()}
 
         # Posted this week
         cur.execute(
@@ -413,17 +406,17 @@ def get_queue_stats():
             WHERE posted_at >= NOW() - INTERVAL '7 days'
             """
         )
-        posted_this_week = cur.fetchone()[0]
+        posted_this_week = cur.fetchone()["count"]
 
         # Monthly cloud cost
         cur.execute(
             """
-            SELECT COALESCE(SUM(cloud_cost), 0)
+            SELECT COALESCE(SUM(cloud_cost), 0) AS monthly_cost
             FROM social_content_queue
             WHERE date_trunc('month', created_at) = date_trunc('month', NOW())
             """
         )
-        monthly_cost = float(cur.fetchone()[0])
+        monthly_cost = float(cur.fetchone()["monthly_cost"])
 
     return {
         "status_counts": status_counts,

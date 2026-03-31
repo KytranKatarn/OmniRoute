@@ -722,10 +722,10 @@ class AgentLoop:
             replace_existing=True,
         )
 
-        # Job #50 — Consciousness embedding batch (every 4h)
+        # Job #50 — Consciousness embedding batch (every 30min, 200 items/batch)
         self.scheduler.add_job(
             with_app_context(self._consciousness_embedding_batch),
-            trigger=IntervalTrigger(hours=4),
+            trigger=IntervalTrigger(minutes=30),
             id="agent_consciousness_embedding",
             name="Agent Loop: Consciousness Embedding Batch",
             replace_existing=True,

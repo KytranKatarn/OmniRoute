@@ -1201,17 +1201,17 @@ def _trigger_loop_op(op):
                 (SELECT id, title, content, 'knowledge_base' AS source
                  FROM knowledge_base
                  WHERE embedding IS NULL AND content IS NOT NULL AND LENGTH(content) > 50
-                 ORDER BY created_at DESC LIMIT 15)
+                 ORDER BY created_at DESC LIMIT 200)
                 UNION ALL
                 (SELECT id, title, decision, 'decisions'
                  FROM project_decisions
                  WHERE embedding IS NULL
-                 ORDER BY created_at DESC LIMIT 5)
+                 ORDER BY created_at DESC LIMIT 20)
                 UNION ALL
                 (SELECT id, key, text, 'translations'
                  FROM translations
                  WHERE embedding IS NULL
-                 ORDER BY created_at DESC LIMIT 5)
+                 ORDER BY created_at DESC LIMIT 20)
                 """
             )
             items = cur.fetchall()

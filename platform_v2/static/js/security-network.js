@@ -6,8 +6,13 @@ var SN_API = '/tools/security-network/api';
 /* ── Load-once flags ───────────────────────────────── */
 var _nocLoaded = false;
 var _trafficLoaded = false;
+var dnsTabLoaded = false;
 var _devicesLoaded = false;
 var _defenseLoaded = false;
+var survTabLoaded = false;
+var reconTabLoaded = false;
+var scanTabLoaded = false;
+var domainsTabLoaded = false;
 
 /* ── Poll timers ───────────────────────────────────── */
 var _nocPollTimer = null;

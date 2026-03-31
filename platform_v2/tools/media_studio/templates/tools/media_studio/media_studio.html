@@ -12,7 +12,16 @@
 {% block module_name %}media_studio{% endblock %}
 
 {% block content %}
-{% include 'includes/admin_ops_nav.html' %}
+{% set cat_accent = '#ec4899' %}
+{% set cat_accent_rgb = '236,72,153' %}
+{% set cat_accent_light = '#db2777' %}
+{% set cat_label = 'CREATIVE STUDIOS' %}
+{% set cat_icon = 'palette' %}
+{% set cat_modules = [
+    {'url': url_for('media_studio.index'), 'endpoint_prefix': 'media_studio', 'icon': 'image', 'label': 'Media Studio', 'title': 'Media Studio'},
+    {'url': url_for('game_studio.index'), 'endpoint_prefix': 'game_studio', 'icon': 'gamepad-2', 'label': 'Game Studio', 'title': 'Game Studio'}
+] %}
+{% include 'includes/category_nav.html' %}
 
 <style>
     /* Override glass-nav accent for CREATIVE station purple */

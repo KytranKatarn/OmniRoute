@@ -12,6 +12,9 @@ from db import get_db
 from services import risk_config as rc
 from services.alpaca_client import get_orders, place_order
 from services.market_data import get_quote
+from services.trading_config_service import (
+    get_full_config, update_risk_gates, set_toggle, get_toggle, reset_config,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -97,10 +100,24 @@ def order_history():
 @tier_required("ai")
 @admin_required
 def toggle_live_trading():
-    """Toggle between paper and live Alpaca trading (admin only)."""
+    """Toggle between paper and live Alpaca trading.
+    Requires both admin role AND MW_LIVE_TRADING=true env var (double-lock).
+    """
+    import os
     data = request.get_json() or {}
     enabled = data.get("enabled", False)
-    return jsonify({"success": True, "live_trading": enabled, "message": "Not yet implemented — Sub-project 3"})
+
+    env_allows = os.environ.get("MW_LIVE_TRADING", "false").lower() in ("true", "1", "yes")
+    if enabled and not env_allows:
+        return jsonify({
+            "success": False,
+            "error": "Live trading blocked — MW_LIVE_TRADING env var is not set to true",
+        }), 403
+
+    set_toggle("live_trading", enabled)
+    from services import risk_config as rc
+    rc.reload()
+    return jsonify({"success": True, "live_trading": enabled, "env_allows": env_allows})
 
 
 @trading_bp.route("/api/trading/run-cycle", methods=["POST"])
@@ -118,6 +135,10 @@ def run_cycle():
     # Kill switch
     if not rc.TRADING_ENABLED:
         return jsonify({"success": False, "error": "Trading is disabled"}), 503
+
+    # Paused check
+    if get_toggle("paused", False):
+        return jsonify({"success": True, "skipped": True, "reason": "Trading is paused"})
 
     # Dedup check
     conn = get_db()
@@ -230,6 +251,184 @@ def get_positions():
 
     state = get_portfolio_state()
     return jsonify({"success": True, "positions": state["open_positions"]})
+
+
+# --- Admin Trading Controls ---
+
+
+@trading_bp.route("/api/trading/config")
+@tier_required("ai")
+@admin_required
+def get_config():
+    """Return current risk config + mode toggles + validation ranges."""
+    return jsonify({"success": True, **get_full_config()})
+
+
+@trading_bp.route("/api/trading/config", methods=["PUT"])
+@tier_required("ai")
+@admin_required
+def update_config():
+    """Update risk gate thresholds. Saves to DB, applies immediately."""
+    data = request.get_json() or {}
+    risk_gates = data.get("risk_gates", {})
+    if not risk_gates:
+        return jsonify({"success": False, "error": "No risk_gates provided"}), 400
+
+    success, errors = update_risk_gates(risk_gates)
+    if not success:
+        return jsonify({"success": False, "errors": errors}), 400
+
+    from services import risk_config as rc
+    rc.reload()
+    return jsonify({"success": True, "message": "Config updated", **get_full_config()})
+
+
+@trading_bp.route("/api/trading/config/reset", methods=["POST"])
+@tier_required("ai")
+@admin_required
+def reset_config_endpoint():
+    """Reset all risk gates to env var defaults."""
+    reset_config()
+    from services import risk_config as rc
+    rc.reload()
+    return jsonify({"success": True, "message": "Config reset to defaults", **get_full_config()})
+
+
+@trading_bp.route("/api/trading/toggle-dry-run", methods=["POST"])
+@tier_required("ai")
+@admin_required
+def toggle_dry_run():
+    """Toggle DRY_RUN mode."""
+    data = request.get_json() or {}
+    enabled = data.get("enabled", True)
+    set_toggle("dry_run", enabled)
+    from services import risk_config as rc
+    rc.reload()
+    return jsonify({"success": True, "dry_run": enabled})
+
+
+@trading_bp.route("/api/trading/toggle-enabled", methods=["POST"])
+@tier_required("ai")
+@admin_required
+def toggle_trading_enabled():
+    """Toggle TRADING_ENABLED (kill switch)."""
+    data = request.get_json() or {}
+    enabled = data.get("enabled", True)
+    set_toggle("trading_enabled", enabled)
+    from services import risk_config as rc
+    rc.reload()
+    return jsonify({"success": True, "trading_enabled": enabled})
+
+
+@trading_bp.route("/api/trading/pause-autonomy", methods=["POST"])
+@tier_required("ai")
+@admin_required
+def pause_autonomy():
+    """Pause/resume autonomous trading cycles."""
+    data = request.get_json() or {}
+    paused = data.get("paused", True)
+    set_toggle("paused", paused)
+    return jsonify({"success": True, "paused": paused})
+
+
+@trading_bp.route("/api/trading/close-position/<int:position_id>", methods=["POST"])
+@tier_required("ai")
+@admin_required
+def close_position(position_id):
+    """Close a single open position at market price."""
+    conn = get_db()
+    try:
+        pos = conn.execute(
+            "SELECT * FROM open_positions WHERE id = ? AND status = 'open'", (position_id,)
+        ).fetchone()
+        if not pos:
+            return jsonify({"success": False, "error": "Position not found or already closed"}), 404
+
+        from services.market_data import get_quote
+        from services.position_manager import _close_position
+
+        quote = get_quote(pos["ticker"])
+        current_price = quote.get("price", pos["entry_price"])
+        result = _close_position(conn, pos, current_price, "closed")
+        conn.commit()
+
+        if result:
+            return jsonify({"success": True, "closed": result})
+        return jsonify({"success": False, "error": "Failed to close position"}), 500
+    finally:
+        conn.close()
+
+
+@trading_bp.route("/api/trading/close-all", methods=["POST"])
+@tier_required("ai")
+@admin_required
+def close_all_positions():
+    """Emergency close all open positions."""
+    conn = get_db()
+    closed = []
+    errors = []
+    try:
+        positions = conn.execute(
+            "SELECT * FROM open_positions WHERE status = 'open'"
+        ).fetchall()
+
+        if not positions:
+            return jsonify({"success": True, "message": "No open positions", "closed": []})
+
+        from services.market_data import get_quote
+        from services.position_manager import _close_position
+
+        for pos in positions:
+            quote = get_quote(pos["ticker"])
+            current_price = quote.get("price", pos["entry_price"])
+            result = _close_position(conn, pos, current_price, "closed")
+            if result:
+                closed.append(result)
+            else:
+                errors.append(pos["ticker"])
+
+        conn.commit()
+        return jsonify({
+            "success": True,
+            "closed": closed,
+            "errors": errors,
+            "total_closed": len(closed),
+        })
+    finally:
+        conn.close()
+
+
+@trading_bp.route("/api/trading/cycle-status")
+@tier_required("ai")
+@admin_required
+def cycle_status():
+    """Return last cycle results + paused state."""
+    conn = get_db()
+    try:
+        last_cycle = conn.execute(
+            "SELECT * FROM cycle_log ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        paused = get_toggle("paused", False)
+
+        result = {
+            "success": True,
+            "paused": paused,
+            "last_cycle": None,
+        }
+        if last_cycle:
+            result["last_cycle"] = {
+                "id": last_cycle["id"],
+                "status": last_cycle["status"],
+                "stocks_analyzed": last_cycle["stocks_analyzed"],
+                "trades_made": last_cycle["trades_made"],
+                "trades_skipped": last_cycle["trades_skipped"],
+                "errors": last_cycle["errors"],
+                "started_at": str(last_cycle["started_at"]) if last_cycle["started_at"] else None,
+                "completed_at": str(last_cycle["completed_at"]) if last_cycle["completed_at"] else None,
+            }
+        return jsonify(result)
+    finally:
+        conn.close()
 
 
 @trading_bp.route("/api/trading/journal")

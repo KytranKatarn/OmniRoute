@@ -344,6 +344,54 @@
       letter-spacing: 0.05em;
     }
 
+    /* ── STRATEGY PERFORMANCE ── */
+    .mw-backtest-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+    @media (max-width: 768px) {
+      .mw-backtest-grid { grid-template-columns: 1fr; }
+    }
+    .mw-backtest-card {
+      background: var(--mw-panel);
+      border: 1px solid var(--mw-border);
+      border-radius: 6px;
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .mw-backtest-name {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--mw-cyan);
+      text-transform: uppercase;
+    }
+    .mw-backtest-return {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+    .mw-return-positive { color: #22c55e; }
+    .mw-return-negative { color: var(--mw-red); }
+    .mw-backtest-metrics {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .mw-backtest-metric {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      color: var(--mw-muted);
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--mw-border);
+      border-radius: 3px;
+      padding: 3px 8px;
+    }
+
     /* ── TIERS ── */
     .mw-tiers-grid {
       display: grid;
@@ -592,6 +640,21 @@
       <div class="mw-agent-pill"><b>SHIELD</b> &mdash; Risk & volatility</div>
       <div class="mw-agent-pill"><b>ORACLE</b> &mdash; Macro & sector trends</div>
       <div class="mw-agent-pill"><b>M.A.R.K.E.T.</b> &mdash; Consensus orchestrator</div>
+    </div>
+  </section>
+
+  <div class="mw-divider">
+    <div class="mw-divider-line"></div>
+    <div class="mw-divider-label">STRATEGY PERFORMANCE</div>
+    <div class="mw-divider-line"></div>
+  </div>
+
+  <!-- STRATEGY PERFORMANCE -->
+  <section class="mw-section">
+    <div class="mw-section-title">Strategy Performance</div>
+    <div class="mw-section-sub">Backtested results across our core trading strategies</div>
+    <div id="backtestShowcaseContainer">
+      <div class="mw-calls-loading">[ LOADING STRATEGY DATA&hellip; ]</div>
     </div>
   </section>
 
@@ -935,6 +998,83 @@
             errDiv.className = 'mw-calls-loading';
             errDiv.textContent = 'No market signals yet';
             container.appendChild(errDiv);
+          }
+        });
+
+      // ── backtest showcase ────────────────────────────────────────────────────
+      function renderBacktestShowcase(strategies) {
+        var container = document.getElementById('backtestShowcaseContainer');
+        if (!container) return;
+        container.textContent = '';
+
+        if (!strategies || strategies.length === 0) {
+          var empty = document.createElement('div');
+          empty.className = 'mw-calls-loading';
+          empty.textContent = 'Backtesting data coming soon';
+          container.appendChild(empty);
+          return;
+        }
+
+        var grid = document.createElement('div');
+        grid.className = 'mw-backtest-grid';
+
+        strategies.slice(0, 4).forEach(function (s) {
+          var card = document.createElement('div');
+          card.className = 'mw-backtest-card';
+
+          var name = document.createElement('div');
+          name.className = 'mw-backtest-name';
+          name.textContent = s.strategy_name || s.strategy || 'Unknown Strategy';
+          card.appendChild(name);
+
+          var ret = document.createElement('div');
+          var retVal = parseFloat(s.total_return || 0);
+          ret.className = 'mw-backtest-return ' + (retVal >= 0 ? 'mw-return-positive' : 'mw-return-negative');
+          ret.textContent = (retVal >= 0 ? '+' : '') + retVal.toFixed(2) + '% Total Return';
+          card.appendChild(ret);
+
+          var metrics = document.createElement('div');
+          metrics.className = 'mw-backtest-metrics';
+
+          var sharpe = document.createElement('span');
+          sharpe.className = 'mw-backtest-metric';
+          sharpe.textContent = 'Sharpe: ' + (parseFloat(s.sharpe_ratio || 0)).toFixed(2);
+          metrics.appendChild(sharpe);
+
+          var winRate = document.createElement('span');
+          winRate.className = 'mw-backtest-metric';
+          winRate.textContent = 'Win Rate: ' + (parseFloat(s.win_rate || 0) * 100).toFixed(1) + '%';
+          metrics.appendChild(winRate);
+
+          var trades = document.createElement('span');
+          trades.className = 'mw-backtest-metric';
+          trades.textContent = 'Trades: ' + (s.trade_count || 0);
+          metrics.appendChild(trades);
+
+          card.appendChild(metrics);
+          grid.appendChild(card);
+        });
+
+        container.appendChild(grid);
+      }
+
+      fetch('/api/public/backtest-showcase')
+        .then(function (res) {
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          return res.json();
+        })
+        .then(function (data) {
+          renderBacktestShowcase(data.strategies || data || []);
+        })
+        .catch(function (err) {
+          console.warn('Market Watch: backtest-showcase fetch failed', err);
+          var container = document.getElementById('backtestShowcaseContainer');
+          if (container) {
+            container.textContent = '';
+            var msg = document.createElement('div');
+            msg.className = 'mw-calls-loading';
+            msg.textContent = 'Backtesting data coming soon';
+            container.appendChild(msg);
           }
         });
 

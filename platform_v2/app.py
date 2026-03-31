@@ -702,6 +702,9 @@ def index():
 def login():
     """Login page"""
     if current_user.is_authenticated:
+        next_url = request.args.get("next")
+        if next_url:
+            return redirect(next_url)
         return redirect(url_for("dashboard"))
 
     # Clear stale pending 2FA session vars on fresh login page load
@@ -787,6 +790,9 @@ def login():
                 reset_failed_login_count(user_data["id"])
 
                 flash("Login successful!", "success")
+                next_url = request.args.get("next") or request.form.get("next")
+                if next_url:
+                    return redirect(next_url)
                 return redirect(url_for("dashboard"))
             else:
                 record_failed_login(username, ip, ua, "invalid_password")

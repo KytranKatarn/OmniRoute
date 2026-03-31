@@ -46,7 +46,10 @@
                 <p class="login-subtitle" data-i18n="login.auth_required">AUTHENTICATION REQUIRED</p>
 
                 <!-- Login Form -->
-                <form method="POST" action="/login" class="login-form" id="loginForm">
+                <form method="POST" action="/login{% if request.args.get('next') %}?next={{ request.args.get('next') | urlencode }}{% endif %}" class="login-form" id="loginForm">
+                    {% if request.args.get('next') %}
+                    <input type="hidden" name="next" value="{{ request.args.get('next') }}">
+                    {% endif %}
                     <div class="login-form-group">
                         <label class="login-form-label" for="username" data-i18n="login.username">Username</label>
                         <input

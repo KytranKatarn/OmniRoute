@@ -6318,52 +6318,72 @@ async function toggleModelAvailability(nodeId, modelId, enabled) {
     }
 }
 
-function showAddNodeModal() {
-    const modal = document.createElement('div');
+async function showAddNodeModal() {
+    var baseUrl = window.location.origin;
+    // Auto-generate a registration token so nodes are pre-approved
+    var token = '';
+    var tokenNote = '';
+    try {
+        var resp = await fetch('/tools/starbase/api/fleet/token/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'starship', expires_hours: 24 })
+        });
+        var data = await resp.json();
+        if (data.success && data.token) {
+            token = data.token;
+            tokenNote = 'Auto-approved \u2014 token valid for 24h';
+        }
+    } catch (e) {
+        tokenNote = 'Token generation failed \u2014 node will require manual approval';
+    }
+    var tokenEnv = token ? ' TOKEN="' + escHtml(token) + '"' : '';
+
+    var modal = document.createElement('div');
     modal.className = 'node-modal-overlay active';
-    modal.innerHTML = `
-        <div class="node-modal" style="max-width: 600px;">
-            <h2><i data-lucide="plus-circle"></i> Add New Node</h2>
+    var content = document.createElement('div');
+    content.className = 'node-modal';
+    content.style.maxWidth = '650px';
 
-            <div style="margin-bottom: 1.5rem;">
-                <h3 style="color: var(--archie-success); font-size: 0.9rem; margin-bottom: 0.5rem;">
-                    <i data-lucide="terminal" style="width: 16px; height: 16px; display: inline;"></i> Linux / macOS
-                </h3>
-                <p style="font-size: 0.8rem; color: var(--archie-text-muted); margin-bottom: 0.5rem;">
-                    Run this command on the target machine:
-                </p>
-                <code style="font-size: 0.7rem;">curl -sSL http://192.168.1.200:3000/tools/starbase/api/nodes/install.sh | sudo bash</code>
-            </div>
+    // Build sections safely
+    var h = '<h2><i data-lucide="plus-circle"></i> Add New Node</h2>';
+    h += '<p style="font-size:0.75rem;color:' + (token ? 'var(--archie-success)' : 'var(--archie-warning)') + ';margin-bottom:1rem;">' + escHtml(tokenNote) + '</p>';
 
-            <div style="margin-bottom: 1.5rem;">
-                <h3 style="color: #58a6ff; font-size: 0.9rem; margin-bottom: 0.5rem;">
-                    <i data-lucide="monitor" style="width: 16px; height: 16px; display: inline;"></i> Windows (PowerShell Admin)
-                </h3>
-                <p style="font-size: 0.8rem; color: var(--archie-text-muted); margin-bottom: 0.5rem;">
-                    Run in PowerShell as Administrator:
-                </p>
-                <code style="font-size: 0.7rem;">iwr -useb http://192.168.1.200:3000/tools/starbase/api/nodes/install.ps1 | iex</code>
-            </div>
+    // Windows GPU Node
+    h += '<div style="margin-bottom:1.5rem;">';
+    h += '<h3 style="color:#a78bfa;font-size:0.9rem;margin-bottom:0.5rem;"><i data-lucide="monitor" style="width:16px;height:16px;display:inline;"></i> Windows GPU Node (Recommended)</h3>';
+    h += '<p style="font-size:0.78rem;color:var(--archie-text-muted);margin-bottom:0.5rem;">Full setup \u2014 installs WSL2, Docker Desktop, NVIDIA toolkit, everything:</p>';
+    h += '<div style="position:relative;"><code id="cmd-win-full" style="font-size:0.65rem;display:block;padding:8px;background:rgba(0,0,0,0.3);border-radius:4px;word-break:break-all;">irm ' + escHtml(baseUrl) + '/tools/starbase/api/nodes/setup-node.ps1 | iex</code>';
+    h += '<button onclick="navigator.clipboard.writeText(document.getElementById(\'cmd-win-full\').textContent);showToast(\'Copied!\',\'success\')" style="position:absolute;top:4px;right:4px;background:rgba(255,255,255,0.1);border:none;color:var(--archie-text-muted);padding:2px 6px;border-radius:3px;cursor:pointer;font-size:0.65rem;">Copy</button></div>';
+    h += '<p style="font-size:0.7rem;color:var(--archie-text-muted);margin-top:4px;">Run as Administrator in PowerShell. Requires one reboot.</p></div>';
 
-            <p style="color: var(--archie-text-muted); font-size: 0.75rem; margin-top: 1rem; padding: 0.75rem; background: rgba(0,255,255,0.05); border-radius: 4px;">
-                <i data-lucide="info" style="width: 14px; height: 14px; display: inline;"></i>
-                The installer will collect system info (CPU, RAM, GPU, Ollama models) and register the node.
-                It will appear in "Pending Approval" for you to approve.
-            </p>
+    // Linux / WSL2
+    h += '<div style="margin-bottom:1.5rem;">';
+    h += '<h3 style="color:var(--archie-success);font-size:0.9rem;margin-bottom:0.5rem;"><i data-lucide="terminal" style="width:16px;height:16px;display:inline;"></i> Linux / WSL2 (Docker already installed)</h3>';
+    h += '<div style="position:relative;"><code id="cmd-linux" style="font-size:0.65rem;display:block;padding:8px;background:rgba(0,0,0,0.3);border-radius:4px;word-break:break-all;">' + tokenEnv + ' bash &lt;(curl -fsSL ' + escHtml(baseUrl) + '/tools/starbase/api/nodes/bootstrap-wsl2.sh)</code>';
+    h += '<button onclick="navigator.clipboard.writeText(document.getElementById(\'cmd-linux\').textContent);showToast(\'Copied!\',\'success\')" style="position:absolute;top:4px;right:4px;background:rgba(255,255,255,0.1);border:none;color:var(--archie-text-muted);padding:2px 6px;border-radius:3px;cursor:pointer;font-size:0.65rem;">Copy</button></div></div>';
 
-            <hr>
-            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 1rem;">
-                <button onclick="this.closest('.node-modal-overlay').remove()"
-                        style="padding: 8px 16px; background: var(--archie-border-default); border: none; color: var(--archie-text-secondary); border-radius: 4px; cursor: pointer;">
-                    Close
-                </button>
-            </div>
-        </div>
-    `;
+    // Linux VPS / Outpost
+    h += '<div style="margin-bottom:1rem;">';
+    h += '<h3 style="color:#58a6ff;font-size:0.9rem;margin-bottom:0.5rem;"><i data-lucide="server" style="width:16px;height:16px;display:inline;"></i> Linux VPS / Outpost</h3>';
+    h += '<div style="position:relative;"><code id="cmd-outpost" style="font-size:0.65rem;display:block;padding:8px;background:rgba(0,0,0,0.3);border-radius:4px;word-break:break-all;">curl -fsSL ' + escHtml(baseUrl) + '/tools/starbase/api/nodes/install.sh |' + tokenEnv + ' sudo bash</code>';
+    h += '<button onclick="navigator.clipboard.writeText(document.getElementById(\'cmd-outpost\').textContent);showToast(\'Copied!\',\'success\')" style="position:absolute;top:4px;right:4px;background:rgba(255,255,255,0.1);border:none;color:var(--archie-text-muted);padding:2px 6px;border-radius:3px;cursor:pointer;font-size:0.65rem;">Copy</button></div></div>';
+
+    // Token display
+    if (token) {
+        h += '<div style="padding:0.5rem 0.75rem;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.2);border-radius:4px;margin-top:0.75rem;">';
+        h += '<span style="font-size:0.7rem;color:var(--archie-text-muted);">Registration Token:</span> ';
+        h += '<code style="font-size:0.65rem;color:#a78bfa;">' + escHtml(token) + '</code></div>';
+    }
+
+    h += '<hr><div style="display:flex;justify-content:flex-end;gap:10px;margin-top:1rem;">';
+    h += '<button onclick="this.closest(\'.node-modal-overlay\').remove()" style="padding:8px 16px;background:var(--archie-border-default);border:none;color:var(--archie-text-secondary);border-radius:4px;cursor:pointer;">Close</button></div>';
+
+    content.innerHTML = h;
+    modal.appendChild(content);
     document.body.appendChild(modal);
 
-    // Close on overlay click
-    modal.addEventListener('click', (e) => {
+    modal.addEventListener('click', function(e) {
         if (e.target === modal) modal.remove();
     });
 

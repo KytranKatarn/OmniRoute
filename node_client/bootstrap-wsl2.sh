@@ -74,7 +74,13 @@ echo -e "\n${CYAN}Step 3: Node Registration${NC}"
 read -rp "  Node name (e.g., desktop-245): " NODE_NAME
 [[ -n "$NODE_NAME" ]] || fail "Node name required"
 
-read -rp "  Registration token (or Enter for manual approval): " NODE_TOKEN
+# Accept token from env var (set by +Node modal) or prompt
+NODE_TOKEN="${TOKEN:-}"
+if [[ -z "$NODE_TOKEN" ]]; then
+    read -rp "  Registration token (or Enter for manual approval): " NODE_TOKEN
+else
+    ok "Using pre-generated token (auto-approved)"
+fi
 
 info "Registering with hub..."
 REG_PAYLOAD=$(cat <<EOJSON

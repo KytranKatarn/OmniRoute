@@ -69,31 +69,53 @@ try {
 }
 
 # ── Step 2: Enable WSL2 ───────────────────────────────────────────
-Write-Step "Checking WSL2..."
-$wslStatus = wsl --status 2>$null
-if ($LASTEXITCODE -ne 0 -or -not $wslStatus) {
-    Write-Step "Installing WSL2 + Ubuntu (this may take a few minutes)..."
-    wsl --install -d Ubuntu-22.04 --no-launch
-    if ($LASTEXITCODE -ne 0) {
-        # Fallback: enable features manually
-        Write-Step "Enabling Windows features manually..."
-        dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
-        dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
-        Write-Warn "WSL2 features enabled. Reboot required."
-    }
+Write-Step "Installing/updating WSL2 (safe to re-run if already installed)..."
+
+# Always run wsl --install — it's idempotent and ensures everything is set up
+Write-Step "Running wsl.exe --install..."
+wsl.exe --install 2>$null
+Start-Sleep -Seconds 2
+
+# Set WSL2 as default version
+wsl.exe --set-default-version 2 2>$null
+
+# Check if Ubuntu is installed
+$distros = wsl --list --quiet 2>$null
+if ($distros -notmatch "Ubuntu") {
+    Write-Step "Installing Ubuntu 22.04..."
+    wsl.exe --install -d Ubuntu-22.04 --no-launch 2>$null
     $NeedReboot = $true
-    Write-OK "WSL2 installation initiated"
+    Write-OK "Ubuntu 22.04 queued for install"
 } else {
-    Write-OK "WSL2 already installed"
-    # Check if Ubuntu is installed
-    $distros = wsl --list --quiet 2>$null
-    if ($distros -notmatch "Ubuntu") {
-        Write-Step "Installing Ubuntu 22.04..."
-        wsl --install -d Ubuntu-22.04 --no-launch
-        $NeedReboot = $true
-    } else {
-        Write-OK "Ubuntu already installed"
-    }
+    Write-OK "Ubuntu already installed"
+}
+
+# Enable features as fallback (in case wsl --install didn't fully configure)
+$wslFeature = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux 2>$null
+if ($wslFeature -and $wslFeature.State -ne 'Enabled') {
+    Write-Step "Enabling WSL feature..."
+    dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+    $NeedReboot = $true
+}
+$vmFeature = Get-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform 2>$null
+if ($vmFeature -and $vmFeature.State -ne 'Enabled') {
+    Write-Step "Enabling Virtual Machine Platform..."
+    dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+    $NeedReboot = $true
+}
+
+# Check if reboot needed (wsl --install may have triggered one)
+$wslWorking = $false
+try {
+    $testWsl = wsl.exe --status 2>$null
+    if ($LASTEXITCODE -eq 0 -and $distros -match "Ubuntu") { $wslWorking = $true }
+} catch {}
+
+if (-not $wslWorking) {
+    $NeedReboot = $true
+    Write-Warn "WSL2 needs a reboot to finish setup"
+} else {
+    Write-OK "WSL2 is ready"
 }
 
 # Set WSL2 as default

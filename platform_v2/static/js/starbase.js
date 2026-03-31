@@ -5305,6 +5305,17 @@ function renderNodeGrid(nodes) {
     }
 }
 
+function _timeAgo(dateStr) {
+    if (!dateStr) return '';
+    const now = new Date();
+    const then = new Date(dateStr);
+    const secs = Math.floor((now - then) / 1000);
+    if (secs < 60) return secs + 's ago';
+    if (secs < 3600) return Math.floor(secs / 60) + 'm ago';
+    if (secs < 86400) return Math.floor(secs / 3600) + 'h ago';
+    return Math.floor(secs / 86400) + 'd ago';
+}
+
 function renderNodeCard(node) {
     const status = node.approval_status === 'pending' ? 'pending' : (node.status || 'offline');
     const currentLoad = node.current_load || 0;
@@ -5348,9 +5359,17 @@ function renderNodeCard(node) {
                     ${node.mesh_latency_ms ? `<span class="mesh-latency">${node.mesh_latency_ms}ms</span>` : ''}
                 </div>` : ''}
                 <div class="node-specs">
-                    <span><i data-lucide="cpu" style="width:12px;height:12px;"></i> ${node.cpu_cores || '?'} cores</span>
-                    <span><i data-lucide="memory-stick" style="width:12px;height:12px;"></i> ${node.ram_gb || '?'}GB</span>
-                    ${node.gpu_model ? `<span><i data-lucide="monitor" style="width:12px;height:12px;"></i> ${node.gpu_model}</span>` : ''}
+                    <span><i data-lucide="cpu" style="width:12px;height:12px;"></i> ${node.cpu_cores || '?'} cores${node.cpu_model ? ` (${node.cpu_model})` : ''}</span>
+                    <span><i data-lucide="memory-stick" style="width:12px;height:12px;"></i> ${node.ram_gb || '?'}GB RAM</span>
+                    ${node.gpu_model ? `<span><i data-lucide="monitor" style="width:12px;height:12px;"></i> ${node.gpu_model}${node.gpu_vram_gb ? ` (${node.gpu_vram_gb}GB VRAM)` : ''}</span>` : '<span style="color:var(--archie-text-muted);"><i data-lucide="monitor-off" style="width:12px;height:12px;"></i> No GPU</span>'}
+                    ${node.disk_gb ? `<span><i data-lucide="hard-drive" style="width:12px;height:12px;"></i> ${node.disk_gb}GB disk</span>` : ''}
+                </div>
+                <div class="node-meta" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;font-size:0.65rem;color:var(--archie-text-muted);">
+                    ${node.deployment_mode && node.deployment_mode !== 'standard' ? `<span style="background:rgba(139,92,246,0.15);color:#a78bfa;padding:1px 6px;border-radius:3px;text-transform:uppercase;font-weight:600;">${node.deployment_mode}</span>` : ''}
+                    ${node.os_info ? `<span><i data-lucide="laptop" style="width:10px;height:10px;"></i> ${node.os_info}</span>` : ''}
+                    ${node.ollama_available ? '<span style="color:#22d3ee;">Ollama</span>' : ''}
+                    ${node.comfyui_available ? '<span style="color:#f472b6;">ComfyUI</span>' : ''}
+                    ${node.last_heartbeat ? `<span><i data-lucide="heart-pulse" style="width:10px;height:10px;"></i> ${_timeAgo(node.last_heartbeat)}</span>` : ''}
                 </div>
                 <div class="node-beacon-row" style="display:flex;gap:6px;margin-top:6px;font-size:0.7rem;">
                     ${node.node_name ? `<a href="http://${encodeURIComponent(node.node_name.toLowerCase().replace(/ /g,'-'))}.fleet.kytranempowerment.com" target="_blank" class="mesh-badge mesh-connected" style="text-decoration:none;cursor:pointer;">BEACON</a>` : ''}

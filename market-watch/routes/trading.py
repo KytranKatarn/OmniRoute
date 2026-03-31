@@ -10,7 +10,7 @@ from flask import Blueprint, jsonify, request
 from auth import admin_required, tier_required
 from db import get_db
 from services import risk_config as rc
-from services.alpaca_client import get_orders, place_order
+from services.alpaca_client import get_orders, place_order, place_bracket_order, place_trailing_stop, place_short_order
 from services.market_data import get_quote
 from services.trading_config_service import (
     get_full_config, update_risk_gates, set_toggle, get_toggle, reset_config,
@@ -153,7 +153,7 @@ def run_cycle():
         conn.close()
 
     from services.agent_pipeline import run_full_cycle
-    from services.execution_engine import evaluate
+    from services.execution_engine import evaluate, evaluate_short
     from services.portfolio_service import get_portfolio_state
     from services.position_manager import check_price_exits, check_reeval_exits, open_position
 
@@ -176,15 +176,19 @@ def run_cycle():
         trades_skipped = 0
         errors = 0
 
+        shorts_enabled = os.environ.get("MW_SHORTS_ENABLED", "false").lower() in ("true", "1", "yes")
+
         for result in results:
-            if result.get("recommendation") != "buy":
+            recommendation = result.get("recommendation")
+
+            if recommendation not in ("buy", "sell"):
                 trades_skipped += 1
                 continue
 
             # Build analysis dict for execution engine
             analysis = {
                 "ticker": result.get("ticker"),
-                "recommendation": result.get("recommendation"),
+                "recommendation": recommendation,
                 "oracle_confidence": result.get("confidence"),
                 "risk_approved": result.get("reports", {}).get("shield", {}).get("risk_approved", False),
                 "target_price": result.get("target_price"),
@@ -192,36 +196,110 @@ def run_cycle():
                 "suggested_position_size": result.get("reports", {}).get("shield", {}).get("position_size"),
                 "sector": result.get("reports", {}).get("value", {}).get("sector", "unknown"),
                 "analysis_id": result.get("analysis_id"),
+                "order_type": result.get("order_type", "market"),
             }
 
-            decision = evaluate(analysis, portfolio_state)
+            # --- BUY path ---
+            if recommendation == "buy":
+                decision = evaluate(analysis, portfolio_state)
 
-            if decision["approved"]:
-                if rc.DRY_RUN:
-                    logger.info(
-                        "[DRY RUN] Would buy %d %s at %.2f",
-                        decision["order"]["quantity"],
-                        decision["order"]["ticker"],
-                        decision["order"]["price"],
-                    )
-                    trades_executed += 1
-                else:
+                if decision["approved"]:
                     order = decision["order"]
-                    alpaca_result = place_order(order["ticker"], order["quantity"], "buy")
-                    if alpaca_result.get("success"):
-                        order["gates_log"] = decision["gates_log"]
-                        open_position(order, alpaca_result.get("order_id"))
-                        trades_executed += 1
-                        logger.info("Executed buy: %d %s at %.2f", order["quantity"], order["ticker"], order["price"])
-                    else:
-                        errors += 1
-                        logger.error("Alpaca order failed for %s: %s", order["ticker"], alpaca_result.get("error"))
+                    order_type = order.get("order_type", "market")
 
-                # Refresh portfolio state for next evaluation
-                portfolio_state = get_portfolio_state()
+                    if rc.DRY_RUN:
+                        logger.info(
+                            "[DRY RUN] Would buy %d %s at %.2f (order_type=%s)",
+                            order["quantity"],
+                            order["ticker"],
+                            order["price"],
+                            order_type,
+                        )
+                        trades_executed += 1
+                    else:
+                        if order_type == "bracket":
+                            alpaca_result = place_bracket_order(
+                                order["ticker"],
+                                order["quantity"],
+                                side="buy",
+                                take_profit=order.get("target_price"),
+                                stop_loss=order.get("stop_loss"),
+                            )
+                        elif order_type == "trailing_stop":
+                            alpaca_result = place_trailing_stop(
+                                order["ticker"],
+                                order["quantity"],
+                                side="buy",
+                                trail_percent=order.get("trail_percent"),
+                            )
+                        else:
+                            alpaca_result = place_order(order["ticker"], order["quantity"], "buy")
+
+                        if alpaca_result.get("success"):
+                            order["gates_log"] = decision["gates_log"]
+                            open_position(order, alpaca_result.get("order_id"))
+                            trades_executed += 1
+                            logger.info(
+                                "Executed buy: %d %s at %.2f (order_type=%s)",
+                                order["quantity"], order["ticker"], order["price"], order_type,
+                            )
+                        else:
+                            errors += 1
+                            logger.error("Alpaca buy failed for %s: %s", order["ticker"], alpaca_result.get("error"))
+
+                    # Refresh portfolio state for next evaluation
+                    portfolio_state = get_portfolio_state()
+                else:
+                    trades_skipped += 1
+                    logger.info("Skipped buy %s: %s", result.get("ticker"), decision["reason"])
+
+            # --- SHORT (sell) path ---
+            elif recommendation == "sell" and shorts_enabled:
+                decision = evaluate_short(analysis, portfolio_state)
+
+                if decision["approved"]:
+                    order = decision["order"]
+
+                    if rc.DRY_RUN:
+                        logger.info(
+                            "[DRY RUN] Would short %d %s at %.2f",
+                            order["quantity"],
+                            order["ticker"],
+                            order["price"],
+                        )
+                        trades_executed += 1
+                    else:
+                        alpaca_result = place_short_order(
+                            order["ticker"],
+                            order["quantity"],
+                            order_type=order.get("order_type", "market"),
+                            take_profit=order.get("target_price"),
+                            stop_loss=order.get("stop_loss"),
+                            trail_percent=order.get("trail_percent"),
+                        )
+
+                        if alpaca_result.get("success"):
+                            order["gates_log"] = decision["gates_log"]
+                            open_position(order, alpaca_result.get("order_id"))
+                            trades_executed += 1
+                            logger.info(
+                                "Executed short: %d %s at %.2f",
+                                order["quantity"], order["ticker"], order["price"],
+                            )
+                        else:
+                            errors += 1
+                            logger.error("Alpaca short failed for %s: %s", order["ticker"], alpaca_result.get("error"))
+
+                    # Refresh portfolio state for next evaluation
+                    portfolio_state = get_portfolio_state()
+                else:
+                    trades_skipped += 1
+                    logger.info("Skipped short %s: %s", result.get("ticker"), decision["reason"])
+
             else:
+                # sell recommendation but shorts disabled
                 trades_skipped += 1
-                logger.info("Skipped %s: %s", result.get("ticker"), decision["reason"])
+                logger.debug("Skipped sell %s: shorts not enabled", result.get("ticker"))
 
         # Step 5: Return summary
         final_state = get_portfolio_state()

@@ -814,9 +814,14 @@ class AgentLoop:
 
         self.scheduler.add_job(
             with_app_context(self._run_market_watch_cycle),
-            trigger=IntervalTrigger(hours=4),
+            trigger=CronTrigger(
+                day_of_week="mon-fri",
+                hour="9-15",
+                minute="0,30",
+                timezone="US/Eastern",
+            ),
             id="market_watch_cycle",
-            name="Agent Loop: M.A.R.K.E.T. Trading Cycle",
+            name="Agent Loop: M.A.R.K.E.T. Trading Cycle (Market Hours)",
             replace_existing=True,
         )
 
@@ -2686,31 +2691,55 @@ class AgentLoop:
             )
 
     def _run_market_watch_cycle(self):
-        """Agent Loop Job: M.A.R.K.E.T. autonomous trading cycle."""
+        """Agent Loop Job: M.A.R.K.E.T. autonomous trading cycle.
+
+        Fires every 30 min during NYSE market hours (Mon-Fri 9:30am-4pm ET).
+        Calls Market Watch run-cycle endpoint with service token auth.
+        """
         try:
             import requests
+            import os
+
+            service_token = os.environ.get("ARCHIE_SERVICE_TOKEN", "")
+            headers = {"Content-Type": "application/json"}
+            if service_token:
+                headers["Authorization"] = f"Bearer {service_token}"
+
             resp = requests.post(
-                "http://kytran_market_api:8080/api/analysis/cycle",
+                "http://kytran_market_api:8080/api/trading/run-cycle",
+                json={"source": "archie_dispatch", "dispatch_id": f"autonomy_{id(self)}"},
+                headers=headers,
                 timeout=600,
             )
             if resp.status_code == 200:
                 data = resp.json()
+                if data.get("skipped"):
+                    logger.info("M.A.R.K.E.T. cycle skipped (dedup): %s", data.get("reason"))
+                    return
                 self._log_autonomy_action(
                     action_type="market_watch_cycle",
                     details={
-                        "stocks_analyzed": data.get("stocks_analyzed", 0),
-                        "trades": data.get("trades", 0),
-                        "skipped": data.get("skipped", 0),
-                        "failed": data.get("failed", 0),
+                        "tickers_analyzed": data.get("tickers_analyzed", 0),
+                        "trades_executed": data.get("trades_executed", 0),
+                        "trades_skipped": data.get("trades_skipped", 0),
+                        "positions_closed": data.get("positions_closed", 0),
+                        "errors": data.get("errors", 0),
+                        "portfolio_value": data.get("portfolio_value"),
+                        "daily_pnl_pct": data.get("daily_pnl_pct"),
+                        "dry_run": data.get("dry_run", False),
                     },
                     success=True,
                 )
                 logger.info(
-                    "M.A.R.K.E.T. cycle: %d analyzed, %d traded, %d skipped",
-                    data.get("stocks_analyzed", 0),
-                    data.get("trades", 0),
-                    data.get("skipped", 0),
+                    "M.A.R.K.E.T. cycle: %d analyzed, %d executed, %d skipped, %d closed, P&L: %.2f%%",
+                    data.get("tickers_analyzed", 0),
+                    data.get("trades_executed", 0),
+                    data.get("trades_skipped", 0),
+                    data.get("positions_closed", 0),
+                    data.get("daily_pnl_pct", 0),
                 )
+            elif resp.status_code == 503:
+                logger.warning("M.A.R.K.E.T. cycle: trading disabled (kill switch)")
             else:
                 logger.error("M.A.R.K.E.T. cycle failed: HTTP %d", resp.status_code)
                 self._log_autonomy_action(

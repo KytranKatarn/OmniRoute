@@ -171,3 +171,16 @@ CREATE TABLE IF NOT EXISTS agent_dispatch_log (
     status TEXT DEFAULT 'success',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Local user cache (populated on OAuth login)
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kytran_sub TEXT NOT NULL UNIQUE,
+    username TEXT,
+    email TEXT,
+    name TEXT,
+    role TEXT DEFAULT 'user',
+    tier TEXT DEFAULT 'viewer',
+    last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

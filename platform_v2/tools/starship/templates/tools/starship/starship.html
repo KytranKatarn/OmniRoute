@@ -182,6 +182,13 @@
                     </div>
                     <p class="cn-note" style="color:#64748b;">PowerShell Admin. One reboot required. GPU auto-detected.</p>
 
+                    <h3 class="cn-section-title" style="color:#fbbf24;">After Reboot — Phase 2 (PowerShell Admin)</h3>
+                    <div class="cn-cmd-box" style="margin:8px 0;">
+                        <code id="cn-phase2-download" style="font-size:0.68rem;word-break:break-all;">Invoke-WebRequest -Uri {{ request.host_url.rstrip('/') }}/tools/starbase/api/nodes/setup-node.ps1 -OutFile setup-node.ps1; .\setup-node.ps1 -Phase2</code>
+                        <button onclick="copyConnectCmd('cn-phase2-download')" class="cn-copy-btn">COPY</button>
+                    </div>
+                    <p class="cn-note" style="color:#64748b;">Run after reboot. Installs NVIDIA toolkit in WSL2, tests GPU, starts fleet node.</p>
+
                     <!-- Option B: Linux / WSL2 -->
                     <h3 class="cn-section-title" style="color:#22d3ee;">Option B: Linux / WSL2 (Docker already installed)</h3>
                     <div class="cn-cmd-box" style="margin:8px 0;">

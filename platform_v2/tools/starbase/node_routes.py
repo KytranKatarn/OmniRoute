@@ -83,9 +83,11 @@ def register_node_routes(bp, admin_required):
                            rn.network_type, rn.ssh_enabled, rn.ssh_enabled_at,
                            rn.mesh_ip, rn.mesh_status, rn.mesh_connection_type,
                            rn.mesh_latency_ms, rn.mesh_last_seen,
-                           o.name AS org_name, o.id AS org_id
+                           o.name AS org_name, o.id AS org_id,
+                           u.username AS approved_by_name
                     FROM remote_nodes rn
                     LEFT JOIN organizations o ON o.node_id = rn.node_id
+                    LEFT JOIN users u ON u.id = rn.approved_by
                     WHERE 1=1
                 """
                 params = []

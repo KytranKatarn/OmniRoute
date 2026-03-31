@@ -5348,6 +5348,7 @@ function renderNodeCard(node) {
             </div>
             <div class="node-body">
                 <div class="node-name">${escapeHtml(node.node_name)}</div>
+                ${node.approved_by_name ? `<div style="font-size:0.65rem;color:var(--archie-text-muted);margin-top:2px;"><i data-lucide="user" style="width:10px;height:10px;"></i> Added by ${escapeHtml(node.approved_by_name)}</div>` : ''}
                 ${node.org_name ? `<div class="node-org-badge"><i data-lucide="building" style="width:11px;height:11px;"></i> ${escapeHtml(node.org_name)}</div>` : ''}
                 <div class="node-connection">${node.vpn_ip || node.hostname || 'Unknown'}:${node.port || 11434}</div>
                 ${node.mesh_ip ? `<div class="node-mesh-info">

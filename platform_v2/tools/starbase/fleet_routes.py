@@ -133,7 +133,7 @@ def register_fleet_routes(bp, admin_required):
                 with get_db_cursor(commit=True) as (conn, cur):
                     cur.execute(
                         """
-                        SELECT id, node_type, used, expires_at
+                        SELECT id, node_type, used, expires_at, created_by
                         FROM fleet_registration_tokens
                         WHERE token = %s
                         """,
@@ -144,7 +144,7 @@ def register_fleet_routes(bp, admin_required):
                     if not tok:
                         return jsonify({"success": False, "error": "Invalid registration token"}), 403
 
-                    tok_id, tok_type, tok_used, tok_expires = tok
+                    tok_id, tok_type, tok_used, tok_expires, tok_created_by = tok
 
                     if tok_used:
                         return jsonify({"success": False, "error": "Token already used"}), 403
@@ -185,8 +185,10 @@ def register_fleet_routes(bp, admin_required):
                     INSERT INTO remote_nodes
                         (node_id, node_name, api_key_hash, hostname,
                          status, deployment_mode, approval_status,
-                         registration_method, device_info)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                         registration_method, device_info,
+                         approved_by, approved_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s,
+                            %s, CASE WHEN %s = 'approved' THEN NOW() ELSE NULL END)
                     """,
                     (
                         node_id,
@@ -198,6 +200,8 @@ def register_fleet_routes(bp, admin_required):
                         approval_status,
                         "token" if token_value else "manual",
                         Json(device_info),
+                        tok_created_by if token_value and approval_status == "approved" else None,
+                        approval_status,
                     ),
                 )
 

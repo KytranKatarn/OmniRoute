@@ -1,5 +1,17 @@
 -- Kytran Market Watch — M.A.R.K.E.T. Database Schema
 
+-- Risk metrics cache (VaR, correlations, beta, Kelly params)
+CREATE TABLE IF NOT EXISTS risk_metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    metric_type TEXT NOT NULL,
+    ticker TEXT,
+    data JSON NOT NULL,
+    calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP,
+    UNIQUE(metric_type, ticker)
+);
+
+
 CREATE TABLE IF NOT EXISTS watchlist (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ticker TEXT NOT NULL UNIQUE,

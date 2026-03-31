@@ -5,3 +5,4 @@ requests==2.33.0
 gunicorn==23.0.0
 flask-limiter==3.12
 vaderSentiment==3.3.2
+numpy==2.2.4

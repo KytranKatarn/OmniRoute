@@ -184,14 +184,14 @@
                     <!-- GPU Node -->
                     <p class="cn-note" style="color:#a78bfa;font-weight:600;margin-top:12px;">With GPU:</p>
                     <div class="cn-cmd-box" style="margin:8px 0;">
-                        <code id="cn-docker-gpu" style="font-size:0.65rem;word-break:break-all;">docker run -d --name archie-node --restart unless-stopped --gpus all -e HUB_URL={{ request.host_url.rstrip('/') }} -e TOKEN=GENERATING... -e OLLAMA_HOST=http://host.docker.internal:11434 -p 3001:3001 -v archie-node-data:/data ghcr.io/kytrankatarn/archie-node:latest</code>
+                        <code id="cn-docker-gpu" style="font-size:0.65rem;word-break:break-all;">docker run -d --name archie-node --restart unless-stopped --gpus all -e HUB_URL={{ request.host_url.rstrip('/') }} -e TOKEN=GENERATING... -e OLLAMA_HOST=http://host.docker.internal:11434 -p 3001:3001 -v archie-node-data:/data ghcr.io/kytrankatarn/archie-fleet-node:latest</code>
                         <button onclick="copyConnectCmd('cn-docker-gpu')" class="cn-copy-btn">COPY</button>
                     </div>
 
                     <!-- CPU-only Node -->
                     <p class="cn-note" style="color:#58a6ff;font-weight:600;margin-top:12px;">Without GPU:</p>
                     <div class="cn-cmd-box" style="margin:8px 0;">
-                        <code id="cn-docker-cpu" style="font-size:0.65rem;word-break:break-all;">docker run -d --name archie-node --restart unless-stopped -e HUB_URL={{ request.host_url.rstrip('/') }} -e TOKEN=GENERATING... -e OLLAMA_HOST=http://host.docker.internal:11434 -p 3001:3001 -v archie-node-data:/data ghcr.io/kytrankatarn/archie-node:latest</code>
+                        <code id="cn-docker-cpu" style="font-size:0.65rem;word-break:break-all;">docker run -d --name archie-node --restart unless-stopped -e HUB_URL={{ request.host_url.rstrip('/') }} -e TOKEN=GENERATING... -e OLLAMA_HOST=http://host.docker.internal:11434 -p 3001:3001 -v archie-node-data:/data ghcr.io/kytrankatarn/archie-fleet-node:latest</code>
                         <button onclick="copyConnectCmd('cn-docker-cpu')" class="cn-copy-btn">COPY</button>
                     </div>
 

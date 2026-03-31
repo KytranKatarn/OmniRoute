@@ -1,14 +1,32 @@
 """W.A.T.C.H. — Watchdog for Accountability, Transparency, Civic Health."""
+import os
 import threading
-from flask import Flask
+from flask import Flask, session, redirect, render_template, send_from_directory
 from db import init_db
 from routes.health import health_bp
 from routes.events import events_bp
 from routes.contracts import contracts_bp
 from routes.parliament import parliament_bp
 from routes.spending import spending_bp
+from kytran_auth import KytranAuth
+from auth import auth_bp
 
-app = Flask(__name__, static_folder='static', static_url_path='')
+app = Flask(__name__, static_folder='static', static_url_path='', template_folder='templates')
+
+# Session security
+app.secret_key = os.environ.get("SECRET_KEY", "dev-secret")
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
+# KytranAuth SDK
+kytran_auth = KytranAuth(app)
+
+_FEATURES = [
+    {"title": "Parliament Tracker", "description": "Follow bills, votes, and committee activity in real time across federal and provincial legislatures."},
+    {"title": "Contract Monitor", "description": "Search and track government procurement contracts and tender awards across Canada."},
+    {"title": "Spending Analysis", "description": "Visualize public expenditure trends, department budgets, and fiscal accountability data."},
+    {"title": "Public Accountability", "description": "Cross-reference officials, contracts, and spending in one unified civic intelligence dashboard."},
+]
 
 
 @app.after_request
@@ -20,12 +38,27 @@ def add_cors_headers(response):
 
 
 @app.route('/')
+def serve_landing():
+    return render_template(
+        "landing.html",
+        product_name="Kytran Civic Watch",
+        product_short="C.W.",
+        product_name_html='KYTRAN <span>CIVIC WATCH</span>',
+        product_description="Real-time monitoring of government contracts, parliamentary activity, and public spending across Canada.",
+        accent_color="#22d3ee",
+        features=_FEATURES,
+    )
+
+
+@app.route('/dashboard')
+@kytran_auth.login_required
 def serve_dashboard():
     return app.send_static_file('index.html')
 
 
 def create_app():
     init_db()
+    app.register_blueprint(auth_bp)
     app.register_blueprint(health_bp)
     app.register_blueprint(events_bp)
     app.register_blueprint(contracts_bp)

@@ -1,21 +1,13 @@
 /* security-network.js — A.R.C.H.I.E. Security & Network Module */
-/* globals: lucide, ArchieTime */
-"use strict";
+/* globals: lucide, ArchieTime, qlOffset, activeScannerType, API */
 
-const SN_API = '/tools/security-network/api';
+var SN_API = '/tools/security-network/api';
 
 /* ── Load-once flags ───────────────────────────────── */
 var _nocLoaded = false;
 var _trafficLoaded = false;
-var dnsTabLoaded = false;
 var _devicesLoaded = false;
 var _defenseLoaded = false;
-var survTabLoaded = false;
-var reconTabLoaded = false;
-var scanTabLoaded = false;
-var domainsTabLoaded = false;
-var qlOffset = 0;
-var activeScannerType = 'nmap';
 
 /* ── Poll timers ───────────────────────────────────── */
 var _nocPollTimer = null;

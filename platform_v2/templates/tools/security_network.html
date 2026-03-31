@@ -10,7 +10,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="/static/js/security-network.js"></script>
+<script src="/static/js/security-network.js" defer></script>
 {% endblock %}
 
 {% block content %}
@@ -4404,7 +4404,8 @@ function escapeHtml(str) {
 document.addEventListener('DOMContentLoaded', function() {
     if(typeof lucide!=='undefined') lucide.createIcons();
     /* initTabs/initSubtabs handled by security-network.js */
-    setTimeout(loadDashboard, 800); /* load legacy dashboard stats for compliance summary */
+    /* loadDashboard removed — overview handled by security-network.js loadNocOverview */
+    if (typeof switchSecurityTab === 'function') { switchSecurityTab('overview'); }
     initSecurityStation();
 });
 

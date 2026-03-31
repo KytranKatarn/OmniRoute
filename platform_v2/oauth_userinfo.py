@@ -49,7 +49,15 @@ def userinfo():
         entitlements = [row["module"] for row in rows if row.get("module")]
 
     if user["role"] == "admin":
-        entitlements = ["kso", "kbs", "gov-watch", "news", "market-watch", "kytran-mail"]
+        entitlements = [
+            "kso",
+            "kbs",
+            "gov-watch",
+            "news",
+            "kytran-mail",
+            "market-watch-viewer",
+            "market-watch-ai",
+        ]
 
     stripe_customer_id = None
     with get_db_cursor() as (conn, cur):

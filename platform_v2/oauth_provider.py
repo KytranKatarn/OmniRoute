@@ -55,7 +55,7 @@ def authorize():
     if not row:
         return jsonify({"error": "invalid client_id"}), 400
 
-    if row[0] != redirect_uri:
+    if row["redirect_uri"] != redirect_uri:
         return jsonify({"error": "redirect_uri mismatch"}), 400
 
     # Generate code and store with 5-minute expiry
@@ -81,7 +81,8 @@ def authorize():
 
 @oauth_provider_bp.route("/token", methods=["POST"])
 def token():
-    data = request.get_json(silent=True) or {}
+    # Accept both JSON and form-encoded POST data
+    data = request.get_json(silent=True) or request.form or {}
     grant_type = data.get("grant_type")
     code = data.get("code")
     client_id = data.get("client_id")
@@ -102,7 +103,7 @@ def token():
         )
         client_row = cur.fetchone()
 
-    if not client_row or client_row[0] != client_secret:
+    if not client_row or client_row["client_secret"] != client_secret:
         return jsonify({"error": "invalid_client"}), 401
 
     # Validate and consume the authorization code
@@ -118,14 +119,14 @@ def token():
         if not code_row:
             return jsonify({"error": "invalid_grant"}), 400
 
-        user_id, stored_uri, expires_at, used = code_row
-
-        if used:
+        if code_row["used"]:
             return jsonify({"error": "code_already_used"}), 400
-        if datetime.utcnow() > expires_at:
+        if datetime.utcnow() > code_row["expires_at"]:
             return jsonify({"error": "code_expired"}), 400
-        if stored_uri != redirect_uri:
+        if code_row["redirect_uri"] != redirect_uri:
             return jsonify({"error": "redirect_uri_mismatch"}), 400
+
+        user_id = code_row["user_id"]
 
         # Mark code as used
         cur.execute("UPDATE oauth_codes SET used = true WHERE code = %s", (code,))
@@ -140,12 +141,15 @@ def token():
     if not user_row:
         return jsonify({"error": "user_not_found"}), 400
 
-    uid, username, email, role = user_row
+    uid = user_row["id"]
+    username = user_row["username"]
+    email = user_row["email"]
+    role = user_row["role"]
 
     # Generate JWT
     now = datetime.utcnow()
     payload = {
-        "sub": uid,
+        "sub": str(uid),
         "username": username,
         "email": email,
         "role": role,

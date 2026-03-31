@@ -1391,9 +1391,35 @@
         </div>
     </div>
 
-    <!-- ==================== MODAL ==================== -->
-    <div class="modal-overlay" id="modal-overlay">
-        <div class="modal" id="modal-content"></div>
+    <!-- ==================== DETAIL MODAL (LCARS bm-overlay) ==================== -->
+    <div class="bm-overlay" id="detail-modal" style="--bm-accent:#ef4444;--bm-accent-rgb:239,68,68">
+        <div class="bm-shell">
+            <div class="bm-frame">
+                <div class="bm-frame-elbow-top"></div>
+                <div class="bm-frame-seg"></div>
+                <div class="bm-frame-seg dim"></div>
+                <div class="bm-frame-light on"></div>
+                <div class="bm-frame-seg purple"></div>
+                <div class="bm-frame-elbow-bottom"></div>
+            </div>
+            <div class="bm-content">
+                <div class="bm-header">
+                    <div class="bm-header-strip">
+                        <span class="bm-header-pip w2"></span>
+                        <span class="bm-header-pip w1"></span>
+                    </div>
+                    <span class="bm-header-title" id="detail-modal-title">DETAIL</span>
+                    <button class="bm-close" onclick="closeModal()">&times;</button>
+                </div>
+                <div class="bm-body" id="detail-modal-body"></div>
+                <div class="bm-footer">
+                    <div class="bm-footer-strip">
+                        <span class="bm-footer-dot cyan"></span>
+                        <span class="bm-footer-dot gold"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
 </div>
@@ -1418,7 +1444,7 @@ function formatTime(t) {
     if (!t) return '-';
     return ArchieTime.format(t, 'short');
 }
-function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+function closeModal() { document.getElementById('detail-modal').classList.remove('active'); }
 function setBadge(id, online) {
     const el = document.getElementById(id);
     if (el) el.className = 'svc-badge ' + (online ? 'online' : 'offline');
@@ -2379,18 +2405,9 @@ function startReconScan() {
 function viewScanResult(scanId) {
     fetch(API+'/recon/scan/'+scanId).then(r=>r.json()).then(d=>{
         if(!d.success) return showToast('error',d.error||'Failed');
-        const modal = document.getElementById('modal-content');
-        modal.textContent = '';
-        const header = document.createElement('div');
-        header.className = 'modal-header';
-        const h3 = document.createElement('h3');
-        h3.textContent = 'Scan #'+scanId+' - '+(d.scan?d.scan.module_name:'');
-        const closeBtn = document.createElement('button');
-        closeBtn.className = 'btn btn-sm';
-        closeBtn.textContent = 'Close';
-        closeBtn.addEventListener('click', closeModal);
-        header.appendChild(h3); header.appendChild(closeBtn);
-        modal.appendChild(header);
+        document.getElementById('detail-modal-title').textContent = 'SCAN #'+scanId+' — '+(d.scan?d.scan.module_name:'');
+        const body = document.getElementById('detail-modal-body');
+        body.textContent = '';
         const info = document.createElement('div');
         info.style.marginBottom = '8px';
         info.appendChild(createBadge(d.scan?d.scan.status:'', d.scan&&d.scan.status==='completed'?'success':'warning'));
@@ -2398,12 +2415,12 @@ function viewScanResult(scanId) {
         targetSpan.className = 'sn-scan-target';
         targetSpan.textContent = 'Target: '+(d.scan?d.scan.target:'');
         info.appendChild(targetSpan);
-        modal.appendChild(info);
+        body.appendChild(info);
         const pre = document.createElement('pre');
         pre.className = 'sn-pre';
         pre.textContent = JSON.stringify(d.scan?d.scan.results:{}, null, 2);
-        modal.appendChild(pre);
-        document.getElementById('modal-overlay').classList.add('open');
+        body.appendChild(pre);
+        document.getElementById('detail-modal').classList.add('active');
     }).catch(e=>showToast('error',e.message));
 }
 
@@ -2531,45 +2548,29 @@ async function loadScanResults() {
 function viewScanFile(filename) {
     fetch(API+'/scans/'+encodeURIComponent(filename)).then(r=>r.json()).then(d=>{
         if(!d.success) return;
-        const modal = document.getElementById('modal-content');
-        modal.textContent='';
-        const header = document.createElement('div');
-        header.className='modal-header';
-        const h3 = document.createElement('h3');
-        h3.textContent=filename;
-        const closeBtn = document.createElement('button');
-        closeBtn.className='btn btn-sm'; closeBtn.textContent='Close';
-        closeBtn.addEventListener('click',closeModal);
-        header.appendChild(h3); header.appendChild(closeBtn);
-        modal.appendChild(header);
+        document.getElementById('detail-modal-title').textContent = filename.toUpperCase();
+        const body = document.getElementById('detail-modal-body');
+        body.textContent='';
         const pre = document.createElement('pre');
         pre.className = 'sn-pre-tall';
         pre.textContent = typeof d.content==='object'?JSON.stringify(d.content,null,2):d.content;
-        modal.appendChild(pre);
-        document.getElementById('modal-overlay').classList.add('open');
+        body.appendChild(pre);
+        document.getElementById('detail-modal').classList.add('active');
     }).catch(e=>showToast('error',e.message));
 }
 
 function viewReconScan(scanId) {
     fetch(API+'/recon/scan/'+scanId).then(r=>r.json()).then(d=>{
         if(!d.success) return showToast('error',d.error||'Failed to load scan');
-        const modal = document.getElementById('modal-content');
-        modal.textContent='';
-        const header = document.createElement('div');
-        header.className='modal-header';
-        const h3 = document.createElement('h3');
-        h3.textContent=(d.scan.module_name||'Scan')+' — '+(d.scan.target||'');
-        const closeBtn = document.createElement('button');
-        closeBtn.className='btn btn-sm'; closeBtn.textContent='Close';
-        closeBtn.addEventListener('click',closeModal);
-        header.appendChild(h3); header.appendChild(closeBtn);
-        modal.appendChild(header);
+        document.getElementById('detail-modal-title').textContent = ((d.scan.module_name||'SCAN')+' — '+(d.scan.target||'')).toUpperCase();
+        const body = document.getElementById('detail-modal-body');
+        body.textContent='';
         const pre = document.createElement('pre');
         pre.className = 'sn-pre-tall';
         const content = d.scan.results || d.scan.raw_output || d.scan;
         pre.textContent = typeof content==='object'?JSON.stringify(content,null,2):String(content);
-        modal.appendChild(pre);
-        document.getElementById('modal-overlay').classList.add('open');
+        body.appendChild(pre);
+        document.getElementById('detail-modal').classList.add('active');
     }).catch(e=>showToast('error',e.message));
 }
 
@@ -4235,7 +4236,7 @@ setInterval(function(){
     if(active && active.dataset.tab==='dashboard') loadDashboard();
 }, 60000);
 
-document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ closeModal(); closeDeviceModal(); } });
+document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ closeModal(); closeDeviceModal(); document.querySelectorAll('.bm-overlay.active').forEach(m=>m.classList.remove('active')); } });
 
 // ═══════ COMPLIANCE TAB ═══════
 let _complianceResults = [];

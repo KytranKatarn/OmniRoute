@@ -818,7 +818,7 @@ class AgentLoop:
                 day_of_week="mon-fri",
                 hour="9-15",
                 minute="0,30",
-                timezone="US/Eastern",
+                timezone="America/New_York",
             ),
             id="market_watch_cycle",
             name="Agent Loop: M.A.R.K.E.T. Trading Cycle (Market Hours)",

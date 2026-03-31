@@ -63,6 +63,9 @@ def create_app():
     app.register_blueprint(public_bp)
     limiter.limit("30/minute")(public_bp)
 
+    from routes.news import news_bp
+    app.register_blueprint(news_bp)
+
     from routes.health import health_bp
     app.register_blueprint(health_bp)
 

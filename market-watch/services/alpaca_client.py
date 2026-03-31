@@ -76,6 +76,121 @@ def place_order(ticker, qty, side, order_type="market", limit_price=None):
         return {"success": False, "error": str(e)}
 
 
+def place_bracket_order(ticker, qty, side="buy", take_profit=None, stop_loss=None):
+    """Place a bracket order — entry + stop-loss + take-profit managed by Alpaca.
+
+    Args:
+        ticker: stock ticker
+        qty: number of shares
+        side: 'buy' or 'sell' (sell for short entry)
+        take_profit: target price for profit leg
+        stop_loss: stop price for loss leg
+
+    Returns:
+        dict with success, order_id, status, legs
+    """
+    client = _get_client()
+    if not client:
+        return {"success": False, "error": "Alpaca not configured"}
+    try:
+        from alpaca.trading.requests import (
+            MarketOrderRequest,
+            TakeProfitRequest,
+            StopLossRequest,
+        )
+        from alpaca.trading.enums import OrderSide, TimeInForce
+
+        order_side = OrderSide.BUY if side == "buy" else OrderSide.SELL
+        order_data = MarketOrderRequest(
+            symbol=ticker.upper(),
+            qty=int(qty),
+            side=order_side,
+            time_in_force=TimeInForce.DAY,
+            order_class="bracket",
+            take_profit=TakeProfitRequest(limit_price=round(take_profit, 2)) if take_profit else None,
+            stop_loss=StopLossRequest(stop_price=round(stop_loss, 2)) if stop_loss else None,
+        )
+        order = client.submit_order(order_data)
+        return {
+            "success": True,
+            "order_id": str(order.id),
+            "status": str(order.status),
+            "order_type": "bracket",
+            "ticker": ticker,
+            "side": side,
+            "qty": qty,
+        }
+    except Exception as e:
+        logger.error("Bracket order failed for %s: %s", ticker, e)
+        return {"success": False, "error": str(e)}
+
+
+def place_trailing_stop(ticker, qty, side="buy", trail_percent=None):
+    """Place a trailing stop order.
+
+    Args:
+        ticker: stock ticker
+        qty: number of shares
+        side: 'buy' or 'sell'
+        trail_percent: trailing percentage (e.g., 3.0 for 3%)
+
+    Returns:
+        dict with success, order_id, status
+    """
+    client = _get_client()
+    if not client:
+        return {"success": False, "error": "Alpaca not configured"}
+    try:
+        from alpaca.trading.requests import TrailingStopOrderRequest
+        from alpaca.trading.enums import OrderSide, TimeInForce
+
+        order_side = OrderSide.BUY if side == "buy" else OrderSide.SELL
+        order_data = TrailingStopOrderRequest(
+            symbol=ticker.upper(),
+            qty=int(qty),
+            side=order_side,
+            time_in_force=TimeInForce.GTC,
+            trail_percent=str(round(trail_percent, 2)),
+        )
+        order = client.submit_order(order_data)
+        return {
+            "success": True,
+            "order_id": str(order.id),
+            "status": str(order.status),
+            "order_type": "trailing_stop",
+            "ticker": ticker,
+            "side": side,
+            "qty": qty,
+            "trail_percent": trail_percent,
+        }
+    except Exception as e:
+        logger.error("Trailing stop order failed for %s: %s", ticker, e)
+        return {"success": False, "error": str(e)}
+
+
+def place_short_order(ticker, qty, order_type="market", take_profit=None, stop_loss=None, trail_percent=None):
+    """Place a short sell order.
+
+    Args:
+        ticker: stock ticker
+        qty: number of shares to short
+        order_type: 'market', 'bracket', or 'trailing_stop'
+        take_profit: target price for profit leg (bracket only)
+        stop_loss: stop price for loss leg (bracket only)
+        trail_percent: trailing percentage (trailing_stop only)
+
+    Returns:
+        dict with success, order_id, status
+    """
+    if order_type == "bracket" and take_profit and stop_loss:
+        return place_bracket_order(ticker, qty, side="sell",
+                                   take_profit=take_profit, stop_loss=stop_loss)
+    elif order_type == "trailing_stop" and trail_percent:
+        return place_trailing_stop(ticker, qty, side="sell", trail_percent=trail_percent)
+    else:
+        return place_order(ticker, qty, "sell")
+
+
 def get_positions():
     """Get all open positions."""
     client = _get_client()

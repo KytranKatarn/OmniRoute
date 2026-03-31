@@ -33,12 +33,21 @@ def check_price_exits():
                 continue
 
             exit_reason = None
+            direction = pos["direction"] if "direction" in pos.keys() else "long"
 
-            # Trigger 1: Stop-loss
-            if current_price <= pos["stop_loss"]:
-                exit_reason = "stopped"
-            # Trigger 2: Target hit
-            elif current_price >= pos["target_price"]:
+            # Trigger 1: Stop-loss (direction-aware)
+            if direction == "short":
+                if current_price >= pos["stop_loss"]:
+                    exit_reason = "stopped"
+            else:
+                if current_price <= pos["stop_loss"]:
+                    exit_reason = "stopped"
+
+            # Trigger 2: Target hit (direction-aware)
+            if exit_reason is None and direction == "short":
+                if current_price <= pos["target_price"]:
+                    exit_reason = "target_hit"
+            elif exit_reason is None and current_price >= pos["target_price"]:
                 exit_reason = "target_hit"
             # Trigger 3: Time expiry
             else:
@@ -109,8 +118,9 @@ def open_position(order, alpaca_order_id=None):
     try:
         cur = conn.execute(
             """INSERT INTO open_positions
-               (ticker, quantity, entry_price, stop_loss, target_price, max_hold_days, sector, thesis_id, alpaca_order_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (ticker, quantity, entry_price, stop_loss, target_price, max_hold_days, sector, thesis_id, alpaca_order_id,
+                direction, order_type, trail_percent)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 order["ticker"],
                 order["quantity"],
@@ -121,17 +131,22 @@ def open_position(order, alpaca_order_id=None):
                 order.get("sector"),
                 order.get("thesis_id"),
                 alpaca_order_id,
+                order.get("direction", "long"),
+                order.get("order_type", "market"),
+                order.get("trail_percent"),
             ),
         )
         position_id = cur.lastrowid
 
-        # Log entry in trade journal
+        # Log entry in trade journal (buy for longs, sell_short for shorts)
+        entry_action = "sell_short" if order.get("direction", "long") == "short" else "buy"
         conn.execute(
             """INSERT INTO trade_journal
                (ticker, action, quantity, price, position_id, thesis_id, risk_gates_log)
-               VALUES (?, 'buy', ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (
                 order["ticker"],
+                entry_action,
                 order["quantity"],
                 order["price"],
                 position_id,
@@ -161,18 +176,27 @@ def _close_position(conn, pos, sell_price, exit_reason):
     ticker = pos["ticker"]
     quantity = pos["quantity"]
     entry_price = pos["entry_price"]
+    direction = pos["direction"] if "direction" in pos.keys() else "long"
 
-    pnl = (sell_price - entry_price) * quantity
-    pnl_pct = ((sell_price - entry_price) / entry_price * 100) if entry_price > 0 else 0.0
+    # P&L is direction-aware: shorts profit when price drops
+    if direction == "short":
+        pnl = (entry_price - sell_price) * quantity
+        pnl_pct = ((entry_price - sell_price) / entry_price * 100) if entry_price > 0 else 0.0
+    else:
+        pnl = (sell_price - entry_price) * quantity
+        pnl_pct = ((sell_price - entry_price) / entry_price * 100) if entry_price > 0 else 0.0
 
-    # Execute sell (unless dry run)
+    # Closing a short means buying back; closing a long means selling
+    close_side = "buy" if direction == "short" else "sell"
+
+    # Execute close order (unless dry run)
     if not rc.DRY_RUN:
-        result = place_order(ticker, quantity, "sell")
+        result = place_order(ticker, quantity, close_side)
         if not result.get("success"):
             logger.error("Failed to sell %s: %s", ticker, result.get("error"))
             return None
     else:
-        logger.info("[DRY RUN] Would sell %d %s at %.2f (reason: %s)", quantity, ticker, sell_price, exit_reason)
+        logger.info("[DRY RUN] Would %s %d %s at %.2f (reason: %s)", close_side, quantity, ticker, sell_price, exit_reason)
 
     # Update position status
     conn.execute(
@@ -184,8 +208,8 @@ def _close_position(conn, pos, sell_price, exit_reason):
     conn.execute(
         """INSERT INTO trade_journal
            (ticker, action, quantity, price, position_id, thesis_id, exit_reason, pnl, pnl_pct)
-           VALUES (?, 'sell', ?, ?, ?, ?, ?, ?, ?)""",
-        (ticker, quantity, sell_price, pos["id"], pos["thesis_id"], exit_reason, round(pnl, 2), round(pnl_pct, 2)),
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (ticker, close_side, quantity, sell_price, pos["id"], pos["thesis_id"], exit_reason, round(pnl, 2), round(pnl_pct, 2)),
     )
 
     # Return cash

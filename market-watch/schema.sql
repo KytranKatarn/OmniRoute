@@ -238,3 +238,20 @@ CREATE TABLE IF NOT EXISTS trading_config (
 );
 
 INSERT OR IGNORE INTO trading_config (id, config) VALUES (1, '{}');
+
+-- News cache — headlines from multiple sources with sentiment scores
+CREATE TABLE IF NOT EXISTS news_cache (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticker TEXT NOT NULL,
+    source TEXT NOT NULL CHECK (source IN ('yfinance', 'alphavantage', 'manual')),
+    headline TEXT NOT NULL,
+    url TEXT,
+    published_at TIMESTAMP,
+    vader_score REAL,
+    vader_sentiment TEXT CHECK (vader_sentiment IN ('positive', 'negative', 'neutral')),
+    pulse_score REAL,
+    pulse_summary TEXT,
+    fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(ticker, headline)
+);
+CREATE INDEX IF NOT EXISTS idx_news_cache_ticker ON news_cache(ticker, fetched_at DESC);

@@ -192,67 +192,159 @@ def _generate_local(prompt, params):
 
 
 # ---------------------------------------------------------------------------
-# Cloud generation (RunPod)
+# Cloud generation — cascading provider chain
 # ---------------------------------------------------------------------------
+
+# Provider priority: free first, then paid. Each tried in order.
+_CLOUD_PROVIDER_ORDER = [
+    "google_veo",  # Free (Google AI Studio API key)
+    "huggingface",  # Free (rate-limited)
+    "replicate",  # Free trial credits, then pay-per-gen
+    "ltx_studio",  # Free 800 credits, then paid
+    "runpod",  # Pay-per-second GPU
+]
 
 
 def _generate_cloud(prompt, params):
     """
-    Submit to RunPod cloud provider and poll for completion.
-    Falls back to local if RunPod is not configured.
+    Try each configured cloud video provider in priority order.
+    Falls back to local ComfyUI if none are configured.
 
-    Returns dict with keys: success, path, provider, cost, gpu_seconds (on success)
+    All usage is logged to cloud_model_usage for contractor tracking.
+
+    Returns dict with keys: success, path, provider, cost (on success)
     or error (on failure).
     """
+    from .video_providers import get_provider
+
+    errors = []
+
+    for provider_name in _CLOUD_PROVIDER_ORDER:
+        provider = get_provider(provider_name)
+        if not provider or not provider.is_configured:
+            continue
+
+        logger.info("Trying cloud provider: %s", provider_name)
+
+        try:
+            result = _try_provider(provider, prompt, params)
+            if result.get("success"):
+                # Log to cloud_model_usage (same table as LLM contractors)
+                _log_cloud_usage(
+                    provider=provider_name,
+                    model=result.get("model", "video-gen"),
+                    cost=result.get("cost", 0),
+                )
+                return result
+            else:
+                error = result.get("error", "Unknown error")
+                logger.warning("Provider %s failed: %s", provider_name, error)
+                errors.append(f"{provider_name}: {error}")
+        except Exception as exc:
+            logger.warning("Provider %s exception: %s", provider_name, exc)
+            errors.append(f"{provider_name}: {exc}")
+
+    # No cloud provider worked — fall back to local
+    if errors:
+        logger.info("All cloud providers failed, falling back to local. Errors: %s", errors)
+    else:
+        logger.info("No cloud providers configured, falling back to local")
+    return _generate_local(prompt, params)
+
+
+def _try_provider(provider, prompt, params):
+    """
+    Submit to a provider, poll for completion, download result.
+    Works with the standard VideoProvider interface (submit/poll/download).
+    """
+    submit_result = provider.submit(prompt, params)
+
+    # Check for immediate failure
+    if submit_result.get("status") == "failed":
+        return {"success": False, "error": submit_result.get("error", "Submit failed")}
+
+    # HuggingFace can return binary directly on submit
+    if submit_result.get("_binary"):
+        os.makedirs(VIDEO_OUTPUT_DIR, exist_ok=True)
+        uid = uuid.uuid4().hex[:12]
+        dst = os.path.join(VIDEO_OUTPUT_DIR, f"sv_{uid}.mp4")
+        with open(dst, "wb") as f:
+            f.write(submit_result["_binary"])
+        return {
+            "success": True,
+            "path": dst,
+            "provider": provider.name,
+            "model": "ltx-video",
+            "cost": 0,
+        }
+
+    job_id = submit_result.get("job_id")
+    if not job_id:
+        return {"success": False, "error": f"{provider.name} did not return a job_id"}
+
+    # If already completed on submit (some providers)
+    if submit_result.get("status") == "completed":
+        url = submit_result.get("url", "")
+        if url:
+            return _download_video(provider, url)
+
+    # Poll for completion (max 5 min)
+    for _ in range(60):
+        time.sleep(5)
+        poll_result = provider.poll(job_id)
+        status = poll_result.get("status", "").lower()
+
+        if status == "completed":
+            url = poll_result.get("url", "")
+            if not url:
+                return {"success": False, "error": f"{provider.name} completed but no URL"}
+            return _download_video(provider, url)
+
+        if status in ("failed", "error"):
+            return {"success": False, "error": poll_result.get("error", "Generation failed")}
+
+    return {"success": False, "error": f"{provider.name} timed out after 5 minutes"}
+
+
+def _download_video(provider, url):
+    """Download video from provider URL to local storage."""
+    os.makedirs(VIDEO_OUTPUT_DIR, exist_ok=True)
+    uid = uuid.uuid4().hex[:12]
+    ext = ".mp4" if "mp4" in url.lower() else ".webp"
+    dst = os.path.join(VIDEO_OUTPUT_DIR, f"sv_{uid}{ext}")
+
+    content = provider.download(url)
+    if not content:
+        return {"success": False, "error": f"Failed to download from {provider.name}"}
+
+    with open(dst, "wb") as f:
+        f.write(content)
+
+    return {
+        "success": True,
+        "path": dst,
+        "provider": provider.name,
+        "model": "video-gen",
+        "cost": 0 if provider.is_free else 0.05,  # Estimate for paid providers
+    }
+
+
+def _log_cloud_usage(provider, model, cost):
+    """Log video generation to cloud_model_usage table (same as LLM contractors)."""
     try:
-        from .runpod_provider import RunPodVideoProvider
-    except ImportError:
-        logger.warning("RunPod provider not importable — falling back to local")
-        return _generate_local(prompt, params)
+        from database import get_db_cursor
 
-    provider = RunPodVideoProvider()
-    if not provider.is_configured():
-        logger.info("RunPod not configured — falling back to local generation")
-        return _generate_local(prompt, params)
-
-    try:
-        submit_result = provider.generate(prompt, params)
-        job_id = submit_result.get("job_id") or submit_result.get("id")
-        if not job_id:
-            return {"success": False, "error": "RunPod did not return a job_id"}
-
-        # Poll status
-        for _ in range(60):
-            time.sleep(5)
-            status_result = provider.get_status(job_id)
-            status = status_result.get("status", "").upper()
-
-            if status == "COMPLETED":
-                os.makedirs(VIDEO_OUTPUT_DIR, exist_ok=True)
-                uid_hex = uuid.uuid4().hex
-                dst = os.path.join(VIDEO_OUTPUT_DIR, f"sv_{uid_hex}.mp4")
-                provider.download_result(job_id, dst)
-
-                gpu_seconds = status_result.get("gpu_seconds", 0)
-                estimated_cost = status_result.get("cost", gpu_seconds * 0.00036)
-
-                return {
-                    "success": True,
-                    "path": dst,
-                    "provider": "runpod",
-                    "cost": estimated_cost,
-                    "gpu_seconds": gpu_seconds,
-                }
-
-            if status == "FAILED":
-                error_msg = status_result.get("error") or "RunPod job failed"
-                return {"success": False, "error": error_msg}
-
-        return {"success": False, "error": "RunPod generation timed out after 5 minutes"}
-
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO cloud_model_usage
+                    (model_name, provider, prompt_tokens, completion_tokens, cost_usd, created_at)
+                VALUES (%s, %s, %s, %s, %s, NOW())
+                """,
+                (model, provider, 0, 0, cost),
+            )
     except Exception as exc:
-        logger.exception("Cloud generation error for RunPod")
-        return {"success": False, "error": f"Cloud generation error: {exc}"}
+        logger.debug("Failed to log cloud video usage: %s", exc)
 
 
 # ---------------------------------------------------------------------------

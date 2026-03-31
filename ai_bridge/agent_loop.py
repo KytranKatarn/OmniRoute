@@ -5875,6 +5875,23 @@ class AgentLoop:
         Processes up to 10 skills per run to avoid overloading the Bridge.
         Runs every 6 hours, offset from skill sync.
         """
+        # Recovery: reset skills stuck in 'analyzing' for >1 hour (crash orphans)
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE github_skills SET status = 'discovered', updated_at = NOW()
+                WHERE status = 'analyzing' AND updated_at < NOW() - INTERVAL '1 hour'
+            """)
+            recovered = cur.rowcount
+            conn.commit()
+            cur.close()
+            conn.close()
+            if recovered:
+                logger.info("[SkillAnalyzer] Recovered %d stuck 'analyzing' skills", recovered)
+        except Exception as e:
+            logger.warning("[SkillAnalyzer] Recovery query failed: %s", e)
+
         start = time.time()
         analyzed = 0
         errors_count = 0

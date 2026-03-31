@@ -41,7 +41,7 @@ except ImportError as e:
     LEARNING_AVAILABLE = False
 
 try:
-    from tools.dev_pipeline.services.improvement_engine import run_auto_improvement_detection
+    from tools.repair_bay.services.improvement_engine import run_auto_improvement_detection
     from ai_bridge.improvement_chat import self_reflection_chat
 
     IMPROVEMENT_AVAILABLE = True

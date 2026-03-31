@@ -970,8 +970,38 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Job #62: Social video content generation (every 4 hours)
+        self.scheduler.add_job(
+            with_app_context(self._social_video_generate_content),
+            "interval",
+            hours=4,
+            id="social_video_generate",
+            name="Social Video: Generate Content",
+            replace_existing=True,
+        )
+
+        # Job #63: Social video auto-approve (every 15 minutes)
+        self.scheduler.add_job(
+            with_app_context(self._social_video_auto_approve),
+            "interval",
+            minutes=15,
+            id="social_video_auto_approve",
+            name="Social Video: Auto-Approve",
+            replace_existing=True,
+        )
+
+        # Job #64: Social video publish scheduled items (every 5 minutes)
+        self.scheduler.add_job(
+            with_app_context(self._social_video_publish),
+            "interval",
+            minutes=5,
+            id="social_video_publish",
+            name="Social Video: Publish Scheduled",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 61 jobs")
+        logger.info("Agent loop started with 64 jobs")
 
     def _update_stock_prices(self):
         """Job #27: Refresh cached stock prices, check price alerts, and auto-scan watchlist every 5 minutes."""
@@ -6803,6 +6833,183 @@ Respond with ONLY a JSON object (no markdown, no explanation):
                     )
         except Exception as e:
             logger.error(f"[SSL] Fleet SSL renewal error: {e}")
+
+
+    # ── Job #62 — Social Video: Generate Content ──────────────────────────
+
+    def _social_video_generate_content(self):
+        """Job #62: Generate social video content from templates every 4 hours."""
+        import random
+        try:
+            from platform_v2.tools.media_studio.services import social_video_service as svs
+
+            # Check budget
+            budget = svs.check_budget()
+            if not budget.get("can_generate", False):
+                logger.info("[SocialVideo] Budget limit reached, skipping generation")
+                return
+
+            # Check pending queue — skip if 5+ items in-flight or draft
+            generating = svs.get_queue_items(status="generating") or []
+            drafts = svs.get_queue_items(status="draft") or []
+            if len(generating) + len(drafts) >= 5:
+                logger.info("[SocialVideo] Queue has %d pending items, skipping", len(generating) + len(drafts))
+                return
+
+            # Pick content type by weighted random
+            content_type = random.choices(
+                ["motivational", "agent_moment"],
+                weights=[7, 3],
+                k=1,
+            )[0]
+
+            # Get active templates for this type
+            templates = svs.get_templates(content_type=content_type, active_only=True)
+            if not templates:
+                logger.info("[SocialVideo] No active templates for type=%s", content_type)
+                return
+
+            template = random.choice(templates)
+
+            # Build variables dict
+            if content_type == "agent_moment":
+                agent = svs.pick_agent_for_content()
+                variables = {
+                    "agent_name": agent.get("display_name") or agent.get("name", ""),
+                    "department": agent.get("department", ""),
+                    "personality_trait": (agent.get("personality", "") or "")[:100],
+                    "personality_note": "",
+                    "project_note": "",
+                }
+            else:
+                quotes = [
+                    ("The only way to do great work is to love what you do.", "Steve Jobs"),
+                    ("The future belongs to those who believe in the beauty of their dreams.", "Eleanor Roosevelt"),
+                    ("Success is not final, failure is not fatal: it is the courage to continue that counts.", "Winston Churchill"),
+                    ("It's not about ideas. It's about making ideas happen.", "Ralph Marston"),
+                    ("Believe you can and you're halfway there.", "Theodore Roosevelt"),
+                    ("The secret of getting ahead is getting started.", "Mark Twain"),
+                    ("A journey of a thousand miles begins with a single step.", "Chinese Proverb"),
+                    ("In the middle of every difficulty lies opportunity.", "Albert Einstein"),
+                ]
+                quote_text, quote_author = random.choice(quotes)
+                scene = random.choice(["mountains", "ocean", "city", "forest", "starry night"])
+                variables = {
+                    "quote": quote_text,
+                    "author": quote_author,
+                    "scene": scene,
+                }
+
+            # Render template
+            rendered = svs.render_template(template["id"], variables)
+            if not rendered:
+                logger.warning("[SocialVideo] Template render returned None for template_id=%s", template["id"])
+                return
+
+            # Determine approval tier and auto-approve eligibility
+            approval_tier = rendered.get("approval_tier", "manual")
+            if content_type == "agent_moment" and svs.should_auto_approve(rendered):
+                approval_tier = "auto"
+
+            # Create queue item
+            item = svs.create_queue_item(
+                template_id=template["id"],
+                content_type=content_type,
+                variables=variables,
+                rendered=rendered,
+                approval_tier=approval_tier,
+                created_by="agent_loop",
+            )
+            logger.info("[SocialVideo] Created queue item id=%s type=%s tier=%s", item.get("id"), content_type, approval_tier)
+
+            # Trigger generation worker
+            from platform_v2.tools.media_studio.services.social_video_worker import process_queue
+            process_queue()
+
+        except Exception as e:
+            logger.error("[SocialVideo] Content generation job failed: %s", e)
+
+    # ── Job #63 — Social Video: Auto-Approve ──────────────────────────────
+
+    def _social_video_auto_approve(self):
+        """Job #63: Auto-approve eligible social video queue items every 15 minutes."""
+        try:
+            from platform_v2.tools.media_studio.services import social_video_service as svs
+
+            items = svs.get_queue_items(status="ready", limit=20) or []
+            for item in items:
+                if item.get("approval_tier") == "auto":
+                    svs.approve_item(item["id"])
+                    logger.info("[SocialVideo] Auto-approved queue item id=%s", item["id"])
+
+        except Exception as e:
+            logger.error("[SocialVideo] Auto-approve job failed: %s", e)
+
+    # ── Job #64 — Social Video: Publish Scheduled ─────────────────────────
+
+    def _social_video_publish(self):
+        """Job #64: Publish scheduled social video items every 5 minutes."""
+        import json as _json
+        import os as _os
+        from datetime import datetime as _dt, timezone as _tz
+        try:
+            from platform_v2.tools.media_studio.services import social_video_service as svs
+
+            now = _dt.now(_tz.utc)
+            items = svs.get_queue_items(status="scheduled", limit=10) or []
+
+            for item in items:
+                try:
+                    scheduled_at = item.get("scheduled_at")
+                    if scheduled_at is None:
+                        continue
+                    # Normalize to UTC-aware datetime if needed
+                    if isinstance(scheduled_at, str):
+                        scheduled_at = _dt.fromisoformat(scheduled_at.replace("Z", "+00:00"))
+                    if scheduled_at.tzinfo is None:
+                        scheduled_at = scheduled_at.replace(tzinfo=_tz.utc)
+                    if scheduled_at > now:
+                        continue
+
+                    video_path = item.get("video_path", "")
+                    if not _os.path.exists(video_path):
+                        logger.warning("[SocialVideo] Video file not found: %s", video_path)
+                        continue
+
+                    caption = item.get("caption", "")
+                    hashtags = item.get("hashtags", [])
+                    platforms = item.get("target_platforms", [])
+                    post_urls = {}
+
+                    for platform in platforms:
+                        try:
+                            if platform in ("instagram", "facebook"):
+                                from platform_v2.tools.social_media.publishing_service import publish_video
+                                result = publish_video(platform, video_path, caption, hashtags)
+                                if result:
+                                    post_urls[platform] = result
+                            elif platform == "indeed":
+                                from platform_v2.tools.social_media.platform_clients import get_indeed_client
+                                result = get_indeed_client().post_video(video_path, caption, hashtags)
+                                if result:
+                                    post_urls[platform] = result
+                        except Exception as platform_err:
+                            logger.error("[SocialVideo] Publish failed for platform=%s item=%s: %s", platform, item["id"], platform_err)
+
+                    new_status = "posted" if post_urls else "failed"
+                    svs.update_queue_item(
+                        item["id"],
+                        status=new_status,
+                        posted_at=now,
+                        post_urls=_json.dumps(post_urls),
+                    )
+                    logger.info("[SocialVideo] Published item id=%s status=%s platforms=%s", item["id"], new_status, list(post_urls.keys()))
+
+                except Exception as item_err:
+                    logger.error("[SocialVideo] Publish error for item id=%s: %s", item.get("id"), item_err)
+
+        except Exception as e:
+            logger.error("[SocialVideo] Publish job failed: %s", e)
 
 
 # ---------------------------------------------------------------------------

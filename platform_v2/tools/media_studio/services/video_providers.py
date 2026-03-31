@@ -11,6 +11,8 @@ import time
 
 import requests
 
+from .runpod_provider import RunPodVideoProvider
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -355,6 +357,7 @@ def get_video_providers():
             "replicate": ReplicateVideoProvider(),
             "huggingface": HuggingFaceVideoProvider(),
             "ltx_studio": LTXStudioProvider(),
+            "runpod": RunPodVideoProvider(),
         }
     return _PROVIDERS
 

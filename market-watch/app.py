@@ -4,7 +4,10 @@ import os
 import time
 import threading
 import logging
-from flask import Flask, send_from_directory
+
+from flask import Flask, send_from_directory, render_template, request, redirect, session
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -15,14 +18,51 @@ def create_app():
         __name__,
         static_folder="static",
         static_url_path="/static",
+        template_folder="templates",
     )
 
+    # --- Session & Security Config ---
+    app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me")
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    if os.environ.get("FLASK_ENV") == "production":
+        app.config["SESSION_COOKIE_SECURE"] = True
+
+    # --- Rate Limiter ---
+    limiter = Limiter(
+        get_remote_address,
+        app=app,
+        storage_uri=os.environ.get("RATELIMIT_STORAGE_URI", "memory://"),
+        default_limits=[],
+    )
+    app.limiter = limiter
+
+    # --- Database ---
     from db import init_db
     init_db()
+
+    # --- KytranAuth SDK ---
+    from kytran_auth import KytranAuth
+    from auth import auth_bp, upsert_local_user
+
+    kytran_auth = KytranAuth()
+    app.config["KYTRAN_CLIENT_ID"] = os.environ.get("KYTRAN_CLIENT_ID", "market-watch-viewer")
+    kytran_auth.init_app(app)
+
+    @kytran_auth.on_login
+    def on_login(user_data):
+        """Cache user locally and resolve tier on every login."""
+        upsert_local_user(user_data)
+        logger.info("User logged in: %s", user_data.get("username"))
+
+    # --- Auth + Public Blueprints ---
+    app.register_blueprint(auth_bp)
+    limiter.limit("10/minute")(auth_bp)
 
     from routes.health import health_bp
     app.register_blueprint(health_bp)
 
+    # --- Protected Route Blueprints ---
     from routes.stocks import stocks_bp
     from routes.watchlist import watchlist_bp
     from routes.charts import charts_bp
@@ -48,15 +88,32 @@ def create_app():
     from routes.strategy_routes import bp as strategy_bp
     app.register_blueprint(strategy_bp)
 
+    # --- CORS (locked down) ---
+    allowed_origins = os.environ.get(
+        "CORS_ORIGINS",
+        "https://market.kytranempowerment.com,http://192.168.1.200:8080"
+    ).split(",")
+
     @app.after_request
     def add_cors(response):
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH"
+        origin = request.headers.get("Origin", "")
+        if origin in allowed_origins:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH"
+            response.headers["Access-Control-Allow-Credentials"] = "true"
         return response
 
+    # --- Landing Page (public) ---
     @app.route("/")
-    def index():
+    def landing():
+        return render_template("landing.html")
+
+    # --- Dashboard (authenticated) ---
+    @app.route("/dashboard")
+    def dashboard():
+        if "kytran_user" not in session:
+            return redirect("/auth/kytran/login?next=/dashboard")
         return send_from_directory("static", "index.html")
 
     return app

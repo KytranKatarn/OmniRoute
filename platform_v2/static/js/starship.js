@@ -716,16 +716,36 @@ function closeAddNodeModal() { closeConnectModal(); }
 // ── Connect a Machine Modal (LCARS) ──
 function openConnectNodeModal() {
     document.getElementById('connectNodeModal').style.display = 'flex';
-    // Reset ZIP download link
-    var zipBtn = document.getElementById('cn-zip-download');
-    if (zipBtn) {
-        zipBtn.href = '#';
-        zipBtn.style.opacity = '0.4';
-        zipBtn.style.pointerEvents = 'none';
-        zipBtn.textContent = 'Request a node first';
-    }
     loadPendingNodes();
-    loadApprovedNodesForDownload();
+
+    // Auto-generate registration token for instant approval
+    fetch('/tools/starbase/api/fleet/token/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'starship', expires_hours: 24 })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success && data.token) {
+            var token = data.token;
+            var baseUrl = window.location.origin;
+            // Update commands with token baked in
+            var winCmd = document.getElementById('cn-win-cmd');
+            if (winCmd) winCmd.textContent = 'irm ' + baseUrl + '/tools/starbase/api/nodes/setup-node.ps1 | iex';
+            var linuxCmd = document.getElementById('cn-linux-cmd');
+            if (linuxCmd) linuxCmd.textContent = 'TOKEN="' + token + '" bash <(curl -fsSL ' + baseUrl + '/tools/starbase/api/nodes/bootstrap-wsl2.sh)';
+            var outpostCmd = document.getElementById('cn-outpost-cmd');
+            if (outpostCmd) outpostCmd.textContent = 'curl -fsSL ' + baseUrl + '/tools/starbase/api/nodes/install.sh | TOKEN="' + token + '" sudo bash';
+            // Show token banner and value
+            var banner = document.getElementById('cn-token-banner');
+            if (banner) banner.style.display = 'block';
+            var tokenDisplay = document.getElementById('cn-token-display');
+            if (tokenDisplay) tokenDisplay.style.display = 'block';
+            var tokenVal = document.getElementById('cn-token-value');
+            if (tokenVal) tokenVal.textContent = token;
+        }
+    })
+    .catch(function() {});
 }
 
 function loadApprovedNodesForDownload() {

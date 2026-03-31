@@ -166,27 +166,43 @@
             </div>
             <div class="bm-body" style="padding:16px;">
 
-                <!-- Docker-Only Deployment -->
-                <div class="cn-panel">
-                    <h3 class="cn-section-title">Option A: One-Click Installer (Recommended)</h3>
-                    <a href="/static/downloads/ARCHIE-Node-Setup.exe" class="cn-download-btn">
-                        Download A.R.C.H.I.E. Node Setup (.exe)
-                    </a>
-                    <p class="cn-note">Branded Kytran Empowerment installer. Installs Docker Desktop, registers with hub, starts everything. Just double-click.</p>
+                <!-- Token status banner -->
+                <div id="cn-token-banner" style="padding:8px 12px;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.2);border-radius:6px;margin-bottom:16px;font-size:0.75rem;display:none;">
+                    <span style="color:#a78bfa;font-weight:600;">AUTO-APPROVED</span>
+                    <span style="color:#94a3b8;"> — token valid for 24h. Node connects instantly.</span>
+                </div>
 
-                    <h3 class="cn-section-title">Option B: Linux One-Command Install</h3>
+                <!-- Option A: Windows GPU Node -->
+                <div class="cn-panel">
+                    <h3 class="cn-section-title" style="color:#a78bfa;">Option A: Windows GPU Node (Recommended)</h3>
+                    <p class="cn-note">Full setup — installs WSL2, Docker Desktop, NVIDIA toolkit, everything. Run as Administrator:</p>
                     <div class="cn-cmd-box" style="margin:8px 0;">
-                        <code id="cn-linux-cmd" style="font-size:0.7rem;word-break:break-all;">curl -fsSL https://archie.kytranempowerment.com/static/downloads/install.sh | bash</code>
+                        <code id="cn-win-cmd" style="font-size:0.68rem;word-break:break-all;">irm {{ request.host_url.rstrip('/') }}/tools/starbase/api/nodes/setup-node.ps1 | iex</code>
+                        <button onclick="copyConnectCmd('cn-win-cmd')" class="cn-copy-btn">COPY</button>
+                    </div>
+                    <p class="cn-note" style="color:#64748b;">PowerShell Admin. One reboot required. GPU auto-detected.</p>
+
+                    <!-- Option B: Linux / WSL2 -->
+                    <h3 class="cn-section-title" style="color:#22d3ee;">Option B: Linux / WSL2 (Docker already installed)</h3>
+                    <div class="cn-cmd-box" style="margin:8px 0;">
+                        <code id="cn-linux-cmd" style="font-size:0.68rem;word-break:break-all;">bash <(curl -fsSL {{ request.host_url.rstrip('/') }}/tools/starbase/api/nodes/bootstrap-wsl2.sh)</code>
                         <button onclick="copyConnectCmd('cn-linux-cmd')" class="cn-copy-btn">COPY</button>
                     </div>
-                    <p class="cn-note">Installs Docker, NVIDIA toolkit (if GPU), registers with hub, starts everything.</p>
+                    <p class="cn-note" style="color:#64748b;">For machines with Docker + GPU already configured.</p>
 
-                    <h3 class="cn-section-title">Option C: ZIP Package (Docker already installed)</h3>
-                    <a href="/static/downloads/ARCHIE-Node-ZIP.zip" class="cn-download-btn" style="background:#1e293b;border:1px solid #00e5ff;" download>
-                        Download Node ZIP
-                    </a>
-                    <p class="cn-note">For machines with Docker already installed. Extract, double-click <strong>start.bat</strong> (Windows) or <strong>start.command</strong> (Mac).</p>
+                    <!-- Option C: Linux VPS / Outpost -->
+                    <h3 class="cn-section-title" style="color:#58a6ff;">Option C: Linux VPS / Outpost</h3>
+                    <div class="cn-cmd-box" style="margin:8px 0;">
+                        <code id="cn-outpost-cmd" style="font-size:0.68rem;word-break:break-all;">curl -fsSL {{ request.host_url.rstrip('/') }}/tools/starbase/api/nodes/install.sh | sudo bash</code>
+                        <button onclick="copyConnectCmd('cn-outpost-cmd')" class="cn-copy-btn">COPY</button>
+                    </div>
+                    <p class="cn-note" style="color:#64748b;">Lightweight outpost for VPS. Installs Docker, Tailscale, KSO.</p>
                 </div>
+
+                <!-- Registration Token -->
+                <div id="cn-token-display" style="margin-top:12px;padding:8px 12px;background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.08);border-radius:4px;display:none;">
+                    <span style="font-size:0.7rem;color:#64748b;">Registration Token: </span>
+                    <code id="cn-token-value" style="font-size:0.65rem;color:#a78bfa;"></code>
                 </div>
 
                 <!-- What Gets Installed -->

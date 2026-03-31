@@ -60,6 +60,16 @@ CREATE TABLE IF NOT EXISTS analyses (
     risk_stop_loss REAL,
     recommendation TEXT CHECK (recommendation IN ('buy', 'sell', 'hold', 'skip')),
     executed INTEGER DEFAULT 0,
+    value_report TEXT,
+    value_score REAL,
+    pulse_report TEXT,
+    pulse_score REAL,
+    oracle_synthesis TEXT,
+    oracle_confidence REAL,
+    market_execution TEXT,
+    suggested_position_size REAL,
+    stop_loss REAL,
+    target_price REAL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (cycle_id) REFERENCES cycle_log(id)
 );
@@ -123,3 +133,41 @@ CREATE TABLE IF NOT EXISTS paper_account (
 
 -- Seed paper account if empty
 INSERT OR IGNORE INTO paper_account (id, cash_balance, initial_balance) VALUES (1, 100000.0, 100000.0);
+
+CREATE TABLE IF NOT EXISTS strategies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT,
+    rules TEXT NOT NULL,
+    is_active INTEGER DEFAULT 1,
+    backtest_count INTEGER DEFAULT 0,
+    last_backtest_id INTEGER,
+    win_rate REAL,
+    total_return REAL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sentiment_scores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticker TEXT NOT NULL,
+    source TEXT NOT NULL,
+    headline TEXT,
+    score REAL NOT NULL,
+    summary TEXT,
+    url TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_sentiment_ticker ON sentiment_scores(ticker, created_at);
+
+CREATE TABLE IF NOT EXISTS agent_dispatch_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    analysis_id INTEGER REFERENCES analyses(id),
+    agent_name TEXT NOT NULL,
+    agent_id INTEGER,
+    prompt_tokens INTEGER DEFAULT 0,
+    completion_tokens INTEGER DEFAULT 0,
+    duration_ms INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'success',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

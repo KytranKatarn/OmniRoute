@@ -167,57 +167,44 @@
             <div class="bm-body" style="padding:16px;">
 
                 <!-- Token status banner -->
-                <div id="cn-token-banner" style="padding:8px 12px;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.2);border-radius:6px;margin-bottom:16px;font-size:0.75rem;display:none;">
-                    <span style="color:#a78bfa;font-weight:600;">AUTO-APPROVED</span>
+                <div id="cn-token-banner" style="padding:8px 12px;background:rgba(34,211,238,0.08);border:1px solid rgba(34,211,238,0.2);border-radius:6px;margin-bottom:16px;font-size:0.75rem;display:none;">
+                    <span style="color:#22d3ee;font-weight:600;">AUTO-APPROVED</span>
                     <span style="color:#94a3b8;"> — token valid for 24h. Node connects instantly.</span>
                 </div>
 
-                <!-- Option A: Windows GPU Node -->
                 <div class="cn-panel">
-                    <h3 class="cn-section-title" style="color:#a78bfa;">Option A: Windows GPU Node (Recommended)</h3>
-                    <p class="cn-note">Full setup — installs WSL2, Docker Desktop, NVIDIA toolkit, everything. Run as Administrator:</p>
-                    <div class="cn-cmd-box" style="margin:8px 0;">
-                        <code id="cn-win-cmd" style="font-size:0.68rem;word-break:break-all;">irm {{ request.host_url.rstrip('/') }}/tools/starbase/api/nodes/setup-node.ps1 | iex</code>
-                        <button onclick="copyConnectCmd('cn-win-cmd')" class="cn-copy-btn">COPY</button>
-                    </div>
-                    <p class="cn-note" style="color:#64748b;">PowerShell Admin. One reboot required. GPU auto-detected.</p>
+                    <!-- PRIMARY: Docker Run (works everywhere) -->
+                    <h3 class="cn-section-title" style="color:#22d3ee;">Step 1: Install Docker Desktop</h3>
+                    <p class="cn-note">Download from <a href="https://www.docker.com/products/docker-desktop/" target="_blank" style="color:#22d3ee;">docker.com</a> and install. Works on Windows, Mac, and Linux.</p>
+                    <p class="cn-note" style="color:#fbbf24;">For GPU support: install <a href="https://www.nvidia.com/drivers" target="_blank" style="color:#fbbf24;">NVIDIA drivers</a> before Docker Desktop.</p>
 
-                    <h3 class="cn-section-title" style="color:#fbbf24;">After Reboot — Phase 2 (PowerShell Admin)</h3>
-                    <div class="cn-cmd-box" style="margin:8px 0;">
-                        <code id="cn-phase2-download" style="font-size:0.68rem;word-break:break-all;">Invoke-WebRequest -Uri {{ request.host_url.rstrip('/') }}/tools/starbase/api/nodes/setup-node.ps1 -OutFile setup-node.ps1; .\setup-node.ps1 -Phase2</code>
-                        <button onclick="copyConnectCmd('cn-phase2-download')" class="cn-copy-btn">COPY</button>
-                    </div>
-                    <p class="cn-note" style="color:#64748b;">Run after reboot. Installs NVIDIA toolkit in WSL2, tests GPU, starts fleet node.</p>
+                    <h3 class="cn-section-title" style="color:#a78bfa;margin-top:16px;">Step 2: Run This Command</h3>
+                    <p class="cn-note">Open any terminal (PowerShell, CMD, Terminal) and paste:</p>
 
-                    <!-- Option B: Linux / WSL2 -->
-                    <h3 class="cn-section-title" style="color:#22d3ee;">Option B: Linux / WSL2 (Docker already installed)</h3>
+                    <!-- GPU Node -->
+                    <p class="cn-note" style="color:#a78bfa;font-weight:600;margin-top:12px;">With GPU:</p>
                     <div class="cn-cmd-box" style="margin:8px 0;">
-                        <code id="cn-linux-cmd" style="font-size:0.68rem;word-break:break-all;">bash <(curl -fsSL {{ request.host_url.rstrip('/') }}/tools/starbase/api/nodes/bootstrap-wsl2.sh)</code>
-                        <button onclick="copyConnectCmd('cn-linux-cmd')" class="cn-copy-btn">COPY</button>
+                        <code id="cn-docker-gpu" style="font-size:0.65rem;word-break:break-all;">docker run -d --name archie-node --restart unless-stopped --gpus all -e HUB_URL={{ request.host_url.rstrip('/') }} -e TOKEN=GENERATING... -e OLLAMA_HOST=http://host.docker.internal:11434 -p 3001:3001 -v archie-node-data:/data ghcr.io/kytrankatarn/archie-node:latest</code>
+                        <button onclick="copyConnectCmd('cn-docker-gpu')" class="cn-copy-btn">COPY</button>
                     </div>
-                    <p class="cn-note" style="color:#64748b;">For machines with Docker + GPU already configured.</p>
 
-                    <!-- Option C: Linux VPS / Outpost -->
-                    <h3 class="cn-section-title" style="color:#58a6ff;">Option C: Linux VPS / Outpost</h3>
+                    <!-- CPU-only Node -->
+                    <p class="cn-note" style="color:#58a6ff;font-weight:600;margin-top:12px;">Without GPU:</p>
                     <div class="cn-cmd-box" style="margin:8px 0;">
-                        <code id="cn-outpost-cmd" style="font-size:0.68rem;word-break:break-all;">curl -fsSL {{ request.host_url.rstrip('/') }}/tools/starbase/api/nodes/install.sh | sudo bash</code>
-                        <button onclick="copyConnectCmd('cn-outpost-cmd')" class="cn-copy-btn">COPY</button>
+                        <code id="cn-docker-cpu" style="font-size:0.65rem;word-break:break-all;">docker run -d --name archie-node --restart unless-stopped -e HUB_URL={{ request.host_url.rstrip('/') }} -e TOKEN=GENERATING... -e OLLAMA_HOST=http://host.docker.internal:11434 -p 3001:3001 -v archie-node-data:/data ghcr.io/kytrankatarn/archie-node:latest</code>
+                        <button onclick="copyConnectCmd('cn-docker-cpu')" class="cn-copy-btn">COPY</button>
                     </div>
-                    <p class="cn-note" style="color:#64748b;">Lightweight outpost for VPS. Installs Docker, Tailscale, KSO.</p>
-                </div>
 
-                <!-- Registration Token -->
-                <div id="cn-token-display" style="margin-top:12px;padding:8px 12px;background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.08);border-radius:4px;display:none;">
-                    <span style="font-size:0.7rem;color:#64748b;">Registration Token: </span>
-                    <code id="cn-token-value" style="font-size:0.65rem;color:#a78bfa;"></code>
+                    <p class="cn-note" style="color:#64748b;margin-top:8px;">That's it. Node will register, connect to hub, and start heartbeating.</p>
                 </div>
 
                 <!-- What Gets Installed -->
                 <div class="cn-info-box" style="margin-top:16px;padding:12px;background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.15);border-radius:6px;font-size:0.75rem;">
-                    <div style="color:#00e5ff;font-weight:600;margin-bottom:6px;">WHAT GETS INSTALLED</div>
-                    <div style="color:#94a3b8;">Ollama (LLM engine) + ComfyUI (image gen) + Tailscale (mesh VPN) + B.E.A.C.O.N. (node dashboard)</div>
-                    <div style="color:#94a3b8;margin-top:4px;">Node gets a fleet subdomain: <span style="color:#8b5cf6;">{name}.fleet.kytranempowerment.com</span></div>
-                    <div style="color:#94a3b8;margin-top:4px;">W.A.R.P. remote support access via encrypted mesh tunnel</div>
+                    <div style="color:#00e5ff;font-weight:600;margin-bottom:6px;">WHAT THE NODE DOES</div>
+                    <div style="color:#94a3b8;">Registers with hub, reports hardware (CPU, RAM, GPU), heartbeats every 30s</div>
+                    <div style="color:#94a3b8;margin-top:4px;">Connects to local Ollama for LLM dispatch from hub</div>
+                    <div style="color:#94a3b8;margin-top:4px;">Node API on port 3001 for health checks and management</div>
+                    <div style="color:#94a3b8;margin-top:4px;">Optional: install <a href="https://ollama.com" target="_blank" style="color:#22d3ee;">Ollama</a> separately for AI inference</div>
                 </div>
 
                 <!-- Pending Nodes -->

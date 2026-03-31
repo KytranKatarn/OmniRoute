@@ -3279,6 +3279,17 @@ if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
         except Exception as e:
             logger.error("[Startup] AgentLoop bridge failed: %s", e)
 
+        # Phase 5b: Module job registrations (metadata for future extraction)
+        try:
+            from tools.consciousness.jobs import register_consciousness_jobs
+            from services.fleet_jobs import register_fleet_jobs
+
+            register_consciousness_jobs(_job_service)
+            register_fleet_jobs(_job_service)
+            logger.info("[Startup] Module job registrations loaded")
+        except Exception as e:
+            logger.error("[Startup] Module job registrations failed: %s", e)
+
         # Initialize Telegram Gateway (Project Autonomy Phase 3)
         _tg_token = os.getenv("TELEGRAM_BOT_TOKEN")
         if _tg_token:

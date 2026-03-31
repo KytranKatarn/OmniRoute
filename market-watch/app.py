@@ -66,6 +66,9 @@ def create_app():
     from routes.news import news_bp
     app.register_blueprint(news_bp)
 
+    from routes.risk import risk_bp
+    app.register_blueprint(risk_bp)
+
     from routes.health import health_bp
     app.register_blueprint(health_bp)
 

@@ -61,7 +61,8 @@ class ModuleDefinition:
 
     # Routing
     route: str  # URL route (e.g., "/tools/app-builder")
-    blueprint_import: str  # Import path (e.g., "tools.app_builder.routes:app_builder_bp")
+    blueprint_import: str = ""  # Import path (e.g., "tools.app_builder.routes:app_builder_bp")
+    external_url: str = ""  # External URL for standalone products (opens in new tab)
 
     # Access Control
     required_permissions: List[str] = field(default_factory=list)  # Required permissions
@@ -559,81 +560,9 @@ MODULES: List[ModuleDefinition] = [
         tags=["training", "benchmarks", "testing", "models", "ai-command"],
     ),
     # ============================================
-    # SAAS SERVICES (10 modules)
+    # SAAS SERVICES (modules — KBS modules removed 2026-03-30, now in Kytran Business Suite)
     # ============================================
-    # crm, website_studio, store_builder, call_center, email_manager, automations, invoicing, scheduler, social_media
-    ModuleDefinition(
-        id="crm",
-        name="CRM",
-        description="Manage customers & sales<br>Contact database • Deal pipeline • Activity timeline",
-        icon="users",
-        category=ModuleCategory.SAAS_SERVICES,
-        route="/tools/crm",
-        blueprint_import="tools.crm.routes:crm_bp",
-        required_permissions=[],
-        minimum_role="USER",
-        enabled=True,
-        coming_soon=False,
-        health_check=lambda: default_health_check("crm"),
-        priority=1,
-        tags=["crm", "contacts", "sales", "business", "saas-services"],
-    ),
-    ModuleDefinition(
-        id="website_designer",
-        name="Website Designer",
-        description="Website builder (now in Kytran Business Suite)<br>AI generation • Chat editing • Multi-provider deploy",
-        icon="globe",
-        category=ModuleCategory.SAAS_SERVICES,
-        route="/tools/website-studio",
-        blueprint_import="tools.website_studio.routes:website_studio_bp",
-        required_permissions=["website_builder:create"],
-        minimum_role="USER",
-        enabled=True,
-        coming_soon=False,
-        health_check=lambda: default_health_check("website_designer"),
-        priority=2,
-        tags=[
-            "website",
-            "design",
-            "git",
-            "domain",
-            "business",
-            "code",
-            "saas-services",
-        ],
-    ),
-    ModuleDefinition(
-        id="store_builder",
-        name="Store Builder",
-        description="Online store (now in Kytran Business Suite)<br>Product catalog • Stripe payments • Printful fulfillment",
-        icon="shopping-cart",
-        category=ModuleCategory.SAAS_SERVICES,
-        route="/tools/store-builder",
-        blueprint_import="tools.store_builder.routes:store_builder_bp",
-        required_permissions=["store:create"],
-        minimum_role="USER",
-        enabled=True,
-        coming_soon=False,
-        health_check=lambda: default_health_check("store_builder"),
-        priority=3,
-        tags=["store", "ecommerce", "payments", "business", "saas-services"],
-    ),
-    ModuleDefinition(
-        id="call_center",
-        name="Call Center",
-        description="AI-powered phone support<br>Auto-receptionist • Call routing • Voice transcripts",
-        icon="phone",
-        category=ModuleCategory.SAAS_SERVICES,
-        route="/tools/call-center",
-        blueprint_import="tools.call_center.routes:call_center_bp",
-        required_permissions=["telephony:access"],
-        minimum_role="USER",
-        enabled=True,
-        coming_soon=False,
-        health_check=lambda: default_health_check("call_center"),
-        priority=4,
-        tags=["phone", "calls", "ai", "business", "saas-services"],
-    ),
+    # email_manager, automations, scheduler, social_media
     ModuleDefinition(
         id="email_manager",
         name="Email Manager",
@@ -667,22 +596,6 @@ MODULES: List[ModuleDefinition] = [
         tags=["automation", "workflows", "n8n", "ai-command"],
     ),
     ModuleDefinition(
-        id="invoicing",
-        name="Invoicing",
-        description="Create & send invoices<br>Professional templates • Payment links • Overdue tracking",
-        icon="receipt",
-        category=ModuleCategory.SAAS_SERVICES,
-        route="/tools/invoicing",
-        blueprint_import="tools.invoicing.routes:invoicing_bp",
-        required_permissions=[],
-        minimum_role="USER",
-        enabled=True,
-        coming_soon=False,
-        health_check=lambda: default_health_check("invoicing"),
-        priority=7,
-        tags=["invoicing", "billing", "payments", "business", "saas-services"],
-    ),
-    ModuleDefinition(
         id="scheduler",
         name="Scheduler",
         description="Book appointments & manage time<br>Client booking page • Calendar sync • SMS reminders",
@@ -708,7 +621,7 @@ MODULES: List[ModuleDefinition] = [
         blueprint_import="tools.social_media.routes:social_media_bp",
         required_permissions=[],
         minimum_role="USER",
-        enabled=True,
+        enabled=False,
         coming_soon=False,
         health_check=lambda: default_health_check("social_media"),
         priority=9,
@@ -931,31 +844,7 @@ MODULES: List[ModuleDefinition] = [
         priority=8,
         tags=["tasks", "planning", "projects", "business"],
     ),
-    # google_workspace removed — replaced by google_work_suite (2026-03-19)
-    ModuleDefinition(
-        id="content_studio",
-        name="Content Studio",
-        description="Write books, blogs & marketing copy<br>AI-assisted drafts • Multiple tones • SEO optimized",
-        icon="pen-tool",
-        category=ModuleCategory.SAAS_SERVICES,
-        route="/tools/content-studio",
-        blueprint_import="tools.content_studio.routes:content_studio_bp",
-        required_permissions=[],
-        minimum_role="USER",
-        enabled=True,
-        coming_soon=False,
-        health_check=content_studio_health_check,
-        priority=10,
-        tags=[
-            "ai",
-            "writing",
-            "books",
-            "articles",
-            "marketing",
-            "creation",
-            "placeholder",
-        ],
-    ),
+    # content_studio removed 2026-03-30 — now in Kytran Business Suite
     ModuleDefinition(
         id="media_studio",
         name="Media Studio",
@@ -1055,7 +944,7 @@ MODULES: List[ModuleDefinition] = [
         blueprint_import="tools.google_work_suite:google_work_suite_bp",
         required_permissions=["google:email"],
         minimum_role="USER",
-        enabled=True,
+        enabled=False,
         coming_soon=False,
         priority=12,
         tags=["google", "gmail", "email", "calendar", "agents", "ai"],
@@ -1074,6 +963,75 @@ MODULES: List[ModuleDefinition] = [
         health_check=lambda: default_health_check("directory"),
         priority=13,
         tags=["directory", "employees", "team", "org-chart", "profiles"],
+    ),
+    # ============================================
+    # STANDALONE PRODUCTS (6 external launchers)
+    # ============================================
+    ModuleDefinition(
+        id="kytran_system_ops",
+        name="Kytran System Operations",
+        description="Server management, compliance scanning, and security hardening",
+        icon="server",
+        category=ModuleCategory.ADMIN_OPERATIONS,
+        route="/external/kso",
+        external_url="http://192.168.1.200:8085",
+        priority=1,
+        tags=["standalone", "product"],
+    ),
+    ModuleDefinition(
+        id="kytran_business_suite",
+        name="Kytran Business Suite",
+        description="Modular SaaS platform — CRM, invoicing, store, website builder, and 26 plugins",
+        icon="briefcase",
+        category=ModuleCategory.SAAS_SERVICES,
+        route="/external/kbs",
+        external_url="http://192.168.1.200:8091",
+        priority=1,
+        tags=["standalone", "product"],
+    ),
+    ModuleDefinition(
+        id="kytran_gov_watch",
+        name="Kytran Gov Watch",
+        description="Government tender monitoring — P.R.O.C.U.R.E. intelligence, 211 real tenders",
+        icon="landmark",
+        category=ModuleCategory.APPLICATIONS,
+        route="/external/gov",
+        external_url="http://192.168.1.200:8102",
+        priority=2,
+        tags=["standalone", "product"],
+    ),
+    ModuleDefinition(
+        id="kytran_market_watch",
+        name="Kytran Market Watch",
+        description="Market intelligence and autonomous trading — M.A.R.K.E.T. agent",
+        icon="trending-up",
+        category=ModuleCategory.APPLICATIONS,
+        route="/external/market",
+        external_url="http://192.168.1.200:8101",
+        priority=2,
+        tags=["standalone", "product"],
+    ),
+    ModuleDefinition(
+        id="kytran_news",
+        name="Kytran News",
+        description="Global intelligence dashboard — 18 layers, real-time feeds, PWA",
+        icon="newspaper",
+        category=ModuleCategory.APPLICATIONS,
+        route="/external/news",
+        external_url="http://192.168.1.200:8097",
+        priority=2,
+        tags=["standalone", "product"],
+    ),
+    ModuleDefinition(
+        id="kytran_legal_watch",
+        name="Kytran Legal Watch",
+        description="Legal intelligence and case monitoring",
+        icon="scale",
+        category=ModuleCategory.APPLICATIONS,
+        route="/external/legal",
+        external_url="http://192.168.1.200:8100",
+        priority=2,
+        tags=["standalone", "product"],
     ),
 ]
 
@@ -1177,6 +1135,9 @@ def load_module_blueprint(module_id: str):
 
     if not module:
         raise ValueError(f"Module '{module_id}' not found in registry")
+
+    if module.external_url:
+        return None  # External modules have no local blueprint
 
     if not module.enabled:
         raise ValueError(f"Module '{module_id}' is disabled")

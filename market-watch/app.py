@@ -126,6 +126,16 @@ def create_app():
             return redirect("/auth/kytran/login?next=/dashboard")
         return send_from_directory("static", "index.html")
 
+    # --- Start background threads (works with both gunicorn and flask dev server) ---
+    import threading
+
+    ingest_thread = threading.Thread(target=_background_ingest, args=(app,), daemon=True)
+    ingest_thread.start()
+    news_thread = threading.Thread(target=_background_news_ingest, args=(app,), daemon=True)
+    news_thread.start()
+    position_thread = threading.Thread(target=_background_position_monitor, args=(app,), daemon=True)
+    position_thread.start()
+
     return app
 
 
@@ -178,10 +188,4 @@ def _background_position_monitor(app):
 
 if __name__ == "__main__":
     app = create_app()
-    ingest_thread = threading.Thread(target=_background_ingest, args=(app,), daemon=True)
-    ingest_thread.start()
-    news_thread = threading.Thread(target=_background_news_ingest, args=(app,), daemon=True)
-    news_thread.start()
-    position_thread = threading.Thread(target=_background_position_monitor, args=(app,), daemon=True)
-    position_thread.start()
     app.run(host="0.0.0.0", port=8080, debug=False)

@@ -151,7 +151,7 @@ foreach ($rule in $rules) {
     $existing = Get-NetFirewallRule -DisplayName $rule.Name -ErrorAction SilentlyContinue
     if (-not $existing) {
         New-NetFirewallRule -DisplayName $rule.Name -Direction Inbound `
-            -Port $rule.Port -Protocol TCP -Action Allow | Out-Null
+            -LocalPort $rule.Port -Protocol TCP -Action Allow | Out-Null
         Write-OK "Firewall rule: $($rule.Name) (port $($rule.Port))"
     } else {
         Write-OK "Firewall rule exists: $($rule.Name)"

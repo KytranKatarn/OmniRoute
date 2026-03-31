@@ -28,3 +28,11 @@ def stock_search():
         return jsonify({"success": False, "error": "Query required"}), 400
     results = search_tickers(q)
     return jsonify({"success": True, "results": results})
+
+
+@stocks_bp.route("/api/stocks/<ticker>/sentiment")
+def get_sentiment(ticker):
+    """Get news sentiment summary for a ticker."""
+    from services.sentiment import get_sentiment_summary
+
+    return jsonify(get_sentiment_summary(ticker.upper()))

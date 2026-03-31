@@ -629,7 +629,38 @@
     margin-top: 2px;
 }
 
-/* Legacy modal removed in Phase 4 — replaced by bm-overlay pattern */
+/* Modal */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 2000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-accent);
+    border-radius: 12px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 20px;
+}
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+.modal-header h3 {
+    font-family: var(--archie-font-heading);
+    color: var(--archie-accent);
+    margin: 0;
+}
 
 /* Responsive */
 @media (max-width: 1280px) {
@@ -892,270 +923,4 @@
     .comp-header { flex-direction: column; gap: 12px; align-items: flex-start; }
     .comp-finding-row { padding-left: 20px; }
     .comp-finding-pack { display: none; }
-}
-
-/* === Phase 3: JS Inline Style Replacements === */
-
-/* --- Status Colors (Category 1) --- */
-.sn-color-success { color: #22c55e; }
-.sn-color-warning { color: #f59e0b; }
-.sn-color-danger  { color: #ef4444; }
-.sn-color-muted   { color: var(--text-dim); }
-.sn-color-unknown { color: #6b7280; }
-
-/* --- Status Indicator Dots (Category 1) --- */
-.sn-dot-online  { background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,0.6); }
-.sn-dot-offline { background: #ef4444; box-shadow: 0 0 8px rgba(239,68,68,0.6); }
-.sn-dot-warning { background: #f59e0b; box-shadow: 0 0 4px #f59e0b; }
-.sn-dot-default { background: unset;   box-shadow: none; }
-
-/* --- Button Variants (Category 2) --- */
-.sn-btn-dns-on  { background: rgba(34,197,94,0.15);  border: 1px solid rgba(34,197,94,0.4);  color: #22c55e; }
-.sn-btn-dns-off { background: rgba(239,68,68,0.15);  border: 1px solid rgba(239,68,68,0.4);  color: #ef4444; }
-.sn-btn-cyan    { background: rgba(0,212,255,0.2);   border: 1px solid rgba(0,212,255,0.4);  color: #00d4ff; }
-.sn-btn-danger  { background: rgba(239,68,68,0.2);   border: 1px solid rgba(239,68,68,0.4);  color: #ef4444; }
-
-/* --- Badge Variants (Category 2) --- */
-.sn-badge-armed    { font-size: 0.72rem; padding: 2px 8px; border-radius: 4px; background: rgba(239,68,68,0.15); color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }
-.sn-badge-disarmed { font-size: 0.72rem; padding: 2px 8px; border-radius: 4px; background: rgba(34,197,94,0.15); color: #22c55e; border: 1px solid rgba(34,197,94,0.3); }
-
-/* DNS protection badges */
-.sn-badge-protected   { background: rgba(34,197,94,0.15); color: #22c55e; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; border: 1px solid rgba(34,197,94,0.3); }
-.sn-badge-unprotected { background: rgba(239,68,68,0.1);  color: #ef4444; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; border: 1px solid rgba(239,68,68,0.2); }
-.sn-badge-protected-sm   { background: rgba(34,197,94,0.15); color: #22c55e; padding: 1px 6px; border-radius: 3px; font-size: 0.68rem; border: 1px solid rgba(34,197,94,0.3); margin-left: 4px; }
-.sn-badge-unprotected-sm { background: rgba(239,68,68,0.1);  color: #ef4444; padding: 1px 6px; border-radius: 3px; font-size: 0.68rem; border: 1px solid rgba(239,68,68,0.2); margin-left: 4px; }
-
-/* Device tag (query log) */
-.sn-tag-device { background: rgba(34,197,94,0.15); color: #22c55e; padding: 1px 6px; border-radius: 3px; font-size: 0.7rem; border: 1px solid rgba(34,197,94,0.3); cursor: pointer; }
-
-/* --- Query Log Row States (Category 1) --- */
-.sn-row-blocked { background: rgba(239,68,68,0.06); border-left: 3px solid rgba(239,68,68,0.4); }
-
-/* --- Code/Pre Blocks (Category 2) --- */
-.sn-pre { background: var(--archie-bg-tertiary); padding: 12px; border-radius: 8px; font-size: 0.75rem; max-height: 400px; overflow: auto; color: var(--archie-text-secondary); }
-.sn-pre-tall { background: var(--archie-bg-tertiary); padding: 12px; border-radius: 8px; font-size: 0.75rem; max-height: 500px; overflow: auto; color: var(--archie-text-secondary); }
-
-/* --- Scan Target Span (Category 2) --- */
-.sn-scan-target { font-size: 0.78rem; color: var(--archie-text-muted); margin-left: 8px; }
-
-/* --- Empty State Wrap (Category 2) --- */
-.sn-empty-center { text-align: center; padding: 24px; color: var(--archie-text-muted); }
-
-/* --- Firewall Panel Layout (Category 2) --- */
-.sn-kpi-row   { display: flex; gap: 16px; flex-wrap: wrap; }
-.sn-kpi-label { font-size: 0.72rem; color: var(--archie-text-muted); }
-.sn-kpi-value { font-family: var(--archie-font-mono); color: var(--archie-text-primary); }
-
-/* --- Auto-block Settings (Category 2) --- */
-.sn-settings-col   { display: flex; flex-direction: column; gap: 8px; }
-.sn-settings-label { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: var(--archie-text-secondary); }
-.sn-settings-info  { font-size: 0.78rem; color: var(--archie-text-muted); }
-
-/* --- IP Access Rows (Category 2) --- */
-.sn-ip-row       { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--archie-border-muted); }
-.sn-ip-row-plain { padding: 4px 0; border-bottom: 1px solid var(--archie-border-muted); }
-.sn-none-text    { font-size: 0.78rem; color: var(--archie-text-muted); }
-
-/* --- Actions Cell (Category 2) --- */
-.sn-actions-flex { display: flex; gap: 6px; }
-
-/* --- Report Overlay Modal (Category 2) --- */
-.sn-report-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 9999; display: flex; align-items: center; justify-content: center; }
-.sn-report-modal   { background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-muted); border-radius: 12px; width: 90%; max-width: 900px; max-height: 85vh; overflow: hidden; position: relative; }
-.sn-report-close   { position: absolute; top: 8px; right: 12px; background: none; border: none; color: var(--archie-text-muted); font-size: 1.5rem; cursor: pointer; z-index: 1; }
-
-/* --- Agent Action Items (Category 2) --- */
-.sn-action-item { padding: 6px 0; border-bottom: 1px solid var(--archie-border-muted); }
-.sn-action-row  { display: flex; justify-content: space-between; }
-.sn-action-text { font-size: 0.78rem; color: var(--archie-text-secondary); }
-.sn-action-time { font-size: 0.7rem; color: var(--archie-text-muted); }
-
-/* --- Domain Quick Setup Result (Category 2) --- */
-.sn-result-success { color: #22c55e; font-weight: bold; margin-bottom: 8px; }
-.sn-result-error   { color: #ef4444; font-weight: bold; }
-.sn-result-steps   { margin-top: 8px; font-size: 0.8rem; color: var(--text-dim); }
-.sn-result-errinfo { color: var(--text-dim); font-size: 0.85rem; }
-
-/* --- Lucide Icon Size (Category 2) --- */
-.sn-icon-sm { width: 14px; height: 14px; }
-
-/* --- Zone Badge (Category 2 — dynamic bg kept inline) --- */
-.sn-zone-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; color: #fff; }
-
-/* --- Online Indicator Dot (Category 2) --- */
-.sn-online-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
-
-/* --- Table Empty States (Category 2) --- */
-.sn-td-empty { color: var(--archie-text-muted); text-align: center; padding: 24px; }
-.sn-td-center-dim { text-align: center; color: var(--text-dim); }
-.sn-td-error { color: #ef4444; }
-
-/* --- Camera Offline Image (Category 2) --- */
-.sn-img-failed { background: var(--archie-bg-tertiary); opacity: 0.3; }
-
-/* --- Compliance / Hardening innerHTML classes (Category 2) --- */
-.sn-comp-empty { text-align: center; color: #475569; padding: 40px 0; font-size: 0.85rem; }
-.sn-comp-no-match { text-align: center; color: #475569; padding: 30px 0; font-size: 0.85rem; }
-.sn-comp-all-pass { text-align: center; color: #22c55e; padding: 40px; }
-.sn-comp-all-pass i { font-size: 3rem; }
-.sn-loading-text { color: var(--archie-text-muted); }
-.sn-error-text   { color: #ef4444; }
-
-/* --- Scan Status Badge (dynamic bg kept inline) --- */
-.sn-scan-badge { margin-left: 6px; padding: 1px 6px; border-radius: 4px; font-size: 0.7rem; color: #000; }
-
-/* --- Compliance Dashboard Card (Category 2) --- */
-.sn-comp-dash-row    { display: flex; align-items: center; gap: 24px; padding: 12px 0; }
-.sn-comp-dash-score  { text-align: center; min-width: 100px; }
-.sn-comp-score-value { font-size: 2.4rem; font-weight: 700; font-family: 'Orbitron', monospace; color: var(--archie-text-dim); }
-.sn-comp-score-grade { font-size: .75rem; color: var(--archie-text-dim); margin-top: 2px; }
-.sn-comp-packs-grid  { flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.sn-comp-pack-cell   { text-align: center; padding: 8px; background: rgba(255,255,255,0.03); border-radius: 6px; }
-.sn-comp-pack-label  { font-size: .65rem; text-transform: uppercase; color: var(--archie-text-dim); margin-bottom: 4px; }
-.sn-comp-pack-value  { font-size: 1.1rem; font-weight: 600; font-family: 'Orbitron', monospace; }
-.sn-comp-dash-meta   { text-align: right; min-width: 120px; }
-.sn-comp-meta-label  { font-size: .65rem; text-transform: uppercase; color: var(--archie-text-dim); }
-.sn-comp-meta-time   { font-size: .8rem; color: var(--archie-text-dim); margin-top: 2px; }
-
-/* === Phase 4: Typography & Polish === */
-
-/* Headers, titles, labels — Antonio uppercase with letter-spacing */
-.tab-btn {
-    font-family: 'Antonio', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-.section-header {
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-}
-.card-title {
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-.data-table th {
-    font-family: 'Antonio', sans-serif;
-    letter-spacing: 1px;
-}
-.subtab-btn {
-    font-family: 'Antonio', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-.badge {
-    font-family: 'Antonio', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-.agent-panel-header h3 {
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-}
-.suggestion-card .sg-title {
-    font-family: 'Antonio', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-.module-card .mod-name {
-    font-family: 'Antonio', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-.camera-name {
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-.sn-kpi-label {
-    font-family: 'Antonio', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-.sn-settings-label {
-    font-family: 'Antonio', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-.comp-framework-name {
-    font-family: 'Antonio', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-/* Numeric readouts — Orbitron monospace */
-.stat-value {
-    font-family: 'Orbitron', monospace;
-}
-.sn-kpi-value {
-    font-family: 'Orbitron', monospace;
-}
-.comp-framework-score {
-    font-family: 'Orbitron', monospace;
-}
-.pagination .page-info {
-    font-family: 'Orbitron', monospace;
-}
-
-/* Body text, inputs — JetBrains Mono / IBM Plex Mono */
-.form-input, .form-select {
-    font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
-}
-.activity-text {
-    font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
-}
-.activity-time {
-    font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
-}
-.sn-pre, .sn-pre-tall {
-    font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
-}
-
-/* === Phase 4: Responsive — 768px & 480px === */
-@media (max-width: 768px) {
-    .tab-nav {
-        flex-wrap: wrap;
-    }
-    .stats-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-    .module-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-    .camera-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-    .sn-comp-dash-row {
-        flex-direction: column;
-        gap: 12px;
-    }
-    .sn-comp-packs-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-@media (max-width: 480px) {
-    .stats-grid {
-        grid-template-columns: 1fr;
-    }
-    .module-grid {
-        grid-template-columns: 1fr;
-    }
-    .camera-grid {
-        grid-template-columns: 1fr;
-    }
-    .tab-btn {
-        font-size: 0.72rem;
-        padding: 7px 10px;
-        letter-spacing: 0.5px;
-    }
-    .stat-value {
-        font-size: 1.4rem;
-    }
-    .section-header {
-        font-size: 0.95rem;
-    }
-    .sn-comp-packs-grid {
-        grid-template-columns: 1fr;
-    }
-    .comp-rings {
-        grid-template-columns: 1fr;
-    }
 }

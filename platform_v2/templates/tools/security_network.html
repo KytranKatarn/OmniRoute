@@ -141,28 +141,28 @@
                 <span class="card-title">STIG Compliance</span>
                 <button class="btn btn-sm" onclick="switchToTab('compliance')">View Details &rarr;</button>
             </div>
-            <div class="sn-comp-dash-row">
-                <div class="sn-comp-dash-score">
-                    <div id="compliance-dash-score" class="sn-comp-score-value">--</div>
-                    <div class="sn-comp-score-grade">Grade: <span id="compliance-dash-grade" style="font-weight:600">--</span></div>
+            <div style="display:flex;align-items:center;gap:24px;padding:12px 0">
+                <div style="text-align:center;min-width:100px">
+                    <div id="compliance-dash-score" style="font-size:2.4rem;font-weight:700;font-family:'Orbitron',monospace;color:var(--archie-text-dim)">--</div>
+                    <div style="font-size:.75rem;color:var(--archie-text-dim);margin-top:2px">Grade: <span id="compliance-dash-grade" style="font-weight:600">--</span></div>
                 </div>
-                <div class="sn-comp-packs-grid">
-                    <div class="sn-comp-pack-cell">
-                        <div class="sn-comp-pack-label">Ubuntu 22.04</div>
-                        <div id="compliance-dash-ubuntu" class="sn-comp-pack-value">--</div>
+                <div style="flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+                    <div style="text-align:center;padding:8px;background:rgba(255,255,255,0.03);border-radius:6px">
+                        <div style="font-size:.65rem;text-transform:uppercase;color:var(--archie-text-dim);margin-bottom:4px">Ubuntu 22.04</div>
+                        <div id="compliance-dash-ubuntu" style="font-size:1.1rem;font-weight:600;font-family:'Orbitron',monospace">--</div>
                     </div>
-                    <div class="sn-comp-pack-cell">
-                        <div class="sn-comp-pack-label">Docker</div>
-                        <div id="compliance-dash-docker" class="sn-comp-pack-value">--</div>
+                    <div style="text-align:center;padding:8px;background:rgba(255,255,255,0.03);border-radius:6px">
+                        <div style="font-size:.65rem;text-transform:uppercase;color:var(--archie-text-dim);margin-bottom:4px">Docker</div>
+                        <div id="compliance-dash-docker" style="font-size:1.1rem;font-weight:600;font-family:'Orbitron',monospace">--</div>
                     </div>
-                    <div class="sn-comp-pack-cell">
-                        <div class="sn-comp-pack-label">Network</div>
-                        <div id="compliance-dash-network" class="sn-comp-pack-value">--</div>
+                    <div style="text-align:center;padding:8px;background:rgba(255,255,255,0.03);border-radius:6px">
+                        <div style="font-size:.65rem;text-transform:uppercase;color:var(--archie-text-dim);margin-bottom:4px">Network</div>
+                        <div id="compliance-dash-network" style="font-size:1.1rem;font-weight:600;font-family:'Orbitron',monospace">--</div>
                     </div>
                 </div>
-                <div class="sn-comp-dash-meta">
-                    <div class="sn-comp-meta-label">Last Scan</div>
-                    <div id="compliance-dash-time" class="sn-comp-meta-time">Never</div>
+                <div style="text-align:right;min-width:120px">
+                    <div style="font-size:.65rem;text-transform:uppercase;color:var(--archie-text-dim)">Last Scan</div>
+                    <div id="compliance-dash-time" style="font-size:.8rem;color:var(--archie-text-dim);margin-top:2px">Never</div>
                 </div>
             </div>
         </div>
@@ -1391,35 +1391,9 @@
         </div>
     </div>
 
-    <!-- ==================== DETAIL MODAL (LCARS bm-overlay) ==================== -->
-    <div class="bm-overlay" id="detail-modal" style="--bm-accent:#ef4444;--bm-accent-rgb:239,68,68">
-        <div class="bm-shell">
-            <div class="bm-frame">
-                <div class="bm-frame-elbow-top"></div>
-                <div class="bm-frame-seg"></div>
-                <div class="bm-frame-seg dim"></div>
-                <div class="bm-frame-light on"></div>
-                <div class="bm-frame-seg purple"></div>
-                <div class="bm-frame-elbow-bottom"></div>
-            </div>
-            <div class="bm-content">
-                <div class="bm-header">
-                    <div class="bm-header-strip">
-                        <span class="bm-header-pip w2"></span>
-                        <span class="bm-header-pip w1"></span>
-                    </div>
-                    <span class="bm-header-title" id="detail-modal-title">DETAIL</span>
-                    <button class="bm-close" onclick="closeModal()">&times;</button>
-                </div>
-                <div class="bm-body" id="detail-modal-body"></div>
-                <div class="bm-footer">
-                    <div class="bm-footer-strip">
-                        <span class="bm-footer-dot cyan"></span>
-                        <span class="bm-footer-dot gold"></span>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <!-- ==================== MODAL ==================== -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal" id="modal-content"></div>
     </div>
 
 </div>
@@ -1444,7 +1418,7 @@ function formatTime(t) {
     if (!t) return '-';
     return ArchieTime.format(t, 'short');
 }
-function closeModal() { document.getElementById('detail-modal').classList.remove('active'); }
+function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
 function setBadge(id, online) {
     const el = document.getElementById(id);
     if (el) el.className = 'svc-badge ' + (online ? 'online' : 'offline');
@@ -1594,7 +1568,7 @@ async function loadDashboard() {
                 item.className = 'activity-item';
                 const iconDiv = document.createElement('div');
                 iconDiv.className = 'activity-icon';
-                /* background handled by .activity-icon CSS class */
+                iconDiv.style.background = 'var(--archie-accent-alpha-10)';
                 const textDiv = document.createElement('div');
                 const txt = document.createElement('div');
                 txt.className = 'activity-text';
@@ -1621,7 +1595,7 @@ async function loadDashboard() {
             const score = cd.score || 0;
             const scoreEl = document.getElementById('compliance-dash-score');
             scoreEl.textContent = score.toFixed(1) + '%';
-            scoreEl.className = 'sn-comp-score-value ' + (score >= 80 ? 'sn-color-success' : score >= 50 ? 'sn-color-warning' : 'sn-color-danger');
+            scoreEl.style.color = score >= 80 ? '#22c55e' : score >= 50 ? '#f59e0b' : '#ef4444';
             const grade = score >= 95 ? 'A+' : score >= 90 ? 'A' : score >= 80 ? 'B' : score >= 70 ? 'C' : 'F';
             document.getElementById('compliance-dash-grade').textContent = grade;
             // Per-pack scores
@@ -1631,7 +1605,7 @@ async function loadDashboard() {
                 if (el && packs[p] !== undefined) {
                     const ps = packs[p];
                     el.textContent = ps.toFixed(0) + '%';
-                    el.className = 'sn-comp-pack-value ' + (ps >= 80 ? 'sn-color-success' : ps >= 50 ? 'sn-color-warning' : 'sn-color-danger');
+                    el.style.color = ps >= 80 ? '#22c55e' : ps >= 50 ? '#f59e0b' : '#ef4444';
                 }
             });
             if (cd.last_scan) {
@@ -1648,10 +1622,10 @@ function updateDnsToggleUI(enabled) {
     var txt = document.getElementById('dash-dns-toggle-text');
     if (!btn || !txt) return;
     if (enabled) {
-        btn.className = 'btn sn-btn-dns-on';
+        btn.style.cssText = 'background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.4);color:#22c55e;';
         txt.textContent = 'DNS Protection ON';
     } else {
-        btn.className = 'btn sn-btn-dns-off';
+        btn.style.cssText = 'background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);color:#ef4444;';
         txt.textContent = 'DNS Protection OFF';
     }
 }
@@ -1757,7 +1731,7 @@ async function loadDNSOverview() {
             document.getElementById('dns-safe-browsing').textContent = formatNum(s.num_replaced_safebrowsing || 0);
             const pEl = document.getElementById('dns-protection-status');
             pEl.textContent = d.protection_enabled !== false ? 'ON' : 'OFF';
-            pEl.className = d.protection_enabled !== false ? 'sn-color-success' : 'sn-color-danger';
+            pEl.style.color = d.protection_enabled !== false ? 'var(--archie-green)' : 'var(--archie-red)';
         }
     } catch(e) { console.error('DNS overview error:', e); }
 }
@@ -1841,7 +1815,8 @@ async function loadQueryLog(offset) {
                 var tr = document.createElement('tr');
                 // Red tint on blocked rows
                 if (blocked) {
-                    tr.classList.add('sn-row-blocked');
+                    tr.style.background = 'rgba(239,68,68,0.06)';
+                    tr.style.borderLeft = '3px solid rgba(239,68,68,0.4)';
                 }
 
                 // Time
@@ -1885,7 +1860,7 @@ async function loadQueryLog(offset) {
                     tdClient.appendChild(spacer);
                     var tag = document.createElement('span');
                     tag.textContent = dev.name;
-                    tag.className = 'sn-tag-device';
+                    tag.style.cssText = 'background:rgba(34,197,94,0.15);color:#22c55e;padding:1px 6px;border-radius:3px;font-size:0.7rem;border:1px solid rgba(34,197,94,0.3);cursor:pointer;';
                     tag.title = 'Click to filter by ' + dev.name;
                     tag.addEventListener('click', function() {
                         document.getElementById('ql-search').value = clientIp;
@@ -2097,11 +2072,13 @@ async function loadSurveillanceStatus() {
             const ver = document.getElementById('surv-ha-version');
             const cnt = document.getElementById('surv-cam-count');
             if(s.connected) {
-                dot.className = 'sn-dot-online';
+                dot.style.background = '#22c55e';
+                dot.style.boxShadow = '0 0 8px rgba(34,197,94,0.6)';
                 ver.textContent = 'v' + (s.ha_version||'?');
                 cnt.textContent = s.cameras_online + '/' + s.camera_count + ' online';
             } else {
-                dot.className = 'sn-dot-offline';
+                dot.style.background = '#ef4444';
+                dot.style.boxShadow = '0 0 8px rgba(239,68,68,0.6)';
                 ver.textContent = '';
                 cnt.textContent = s.error || 'Disconnected';
             }
@@ -2151,7 +2128,8 @@ async function loadSurveillance() {
                 img.src = API+'/surveillance/camera/'+encodeURIComponent(entityId)+'/snapshot?t='+Date.now();
                 img.alt = cam.name||entityId;
                 img.onerror = function(){
-                    this.classList.add('sn-img-failed');
+                    this.style.background='var(--archie-bg-tertiary)';
+                    this.style.opacity='0.3';
                 };
                 const info = document.createElement('div');
                 info.className = 'camera-info';
@@ -2162,7 +2140,7 @@ async function loadSurveillance() {
                 const locSpan = document.createElement('div');
                 locSpan.className = 'camera-location';
                 locSpan.textContent = isOnline ? cam.state : 'OFFLINE';
-                if (!isOnline) locSpan.classList.add('sn-color-danger');
+                locSpan.style.color = isOnline ? '' : '#ef4444';
                 nameDiv.appendChild(nameSpan);
                 nameDiv.appendChild(locSpan);
                 info.appendChild(nameDiv);
@@ -2233,7 +2211,7 @@ function openCameraModal(entityId, name, state) {
         streamBtn = document.createElement('button');
         streamBtn.id = 'camera-modal-stream';
         streamBtn.className = 'btn btn-sm';
-        streamBtn.className = 'btn btn-sm sn-btn-cyan';
+        streamBtn.style.cssText = 'background:rgba(0,212,255,0.2);border:1px solid rgba(0,212,255,0.4);color:#00d4ff;';
         document.getElementById('camera-modal-refresh').parentNode.appendChild(streamBtn);
     }
     streamBtn.textContent = 'Live Stream';
@@ -2248,11 +2226,11 @@ function toggleCameraStream() {
         _cameraModalStreaming = false;
         img.src = API+'/surveillance/camera/'+_cameraModalEntityId+'/snapshot?t='+Date.now();
         btn.textContent = 'Live Stream';
-        btn.className = 'btn btn-sm sn-btn-cyan';
+        btn.style.cssText = 'background:rgba(0,212,255,0.2);border:1px solid rgba(0,212,255,0.4);color:#00d4ff;';
     } else {
         _cameraModalStreaming = true;
         btn.textContent = 'Connecting...';
-        btn.className = 'btn btn-sm sn-btn-danger';
+        btn.style.cssText = 'background:rgba(239,68,68,0.2);border:1px solid rgba(239,68,68,0.4);color:#ef4444;';
         img.onerror = function() {
             btn.textContent = 'Stream Failed — Retry';
             _cameraModalStreaming = false;
@@ -2277,10 +2255,10 @@ function _updateAlarmBadge(state) {
     badge.style.display = 'inline-block';
     if (state === 'armed_away' || state === 'armed_home') {
         badge.textContent = 'ARMED';
-        badge.className = 'sn-badge-armed';
+        badge.style.cssText = 'font-size:0.72rem;padding:2px 8px;border-radius:4px;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3);';
     } else {
         badge.textContent = 'DISARMED';
-        badge.className = 'sn-badge-disarmed';
+        badge.style.cssText = 'font-size:0.72rem;padding:2px 8px;border-radius:4px;background:rgba(34,197,94,0.15);color:#22c55e;border:1px solid rgba(34,197,94,0.3);';
     }
 }
 
@@ -2375,7 +2353,7 @@ async function loadReconHistory() {
             const rows = d.scans.map(s=>{
                 const statusCls = s.status==='completed'?'success':s.status==='running'?'warning':'danger';
                 const actions = document.createElement('div');
-                actions.className = 'sn-actions-flex';
+                actions.style.display='flex'; actions.style.gap='4px';
                 const viewBtn = document.createElement('button');
                 viewBtn.className='btn btn-sm'; viewBtn.textContent='View';
                 viewBtn.addEventListener('click',function(){viewScanResult(s.id);});
@@ -2405,22 +2383,31 @@ function startReconScan() {
 function viewScanResult(scanId) {
     fetch(API+'/recon/scan/'+scanId).then(r=>r.json()).then(d=>{
         if(!d.success) return showToast('error',d.error||'Failed');
-        document.getElementById('detail-modal-title').textContent = 'SCAN #'+scanId+' — '+(d.scan?d.scan.module_name:'');
-        const body = document.getElementById('detail-modal-body');
-        body.textContent = '';
+        const modal = document.getElementById('modal-content');
+        modal.textContent = '';
+        const header = document.createElement('div');
+        header.className = 'modal-header';
+        const h3 = document.createElement('h3');
+        h3.textContent = 'Scan #'+scanId+' - '+(d.scan?d.scan.module_name:'');
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'btn btn-sm';
+        closeBtn.textContent = 'Close';
+        closeBtn.addEventListener('click', closeModal);
+        header.appendChild(h3); header.appendChild(closeBtn);
+        modal.appendChild(header);
         const info = document.createElement('div');
         info.style.marginBottom = '8px';
         info.appendChild(createBadge(d.scan?d.scan.status:'', d.scan&&d.scan.status==='completed'?'success':'warning'));
         const targetSpan = document.createElement('span');
-        targetSpan.className = 'sn-scan-target';
+        targetSpan.style.cssText = 'font-size:0.78rem;color:var(--archie-text-muted);margin-left:8px';
         targetSpan.textContent = 'Target: '+(d.scan?d.scan.target:'');
         info.appendChild(targetSpan);
-        body.appendChild(info);
+        modal.appendChild(info);
         const pre = document.createElement('pre');
-        pre.className = 'sn-pre';
+        pre.style.cssText = 'background:var(--archie-bg-tertiary);padding:12px;border-radius:8px;font-size:0.75rem;max-height:400px;overflow:auto;color:var(--archie-text-secondary)';
         pre.textContent = JSON.stringify(d.scan?d.scan.results:{}, null, 2);
-        body.appendChild(pre);
-        document.getElementById('detail-modal').classList.add('active');
+        modal.appendChild(pre);
+        document.getElementById('modal-overlay').classList.add('open');
     }).catch(e=>showToast('error',e.message));
 }
 
@@ -2505,20 +2492,21 @@ async function loadScanResults() {
                 const nameEl = document.createElement('strong');
                 nameEl.textContent = s.filename;
                 const meta = document.createElement('small');
-                meta.className='sn-none-text';
+                meta.style.color='var(--archie-text-muted)';
                 const timeStr = s.created_at ? ArchieTime.format(new Date(s.created_at*1000).toISOString(), 'short') : '-';
                 meta.textContent = ' | '+s.scan_type+' | '+timeStr;
                 if(s.status) {
                     const badge = document.createElement('span');
-                    badge.className = 'sn-scan-badge';
-                    badge.style.background = s.status==='completed'?'var(--archie-green)':s.status==='running'?'var(--archie-cyan)':'var(--archie-orange)';
+                    badge.style.cssText='margin-left:6px;padding:1px 6px;border-radius:4px;font-size:0.7rem;background:'+
+                        (s.status==='completed'?'var(--archie-green)':s.status==='running'?'var(--archie-cyan)':'var(--archie-orange)')+
+                        ';color:#000';
                     badge.textContent=s.status;
                     meta.appendChild(badge);
                 }
                 info.appendChild(nameEl);
                 info.appendChild(meta);
                 const actions = document.createElement('div');
-                actions.className = 'sn-actions-flex';
+                actions.style.display='flex'; actions.style.gap='6px';
                 if(s.source==='file') {
                     const viewBtn = document.createElement('button');
                     viewBtn.className='btn btn-sm'; viewBtn.textContent='View';
@@ -2548,29 +2536,45 @@ async function loadScanResults() {
 function viewScanFile(filename) {
     fetch(API+'/scans/'+encodeURIComponent(filename)).then(r=>r.json()).then(d=>{
         if(!d.success) return;
-        document.getElementById('detail-modal-title').textContent = filename.toUpperCase();
-        const body = document.getElementById('detail-modal-body');
-        body.textContent='';
+        const modal = document.getElementById('modal-content');
+        modal.textContent='';
+        const header = document.createElement('div');
+        header.className='modal-header';
+        const h3 = document.createElement('h3');
+        h3.textContent=filename;
+        const closeBtn = document.createElement('button');
+        closeBtn.className='btn btn-sm'; closeBtn.textContent='Close';
+        closeBtn.addEventListener('click',closeModal);
+        header.appendChild(h3); header.appendChild(closeBtn);
+        modal.appendChild(header);
         const pre = document.createElement('pre');
-        pre.className = 'sn-pre-tall';
+        pre.style.cssText='background:var(--archie-bg-tertiary);padding:12px;border-radius:8px;font-size:0.75rem;max-height:500px;overflow:auto;color:var(--archie-text-secondary)';
         pre.textContent = typeof d.content==='object'?JSON.stringify(d.content,null,2):d.content;
-        body.appendChild(pre);
-        document.getElementById('detail-modal').classList.add('active');
+        modal.appendChild(pre);
+        document.getElementById('modal-overlay').classList.add('open');
     }).catch(e=>showToast('error',e.message));
 }
 
 function viewReconScan(scanId) {
     fetch(API+'/recon/scan/'+scanId).then(r=>r.json()).then(d=>{
         if(!d.success) return showToast('error',d.error||'Failed to load scan');
-        document.getElementById('detail-modal-title').textContent = ((d.scan.module_name||'SCAN')+' — '+(d.scan.target||'')).toUpperCase();
-        const body = document.getElementById('detail-modal-body');
-        body.textContent='';
+        const modal = document.getElementById('modal-content');
+        modal.textContent='';
+        const header = document.createElement('div');
+        header.className='modal-header';
+        const h3 = document.createElement('h3');
+        h3.textContent=(d.scan.module_name||'Scan')+' — '+(d.scan.target||'');
+        const closeBtn = document.createElement('button');
+        closeBtn.className='btn btn-sm'; closeBtn.textContent='Close';
+        closeBtn.addEventListener('click',closeModal);
+        header.appendChild(h3); header.appendChild(closeBtn);
+        modal.appendChild(header);
         const pre = document.createElement('pre');
-        pre.className = 'sn-pre-tall';
+        pre.style.cssText='background:var(--archie-bg-tertiary);padding:12px;border-radius:8px;font-size:0.75rem;max-height:500px;overflow:auto;color:var(--archie-text-secondary)';
         const content = d.scan.results || d.scan.raw_output || d.scan;
         pre.textContent = typeof content==='object'?JSON.stringify(content,null,2):String(content);
-        body.appendChild(pre);
-        document.getElementById('detail-modal').classList.add('active');
+        modal.appendChild(pre);
+        document.getElementById('modal-overlay').classList.add('open');
     }).catch(e=>showToast('error',e.message));
 }
 
@@ -2593,7 +2597,7 @@ async function loadSSLMonitors() {
             const rows = d.monitors.map(m=>{
                 const daysColor = (m.days_until_expiry||0)<30?'danger':'success';
                 const expiry = document.createElement('span');
-                expiry.className = daysColor==='danger' ? 'sn-color-danger' : 'sn-color-success';
+                expiry.style.color = daysColor==='danger'?'var(--archie-red)':'var(--archie-green)';
                 expiry.textContent = (m.valid_until?ArchieTime.date(m.valid_until):'-')+' ('+(m.days_until_expiry||'?')+'d)';
                 return [m.domain, m.issuer||'-', expiry, createBadge(m.grade||'?', (m.grade==='A'||m.grade==='A+')?'success':'warning')];
             });
@@ -2602,7 +2606,7 @@ async function loadSSLMonitors() {
             /* No monitors — offer to auto-seed from NPM proxy hosts */
             container.textContent='';
             const wrap = document.createElement('div');
-            wrap.className='sn-empty-center';
+            wrap.style.cssText='text-align:center;padding:24px;color:var(--archie-text-muted)';
             const msg = document.createElement('p');
             msg.textContent='No SSL monitors configured.';
             wrap.appendChild(msg);
@@ -2672,7 +2676,7 @@ async function loadFirewall() {
             var fw = d.firewall || d;
             panel.textContent='';
             var wrap = document.createElement('div');
-            wrap.className='sn-kpi-row';
+            wrap.style.cssText='display:flex;gap:16px;flex-wrap:wrap';
             var items = [
                 {label:'STATUS', badge:fw.active?'Active':'Inactive', type:fw.active?'success':'danger'},
                 {label:'RULES', text:String(fw.rules_count||fw.rule_count||0)},
@@ -2681,12 +2685,12 @@ async function loadFirewall() {
             items.forEach(function(item){
                 var cell = document.createElement('div');
                 var lbl = document.createElement('span');
-                lbl.className='sn-kpi-label';
+                lbl.style.cssText='font-size:0.72rem;color:var(--archie-text-muted)';
                 lbl.textContent = item.label;
                 cell.appendChild(lbl);
                 cell.appendChild(document.createElement('br'));
                 if(item.badge){cell.appendChild(createBadge(item.badge,item.type));}
-                else{var v=document.createElement('span');v.className='sn-kpi-value';v.textContent=item.text;cell.appendChild(v);}
+                else{var v=document.createElement('span');v.style.cssText='font-family:var(--archie-font-mono);color:var(--archie-text-primary)';v.textContent=item.text;cell.appendChild(v);}
                 wrap.appendChild(cell);
             });
             panel.appendChild(wrap);
@@ -2762,9 +2766,9 @@ async function loadAutoBlockSettings() {
             const s = d.settings;
             panel.textContent='';
             const wrap = document.createElement('div');
-            wrap.className='sn-settings-col';
+            wrap.style.cssText='display:flex;flex-direction:column;gap:8px';
             const lbl = document.createElement('label');
-            lbl.className='sn-settings-label';
+            lbl.style.cssText='display:flex;align-items:center;gap:8px;font-size:0.82rem;color:var(--archie-text-secondary)';
             const toggle = document.createElement('label');
             toggle.className='toggle-switch';
             const input = document.createElement('input');
@@ -2777,7 +2781,7 @@ async function loadAutoBlockSettings() {
             lbl.appendChild(document.createTextNode('Auto-block enabled'));
             wrap.appendChild(lbl);
             const info = document.createElement('div');
-            info.className='sn-settings-info';
+            info.style.cssText='font-size:0.78rem;color:var(--archie-text-muted)';
             info.textContent='Threshold: '+(s.threshold||5)+' failed attempts | Window: '+(s.window_hours||24)+'h';
             wrap.appendChild(info);
             panel.appendChild(wrap);
@@ -2804,7 +2808,7 @@ async function loadIPAccess() {
             d.blocked.forEach(ip=>{
                 const ipStr = typeof ip==='string'?ip:ip.ip_address||ip.ip||'';
                 const row = document.createElement('div');
-                row.className='sn-ip-row';
+                row.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--archie-border-muted)';
                 const txt = document.createElement('span');
                 txt.className='mono'; txt.style.fontSize='0.8rem'; txt.textContent=ipStr;
                 const btn = document.createElement('button');
@@ -2813,18 +2817,18 @@ async function loadIPAccess() {
                 row.appendChild(txt); row.appendChild(btn);
                 blockedEl.appendChild(row);
             });
-        } else { const n=document.createElement('div');n.className='sn-none-text';n.textContent='None';blockedEl.appendChild(n); }
+        } else { const n=document.createElement('div');n.style.cssText='font-size:0.78rem;color:var(--archie-text-muted)';n.textContent='None';blockedEl.appendChild(n); }
         if(d.whitelisted && d.whitelisted.length) {
             d.whitelisted.forEach(ip=>{
                 const ipStr = typeof ip==='string'?ip:ip.ip_address||ip.ip||'';
                 const row = document.createElement('div');
-                row.className='sn-ip-row-plain';
+                row.style.cssText='padding:4px 0;border-bottom:1px solid var(--archie-border-muted)';
                 const txt = document.createElement('span');
                 txt.className='mono'; txt.style.fontSize='0.8rem'; txt.textContent=ipStr;
                 row.appendChild(txt);
                 whiteEl.appendChild(row);
             });
-        } else { const n=document.createElement('div');n.className='sn-none-text';n.textContent='None';whiteEl.appendChild(n); }
+        } else { const n=document.createElement('div');n.style.cssText='font-size:0.78rem;color:var(--archie-text-muted)';n.textContent='None';whiteEl.appendChild(n); }
     } catch(e){console.error('IP access error:',e);}
 }
 
@@ -2938,7 +2942,7 @@ async function loadReports() {
                 tr.appendChild(tdDate);
 
                 const tdActions = document.createElement('td');
-                tdActions.className='sn-actions-flex';
+                tdActions.style.cssText='display:flex;gap:6px';
                 if(report.source==='db' && report.id) {
                     const viewBtn = document.createElement('button');
                     viewBtn.className='btn btn-sm';
@@ -3064,13 +3068,13 @@ async function viewReport(reportId) {
 
         // Use a simple overlay modal
         const overlay = document.createElement('div');
-        overlay.className='sn-report-overlay';
+        overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center';
         overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
         const modal = document.createElement('div');
-        modal.className='sn-report-modal';
+        modal.style.cssText='background:var(--archie-bg-secondary);border:1px solid var(--archie-border-muted);border-radius:12px;width:90%;max-width:900px;max-height:85vh;overflow:hidden;position:relative';
         const closeBtn = document.createElement('button');
         closeBtn.textContent='\u00d7';
-        closeBtn.className='sn-report-close';
+        closeBtn.style.cssText='position:absolute;top:8px;right:12px;background:none;border:none;color:var(--archie-text-muted);font-size:1.5rem;cursor:pointer;z-index:1';
         closeBtn.onclick=function(){overlay.remove();};
         modal.innerHTML = html;
         modal.appendChild(closeBtn);
@@ -3146,16 +3150,16 @@ async function loadAgentActions() {
             container.textContent='';
             d.actions.forEach(a=>{
                 const item = document.createElement('div');
-                item.className='sn-action-item';
+                item.style.cssText='padding:6px 0;border-bottom:1px solid var(--archie-border-muted)';
                 const row = document.createElement('div');
-                row.className='sn-action-row';
+                row.style.cssText='display:flex;justify-content:space-between';
                 const txt = document.createElement('span');
-                txt.className='sn-action-text';
+                txt.style.cssText='font-size:0.78rem;color:var(--archie-text-secondary)';
                 txt.textContent = a.title;
                 const statusCls = a.status==='executed'?'success':a.status==='dismissed'?'muted':'warning';
                 row.appendChild(txt); row.appendChild(createBadge(a.status,statusCls));
                 const tm = document.createElement('div');
-                tm.className='sn-action-time';
+                tm.style.cssText='font-size:0.7rem;color:var(--archie-text-muted)';
                 tm.textContent = formatTime(a.created_at);
                 item.appendChild(row); item.appendChild(tm);
                 container.appendChild(item);
@@ -3240,7 +3244,8 @@ async function loadDomainsOverview() {
             const tr = document.createElement('tr');
             const td = document.createElement('td');
             td.colSpan = 5;
-            td.className = 'sn-td-center-dim';
+            td.style.textAlign = 'center';
+            td.style.color = 'var(--text-dim)';
             td.textContent = 'No subdomains found';
             tr.appendChild(td);
             tbody.appendChild(tr);
@@ -3268,9 +3273,9 @@ async function loadDomainsOverview() {
 
             const tdSsl = document.createElement('td');
             const sslSpan = document.createElement('span');
-            if (s.ssl === 'Active') { sslSpan.className = 'sn-color-success'; sslSpan.textContent = '\u25CF Active'; }
-            else if (s.ssl === 'Cert Only') { sslSpan.className = 'sn-color-warning'; sslSpan.textContent = '\u25CF Cert Only'; }
-            else { sslSpan.className = 'sn-color-muted'; sslSpan.textContent = '\u25CF None'; }
+            if (s.ssl === 'Active') { sslSpan.style.color = '#22c55e'; sslSpan.textContent = '\u25CF Active'; }
+            else if (s.ssl === 'Cert Only') { sslSpan.style.color = '#f59e0b'; sslSpan.textContent = '\u25CF Cert Only'; }
+            else { sslSpan.style.color = 'var(--text-dim)'; sslSpan.textContent = '\u25CF None'; }
             tdSsl.appendChild(sslSpan);
             tr.appendChild(tdSsl);
 
@@ -3317,7 +3322,7 @@ async function loadDomainDnsRecords() {
         if (records.length === 0) {
             const tr = document.createElement('tr');
             const td = document.createElement('td');
-            td.colSpan = 4; td.className = 'sn-td-center-dim';
+            td.colSpan = 4; td.style.textAlign = 'center'; td.style.color = 'var(--text-dim)';
             td.textContent = 'No DNS records';
             tr.appendChild(td); tbody.appendChild(tr);
             return;
@@ -3394,7 +3399,7 @@ async function loadDomainProxyHosts() {
         if (hosts.length === 0) {
             const tr = document.createElement('tr');
             const td = document.createElement('td');
-            td.colSpan = 5; td.className = 'sn-td-center-dim';
+            td.colSpan = 5; td.style.textAlign = 'center'; td.style.color = 'var(--text-dim)';
             td.textContent = 'No proxy hosts';
             tr.appendChild(td); tbody.appendChild(tr);
             return;
@@ -3417,16 +3422,16 @@ async function loadDomainProxyHosts() {
 
             const tdSsl = document.createElement('td');
             const sslSpan = document.createElement('span');
-            if (h.ssl_forced) { sslSpan.className = 'sn-color-success'; sslSpan.textContent = '\u25CF Forced'; }
-            else if (h.certificate_id) { sslSpan.className = 'sn-color-warning'; sslSpan.textContent = '\u25CF Cert Only'; }
-            else { sslSpan.className = 'sn-color-muted'; sslSpan.textContent = '\u25CF None'; }
+            if (h.ssl_forced) { sslSpan.style.color = '#22c55e'; sslSpan.textContent = '\u25CF Forced'; }
+            else if (h.certificate_id) { sslSpan.style.color = '#f59e0b'; sslSpan.textContent = '\u25CF Cert Only'; }
+            else { sslSpan.style.color = 'var(--text-dim)'; sslSpan.textContent = '\u25CF None'; }
             tdSsl.appendChild(sslSpan);
             tr.appendChild(tdSsl);
 
             const tdStatus = document.createElement('td');
             const statusSpan = document.createElement('span');
-            if (h.enabled !== false) { statusSpan.className = 'sn-color-success'; statusSpan.textContent = 'Active'; }
-            else { statusSpan.className = 'sn-color-muted'; statusSpan.textContent = 'Disabled'; }
+            if (h.enabled !== false) { statusSpan.style.color = '#22c55e'; statusSpan.textContent = 'Active'; }
+            else { statusSpan.style.color = 'var(--text-dim)'; statusSpan.textContent = 'Disabled'; }
             tdStatus.appendChild(statusSpan);
             tr.appendChild(tdStatus);
 
@@ -3480,7 +3485,9 @@ function _certsTbodyMsg(tbody, msg) {
     const td = document.createElement('td');
     td.colSpan = 5;
     td.textContent = msg;
-    td.className = 'sn-td-empty';
+    td.style.color = 'var(--archie-text-muted)';
+    td.style.textAlign = 'center';
+    td.style.padding = '24px';
     tr.appendChild(td);
     tbody.appendChild(tr);
 }
@@ -3523,9 +3530,9 @@ async function loadDomainCertificates() {
                 const now = new Date();
                 const daysLeft = Math.ceil((exp - now) / 86400000);
                 tdExpires.textContent = exp.toLocaleDateString();
-                if (daysLeft <= 7) { tdExpires.className = 'sn-color-danger'; }
-                else if (daysLeft <= 30) { tdExpires.className = 'sn-color-warning'; }
-                else { tdExpires.className = 'sn-color-success'; }
+                if (daysLeft <= 7) { tdExpires.style.color = '#ef4444'; }
+                else if (daysLeft <= 30) { tdExpires.style.color = '#f59e0b'; }
+                else { tdExpires.style.color = '#22c55e'; }
             } else { tdExpires.textContent = '--'; }
             tr.appendChild(tdExpires);
 
@@ -3534,11 +3541,11 @@ async function loadDomainCertificates() {
             if (c.expires_on) {
                 const exp = new Date(c.expires_on);
                 const daysLeft = Math.ceil((exp - new Date()) / 86400000);
-                if (daysLeft <= 0) { statusSpan.className = 'sn-color-danger'; statusSpan.textContent = '\u25CF Expired'; }
-                else if (daysLeft <= 7) { statusSpan.className = 'sn-color-danger'; statusSpan.textContent = '\u25CF Expiring (' + daysLeft + 'd)'; }
-                else if (daysLeft <= 30) { statusSpan.className = 'sn-color-warning'; statusSpan.textContent = '\u25CF Renew Soon (' + daysLeft + 'd)'; }
-                else { statusSpan.className = 'sn-color-success'; statusSpan.textContent = '\u25CF Valid (' + daysLeft + 'd)'; }
-            } else { statusSpan.className = 'sn-color-unknown'; statusSpan.textContent = '\u25CF Unknown'; }
+                if (daysLeft <= 0) { statusSpan.style.color = '#ef4444'; statusSpan.textContent = '\u25CF Expired'; }
+                else if (daysLeft <= 7) { statusSpan.style.color = '#ef4444'; statusSpan.textContent = '\u25CF Expiring (' + daysLeft + 'd)'; }
+                else if (daysLeft <= 30) { statusSpan.style.color = '#f59e0b'; statusSpan.textContent = '\u25CF Renew Soon (' + daysLeft + 'd)'; }
+                else { statusSpan.style.color = '#22c55e'; statusSpan.textContent = '\u25CF Valid (' + daysLeft + 'd)'; }
+            } else { statusSpan.style.color = '#6b7280'; statusSpan.textContent = '\u25CF Unknown'; }
             tdStatus.appendChild(statusSpan);
             tr.appendChild(tdStatus);
 
@@ -3577,18 +3584,18 @@ async function quickSetupDomain() {
         if (d.success) {
             showToast('success', d.message || 'Subdomain created!');
             const heading = document.createElement('div');
-            heading.className = 'sn-result-success';
+            heading.style.cssText = 'color:#22c55e;font-weight:bold;margin-bottom:8px';
             heading.textContent = '\u2713 Setup Complete';
             resultDiv.appendChild(heading);
 
             const domainInfo = document.createElement('div');
-            /* domain info uses default text color */
+            domainInfo.style.color = 'var(--text)';
             domainInfo.textContent = 'Domain: ' + (d.domain || '');
             resultDiv.appendChild(domainInfo);
 
             if (d.steps) {
                 const stepsInfo = document.createElement('div');
-                stepsInfo.className = 'sn-result-steps';
+                stepsInfo.style.cssText = 'margin-top:8px;font-size:0.8rem;color:var(--text-dim)';
                 stepsInfo.textContent = 'DNS: ' + (d.steps.dns && d.steps.dns.success ? '\u2713' : '\u2717')
                     + ' | Proxy: ' + (d.steps.proxy && d.steps.proxy.success ? '\u2713' : '\u2717')
                     + ' | SSL: ' + (d.steps.ssl && d.steps.ssl.success ? '\u2713' : '\u2717');
@@ -3601,12 +3608,12 @@ async function quickSetupDomain() {
         } else {
             showToast('error', d.error || 'Setup failed');
             const heading = document.createElement('div');
-            heading.className = 'sn-result-error';
+            heading.style.cssText = 'color:#ef4444;font-weight:bold';
             heading.textContent = '\u2717 Setup Failed';
             resultDiv.appendChild(heading);
 
             const errInfo = document.createElement('div');
-            errInfo.className = 'sn-result-errinfo';
+            errInfo.style.cssText = 'color:var(--text-dim);font-size:0.85rem';
             errInfo.textContent = d.error || 'Unknown error';
             resultDiv.appendChild(errInfo);
         }
@@ -3619,7 +3626,7 @@ async function quickSetupDomain() {
         btn.textContent = '';
         const icon = document.createElement('i');
         icon.setAttribute('data-lucide', 'rocket');
-        icon.className = 'sn-icon-sm';
+        icon.style.cssText = 'width:14px;height:14px';
         btn.appendChild(icon);
         btn.appendChild(document.createTextNode(' Create Subdomain'));
         lucide.createIcons();
@@ -3792,13 +3799,13 @@ function _getSecOps() {
                     var dot = status.querySelector('.cs-ops-dot');
                     var txt = status.childNodes[status.childNodes.length - 1];
                     if (atCap) {
-                        if (dot) { dot.className = 'cs-ops-dot sn-dot-warning'; }
+                        if (dot) { dot.style.background = '#f59e0b'; dot.style.boxShadow = '0 0 4px #f59e0b'; }
                         if (txt && txt.nodeType === 3) txt.textContent = ' AT CAPACITY';
-                        status.className = 'stn-ops-status cs-ops-status sn-color-warning';
+                        status.style.color = '#f59e0b';
                     } else {
-                        if (dot) { dot.className = 'cs-ops-dot sn-dot-default'; }
+                        if (dot) { dot.style.background = ''; dot.style.boxShadow = ''; }
                         if (txt && txt.nodeType === 3) txt.textContent = ' ONLINE';
-                        status.className = 'stn-ops-status cs-ops-status';
+                        status.style.color = '';
                     }
                 }
             }
@@ -3825,14 +3832,13 @@ var _zoneColors = {trusted:'#22c55e',family:'#3b82f6',guest:'#f59e0b',iot:'#8b5c
 function _zoneBadge(zone) {
     var span = document.createElement('span');
     span.textContent = zone || 'unknown';
-    span.className = 'sn-zone-badge';
-    span.style.background = _zoneColors[zone] || '#666';
+    span.style.cssText = 'display:inline-block;padding:2px 8px;border-radius:10px;font-size:0.72rem;color:#fff;background:' + (_zoneColors[zone] || '#666');
     return span;
 }
 
 function _onlineIndicator(lastSeen) {
     var span = document.createElement('span');
-    span.className = 'sn-online-dot';
+    span.style.cssText = 'display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;';
     if (lastSeen) {
         var diff = (Date.now() - new Date(lastSeen).getTime()) / 60000;
         span.style.background = diff <= 15 ? '#22c55e' : '#666';
@@ -3890,13 +3896,13 @@ async function loadDeviceClients() {
                 if (d.dns_active) {
                     var dnsBadgeU = document.createElement('span');
                     dnsBadgeU.textContent = '\u2714 Protected';
-                    dnsBadgeU.className = 'sn-badge-protected';
+                    dnsBadgeU.style.cssText = 'background:rgba(34,197,94,0.15);color:#22c55e;padding:2px 8px;border-radius:4px;font-size:0.72rem;border:1px solid rgba(34,197,94,0.3);';
                     dnsBadgeU.title = d.dns_query_count ? d.dns_query_count.toLocaleString() + ' DNS queries' : 'Using AdGuard DNS';
                     tdDnsU.appendChild(dnsBadgeU);
                 } else {
                     var noTagU = document.createElement('span');
                     noTagU.textContent = '\u26A0 Unprotected';
-                    noTagU.className = 'sn-badge-unprotected';
+                    noTagU.style.cssText = 'background:rgba(239,68,68,0.1);color:#ef4444;padding:2px 8px;border-radius:4px;font-size:0.72rem;border:1px solid rgba(239,68,68,0.2);';
                     tdDnsU.appendChild(noTagU);
                 }
                 tr.appendChild(tdDnsU);
@@ -3960,13 +3966,13 @@ async function loadDeviceClients() {
                 if (d.dns_active) {
                     var dnsBadge = document.createElement('span');
                     dnsBadge.textContent = '\u2714 ' + (d.dns_query_count ? d.dns_query_count.toLocaleString() : 'Protected');
-                    dnsBadge.className = 'sn-badge-protected-sm';
+                    dnsBadge.style.cssText = 'background:rgba(34,197,94,0.15);color:#22c55e;padding:1px 6px;border-radius:3px;font-size:0.68rem;border:1px solid rgba(34,197,94,0.3);margin-left:4px;';
                     dnsBadge.title = d.dns_query_count ? d.dns_query_count.toLocaleString() + ' DNS queries — Protected by AdGuard' : 'Using AdGuard DNS';
                     tdZone.appendChild(dnsBadge);
                 } else {
                     var noTag = document.createElement('span');
                     noTag.textContent = '\u26A0 Unprotected';
-                    noTag.className = 'sn-badge-unprotected-sm';
+                    noTag.style.cssText = 'background:rgba(239,68,68,0.1);color:#ef4444;padding:1px 6px;border-radius:3px;font-size:0.68rem;border:1px solid rgba(239,68,68,0.2);margin-left:4px;';
                     noTag.title = 'Not using AdGuard DNS';
                     tdZone.appendChild(noTag);
                 }
@@ -3990,7 +3996,9 @@ async function loadDeviceClients() {
             var emptyTd = document.createElement('td');
             emptyTd.setAttribute('colspan', '7');
             emptyTd.textContent = 'No registered devices found.';
-            emptyTd.className = 'sn-td-empty';
+            emptyTd.style.textAlign = 'center';
+            emptyTd.style.padding = '24px';
+            emptyTd.style.color = 'var(--archie-text-muted)';
             emptyTr.appendChild(emptyTd);
             regBody.appendChild(emptyTr);
         }
@@ -4000,7 +4008,7 @@ async function loadDeviceClients() {
         var errTd = document.createElement('td');
         errTd.setAttribute('colspan', '7');
         errTd.textContent = 'Error loading devices: ' + e.message;
-        errTd.className = 'sn-td-error';
+        errTd.style.color = '#ef4444';
         errTr.appendChild(errTd);
         regBody.appendChild(errTr);
     }
@@ -4123,14 +4131,14 @@ async function viewDeviceReport(deviceId) {
     var modal = document.getElementById('device-report-modal');
     var body = document.getElementById('dns-report-body');
     var title = document.getElementById('dns-report-title');
-    body.innerHTML = '<p class="sn-loading-text">Loading report...</p>';
+    body.innerHTML = '<p style="color:var(--archie-text-muted)">Loading report...</p>';
     modal.classList.add('active');
 
     try {
         var res = await fetch(API + '/devices/' + deviceId + '/dns-report');
         var data = await res.json();
         if (!data.success) {
-            body.innerHTML = '<p class="sn-error-text">' + (data.error || 'Failed to load report') + '</p>';
+            body.innerHTML = '<p style="color:#ef4444">' + (data.error || 'Failed to load report') + '</p>';
             return;
         }
         var r = data.report;
@@ -4211,7 +4219,7 @@ async function viewDeviceReport(deviceId) {
 
         body.innerHTML = html;
     } catch(e) {
-        body.innerHTML = '<p class="sn-error-text">Error: ' + e.message + '</p>';
+        body.innerHTML = '<p style="color:#ef4444">Error: ' + e.message + '</p>';
     }
 }
 
@@ -4236,7 +4244,7 @@ setInterval(function(){
     if(active && active.dataset.tab==='dashboard') loadDashboard();
 }, 60000);
 
-document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ closeModal(); closeDeviceModal(); document.querySelectorAll('.bm-overlay.active').forEach(m=>m.classList.remove('active')); } });
+document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ closeModal(); closeDeviceModal(); } });
 
 // ═══════ COMPLIANCE TAB ═══════
 let _complianceResults = [];
@@ -4414,13 +4422,13 @@ function filterComplianceResults() {
     if (status) filtered = filtered.filter(r => r.status === status);
 
     if (filtered.length === 0 && _complianceResults.length === 0) {
-        container.innerHTML = '<div class="sn-comp-empty">'
+        container.innerHTML = '<div style="text-align: center; color: #475569; padding: 40px 0; font-size: 0.85rem;">'
             + '<i class="fas fa-shield-alt" style="font-size: 2rem; margin-bottom: 12px; display: block; opacity: 0.3;"></i>'
             + 'Run a compliance scan to see findings</div>';
         return;
     }
     if (filtered.length === 0) {
-        container.innerHTML = '<div class="sn-comp-no-match">No results match current filters</div>';
+        container.innerHTML = '<div style="text-align: center; color: #475569; padding: 30px 0; font-size: 0.85rem;">No results match current filters</div>';
         return;
     }
 
@@ -4654,7 +4662,7 @@ async function loadHardeningContent(scanId) {
         });
 
         if (fails.length === 0) {
-            el.innerHTML = '<div class="sn-comp-all-pass"><i class="fas fa-check-circle"></i><br><br>All checks passing!</div>';
+            el.innerHTML = '<div style="text-align: center; color: #22c55e; padding: 40px;"><i class="fas fa-check-circle" style="font-size: 3rem;"></i><br><br>All checks passing!</div>';
             return;
         }
 

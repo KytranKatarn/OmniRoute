@@ -21,12 +21,15 @@ def create_app():
         template_folder="templates",
     )
 
+    # --- Proxy Fix (behind NPM/Caddy) ---
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
     # --- Session & Security Config ---
     app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me")
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-    if os.environ.get("FLASK_ENV") == "production":
-        app.config["SESSION_COOKIE_SECURE"] = True
+    app.config["SESSION_COOKIE_SECURE"] = os.environ.get("SESSION_COOKIE_SECURE", "false").lower() in ("true", "1")
 
     # --- Rate Limiter ---
     limiter = Limiter(

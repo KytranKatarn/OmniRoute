@@ -189,6 +189,25 @@ def register_node_routes(bp, admin_required):
         else:
             return "Install script not found", 404
 
+    @bp.route("/api/nodes/setup-node.ps1", methods=["GET"])
+    def get_node_full_setup_script():
+        """Serve the full Windows node setup script (WSL2 + Docker + GPU + bootstrap)"""
+        script_path = "/mnt/archie_brain/node_client/setup-node.ps1"
+        if os.path.exists(script_path):
+            with open(script_path, "r") as f:
+                script_content = f.read()
+            server_url = request.host_url.rstrip("/")
+            script_content = script_content.replace("http://192.168.1.200:3000", server_url)
+            return (
+                script_content,
+                200,
+                {
+                    "Content-Type": "text/plain; charset=utf-8",
+                    "Content-Disposition": 'inline; filename="setup-node.ps1"',
+                },
+            )
+        return "Setup script not found", 404
+
     @bp.route("/api/nodes/heartbeat.ps1", methods=["GET"])
     def get_node_heartbeat_script_windows():
         """Serve the Windows PowerShell heartbeat script"""

@@ -765,3 +765,374 @@ def transition_cleared_cooldowns():
         ", ".join(transitioned) if transitioned else "none",
     )
     return {"transitioned_count": len(transitioned), "agents": transitioned}
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 — Lifecycle constants
+# ---------------------------------------------------------------------------
+
+WINDING_DOWN_BUDGET_PCT = 0.80
+WINDING_DOWN_STRESS = 0.70
+COOLDOWN_BUDGET_PCT = 0.95
+COOLDOWN_STRESS = 0.85
+WINDING_DOWN_SCORE_PENALTY = 0.30
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 — Lifecycle functions
+# ---------------------------------------------------------------------------
+
+
+def transition_shift_state(agent_id, new_state, reason="manual"):
+    """Transition an agent to a new shift state with full rotation logging.
+
+    Validates the new state, closes the previous rotation log entry,
+    inserts a new one, and updates the agent record. If transitioning
+    to cooldown, attempts to find a replacement in the same department.
+
+    Returns dict with success, agent_name, new_state, and optional replacement.
+    """
+    if new_state not in VALID_SHIFT_STATES:
+        return {"success": False, "error": f"Invalid shift state: {new_state}"}
+
+    # rotation_log CHECK only allows: active, winding_down, cooldown, off_duty
+    ROTATION_LOG_STATES = ("active", "winding_down", "cooldown", "off_duty")
+
+    replacement = None
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "SELECT id, name, department FROM agents WHERE id = %s",
+            (agent_id,),
+        )
+        agent = cur.fetchone()
+        if not agent:
+            return {"success": False, "error": f"Agent {agent_id} not found"}
+
+        agent_name = agent["name"]
+        department = agent["department"]
+
+        # Close previous open rotation log entry
+        cur.execute(
+            """
+            UPDATE agent_rotation_log
+            SET ended_at = NOW()
+            WHERE agent_id = %s AND ended_at IS NULL
+        """,
+            (agent_id,),
+        )
+
+        # Insert new rotation log entry (only if state is valid for rotation_log)
+        if new_state in ROTATION_LOG_STATES:
+            cur.execute(
+                """
+                INSERT INTO agent_rotation_log
+                    (agent_id, shift_state, reason, started_at)
+                VALUES (%s, %s, %s, NOW())
+            """,
+                (agent_id, new_state, reason),
+            )
+
+        # Update the agent's shift_state
+        cur.execute(
+            "UPDATE agents SET shift_state = %s WHERE id = %s",
+            (new_state, agent_id),
+        )
+
+        logger.info("[Lifecycle] %s -> %s (reason=%s)", agent_name, new_state, reason)
+
+        # If entering cooldown, try to find a replacement
+        if new_state == "cooldown":
+            replacement = find_replacement(agent_id, department, _cur=cur)
+
+    return {
+        "success": True,
+        "agent_name": agent_name,
+        "new_state": new_state,
+        "replacement": replacement,
+    }
+
+
+def find_replacement(agent_id, department, _cur=None):
+    """Find and activate a replacement agent from the same department.
+
+    Looks for barracked or off_duty agents, scores them by average
+    proficiency from agent_skills, and activates the best candidate.
+
+    Accepts an optional cursor ``_cur`` for transaction sharing.
+    Returns dict with id/name/score of the activated replacement, or None.
+    """
+
+    def _do(cur):
+        cur.execute(
+            """
+            SELECT a.id, a.name,
+                   COALESCE(AVG(sk.proficiency_level), 0) AS avg_prof
+            FROM agents a
+            LEFT JOIN agent_skills sk ON sk.agent_id = a.id
+            WHERE a.department = %s
+              AND a.id != %s
+              AND a.shift_state IN ('barracked', 'off_duty')
+              AND a.status = 'active'
+            GROUP BY a.id, a.name
+            ORDER BY avg_prof DESC
+            LIMIT 1
+        """,
+            (department, agent_id),
+        )
+        candidate = cur.fetchone()
+        if not candidate:
+            return None
+
+        # Activate the replacement
+        cur.execute(
+            "UPDATE agents SET shift_state = 'active' WHERE id = %s",
+            (candidate["id"],),
+        )
+        cur.execute(
+            """
+            INSERT INTO agent_rotation_log
+                (agent_id, shift_state, replaced_by, reason, started_at)
+            VALUES (%s, 'active', NULL, 'replacement_activation', NOW())
+        """,
+            (candidate["id"],),
+        )
+
+        logger.info(
+            "[Lifecycle] Replacement found: %s (score=%.2f) for department=%s",
+            candidate["name"],
+            float(candidate["avg_prof"]),
+            department,
+        )
+        return {
+            "id": candidate["id"],
+            "name": candidate["name"],
+            "score": float(candidate["avg_prof"]),
+        }
+
+    if _cur is not None:
+        return _do(_cur)
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        return _do(cur)
+
+
+def increment_budget(agent_id, tokens_used=0):
+    """Increment an agent's daily budget counters.
+
+    If ``token_reset_at`` has passed, resets counters first and sets
+    count to 1. Otherwise increments the existing row (upsert pattern
+    using the unique constraint on agent_id).
+
+    Returns dict with success, task_count, and tokens_used_today.
+    """
+    with get_db_cursor(commit=True) as (conn, cur):
+        # Check if reset is needed
+        cur.execute(
+            "SELECT token_reset_at FROM agent_budgets WHERE agent_id = %s",
+            (agent_id,),
+        )
+        existing = cur.fetchone()
+
+        if existing and existing["token_reset_at"] is not None:
+            from datetime import datetime
+
+            if existing["token_reset_at"] <= datetime.now():
+                # Reset and start fresh
+                cur.execute(
+                    """
+                    UPDATE agent_budgets
+                    SET current_task_count = 1,
+                        tokens_used_today = %s,
+                        token_reset_at = NOW() + INTERVAL '1 day',
+                        updated_at = NOW()
+                    WHERE agent_id = %s
+                """,
+                    (tokens_used, agent_id),
+                )
+                cur.execute(
+                    "SELECT current_task_count, tokens_used_today FROM agent_budgets WHERE agent_id = %s",
+                    (agent_id,),
+                )
+                row = cur.fetchone()
+                return {
+                    "success": True,
+                    "task_count": row["current_task_count"],
+                    "tokens_used_today": row["tokens_used_today"],
+                }
+
+        # Upsert: increment or insert
+        cur.execute(
+            """
+            INSERT INTO agent_budgets (agent_id, current_task_count, tokens_used_today, token_reset_at)
+            VALUES (%s, 1, %s, NOW() + INTERVAL '1 day')
+            ON CONFLICT (agent_id) DO UPDATE SET
+                current_task_count = agent_budgets.current_task_count + 1,
+                tokens_used_today = agent_budgets.tokens_used_today + %s,
+                updated_at = NOW()
+        """,
+            (agent_id, tokens_used, tokens_used),
+        )
+
+        cur.execute(
+            "SELECT current_task_count, tokens_used_today FROM agent_budgets WHERE agent_id = %s",
+            (agent_id,),
+        )
+        row = cur.fetchone()
+        return {
+            "success": True,
+            "task_count": row["current_task_count"],
+            "tokens_used_today": row["tokens_used_today"],
+        }
+
+
+def update_welfare_after_task(agent_id, success=True):
+    """Update an agent's emotional state based on recent task performance.
+
+    Queries the 1-hour rolling window of task executions to calculate
+    utilization-based stress, energy, and mood. Respects DB CHECK
+    constraints (stress <= 0.9, energy >= 0.1).
+
+    Returns dict with success, stress, energy, and mood.
+    """
+    with get_db_cursor(commit=True) as (conn, cur):
+        # Get 1-hour rolling window stats
+        cur.execute(
+            """
+            SELECT COUNT(*) AS total,
+                   SUM(CASE WHEN success = false THEN 1 ELSE 0 END) AS failures
+            FROM task_execution_log
+            WHERE agent_id = %s
+              AND created_at >= NOW() - INTERVAL '1 hour'
+        """,
+            (agent_id,),
+        )
+        stats = cur.fetchone()
+        total = stats["total"] or 0
+        failures = stats["failures"] or 0
+
+        # Calculate welfare metrics
+        utilization = min(total / 20.0, 1.0)  # 20 tasks/hr = full utilization
+        failure_rate = (failures / total) if total > 0 else 0.0
+
+        # Stress: rises with utilization and failure rate
+        stress = round(min(0.2 + (utilization * 0.4) + (failure_rate * 0.3), 0.9), 2)
+        # Energy: drops with utilization
+        energy = round(max(0.9 - (utilization * 0.6) - (failure_rate * 0.2), 0.1), 2)
+        # Mood based on performance
+        if failure_rate > 0.5:
+            mood = "frustrated"
+        elif failure_rate > 0.2:
+            mood = "concerned"
+        elif total == 0:
+            mood = "idle"
+        elif utilization > 0.8:
+            mood = "focused"
+        else:
+            mood = "productive"
+
+        # DELETE + INSERT (no unique constraint on agent_id)
+        cur.execute(
+            "DELETE FROM agent_emotional_state WHERE agent_id = %s",
+            (agent_id,),
+        )
+        cur.execute(
+            """
+            INSERT INTO agent_emotional_state
+                (agent_id, current_mood, stress_level, energy_level, trigger_event)
+            VALUES (%s, %s, %s, %s, %s)
+        """,
+            (agent_id, mood, stress, energy, "post_task_welfare_update"),
+        )
+
+        logger.info(
+            "[Welfare] Agent %s: stress=%.2f energy=%.2f mood=%s (tasks=%d failures=%d)",
+            agent_id,
+            stress,
+            energy,
+            mood,
+            total,
+            failures,
+        )
+
+        return {
+            "success": True,
+            "stress": stress,
+            "energy": energy,
+            "mood": mood,
+        }
+
+
+def check_shift_transitions():
+    """Check all active/winding_down agents and trigger shift transitions.
+
+    Applies threshold logic:
+    - 95%+ budget used OR stress >= COOLDOWN_STRESS -> cooldown
+    - 80%+ budget used OR stress >= WINDING_DOWN_STRESS -> winding_down
+
+    Calls transition_shift_state for each triggered transition.
+    Returns dict with list of transitions made.
+    """
+    transitions = []
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT a.id, a.name, a.department, a.shift_state,
+                   COALESCE(ab.current_task_count, 0) AS task_count,
+                   COALESCE(ab.task_queue_limit, 100) AS task_limit,
+                   COALESCE(es.stress_level, 0.2) AS stress
+            FROM agents a
+            LEFT JOIN agent_budgets ab ON a.id = ab.agent_id
+            LEFT JOIN agent_emotional_state es ON a.id = es.agent_id
+            WHERE a.shift_state IN ('active', 'winding_down')
+              AND a.status = 'active'
+        """
+        )
+        agents = cur.fetchall()
+
+    for agent in agents:
+        task_limit = agent["task_limit"] if agent["task_limit"] > 0 else 100
+        budget_pct = agent["task_count"] / task_limit
+        stress = float(agent["stress"])
+
+        if agent["shift_state"] == "active":
+            if budget_pct >= COOLDOWN_BUDGET_PCT or stress >= COOLDOWN_STRESS:
+                result = transition_shift_state(agent["id"], "cooldown", "budget_or_stress_exceeded")
+                if result.get("success"):
+                    transitions.append(
+                        {
+                            "agent": agent["name"],
+                            "from": "active",
+                            "to": "cooldown",
+                            "budget_pct": round(budget_pct, 2),
+                            "stress": stress,
+                        }
+                    )
+            elif budget_pct >= WINDING_DOWN_BUDGET_PCT or stress >= WINDING_DOWN_STRESS:
+                result = transition_shift_state(agent["id"], "winding_down", "budget_or_stress_warning")
+                if result.get("success"):
+                    transitions.append(
+                        {
+                            "agent": agent["name"],
+                            "from": "active",
+                            "to": "winding_down",
+                            "budget_pct": round(budget_pct, 2),
+                            "stress": stress,
+                        }
+                    )
+
+        elif agent["shift_state"] == "winding_down":
+            if budget_pct >= COOLDOWN_BUDGET_PCT or stress >= COOLDOWN_STRESS:
+                result = transition_shift_state(agent["id"], "cooldown", "budget_or_stress_exceeded")
+                if result.get("success"):
+                    transitions.append(
+                        {
+                            "agent": agent["name"],
+                            "from": "winding_down",
+                            "to": "cooldown",
+                            "budget_pct": round(budget_pct, 2),
+                            "stress": stress,
+                        }
+                    )
+
+    logger.info("[ShiftCheck] %d transitions triggered", len(transitions))
+    return {"transitions": transitions}

@@ -39,6 +39,33 @@ STRATEGIES = {
 }
 
 
+_RUNNERS = {
+    "sma_crossover": lambda closes, times, capital, params=None: run_sma_crossover(closes, times, capital, params),
+    "rsi_mean_reversion": lambda closes, times, capital, params=None: run_rsi_mean_reversion(closes, times, capital, params),
+    "macd_momentum": lambda closes, times, capital, params=None: run_macd_momentum(closes, times, capital, params),
+    "bollinger_bounce": lambda closes, times, capital, params=None: run_bollinger_bounce(closes, times, capital, params),
+    "watch_replay": lambda closes, times, capital, params=None: run_watch_replay(closes, times, capital, params),
+}
+
+
+def run_strategy(strategy_id, closes, timestamps, initial_capital, params=None):
+    """Dispatch to the correct strategy runner by ID.
+
+    Args:
+        strategy_id: key from STRATEGIES dict
+        closes: numpy array or list of close prices
+        timestamps: list of date strings
+        initial_capital: starting capital
+        params: optional parameter overrides
+
+    Returns:
+        dict with: trades, equity_curve, metrics, strategy_id
+    """
+    if strategy_id not in _RUNNERS:
+        return {"error": f"Unknown strategy: {strategy_id}", "trades": [], "metrics": {}}
+    return _RUNNERS[strategy_id](closes, timestamps, initial_capital, params)
+
+
 def get_strategy_list():
     """Return list of available strategies with metadata."""
     return [{"id": k, **v} for k, v in STRATEGIES.items()]

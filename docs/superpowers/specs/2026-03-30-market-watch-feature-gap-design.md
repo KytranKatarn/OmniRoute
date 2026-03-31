@@ -22,7 +22,10 @@ W.A.T.C.H. (AI Director, Analytics & Intelligence, agent #152) orchestrates 5 ex
 | **Shield** | Suki Taniguchi | 42 | Finance & Accounting | Risk management — position sizing, stop-loss, portfolio exposure |
 | **Oracle** | Olivia Oduya | 43 | Analytics & Intelligence | Final synthesis — combines all 4 reports, issues buy/sell/hold with confidence |
 
-### Analysis Flow
+**M.A.R.K.E.T.** (agent #32, Analytics & Intelligence) — *Market Analysis, Risk Knowledge & Equity Trading*
+Execution brain. Takes Oracle's recommendation and manages paper trading, portfolio rebalancing, order timing, and trade execution through Alpaca. Decision #353.
+
+### Analysis + Execution Flow
 
 ```
 Market Watch UI → POST /api/analysis/run {ticker}
@@ -33,6 +36,7 @@ Market Watch UI → POST /api/analysis/run {ticker}
       3. Pulse analyzes sentiment (news, social, sector)
       4. Shield assesses risk (position size, stop-loss, exposure)
       5. Oracle synthesizes all 4 reports → final recommendation
+      6. M.A.R.K.E.T. executes (paper trade via Alpaca, or queues for approval)
     → W.A.T.C.H. returns structured result to Market Watch
   → Market Watch stores in analyses table, displays to user
 ```

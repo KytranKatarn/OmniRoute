@@ -571,6 +571,21 @@
           <h3 style="color:#00e5ff; font-size:0.9rem; margin-bottom:12px;">LAST CYCLE RESULTS</h3>
           <div id="last-cycle-info" style="color:#e0e0e0; font-size:0.85rem;"></div>
       </div>
+
+      <!-- Risk Analytics (admin only) -->
+      <div data-tier="admin" style="display:none; background:#111827; border:1px solid #1f2937; border-radius:8px; padding:16px; margin-top:20px;">
+          <h3 style="color:#00e5ff; font-size:0.9rem; margin-bottom:12px;">RISK ANALYTICS</h3>
+          <div id="risk-analytics-grid" style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:12px;"></div>
+          <button onclick="loadRiskMetrics()" style="background:#00e5ff; color:#000; border:none; padding:6px 16px; border-radius:4px; cursor:pointer; font-weight:700; font-size:0.8rem;">REFRESH RISK METRICS</button>
+      </div>
+  </div>
+
+  <!-- Viewer Portfolio Risk Summary (viewer+ tiers) -->
+  <div id="portfolio-risk-panel" data-tier="viewer" style="display:none; padding:20px; margin-top:20px; max-width:900px; margin-left:auto; margin-right:auto;">
+      <div style="background:#111827; border:1px solid #1f2937; border-radius:8px; padding:16px;">
+          <h3 style="color:#00e5ff; font-family:'Orbitron',sans-serif; font-size:0.9rem; letter-spacing:2px; margin-bottom:14px;">PORTFOLIO RISK</h3>
+          <div id="viewer-risk-grid" style="display:grid; grid-template-columns:repeat(2,1fr); gap:12px;"></div>
+      </div>
   </div>
 
   <!-- FOOTER -->
@@ -776,6 +791,9 @@
               cycleDiv.textContent = 'No cycles yet' + (cs.paused ? ' | PAUSED' : '');
           }
       } catch (e) { console.error('Failed to load cycle status:', e); }
+
+      // Load risk metrics panel
+      loadRiskMetrics();
   }
 
   async function toggleMode(mode, enabled) {
@@ -850,8 +868,128 @@
       if (data.success) { alert('Reset to defaults'); loadAdminPanel(); }
   }
 
+  async function loadRiskMetrics() {
+      try {
+          var resp = await fetch('/api/trading/risk-metrics');
+          var data = await resp.json();
+          if (!data.success) return;
+          var r = data.risk;
+          var grid = document.getElementById('risk-analytics-grid');
+          if (!grid) return;
+          grid.textContent = '';
+          var items = [
+              ['Kelly Fraction', (r.kelly_fraction !== undefined ? (r.kelly_fraction * 100).toFixed(1) + '% (half-Kelly: ' + (r.kelly_fraction * 50).toFixed(1) + '%)' : '--')],
+              ['VaR 95%', (r.var_95_pct !== undefined ? '$' + r.var_95_pct.toFixed(2) + ' / ' + (r.var_95_pct_of_portfolio || 0).toFixed(2) + '%' : '--')],
+              ['VaR 99%', (r.var_99_pct !== undefined ? '$' + r.var_99_pct.toFixed(2) + ' / ' + (r.var_99_pct_of_portfolio || 0).toFixed(2) + '%' : '--')],
+              ['Portfolio Beta', (r.portfolio_beta !== undefined ? r.portfolio_beta.toFixed(3) : '--')],
+              ['Diversification Score', (r.diversification_score !== undefined ? r.diversification_score + ' / 100' : '--')],
+              ['Risk Grade', (r.risk_grade ? r.risk_grade + ' — ' + (r.risk_grade_label || '') : '--')],
+              ['Portfolio Volatility', (r.portfolio_volatility !== undefined ? (r.portfolio_volatility * 100).toFixed(2) + '%' : '--')],
+          ];
+          items.forEach(function(item) {
+              var cell = document.createElement('div');
+              cell.style.cssText = 'background:#0a0a1a; border:1px solid #374151; border-radius:4px; padding:10px;';
+              var label = document.createElement('div');
+              label.style.cssText = 'font-size:0.7rem; letter-spacing:0.1em; color:#6b7280; text-transform:uppercase; margin-bottom:4px;';
+              label.textContent = item[0];
+              var value = document.createElement('div');
+              value.style.cssText = 'font-size:0.9rem; color:#e0e0e0; font-weight:600;';
+              value.textContent = item[1];
+              cell.appendChild(label);
+              cell.appendChild(value);
+              grid.appendChild(cell);
+          });
+      } catch (e) { console.error('Failed to load risk metrics:', e); }
+  }
+
+  async function loadViewerRiskSummary() {
+      try {
+          var resp = await fetch('/api/trading/risk-summary');
+          var data = await resp.json();
+          if (!data.success) return;
+          var r = data.risk;
+          var panel = document.getElementById('portfolio-risk-panel');
+          var grid = document.getElementById('viewer-risk-grid');
+          if (!panel || !grid) return;
+          panel.style.display = '';
+          grid.textContent = '';
+
+          // Risk Grade badge
+          var gradeCell = document.createElement('div');
+          gradeCell.style.cssText = 'display:flex; align-items:center; gap:12px;';
+          var gradeBadge = document.createElement('span');
+          var grade = r.risk_grade || '--';
+          gradeBadge.textContent = grade;
+          gradeBadge.style.cssText = 'font-family:"Orbitron",sans-serif; font-size:1.8rem; font-weight:900; padding:8px 18px; border-radius:4px;';
+          var gradeColor = '#6b7280';
+          if (/^[AB]/.test(grade)) gradeColor = '#10b981';
+          else if (/^C/.test(grade)) gradeColor = '#fbbf24';
+          else if (/^[DF]/.test(grade)) gradeColor = '#ef4444';
+          gradeBadge.style.background = gradeColor + '22';
+          gradeBadge.style.color = gradeColor;
+          gradeBadge.style.border = '1px solid ' + gradeColor + '55';
+          var gradeLabel = document.createElement('div');
+          var gradeDesc = document.createElement('div');
+          gradeDesc.style.cssText = 'font-size:0.7rem; letter-spacing:0.15em; color:#6b7280; text-transform:uppercase;';
+          gradeDesc.textContent = 'Risk Grade';
+          var gradeVal = document.createElement('div');
+          gradeVal.style.cssText = 'font-size:0.85rem; color:#e0e0e0;';
+          gradeVal.textContent = r.risk_grade_label || '';
+          gradeLabel.appendChild(gradeDesc);
+          gradeLabel.appendChild(gradeVal);
+          gradeCell.appendChild(gradeBadge);
+          gradeCell.appendChild(gradeLabel);
+          grid.appendChild(gradeCell);
+
+          // VaR 95% statement
+          var varCell = document.createElement('div');
+          varCell.style.cssText = 'background:#0a0a1a; border:1px solid #374151; border-radius:4px; padding:10px;';
+          var varLabel = document.createElement('div');
+          varLabel.style.cssText = 'font-size:0.7rem; letter-spacing:0.1em; color:#6b7280; text-transform:uppercase; margin-bottom:4px;';
+          varLabel.textContent = 'Value at Risk (95%)';
+          var varVal = document.createElement('div');
+          varVal.style.cssText = 'font-size:0.9rem; color:#e0e0e0;';
+          varVal.textContent = r.var_95_pct !== undefined ? '1-day 95% VaR: $' + r.var_95_pct.toFixed(2) : '--';
+          varCell.appendChild(varLabel);
+          varCell.appendChild(varVal);
+          grid.appendChild(varCell);
+
+          // Diversification
+          var divCell = document.createElement('div');
+          divCell.style.cssText = 'background:#0a0a1a; border:1px solid #374151; border-radius:4px; padding:10px;';
+          var divLabel = document.createElement('div');
+          divLabel.style.cssText = 'font-size:0.7rem; letter-spacing:0.1em; color:#6b7280; text-transform:uppercase; margin-bottom:4px;';
+          divLabel.textContent = 'Diversification';
+          var divVal = document.createElement('div');
+          divVal.style.cssText = 'font-size:0.9rem; color:#e0e0e0;';
+          divVal.textContent = r.diversification_label || (r.diversification_score !== undefined ? 'Score: ' + r.diversification_score + ' / 100' : '--');
+          divCell.appendChild(divLabel);
+          divCell.appendChild(divVal);
+          grid.appendChild(divCell);
+
+          // Portfolio Beta
+          var betaCell = document.createElement('div');
+          betaCell.style.cssText = 'background:#0a0a1a; border:1px solid #374151; border-radius:4px; padding:10px;';
+          var betaLabel = document.createElement('div');
+          betaLabel.style.cssText = 'font-size:0.7rem; letter-spacing:0.1em; color:#6b7280; text-transform:uppercase; margin-bottom:4px;';
+          betaLabel.textContent = 'Portfolio Beta';
+          var betaVal = document.createElement('div');
+          betaVal.style.cssText = 'font-size:0.9rem; color:#e0e0e0;';
+          betaVal.textContent = r.portfolio_beta !== undefined ? r.portfolio_beta.toFixed(3) : '--';
+          betaCell.appendChild(betaLabel);
+          betaCell.appendChild(betaVal);
+          grid.appendChild(betaCell);
+      } catch (e) { console.error('Failed to load viewer risk summary:', e); }
+  }
+
   // Load admin panel after auth resolves
-  setTimeout(function() { if (window.MW_IS_ADMIN) loadAdminPanel(); }, 1000);
+  setTimeout(function() {
+      if (window.MW_IS_ADMIN) {
+          loadAdminPanel();
+          loadRiskMetrics();
+      }
+      if (window.MW_USER) loadViewerRiskSummary();
+  }, 1000);
   </script>
 
 </body>

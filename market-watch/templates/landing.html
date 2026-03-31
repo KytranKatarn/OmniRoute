@@ -536,6 +536,13 @@
         <div class="mw-stat-desc">unique tickers covered</div>
       </div>
     </div>
+
+    <!-- Risk Grade Badge -->
+    <div id="riskGradeBadgeRow" style="display:none; margin-top:24px; align-items:center; gap:16px; flex-wrap:wrap;">
+      <div style="font-size:10px; letter-spacing:0.2em; color:var(--mw-muted); text-transform:uppercase;">Portfolio Risk Grade</div>
+      <div id="riskGradeBadge" style="font-family:'Orbitron',sans-serif; font-size:1.6rem; font-weight:900; padding:6px 20px; border-radius:4px; border:1px solid rgba(0,229,255,0.3); background:rgba(0,229,255,0.08); color:var(--mw-cyan);">--</div>
+      <div id="riskGradeLabel" style="font-size:12px; color:var(--mw-muted);"></div>
+    </div>
   </section>
 
   <div class="mw-divider">
@@ -867,6 +874,48 @@
 
         container.appendChild(list);
       }
+
+      // ── fetch public risk grade ───────────────────────────────────────────────
+      fetch('/api/public/risk-grade')
+        .then(function (res) {
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          return res.json();
+        })
+        .then(function (data) {
+          if (!data.success) return;
+          var grade = data.risk_grade || '';
+          var label = data.risk_grade_label || '';
+          var badgeEl = document.getElementById('riskGradeBadge');
+          var labelEl = document.getElementById('riskGradeLabel');
+          var rowEl = document.getElementById('riskGradeBadgeRow');
+          if (!badgeEl || !grade) return;
+
+          badgeEl.textContent = grade;
+          if (labelEl) labelEl.textContent = label;
+
+          // Color: green A/B+, cyan B, yellow C, red D/F
+          var color = 'var(--mw-muted)';
+          if (/^A/.test(grade) || /^B\+/.test(grade)) {
+            color = 'var(--mw-green)';
+          } else if (/^B/.test(grade)) {
+            color = 'var(--mw-cyan)';
+          } else if (/^C/.test(grade)) {
+            color = 'var(--mw-gold)';
+          } else if (/^[DF]/.test(grade)) {
+            color = 'var(--mw-red)';
+          }
+          badgeEl.style.color = color;
+          badgeEl.style.borderColor = color.replace(')', ',0.4)').replace('var(', 'rgba(').replace('--mw-', '');
+          // Use simpler inline approach for background opacity
+          badgeEl.style.background = 'transparent';
+          badgeEl.style.border = '1px solid ' + color;
+          badgeEl.style.boxShadow = '0 0 12px ' + color.replace('var(', '').replace(')', '') + '33';
+
+          if (rowEl) rowEl.style.display = 'flex';
+        })
+        .catch(function (err) {
+          console.warn('Market Watch: risk-grade fetch failed', err);
+        });
 
       // ── fetch public news ─────────────────────────────────────────────────────
       fetch('/api/public/news')

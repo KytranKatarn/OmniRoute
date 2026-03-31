@@ -5,6 +5,11 @@ services:
     ports:
       - "8091:8090"
     env_file: .env
+    environment:
+      - KYTRAN_CLIENT_ID=kbs
+      - KYTRAN_AUTH_URL=https://archie.kytranempowerment.com
+      - KYTRAN_REDIRECT_URI=https://business.kytranempowerment.com/auth/kytran/callback
+      # KYTRAN_CLIENT_SECRET — set in .env
     read_only: true
     tmpfs:
       - /tmp
@@ -44,6 +49,10 @@ services:
     container_name: kbs_worker
     command: python -m core.worker
     env_file: .env
+    environment:
+      - KYTRAN_CLIENT_ID=kbs
+      - KYTRAN_AUTH_URL=https://archie.kytranempowerment.com
+      - KYTRAN_REDIRECT_URI=https://business.kytranempowerment.com/auth/kytran/callback
     read_only: true
     tmpfs:
       - /tmp

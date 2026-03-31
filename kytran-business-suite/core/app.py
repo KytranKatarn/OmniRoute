@@ -32,6 +32,14 @@ def create_app(config=None):
     init_login_manager(app)
     app.register_blueprint(auth_bp, url_prefix="/auth")
 
+    # Kytran SSO — "Sign in with Kytran" OAuth
+    from core.kytran_auth import KytranAuth
+    from core.kytran_auth_routes import kytran_sso_bp
+
+    kytran_auth = KytranAuth()
+    kytran_auth.init_app(app)
+    app.register_blueprint(kytran_sso_bp)
+
     # Tenant middleware
     from core.tenant import load_tenant
 
@@ -62,6 +70,12 @@ def create_app(config=None):
 
     app.register_blueprint(team_bp)
 
+    # Landing page (public) — shown to unauthenticated visitors
+    @app.route("/landing")
+    def landing():
+        from flask import render_template
+        return render_template("landing.html")
+
     # Dashboard
     @app.route("/")
     @app.route("/dashboard")
@@ -70,7 +84,7 @@ def create_app(config=None):
         from flask_login import current_user
 
         if not current_user.is_authenticated:
-            return redirect(url_for("auth.login"))
+            return render_template("landing.html")
 
         # Get enabled plugins for this tenant
         enabled_plugins = []

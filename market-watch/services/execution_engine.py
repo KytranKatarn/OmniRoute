@@ -67,9 +67,14 @@ def evaluate(analysis, portfolio_state):
     if current_price <= 0:
         return _reject(f"Failed gate #6: cannot get price for {ticker}", gates_log)
 
-    # Calculate quantity
+    # Calculate quantity — Kelly first, then Shield's suggestion, then equal-weight fallback
+    from services.quant_service import get_kelly_position_size
+    kelly_size = get_kelly_position_size(portfolio_value, rc.MAX_POSITION_PCT)
+
     suggested_size = analysis.get("suggested_position_size")
-    if suggested_size and suggested_size > 0:
+    if kelly_size is not None:
+        order_value = min(kelly_size, max_order_value)
+    elif suggested_size and suggested_size > 0:
         order_value = min(suggested_size, max_order_value)
     else:
         order_value = min(portfolio_value / rc.MAX_POSITIONS, max_order_value)
@@ -108,6 +113,27 @@ def evaluate(analysis, portfolio_state):
                 f"sector={sector}, limit={rc.MAX_SECTOR_POSITIONS}"):
         return _reject(f"Failed gate #9: {sector_count} positions in {sector} >= max {rc.MAX_SECTOR_POSITIONS}", gates_log)
 
+    # Gate 9b: Correlation check
+    from services.quant_service import get_correlation_for_ticker
+    is_correlated, max_corr, corr_with = get_correlation_for_ticker(ticker)
+    if is_correlated:
+        order_value = order_value / 2
+        quantity = int(order_value / current_price)
+        gate("correlation_adjustment", True, max_corr,
+             f"Correlated with {corr_with} ({max_corr}), size halved")
+        if quantity <= 0:
+            return _reject(f"Failed: correlation with {corr_with} reduced size to 0", gates_log)
+    else:
+        gate("correlation_adjustment", True, max_corr, "No high correlations")
+
+    # Gate 9c: Portfolio beta
+    from services.quant_service import get_portfolio_beta, calculate_sector_beta, MAX_PORTFOLIO_BETA
+    port_beta = get_portfolio_beta()
+    ticker_beta = calculate_sector_beta(ticker).get("beta", 1.0)
+    if not gate("portfolio_beta", port_beta < MAX_PORTFOLIO_BETA or ticker_beta < 1.0, port_beta,
+                f"portfolio={port_beta}, ticker={ticker_beta}, limit={MAX_PORTFOLIO_BETA}"):
+        return _reject(f"Failed: portfolio beta {port_beta} >= {MAX_PORTFOLIO_BETA}", gates_log)
+
     # Gate 10: Cool-off after loss
     conn = get_db()
     try:
@@ -128,6 +154,19 @@ def evaluate(analysis, portfolio_state):
     stop_loss = analysis.get("stop_loss") or analysis.get("risk_stop_loss") or (current_price * 0.95)
     target_price = analysis.get("target_price") or (current_price * 1.10)
 
+    # Select order type
+    if rc.BRACKET_ORDERS_ENABLED:
+        order_type = "bracket"
+    else:
+        order_type = "market"
+
+    # Use trailing stop for moderate volatility (ATR between 2-4%)
+    if atr_pct and 2.0 <= atr_pct <= 4.0:
+        order_type = "trailing_stop"
+        trail_percent = rc.DEFAULT_TRAIL_PERCENT
+    else:
+        trail_percent = None
+
     return {
         "approved": True,
         "reason": "All 10 gates passed",
@@ -142,6 +181,102 @@ def evaluate(analysis, portfolio_state):
             "max_hold_days": rc.DEFAULT_HOLD_DAYS,
             "sector": sector,
             "thesis_id": analysis.get("analysis_id"),
+            "order_type": order_type,
+            "trail_percent": trail_percent,
+            "direction": "long",
+        },
+    }
+
+
+def evaluate_short(analysis, portfolio_state):
+    """Evaluate a short selling opportunity.
+
+    Same risk gates as long, plus short-specific limits.
+    Only called when recommendation is 'sell' and no existing position.
+    """
+    if not rc.SHORTS_ENABLED:
+        return _reject("Short selling disabled", [])
+
+    gates_log = []
+    ticker = analysis.get("ticker", "")
+
+    def gate(name, passed, value, detail=""):
+        gates_log.append({"gate": name, "passed": passed, "value": value, "detail": detail})
+        return passed
+
+    # Gate S1: Shield approval
+    risk_approved = analysis.get("risk_approved", False)
+    if not gate("shield_approval", bool(risk_approved), risk_approved):
+        return _reject("Failed: Shield did not approve short", gates_log)
+
+    # Gate S2: Oracle confidence
+    confidence = analysis.get("oracle_confidence") or analysis.get("confidence", 0)
+    if not gate("oracle_confidence", confidence >= rc.MIN_ORACLE_CONFIDENCE, confidence):
+        return _reject(f"Failed: oracle_confidence {confidence} < {rc.MIN_ORACLE_CONFIDENCE}", gates_log)
+
+    # Gate S3: Max short positions
+    conn = get_db()
+    try:
+        short_count = conn.execute(
+            "SELECT COUNT(*) as cnt FROM open_positions WHERE status = 'open' AND direction = 'short'"
+        ).fetchone()
+        count = short_count["cnt"] if short_count else 0
+    finally:
+        conn.close()
+    if not gate("max_short_positions", count < rc.MAX_SHORT_POSITIONS, count,
+                f"limit={rc.MAX_SHORT_POSITIONS}"):
+        return _reject(f"Failed: {count} shorts >= max {rc.MAX_SHORT_POSITIONS}", gates_log)
+
+    # Gate S4: Short position size
+    portfolio_value = portfolio_state.get("portfolio_value", 100000)
+    max_short_value = portfolio_value * (rc.SHORT_POSITION_PCT / 100)
+    quote = get_quote(ticker)
+    current_price = quote.get("price", 0)
+    if current_price <= 0:
+        return _reject(f"Failed: cannot get price for {ticker}", gates_log)
+
+    order_value = min(portfolio_value / (rc.MAX_POSITIONS * 2), max_short_value)
+    quantity = int(order_value / current_price)
+    if quantity <= 0:
+        return _reject(f"Failed: short quantity is 0", gates_log)
+    gate("short_position_size", True, order_value, f"limit={max_short_value:.0f}")
+
+    # Gate S5: Duplicate check
+    conn = get_db()
+    try:
+        existing = conn.execute(
+            "SELECT id FROM open_positions WHERE ticker = ? AND status = 'open'", (ticker,)
+        ).fetchone()
+    finally:
+        conn.close()
+    if not gate("duplicate_ticker", existing is None, ticker):
+        return _reject(f"Failed: already holding {ticker}", gates_log)
+
+    # Gate S6: Daily loss limit (shared with longs)
+    daily_pnl_pct = portfolio_state.get("daily_pnl_pct", 0)
+    if not gate("daily_loss_limit", daily_pnl_pct > -rc.MAX_DAILY_LOSS_PCT, daily_pnl_pct):
+        return _reject(f"Failed: daily P&L {daily_pnl_pct}% exceeds limit", gates_log)
+
+    stop_loss = analysis.get("stop_loss") or (current_price * 1.05)  # 5% above for shorts
+    target_price = analysis.get("target_price") or (current_price * 0.90)  # 10% below for shorts
+
+    return {
+        "approved": True,
+        "reason": "All short gates passed",
+        "gates_log": gates_log,
+        "order": {
+            "ticker": ticker,
+            "action": "sell",
+            "quantity": quantity,
+            "price": current_price,
+            "stop_loss": round(stop_loss, 2),
+            "target_price": round(target_price, 2),
+            "max_hold_days": rc.DEFAULT_HOLD_DAYS,
+            "sector": analysis.get("sector", "unknown"),
+            "thesis_id": analysis.get("analysis_id"),
+            "direction": "short",
+            "order_type": "bracket" if rc.BRACKET_ORDERS_ENABLED else "market",
+            "trail_percent": None,
         },
     }
 

@@ -126,9 +126,13 @@ def semantic_search(
     query: str,
     source_types: Optional[List[str]] = None,
     limit: int = 10,
-    min_similarity: float = 0.5,
+    min_similarity: float = 0.3,
 ) -> List[Dict]:
-    """Search memories by semantic similarity"""
+    """Search knowledge base by semantic similarity using embeddings.
+
+    Searches the knowledge_base table directly (20K+ entries with embeddings).
+    Falls back to text search if embedding generation fails.
+    """
 
     # Generate query embedding
     query_embedding = generate_embedding(query)
@@ -140,21 +144,27 @@ def semantic_search(
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        # Get all embeddings (in production, use vector index)
+        # Search knowledge_base directly — the actual source of truth
         if source_types:
             cur.execute(
                 """
-                SELECT source_type, source_id, embedding, content_preview
-                FROM memory_embeddings
-                WHERE source_type = ANY(%s)
+                SELECT id, title, content, knowledge_type, category, tags, embedding
+                FROM knowledge_base
+                WHERE embedding IS NOT NULL
+                AND knowledge_type = ANY(%s)
+                ORDER BY created_at DESC
+                LIMIT 500
             """,
                 (source_types,),
             )
         else:
             cur.execute(
                 """
-                SELECT source_type, source_id, embedding, content_preview
-                FROM memory_embeddings
+                SELECT id, title, content, knowledge_type, category, tags, embedding
+                FROM knowledge_base
+                WHERE embedding IS NOT NULL
+                ORDER BY created_at DESC
+                LIMIT 500
             """
             )
 
@@ -168,20 +178,21 @@ def semantic_search(
                 if similarity >= min_similarity:
                     results.append(
                         {
-                            "source_type": row["source_type"],
-                            "source_id": row["source_id"],
-                            "content_preview": row["content_preview"],
+                            "id": row["id"],
+                            "title": row["title"],
+                            "content": (row["content"] or "")[:500],
+                            "knowledge_type": row["knowledge_type"],
+                            "category": row["category"],
+                            "tags": row["tags"],
                             "similarity": round(similarity, 4),
+                            # Compatibility fields for callers expecting old format
+                            "source_type": row["knowledge_type"],
+                            "source_id": row["id"],
                         }
                     )
 
         # Sort by similarity
         results.sort(key=lambda x: x["similarity"], reverse=True)
-
-        # Fetch full content for top results
-        for result in results[:limit]:
-            full_content = get_memory_content(result["source_type"], result["source_id"])
-            result.update(full_content)
 
         return results[:limit]
 

@@ -900,7 +900,9 @@ async def session_briefing_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
         try:
             from tools.consciousness.memory_service import semantic_search
 
+            logger.info(f"[Briefing] Running semantic search for topic: {topic}")
             sem_results = semantic_search(topic, limit=10)
+            logger.info(f"[Briefing] Semantic search returned {len(sem_results) if sem_results else 0} results")
             if sem_results:
                 briefing["knowledge_context"] = [
                     {
@@ -914,8 +916,12 @@ async def session_briefing_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
                     for r in sem_results
                     if r.get("knowledge_type", r.get("source_type", "")) != "github_file"
                 ][:10]
+                logger.info(f"[Briefing] After filtering: {len(briefing['knowledge_context'])} context entries")
         except Exception as e:
             logger.warning(f"Semantic search failed in briefing, falling back to text: {e}")
+            import traceback
+
+            logger.warning(traceback.format_exc())
 
         # Text fallback if semantic returned nothing
         if not briefing["knowledge_context"]:

@@ -9,6 +9,10 @@
 <link rel="stylesheet" href="/static/css/security-network.css">
 {% endblock %}
 
+{% block extra_js %}
+<script src="/static/js/security-network.js"></script>
+{% endblock %}
+
 {% block content %}
 <div class="security-container" data-module="security-network">
     {% set cat_accent = '#f97316' %}
@@ -63,51 +67,46 @@
                     <span class="svc-badge" id="svc-agent"><span class="dot"></span> Agent</span>
                 </div>
 
-                <!-- Tab Navigation -->
+                <!-- Tab Navigation — 8-Tab NOC Layout -->
     <div class="tab-nav">
-        <button class="tab-btn active" data-tab="dashboard">
+        <button class="tab-btn active" data-tab="overview">
             <i data-lucide="layout-dashboard" style="width:16px;height:16px"></i>
-            Dashboard
+            Overview
+        </button>
+        <button class="tab-btn" data-tab="traffic">
+            <i data-lucide="activity" style="width:16px;height:16px"></i>
+            Traffic
         </button>
         <button class="tab-btn" data-tab="dns">
             <i data-lucide="shield-check" style="width:16px;height:16px"></i>
-            AdGuard DNS
+            DNS
         </button>
-        <button class="tab-btn" data-tab="surveillance">
-            <i data-lucide="camera" style="width:16px;height:16px"></i>
-            Surveillance
+        <button class="tab-btn" data-tab="devices">
+            <i data-lucide="monitor" style="width:16px;height:16px"></i>
+            Devices
         </button>
-        <button class="tab-btn" data-tab="recon">
-            <i data-lucide="radar" style="width:16px;height:16px"></i>
-            Reconnaissance
+        <button class="tab-btn" data-tab="defense">
+            <i data-lucide="shield" style="width:16px;height:16px"></i>
+            Defense
         </button>
-        <button class="tab-btn" data-tab="scanning">
+        <button class="tab-btn" data-tab="scanners">
             <i data-lucide="scan" style="width:16px;height:16px"></i>
-            Scanning
+            Scanners
         </button>
-        <button class="tab-btn" data-tab="access">
-            <i data-lucide="shield-check" style="width:16px;height:16px"></i>
-            Access Control
+        <button class="tab-btn" data-tab="compliance">
+            <i data-lucide="check-square" style="width:16px;height:16px"></i>
+            Compliance
         </button>
         <button class="tab-btn" data-tab="reports">
             <i data-lucide="file-text" style="width:16px;height:16px"></i>
             Reports
         </button>
-        <button class="tab-btn" data-tab="compliance">
-            <i class="fas fa-shield-alt"></i> <span data-i18n="security_network.compliance">Compliance</span>
-        </button>
-        <button class="tab-btn" data-tab="hardening">
-            <i class="fas fa-tools"></i> <span data-i18n="security_network.hardening">Hardening</span>
-        </button>
-        <button class="tab-btn" data-tab="domains">
-            <i data-lucide="globe" style="width:14px;height:14px"></i>
-            <span data-i18n="security_network.domains">Domain Manager</span>
-        </button>
     </div>
 
-    <!-- ==================== TAB: DASHBOARD ==================== -->
-    <div id="tab-dashboard" class="tab-content active">
-        <!-- SECURITY Station Panel (matches Consciousness pattern exactly) -->
+    <!-- ==================== TAB: OVERVIEW (NOC) ==================== -->
+    <div id="tab-overview" class="tab-content active">
+
+        <!-- V.I.G.I.L. Station Panel -->
         <div class="stn-ops-terminal cs-ops-terminal" id="secOpsTerminal">
             <div class="stn-ops-header cs-ops-header">
                 <div class="stn-ops-elbow cs-ops-elbow"></div>
@@ -123,71 +122,67 @@
             </div>
         </div>
 
-        <div class="stats-grid" id="dash-stats">
-            <div class="stat-card">
-                <div class="stat-label"><span data-i18n="security_network.dns_queries_24h">DNS Queries (24h)</span></div>
-                <div class="stat-value" id="dash-dns-queries">--</div>
-                <div class="stat-subtitle"><span data-i18n="security_network.total_dns_requests">Total DNS requests</span></div>
+        <!-- NOC Hero Stats (4 cards) -->
+        <div class="noc-hero-grid">
+            <div class="noc-hero-card" style="--noc-accent:#ef4444">
+                <div class="noc-hero-val" id="noc-dns-queries">--</div>
+                <div class="noc-hero-label">DNS Queries (24h)</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-label"><span data-i18n="security_network.blocked_24h">Blocked (24h)</span></div>
-                <div class="stat-value" id="dash-dns-blocked" style="color:var(--archie-orange)">--</div>
-                <div class="stat-subtitle"><span data-i18n="security_network.ads_amp_trackers_blocked">Ads &amp; trackers blocked</span></div>
+            <div class="noc-hero-card" style="--noc-accent:#fbbf24">
+                <div class="noc-hero-val" id="noc-threats">--</div>
+                <div class="noc-hero-label">Threats Blocked (24h)</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-label"><span data-i18n="security_network.active_cameras">Active Cameras</span></div>
-                <div class="stat-value green" id="dash-cameras">--</div>
-                <div class="stat-subtitle"><span data-i18n="security_network.surveillance_feeds">Surveillance feeds</span></div>
+            <div class="noc-hero-card" style="--noc-accent:#00e5ff">
+                <div class="noc-hero-val" id="noc-traffic">--</div>
+                <div class="noc-hero-label">Network Traffic</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-label"><span data-i18n="security_network.agent_suggestions">Agent Suggestions</span></div>
-                <div class="stat-value" id="dash-suggestions" style="color:var(--archie-cyan)">--</div>
-                <div class="stat-subtitle"><span data-i18n="security_network.pending_review">Pending review</span></div>
+            <div class="noc-hero-card" style="--noc-accent:#ef4444">
+                <div class="noc-hero-val" id="noc-banned">--</div>
+                <div class="noc-hero-label">Currently Banned</div>
             </div>
         </div>
 
-        <!-- Compliance Summary Card -->
-        <div class="card" style="margin-bottom:16px">
-            <div class="card-header">
-                <span class="card-title">STIG Compliance</span>
-                <button class="btn btn-sm" onclick="switchToTab('compliance')">View Details &rarr;</button>
-            </div>
-            <div style="display:flex;align-items:center;gap:24px;padding:12px 0">
-                <div style="text-align:center;min-width:100px">
-                    <div id="compliance-dash-score" style="font-size:2.4rem;font-weight:700;font-family:'Orbitron',monospace;color:var(--archie-text-dim)">--</div>
-                    <div style="font-size:.75rem;color:var(--archie-text-dim);margin-top:2px">Grade: <span id="compliance-dash-grade" style="font-weight:600">--</span></div>
-                </div>
-                <div style="flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
-                    <div style="text-align:center;padding:8px;background:rgba(255,255,255,0.03);border-radius:6px">
-                        <div style="font-size:.65rem;text-transform:uppercase;color:var(--archie-text-dim);margin-bottom:4px">Ubuntu 22.04</div>
-                        <div id="compliance-dash-ubuntu" style="font-size:1.1rem;font-weight:600;font-family:'Orbitron',monospace">--</div>
-                    </div>
-                    <div style="text-align:center;padding:8px;background:rgba(255,255,255,0.03);border-radius:6px">
-                        <div style="font-size:.65rem;text-transform:uppercase;color:var(--archie-text-dim);margin-bottom:4px">Docker</div>
-                        <div id="compliance-dash-docker" style="font-size:1.1rem;font-weight:600;font-family:'Orbitron',monospace">--</div>
-                    </div>
-                    <div style="text-align:center;padding:8px;background:rgba(255,255,255,0.03);border-radius:6px">
-                        <div style="font-size:.65rem;text-transform:uppercase;color:var(--archie-text-dim);margin-bottom:4px">Network</div>
-                        <div id="compliance-dash-network" style="font-size:1.1rem;font-weight:600;font-family:'Orbitron',monospace">--</div>
-                    </div>
-                </div>
-                <div style="text-align:right;min-width:120px">
-                    <div style="font-size:.65rem;text-transform:uppercase;color:var(--archie-text-dim)">Last Scan</div>
-                    <div id="compliance-dash-time" style="font-size:.8rem;color:var(--archie-text-dim);margin-top:2px">Never</div>
-                </div>
-            </div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <!-- Service Health + Activity Feed -->
+        <div class="noc-overview-grid">
             <div class="card">
                 <div class="card-header">
-                    <span class="card-title"><span data-i18n="security_network.recent_activity">Recent Activity</span></span>
-                    <button class="btn btn-sm" onclick="loadDashboard()">
+                    <span class="card-title">Service Health</span>
+                    <button class="btn btn-sm" onclick="loadNocOverview()">
                         <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh
                     </button>
                 </div>
-                <div class="activity-feed" id="dash-activity">
-                    <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading"> Loading...</span></div>
+                <div id="noc-service-health">
+                    <div class="loading-state"><span class="spinner"></span> Loading...</div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">V.I.G.I.L. Activity Feed</span>
+                </div>
+                <div class="sn-activity-feed" id="noc-activity-feed">
+                    <div class="loading-state"><span class="spinner"></span> Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Compliance Summary + Quick Actions -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title"><span data-i18n="security_network.compliance_summary">Compliance Summary</span></span>
+                    <button class="btn btn-sm" onclick="switchSecurityTab('compliance')">View Full</button>
+                </div>
+                <div style="display:flex;align-items:center;gap:16px;padding:12px 0">
+                    <div id="compliance-dash-score" style="font-size:2.4rem;font-weight:700;font-family:'Orbitron',monospace;color:var(--archie-text-dim)">--</div>
+                    <div>
+                        <div style="font-size:1.4rem;font-weight:700;font-family:'Orbitron',monospace" id="compliance-dash-grade">--</div>
+                        <div style="font-size:0.72rem;color:var(--archie-text-muted);margin-top:2px" id="compliance-dash-time">Never</div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:1">
+                        <div style="font-size:0.75rem;color:var(--archie-text-muted)">Ubuntu <span id="compliance-dash-ubuntu" style="font-size:1.1rem;font-weight:600;font-family:'Orbitron',monospace">--</span></div>
+                        <div style="font-size:0.75rem;color:var(--archie-text-muted)">Docker <span id="compliance-dash-docker" style="font-size:1.1rem;font-weight:600;font-family:'Orbitron',monospace">--</span></div>
+                        <div style="font-size:0.75rem;color:var(--archie-text-muted)">Network <span id="compliance-dash-network" style="font-size:1.1rem;font-weight:600;font-family:'Orbitron',monospace">--</span></div>
+                    </div>
                 </div>
             </div>
             <div class="card">
@@ -203,14 +198,72 @@
                         <i data-lucide="ban" style="width:14px;height:14px"></i>
                         Block Domain
                     </button>
-                    <button class="btn" onclick="switchToTab('recon')">
-                        <i data-lucide="radar" style="width:14px;height:14px"></i>
-                        Run Recon Scan
-                    </button>
-                    <button class="btn" onclick="switchToTab('scanning')">
+                    <button class="btn" onclick="switchSecurityTab('scanners')">
                         <i data-lucide="scan" style="width:14px;height:14px"></i>
-                        Vulnerability Scan
+                        Run Scan
                     </button>
+                    <button class="btn" onclick="switchSecurityTab('defense')">
+                        <i data-lucide="shield" style="width:14px;height:14px"></i>
+                        Defense Panel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ==================== TAB: TRAFFIC ==================== -->
+    <div id="tab-traffic" class="tab-content">
+
+        <!-- Traffic Hero Stats -->
+        <div class="traffic-hero-grid">
+            <div class="traffic-hero-card">
+                <div class="traffic-hero-val" id="traffic-bytes-in">--</div>
+                <div class="traffic-hero-label">Bytes In</div>
+            </div>
+            <div class="traffic-hero-card">
+                <div class="traffic-hero-val" id="traffic-bytes-out">--</div>
+                <div class="traffic-hero-label">Bytes Out</div>
+            </div>
+            <div class="traffic-hero-card">
+                <div class="traffic-hero-val" id="traffic-pkts">--</div>
+                <div class="traffic-hero-label">Packets</div>
+            </div>
+            <div class="traffic-hero-card">
+                <div class="traffic-hero-val" id="traffic-iface">--</div>
+                <div class="traffic-hero-label">Interface</div>
+            </div>
+        </div>
+
+        <!-- Bandwidth Bar -->
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title">Bandwidth Distribution</span>
+                <button class="btn btn-sm" onclick="loadTraffic()">
+                    <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh
+                </button>
+            </div>
+            <div id="traffic-bw-bar" style="padding:4px 0">
+                <div class="loading-state"><span class="spinner"></span> Loading...</div>
+            </div>
+        </div>
+
+        <!-- Hosts Table + Protocol Breakdown -->
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Active Hosts</span>
+                </div>
+                <div id="traffic-hosts-table" style="overflow-x:auto">
+                    <div class="loading-state"><span class="spinner"></span> Loading...</div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Top Protocols</span>
+                </div>
+                <div id="traffic-protocols">
+                    <div class="loading-state"><span class="spinner"></span> Loading...</div>
                 </div>
             </div>
         </div>
@@ -225,6 +278,7 @@
             <button class="subtab-btn" data-subtab="dns-rewrites"><span data-i18n="security_network.rewrites">Rewrites</span></button>
             <button class="subtab-btn" data-subtab="dns-rules"><span data-i18n="security_network.rules">Rules</span></button>
             <button class="subtab-btn" data-subtab="dns-clients">Clients</button>
+            <button class="subtab-btn" data-subtab="domains-overview">Domains</button>
         </div>
 
         <div id="subtab-dns-overview" class="subtab-content active">
@@ -401,501 +455,15 @@
             </div>
         </div>
     </div>
+<!-- ==================== TAB: DOMAINS ==================== -->
 
-    <!-- ==================== TAB: SURVEILLANCE ==================== -->
-    <div id="tab-surveillance" class="tab-content">
-        <div id="surv-not-configured" style="display:none">
-            <div class="card">
-                <div class="empty-state">
-                    <i data-lucide="camera-off" style="width:32px;height:32px"></i>
-                    <p><span data-i18n="security_network.home_assistant_not_configured_set_ha_api_token_in">Home Assistant not configured. Set HA_API_TOKEN in environment to enable camera feeds.</span></p>
-                </div>
-            </div>
-        </div>
-        <div id="surv-configured">
-            <!-- HA Connection Status Bar -->
-            <div id="surv-status-bar" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding:8px 14px;background:var(--archie-bg-secondary);border:1px solid var(--archie-border-default);border-radius:var(--archie-radius-lg)">
-                <div style="display:flex;align-items:center;gap:10px">
-                    <span id="surv-ha-dot" style="width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block"></span>
-                    <span style="font-family:'Antonio',sans-serif;font-size:0.85rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--archie-text-primary)">HOME ASSISTANT</span>
-                    <span id="surv-ha-version" style="font-size:0.72rem;color:var(--archie-text-muted)"></span>
-                    <span id="surv-cam-count" style="font-size:0.72rem;color:var(--archie-text-muted)"></span>
-                </div>
-                <div style="display:flex;gap:8px;align-items:center">
-                    <button class="btn btn-success btn-sm" id="surv-arm-btn" onclick="armSystem()">
-                        <i data-lucide="shield" style="width:12px;height:12px"></i> Arm
-                    </button>
-                    <button class="btn btn-danger btn-sm" id="surv-disarm-btn" onclick="disarmSystem()">
-                        <i data-lucide="shield-off" style="width:12px;height:12px"></i> Disarm
-                    </button>
-                    <button class="btn btn-sm" id="surv-refresh-btn" onclick="refreshSurveillance()">
-                        <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh
-                    </button>
-                    <span id="surv-alarm-badge" style="font-size:0.72rem;padding:2px 8px;border-radius:4px;display:none"></span>
-                </div>
-            </div>
-            <div class="camera-grid" id="camera-grid">
-                <div class="loading-state" style="grid-column:1/-1"><span class="spinner"></span><span data-i18n="security_network.loading_cameras"> Loading cameras...</span></div>
-            </div>
-            <div class="section-header">
-                <i data-lucide="activity" style="width:18px;height:18px"></i> Recent Events
-            </div>
-            <div id="surv-events">
-                <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_events"> Loading events...</span></div>
-            </div>
-        </div>
-    </div>
+        <!-- Domains subtab content -->
 
-    <!-- ==================== CAMERA ENLARGE MODAL ==================== -->
-    <div class="bm-overlay" id="camera-modal" style="--bm-accent:#22c55e;--bm-accent-rgb:34,197,94;">
-        <div class="bm-shell" style="max-width:720px;">
-            <div class="bm-frame">
-                <div class="bm-frame-elbow-top"></div>
-                <div class="bm-frame-seg"></div>
-                <div class="bm-frame-seg dim"></div>
-                <div class="bm-frame-light on"></div>
-                <div class="bm-frame-light amber"></div>
-                <div class="bm-frame-seg purple"></div>
-                <div class="bm-frame-fill"></div>
-                <div class="bm-frame-elbow-bottom"></div>
-            </div>
-            <div class="bm-content">
-                <div class="bm-header">
-                    <span class="bm-header-title" id="camera-modal-title">CAMERA FEED</span>
-                    <div class="bm-header-strip">
-                        <div class="bm-header-pip w1"></div>
-                        <div class="bm-header-pip w2"></div>
-                        <div class="bm-header-pip w3"></div>
-                        <button class="bm-close" onclick="closeCameraModal()">&times;</button>
-                    </div>
-                </div>
-                <div class="bm-body" style="padding:12px;text-align:center">
-                    <img id="camera-modal-img" src="" alt="Camera Feed" style="width:100%;max-height:60vh;object-fit:contain;border-radius:8px;background:#000">
-                    <div id="camera-modal-state" style="margin-top:10px;font-size:0.8rem;color:var(--archie-text-muted)"></div>
-                </div>
-                <div class="bm-actions">
-                    <button class="btn-cancel" onclick="closeCameraModal()">Close</button>
-                    <button class="btn-submit" id="camera-modal-refresh" onclick="">Refresh Snapshot</button>
-                </div>
-                <div class="bm-footer">
-                    <div class="bm-footer-strip">
-                        <div class="bm-footer-dot cyan"></div>
-                        <div class="bm-footer-dot gold"></div>
-                        <div class="bm-footer-dot green"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
-    <!-- ==================== TAB: RECONNAISSANCE ==================== -->
-    <div id="tab-recon" class="tab-content">
-        <div class="card">
-            <div class="card-header">
-                <span class="card-title"><span data-i18n="security_network.launch_scan">Launch Scan</span></span>
-            </div>
-            <div class="form-row">
-                <div class="form-group" style="max-width:200px">
-                    <label class="form-label"><span data-i18n="security_network.module">Module</span></label>
-                    <select class="form-select" id="recon-module"></select>
-                </div>
-                <div class="form-group">
-                    <label class="form-label"><span data-i18n="security_network.target">Target</span></label>
-                    <input type="text" class="form-input" id="recon-target" placeholder="example.com or 192.168.1.0/24">
-                </div>
-                <button class="btn btn-primary" onclick="startReconScan()">
-                    <i data-lucide="play" style="width:14px;height:14px"></i> Start Scan
-                </button>
-            </div>
-        </div>
 
-        <div class="section-header">
-            <i data-lucide="grid-3x3" style="width:18px;height:18px"></i> Available Modules
-        </div>
-        <div class="module-grid" id="recon-modules">
-            <div class="loading-state" style="grid-column:1/-1"><span class="spinner"></span><span data-i18n="security_network.loading_modules"> Loading modules...</span></div>
-        </div>
 
-        <div class="section-header">
-            <i data-lucide="history" style="width:18px;height:18px"></i> Scan History
-        </div>
-        <div id="recon-history">
-            <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_history"> Loading history...</span></div>
-        </div>
-    </div>
 
-    <!-- ==================== TAB: VULNERABILITY SCANNING ==================== -->
-    <div id="tab-scanning" class="tab-content">
-        <div class="stats-grid" style="grid-template-columns:repeat(5,1fr)">
-            <div class="stat-card" style="cursor:pointer" onclick="showScannerForm('nmap')">
-                <div class="stat-label"><span data-i18n="security_network.nmap">Nmap</span></div>
-                <div style="margin:8px 0"><i data-lucide="network" style="width:24px;height:24px;color:var(--archie-cyan)"></i></div>
-                <div class="stat-subtitle"><span data-i18n="security_network.port_scanner">Port Scanner</span></div>
-            </div>
-            <div class="stat-card" style="cursor:pointer" onclick="showScannerForm('nikto')">
-                <div class="stat-label"><span data-i18n="security_network.nikto">Nikto</span></div>
-                <div style="margin:8px 0"><i data-lucide="bug" style="width:24px;height:24px;color:var(--archie-orange)"></i></div>
-                <div class="stat-subtitle"><span data-i18n="security_network.web_vuln_scanner">Web Vuln Scanner</span></div>
-            </div>
-            <div class="stat-card" style="cursor:pointer" onclick="showScannerForm('nuclei')">
-                <div class="stat-label"><span data-i18n="security_network.nuclei">Nuclei</span></div>
-                <div style="margin:8px 0"><i data-lucide="atom" style="width:24px;height:24px;color:var(--archie-green)"></i></div>
-                <div class="stat-subtitle"><span data-i18n="security_network.template_scanner">Template Scanner</span></div>
-            </div>
-            <div class="stat-card" style="cursor:pointer" onclick="showScannerForm('ssl')">
-                <div class="stat-label"><span data-i18n="security_network.ssl_tls">SSL/TLS</span></div>
-                <div style="margin:8px 0"><i data-lucide="lock" style="width:24px;height:24px;color:var(--archie-blue)"></i></div>
-                <div class="stat-subtitle"><span data-i18n="security_network.certificate_check">Certificate Check</span></div>
-            </div>
-            <div class="stat-card" style="cursor:pointer" onclick="showScannerForm('zap')">
-                <div class="stat-label"><span data-i18n="security_network.zap">ZAP</span></div>
-                <div style="margin:8px 0"><i data-lucide="zap" style="width:24px;height:24px;color:var(--archie-red)"></i></div>
-                <div class="stat-subtitle"><span data-i18n="security_network.web_app_scanner">Web App Scanner</span></div>
-            </div>
-        </div>
 
-        <div class="card" id="scanner-form-card" style="display:none">
-            <div class="card-header">
-                <span class="card-title" id="scanner-form-title"><span data-i18n="security_network.scanner">Scanner</span></span>
-                <button class="btn btn-sm" onclick="document.getElementById('scanner-form-card').style.display='none'"><span data-i18n="security_network.close">Close</span></button>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label"><span data-i18n="security_network.target_2">Target</span></label>
-                    <input type="text" class="form-input" id="scan-target" placeholder="IP, hostname, or URL">
-                </div>
-                <div class="form-group" style="max-width:160px" id="scan-type-group">
-                    <label class="form-label"><span data-i18n="security_network.scan_type">Scan Type</span></label>
-                    <select class="form-select" id="scan-type">
-                        <option value="quick"><span data-i18n="security_network.quick">Quick</span></option>
-                        <option value="full"><span data-i18n="security_network.full">Full</span></option>
-                        <option value="stealth"><span data-i18n="security_network.stealth">Stealth</span></option>
-                    </select>
-                </div>
-                <button class="btn btn-primary" onclick="runVulnScan()">
-                    <i data-lucide="play" style="width:14px;height:14px"></i> Run
-                </button>
-            </div>
-            <div id="scan-confirm-internal" style="display:none;margin-top:8px">
-                <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--archie-orange)">
-                    <input type="checkbox" id="scan-confirm-checkbox"> Confirm scan of internal network target
-                </label>
-            </div>
-        </div>
-
-        <div class="section-header">
-            <i data-lucide="file-search" style="width:18px;height:18px"></i> Scan Results
-        </div>
-        <div id="scan-results-list">
-            <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_scan_results"> Loading scan results...</span></div>
-        </div>
-
-        <div class="section-header">
-            <i data-lucide="monitor" style="width:18px;height:18px"></i> SSL Monitoring
-        </div>
-        <div style="margin-bottom:8px">
-            <button class="btn btn-sm" onclick="showAddSSLModal()">
-                <i data-lucide="plus" style="width:12px;height:12px"></i> Add Monitor
-            </button>
-            <button class="btn btn-sm" onclick="refreshSSLMonitors()">
-                <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh All
-            </button>
-        </div>
-        <div id="ssl-monitors-list">
-            <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_ssl_monitors"> Loading SSL monitors...</span></div>
-        </div>
-    </div>
-
-    <!-- ==================== TAB: ACCESS CONTROL ==================== -->
-    <div id="tab-access" class="tab-content">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-            <div class="card">
-                <div class="card-header">
-                    <span class="card-title">UFW Firewall</span>
-                    <div style="display:flex;gap:6px">
-                        <button class="btn btn-success btn-sm" onclick="toggleFirewall(true)">Enable</button>
-                        <button class="btn btn-danger btn-sm" onclick="toggleFirewall(false)">Disable</button>
-                        <button class="btn btn-sm" onclick="loadFirewall()">
-                            <i data-lucide="refresh-cw" style="width:12px;height:12px"></i>
-                        </button>
-                    </div>
-                </div>
-                <div id="firewall-panel">
-                    <div class="loading-state"><span class="spinner"></span> Loading...</div>
-                </div>
-                <div style="margin-top:12px">
-                    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px">
-                        <div>
-                            <label style="font-size:0.72rem;color:#ccc">Port</label>
-                            <input type="number" class="form-input" id="fw-port" placeholder="443" style="width:80px">
-                        </div>
-                        <div>
-                            <label style="font-size:0.72rem;color:#ccc">Protocol</label>
-                            <select class="form-input" id="fw-proto" style="width:80px">
-                                <option value="tcp">TCP</option>
-                                <option value="udp">UDP</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label style="font-size:0.72rem;color:#ccc">Action</label>
-                            <select class="form-input" id="fw-action" style="width:90px">
-                                <option value="allow">Allow</option>
-                                <option value="deny">Deny</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label style="font-size:0.72rem;color:#ccc">From (optional)</label>
-                            <input type="text" class="form-input" id="fw-from" placeholder="192.168.1.0/24" style="width:150px">
-                        </div>
-                        <button class="btn btn-primary btn-sm" onclick="addFirewallRule()">Add Rule</button>
-                    </div>
-                </div>
-                <div id="firewall-rules">
-                    <div class="loading-state"><span class="spinner"></span> Loading rules...</div>
-                </div>
-            </div>
-            <div class="card">
-                <div class="card-header">
-                    <span class="card-title"><span data-i18n="security_network.auto_block_settings">Auto-Block Settings</span></span>
-                </div>
-                <div id="autoblock-panel">
-                    <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_3"> Loading...</span></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-header">
-                <span class="card-title"><span data-i18n="security_network.ip_access_control">IP Access Control</span></span>
-            </div>
-            <div class="form-row" style="margin-bottom:12px">
-                <div class="form-group">
-                    <label class="form-label"><span data-i18n="security_network.ip_address">IP Address</span></label>
-                    <input type="text" class="form-input" id="ip-input" placeholder="192.168.1.x">
-                </div>
-                <div class="form-group">
-                    <label class="form-label"><span data-i18n="security_network.reason">Reason</span></label>
-                    <input type="text" class="form-input" id="ip-reason" placeholder="Reason for blocking">
-                </div>
-                <button class="btn btn-danger btn-sm" onclick="blockIP()"><span data-i18n="security_network.block_2">Block</span></button>
-                <button class="btn btn-success btn-sm" onclick="unblockIP()"><span data-i18n="security_network.unblock_2">Unblock</span></button>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                <div>
-                    <h4 style="color:var(--archie-red);font-size:0.85rem;margin-bottom:8px"><span data-i18n="security_network.blocked_ips">Blocked IPs</span></h4>
-                    <div id="blocked-ips-list"><div class="loading-state"><span class="spinner"></span></div></div>
-                </div>
-                <div>
-                    <h4 style="color:var(--archie-green);font-size:0.85rem;margin-bottom:8px"><span data-i18n="security_network.whitelisted_ips">Whitelisted IPs</span></h4>
-                    <div id="whitelisted-ips-list"><div class="loading-state"><span class="spinner"></span></div></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-header">
-                <span class="card-title"><span data-i18n="security_network.security_events">Security Events</span></span>
-                <button class="btn btn-sm" onclick="loadSecurityEvents()">
-                    <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh
-                </button>
-            </div>
-            <div id="security-events-list">
-                <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_events_2"> Loading events...</span></div>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-header">
-                <span class="card-title"><span data-i18n="security_network.active_connections">Active Connections</span></span>
-                <button class="btn btn-sm" onclick="loadConnections()">
-                    <i data-lucide="refresh-cw" style="width:12px;height:12px"></i>
-                </button>
-            </div>
-            <div id="connections-list">
-                <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_connections"> Loading connections...</span></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ==================== TAB: REPORTS ==================== -->
-    <div id="tab-reports" class="tab-content">
-        <!-- Generate Report Section -->
-        <div class="lcars-frame" style="margin-bottom:20px">
-            <div class="lcars-elbow top-left"></div>
-            <div class="lcars-elbow top-right"></div>
-            <div class="lcars-bar top"><span>Generate Report</span></div>
-            <div class="lcars-body" style="padding:16px">
-                <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-                    <div style="flex:1;min-width:180px">
-                        <label style="font-size:0.75rem;color:var(--archie-text-muted);display:block;margin-bottom:4px">Report Type</label>
-                        <select id="report-type" class="form-input" style="width:100%">
-                            <option value="daily_summary">Daily Summary</option>
-                            <option value="weekly_report">Weekly Report</option>
-                            <option value="device_audit">Device Audit</option>
-                            <option value="dns_analysis">DNS Analysis</option>
-                        </select>
-                    </div>
-                    <div style="flex:0.7;min-width:140px">
-                        <label style="font-size:0.75rem;color:var(--archie-text-muted);display:block;margin-bottom:4px">From (optional)</label>
-                        <input type="date" id="report-date-start" class="form-input" style="width:100%">
-                    </div>
-                    <div style="flex:0.7;min-width:140px">
-                        <label style="font-size:0.75rem;color:var(--archie-text-muted);display:block;margin-bottom:4px">To (optional)</label>
-                        <input type="date" id="report-date-end" class="form-input" style="width:100%">
-                    </div>
-                    <div>
-                        <button class="btn btn-primary" onclick="generateReport()" id="btn-generate-report">
-                            <i data-lucide="file-plus" style="width:14px;height:14px"></i> Generate
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <div class="lcars-bar bottom"></div>
-            <div class="lcars-elbow bottom-left"></div>
-            <div class="lcars-elbow bottom-right"></div>
-        </div>
-
-        <!-- Report History -->
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-            <h3 style="margin:0;color:var(--archie-text-primary)">Report History</h3>
-            <button class="btn btn-sm" onclick="loadReports()">
-                <i data-lucide="refresh-cw" style="width:14px;height:14px"></i> Refresh
-            </button>
-        </div>
-        <div id="reports-list">
-            <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_reports"> Loading reports...</span></div>
-        </div>
-    </div>
-
-    <!-- ═══════ COMPLIANCE TAB ═══════ -->
-    <div id="tab-compliance" class="tab-content">
-
-        <div class="comp-dash">
-            <!-- Header -->
-            <div class="comp-header">
-                <div>
-                    <h3>Compliance Dashboard</h3>
-                    <span id="compliance-scan-status" class="comp-status-badge"></span>
-                </div>
-                <div class="comp-header-actions">
-                    <button onclick="openComplianceReport()" class="comp-btn comp-btn-secondary" style="background:linear-gradient(135deg,#1e40af,#2563eb);color:#fff;border-color:#2563eb"><i class="fas fa-file-pdf"></i> PDF Report</button>
-                    <button onclick="exportCkl()" class="comp-btn comp-btn-secondary"><i class="fas fa-file-export"></i> Export</button>
-                    <button onclick="exportEvidence()" class="comp-btn comp-btn-secondary"><i class="fas fa-file-archive"></i> Evidence ZIP</button>
-                    <button onclick="runComplianceScan()" class="comp-btn comp-btn-primary" id="comp-scan-btn"><i class="fas fa-radar"></i> Run Scan</button>
-                </div>
-            </div>
-
-            <!-- Score Rings -->
-            <div id="compliance-scores" class="comp-rings">
-                <div class="comp-ring-card" style="--ring-color: #475569;">
-                    <div class="ring-label">Overall</div>
-                    <svg viewBox="0 0 36 36" class="compliance-ring">
-                        <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="2.5"/>
-                        <text x="18" y="21.5" text-anchor="middle" fill="#475569" font-size="8.5" font-weight="700">--</text>
-                    </svg>
-                    <div class="ring-grade" style="color: #475569;">NO DATA</div>
-                    <div class="ring-count">Run a scan to begin</div>
-                </div>
-            </div>
-
-            <!-- Frameworks Section -->
-            <div class="comp-section">
-                <div class="comp-section-header">
-                    <span class="comp-section-title">Frameworks</span>
-                </div>
-                <div id="compliance-frameworks">
-                    <div class="comp-framework" style="opacity: 0.5;">
-                        <div class="comp-framework-top">
-                            <span class="comp-framework-name" style="color: #475569;">Awaiting scan data...</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Findings Section -->
-            <div class="comp-section">
-                <div class="comp-section-header">
-                    <span class="comp-section-title">Findings</span>
-                    <div class="comp-findings-filters">
-                        <select id="compliance-pack-filter" onchange="filterComplianceResults()" class="comp-filter-select">
-                            <option value="">All Packs</option>
-                            <option value="ubuntu-22.04-stig">Ubuntu 22.04</option>
-                            <option value="docker-stig">Docker</option>
-                            <option value="network-stig">Network</option>
-                            <option value="hipaa-security">HIPAA</option>
-                        </select>
-                        <select id="compliance-severity-filter" onchange="filterComplianceResults()" class="comp-filter-select">
-                            <option value="">All Severity</option>
-                            <option value="critical">Critical</option>
-                            <option value="high">High</option>
-                            <option value="medium">Medium</option>
-                            <option value="low">Low</option>
-                        </select>
-                        <select id="compliance-status-filter" onchange="filterComplianceResults()" class="comp-filter-select">
-                            <option value="">All Status</option>
-                            <option value="pass">Pass</option>
-                            <option value="fail">Fail</option>
-                            <option value="error">Error</option>
-                        </select>
-                    </div>
-                </div>
-                <div id="compliance-findings">
-                    <div style="text-align: center; color: #475569; padding: 40px 0; font-size: 0.85rem;">
-                        <i class="fas fa-shield-alt" style="font-size: 2rem; margin-bottom: 12px; display: block; opacity: 0.3;"></i>
-                        Run a compliance scan to see findings
-                    </div>
-                </div>
-            </div>
-
-            <!-- Evidence Collection -->
-            <div class="comp-section">
-                <div class="comp-section-header">
-                    <span class="comp-section-title">Evidence Collection</span>
-                    <button onclick="collectEvidence()" class="comp-btn comp-btn-secondary" style="font-size: 0.75rem; padding: 6px 14px;" id="comp-collect-btn">
-                        <i class="fas fa-download"></i> Collect Evidence
-                    </button>
-                </div>
-                <div id="compliance-evidence" class="comp-evidence-grid">
-                    <div class="comp-evidence-item pending"><span class="ev-icon"><i class="far fa-circle"></i></span> Loading...</div>
-                </div>
-            </div>
-
-            <!-- Scan History Chart -->
-            <div class="comp-section">
-                <div class="comp-section-header">
-                    <span class="comp-section-title">Scan History</span>
-                </div>
-                <div class="comp-chart-wrap">
-                    <canvas id="compliance-history-chart"></canvas>
-                </div>
-                <div id="compliance-history" style="display:none;"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ═══════ HARDENING TAB ═══════ -->
-    <div id="tab-hardening" class="tab-content">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h3 style="color: var(--archie-text-primary); margin: 0;">System Hardening</h3>
-            <span style="color: var(--archie-text-muted); font-size: 0.85rem;">One-click fixes for compliance failures</span>
-        </div>
-
-        <div id="hardening-content">
-            <div style="text-align: center; color: var(--archie-text-muted); padding: 40px;">
-                Run a compliance scan first to see hardening recommendations.
-            </div>
-        </div>
-    </div>
-
-    <!-- ==================== TAB: DOMAINS ==================== -->
-    <div id="tab-domains" class="tab-content">
-        <!-- Domain subtabs -->
-        <div class="subtab-bar">
-            <button class="subtab-btn active" data-subtab="domains-overview">Overview</button>
-            <button class="subtab-btn" data-subtab="domains-dns">DNS Records</button>
-            <button class="subtab-btn" data-subtab="domains-proxy">Proxy Hosts</button>
-            <button class="subtab-btn" data-subtab="domains-certs">SSL Certificates</button>
-            <button class="subtab-btn" data-subtab="domains-setup">Quick Setup</button>
         </div>
 
         <!-- Subtab: Overview -->
@@ -1089,6 +657,632 @@
                 </div>
             </div>
         </div>
+    </div>
+    </div>
+
+
+    <!-- ==================== TAB: DEVICES ==================== -->
+    <div id="tab-devices" class="tab-content">
+
+        <!-- Add Device Mapping Form -->
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title">Add Device Mapping</span>
+            </div>
+            <div class="sn-device-form">
+                <div class="form-group">
+                    <label class="form-label">MAC Address</label>
+                    <input type="text" class="form-input" id="device-mac" placeholder="aa:bb:cc:dd:ee:ff" style="width:180px">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">IP Address</label>
+                    <input type="text" class="form-input" id="device-ip" placeholder="192.168.1.x" style="width:140px">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Username</label>
+                    <input type="text" class="form-input" id="device-username" placeholder="john.doe" style="width:150px">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Device Name</label>
+                    <input type="text" class="form-input" id="device-name" placeholder="Johns Laptop" style="width:160px">
+                </div>
+                <button class="btn btn-primary" onclick="addDeviceMapping()">
+                    <i data-lucide="plus" style="width:14px;height:14px"></i> Add Mapping
+                </button>
+            </div>
+        </div>
+
+        <!-- Device-User Mappings -->
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title">Device — User Mappings</span>
+                <button class="btn btn-sm" onclick="loadDevices()">
+                    <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh
+                </button>
+            </div>
+            <div id="devices-users-table" style="overflow-x:auto">
+                <div class="loading-state"><span class="spinner"></span> Loading...</div>
+            </div>
+        </div>
+
+        <!-- Consumption Table -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Device Consumption</span>
+            </div>
+            <div id="devices-consumption-table" style="overflow-x:auto">
+                <div class="loading-state"><span class="spinner"></span> Loading...</div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ==================== TAB: DEFENSE ==================== -->
+    <div id="tab-defense" class="tab-content">
+
+        <!-- fail2ban + DDNS row -->
+        <div class="defense-grid">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">fail2ban Jails</span>
+                    <button class="btn btn-sm" onclick="loadFail2banJails()">
+                        <i data-lucide="refresh-cw" style="width:12px;height:12px"></i>
+                    </button>
+                </div>
+                <div id="defense-fail2ban-jails">
+                    <div class="loading-state"><span class="spinner"></span> Loading...</div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">DDNS Status</span>
+                    <button class="btn btn-sm" onclick="triggerDdnsUpdate()">
+                        <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Update
+                    </button>
+                </div>
+                <div id="defense-ddns-status">
+                    <div class="loading-state"><span class="spinner"></span> Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- UFW Firewall + Auto-Block + IP Access + Security Events + Connections -->
+<!-- (access control content merged into Defense tab) -->
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">UFW Firewall</span>
+                    <div style="display:flex;gap:6px">
+                        <button class="btn btn-success btn-sm" onclick="toggleFirewall(true)">Enable</button>
+                        <button class="btn btn-danger btn-sm" onclick="toggleFirewall(false)">Disable</button>
+                        <button class="btn btn-sm" onclick="loadFirewall()">
+                            <i data-lucide="refresh-cw" style="width:12px;height:12px"></i>
+                        </button>
+                    </div>
+                </div>
+                <div id="firewall-panel">
+                    <div class="loading-state"><span class="spinner"></span> Loading...</div>
+                </div>
+                <div style="margin-top:12px">
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px">
+                        <div>
+                            <label style="font-size:0.72rem;color:#ccc">Port</label>
+                            <input type="number" class="form-input" id="fw-port" placeholder="443" style="width:80px">
+                        </div>
+                        <div>
+                            <label style="font-size:0.72rem;color:#ccc">Protocol</label>
+                            <select class="form-input" id="fw-proto" style="width:80px">
+                                <option value="tcp">TCP</option>
+                                <option value="udp">UDP</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size:0.72rem;color:#ccc">Action</label>
+                            <select class="form-input" id="fw-action" style="width:90px">
+                                <option value="allow">Allow</option>
+                                <option value="deny">Deny</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size:0.72rem;color:#ccc">From (optional)</label>
+                            <input type="text" class="form-input" id="fw-from" placeholder="192.168.1.0/24" style="width:150px">
+                        </div>
+                        <button class="btn btn-primary btn-sm" onclick="addFirewallRule()">Add Rule</button>
+                    </div>
+                </div>
+                <div id="firewall-rules">
+                    <div class="loading-state"><span class="spinner"></span> Loading rules...</div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title"><span data-i18n="security_network.auto_block_settings">Auto-Block Settings</span></span>
+                </div>
+                <div id="autoblock-panel">
+                    <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_3"> Loading...</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><span data-i18n="security_network.ip_access_control">IP Access Control</span></span>
+            </div>
+            <div class="form-row" style="margin-bottom:12px">
+                <div class="form-group">
+                    <label class="form-label"><span data-i18n="security_network.ip_address">IP Address</span></label>
+                    <input type="text" class="form-input" id="ip-input" placeholder="192.168.1.x">
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><span data-i18n="security_network.reason">Reason</span></label>
+                    <input type="text" class="form-input" id="ip-reason" placeholder="Reason for blocking">
+                </div>
+                <button class="btn btn-danger btn-sm" onclick="blockIP()"><span data-i18n="security_network.block_2">Block</span></button>
+                <button class="btn btn-success btn-sm" onclick="unblockIP()"><span data-i18n="security_network.unblock_2">Unblock</span></button>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div>
+                    <h4 style="color:var(--archie-red);font-size:0.85rem;margin-bottom:8px"><span data-i18n="security_network.blocked_ips">Blocked IPs</span></h4>
+                    <div id="blocked-ips-list"><div class="loading-state"><span class="spinner"></span></div></div>
+                </div>
+                <div>
+                    <h4 style="color:var(--archie-green);font-size:0.85rem;margin-bottom:8px"><span data-i18n="security_network.whitelisted_ips">Whitelisted IPs</span></h4>
+                    <div id="whitelisted-ips-list"><div class="loading-state"><span class="spinner"></span></div></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><span data-i18n="security_network.security_events">Security Events</span></span>
+                <button class="btn btn-sm" onclick="loadSecurityEvents()">
+                    <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh
+                </button>
+            </div>
+            <div id="security-events-list">
+                <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_events_2"> Loading events...</span></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><span data-i18n="security_network.active_connections">Active Connections</span></span>
+                <button class="btn btn-sm" onclick="loadConnections()">
+                    <i data-lucide="refresh-cw" style="width:12px;height:12px"></i>
+                </button>
+            </div>
+            <div id="connections-list">
+                <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_connections"> Loading connections...</span></div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ==================== TAB: SCANNERS ==================== -->
+    <div id="tab-scanners" class="tab-content">
+        <div class="subtab-nav">
+            <button class="subtab-btn active" data-subtab="scanners-surv">
+                <i data-lucide="camera" style="width:14px;height:14px"></i> Surveillance
+            </button>
+            <button class="subtab-btn" data-subtab="scanners-vuln">
+                <i data-lucide="scan" style="width:14px;height:14px"></i> Vulnerability
+            </button>
+            <button class="subtab-btn" data-subtab="scanners-recon">
+                <i data-lucide="radar" style="width:14px;height:14px"></i> Reconnaissance
+            </button>
+        </div>
+    <!-- Surveillance subtab -->
+    <div id="subtab-scanners-surv" class="subtab-content active">
+        <div id="surv-not-configured" style="display:none">
+            <div class="card">
+                <div class="empty-state">
+                    <i data-lucide="camera-off" style="width:32px;height:32px"></i>
+                    <p><span data-i18n="security_network.home_assistant_not_configured_set_ha_api_token_in">Home Assistant not configured. Set HA_API_TOKEN in environment to enable camera feeds.</span></p>
+                </div>
+            </div>
+        </div>
+        <div id="surv-configured">
+            <!-- HA Connection Status Bar -->
+            <div id="surv-status-bar" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding:8px 14px;background:var(--archie-bg-secondary);border:1px solid var(--archie-border-default);border-radius:var(--archie-radius-lg)">
+                <div style="display:flex;align-items:center;gap:10px">
+                    <span id="surv-ha-dot" style="width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block"></span>
+                    <span style="font-family:'Antonio',sans-serif;font-size:0.85rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--archie-text-primary)">HOME ASSISTANT</span>
+                    <span id="surv-ha-version" style="font-size:0.72rem;color:var(--archie-text-muted)"></span>
+                    <span id="surv-cam-count" style="font-size:0.72rem;color:var(--archie-text-muted)"></span>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <button class="btn btn-success btn-sm" id="surv-arm-btn" onclick="armSystem()">
+                        <i data-lucide="shield" style="width:12px;height:12px"></i> Arm
+                    </button>
+                    <button class="btn btn-danger btn-sm" id="surv-disarm-btn" onclick="disarmSystem()">
+                        <i data-lucide="shield-off" style="width:12px;height:12px"></i> Disarm
+                    </button>
+                    <button class="btn btn-sm" id="surv-refresh-btn" onclick="refreshSurveillance()">
+                        <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh
+                    </button>
+                    <span id="surv-alarm-badge" style="font-size:0.72rem;padding:2px 8px;border-radius:4px;display:none"></span>
+                </div>
+            </div>
+            <div class="camera-grid" id="camera-grid">
+                <div class="loading-state" style="grid-column:1/-1"><span class="spinner"></span><span data-i18n="security_network.loading_cameras"> Loading cameras...</span></div>
+            </div>
+            <div class="section-header">
+                <i data-lucide="activity" style="width:18px;height:18px"></i> Recent Events
+            </div>
+            <div id="surv-events">
+                <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_events"> Loading events...</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== CAMERA ENLARGE MODAL ==================== -->
+    <div class="bm-overlay" id="camera-modal" style="--bm-accent:#22c55e;--bm-accent-rgb:34,197,94;">
+        <div class="bm-shell" style="max-width:720px;">
+            <div class="bm-frame">
+                <div class="bm-frame-elbow-top"></div>
+                <div class="bm-frame-seg"></div>
+                <div class="bm-frame-seg dim"></div>
+                <div class="bm-frame-light on"></div>
+                <div class="bm-frame-light amber"></div>
+                <div class="bm-frame-seg purple"></div>
+                <div class="bm-frame-fill"></div>
+                <div class="bm-frame-elbow-bottom"></div>
+            </div>
+            <div class="bm-content">
+                <div class="bm-header">
+                    <span class="bm-header-title" id="camera-modal-title">CAMERA FEED</span>
+                    <div class="bm-header-strip">
+                        <div class="bm-header-pip w1"></div>
+                        <div class="bm-header-pip w2"></div>
+                        <div class="bm-header-pip w3"></div>
+                        <button class="bm-close" onclick="closeCameraModal()">&times;</button>
+                    </div>
+                </div>
+                <div class="bm-body" style="padding:12px;text-align:center">
+                    <img id="camera-modal-img" src="" alt="Camera Feed" style="width:100%;max-height:60vh;object-fit:contain;border-radius:8px;background:#000">
+                    <div id="camera-modal-state" style="margin-top:10px;font-size:0.8rem;color:var(--archie-text-muted)"></div>
+                </div>
+                <div class="bm-actions">
+                    <button class="btn-cancel" onclick="closeCameraModal()">Close</button>
+                    <button class="btn-submit" id="camera-modal-refresh" onclick="">Refresh Snapshot</button>
+                </div>
+                <div class="bm-footer">
+                    <div class="bm-footer-strip">
+                        <div class="bm-footer-dot cyan"></div>
+                        <div class="bm-footer-dot gold"></div>
+                        <div class="bm-footer-dot green"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+        <div id="subtab-scanners-vuln" class="subtab-content">
+-->
+
+        <div class="stats-grid" style="grid-template-columns:repeat(5,1fr)">
+            <div class="stat-card" style="cursor:pointer" onclick="showScannerForm('nmap')">
+                <div class="stat-label"><span data-i18n="security_network.nmap">Nmap</span></div>
+                <div style="margin:8px 0"><i data-lucide="network" style="width:24px;height:24px;color:var(--archie-cyan)"></i></div>
+                <div class="stat-subtitle"><span data-i18n="security_network.port_scanner">Port Scanner</span></div>
+            </div>
+            <div class="stat-card" style="cursor:pointer" onclick="showScannerForm('nikto')">
+                <div class="stat-label"><span data-i18n="security_network.nikto">Nikto</span></div>
+                <div style="margin:8px 0"><i data-lucide="bug" style="width:24px;height:24px;color:var(--archie-orange)"></i></div>
+                <div class="stat-subtitle"><span data-i18n="security_network.web_vuln_scanner">Web Vuln Scanner</span></div>
+            </div>
+            <div class="stat-card" style="cursor:pointer" onclick="showScannerForm('nuclei')">
+                <div class="stat-label"><span data-i18n="security_network.nuclei">Nuclei</span></div>
+                <div style="margin:8px 0"><i data-lucide="atom" style="width:24px;height:24px;color:var(--archie-green)"></i></div>
+                <div class="stat-subtitle"><span data-i18n="security_network.template_scanner">Template Scanner</span></div>
+            </div>
+            <div class="stat-card" style="cursor:pointer" onclick="showScannerForm('ssl')">
+                <div class="stat-label"><span data-i18n="security_network.ssl_tls">SSL/TLS</span></div>
+                <div style="margin:8px 0"><i data-lucide="lock" style="width:24px;height:24px;color:var(--archie-blue)"></i></div>
+                <div class="stat-subtitle"><span data-i18n="security_network.certificate_check">Certificate Check</span></div>
+            </div>
+            <div class="stat-card" style="cursor:pointer" onclick="showScannerForm('zap')">
+                <div class="stat-label"><span data-i18n="security_network.zap">ZAP</span></div>
+                <div style="margin:8px 0"><i data-lucide="zap" style="width:24px;height:24px;color:var(--archie-red)"></i></div>
+                <div class="stat-subtitle"><span data-i18n="security_network.web_app_scanner">Web App Scanner</span></div>
+            </div>
+        </div>
+
+        <div class="card" id="scanner-form-card" style="display:none">
+            <div class="card-header">
+                <span class="card-title" id="scanner-form-title"><span data-i18n="security_network.scanner">Scanner</span></span>
+                <button class="btn btn-sm" onclick="document.getElementById('scanner-form-card').style.display='none'"><span data-i18n="security_network.close">Close</span></button>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label"><span data-i18n="security_network.target_2">Target</span></label>
+                    <input type="text" class="form-input" id="scan-target" placeholder="IP, hostname, or URL">
+                </div>
+                <div class="form-group" style="max-width:160px" id="scan-type-group">
+                    <label class="form-label"><span data-i18n="security_network.scan_type">Scan Type</span></label>
+                    <select class="form-select" id="scan-type">
+                        <option value="quick"><span data-i18n="security_network.quick">Quick</span></option>
+                        <option value="full"><span data-i18n="security_network.full">Full</span></option>
+                        <option value="stealth"><span data-i18n="security_network.stealth">Stealth</span></option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" onclick="runVulnScan()">
+                    <i data-lucide="play" style="width:14px;height:14px"></i> Run
+                </button>
+            </div>
+            <div id="scan-confirm-internal" style="display:none;margin-top:8px">
+                <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--archie-orange)">
+                    <input type="checkbox" id="scan-confirm-checkbox"> Confirm scan of internal network target
+                </label>
+            </div>
+        </div>
+
+        <div class="section-header">
+            <i data-lucide="file-search" style="width:18px;height:18px"></i> Scan Results
+        </div>
+        <div id="scan-results-list">
+            <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_scan_results"> Loading scan results...</span></div>
+        </div>
+
+        <div class="section-header">
+            <i data-lucide="monitor" style="width:18px;height:18px"></i> SSL Monitoring
+        </div>
+        <div style="margin-bottom:8px">
+            <button class="btn btn-sm" onclick="showAddSSLModal()">
+                <i data-lucide="plus" style="width:12px;height:12px"></i> Add Monitor
+            </button>
+            <button class="btn btn-sm" onclick="refreshSSLMonitors()">
+                <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh All
+            </button>
+        </div>
+        <div id="ssl-monitors-list">
+            <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_ssl_monitors"> Loading SSL monitors...</span></div>
+        </div>
+        </div>
+
+        <div id="subtab-scanners-recon" class="subtab-content">
+-->
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><span data-i18n="security_network.launch_scan">Launch Scan</span></span>
+            </div>
+            <div class="form-row">
+                <div class="form-group" style="max-width:200px">
+                    <label class="form-label"><span data-i18n="security_network.module">Module</span></label>
+                    <select class="form-select" id="recon-module"></select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><span data-i18n="security_network.target">Target</span></label>
+                    <input type="text" class="form-input" id="recon-target" placeholder="example.com or 192.168.1.0/24">
+                </div>
+                <button class="btn btn-primary" onclick="startReconScan()">
+                    <i data-lucide="play" style="width:14px;height:14px"></i> Start Scan
+                </button>
+            </div>
+        </div>
+
+        <div class="section-header">
+            <i data-lucide="grid-3x3" style="width:18px;height:18px"></i> Available Modules
+        </div>
+        <div class="module-grid" id="recon-modules">
+            <div class="loading-state" style="grid-column:1/-1"><span class="spinner"></span><span data-i18n="security_network.loading_modules"> Loading modules...</span></div>
+        </div>
+
+        <div class="section-header">
+            <i data-lucide="history" style="width:18px;height:18px"></i> Scan History
+        </div>
+        <div id="recon-history">
+            <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_history"> Loading history...</span></div>
+        </div>
+        </div>
+    </div>
+
+    <!-- Compliance -->
+    <div id="tab-compliance" class="tab-content">
+
+        <div class="comp-dash">
+            <!-- Header -->
+            <div class="comp-header">
+                <div>
+                    <h3>Compliance Dashboard</h3>
+                    <span id="compliance-scan-status" class="comp-status-badge"></span>
+                </div>
+                <div class="comp-header-actions">
+                    <button onclick="openComplianceReport()" class="comp-btn comp-btn-secondary" style="background:linear-gradient(135deg,#1e40af,#2563eb);color:#fff;border-color:#2563eb"><i class="fas fa-file-pdf"></i> PDF Report</button>
+                    <button onclick="exportCkl()" class="comp-btn comp-btn-secondary"><i class="fas fa-file-export"></i> Export</button>
+                    <button onclick="exportEvidence()" class="comp-btn comp-btn-secondary"><i class="fas fa-file-archive"></i> Evidence ZIP</button>
+                    <button onclick="runComplianceScan()" class="comp-btn comp-btn-primary" id="comp-scan-btn"><i class="fas fa-radar"></i> Run Scan</button>
+                </div>
+            </div>
+
+            <!-- Score Rings -->
+            <div id="compliance-scores" class="comp-rings">
+                <div class="comp-ring-card" style="--ring-color: #475569;">
+                    <div class="ring-label">Overall</div>
+                    <svg viewBox="0 0 36 36" class="compliance-ring">
+                        <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="2.5"/>
+                        <text x="18" y="21.5" text-anchor="middle" fill="#475569" font-size="8.5" font-weight="700">--</text>
+                    </svg>
+                    <div class="ring-grade" style="color: #475569;">NO DATA</div>
+                    <div class="ring-count">Run a scan to begin</div>
+                </div>
+            </div>
+
+            <!-- Frameworks Section -->
+            <div class="comp-section">
+                <div class="comp-section-header">
+                    <span class="comp-section-title">Frameworks</span>
+                </div>
+                <div id="compliance-frameworks">
+                    <div class="comp-framework" style="opacity: 0.5;">
+                        <div class="comp-framework-top">
+                            <span class="comp-framework-name" style="color: #475569;">Awaiting scan data...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Findings Section -->
+            <div class="comp-section">
+                <div class="comp-section-header">
+                    <span class="comp-section-title">Findings</span>
+                    <div class="comp-findings-filters">
+                        <select id="compliance-pack-filter" onchange="filterComplianceResults()" class="comp-filter-select">
+                            <option value="">All Packs</option>
+                            <option value="ubuntu-22.04-stig">Ubuntu 22.04</option>
+                            <option value="docker-stig">Docker</option>
+                            <option value="network-stig">Network</option>
+                            <option value="hipaa-security">HIPAA</option>
+                        </select>
+                        <select id="compliance-severity-filter" onchange="filterComplianceResults()" class="comp-filter-select">
+                            <option value="">All Severity</option>
+                            <option value="critical">Critical</option>
+                            <option value="high">High</option>
+                            <option value="medium">Medium</option>
+                            <option value="low">Low</option>
+                        </select>
+                        <select id="compliance-status-filter" onchange="filterComplianceResults()" class="comp-filter-select">
+                            <option value="">All Status</option>
+                            <option value="pass">Pass</option>
+                            <option value="fail">Fail</option>
+                            <option value="error">Error</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="compliance-findings">
+                    <div style="text-align: center; color: #475569; padding: 40px 0; font-size: 0.85rem;">
+                        <i class="fas fa-shield-alt" style="font-size: 2rem; margin-bottom: 12px; display: block; opacity: 0.3;"></i>
+                        Run a compliance scan to see findings
+                    </div>
+                </div>
+            </div>
+
+            <!-- Evidence Collection -->
+            <div class="comp-section">
+                <div class="comp-section-header">
+                    <span class="comp-section-title">Evidence Collection</span>
+                    <button onclick="collectEvidence()" class="comp-btn comp-btn-secondary" style="font-size: 0.75rem; padding: 6px 14px;" id="comp-collect-btn">
+                        <i class="fas fa-download"></i> Collect Evidence
+                    </button>
+                </div>
+                <div id="compliance-evidence" class="comp-evidence-grid">
+                    <div class="comp-evidence-item pending"><span class="ev-icon"><i class="far fa-circle"></i></span> Loading...</div>
+                </div>
+            </div>
+
+            <!-- Scan History Chart -->
+            <div class="comp-section">
+                <div class="comp-section-header">
+                    <span class="comp-section-title">Scan History</span>
+                </div>
+                <div class="comp-chart-wrap">
+                    <canvas id="compliance-history-chart"></canvas>
+                </div>
+                <div id="compliance-history" style="display:none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hardening section -->
+    <div class="hardening-section" style="margin-top:16px">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="color: var(--archie-text-primary); margin: 0;">System Hardening</h3>
+            <span style="color: var(--archie-text-muted); font-size: 0.85rem;">One-click fixes for compliance failures</span>
+        </div>
+
+        <div id="hardening-content">
+            <div style="text-align: center; color: var(--archie-text-muted); padding: 40px;">
+                Run a compliance scan first to see hardening recommendations.
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- ==================== TAB: REPORTS ==================== -->
+    <div id="tab-reports" class="tab-content">
+
+        <!-- Generate Daily Report -->
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title">Generate Daily Report</span>
+            </div>
+            <div class="sn-report-actions">
+                <button class="btn btn-primary" id="btn-gen-daily_device" onclick="generateDailyReport('daily_device')">
+                    <i data-lucide="file-plus" style="width:14px;height:14px"></i> Generate Device Report
+                </button>
+                <button class="btn btn-primary" id="btn-gen-daily_user" onclick="generateDailyReport('daily_user')">
+                    <i data-lucide="file-plus" style="width:14px;height:14px"></i> Generate User Report
+                </button>
+                <button class="btn btn-sm" onclick="loadReportsList()">
+                    <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- Report History (new /api/reports/list) -->
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title">Report History</span>
+            </div>
+            <div id="sn-reports-list">
+                <div class="loading-state"><span class="spinner"></span> Loading...</div>
+            </div>
+        </div>
+
+        <!-- Legacy Report Generator -->
+    <!-- Legacy Report Generator -->
+    <div class="legacy-reports-section">
+        <!-- Generate Report Section -->
+        <div class="lcars-frame" style="margin-bottom:20px">
+            <div class="lcars-elbow top-left"></div>
+            <div class="lcars-elbow top-right"></div>
+            <div class="lcars-bar top"><span>Generate Report</span></div>
+            <div class="lcars-body" style="padding:16px">
+                <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+                    <div style="flex:1;min-width:180px">
+                        <label style="font-size:0.75rem;color:var(--archie-text-muted);display:block;margin-bottom:4px">Report Type</label>
+                        <select id="report-type" class="form-input" style="width:100%">
+                            <option value="daily_summary">Daily Summary</option>
+                            <option value="weekly_report">Weekly Report</option>
+                            <option value="device_audit">Device Audit</option>
+                            <option value="dns_analysis">DNS Analysis</option>
+                        </select>
+                    </div>
+                    <div style="flex:0.7;min-width:140px">
+                        <label style="font-size:0.75rem;color:var(--archie-text-muted);display:block;margin-bottom:4px">From (optional)</label>
+                        <input type="date" id="report-date-start" class="form-input" style="width:100%">
+                    </div>
+                    <div style="flex:0.7;min-width:140px">
+                        <label style="font-size:0.75rem;color:var(--archie-text-muted);display:block;margin-bottom:4px">To (optional)</label>
+                        <input type="date" id="report-date-end" class="form-input" style="width:100%">
+                    </div>
+                    <div>
+                        <button class="btn btn-primary" onclick="generateReport()" id="btn-generate-report">
+                            <i data-lucide="file-plus" style="width:14px;height:14px"></i> Generate
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="lcars-bar bottom"></div>
+            <div class="lcars-elbow bottom-left"></div>
+            <div class="lcars-elbow bottom-right"></div>
+        </div>
+
+        <!-- Report History -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h3 style="margin:0;color:var(--archie-text-primary)">Report History</h3>
+            <button class="btn btn-sm" onclick="loadReports()">
+                <i data-lucide="refresh-cw" style="width:14px;height:14px"></i> Refresh
+            </button>
+        </div>
+        <div id="reports-list">
+            <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_reports"> Loading reports...</span></div>
+        </div>
+    </div>
+
     </div>
 
             </div><!-- /lcars-body -->
@@ -1411,7 +1605,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script>
-const API = '/tools/security-network/api';
+const API = '/tools/security-network/api'; /* legacy compat — snApi() used for new functions */
 
 /* ========== Utility Functions ========== */
 function esc(s) {
@@ -1492,59 +1686,24 @@ function showEmpty(el, msg) {
 }
 
 /* ========== Tab Management ========== */
-let dnsTabLoaded = false, survTabLoaded = false, reconTabLoaded = false;
-let scanTabLoaded = false, accessTabLoaded = false, reportsTabLoaded = false;
-let domainsTabLoaded = false;
+/* Tab load flags managed by security-network.js — skipping re-declaration */
+let accessTabLoaded = false, reportsTabLoaded = false;
 let qlOffset = 0, activeScannerType = 'nmap';
 
-function initTabs() {
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            btn.classList.add('active');
-            const tab = btn.dataset.tab;
-            document.getElementById('tab-' + tab).classList.add('active');
-            if (tab === 'dns' && !dnsTabLoaded) { dnsTabLoaded = true; loadDNSOverview(); loadUserRules(); }
-            if (tab === 'surveillance') { if(!survTabLoaded) { survTabLoaded = true; } loadSurveillance(); } else { if(typeof stopSurvAutoRefresh==='function') stopSurvAutoRefresh(); }
-            if (tab === 'recon' && !reconTabLoaded) { reconTabLoaded = true; loadReconModules(); loadReconHistory(); }
-            if (tab === 'scanning' && !scanTabLoaded) { scanTabLoaded = true; loadScanResults(); loadSSLMonitors(); }
-            if (tab === 'access' && !accessTabLoaded) { accessTabLoaded = true; loadFirewall(); loadIPAccess(); loadAutoBlockSettings(); loadSecurityEvents(); loadConnections(); }
-            if (tab === 'reports' && !reportsTabLoaded) { reportsTabLoaded = true; loadReports(); }
-            if (tab === 'compliance') { onComplianceTabShown(); }
-            if (tab === 'hardening') { onHardeningTabShown(); }
-            if (tab === 'domains' && !domainsTabLoaded) { domainsTabLoaded = true; loadDomainsOverview(); }
-            lucide.createIcons();
-        });
-    });
-}
-
-function initSubtabs() {
-    document.querySelectorAll('.subtab-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const parent = btn.closest('.tab-content');
-            parent.querySelectorAll('.subtab-btn').forEach(b => b.classList.remove('active'));
-            parent.querySelectorAll('.subtab-content').forEach(c => c.classList.remove('active'));
-            btn.classList.add('active');
-            document.getElementById('subtab-' + btn.dataset.subtab).classList.add('active');
-            const st = btn.dataset.subtab;
-            if (st === 'dns-querylog') loadQueryLog(0);
-            if (st === 'dns-filters') loadFilters();
-            if (st === 'dns-rewrites') loadRewrites();
-            if (st === 'dns-rules') loadUserRules();
-            if (st === 'dns-clients') loadDeviceClients();
-            if (st === 'domains-overview') loadDomainsOverview();
-            if (st === 'domains-dns') loadDomainDnsRecords();
-            if (st === 'domains-proxy') loadDomainProxyHosts();
-            if (st === 'domains-certs') loadDomainCertificates();
-            lucide.createIcons();
-        });
-    });
-}
+/* initTabs + initSubtabs handled by security-network.js */
 
 function switchToTab(tabName) {
-    const btn = document.querySelector('.tab-btn[data-tab="' + tabName + '"]');
-    if (btn) btn.click();
+    /* remap old tab names to new 8-tab names */
+    var _remap = {
+        'dashboard':    'overview',
+        'surveillance': 'scanners',
+        'recon':        'scanners',
+        'scanning':     'scanners',
+        'access':       'defense',
+        'hardening':    'compliance',
+        'domains':      'dns'
+    };
+    switchSecurityTab(_remap[tabName] || tabName);
 }
 
 /* ========== Dashboard ========== */
@@ -4244,15 +4403,14 @@ function escapeHtml(str) {
 /* ========== Init ========== */
 document.addEventListener('DOMContentLoaded', function() {
     if(typeof lucide!=='undefined') lucide.createIcons();
-    initTabs();
-    initSubtabs();
-    setTimeout(loadDashboard, 500);
+    /* initTabs/initSubtabs handled by security-network.js */
+    setTimeout(loadDashboard, 800); /* load legacy dashboard stats for compliance summary */
     initSecurityStation();
 });
 
 setInterval(function(){
     var active = document.querySelector('.tab-btn.active');
-    if(active && active.dataset.tab==='dashboard') loadDashboard();
+    /* 60s poll: overview tab handled by security-network.js _nocPollTimer */
 }, 60000);
 
 document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ closeModal(); closeDeviceModal(); } });

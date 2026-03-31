@@ -168,6 +168,40 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
 .job-info h3 { font-family: 'Antonio', sans-serif; font-size: 0.85rem; font-weight: 600; color: var(--au-text); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 0.2rem; }
 .job-info .meta { font-size: 0.7rem; color: var(--au-muted); }
 
+/* ── Ops Jobs Table (Agent Loop Jobs via JobService) ── */
+.ops-jobs-wrap { max-height: 70vh; overflow-y: auto; }
+.ops-jobs-wrap::-webkit-scrollbar { width: 6px; }
+.ops-jobs-wrap::-webkit-scrollbar-thumb { background: rgba(255,170,0,0.2); border-radius: 3px; }
+.ops-dept-group { margin-bottom: 1rem; }
+.ops-dept-hdr { display:flex;align-items:center;gap:8px;padding:6px 10px;cursor:pointer;border-radius:2px 8px 8px 2px;background:rgba(255,255,255,0.03);border-left:3px solid var(--dept-color,var(--au-accent));margin-bottom:4px;user-select:none; }
+.ops-dept-hdr:hover { background:rgba(255,255,255,0.06); }
+.ops-dept-hdr .dept-dot { width:8px;height:8px;border-radius:50%;background:var(--dept-color);flex-shrink:0; }
+.ops-dept-hdr .dept-name { font-family:'Antonio',sans-serif;font-size:0.8rem;font-weight:600;color:var(--dept-color);letter-spacing:1px;text-transform:uppercase;flex:1; }
+.ops-dept-hdr .dept-count { font-size:0.65rem;color:rgba(255,255,255,0.4); }
+.ops-dept-hdr .dept-chev { font-size:0.6rem;color:rgba(255,255,255,0.3);transition:transform 0.2s; }
+.ops-dept-hdr.collapsed .dept-chev { transform:rotate(-90deg); }
+.ops-dept-body { overflow:hidden; }
+.ops-dept-body.collapsed { display:none; }
+.ops-job-row { display:grid;grid-template-columns:28px 1fr 100px 80px 1fr auto;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.03);font-size:0.75rem;transition:background 0.15s; }
+.ops-job-row:hover { background:rgba(255,170,0,0.03); }
+.ops-job-dot { width:10px;height:10px;border-radius:50%;justify-self:center; }
+.ops-job-dot.enabled { background:var(--au-green);box-shadow:0 0 6px var(--au-green); }
+.ops-job-dot.disabled { background:var(--au-muted);opacity:0.4; }
+.ops-job-name { font-family:'Antonio',sans-serif;font-weight:600;color:var(--au-text);letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.ops-job-interval { font-family:'Orbitron',sans-serif;font-size:0.65rem;color:var(--au-cyan); }
+.ops-job-lastrun { font-size:0.68rem;color:var(--au-muted); }
+.ops-job-status { font-size:0.68rem; }
+.ops-job-actions { display:flex;gap:4px;justify-content:flex-end; }
+.ops-job-actions .btn-xs { padding:0.2rem 0.55rem;font-size:0.62rem;border-radius:2px 6px 6px 2px;cursor:pointer;border:1px solid;background:transparent;font-family:'Antonio',sans-serif;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;transition:all 0.2s;white-space:nowrap; }
+.ops-job-actions .btn-toggle-on { color:var(--au-green);border-color:rgba(0,255,65,0.3); }
+.ops-job-actions .btn-toggle-on:hover { background:rgba(0,255,65,0.1); }
+.ops-job-actions .btn-toggle-off { color:var(--au-red);border-color:rgba(255,65,54,0.3); }
+.ops-job-actions .btn-toggle-off:hover { background:rgba(255,65,54,0.1); }
+.ops-job-actions .btn-run { color:var(--au-cyan);border-color:rgba(0,255,255,0.3); }
+.ops-job-actions .btn-run:hover { background:rgba(0,255,255,0.1); }
+.ops-job-actions .btn-xs:disabled { opacity:0.3;cursor:not-allowed; }
+.ops-jobs-header { display:grid;grid-template-columns:28px 1fr 100px 80px 1fr auto;gap:8px;padding:4px 10px;font-family:'Antonio',sans-serif;font-size:0.68rem;font-weight:600;color:var(--au-accent);letter-spacing:1px;text-transform:uppercase;border-bottom:2px solid rgba(255,170,0,0.2);margin-bottom:2px; }
+
 /* ── LCARS Confirm Modal ── */
 .au-modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10000; align-items: center; justify-content: center; }
 .au-modal-overlay.active { display: flex; }
@@ -861,96 +895,8 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
             });
             document.getElementById('serverLoopsBadge').textContent = activeLoopCount;
 
-            /* --- Agent Loop Jobs --- */
-            var agentLoop = data.agent_loop || {};
-            var agentJobs = agentLoop.jobs || [];
-            var agentJobsList = document.getElementById('agentLoopJobsList');
-            document.getElementById('agentLoopJobsBadge').textContent = agentJobs.length;
-            agentJobsList.textContent = '';
-
-            if (agentJobs.length === 0) {
-                var emptyAl = document.createElement('div');
-                emptyAl.className = 'empty-state';
-                emptyAl.textContent = agentLoop.running ? 'No registered jobs' : 'Agent loop not running';
-                agentJobsList.appendChild(emptyAl);
-            } else {
-                /* Group jobs by department */
-                var byDept = {};
-                agentJobs.forEach(function(job) {
-                    var dept = getJobDept(job.id);
-                    if (!byDept[dept]) byDept[dept] = [];
-                    byDept[dept].push(job);
-                });
-                /* Render in department order */
-                var deptKeys = DEPT_ORDER.filter(function(d) { return byDept[d]; });
-                /* Add "Other" if there are unmatched jobs */
-                if (byDept['Other']) deptKeys.push('Other');
-
-                deptKeys.forEach(function(dept) {
-                    var jobs = byDept[dept];
-                    var deptColor = DEPT_COLORS[dept] || '#FFAA00';
-                    /* Collapsible department section */
-                    var section = document.createElement('div');
-                    section.className = 'au-dept-section';
-                    section.style.marginBottom = '12px';
-
-                    var header = document.createElement('div');
-                    header.className = 'au-dept-header';
-                    header.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 10px;cursor:pointer;border-radius:6px;background:rgba(255,255,255,0.03);border-left:3px solid ' + deptColor + ';';
-                    header.onclick = function() {
-                        var g = this.nextElementSibling;
-                        var chev = this.querySelector('.au-dept-chevron');
-                        if (g.style.display === 'none') { g.style.display = ''; chev.textContent = '\u25BC'; }
-                        else { g.style.display = 'none'; chev.textContent = '\u25B6'; }
-                    };
-
-                    var deptDot = document.createElement('span');
-                    deptDot.style.cssText = 'width:8px;height:8px;border-radius:50%;background:' + deptColor + ';flex-shrink:0;';
-                    header.appendChild(deptDot);
-
-                    var deptLabel = document.createElement('span');
-                    deptLabel.style.cssText = 'font-size:0.8rem;font-weight:600;color:' + deptColor + ';flex:1;';
-                    deptLabel.textContent = dept;
-                    header.appendChild(deptLabel);
-
-                    var deptCount = document.createElement('span');
-                    deptCount.style.cssText = 'font-size:0.65rem;color:rgba(255,255,255,0.4);';
-                    deptCount.textContent = jobs.length + ' job' + (jobs.length !== 1 ? 's' : '');
-                    header.appendChild(deptCount);
-
-                    var chevron = document.createElement('span');
-                    chevron.className = 'au-dept-chevron';
-                    chevron.style.cssText = 'font-size:0.6rem;color:rgba(255,255,255,0.3);';
-                    chevron.textContent = '\u25BC';
-                    header.appendChild(chevron);
-
-                    section.appendChild(header);
-
-                    var grid = document.createElement('div');
-                    grid.className = 'job-grid';
-                    grid.style.marginTop = '6px';
-                    jobs.forEach(function(job) {
-                        var card = document.createElement('div');
-                        card.className = 'job-card';
-                        var meta = JOB_META[job.id] || {};
-                        card.style.setProperty('--job-color', meta.color || deptColor);
-
-                        var info = document.createElement('div');
-                        info.className = 'job-info';
-                        var h3 = document.createElement('h3');
-                        h3.textContent = meta.label || job.id;
-                        info.appendChild(h3);
-                        var nextDiv = document.createElement('div');
-                        nextDiv.className = 'meta';
-                        nextDiv.textContent = 'Next: ' + (job.next_run ? ArchieTime.time(job.next_run) : 'N/A');
-                        info.appendChild(nextDiv);
-                        card.appendChild(info);
-                        grid.appendChild(card);
-                    });
-                    section.appendChild(grid);
-                    agentJobsList.appendChild(section);
-                });
-            }
+            /* --- Agent Loop Jobs (from JobService API) --- */
+            loadOpsJobs();
 
             /* --- Scheduler Jobs --- */
             var schedulerJobs = data.scheduler_jobs || [];
@@ -1013,6 +959,232 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
             });
             loadActiveJobs();
         } catch (e) { console.error('Toggle server loop failed:', e); }
+    }
+
+    /* ══════════════════════════════════════════════════════════════════════
+       Agent Loop Jobs — powered by JobService /api/ops-jobs
+       ══════════════════════════════════════════════════════════════════════ */
+    function fmtInterval(hours) {
+        if (!hours && hours !== 0) return '\u2014';
+        if (hours < 1) return Math.round(hours * 60) + 'm';
+        if (hours % 24 === 0) return (hours / 24) + 'd';
+        if (Number.isInteger(hours)) return hours + 'h';
+        return hours.toFixed(1) + 'h';
+    }
+
+    function makeEmptyDiv(msg) {
+        var d = document.createElement('div');
+        d.className = 'empty-state';
+        d.textContent = msg;
+        return d;
+    }
+
+    async function loadOpsJobs() {
+        var container = document.getElementById('agentLoopJobsList');
+        try {
+            var resp = await fetch(BASE + '/ops-jobs');
+            var data = await resp.json();
+            if (data.error) {
+                container.textContent = '';
+                container.appendChild(makeEmptyDiv(data.error));
+                document.getElementById('agentLoopJobsBadge').textContent = '!';
+                return;
+            }
+            var jobs = data.jobs || [];
+            document.getElementById('agentLoopJobsBadge').textContent = jobs.length;
+            container.textContent = '';
+
+            if (jobs.length === 0) {
+                container.appendChild(makeEmptyDiv('No registered jobs'));
+                return;
+            }
+
+            /* Group by department */
+            var byDept = {};
+            jobs.forEach(function(j) {
+                var dept = j.department || 'Other';
+                if (!byDept[dept]) byDept[dept] = [];
+                byDept[dept].push(j);
+            });
+
+            /* Wrap for scroll */
+            var wrap = document.createElement('div');
+            wrap.className = 'ops-jobs-wrap';
+
+            /* Column header */
+            var hdr = document.createElement('div');
+            hdr.className = 'ops-jobs-header';
+            ['', 'Name', 'Interval', 'Status', 'Last Run', 'Actions'].forEach(function(h) {
+                var s = document.createElement('span');
+                s.textContent = h;
+                hdr.appendChild(s);
+            });
+            wrap.appendChild(hdr);
+
+            /* Sort departments by DEPT_ORDER, then alphabetically for unknown */
+            var deptKeys = Object.keys(byDept).sort(function(a, b) {
+                var ia = DEPT_ORDER.indexOf(a), ib = DEPT_ORDER.indexOf(b);
+                if (ia === -1) ia = 999;
+                if (ib === -1) ib = 999;
+                return ia - ib || a.localeCompare(b);
+            });
+
+            deptKeys.forEach(function(dept) {
+                var deptJobs = byDept[dept];
+                var deptColor = DEPT_COLORS[dept] || '#FFAA00';
+                var enabledCount = deptJobs.filter(function(j) { return j.enabled; }).length;
+
+                var group = document.createElement('div');
+                group.className = 'ops-dept-group';
+
+                /* Department header */
+                var dh = document.createElement('div');
+                dh.className = 'ops-dept-hdr';
+                dh.style.setProperty('--dept-color', deptColor);
+                dh.onclick = function() {
+                    this.classList.toggle('collapsed');
+                    this.nextElementSibling.classList.toggle('collapsed');
+                };
+
+                var dot = document.createElement('span');
+                dot.className = 'dept-dot';
+                dh.appendChild(dot);
+
+                var nm = document.createElement('span');
+                nm.className = 'dept-name';
+                nm.textContent = dept;
+                dh.appendChild(nm);
+
+                var cnt = document.createElement('span');
+                cnt.className = 'dept-count';
+                cnt.textContent = enabledCount + '/' + deptJobs.length + ' active';
+                dh.appendChild(cnt);
+
+                var chev = document.createElement('span');
+                chev.className = 'dept-chev';
+                chev.textContent = '\u25BC';
+                dh.appendChild(chev);
+
+                group.appendChild(dh);
+
+                /* Job rows */
+                var body = document.createElement('div');
+                body.className = 'ops-dept-body';
+
+                deptJobs.forEach(function(job) {
+                    var row = document.createElement('div');
+                    row.className = 'ops-job-row';
+                    row.setAttribute('data-job', job.name);
+
+                    /* Status dot */
+                    var jdot = document.createElement('div');
+                    jdot.className = 'ops-job-dot ' + (job.enabled ? 'enabled' : 'disabled');
+                    jdot.title = job.enabled ? 'Enabled' : 'Disabled';
+                    row.appendChild(jdot);
+
+                    /* Name */
+                    var jname = document.createElement('div');
+                    jname.className = 'ops-job-name';
+                    var meta = JOB_META[job.name] || {};
+                    jname.textContent = meta.label || job.name.replace(/^agent_/, '').replace(/_/g, ' ');
+                    jname.title = job.name;
+                    row.appendChild(jname);
+
+                    /* Interval */
+                    var jint = document.createElement('div');
+                    jint.className = 'ops-job-interval';
+                    jint.textContent = fmtInterval(job.interval_hours);
+                    row.appendChild(jint);
+
+                    /* Last status */
+                    var jstat = document.createElement('div');
+                    jstat.className = 'ops-job-status';
+                    if (job.last_status) {
+                        appendPill(jstat, job.last_status);
+                    } else {
+                        jstat.textContent = '\u2014';
+                        jstat.style.color = 'var(--au-muted)';
+                    }
+                    row.appendChild(jstat);
+
+                    /* Last run */
+                    var jlr = document.createElement('div');
+                    jlr.className = 'ops-job-lastrun';
+                    jlr.textContent = job.last_run ? timeAgo(job.last_run) : 'Never';
+                    if (job.last_run) jlr.title = job.last_run;
+                    row.appendChild(jlr);
+
+                    /* Actions */
+                    var acts = document.createElement('div');
+                    acts.className = 'ops-job-actions';
+
+                    var toggleBtn = document.createElement('button');
+                    toggleBtn.className = 'btn-xs ' + (job.enabled ? 'btn-toggle-off' : 'btn-toggle-on');
+                    toggleBtn.textContent = job.enabled ? 'Disable' : 'Enable';
+                    toggleBtn.addEventListener('click', (function(name, enabled) {
+                        return function(e) {
+                            e.stopPropagation();
+                            toggleOpsJob(name, enabled);
+                        };
+                    })(job.name, job.enabled));
+                    acts.appendChild(toggleBtn);
+
+                    var runBtn = document.createElement('button');
+                    runBtn.className = 'btn-xs btn-run';
+                    runBtn.textContent = 'Run';
+                    runBtn.disabled = !job.enabled;
+                    runBtn.addEventListener('click', (function(name) {
+                        return function(e) {
+                            e.stopPropagation();
+                            runOpsJob(name);
+                        };
+                    })(job.name));
+                    acts.appendChild(runBtn);
+
+                    row.appendChild(acts);
+                    body.appendChild(row);
+                });
+
+                group.appendChild(body);
+                wrap.appendChild(group);
+            });
+
+            container.appendChild(wrap);
+        } catch (e) {
+            console.error('Failed to load ops jobs:', e);
+            container.textContent = '';
+            container.appendChild(makeEmptyDiv('Failed to load jobs'));
+        }
+    }
+
+    async function toggleOpsJob(name, currentlyEnabled) {
+        var action = currentlyEnabled ? 'disable' : 'enable';
+        try {
+            var resp = await fetch(BASE + '/ops-jobs/' + encodeURIComponent(name) + '/' + action, {
+                method: 'POST', headers: {'Content-Type': 'application/json'}
+            });
+            var data = await resp.json();
+            if (data.error) { console.error('Toggle failed:', data.error); return; }
+            loadOpsJobs();
+        } catch (e) { console.error('Toggle ops job failed:', e); }
+    }
+
+    async function runOpsJob(name) {
+        /* Find the button and show feedback */
+        var row = document.querySelector('[data-job="' + name + '"]');
+        if (row) {
+            var runBtn = row.querySelector('.btn-run');
+            if (runBtn) { runBtn.textContent = '...'; runBtn.disabled = true; }
+        }
+        try {
+            var resp = await fetch(BASE + '/ops-jobs/' + encodeURIComponent(name) + '/run', {
+                method: 'POST', headers: {'Content-Type': 'application/json'}
+            });
+            var data = await resp.json();
+            if (data.error) { console.error('Run failed:', data.error); }
+            /* Refresh after a short delay to allow the job to complete */
+            setTimeout(loadOpsJobs, 1500);
+        } catch (e) { console.error('Run ops job failed:', e); }
     }
 
     /* ══════════════════════════════════════════════════════════════════════

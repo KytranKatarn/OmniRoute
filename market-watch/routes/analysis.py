@@ -5,11 +5,13 @@ import json
 from flask import Blueprint, jsonify, request
 from db import get_db
 from services.agent_pipeline import run_pipeline, run_full_cycle
+from auth import tier_required
 
 analysis_bp = Blueprint("analysis", __name__)
 
 
 @analysis_bp.route("/api/analysis")
+@tier_required("viewer")
 def list_analyses():
     """Get recent analyses."""
     ticker = request.args.get("ticker")
@@ -42,6 +44,7 @@ def _parse_analysis_row(row):
 
 
 @analysis_bp.route("/api/analysis/<int:analysis_id>")
+@tier_required("viewer")
 def get_analysis(analysis_id):
     """Get a single analysis by ID, including all 6-agent report columns."""
     conn = get_db()
@@ -55,6 +58,7 @@ def get_analysis(analysis_id):
 
 
 @analysis_bp.route("/api/analysis/run", methods=["POST"])
+@tier_required("ai")
 def run_analysis():
     """Run M.A.R.K.E.T. pipeline for a single ticker."""
     data = request.get_json() or {}
@@ -66,6 +70,7 @@ def run_analysis():
 
 
 @analysis_bp.route("/api/analysis/cycle", methods=["POST"])
+@tier_required("ai")
 def run_cycle():
     """Run full M.A.R.K.E.T. cycle for all watchlist stocks."""
     result = run_full_cycle()
@@ -73,6 +78,7 @@ def run_cycle():
 
 
 @analysis_bp.route("/api/analysis/cycles")
+@tier_required("viewer")
 def list_cycles():
     """Get cycle history."""
     conn = get_db()

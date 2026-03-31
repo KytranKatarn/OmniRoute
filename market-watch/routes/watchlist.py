@@ -3,11 +3,13 @@
 from flask import Blueprint, jsonify, request
 from db import get_db
 from services.market_data import get_quote
+from auth import tier_required
 
 watchlist_bp = Blueprint("watchlist", __name__)
 
 
 @watchlist_bp.route("/api/watchlist")
+@tier_required("viewer")
 def list_watchlist():
     """Get all watchlist items with current prices."""
     conn = get_db()
@@ -30,6 +32,7 @@ def list_watchlist():
 
 
 @watchlist_bp.route("/api/watchlist", methods=["POST"])
+@tier_required("ai")
 def add_to_watchlist():
     """Add a ticker to the watchlist."""
     data = request.get_json() or {}
@@ -56,6 +59,7 @@ def add_to_watchlist():
 
 
 @watchlist_bp.route("/api/watchlist/<int:item_id>", methods=["DELETE"])
+@tier_required("ai")
 def remove_from_watchlist(item_id):
     """Remove a ticker from the watchlist."""
     conn = get_db()
@@ -66,6 +70,7 @@ def remove_from_watchlist(item_id):
 
 
 @watchlist_bp.route("/api/watchlist/bulk", methods=["POST"])
+@tier_required("ai")
 def bulk_add():
     """Add multiple tickers at once (comma-separated)."""
     data = request.get_json() or {}

@@ -2,11 +2,13 @@
 
 from flask import Blueprint, jsonify, request
 from services.market_data import get_quote, get_fundamentals, search_tickers
+from auth import tier_required
 
 stocks_bp = Blueprint("stocks", __name__)
 
 
 @stocks_bp.route("/api/stocks/<ticker>")
+@tier_required("viewer")
 def stock_quote(ticker):
     """Get current quote for a ticker."""
     quote = get_quote(ticker.upper())
@@ -14,6 +16,7 @@ def stock_quote(ticker):
 
 
 @stocks_bp.route("/api/stocks/<ticker>/fundamentals")
+@tier_required("viewer")
 def stock_fundamentals(ticker):
     """Get fundamental data for a ticker."""
     data = get_fundamentals(ticker.upper())
@@ -21,6 +24,7 @@ def stock_fundamentals(ticker):
 
 
 @stocks_bp.route("/api/stocks/search")
+@tier_required("viewer")
 def stock_search():
     """Search for tickers."""
     q = request.args.get("q", "")
@@ -31,6 +35,7 @@ def stock_search():
 
 
 @stocks_bp.route("/api/stocks/<ticker>/sentiment")
+@tier_required("viewer")
 def get_sentiment(ticker):
     """Get news sentiment summary for a ticker."""
     from services.sentiment import get_sentiment_summary

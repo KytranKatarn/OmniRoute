@@ -4,11 +4,13 @@ import json
 from flask import Blueprint, jsonify, request
 from db import get_db
 from services.backtest_engine import run_backtest
+from auth import tier_required
 
 backtest_bp = Blueprint("backtest", __name__)
 
 
 @backtest_bp.route("/api/backtest/run", methods=["POST"])
+@tier_required("ai")
 def run():
     """Run a backtest."""
     data = request.get_json() or {}
@@ -44,6 +46,7 @@ def run():
 
 
 @backtest_bp.route("/api/backtest/results")
+@tier_required("ai")
 def results():
     """Get past backtest results."""
     conn = get_db()

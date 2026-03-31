@@ -4,11 +4,13 @@ from flask import Blueprint, jsonify, request
 from db import get_db
 from services.alpaca_client import place_order, get_orders
 from services.market_data import get_quote
+from auth import tier_required, admin_required
 
 trading_bp = Blueprint("trading", __name__)
 
 
 @trading_bp.route("/api/trading/buy", methods=["POST"])
+@tier_required("ai")
 def buy():
     """Place a buy order."""
     data = request.get_json() or {}
@@ -41,6 +43,7 @@ def buy():
 
 
 @trading_bp.route("/api/trading/sell", methods=["POST"])
+@tier_required("ai")
 def sell():
     """Place a sell order."""
     data = request.get_json() or {}
@@ -73,8 +76,19 @@ def sell():
 
 
 @trading_bp.route("/api/trading/orders")
+@tier_required("ai")
 def order_history():
     """Get order history."""
     status = request.args.get("status", "all")
     orders = get_orders(status)
     return jsonify({"success": True, "orders": orders})
+
+
+@trading_bp.route("/api/trading/toggle-live", methods=["POST"])
+@tier_required("ai")
+@admin_required
+def toggle_live_trading():
+    """Toggle between paper and live Alpaca trading (admin only)."""
+    data = request.get_json() or {}
+    enabled = data.get("enabled", False)
+    return jsonify({"success": True, "live_trading": enabled, "message": "Not yet implemented — Sub-project 3"})

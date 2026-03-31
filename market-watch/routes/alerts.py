@@ -3,11 +3,13 @@
 from flask import Blueprint, jsonify, request
 from db import get_db
 from services.alert_engine import check_alerts
+from auth import tier_required
 
 alerts_bp = Blueprint("alerts", __name__)
 
 
 @alerts_bp.route("/api/alerts")
+@tier_required("viewer")
 def list_alerts():
     """Get all alerts."""
     conn = get_db()
@@ -17,6 +19,7 @@ def list_alerts():
 
 
 @alerts_bp.route("/api/alerts", methods=["POST"])
+@tier_required("ai")
 def create_alert():
     """Create a new alert."""
     data = request.get_json() or {}
@@ -39,6 +42,7 @@ def create_alert():
 
 
 @alerts_bp.route("/api/alerts/<int:alert_id>", methods=["DELETE"])
+@tier_required("ai")
 def delete_alert(alert_id):
     """Delete an alert."""
     conn = get_db()
@@ -49,6 +53,7 @@ def delete_alert(alert_id):
 
 
 @alerts_bp.route("/api/alerts/check", methods=["POST"])
+@tier_required("ai")
 def trigger_check():
     """Manually check all alerts."""
     triggered = check_alerts()

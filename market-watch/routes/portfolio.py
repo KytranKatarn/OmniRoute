@@ -4,11 +4,13 @@ from flask import Blueprint, jsonify
 from db import get_db
 from services.market_data import get_quote
 from services.alpaca_client import get_account, get_positions
+from auth import tier_required
 
 portfolio_bp = Blueprint("portfolio", __name__)
 
 
 @portfolio_bp.route("/api/portfolio")
+@tier_required("viewer")
 def portfolio_overview():
     """Get portfolio positions with current P&L."""
     positions = get_positions()
@@ -29,6 +31,7 @@ def portfolio_overview():
 
 
 @portfolio_bp.route("/api/portfolio/summary")
+@tier_required("viewer")
 def portfolio_summary():
     """Quick portfolio summary for dashboard."""
     account = get_account()

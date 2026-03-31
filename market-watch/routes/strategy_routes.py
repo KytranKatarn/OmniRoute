@@ -1,6 +1,7 @@
 """Strategy Routes — REST endpoints for named trading strategies."""
 
 from flask import Blueprint, jsonify, request
+from auth import tier_required
 
 from services.strategy_service import (
     create_strategy,
@@ -14,12 +15,14 @@ bp = Blueprint("strategies", __name__)
 
 
 @bp.route("/api/strategies", methods=["GET"])
+@tier_required("viewer")
 def list_strategies():
     active_only = request.args.get("active", "").lower() == "true"
     return jsonify(get_strategies(active_only=active_only))
 
 
 @bp.route("/api/strategies/<int:sid>", methods=["GET"])
+@tier_required("viewer")
 def get_one_strategy(sid):
     strategy = get_strategy(sid)
     if strategy is None:
@@ -28,6 +31,7 @@ def get_one_strategy(sid):
 
 
 @bp.route("/api/strategies", methods=["POST"])
+@tier_required("ai")
 def create_one_strategy():
     data = request.get_json(force=True) or {}
     name = data.get("name")
@@ -40,6 +44,7 @@ def create_one_strategy():
 
 
 @bp.route("/api/strategies/<int:sid>", methods=["PUT"])
+@tier_required("ai")
 def update_one_strategy(sid):
     data = request.get_json(force=True) or {}
     strategy = update_strategy(sid, **data)
@@ -49,6 +54,7 @@ def update_one_strategy(sid):
 
 
 @bp.route("/api/strategies/<int:sid>", methods=["DELETE"])
+@tier_required("ai")
 def delete_one_strategy(sid):
     delete_strategy(sid)
     return jsonify({"success": True})

@@ -140,8 +140,25 @@ def _background_ingest(app):
             time.sleep(300)  # 5 minutes
 
 
+def _background_news_ingest(app):
+    """Background thread for news ingestion."""
+    time.sleep(20)  # Wait for app + price ingest to settle
+    with app.app_context():
+        logger.info("Background news ingest thread started")
+        while True:
+            try:
+                from ingest.news_ingest import run_news_ingest, NEWS_INGEST_INTERVAL
+                run_news_ingest()
+                time.sleep(NEWS_INGEST_INTERVAL)
+            except Exception as e:
+                logger.error("News ingest failed: %s", e)
+                time.sleep(60)  # Retry after 1 min on error
+
+
 if __name__ == "__main__":
     app = create_app()
     ingest_thread = threading.Thread(target=_background_ingest, args=(app,), daemon=True)
     ingest_thread.start()
+    news_thread = threading.Thread(target=_background_news_ingest, args=(app,), daemon=True)
+    news_thread.start()
     app.run(host="0.0.0.0", port=8080, debug=False)

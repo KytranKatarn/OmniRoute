@@ -645,6 +645,22 @@ class TikTokAPIError(Exception):
 
 
 # =============================================================================
+# INDEED CLIENT
+# =============================================================================
+
+from .indeed_client import IndeedClient
+
+_indeed_client = None
+
+
+def get_indeed_client():
+    global _indeed_client
+    if _indeed_client is None:
+        _indeed_client = IndeedClient()
+    return _indeed_client
+
+
+# =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
 

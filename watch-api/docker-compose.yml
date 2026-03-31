@@ -12,8 +12,8 @@ services:
       - SECRET_KEY=${SECRET_KEY:-dev-secret}
       - KYTRAN_CLIENT_ID=${KYTRAN_CLIENT_ID:-civic-watch}
       - KYTRAN_CLIENT_SECRET=${KYTRAN_CLIENT_SECRET:-}
-      - KYTRAN_AUTH_URL=${KYTRAN_AUTH_URL:-http://192.168.1.200:3000}
-      - KYTRAN_REDIRECT_URI=${KYTRAN_REDIRECT_URI:-http://localhost:8099/auth/kytran/callback}
+      - KYTRAN_AUTH_URL=${KYTRAN_AUTH_URL:-https://archie.kytranempowerment.com}
+      - KYTRAN_REDIRECT_URI=${KYTRAN_REDIRECT_URI:-https://civic.kytranempowerment.com/auth/kytran/callback}
     mem_limit: 128m
     cpus: 0.5
     read_only: true

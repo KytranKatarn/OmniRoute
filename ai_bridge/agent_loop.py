@@ -1005,8 +1005,74 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # ── V.I.G.I.L. Security & Compliance Department Jobs ──
+
+        self.scheduler.add_job(
+            with_app_context(self._vigilil_network_health),
+            trigger=IntervalTrigger(seconds=60),
+            id="vigilil_network_health",
+            name="V.I.G.I.L.: Network Health Monitor",
+            replace_existing=True,
+        )
+
+        self.scheduler.add_job(
+            with_app_context(self._vigilil_traffic_aggregator),
+            trigger=IntervalTrigger(minutes=5),
+            id="vigilil_traffic_aggregator",
+            name="V.I.G.I.L.: Traffic Aggregator",
+            replace_existing=True,
+        )
+
+        self.scheduler.add_job(
+            with_app_context(self._vigilil_nagios_sync),
+            trigger=IntervalTrigger(minutes=2),
+            id="vigilil_nagios_sync",
+            name="V.I.G.I.L.: Nagios Sync",
+            replace_existing=True,
+        )
+
+        self.scheduler.add_job(
+            with_app_context(self._vigilil_device_watcher),
+            trigger=IntervalTrigger(minutes=5),
+            id="vigilil_device_watcher",
+            name="V.I.G.I.L.: Device Watcher",
+            replace_existing=True,
+        )
+
+        self.scheduler.add_job(
+            with_app_context(self._vigilil_dns_anomaly),
+            trigger=IntervalTrigger(minutes=5),
+            id="vigilil_dns_anomaly",
+            name="V.I.G.I.L.: DNS Anomaly Detector",
+            replace_existing=True,
+        )
+
+        self.scheduler.add_job(
+            with_app_context(self._vigilil_log_health),
+            trigger=IntervalTrigger(minutes=15),
+            id="vigilil_log_health",
+            name="V.I.G.I.L.: Log Health Monitor",
+            replace_existing=True,
+        )
+
+        self.scheduler.add_job(
+            with_app_context(self._vigilil_daily_report),
+            trigger=CronTrigger(hour=6, minute=0),
+            id="vigilil_daily_report",
+            name="V.I.G.I.L.: Daily Bandwidth Reporter",
+            replace_existing=True,
+        )
+
+        self.scheduler.add_job(
+            with_app_context(self._vigilil_threat_responder),
+            trigger=IntervalTrigger(seconds=30),
+            id="vigilil_threat_responder",
+            name="V.I.G.I.L.: Threat Responder",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 64 jobs")
+        logger.info("Agent loop started with 72 jobs")
 
     def _update_stock_prices(self):
         """Job #27: Refresh cached stock prices, check price alerts, and auto-scan watchlist every 5 minutes."""
@@ -7056,6 +7122,275 @@ Respond with ONLY a JSON object (no markdown, no explanation):
 
         except Exception as e:
             logger.error("[SocialVideo] Publish job failed: %s", e)
+
+
+    # ── V.I.G.I.L. Handler Methods ──
+
+    def _vigilil_network_health(self):
+        """Check all security services are running. Auto-restart if down."""
+        try:
+            import subprocess
+            from platform_v2.tools.security_network.ntopng_service import NtopngService
+            from platform_v2.tools.security_network.nagios_service import NagiosService
+
+            issues = []
+
+            # Check ntopng
+            try:
+                nt = NtopngService()
+                if not nt.is_healthy():
+                    issues.append("ntopng is not responding")
+                    subprocess.run(["docker", "restart", "network_ntopng"], capture_output=True, timeout=30)
+            except Exception as e:
+                issues.append(f"ntopng check failed: {e}")
+
+            # Check Nagios
+            try:
+                ng = NagiosService()
+                if not ng.is_healthy():
+                    issues.append("Nagios is not responding")
+            except Exception as e:
+                issues.append(f"Nagios check failed: {e}")
+
+            # Check AdGuard
+            try:
+                result = subprocess.run(
+                    ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "http://network_adguard:80/control/status"],
+                    capture_output=True, text=True, timeout=5
+                )
+                if result.stdout.strip() != "200":
+                    issues.append("AdGuard is not responding")
+            except Exception as e:
+                issues.append(f"AdGuard check failed: {e}")
+
+            if issues:
+                self._create_network_alert(
+                    "service_down", "high", "health_monitor",
+                    f"Service issues detected: {len(issues)}", {"issues": issues}
+                )
+        except Exception as e:
+            logger.error(f"V.I.G.I.L. network health check failed: {e}")
+
+    def _vigilil_traffic_aggregator(self):
+        """Pull traffic data from ntopng and DNS stats from AdGuard into DB."""
+        try:
+            from platform_v2.tools.security_network.ntopng_service import NtopngService
+            from database import get_db_cursor
+            from datetime import datetime
+
+            nt = NtopngService()
+            hosts = nt.get_hosts()
+
+            if not hosts:
+                return
+
+            hour_bucket = datetime.now().replace(minute=0, second=0, microsecond=0)
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                for host in hosts:
+                    if isinstance(host, dict):
+                        cur.execute(
+                            """INSERT INTO network_traffic_stats (device_mac, device_ip, bytes_in, bytes_out, protocol, hour_bucket)
+                               VALUES (%s, %s, %s, %s, %s, %s)""",
+                            (
+                                host.get("mac", ""),
+                                host.get("ip", ""),
+                                host.get("bytes.rcvd", 0),
+                                host.get("bytes.sent", 0),
+                                host.get("l7proto", "unknown"),
+                                hour_bucket,
+                            ),
+                        )
+            logger.info(f"V.I.G.I.L.: Aggregated traffic for {len(hosts)} hosts")
+        except Exception as e:
+            logger.error(f"V.I.G.I.L. traffic aggregator failed: {e}")
+
+    def _vigilil_nagios_sync(self):
+        """Sync Nagios check results into local cache table."""
+        try:
+            from platform_v2.tools.security_network.nagios_service import NagiosService
+            from database import get_db_cursor
+
+            ng = NagiosService()
+            results = ng.get_all_for_cache()
+
+            if not results:
+                return
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                for r in results:
+                    cur.execute(
+                        """INSERT INTO nagios_check_results (host_name, service_description, status, output, performance_data, last_check, updated_at)
+                           VALUES (%s, %s, %s, %s, %s, to_timestamp(%s), NOW())
+                           ON CONFLICT (host_name, COALESCE(service_description, ''))
+                           DO UPDATE SET status = EXCLUDED.status, output = EXCLUDED.output,
+                                         performance_data = EXCLUDED.performance_data,
+                                         last_check = EXCLUDED.last_check, updated_at = NOW()""",
+                        (r["host_name"], r["service_description"], r["status"], r["output"], r["performance_data"], r["last_check"]),
+                    )
+            logger.info(f"V.I.G.I.L.: Synced {len(results)} Nagios check results")
+        except Exception as e:
+            logger.error(f"V.I.G.I.L. Nagios sync failed: {e}")
+
+    def _vigilil_device_watcher(self):
+        """Detect new/unknown devices on the network."""
+        try:
+            from platform_v2.tools.security_network.ntopng_service import NtopngService
+            from database import get_db_cursor
+
+            nt = NtopngService()
+            hosts = nt.get_hosts()
+
+            if not hosts:
+                return
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                for host in hosts:
+                    if not isinstance(host, dict):
+                        continue
+                    mac = host.get("mac", "")
+                    ip = host.get("ip", "")
+                    name = host.get("name", "")
+
+                    if not mac or mac == "00:00:00:00:00:00":
+                        continue
+
+                    cur.execute("SELECT id, is_registered FROM network_devices WHERE mac_address = %s", (mac,))
+                    row = cur.fetchone()
+
+                    if row is None:
+                        cur.execute(
+                            """INSERT INTO network_devices (mac_address, ip_address, hostname, security_zone, status, is_registered, first_seen_at, last_seen_at)
+                               VALUES (%s, %s, %s, 'quarantined', 'active', FALSE, NOW(), NOW())
+                               ON CONFLICT (mac_address) DO UPDATE SET last_seen_at = NOW(), ip_address = EXCLUDED.ip_address""",
+                            (mac, ip, name),
+                        )
+                        self._create_network_alert(
+                            "new_device", "medium", "device_watcher",
+                            f"New device detected: {name or mac} ({ip})",
+                            {"mac": mac, "ip": ip, "hostname": name},
+                        )
+                        logger.info(f"V.I.G.I.L.: New device detected — {mac} ({ip})")
+                    else:
+                        cur.execute(
+                            "UPDATE network_devices SET last_seen_at = NOW(), ip_address = %s WHERE mac_address = %s",
+                            (ip, mac),
+                        )
+        except Exception as e:
+            logger.error(f"V.I.G.I.L. device watcher failed: {e}")
+
+    def _vigilil_dns_anomaly(self):
+        """Check AdGuard for DNS anomalies — tunneling, tracking spikes."""
+        try:
+            from platform_v2.tools.security_network.adguard_service import AdGuardService
+
+            ag = AdGuardService()
+            stats = ag.get_stats()
+
+            total = stats.get("num_dns_queries", 0)
+            blocked = stats.get("num_blocked_filtering", 0)
+            if total > 100 and blocked / total > 0.5:
+                self._create_network_alert(
+                    "dns_anomaly", "medium", "dns_anomaly_detector",
+                    f"High DNS block rate: {blocked}/{total} ({blocked/total*100:.0f}%)",
+                    {"total_queries": total, "blocked": blocked, "block_rate": blocked / total},
+                )
+        except Exception as e:
+            logger.error(f"V.I.G.I.L. DNS anomaly detector failed: {e}")
+
+    def _vigilil_log_health(self):
+        """Check log file sizes — detect spam before disk fills."""
+        try:
+            import os
+
+            log_files = {
+                "/var/log/syslog": 500_000_000,
+                "/var/log/auth.log": 500_000_000,
+                "/var/log/kern.log": 500_000_000,
+                "/var/log/ufw.log": 200_000_000,
+            }
+
+            for path, threshold in log_files.items():
+                try:
+                    size = os.path.getsize(path)
+                    if size > threshold:
+                        size_mb = size / 1_000_000
+                        threshold_mb = threshold / 1_000_000
+                        self._create_network_alert(
+                            "log_overflow", "high", "log_health_monitor",
+                            f"Log file {path} is {size_mb:.0f}MB (threshold: {threshold_mb:.0f}MB)",
+                            {"file": path, "size_bytes": size, "threshold_bytes": threshold},
+                        )
+                        logger.warning(f"V.I.G.I.L.: Log file {path} is {size_mb:.0f}MB — exceeds threshold")
+                except FileNotFoundError:
+                    pass
+        except Exception as e:
+            logger.error(f"V.I.G.I.L. log health check failed: {e}")
+
+    def _vigilil_daily_report(self):
+        """Generate and deliver daily consumption reports."""
+        try:
+            from platform_v2.tools.security_network.report_service import ReportService
+
+            svc = ReportService()
+            device_report = svc.generate_daily_device_report()
+            user_report = svc.generate_daily_user_report()
+
+            total_bytes = device_report.get("total_bytes", 0)
+            total_devices = device_report.get("total_devices", 0)
+            total_users = user_report.get("total_users", 0)
+
+            logger.info(
+                f"V.I.G.I.L.: Daily report generated — "
+                f"{total_devices} devices, {total_users} users, "
+                f"{total_bytes / 1_000_000_000:.1f}GB total"
+            )
+            # TODO: Telegram + email delivery (future integration)
+        except Exception as e:
+            logger.error(f"V.I.G.I.L. daily report failed: {e}")
+
+    def _vigilil_threat_responder(self):
+        """Check for active threats and auto-respond."""
+        try:
+            from platform_v2.tools.security_network.fail2ban_service import Fail2banService
+            from database import get_db_cursor
+
+            f2b = Fail2banService()
+            jails = f2b.get_all_jail_statuses()
+
+            for jail in jails:
+                if jail.get("currently_banned", 0) > 0:
+                    for ip in jail.get("banned_ips", []):
+                        with get_db_cursor() as (conn, cur):
+                            cur.execute(
+                                """SELECT id FROM network_alerts
+                                   WHERE alert_type = 'ip_banned' AND source = 'threat_responder'
+                                   AND details->>'ip' = %s AND created_at > NOW() - INTERVAL '1 hour'""",
+                                (ip,),
+                            )
+                            if cur.fetchone() is None:
+                                self._create_network_alert(
+                                    "ip_banned", "high", "threat_responder",
+                                    f"IP {ip} banned by fail2ban jail {jail.get('jail', 'unknown')}",
+                                    {"ip": ip, "jail": jail.get("jail", ""), "total_banned": jail.get("total_banned", 0)},
+                                )
+        except Exception as e:
+            logger.error(f"V.I.G.I.L. threat responder failed: {e}")
+
+    def _create_network_alert(self, alert_type, severity, source, title, details=None):
+        """Helper to create a network alert in the DB."""
+        try:
+            from database import get_db_cursor
+            from psycopg2.extras import Json
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """INSERT INTO network_alerts (alert_type, severity, source, title, details)
+                       VALUES (%s, %s, %s, %s, %s)""",
+                    (alert_type, severity, source, title, Json(details or {})),
+                )
+        except Exception as e:
+            logger.error(f"Failed to create network alert: {e}")
 
 
 # ---------------------------------------------------------------------------

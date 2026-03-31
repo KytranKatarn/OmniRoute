@@ -1,0 +1,17 @@
+/* Security & Network Module — Theme Variable Overrides */
+.security-container {
+    --archie-accent: var(--archie-red);
+    --archie-accent-dim: var(--archie-red-dim);
+    --archie-accent-alpha-10: var(--archie-red-alpha-10);
+    --archie-accent-alpha-20: var(--archie-red-alpha-20);
+    --archie-accent-alpha-30: var(--archie-red-alpha-30);
+    --archie-glow-accent: var(--archie-glow-red);
+    --frame-color: #ef4444;
+    --frame-rgb: 239, 68, 68;
+    --lcars-accent-rgb: 239, 68, 68;
+}
+.security-container .lcars-frame,
+.security-container .lcars-frame * {
+    --frame-color: #ef4444;
+    --frame-rgb: 239, 68, 68;
+}

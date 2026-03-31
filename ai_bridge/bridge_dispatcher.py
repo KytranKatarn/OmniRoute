@@ -26,6 +26,22 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 from dataclasses import dataclass
 
+# Phase 2: Agent lifecycle delegated to agent_service
+try:
+    import sys
+    if "/mnt/archie_brain/platform_v2" not in sys.path:
+        sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+    from services.agent_service import (
+        transition_shift_state as svc_transition_shift_state,
+        find_replacement as svc_find_replacement,
+        increment_budget as svc_increment_budget,
+        update_welfare_after_task as svc_update_welfare_after_task,
+        check_shift_transitions as svc_check_shift_transitions,
+    )
+    _HAS_AGENT_SERVICE = True
+except ImportError:
+    _HAS_AGENT_SERVICE = False
+
 try:
     from ai_bridge.schemas.agent_schemas import validate_schema as _validate_handoff_schema
 except ImportError:
@@ -824,12 +840,15 @@ class BridgeDispatcher:
             try:
                 from psycopg2.extras import RealDictCursor as RDC2
 
-                conn2 = self._get_db()
-                cur2 = conn2.cursor(cursor_factory=RDC2)
-                self._check_shift_transitions(cur2)
-                conn2.commit()
-                cur2.close()
-                conn2.close()
+                if _HAS_AGENT_SERVICE:
+                    svc_check_shift_transitions()
+                else:
+                    conn2 = self._get_db()
+                    cur2 = conn2.cursor(cursor_factory=RDC2)
+                    self._check_shift_transitions(cur2)
+                    conn2.commit()
+                    cur2.close()
+                    conn2.close()
             except Exception as te:
                 logger.warning(
                     f"[BridgeDispatcher] Shift transition check failed: {te}"
@@ -2670,7 +2689,11 @@ class BridgeDispatcher:
             cur.close()
             conn.close()
             # After logging, update agent emotional state based on recent performance
-            self._update_agent_welfare(result.agent_id, result.success)
+            if _HAS_AGENT_SERVICE:
+                svc_update_welfare_after_task(result.agent_id, result.success)
+                self._welfare_cache_time = 0
+            else:
+                self._update_agent_welfare(result.agent_id, result.success)
             # Record agent memory from this task execution
             self._record_agent_memory(result, module_id)
         except Exception as e:
@@ -4794,10 +4817,16 @@ class BridgeDispatcher:
 
         # 6b. Increment agent budget tracking
         if result.success:
-            self._increment_agent_budget(
-                agent.get("id"),
-                tokens_used=result.prompt_tokens + result.completion_tokens,
-            )
+            if _HAS_AGENT_SERVICE:
+                svc_increment_budget(
+                    agent.get("id"),
+                    tokens_used=result.prompt_tokens + result.completion_tokens,
+                )
+            else:
+                self._increment_agent_budget(
+                    agent.get("id"),
+                    tokens_used=result.prompt_tokens + result.completion_tokens,
+                )
 
         return result
 
@@ -5530,7 +5559,10 @@ class BridgeDispatcher:
             # This makes _score_agent() see the load and eventually
             # block the agent / trigger escalation when limit is reached.
             if agent:
-                self._increment_agent_budget(agent.get("id"), tokens_used=0)
+                if _HAS_AGENT_SERVICE:
+                    svc_increment_budget(agent.get("id"), tokens_used=0)
+                else:
+                    self._increment_agent_budget(agent.get("id"), tokens_used=0)
 
             return job_id
         except Exception as e:

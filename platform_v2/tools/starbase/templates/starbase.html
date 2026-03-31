@@ -5,6 +5,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 {% endblock %}
 
 {% block module_name %}starbase{% endblock %}
@@ -35,7 +37,7 @@
                 <span class="status-value" id="system-status" data-i18n="bridge.status.online">Online</span>
             </div>
             <div class="bridge-status-item">
-                <span class="status-label" data-i18n="bridge.status.stations">Stations</span>
+                <span class="status-label">Fleet</span>
                 <span class="status-value" id="station-count">--</span>
             </div>
             <div class="bridge-status-item">
@@ -92,9 +94,9 @@
 
     <!-- Tab Navigation -->
     <nav class="bridge-tabs" id="bridgeTabs">
-        <button class="bridge-tab active" data-tab="stations" onclick="switchBridgeTab('stations')">
-            <i data-lucide="radio-tower"></i>
-            <span data-i18n="bridge.tabs.stations">Stations</span>
+        <button class="bridge-tab active" data-tab="fleet-map" onclick="switchBridgeTab('fleet-map')">
+            <i data-lucide="globe"></i>
+            <span>Fleet Map</span>
         </button>
         <button class="bridge-tab" data-tab="overview" onclick="switchBridgeTab('overview')">
             <i data-lucide="layout-dashboard"></i>
@@ -312,79 +314,45 @@
                 </div>
             </div>
 
-            <!-- Stations Tab Panel — Isometric Bridge Layout -->
-            <div class="bridge-tab-panel active" data-panel="stations">
-                <div class="iso-bridge-room" id="bridgeSpatialLayout">
-                    <!-- Warp-In Intro Overlay -->
-                    <div class="iso-warp-overlay" id="isoWarpOverlay">
-                        <div class="iso-warp-streak"></div>
-                        <div class="iso-warp-streak"></div>
-                        <div class="iso-warp-streak"></div>
-                        <div class="iso-warp-streak"></div>
-                        <div class="iso-warp-streak"></div>
-                        <div class="iso-warp-streak"></div>
-                        <div class="iso-warp-streak"></div>
-                        <div class="iso-warp-streak"></div>
-                        <div class="iso-warp-streak"></div>
-                        <div class="iso-warp-streak"></div>
-                        <div class="iso-warp-flash"></div>
-                        <div class="iso-warp-text"><span data-i18n="bridge.bridge_online">BRIDGE ONLINE</span></div>
+            <!-- Fleet Map Tab Panel -->
+            <div class="bridge-tab-panel active" data-panel="fleet-map">
+                <div class="fleet-map-container">
+                    <!-- Map Header -->
+                    <div class="fleet-map-header">
+                        <div class="fleet-map-title">
+                            <i data-lucide="globe"></i>
+                            <span>A.R.C.H.I.E. FLEET NETWORK</span>
+                        </div>
+                        <div class="fleet-map-stats" id="fleetMapStats">
+                            <span class="fleet-stat">
+                                <span class="fleet-stat-dot fleet-dot-hub"></span>
+                                <span id="fleetStatHub">Hub</span>
+                            </span>
+                            <span class="fleet-stat">
+                                <span class="fleet-stat-dot fleet-dot-node"></span>
+                                <span id="fleetStatNodes">-- nodes</span>
+                            </span>
+                            <span class="fleet-stat">
+                                <span class="fleet-stat-dot fleet-dot-provider"></span>
+                                <span id="fleetStatProviders">-- providers</span>
+                            </span>
+                        </div>
                     </div>
-                    <div class="iso-bridge-room-inner">
 
-                        <!-- Hull shell -->
-                        <div class="iso-bridge-hull">
-                            <div class="iso-bridge-floor-lines"></div>
-                            <div class="iso-wall-panel"></div>
-                            <div class="iso-wall-panel"></div>
-                            <div class="iso-wall-panel"></div>
-                            <div class="iso-wall-panel"></div>
-                            <div class="iso-wall-panel"></div>
-                            <div class="iso-wall-panel"></div>
-                            <div class="iso-wall-panel"></div>
-                            <div class="iso-wall-panel"></div>
+                    <!-- Leaflet Map -->
+                    <div id="fleetMap" class="fleet-map-canvas"></div>
+
+                    <!-- Detail Slide-out Panel -->
+                    <div class="fleet-detail-panel" id="fleetDetailPanel" style="display:none;">
+                        <div class="fleet-detail-header">
+                            <span id="fleetDetailTitle">--</span>
+                            <button class="fleet-detail-close" onclick="closeFleetDetail()">&times;</button>
                         </div>
-
-                        <!-- Center deck marker -->
-                        <div class="iso-bridge-center-marker"></div>
-
-                        <!-- Viewscreen (front of bridge) -->
-                        <div class="iso-viewscreen" id="bridgeViewscreen">
-                            <div class="bridge-viewscreen-header">
-                                <span data-i18n="bridge.viewscreen.title">Main Viewscreen</span>
-                            </div>
-                            <div class="bridge-viewscreen-feed" id="viewscreenFeed">
-                                <div class="bridge-viewscreen-empty" data-i18n="bridge.viewscreen.loading">Awaiting dispatch data...</div>
-                            </div>
-                            <div class="bridge-viewscreen-statusbar" id="viewscreenStatusbar">
-                                <span class="viewscreen-stat">
-                                    <span class="viewscreen-stat-dot"></span>
-                                    <span id="viewscreenThroughput">-- req/hr</span>
-                                </span>
-                                <span class="viewscreen-stat">
-                                    <span id="viewscreenSuccess">--% success</span>
-                                </span>
-                                <span class="viewscreen-stat">
-                                    <span id="viewscreenAgentCount">-- agents</span>
-                                </span>
-                            </div>
+                        <div class="fleet-detail-body" id="fleetDetailBody">
                         </div>
-
-                        <!-- Station Zones (rendered by JS) -->
-                        <div class="iso-stations-layer" id="bridgeSpatialStations">
-                        </div>
-
-                        <!-- SVG Dispatch Arc Overlay -->
-                        <svg class="bridge-dispatch-overlay" id="dispatchArcOverlay">
-                        </svg>
-
-                    </div><!-- /iso-bridge-room-inner -->
-                </div><!-- /iso-bridge-room -->
-
-                <!-- Active Operations Strip — compact zone status -->
-                <div class="bridge-ops-strip" id="bridgeOpsStrip"></div>
-
-            </div><!-- /stations panel -->
+                    </div>
+                </div>
+            </div><!-- /fleet-map panel -->
 
             <!-- Dispatch Tab Panel -->
             <div class="bridge-tab-panel" data-panel="dispatch">

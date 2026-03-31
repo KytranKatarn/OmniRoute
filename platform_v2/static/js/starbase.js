@@ -11873,3 +11873,209 @@ function saveProvider() {
         showToast('Failed to save provider', 'error');
     });
 }
+
+/* ============================================================
+   FLEET MAP — Phase 4 Agent Lifecycle Coordination
+   ============================================================ */
+
+var fleetMap = null;
+var fleetMarkers = [];
+
+function initFleetMap() {
+    if (fleetMap) return;
+    var el = document.getElementById('fleetMap');
+    if (!el) return;
+
+    fleetMap = L.map('fleetMap', {
+        center: [35, -40],
+        zoom: 3,
+        minZoom: 2,
+        maxZoom: 12,
+        zoomControl: true,
+        attributionControl: false,
+    });
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '',
+    }).addTo(fleetMap);
+
+    loadFleetData();
+}
+
+function loadFleetData() {
+    fetch('/tools/starbase/api/fleet-map')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.error) { console.error('Fleet map error:', data.error); return; }
+        renderFleetPins(data);
+        updateFleetStats(data);
+    })
+    .catch(function(e) {
+        console.error('Fleet map load failed:', e);
+    });
+}
+
+function renderFleetPins(data) {
+    fleetMarkers.forEach(function(m) { fleetMap.removeLayer(m); });
+    fleetMarkers = [];
+
+    if (data.hub) {
+        var hub = data.hub;
+        var marker = L.marker([hub.lat, hub.lon], {
+            icon: L.divIcon({
+                className: 'fleet-marker-hub',
+                html: '<i data-lucide="radio-tower" style="width:16px;height:16px;"></i>',
+                iconSize: [32, 32],
+                iconAnchor: [16, 16],
+            }),
+        }).addTo(fleetMap);
+        marker.bindPopup(buildFleetPopup('STARBASE HUB', [
+            ['Location', hub.city || 'Home Base'],
+            ['Status', '<span style="color:#10b981;">ONLINE</span>'],
+        ]), { className: 'fleet-popup' });
+        fleetMarkers.push(marker);
+    }
+
+    (data.nodes || []).forEach(function(node) {
+        if (!node.lat || !node.lon) return;
+        var isOnline = node.status === 'online';
+        var marker = L.marker([node.lat, node.lon], {
+            icon: L.divIcon({
+                className: 'fleet-marker-node ' + (isOnline ? '' : 'offline'),
+                html: '<i data-lucide="ship" style="width:14px;height:14px;"></i>',
+                iconSize: [24, 24],
+                iconAnchor: [12, 12],
+            }),
+        }).addTo(fleetMap);
+        marker.bindPopup(buildFleetPopup(node.node_name || node.hostname, [
+            ['Type', node.deployment_mode || 'starship'],
+            ['Status', isOnline ? '<span style="color:#10b981;">ONLINE</span>' : '<span style="color:#ef4444;">OFFLINE</span>'],
+            ['GPU', node.gpu_model || 'None'],
+            ['VRAM', node.gpu_vram_gb ? node.gpu_vram_gb + ' GB' : '--'],
+            ['RAM', node.ram_gb ? node.ram_gb + ' GB' : '--'],
+        ]), { className: 'fleet-popup' });
+        marker.on('click', function() { showNodeDetail(node); });
+        fleetMarkers.push(marker);
+    });
+
+    (data.providers || []).forEach(function(prov) {
+        if (!prov.lat || !prov.lon) return;
+        var marker = L.marker([prov.lat, prov.lon], {
+            icon: L.divIcon({
+                className: 'fleet-marker-provider ' + (prov.is_active ? '' : 'inactive'),
+                html: (prov.provider_key || '?').charAt(0).toUpperCase(),
+                iconSize: [22, 22],
+                iconAnchor: [11, 11],
+            }),
+        }).addTo(fleetMap);
+
+        var budgetStr = prov.monthly_budget_usd
+            ? '$' + (prov.current_month_cost_usd||0).toFixed(2) + ' / $' + prov.monthly_budget_usd.toFixed(2)
+            : 'No budget set';
+
+        marker.bindPopup(buildFleetPopup(prov.provider_key.toUpperCase(), [
+            ['City', prov.city || '--'],
+            ['Tier', prov.tier_position || '--'],
+            ['Budget', budgetStr],
+            ['Status', prov.is_active ? '<span style="color:#10b981;">ACTIVE</span>' : '<span style="color:#6b7280;">INACTIVE</span>'],
+        ]), { className: 'fleet-popup' });
+        fleetMarkers.push(marker);
+    });
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function buildFleetPopup(title, rows) {
+    var html = '<div class="fleet-popup-title">' + title + '</div>';
+    rows.forEach(function(row) {
+        html += '<div class="fleet-popup-row"><span class="fleet-popup-label">' + row[0] + '</span><span class="fleet-popup-value">' + row[1] + '</span></div>';
+    });
+    return html;
+}
+
+function updateFleetStats(data) {
+    var nodeCount = (data.nodes || []).filter(function(n) { return n.status === 'online'; }).length;
+    var provCount = (data.providers || []).filter(function(p) { return p.is_active; }).length;
+    var nodeEl = document.getElementById('fleetStatNodes');
+    var provEl = document.getElementById('fleetStatProviders');
+    if (nodeEl) nodeEl.textContent = nodeCount + ' node' + (nodeCount !== 1 ? 's' : '') + ' online';
+    if (provEl) provEl.textContent = provCount + ' provider' + (provCount !== 1 ? 's' : '') + ' active';
+}
+
+function showNodeDetail(node) {
+    var panel = document.getElementById('fleetDetailPanel');
+    var titleEl = document.getElementById('fleetDetailTitle');
+    var body = document.getElementById('fleetDetailBody');
+    if (!panel || !titleEl || !body) return;
+
+    titleEl.textContent = node.node_name || node.hostname;
+
+    // Build detail content using DOM methods (trusted server data)
+    body.textContent = '';
+    var sections = [
+        { title: 'Hardware', rows: [
+            ['GPU', node.gpu_model || 'None'],
+            ['VRAM', node.gpu_vram_gb ? node.gpu_vram_gb + ' GB' : '--'],
+            ['RAM', node.ram_gb ? node.ram_gb + ' GB' : '--'],
+            ['Region', node.region || '--']
+        ]},
+        { title: 'Network', rows: [
+            ['Hostname', node.hostname],
+            ['Mesh IP', node.mesh_ip || '--'],
+            ['Mode', node.deployment_mode || '--']
+        ]},
+        { title: 'Status', rows: [
+            ['Status', node.status],
+            ['Last Heartbeat', node.last_heartbeat || '--']
+        ]}
+    ];
+    sections.forEach(function(sec) {
+        var h = document.createElement('div');
+        h.className = 'detail-section-title';
+        h.textContent = sec.title;
+        body.appendChild(h);
+        sec.rows.forEach(function(r) {
+            var row = document.createElement('div');
+            row.className = 'detail-row';
+            var lbl = document.createElement('span');
+            lbl.className = 'detail-label';
+            lbl.textContent = r[0];
+            var val = document.createElement('span');
+            val.className = 'detail-value';
+            val.textContent = r[1];
+            row.appendChild(lbl);
+            row.appendChild(val);
+            body.appendChild(row);
+        });
+    });
+    panel.style.display = 'block';
+}
+
+function closeFleetDetail() {
+    var panel = document.getElementById('fleetDetailPanel');
+    if (panel) panel.style.display = 'none';
+}
+
+// Auto-init fleet map when tab becomes active
+(function() {
+    var _origSwitch = typeof switchBridgeTab === 'function' ? switchBridgeTab : null;
+    if (_origSwitch) {
+        switchBridgeTab = function(tab) {
+            _origSwitch(tab);
+            if (tab === 'fleet-map') {
+                setTimeout(function() {
+                    initFleetMap();
+                    if (fleetMap) fleetMap.invalidateSize();
+                }, 100);
+            }
+        };
+    }
+})();
+
+// Init if fleet-map is the default active tab
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(function() {
+        var activePanel = document.querySelector('.bridge-tab-panel.active[data-panel="fleet-map"]');
+        if (activePanel) initFleetMap();
+    }, 500);
+});

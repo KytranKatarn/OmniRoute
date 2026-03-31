@@ -3270,6 +3270,15 @@ if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
         except Exception as e:
             logger.error("[Startup] JobService failed to initialize: %s", e)
 
+        # Phase 5: Bridge agent_loop jobs into job_service
+        try:
+            from services.agent_loop_bridge import bridge_agent_loop_to_job_service
+
+            _bridged = bridge_agent_loop_to_job_service(_scheduler, _job_service)
+            logger.info("[Startup] Bridged %d agent_loop jobs to JobService", _bridged)
+        except Exception as e:
+            logger.error("[Startup] AgentLoop bridge failed: %s", e)
+
         # Initialize Telegram Gateway (Project Autonomy Phase 3)
         _tg_token = os.getenv("TELEGRAM_BOT_TOKEN")
         if _tg_token:

@@ -3,9 +3,12 @@
 {% block title %}My Profile - A.R.C.H.I.E.{% endblock %}
 {% block module_name %}my-profile{% endblock %}
 
-{% block styles %}
+{% block extra_head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-frames.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-panels.css') }}">
+{% endblock %}
+
+{% block styles %}
 <style>
     /* ── Profile Module — LCARS Frame Design ─────────────── */
     .profile-container {

@@ -3,7 +3,7 @@
 {% block title %}{{ sysops_theme.product_name if sysops_theme else 'System Operations' }} - A.R.C.H.I.E.{% endblock %}
 {% block module_name %}system-operations{% endblock %}
 
-{% block styles %}
+{% block extra_head %}
 <link rel="stylesheet" href="/static/css/system-operations-theme-vars.css">
 {% if sysops_theme and sysops_theme.custom_css %}
 <link rel="stylesheet" href="{{ sysops_theme.custom_css }}">

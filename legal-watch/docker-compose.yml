@@ -5,6 +5,12 @@ services:
     restart: unless-stopped
     ports:
       - "8100:8080"
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-dev-secret}
+      - KYTRAN_CLIENT_ID=${KYTRAN_CLIENT_ID:-legal-watch}
+      - KYTRAN_CLIENT_SECRET=${KYTRAN_CLIENT_SECRET:-}
+      - KYTRAN_AUTH_URL=${KYTRAN_AUTH_URL:-http://192.168.1.200:3000}
+      - KYTRAN_REDIRECT_URI=${KYTRAN_REDIRECT_URI:-http://192.168.1.200:8100/auth/kytran/callback}
     volumes:
       - legal_data:/app/data
       - ./static:/app/static:ro

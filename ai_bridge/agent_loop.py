@@ -2706,7 +2706,7 @@ class AgentLoop:
                 headers["Authorization"] = f"Bearer {service_token}"
 
             resp = requests.post(
-                "http://kytran_market_api:8080/api/trading/run-cycle",
+                "http://host.docker.internal:8101/api/trading/run-cycle",
                 json={"source": "archie_dispatch", "dispatch_id": f"autonomy_{id(self)}"},
                 headers=headers,
                 timeout=600,

@@ -77,6 +77,102 @@ def register_traffic_routes(bp, admin_required_decorator):
             logger.error("traffic_protocols error: %s", exc)
             return jsonify({"success": False, "error": str(exc)}), 500
 
+    # ── Streaming / service detection categories ──
+    SERVICE_PATTERNS = {
+        "Netflix": ["netflix", "nflx"],
+        "YouTube": ["youtube", "googlevideo", "ytimg", "youtu.be"],
+        "Disney+": ["disney", "bamgrid", "dssott"],
+        "Amazon Video": ["primevideo", "amazonvideo", "aiv-cdn"],
+        "Twitch": ["twitch", "jtvnw"],
+        "Spotify": ["spotify", "scdn"],
+        "TikTok": ["tiktok", "tiktokcdn", "musical.ly"],
+        "Instagram": ["instagram", "cdninstagram"],
+        "Facebook": ["facebook", "fbcdn"],
+        "Gaming": ["epicgames", "steampowered", "playstation", "xbox.com", "riotgames", "valve"],
+        "Apple": ["apple.com", "icloud", "mzstatic"],
+        "Microsoft": ["microsoft", "windows.com", "office", "live.com", "bing.com"],
+        "Google": ["google.com", "googleapis", "gstatic"],
+        "Snapchat": ["snapchat", "snap-storage"],
+        "Porn": ["pornhub", "xvideos", "xhamster", "xnxx", "redtube", "youporn", "brazzers", "onlyfans"],
+    }
+
+    def _classify_domain(domain):
+        """Classify a domain into a service category."""
+        dl = domain.lower()
+        for service, patterns in SERVICE_PATTERNS.items():
+            if any(p in dl for p in patterns):
+                return service
+        return None
+
+    @bp.route("/api/traffic/activity")
+    @login_required
+    @admin_required_decorator
+    def traffic_activity():
+        """Per-client DNS activity with streaming/service detection from AdGuard."""
+        limit = request.args.get("limit", 5000, type=int)
+        client_ip = request.args.get("client")
+        try:
+            from .adguard_service import AdGuardService
+
+            ag = AdGuardService()
+
+            # Get query log via AdGuardService
+            ql = (
+                ag.get_query_log(
+                    limit=min(limit, 5000),
+                    search=client_ip,
+                )
+                or {}
+            )
+            entries = ql.get("data", [])
+
+            # Aggregate per client
+            clients = {}
+            for entry in entries:
+                ip = entry.get("client", "")
+                domain = entry.get("question", {}).get("name", "").lower().rstrip(".")
+                blocked = entry.get("reason", "") != ""
+
+                if ip not in clients:
+                    clients[ip] = {
+                        "ip": ip,
+                        "total_queries": 0,
+                        "blocked": 0,
+                        "services": {},
+                        "top_domains": {},
+                    }
+                c = clients[ip]
+                c["total_queries"] += 1
+                if blocked:
+                    c["blocked"] += 1
+
+                # Classify
+                service = _classify_domain(domain)
+                if service:
+                    c["services"][service] = c["services"].get(service, 0) + 1
+
+                # Track top domains
+                c["top_domains"][domain] = c["top_domains"].get(domain, 0) + 1
+
+            # Build response with top 10 domains per client
+            result = []
+            for ip, c in sorted(clients.items(), key=lambda x: -x[1]["total_queries"]):
+                top = sorted(c["top_domains"].items(), key=lambda x: -x[1])[:10]
+                result.append(
+                    {
+                        "ip": c["ip"],
+                        "total_queries": c["total_queries"],
+                        "blocked": c["blocked"],
+                        "services": c["services"],
+                        "top_domains": [{"domain": d, "count": n} for d, n in top],
+                    }
+                )
+
+            return jsonify({"success": True, "clients": result, "query_count": len(entries)})
+        except Exception as exc:
+            logger.error("traffic_activity error: %s", exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
     @bp.route("/api/traffic/history")
     @login_required
     @admin_required_decorator

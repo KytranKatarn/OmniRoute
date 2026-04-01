@@ -353,34 +353,100 @@ function _renderNocActivity(alerts) {
 ═══════════════════════════════════════════════════ */
 
 function loadTraffic() {
-    snApi('/traffic/bandwidth').then(function(d) {
+    /* Per-client activity from AdGuard DNS — primary data source */
+    snApi('/traffic/activity?limit=5000').then(function(d) {
         if (!d.success) return;
-        var bw = d.bandwidth || {};
-        snSetText('traffic-bytes-in', formatBytes(bw.bytes_rcvd || bw.bytes || 0));
-        snSetText('traffic-bytes-out', formatBytes(bw.bytes_sent || 0));
-        snSetText('traffic-pkts', formatNum(bw.packets || 0));
-        snSetText('traffic-iface', bw.name || bw.ifname || 'eth0');
-        _renderBandwidthBar(bw);
-    }).catch(function() {});
+        var clients = d.clients || [];
+        _renderClientActivity(clients);
+        _renderServiceBreakdown(clients);
 
-    snApi('/traffic/hosts').then(function(d) {
-        if (!d.success) return;
-        var hosts = d.hosts || [];
-        var container = document.getElementById('traffic-hosts-table');
-        if (!container) return;
-        if (!hosts.length) { snShowEmpty(container, 'No active hosts'); return; }
-        var rows = hosts.slice(0, 50).map(function(h) {
-            var typeBadge = snCreateBadge(h.local_host ? 'Local' : 'External', h.local_host ? 'info' : 'secondary');
-            return [h.ip_address || h.ip || '-', h.name || h.hostname || '-', formatBytes(h.bytes_sent || 0), formatBytes(h.bytes_rcvd || 0), typeBadge];
+        /* Update hero stats from activity data */
+        var totalQueries = 0, totalBlocked = 0;
+        clients.forEach(function(c) { totalQueries += c.total_queries || 0; totalBlocked += c.blocked || 0; });
+        snSetText('traffic-bytes-in', formatNum(totalQueries) + ' queries');
+        snSetText('traffic-bytes-out', formatNum(totalBlocked) + ' blocked');
+        snSetText('traffic-pkts', formatNum(clients.length));
+        snSetText('traffic-iface', d.query_count + ' log entries');
+
+        /* Render bandwidth bar as queries vs blocked */
+        var total = totalQueries || 1;
+        var pctClean = Math.round((totalQueries - totalBlocked) / total * 100);
+        _renderBandwidthBar({ bytes_rcvd: totalQueries - totalBlocked, bytes_sent: totalBlocked, _labelIn: 'Clean: ' + formatNum(totalQueries - totalBlocked), _labelOut: 'Blocked: ' + formatNum(totalBlocked) });
+    }).catch(function(e) {
+        snShowEmpty(document.getElementById('traffic-hosts-table'), 'Failed to load activity');
+    });
+}
+
+function _renderClientActivity(clients) {
+    var container = document.getElementById('traffic-hosts-table');
+    if (!container || !clients.length) return;
+    container.textContent = '';
+
+    var rows = clients.map(function(c) {
+        var svcs = Object.keys(c.services || {}).sort(function(a, b) {
+            return (c.services[b] || 0) - (c.services[a] || 0);
+        }).slice(0, 4);
+        var svcText = svcs.length ? svcs.join(', ') : 'general';
+        var svcBadges = document.createElement('span');
+        svcs.forEach(function(s) {
+            var b = document.createElement('span');
+            b.textContent = s;
+            b.className = 'badge badge-info';
+            b.style.cssText = 'margin-right:4px;font-size:0.7rem;';
+            svcBadges.appendChild(b);
         });
-        container.textContent = '';
-        container.appendChild(snBuildTable(['IP', 'Hostname', 'Bytes Sent', 'Bytes Rcvd', 'Type'], rows));
-    }).catch(function() {});
+        if (!svcs.length) { svcBadges.textContent = 'general'; svcBadges.style.color = '#666'; }
+        return [c.ip, formatNum(c.total_queries), formatNum(c.blocked), svcBadges];
+    });
 
-    snApi('/traffic/protocols').then(function(d) {
-        if (!d.success) return;
-        _renderProtocolBreakdown(d.protocols || []);
-    }).catch(function() {});
+    var headers = ['Client IP', 'DNS Queries', 'Blocked', 'Services Detected'];
+    container.appendChild(snBuildTable(headers, rows));
+}
+
+function _renderServiceBreakdown(clients) {
+    var container = document.getElementById('traffic-protocols');
+    if (!container) return;
+    container.textContent = '';
+
+    /* Aggregate services across all clients */
+    var totals = {};
+    clients.forEach(function(c) {
+        Object.keys(c.services || {}).forEach(function(s) {
+            totals[s] = (totals[s] || 0) + c.services[s];
+        });
+    });
+
+    var sorted = Object.entries(totals).sort(function(a, b) { return b[1] - a[1]; });
+    if (!sorted.length) { snShowEmpty(container, 'No service activity detected'); return; }
+
+    var maxVal = sorted[0][1] || 1;
+    sorted.slice(0, 15).forEach(function(pair) {
+        var name = pair[0], count = pair[1];
+        var pct = Math.round(count / maxVal * 100);
+        var row = document.createElement('div');
+        row.className = 'sn-proto-row';
+
+        var label = document.createElement('span');
+        label.className = 'sn-proto-name';
+        label.textContent = name;
+        row.appendChild(label);
+
+        var track = document.createElement('div');
+        track.className = 'sn-proto-track';
+        var fill = document.createElement('div');
+        fill.className = 'sn-proto-fill';
+        fill.style.width = pct + '%';
+        if (name === 'Porn') fill.style.background = '#ef4444';
+        track.appendChild(fill);
+        row.appendChild(track);
+
+        var val = document.createElement('span');
+        val.className = 'sn-proto-val';
+        val.textContent = formatNum(count);
+        row.appendChild(val);
+
+        container.appendChild(row);
+    });
 }
 
 function _renderBandwidthBar(bw) {
@@ -391,9 +457,9 @@ function _renderBandwidthBar(bw) {
     var labelRow = document.createElement('div');
     labelRow.className = 'sn-bw-label';
     var inLabel = document.createElement('span');
-    inLabel.textContent = 'IN: ' + formatBytes(bw.bytes_rcvd || 0);
+    inLabel.textContent = bw._labelIn || ('IN: ' + formatBytes(bw.bytes_rcvd || 0));
     var outLabel = document.createElement('span');
-    outLabel.textContent = 'OUT: ' + formatBytes(bw.bytes_sent || 0);
+    outLabel.textContent = bw._labelOut || ('OUT: ' + formatBytes(bw.bytes_sent || 0));
     labelRow.appendChild(inLabel);
     labelRow.appendChild(outLabel);
     bar.appendChild(labelRow);

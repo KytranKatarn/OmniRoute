@@ -219,19 +219,19 @@
         <div class="traffic-hero-grid">
             <div class="traffic-hero-card">
                 <div class="traffic-hero-val" id="traffic-bytes-in">--</div>
-                <div class="traffic-hero-label">Bytes In</div>
+                <div class="traffic-hero-label">DNS Queries</div>
             </div>
             <div class="traffic-hero-card">
                 <div class="traffic-hero-val" id="traffic-bytes-out">--</div>
-                <div class="traffic-hero-label">Bytes Out</div>
+                <div class="traffic-hero-label">Blocked</div>
             </div>
             <div class="traffic-hero-card">
                 <div class="traffic-hero-val" id="traffic-pkts">--</div>
-                <div class="traffic-hero-label">Packets</div>
+                <div class="traffic-hero-label">Active Clients</div>
             </div>
             <div class="traffic-hero-card">
                 <div class="traffic-hero-val" id="traffic-iface">--</div>
-                <div class="traffic-hero-label">Interface</div>
+                <div class="traffic-hero-label">Log Entries</div>
             </div>
         </div>
 
@@ -248,22 +248,22 @@
             </div>
         </div>
 
-        <!-- Hosts Table + Protocol Breakdown -->
+        <!-- Per-Client Activity + Service Detection -->
         <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px">
             <div class="card">
                 <div class="card-header">
-                    <span class="card-title">Active Hosts</span>
+                    <span class="card-title">Client Activity (DNS)</span>
                 </div>
                 <div id="traffic-hosts-table" style="overflow-x:auto">
-                    <div class="loading-state"><span class="spinner"></span> Loading...</div>
+                    <div class="loading-state"><span class="spinner"></span> Loading activity...</div>
                 </div>
             </div>
             <div class="card">
                 <div class="card-header">
-                    <span class="card-title">Top Protocols</span>
+                    <span class="card-title">Services Detected</span>
                 </div>
                 <div id="traffic-protocols">
-                    <div class="loading-state"><span class="spinner"></span> Loading...</div>
+                    <div class="loading-state"><span class="spinner"></span> Loading services...</div>
                 </div>
             </div>
         </div>

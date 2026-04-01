@@ -707,6 +707,32 @@ def list_reports() -> List[Dict[str, Any]]:
 class ReportService:
     """Generates and stores daily network usage reports in network_daily_reports."""
 
+    SERVICE_PATTERNS = {
+        "Netflix": ["netflix", "nflx"],
+        "YouTube": ["youtube", "googlevideo", "ytimg"],
+        "Disney+": ["disney", "bamgrid", "dssott"],
+        "Amazon Video": ["primevideo", "amazonvideo"],
+        "Twitch": ["twitch", "jtvnw"],
+        "Spotify": ["spotify", "scdn"],
+        "TikTok": ["tiktok", "tiktokcdn"],
+        "Instagram": ["instagram", "cdninstagram"],
+        "Facebook": ["facebook", "fbcdn"],
+        "Gaming": ["epicgames", "steampowered", "playstation", "xbox.com"],
+        "Porn": ["pornhub", "xvideos", "xhamster", "xnxx", "redtube", "youporn", "onlyfans"],
+    }
+
+    def _detect_services_for_client(self, client_ip, ag):
+        """Query AdGuard log for a client and detect streaming services."""
+        ql = ag.get_query_log(limit=1000, search=client_ip) or {}
+        entries = ql.get("data", [])
+        services = {}
+        for e in entries:
+            domain = e.get("question", {}).get("name", "").lower()
+            for svc, patterns in self.SERVICE_PATTERNS.items():
+                if any(p in domain for p in patterns):
+                    services[svc] = services.get(svc, 0) + 1
+        return services
+
     def generate_daily_device_report(self, report_date=None):
         """Generate a daily per-device DNS activity report from AdGuard + DB data."""
         from datetime import date as _date
@@ -763,12 +789,14 @@ class ReportService:
                         )
                         row = cur.fetchone()
                         if row:
-                            client["mac_address"] = row[0]
-                            client["hostname"] = row[1]
-                            client["friendly_name"] = row[2]
-                            client["manufacturer"] = row[3]
-                            client["user_name"] = row[4]
-                            client["device_label"] = row[5]
+                            client["mac_address"] = row["mac_address"]
+                            client["hostname"] = row["hostname"]
+                            client["friendly_name"] = row["friendly_name"]
+                            client["manufacturer"] = row["manufacturer"]
+                            client["user_name"] = row["user_name"]
+                            client["device_label"] = row["device_label"]
+                        # Detect streaming services for this client
+                        client["services"] = self._detect_services_for_client(ip, ag)
                         data["devices"].append(client)
             except Exception:
                 data["devices"] = clients

@@ -1396,9 +1396,27 @@ def api_list_reports():
 def api_generate_report():
     """Generate a security report and store in DB"""
     from database import get_db_cursor
+    from psycopg2.extras import Json
 
     data = request.get_json() or {}
-    report_type = data.get("report_type", "daily_summary")
+
+    # Handle daily_device / daily_user reports via ReportService
+    report_type = data.get("type") or data.get("report_type", "daily_summary")
+    if report_type in ("daily_device", "daily_user"):
+        try:
+            from .report_service import ReportService
+
+            svc = ReportService()
+            report_date = data.get("date")
+            if report_type == "daily_device":
+                result = svc.generate_daily_device_report(report_date)
+            else:
+                result = svc.generate_daily_user_report(report_date)
+            return jsonify({"success": True, "data": result})
+        except Exception as e:
+            logger.exception("Report generation error: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
     date_start = data.get("date_start")
     date_end = data.get("date_end")
 

@@ -708,15 +708,7 @@ class ReportService:
     """Generates and stores daily network usage reports in network_daily_reports."""
 
     def generate_daily_device_report(self, report_date=None):
-        """
-        Generate a daily per-device traffic report.
-
-        Args:
-            report_date: date object or 'YYYY-MM-DD' string. Defaults to today.
-
-        Returns:
-            dict with report summary.
-        """
+        """Generate a daily per-device DNS activity report from AdGuard + DB data."""
         from datetime import date as _date
 
         if report_date is None:
@@ -726,58 +718,68 @@ class ReportService:
 
         data: Dict[str, Any] = {"report_date": str(report_date), "devices": []}
 
+        # Pull per-client DNS stats from AdGuard
         try:
-            with get_db_cursor() as (conn, cur):
-                cur.execute(
-                    """
-                    SELECT
-                        nts.device_mac,
-                        nts.device_ip,
-                        ndu.user_name,
-                        ndu.device_label,
-                        ndu.device_type,
-                        SUM(nts.bytes_sent)  AS bytes_sent,
-                        SUM(nts.bytes_recv)  AS bytes_recv,
-                        SUM(nts.bytes_sent + nts.bytes_recv) AS bytes_total
-                    FROM network_traffic_stats nts
-                    LEFT JOIN network_device_users ndu ON ndu.mac_address = nts.device_mac
-                    WHERE DATE(nts.recorded_at) = %s
-                    GROUP BY nts.device_mac, nts.device_ip,
-                             ndu.user_name, ndu.device_label, ndu.device_type
-                    ORDER BY bytes_total DESC
-                    """,
-                    (report_date,),
-                )
-                for row in cur.fetchall():
-                    data["devices"].append(
-                        {
-                            "device_mac": row[0],
-                            "device_ip": row[1],
-                            "user_name": row[2],
-                            "device_label": row[3],
-                            "device_type": row[4],
-                            "bytes_sent": int(row[5] or 0),
-                            "bytes_recv": int(row[6] or 0),
-                            "bytes_total": int(row[7] or 0),
-                        }
-                    )
+            from .adguard_service import AdGuardService
+
+            ag = AdGuardService()
+            stats = ag.get_stats() or {}
+
+            # Top clients with query counts
+            clients = []
+            for client in stats.get("top_clients", []):
+                for ip, count in client.items():
+                    clients.append({"device_ip": ip, "dns_queries": count})
+
+            # Top queried domains (for the report)
+            top_domains = []
+            for domain in stats.get("top_queried_domains", [])[:20]:
+                for name, count in domain.items():
+                    top_domains.append({"domain": name, "queries": count})
+
+            # Top blocked domains
+            top_blocked = []
+            for domain in stats.get("top_blocked_domains", [])[:20]:
+                for name, count in domain.items():
+                    top_blocked.append({"domain": name, "blocked": count})
+
+            data["top_queried_domains"] = top_domains
+            data["top_blocked_domains"] = top_blocked
+            data["total_dns_queries"] = stats.get("num_dns_queries", 0)
+            data["total_blocked"] = stats.get("num_blocked_filtering", 0)
+
+            # Enrich clients with device info from DB
+            try:
+                with get_db_cursor() as (conn, cur):
+                    for client in clients:
+                        ip = client["device_ip"]
+                        cur.execute(
+                            """SELECT nd.mac_address, nd.hostname, nd.friendly_name,
+                                      nd.manufacturer, ndu.user_name, ndu.device_label
+                               FROM network_devices nd
+                               LEFT JOIN network_device_users ndu ON ndu.mac_address = nd.mac_address
+                               WHERE nd.ip_address = %s LIMIT 1""",
+                            (ip,),
+                        )
+                        row = cur.fetchone()
+                        if row:
+                            client["mac_address"] = row[0]
+                            client["hostname"] = row[1]
+                            client["friendly_name"] = row[2]
+                            client["manufacturer"] = row[3]
+                            client["user_name"] = row[4]
+                            client["device_label"] = row[5]
+                        data["devices"].append(client)
+            except Exception:
+                data["devices"] = clients
         except Exception as exc:
             data["error"] = str(exc)
 
         data["total_devices"] = len(data["devices"])
-        data["total_bytes"] = sum(d["bytes_total"] for d in data["devices"])
         return self._store_report(report_date, "daily_device", data)
 
     def generate_daily_user_report(self, report_date=None):
-        """
-        Generate a daily per-user traffic report grouped by user name.
-
-        Args:
-            report_date: date object or 'YYYY-MM-DD' string. Defaults to today.
-
-        Returns:
-            dict with report summary.
-        """
+        """Generate a daily per-user DNS activity report grouped by assigned user."""
         from datetime import date as _date
 
         if report_date is None:
@@ -788,77 +790,83 @@ class ReportService:
         data: Dict[str, Any] = {"report_date": str(report_date), "users": []}
 
         try:
-            with get_db_cursor() as (conn, cur):
-                cur.execute(
-                    """
-                    SELECT
-                        COALESCE(ndu.user_name, 'Unknown') AS user_name,
-                        COUNT(DISTINCT nts.device_mac) AS device_count,
-                        SUM(nts.bytes_sent)  AS bytes_sent,
-                        SUM(nts.bytes_recv)  AS bytes_recv,
-                        SUM(nts.bytes_sent + nts.bytes_recv) AS bytes_total
-                    FROM network_traffic_stats nts
-                    LEFT JOIN network_device_users ndu ON ndu.mac_address = nts.device_mac
-                    WHERE DATE(nts.recorded_at) = %s
-                    GROUP BY COALESCE(ndu.user_name, 'Unknown')
-                    ORDER BY bytes_total DESC
-                    """,
-                    (report_date,),
-                )
-                for row in cur.fetchall():
-                    data["users"].append(
-                        {
-                            "user_name": row[0],
-                            "device_count": int(row[1] or 0),
-                            "bytes_sent": int(row[2] or 0),
-                            "bytes_recv": int(row[3] or 0),
-                            "bytes_total": int(row[4] or 0),
-                        }
+            from .adguard_service import AdGuardService
+
+            ag = AdGuardService()
+            stats = ag.get_stats() or {}
+
+            # Get per-client DNS data
+            client_queries = {}
+            for client in stats.get("top_clients", []):
+                for ip, count in client.items():
+                    client_queries[ip] = count
+
+            # Group by user from device_users table
+            user_map = {}  # user_name -> {queries, devices}
+            try:
+                with get_db_cursor() as (conn, cur):
+                    cur.execute(
+                        """SELECT ndu.user_name, nd.ip_address, ndu.device_label
+                           FROM network_device_users ndu
+                           JOIN network_devices nd ON nd.mac_address = ndu.mac_address
+                           WHERE nd.ip_address IS NOT NULL"""
                     )
+                    for row in cur.fetchall():
+                        user, ip, label = row[0], row[1], row[2]
+                        if user not in user_map:
+                            user_map[user] = {"dns_queries": 0, "devices": [], "device_count": 0}
+                        queries = client_queries.pop(ip, 0)
+                        user_map[user]["dns_queries"] += queries
+                        user_map[user]["devices"].append({"ip": ip, "label": label, "queries": queries})
+                        user_map[user]["device_count"] += 1
+            except Exception:
+                pass
+
+            # Remaining unassigned clients
+            if client_queries:
+                unassigned = {"dns_queries": 0, "devices": [], "device_count": 0}
+                for ip, count in client_queries.items():
+                    unassigned["dns_queries"] += count
+                    unassigned["devices"].append({"ip": ip, "label": "", "queries": count})
+                    unassigned["device_count"] += 1
+                user_map["Unassigned"] = unassigned
+
+            for user_name, info in sorted(user_map.items(), key=lambda x: -x[1]["dns_queries"]):
+                data["users"].append({"user_name": user_name, **info})
+
+            data["total_dns_queries"] = stats.get("num_dns_queries", 0)
+            data["total_blocked"] = stats.get("num_blocked_filtering", 0)
         except Exception as exc:
             data["error"] = str(exc)
 
         data["total_users"] = len(data["users"])
-        data["total_bytes"] = sum(u["bytes_total"] for u in data["users"])
         return self._store_report(report_date, "daily_user", data)
 
     def _store_report(self, report_date, report_type, data):
-        """
-        Upsert a report into network_daily_reports.
-
-        Returns:
-            dict with id, report_type, report_date, data.
-        """
+        """Store a report into network_daily_reports and return the full data."""
+        import json as _json
         import psycopg2.extras
 
         try:
+            clean = _json.loads(_json.dumps(data, default=str))
             with get_db_cursor(commit=True) as (conn, cur):
                 cur.execute(
-                    """
-                    INSERT INTO network_daily_reports (report_date, report_type, data, generated_at)
-                    VALUES (%s, %s, %s, NOW())
-                    ON CONFLICT (report_date, report_type)
-                    DO UPDATE SET data = EXCLUDED.data, generated_at = NOW()
-                    RETURNING id
-                    """,
-                    (report_date, report_type, psycopg2.extras.Json(data)),
+                    """INSERT INTO network_daily_reports
+                       (report_date, report_type, data_json, created_at)
+                       VALUES (%s, %s, %s, NOW())
+                       RETURNING id""",
+                    (str(report_date), report_type, psycopg2.extras.Json(clean)),
                 )
                 row = cur.fetchone()
-                report_id = row[0] if row else None
-            return {
-                "success": True,
-                "id": report_id,
-                "report_type": report_type,
-                "report_date": str(report_date),
-                "data": data,
-            }
+                data["report_id"] = row["id"] if isinstance(row, dict) else row[0]
         except Exception as exc:
-            return {
-                "success": False,
-                "error": str(exc),
-                "report_type": report_type,
-                "report_date": str(report_date),
-            }
+            import logging
+            import traceback
+
+            logging.getLogger(__name__).error("_store_report failed: %s\n%s", exc, traceback.format_exc())
+            data["store_error"] = repr(exc)
+
+        return data
 
     def get_reports(self, report_type=None, limit=50):
         """List stored daily reports (metadata only)."""
@@ -866,31 +874,28 @@ class ReportService:
             with get_db_cursor() as (conn, cur):
                 if report_type:
                     cur.execute(
-                        """
-                        SELECT id, report_date, report_type, generated_at
-                        FROM network_daily_reports
-                        WHERE report_type = %s
-                        ORDER BY report_date DESC LIMIT %s
-                        """,
+                        """SELECT id, report_date, report_type, created_at
+                           FROM network_daily_reports
+                           WHERE report_type = %s
+                           ORDER BY report_date DESC LIMIT %s""",
                         (report_type, limit),
                     )
                 else:
                     cur.execute(
-                        """
-                        SELECT id, report_date, report_type, generated_at
-                        FROM network_daily_reports
-                        ORDER BY report_date DESC LIMIT %s
-                        """,
+                        """SELECT id, report_date, report_type, created_at
+                           FROM network_daily_reports
+                           ORDER BY report_date DESC LIMIT %s""",
                         (limit,),
                     )
+                rows = cur.fetchall()
                 return [
                     {
-                        "id": row[0],
-                        "report_date": str(row[1]) if row[1] else None,
-                        "report_type": row[2],
-                        "generated_at": row[3].isoformat() if row[3] else None,
+                        "id": r["id"],
+                        "report_date": str(r["report_date"]) if r["report_date"] else None,
+                        "report_type": r["report_type"],
+                        "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
                     }
-                    for row in cur.fetchall()
+                    for r in rows
                 ]
         except Exception:
             return []
@@ -901,7 +906,7 @@ class ReportService:
             with get_db_cursor() as (conn, cur):
                 cur.execute(
                     """
-                    SELECT id, report_date, report_type, data, generated_at
+                    SELECT id, report_date, report_type, data_json, created_at
                     FROM network_daily_reports WHERE id = %s
                     """,
                     (report_id,),
@@ -910,11 +915,11 @@ class ReportService:
                 if not row:
                     return None
                 return {
-                    "id": row[0],
-                    "report_date": str(row[1]) if row[1] else None,
-                    "report_type": row[2],
-                    "data": row[3],
-                    "generated_at": row[4].isoformat() if row[4] else None,
+                    "id": row["id"],
+                    "report_date": str(row["report_date"]) if row["report_date"] else None,
+                    "report_type": row["report_type"],
+                    "data": row["data_json"],
+                    "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
                 }
         except Exception:
             return None

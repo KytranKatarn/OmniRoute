@@ -174,6 +174,10 @@ function switchSecurityTab(tabName) {
     if (panel) panel.classList.add('active');
     _activeTab = tabName;
 
+    /* scroll to top of tab content */
+    if (panel) panel.scrollIntoView({ behavior: 'instant', block: 'start' });
+    window.scrollTo(0, 0);
+
     /* load data for tab */
     switch (tabName) {
         case 'overview':
@@ -560,13 +564,15 @@ function loadDdnsStatus() {
         var container = document.getElementById('defense-ddns-status');
         if (!container) return;
         var status = d.status || d;
+        var isActive = !!(status.stored_ip || status.script_exists);
         container.textContent = '';
 
         var rows = [
-            ['Status', status.enabled ? 'ACTIVE' : 'DISABLED', status.enabled ? 'success' : 'secondary'],
-            ['Domain', status.domain || status.hostname || '-', null],
-            ['Current IP', status.ip || status.current_ip || '-', null],
-            ['Last Updated', snFormatTime(status.last_updated || status.updated_at), null]
+            ['Status', isActive ? 'ACTIVE' : 'DISABLED', isActive ? 'success' : 'secondary'],
+            ['Public IP', d.live_ip || status.stored_ip || '-', null],
+            ['Stored IP', status.stored_ip || '-', null],
+            ['IP Match', (d.live_ip === status.stored_ip) ? 'YES' : 'CHANGED', (d.live_ip === status.stored_ip) ? 'success' : 'warning'],
+            ['Last Updated', snFormatTime(status.last_updated), null]
         ];
         rows.forEach(function(r) {
             var row = document.createElement('div');
@@ -584,7 +590,7 @@ function loadDdnsStatus() {
             }
             container.appendChild(row);
         });
-        setBadge('svc-ddns', status.enabled);
+        setBadge('svc-ddns', isActive);
     }).catch(function() { snShowEmpty('defense-ddns-status', 'DDNS unavailable'); });
 }
 

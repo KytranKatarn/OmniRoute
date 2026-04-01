@@ -4,6 +4,11 @@
     font-family: var(--archie-font-body);
 }
 
+/* Hide orphaned subtab-content that lives outside tab panels */
+.lcars-content > .subtab-content {
+    display: none !important;
+}
+
 /* Service Badges (inside lcars-body) */
 .header-services {
     display: flex;

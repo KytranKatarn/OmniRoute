@@ -294,6 +294,7 @@ JOB_DEPARTMENT_MAP = {
     "ollama_model_health": "Operations & Infrastructure",
     "media_queue_cleanup": "Creative & Design",
     "media_export_cleanup": "Creative & Design",
+    "market_watch_cycle": "Analytics & Intelligence",
 }
 
 
@@ -561,20 +562,22 @@ class AgentLoop:
             name="Agent Loop: Stock Price Updater",
             replace_existing=True,
         )
-        self.scheduler.add_job(
-            with_app_context(self._deduplicate_knowledge),
-            trigger=IntervalTrigger(hours=24),
-            id="knowledge_deduplication",
-            name="Agent Loop: Knowledge Deduplication",
-            replace_existing=True,
-        )
-        self.scheduler.add_job(
-            with_app_context(self._index_claude_sessions),
-            trigger=IntervalTrigger(hours=12),
-            id="session_indexer",
-            name="Agent Loop: Claude Session Indexer",
-            replace_existing=True,
-        )
+        # Phase 5: Moved to consciousness/jobs.py
+        # self.scheduler.add_job(
+        #     with_app_context(self._deduplicate_knowledge),
+        #     trigger=IntervalTrigger(hours=24),
+        #     id="knowledge_deduplication",
+        #     name="Agent Loop: Knowledge Deduplication",
+        #     replace_existing=True,
+        # )
+        # Phase 5: Moved to consciousness/jobs.py
+        # self.scheduler.add_job(
+        #     with_app_context(self._index_claude_sessions),
+        #     trigger=IntervalTrigger(hours=12),
+        #     id="session_indexer",
+        #     name="Agent Loop: Claude Session Indexer",
+        #     replace_existing=True,
+        # )
         self.scheduler.add_job(
             with_app_context(self._update_module_docs),
             trigger=IntervalTrigger(hours=24),
@@ -713,23 +716,25 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Phase 5: Moved to consciousness/jobs.py
         # Job #49 — Consciousness analysis batch (every 6h)
-        self.scheduler.add_job(
-            with_app_context(self._consciousness_analysis_batch),
-            trigger=IntervalTrigger(hours=6),
-            id="agent_consciousness_analysis",
-            name="Agent Loop: Consciousness Analysis Batch",
-            replace_existing=True,
-        )
+        # self.scheduler.add_job(
+        #     with_app_context(self._consciousness_analysis_batch),
+        #     trigger=IntervalTrigger(hours=6),
+        #     id="agent_consciousness_analysis",
+        #     name="Agent Loop: Consciousness Analysis Batch",
+        #     replace_existing=True,
+        # )
 
+        # Phase 5: Moved to consciousness/jobs.py
         # Job #50 — Consciousness embedding batch (every 30min, 200 items/batch)
-        self.scheduler.add_job(
-            with_app_context(self._consciousness_embedding_batch),
-            trigger=IntervalTrigger(minutes=30),
-            id="agent_consciousness_embedding",
-            name="Agent Loop: Consciousness Embedding Batch",
-            replace_existing=True,
-        )
+        # self.scheduler.add_job(
+        #     with_app_context(self._consciousness_embedding_batch),
+        #     trigger=IntervalTrigger(minutes=30),
+        #     id="agent_consciousness_embedding",
+        #     name="Agent Loop: Consciousness Embedding Batch",
+        #     replace_existing=True,
+        # )
 
         # Job #51 — Daily Code Health Digest via Telegram (8:00 AM)
         self.scheduler.add_job(
@@ -767,32 +772,35 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Phase 5: Moved to consciousness/jobs.py
         # Job #54 — Skill sync: extract learned skills from KB to Claude rules
-        self.scheduler.add_job(
-            with_app_context(self._sync_learned_skills),
-            trigger=IntervalTrigger(hours=6),
-            id="agent_skill_sync",
-            name="Agent Loop: Skill Sync to Claude",
-            replace_existing=True,
-        )
+        # self.scheduler.add_job(
+        #     with_app_context(self._sync_learned_skills),
+        #     trigger=IntervalTrigger(hours=6),
+        #     id="agent_skill_sync",
+        #     name="Agent Loop: Skill Sync to Claude",
+        #     replace_existing=True,
+        # )
 
+        # Phase 5: Moved to consciousness/jobs.py
         # Job #55 — GitHub auto-pull: refresh tracked repos and re-index changed files
-        self.scheduler.add_job(
-            with_app_context(self._github_auto_pull),
-            trigger=IntervalTrigger(hours=12),
-            id="agent_github_auto_pull",
-            name="Agent Loop: GitHub Auto-Pull & Re-Index",
-            replace_existing=True,
-        )
+        # self.scheduler.add_job(
+        #     with_app_context(self._github_auto_pull),
+        #     trigger=IntervalTrigger(hours=12),
+        #     id="agent_github_auto_pull",
+        #     name="Agent Loop: GitHub Auto-Pull & Re-Index",
+        #     replace_existing=True,
+        # )
 
+        # Phase 5: Moved to consciousness/jobs.py
         # Job #56 — Skill analyzer: AI-powered quality scoring for discovered skills
-        self.scheduler.add_job(
-            with_app_context(self._analyze_discovered_skills),
-            trigger=IntervalTrigger(hours=6, start_date="2026-01-01 01:00:00"),
-            id="agent_skill_analyzer",
-            name="Agent Loop: Skill Analyzer (Bridge AI)",
-            replace_existing=True,
-        )
+        # self.scheduler.add_job(
+        #     with_app_context(self._analyze_discovered_skills),
+        #     trigger=IntervalTrigger(hours=6, start_date="2026-01-01 01:00:00"),
+        #     id="agent_skill_analyzer",
+        #     name="Agent Loop: Skill Analyzer (Bridge AI)",
+        #     replace_existing=True,
+        # )
 
         # Job #57 — Compliance scan: STIG rule evaluation every 6 hours
         self.scheduler.add_job(
@@ -834,43 +842,11 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Phase 5: Moved to consciousness/jobs.py
         # --- Migrated from consciousness_scheduler (APScheduler in app.py) ---
-
-        # Conversation consolidation (hourly)
-        self.scheduler.add_job(
-            with_app_context(self._conversation_consolidation),
-            trigger=IntervalTrigger(hours=1),
-            id="agent_conversation_consolidation",
-            name="Agent Loop: Conversation Consolidation",
-            replace_existing=True,
-        )
-
-        # Improvement detection (every 6h)
-        self.scheduler.add_job(
-            with_app_context(self._improvement_detection),
-            trigger=IntervalTrigger(hours=6),
-            id="agent_improvement_detection",
-            name="Agent Loop: Improvement Detection",
-            replace_existing=True,
-        )
-
-        # Daily self-reflection (midnight)
-        self.scheduler.add_job(
-            with_app_context(self._daily_self_reflection),
-            trigger=CronTrigger(hour=0, minute=0),
-            id="agent_daily_self_reflection",
-            name="Agent Loop: Daily Self-Reflection",
-            replace_existing=True,
-        )
-
-        # Weekly memory consolidation (Sunday 3 AM)
-        self.scheduler.add_job(
-            with_app_context(self._weekly_memory_consolidation),
-            trigger=CronTrigger(day_of_week="sun", hour=3, minute=0),
-            id="agent_weekly_memory_consolidation",
-            name="Agent Loop: Weekly Memory Consolidation",
-            replace_existing=True,
-        )
+        # Conversation consolidation, improvement detection, daily self-reflection,
+        # weekly memory consolidation — all 4 now registered via
+        # register_consciousness_jobs() below.
 
         # --- Migrated from infrastructure scheduler (app.py) ---
 
@@ -1071,6 +1047,14 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Phase 5: Module-owned job registrations
+        try:
+            from tools.consciousness.jobs import register_consciousness_jobs
+            register_consciousness_jobs(self.scheduler, self.flask_app)
+            logger.info("[AgentLoop] Consciousness jobs registered via module")
+        except Exception as e:
+            logger.error("[AgentLoop] Failed to register consciousness jobs: %s", e)
+
         self._running = True
         logger.info("Agent loop started with 72 jobs")
 
@@ -1270,7 +1254,7 @@ class AgentLoop:
             logger.error(f"Agent calendar/drive job failed: {e}")
 
     def _deduplicate_knowledge(self):
-        """Job #28: Find and merge duplicate/overlapping knowledge entries."""
+        """DEPRECATED (Phase 5): Moved to consciousness/jobs.py deduplicate_knowledge()"""
         try:
             from database import get_db_cursor
 
@@ -1305,7 +1289,7 @@ class AgentLoop:
             logger.error(f"[Knowledge] Deduplication error: {e}")
 
     def _index_claude_sessions(self):
-        """Job #29: Index recent Claude conversation sessions into knowledge_base."""
+        """DEPRECATED (Phase 5): Moved to consciousness/jobs.py index_claude_sessions()"""
         try:
             from services.session_indexer_service import index_recent_sessions
 
@@ -3011,7 +2995,7 @@ class AgentLoop:
     # ------------------------------------------------------------------
 
     def _conversation_consolidation(self):
-        """Hourly conversation consolidation — migrated from consciousness_scheduler."""
+        """DEPRECATED (Phase 5): Moved to consciousness/jobs.py conversation_consolidation()"""
         start = time.time()
         try:
             import sys
@@ -3026,7 +3010,7 @@ class AgentLoop:
             self._log_cycle("conversation_consolidation", 0, 1, duration_ms, error_message=str(e))
 
     def _improvement_detection(self):
-        """Improvement detection every 6h — migrated from consciousness_scheduler."""
+        """DEPRECATED (Phase 5): Moved to consciousness/jobs.py improvement_detection()"""
         start = time.time()
         try:
             import sys
@@ -3041,7 +3025,7 @@ class AgentLoop:
             self._log_cycle("improvement_detection", 0, 1, duration_ms, error_message=str(e))
 
     def _daily_self_reflection(self):
-        """Daily self-reflection at midnight — migrated from consciousness_scheduler."""
+        """DEPRECATED (Phase 5): Moved to consciousness/jobs.py daily_self_reflection()"""
         start = time.time()
         try:
             import sys
@@ -3055,7 +3039,7 @@ class AgentLoop:
             self._log_cycle("daily_self_reflection", 0, 1, duration_ms, error_message=str(e))
 
     def _weekly_memory_consolidation(self):
-        """Weekly memory consolidation (Sun 3AM) — migrated from consciousness_scheduler."""
+        """DEPRECATED (Phase 5): Moved to consciousness/jobs.py weekly_memory_consolidation()"""
         start = time.time()
         try:
             import sys
@@ -4418,6 +4402,32 @@ class AgentLoop:
         except Exception as e:
             logger.error(f"Failed to log agent cycle: {e}")
 
+    def _log_autonomy_action(self, action_type: str, details: dict = None, success: bool = True):
+        """Log an autonomous action to governance audit log."""
+        try:
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO governance_audit_log
+                (event_type, event_category, agent_id, action, outcome, details, timestamp)
+                VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                """,
+                (
+                    "autonomy_action",
+                    "autonomous_operations",
+                    None,
+                    action_type,
+                    "success" if success else "failure",
+                    json.dumps(details or {}),
+                ),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Failed to log autonomy action '{action_type}': {e}")
+
     def _process_world_events(self):
         try:
             from tools.game_studio.world_engine import process_pending_events
@@ -5422,14 +5432,7 @@ class AgentLoop:
                             error_message=str(e))
 
     def _sync_learned_skills(self):
-        """Job #54: Extract skills from ingested GitHub repos and write to Claude rules.
-
-        Scans knowledge_base for github_file entries that contain skill/agent/plugin
-        patterns. Builds a summary of learnable skills and writes to
-        .claude/rules/learned-skills.md so Claude auto-loads them every session.
-
-        Runs every 6 hours. Only rewrites if new skills are found since last sync.
-        """
+        """DEPRECATED (Phase 5): Moved to consciousness/jobs.py sync_learned_skills()"""
         start = time.time()
         try:
             from database import get_db_cursor
@@ -5703,14 +5706,7 @@ class AgentLoop:
                             error_message=str(e))
 
     def _github_auto_pull(self):
-        """Job #55: Auto-pull tracked GitHub repos and re-index changed files.
-
-        Every 12 hours:
-        1. Iterate all repos in github_repositories with a local_path
-        2. Git pull each one, detect new commits via rev comparison
-        3. For repos with changes, trigger re-index of changed files only
-        4. Send Telegram notification summarizing what was refreshed
-        """
+        """DEPRECATED (Phase 5): Moved to consciousness/jobs.py github_auto_pull()"""
         import subprocess
 
         start = time.time()
@@ -5932,15 +5928,7 @@ class AgentLoop:
             )
 
     def _analyze_discovered_skills(self):
-        """Job #56: AI-analyze discovered skills from GitHub repos.
-
-        Picks up skills with status='discovered' from github_skills table,
-        sends each to Bridge for analysis (quality, capabilities, use cases),
-        updates the skill record with results.
-
-        Processes up to 10 skills per run to avoid overloading the Bridge.
-        Runs every 6 hours, offset from skill sync.
-        """
+        """DEPRECATED (Phase 5): Moved to consciousness/jobs.py analyze_discovered_skills()"""
         # Recovery: reset skills stuck in 'analyzing' for >1 hour (crash orphans)
         try:
             conn = self._get_db()
@@ -6784,12 +6772,7 @@ Respond with ONLY a JSON object (no markdown, no explanation):
         return "\n".join(parts)
 
     def _consciousness_analysis_batch(self):
-        """Job #49: Trigger consciousness analysis batch every 6 hours.
-
-        Only runs if the analysis server loop is enabled in system_config.
-        Uses _trigger_loop_op() from processing_routes which handles
-        item selection, job creation, and background threading.
-        """
+        """DEPRECATED (Phase 5): Moved to consciousness/jobs.py consciousness_analysis_batch()"""
         try:
             from tools.consciousness.processing_routes import (
                 get_server_loops,
@@ -6811,12 +6794,7 @@ Respond with ONLY a JSON object (no markdown, no explanation):
             logger.warning(f"[Consciousness Batch] Analysis batch failed: {e}")
 
     def _consciousness_embedding_batch(self):
-        """Job #50: Trigger consciousness embedding batch every 4 hours.
-
-        Only runs if the embedding server loop is enabled in system_config.
-        Uses _trigger_loop_op() from processing_routes which handles
-        item selection, job creation, and background threading.
-        """
+        """DEPRECATED (Phase 5): Moved to consciousness/jobs.py consciousness_embedding_batch()"""
         try:
             from tools.consciousness.processing_routes import (
                 get_server_loops,

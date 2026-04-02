@@ -57,6 +57,11 @@ class DepartmentCoordinator:
         # job_id → agent_id, for cleanup on release
         self._job_map: Dict[int, int] = {}
 
+    @property
+    def model_service(self) -> ModelService:
+        """Public access to model service for callers that need to register jobs."""
+        return self._model_service
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------

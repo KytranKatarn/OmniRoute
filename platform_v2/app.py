@@ -3286,14 +3286,9 @@ if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
             logger.error("[Startup] AgentLoop bridge failed: %s", e)
 
         # Phase 5b: Module job registrations
-        # NOTE: Consciousness jobs now registered via agent_loop.py -> register_consciousness_jobs()
-        try:
-            from services.fleet_jobs import register_fleet_jobs
-
-            register_fleet_jobs(_job_service)
-            logger.info("[Startup] Module job registrations loaded")
-        except Exception as e:
-            logger.error("[Startup] Module job registrations failed: %s", e)
+        # NOTE: All module jobs now registered via agent_loop.py Phase 5 block:
+        #   register_consciousness_jobs(), register_security_jobs(), register_devhq_jobs(),
+        #   register_agent_welfare_jobs(), register_fleet_jobs()
 
         # Initialize Telegram Gateway (Project Autonomy Phase 3)
         _tg_token = os.getenv("TELEGRAM_BOT_TOKEN")

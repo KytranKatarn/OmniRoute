@@ -424,21 +424,23 @@ class AgentLoop:
             replace_existing=True,
         )
 
-        self.scheduler.add_job(
-            with_app_context(self._track_agent_hr),
-            trigger=IntervalTrigger(minutes=5),
-            id="agent_hr_tracker",
-            name="Agent Loop: HR Tracker",
-            replace_existing=True,
-        )
+        # Phase 5: Moved to services/agent_jobs.py
+        # self.scheduler.add_job(
+        #     with_app_context(self._track_agent_hr),
+        #     trigger=IntervalTrigger(minutes=5),
+        #     id="agent_hr_tracker",
+        #     name="Agent Loop: HR Tracker",
+        #     replace_existing=True,
+        # )
 
-        self.scheduler.add_job(
-            with_app_context(self._run_ethics_monitoring),
-            trigger=IntervalTrigger(minutes=15),
-            id="agent_ethics_monitoring",
-            name="Agent Loop: Ethics Monitoring",
-            replace_existing=True,
-        )
+        # Phase 5: Moved to services/agent_jobs.py
+        # self.scheduler.add_job(
+        #     with_app_context(self._run_ethics_monitoring),
+        #     trigger=IntervalTrigger(minutes=15),
+        #     id="agent_ethics_monitoring",
+        #     name="Agent Loop: Ethics Monitoring",
+        #     replace_existing=True,
+        # )
 
         self.scheduler.add_job(
             with_app_context(self._reap_stale_jobs),
@@ -456,13 +458,14 @@ class AgentLoop:
             replace_existing=True,
         )
 
-        self.scheduler.add_job(
-            with_app_context(self._process_training_tick),
-            trigger=IntervalTrigger(minutes=5),
-            id="agent_training_tick",
-            name="Agent Loop: Training Progression Tick",
-            replace_existing=True,
-        )
+        # Phase 5: Moved to services/agent_jobs.py
+        # self.scheduler.add_job(
+        #     with_app_context(self._process_training_tick),
+        #     trigger=IntervalTrigger(minutes=5),
+        #     id="agent_training_tick",
+        #     name="Agent Loop: Training Progression Tick",
+        #     replace_existing=True,
+        # )
 
         self.scheduler.add_job(
             with_app_context(self._run_proactive_scan),
@@ -472,13 +475,14 @@ class AgentLoop:
             replace_existing=True,
         )
 
-        self.scheduler.add_job(
-            with_app_context(self._recover_idle_welfare),
-            trigger=IntervalTrigger(minutes=30),
-            id="agent_welfare_recovery",
-            name="Agent Loop: Welfare Recovery",
-            replace_existing=True,
-        )
+        # Phase 5: Moved to services/agent_jobs.py
+        # self.scheduler.add_job(
+        #     with_app_context(self._recover_idle_welfare),
+        #     trigger=IntervalTrigger(minutes=30),
+        #     id="agent_welfare_recovery",
+        #     name="Agent Loop: Welfare Recovery",
+        #     replace_existing=True,
+        # )
 
         self.scheduler.add_job(
             with_app_context(self._archive_stale_notifications),
@@ -488,13 +492,14 @@ class AgentLoop:
             replace_existing=True,
         )
 
-        self.scheduler.add_job(
-            with_app_context(self._volunteer_idle_agents),
-            trigger=IntervalTrigger(minutes=5),
-            id="agent_idle_volunteering",
-            name="Agent Loop: Idle Volunteering",
-            replace_existing=True,
-        )
+        # Phase 5: Moved to services/agent_jobs.py
+        # self.scheduler.add_job(
+        #     with_app_context(self._volunteer_idle_agents),
+        #     trigger=IntervalTrigger(minutes=5),
+        #     id="agent_idle_volunteering",
+        #     name="Agent Loop: Idle Volunteering",
+        #     replace_existing=True,
+        # )
 
         # Phase 5: Moved to security_network/jobs.py
         # self.scheduler.add_job(
@@ -505,13 +510,14 @@ class AgentLoop:
         #     replace_existing=True,
         # )
 
-        self.scheduler.add_job(
-            with_app_context(self._update_performance_rankings),
-            trigger=IntervalTrigger(minutes=15),
-            id="agent_performance_rankings",
-            name="Agent Loop: Performance Rankings",
-            replace_existing=True,
-        )
+        # Phase 5: Moved to services/agent_jobs.py
+        # self.scheduler.add_job(
+        #     with_app_context(self._update_performance_rankings),
+        #     trigger=IntervalTrigger(minutes=15),
+        #     id="agent_performance_rankings",
+        #     name="Agent Loop: Performance Rankings",
+        #     replace_existing=True,
+        # )
 
         self.scheduler.add_job(
             with_app_context(self._check_media_schedules),
@@ -672,29 +678,32 @@ class AgentLoop:
         #     replace_existing=True,
         # )
 
-        self.scheduler.add_job(
-            with_app_context(self._check_fleet_health),
-            trigger=IntervalTrigger(seconds=30),
-            id="agent_fleet_health",
-            name="Agent Loop: Fleet Health Monitor",
-            replace_existing=True,
-        )
+        # Phase 5: Moved to services/fleet_jobs.py
+        # self.scheduler.add_job(
+        #     with_app_context(self._check_fleet_health),
+        #     trigger=IntervalTrigger(seconds=30),
+        #     id="agent_fleet_health",
+        #     name="Agent Loop: Fleet Health Monitor",
+        #     replace_existing=True,
+        # )
 
-        self.scheduler.add_job(
-            with_app_context(self._check_mesh_health),
-            trigger=IntervalTrigger(seconds=60),
-            id="agent_mesh_health",
-            name="Agent Loop: Mesh VPN Health Monitor",
-            replace_existing=True,
-        )
+        # Phase 5: Moved to services/fleet_jobs.py
+        # self.scheduler.add_job(
+        #     with_app_context(self._check_mesh_health),
+        #     trigger=IntervalTrigger(seconds=60),
+        #     id="agent_mesh_health",
+        #     name="Agent Loop: Mesh VPN Health Monitor",
+        #     replace_existing=True,
+        # )
 
-        self.scheduler.add_job(
-            with_app_context(self._save_model_state),
-            trigger=IntervalTrigger(minutes=5),
-            id="agent_model_state_save",
-            name="Agent Loop: Model State Persistence",
-            replace_existing=True,
-        )
+        # Phase 5: Moved to services/fleet_jobs.py
+        # self.scheduler.add_job(
+        #     with_app_context(self._save_model_state),
+        #     trigger=IntervalTrigger(minutes=5),
+        #     id="agent_model_state_save",
+        #     name="Agent Loop: Model State Persistence",
+        #     replace_existing=True,
+        # )
 
         self.scheduler.add_job(
             with_app_context(self._hourly_uncommitted_check),
@@ -936,32 +945,35 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Phase 5: Moved to services/fleet_jobs.py
         # Job #59 — Standalone health monitoring: ping KSM every 60s, alert on downtime
-        self.scheduler.add_job(
-            with_app_context(self._check_standalone_health),
-            trigger=IntervalTrigger(seconds=60),
-            id="agent_standalone_health",
-            name="Agent Loop: Standalone Health Monitor",
-            replace_existing=True,
-        )
+        # self.scheduler.add_job(
+        #     with_app_context(self._check_standalone_health),
+        #     trigger=IntervalTrigger(seconds=60),
+        #     id="agent_standalone_health",
+        #     name="Agent Loop: Standalone Health Monitor",
+        #     replace_existing=True,
+        # )
 
+        # Phase 5: Moved to services/fleet_jobs.py
         # Job #60 — Department metrics rollup: daily at 2:00 AM, owned by S.P.E.C.T.R.A.
-        self.scheduler.add_job(
-            with_app_context(self._department_metrics_rollup),
-            trigger=CronTrigger(hour=2, minute=0),
-            id="department_metrics_rollup",
-            name="Agent Loop: Department Metrics Rollup",
-            replace_existing=True,
-        )
+        # self.scheduler.add_job(
+        #     with_app_context(self._department_metrics_rollup),
+        #     trigger=CronTrigger(hour=2, minute=0),
+        #     id="department_metrics_rollup",
+        #     name="Agent Loop: Department Metrics Rollup",
+        #     replace_existing=True,
+        # )
 
+        # Phase 5: Moved to services/fleet_jobs.py
         # Job #61: Fleet SSL wildcard cert renewal (daily 03:00 UTC)
-        self.scheduler.add_job(
-            with_app_context(self._renew_fleet_ssl),
-            trigger=CronTrigger(hour=3, minute=0),
-            id="fleet_ssl_renewal",
-            name="Agent Loop: Fleet SSL Renewal",
-            replace_existing=True,
-        )
+        # self.scheduler.add_job(
+        #     with_app_context(self._renew_fleet_ssl),
+        #     trigger=CronTrigger(hour=3, minute=0),
+        #     id="fleet_ssl_renewal",
+        #     name="Agent Loop: Fleet SSL Renewal",
+        #     replace_existing=True,
+        # )
 
         # Job #62: Social video content generation (every 4 hours)
         self.scheduler.add_job(
@@ -1080,6 +1092,20 @@ class AgentLoop:
             logger.info("[AgentLoop] Security/network jobs registered via module")
         except Exception as e:
             logger.error("[AgentLoop] Failed to register security_network jobs: %s", e)
+
+        try:
+            from services.agent_jobs import register_agent_welfare_jobs
+            register_agent_welfare_jobs(self.scheduler, self.flask_app)
+            logger.info("[AgentLoop] Agent welfare jobs registered via module")
+        except Exception as e:
+            logger.error("[AgentLoop] Failed to register agent welfare jobs: %s", e)
+
+        try:
+            from services.fleet_jobs import register_fleet_jobs
+            register_fleet_jobs(self.scheduler, self.flask_app)
+            logger.info("[AgentLoop] Fleet jobs registered via module")
+        except Exception as e:
+            logger.error("[AgentLoop] Failed to register fleet jobs: %s", e)
 
         self._running = True
         logger.info("Agent loop started with 72 jobs")
@@ -2992,7 +3018,8 @@ class AgentLoop:
     # ------------------------------------------------------------------
 
     def _run_ethics_monitoring(self):
-        """Run C.R.E.E.D. ethics monitoring cycle (every 15 min).
+        """DEPRECATED (Phase 5): Moved to services/agent_jobs.py run_ethics_monitoring()
+        Run C.R.E.E.D. ethics monitoring cycle (every 15 min).
 
         Managed by V.I.G.I.L. (Security & Compliance director).
         Results visible in Department HQ + C.R.E.E.D. institute page.
@@ -3385,7 +3412,7 @@ class AgentLoop:
             logger.warning(f"Failed: {e}")
 
     def _track_agent_hr(self):
-        """
+        """DEPRECATED (Phase 5): Moved to services/agent_jobs.py track_agent_hr()
         Aggregate task_execution_log into agent_daily_summary.
         Check for overwork, high error rates, and idle agents.
         Create alerts and send Telegram notifications for critical issues.
@@ -3569,7 +3596,7 @@ class AgentLoop:
                             error_message=str(e))
 
     def _recover_idle_welfare(self):
-        """
+        """DEPRECATED (Phase 5): Moved to services/agent_jobs.py recover_idle_welfare()
         Recover welfare for idle and resting agents.
         Runs every 30 minutes.
         - Idle (not dispatched in last hour): stress -0.15, energy +0.2
@@ -3656,7 +3683,7 @@ class AgentLoop:
                             error_message=str(e))
 
     def _volunteer_idle_agents(self):
-        """
+        """DEPRECATED (Phase 5): Moved to services/agent_jobs.py volunteer_idle_agents()
         Scan for idle agents and volunteer them at departments with pending work.
         Runs every 5 minutes.
         - Find departments with recent task failures
@@ -3743,7 +3770,7 @@ class AgentLoop:
             logger.error(f"Idle volunteering error: {e}")
 
     def _update_performance_rankings(self):
-        """
+        """DEPRECATED (Phase 5): Moved to services/agent_jobs.py update_performance_rankings()
         Calculate comparative performance rankings per capability.
         Runs every 15 minutes.
         rank_score = (success_rate * 0.5) + (speed_score * 0.3) + (efficiency_score * 0.2)
@@ -4069,7 +4096,8 @@ class AgentLoop:
         return degraded
 
     def _process_training_tick(self):
-        """Check for completed training assignments and finalize them.
+        """DEPRECATED (Phase 5): Moved to services/agent_jobs.py process_training_tick()
+        Check for completed training assignments and finalize them.
 
         When target_completion is reached:
         - Mark training as completed
@@ -6269,7 +6297,8 @@ Respond with ONLY a JSON object (no markdown, no explanation):
             )
 
     def _check_fleet_health(self):
-        """Job #45: Monitor fleet node heartbeats — return agents to barracks if offline."""
+        """DEPRECATED (Phase 5): Moved to services/fleet_jobs.py check_fleet_health()
+        Job #45: Monitor fleet node heartbeats — return agents to barracks if offline."""
         try:
             from ai_bridge.bridge_dispatcher import get_dispatcher
 
@@ -6279,7 +6308,8 @@ Respond with ONLY a JSON object (no markdown, no explanation):
             logger.warning(f"Fleet health check failed: {e}")
 
     def _check_mesh_health(self):
-        """Job #53: Monitor mesh VPN connectivity for all fleet nodes.
+        """DEPRECATED (Phase 5): Moved to services/fleet_jobs.py check_mesh_health()
+        Job #53: Monitor mesh VPN connectivity for all fleet nodes.
 
         Pings each node's mesh_ip, updates mesh_status/mesh_latency_ms
         in remote_nodes, and logs to mesh_health_log. Triggers fleet cache
@@ -6385,7 +6415,8 @@ Respond with ONLY a JSON object (no markdown, no explanation):
             logger.warning(f"Mesh health check failed: {e}")
 
     def _save_model_state(self):
-        """Job #46: Save current loaded models to DB for restart recovery."""
+        """DEPRECATED (Phase 5): Moved to services/fleet_jobs.py save_model_state()
+        Job #46: Save current loaded models to DB for restart recovery."""
         try:
             from ai_bridge.bridge_dispatcher import get_dispatcher
 
@@ -6854,7 +6885,8 @@ Respond with ONLY a JSON object (no markdown, no explanation):
     _standalone_last_status = {}
 
     def _check_standalone_health(self):
-        """Job #59: Monitor standalone product health, alert on downtime."""
+        """DEPRECATED (Phase 5): Moved to services/fleet_jobs.py check_standalone_health()
+        Job #59: Monitor standalone product health, alert on downtime."""
         import os
         import requests as req
         from database import get_db_cursor
@@ -6894,7 +6926,8 @@ Respond with ONLY a JSON object (no markdown, no explanation):
                 self._standalone_last_status[key] = "down"
 
     def _department_metrics_rollup(self):
-        """Job #60: Department metrics rollup — daily at 2:00 AM.
+        """DEPRECATED (Phase 5): Moved to services/fleet_jobs.py department_metrics_rollup()
+        Job #60: Department metrics rollup — daily at 2:00 AM.
         Owned by Analytics & Intelligence (S.P.E.C.T.R.A.)."""
         try:
             import sys
@@ -6920,7 +6953,8 @@ Respond with ONLY a JSON object (no markdown, no explanation):
             logger.warning("Department metrics rollup failed: %s", e)
 
     def _renew_fleet_ssl(self):
-        """Job #61: Renew wildcard SSL cert if expiring within 30 days.
+        """DEPRECATED (Phase 5): Moved to services/fleet_jobs.py renew_fleet_ssl()
+        Job #61: Renew wildcard SSL cert if expiring within 30 days.
         Owned by Security & Compliance (V.I.G.I.L.)."""
         try:
             from ai_bridge.cert_manager import check_cert_expiry, renew_wildcard_cert

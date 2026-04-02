@@ -333,3 +333,140 @@ def get_fleet_map_data():
         )
 
     return {"hub": hub, "nodes": nodes, "providers": providers}
+
+
+# ---------------------------------------------------------------------------
+# Cloud Provider Management (Phase 3)
+# ---------------------------------------------------------------------------
+
+
+def register_provider(
+    name,
+    provider_type="cloud",
+    api_key_env_var="",
+    tier="free",
+    capabilities=None,
+    models_available=None,
+    api_endpoint="",
+    headquarters_city="",
+    latitude=None,
+    longitude=None,
+    monthly_budget=0,
+):
+    """Register a new cloud provider. Returns provider id."""
+    from psycopg2.extras import Json
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """INSERT INTO cloud_providers
+               (name, provider_type, api_key_env_var, tier,
+                capabilities, models_available, api_endpoint,
+                headquarters_city, latitude, longitude, monthly_budget)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+               RETURNING id""",
+            (
+                name,
+                provider_type,
+                api_key_env_var,
+                tier,
+                Json(capabilities or []),
+                Json(models_available or []),
+                api_endpoint,
+                headquarters_city,
+                latitude,
+                longitude,
+                monthly_budget,
+            ),
+        )
+        return cur.fetchone()["id"]
+
+
+def get_cloud_provider(provider_id):
+    """Get a single cloud provider by id. Returns dict or None."""
+    with get_db_cursor() as (conn, cur):
+        cur.execute("SELECT * FROM cloud_providers WHERE id = %s", (provider_id,))
+        row = cur.fetchone()
+        return dict(row) if row else None
+
+
+def list_cloud_providers():
+    """List all cloud providers from the cloud_providers table."""
+    with get_db_cursor() as (conn, cur):
+        cur.execute("SELECT * FROM cloud_providers ORDER BY name")
+        return [dict(r) for r in cur.fetchall()]
+
+
+def record_cloud_usage(
+    provider_id,
+    model_name,
+    tokens_in=0,
+    tokens_out=0,
+    estimated_cost=0,
+    capability="",
+    agent_id=None,
+):
+    """Record a cloud API call and update the provider's monthly usage."""
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """INSERT INTO cloud_usage_log
+               (provider_id, agent_id, model_name, tokens_in, tokens_out,
+                estimated_cost, capability)
+               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+            (
+                provider_id,
+                agent_id,
+                model_name,
+                tokens_in,
+                tokens_out,
+                estimated_cost,
+                capability,
+            ),
+        )
+        cur.execute(
+            """UPDATE cloud_providers
+               SET monthly_usage = COALESCE(monthly_usage, 0) + %s,
+                   updated_at = NOW()
+               WHERE id = %s""",
+            (estimated_cost, provider_id),
+        )
+
+
+def disconnect_node(node_id):
+    """Mark a node as offline and return its agents to barracks."""
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute("SELECT node_name FROM remote_nodes WHERE id = %s", (node_id,))
+        row = cur.fetchone()
+        if not row:
+            return {"success": False, "error": f"Node {node_id} not found"}
+
+        node_name = row["node_name"]
+        cur.execute(
+            "UPDATE remote_nodes SET status = 'offline' WHERE id = %s",
+            (node_id,),
+        )
+
+        cur.execute(
+            """UPDATE node_agents SET status = 'recalled'
+               WHERE node_id = (SELECT node_id FROM remote_nodes WHERE id = %s)
+               AND status = 'active'
+               RETURNING hub_agent_id""",
+            (node_id,),
+        )
+        recalled = cur.fetchall()
+        for r in recalled:
+            if r["hub_agent_id"]:
+                cur.execute(
+                    "UPDATE agents SET shift_state = 'barracked' WHERE id = %s",
+                    (r["hub_agent_id"],),
+                )
+
+        logger.info(
+            "fleet_service: disconnected %s, recalled %d agents",
+            node_name,
+            len(recalled),
+        )
+        return {
+            "success": True,
+            "node_name": node_name,
+            "recalled_agents": len(recalled),
+        }

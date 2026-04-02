@@ -66,6 +66,16 @@ def register_roster_routes(bp, admin_required):
                     }
                 )
 
+            # Add coordinator reservation status
+            try:
+                from services.department_coordinator import get_coordinator
+
+                reserved = get_coordinator()._reserved_agents
+                for agent in trimmed:
+                    agent["is_reserved"] = agent.get("id") in reserved
+            except Exception:
+                pass
+
             return jsonify(
                 {
                     "agents": trimmed,
@@ -142,3 +152,13 @@ def register_roster_routes(bp, admin_required):
             return jsonify({"error": str(e)}), 400
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+
+    @bp.route("/api/coordinator/status")
+    @admin_required
+    def api_coordinator_status():
+        """Live coordinator status — reserved agents, loaded models, RAM."""
+        from services.department_coordinator import get_coordinator
+
+        coordinator = get_coordinator()
+        status = coordinator.get_status()
+        return jsonify({"success": True, **status})

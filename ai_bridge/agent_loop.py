@@ -496,13 +496,14 @@ class AgentLoop:
             replace_existing=True,
         )
 
-        self.scheduler.add_job(
-            with_app_context(self._discover_network_devices),
-            trigger=IntervalTrigger(minutes=5),
-            id="agent_network_discovery",
-            name="Agent Loop: Network Device Discovery",
-            replace_existing=True,
-        )
+        # Phase 5: Moved to security_network/jobs.py
+        # self.scheduler.add_job(
+        #     with_app_context(self._discover_network_devices),
+        #     trigger=IntervalTrigger(minutes=5),
+        #     id="agent_network_discovery",
+        #     name="Agent Loop: Network Device Discovery",
+        #     replace_existing=True,
+        # )
 
         self.scheduler.add_job(
             with_app_context(self._update_performance_rankings),
@@ -600,48 +601,49 @@ class AgentLoop:
             replace_existing=True,
         )
 
-        self.scheduler.add_job(
-            with_app_context(self._run_security_audit),
-            trigger=CronTrigger(day_of_week="sun", hour=3),
-            id="agent_security_audit",
-            name="Agent Loop: Weekly Security Audit",
-            replace_existing=True,
-        )
-        self.scheduler.add_job(
-            with_app_context(self._check_ssl_expiry),
-            trigger=IntervalTrigger(hours=24),
-            id="agent_ssl_expiry_check",
-            name="Agent Loop: SSL Certificate Expiry Check",
-            replace_existing=True,
-        )
-        self.scheduler.add_job(
-            with_app_context(self._daily_dns_report),
-            trigger=CronTrigger(hour=7, minute=0),
-            id="agent_daily_dns_report",
-            name="Agent Loop: Daily DNS Report",
-            replace_existing=True,
-        )
-        self.scheduler.add_job(
-            with_app_context(self._detect_query_spike),
-            trigger=IntervalTrigger(hours=1),
-            id="agent_query_spike_detect",
-            name="Agent Loop: DNS Query Spike Detection",
-            replace_existing=True,
-        )
-        self.scheduler.add_job(
-            with_app_context(self._check_camera_anomaly),
-            trigger=IntervalTrigger(hours=1),
-            id="agent_camera_anomaly",
-            name="Agent Loop: Camera Motion Anomaly",
-            replace_existing=True,
-        )
-        self.scheduler.add_job(
-            with_app_context(self._run_auto_block),
-            trigger=IntervalTrigger(minutes=15),
-            id="agent_auto_block",
-            name="Agent Loop: Auto-Block Pipeline",
-            replace_existing=True,
-        )
+        # Phase 5: Moved to security_network/jobs.py
+        # self.scheduler.add_job(
+        #     with_app_context(self._run_security_audit),
+        #     trigger=CronTrigger(day_of_week="sun", hour=3),
+        #     id="agent_security_audit",
+        #     name="Agent Loop: Weekly Security Audit",
+        #     replace_existing=True,
+        # )
+        # self.scheduler.add_job(
+        #     with_app_context(self._check_ssl_expiry),
+        #     trigger=IntervalTrigger(hours=24),
+        #     id="agent_ssl_expiry_check",
+        #     name="Agent Loop: SSL Certificate Expiry Check",
+        #     replace_existing=True,
+        # )
+        # self.scheduler.add_job(
+        #     with_app_context(self._daily_dns_report),
+        #     trigger=CronTrigger(hour=7, minute=0),
+        #     id="agent_daily_dns_report",
+        #     name="Agent Loop: Daily DNS Report",
+        #     replace_existing=True,
+        # )
+        # self.scheduler.add_job(
+        #     with_app_context(self._detect_query_spike),
+        #     trigger=IntervalTrigger(hours=1),
+        #     id="agent_query_spike_detect",
+        #     name="Agent Loop: DNS Query Spike Detection",
+        #     replace_existing=True,
+        # )
+        # self.scheduler.add_job(
+        #     with_app_context(self._check_camera_anomaly),
+        #     trigger=IntervalTrigger(hours=1),
+        #     id="agent_camera_anomaly",
+        #     name="Agent Loop: Camera Motion Anomaly",
+        #     replace_existing=True,
+        # )
+        # self.scheduler.add_job(
+        #     with_app_context(self._run_auto_block),
+        #     trigger=IntervalTrigger(minutes=15),
+        #     id="agent_auto_block",
+        #     name="Agent Loop: Auto-Block Pipeline",
+        #     replace_existing=True,
+        # )
         self.scheduler.add_job(
             with_app_context(self._check_mission_schedule),
             trigger=IntervalTrigger(minutes=5),
@@ -650,21 +652,25 @@ class AgentLoop:
             replace_existing=True,
         )
 
-        self.scheduler.add_job(
-            with_app_context(self._daily_code_metrics_scan),
-            trigger=CronTrigger(hour=3, minute=0),
-            id="agent_code_metrics",
-            name="Agent Loop: Daily Code Metrics Scan",
-            replace_existing=True,
-        )
+        # Phase 5: Moved to dev_hq/jobs.py
+        # Job #40 — Daily Code Metrics Scan (3:00 AM)
+        # self.scheduler.add_job(
+        #     with_app_context(self._daily_code_metrics_scan),
+        #     trigger=CronTrigger(hour=3, minute=0),
+        #     id="agent_code_metrics",
+        #     name="Agent Loop: Daily Code Metrics Scan",
+        #     replace_existing=True,
+        # )
 
-        self.scheduler.add_job(
-            with_app_context(self._pattern_compliance_check),
-            trigger=CronTrigger(hour=4, minute=0),
-            id="agent_pattern_compliance",
-            name="Agent Loop: Pattern Compliance Check",
-            replace_existing=True,
-        )
+        # Phase 5: Moved to dev_hq/jobs.py
+        # Job #41 — Pattern Compliance Check (4:00 AM)
+        # self.scheduler.add_job(
+        #     with_app_context(self._pattern_compliance_check),
+        #     trigger=CronTrigger(hour=4, minute=0),
+        #     id="agent_pattern_compliance",
+        #     name="Agent Loop: Pattern Compliance Check",
+        #     replace_existing=True,
+        # )
 
         self.scheduler.add_job(
             with_app_context(self._check_fleet_health),
@@ -736,41 +742,45 @@ class AgentLoop:
         #     replace_existing=True,
         # )
 
+        # Phase 5: Moved to dev_hq/jobs.py
         # Job #51 — Daily Code Health Digest via Telegram (8:00 AM)
-        self.scheduler.add_job(
-            with_app_context(self._daily_code_health_digest),
-            trigger=CronTrigger(hour=8, minute=0),
-            id="agent_code_health_digest",
-            name="Agent Loop: Daily Code Health Digest",
-            replace_existing=True,
-        )
+        # self.scheduler.add_job(
+        #     with_app_context(self._daily_code_health_digest),
+        #     trigger=CronTrigger(hour=8, minute=0),
+        #     id="agent_code_health_digest",
+        #     name="Agent Loop: Daily Code Health Digest",
+        #     replace_existing=True,
+        # )
 
+        # Phase 5: Moved to dev_hq/jobs.py
         # Job #55 — Daily Code Health Scan (2:00 AM, before 8 AM digest)
-        self.scheduler.add_job(
-            with_app_context(self._daily_code_health_scan),
-            trigger=CronTrigger(hour=2, minute=0),
-            id="agent_code_health_scan",
-            name="Agent Loop: Daily Code Health Scan",
-            replace_existing=True,
-        )
+        # self.scheduler.add_job(
+        #     with_app_context(self._daily_code_health_scan),
+        #     trigger=CronTrigger(hour=2, minute=0),
+        #     id="agent_code_health_scan",
+        #     name="Agent Loop: Daily Code Health Scan",
+        #     replace_existing=True,
+        # )
 
+        # Phase 5: Moved to dev_hq/jobs.py
         # Job #58 — Automated Module Audit (daily 3:30 AM, after Job #40 snapshot)
-        self.scheduler.add_job(
-            with_app_context(self._automated_module_audit),
-            trigger=CronTrigger(hour=3, minute=30),
-            id="agent_automated_module_audit",
-            name="Agent Loop: Automated Module Audit",
-            replace_existing=True,
-        )
+        # self.scheduler.add_job(
+        #     with_app_context(self._automated_module_audit),
+        #     trigger=CronTrigger(hour=3, minute=30),
+        #     id="agent_automated_module_audit",
+        #     name="Agent Loop: Automated Module Audit",
+        #     replace_existing=True,
+        # )
 
+        # Phase 5: Moved to dev_hq/jobs.py
         # Job #52 — Competitor landscape auto-scan (every 2 weeks)
-        self.scheduler.add_job(
-            with_app_context(self._competitor_landscape_scan),
-            trigger=IntervalTrigger(days=14),
-            id="agent_competitor_scan",
-            name="Agent Loop: Competitor Landscape Scan",
-            replace_existing=True,
-        )
+        # self.scheduler.add_job(
+        #     with_app_context(self._competitor_landscape_scan),
+        #     trigger=IntervalTrigger(days=14),
+        #     id="agent_competitor_scan",
+        #     name="Agent Loop: Competitor Landscape Scan",
+        #     replace_existing=True,
+        # )
 
         # Phase 5: Moved to consciousness/jobs.py
         # Job #54 — Skill sync: extract learned skills from KB to Claude rules
@@ -1054,6 +1064,13 @@ class AgentLoop:
             logger.info("[AgentLoop] Consciousness jobs registered via module")
         except Exception as e:
             logger.error("[AgentLoop] Failed to register consciousness jobs: %s", e)
+
+        try:
+            from tools.dev_hq.jobs import register_devhq_jobs
+            register_devhq_jobs(self.scheduler, self.flask_app)
+            logger.info("[AgentLoop] Dev HQ jobs registered via module")
+        except Exception as e:
+            logger.error("[AgentLoop] Failed to register dev_hq jobs: %s", e)
 
         self._running = True
         logger.info("Agent loop started with 72 jobs")
@@ -5007,7 +5024,8 @@ class AgentLoop:
             logger.warning(f"Failed: {e}")
 
     def _daily_code_metrics_scan(self):
-        """Job #40: Daily codebase metrics snapshot at 3:00 AM with stale audit detection."""
+        """DEPRECATED (Phase 5): Moved to dev_hq/jobs.py daily_code_metrics_scan()
+        Job #40: Daily codebase metrics snapshot at 3:00 AM with stale audit detection."""
         start = time.time()
         try:
             from services.code_metrics_service import scan_and_detect_changes
@@ -5027,7 +5045,8 @@ class AgentLoop:
             logger.warning(f"Failed: {e}")
 
     def _pattern_compliance_check(self):
-        """Job #41: Scan for pattern violations at 4:00 AM."""
+        """DEPRECATED (Phase 5): Moved to dev_hq/jobs.py pattern_compliance_check()
+        Job #41: Scan for pattern violations at 4:00 AM."""
         try:
             import os
             import re
@@ -5072,7 +5091,8 @@ class AgentLoop:
             logger.warning(f"Failed: {e}")
 
     def _automated_module_audit(self):
-        """Job #58: Automated module audit — weekly Sunday 3:30 AM."""
+        """DEPRECATED (Phase 5): Moved to dev_hq/jobs.py automated_module_audit()
+        Job #58: Automated module audit — weekly Sunday 3:30 AM."""
         try:
             from database import get_db_cursor
             from services.code_metrics_service import audit_single_module, log_audit
@@ -5229,7 +5249,8 @@ class AgentLoop:
             logger.warning(f"Automated module audit failed: {e}")
 
     def _daily_code_health_digest(self):
-        """Job #51: Send a morning Telegram summary of code health status at 8:00 AM."""
+        """DEPRECATED (Phase 5): Moved to dev_hq/jobs.py daily_code_health_digest()
+        Job #51: Send a morning Telegram summary of code health status at 8:00 AM."""
         start = time.time()
         try:
             import asyncio
@@ -5345,7 +5366,8 @@ class AgentLoop:
                             error_message=str(e))
 
     def _daily_code_health_scan(self):
-        """Job #55: Run codebase scan daily at 2:00 AM. Saves snapshot for Code Health tab."""
+        """DEPRECATED (Phase 5): Moved to dev_hq/jobs.py daily_code_health_scan()
+        Job #55: Run codebase scan daily at 2:00 AM. Saves snapshot for Code Health tab."""
         start = time.time()
         try:
             from services.code_metrics_service import scan_codebase, save_snapshot
@@ -5371,7 +5393,8 @@ class AgentLoop:
             )
 
     def _competitor_landscape_scan(self):
-        """Job #52: Scan AI competitor landscape every 2 weeks, update knowledge_base, notify via Telegram."""
+        """DEPRECATED (Phase 5): Moved to dev_hq/jobs.py competitor_landscape_scan()
+        Job #52: Scan AI competitor landscape every 2 weeks, update knowledge_base, notify via Telegram."""
         start = time.time()
         try:
             import asyncio

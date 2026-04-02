@@ -42,6 +42,15 @@ try:
 except ImportError:
     _HAS_AGENT_SERVICE = False
 
+# Phase 2: Service delegation to Department HQ
+try:
+    from services.model_service import get_model_service
+    from services.department_coordinator import get_coordinator as get_dept_coordinator
+    from services.dispatch_service import get_dispatch_service
+    _HAS_DEPT_HQ_SERVICES = True
+except ImportError:
+    _HAS_DEPT_HQ_SERVICES = False
+
 try:
     from ai_bridge.schemas.agent_schemas import validate_schema as _validate_handoff_schema
 except ImportError:
@@ -274,6 +283,36 @@ class DispatchResult:
             "provider": self.provider,
             "error": self.error,
         }
+
+
+def create_job_via_service(job_type, module_source, description, total_steps,
+                           capability=None, metadata=None):
+    """Convenience function for new callers — routes through Department HQ services."""
+    if not _HAS_DEPT_HQ_SERVICES:
+        raise RuntimeError("Department HQ services not available (import failed)")
+    svc = get_dispatch_service()
+    coord = get_dept_coordinator()
+
+    cap_key = capability or job_type.split("_")[0]
+    dept = coord.resolve_department(cap_key)
+    agent_info = coord.select_agent(cap_key, dept)
+
+    agent_name = None
+    if agent_info:
+        agent_name = agent_info.get("name")
+        model_svc = get_model_service()
+        model_svc.ensure_model_ready(agent_name, agent_info.get("model", ""))
+
+    return svc.create_job(
+        job_type=job_type,
+        module_source=module_source,
+        description=description,
+        total_steps=total_steps,
+        capability=capability,
+        metadata=metadata,
+        agent_name=agent_name,
+        station_code=dept,
+    )
 
 
 class BridgeDispatcher:
@@ -1154,7 +1193,10 @@ class BridgeDispatcher:
         department: str,
         recommended_tier: Optional[str] = None,
     ) -> tuple:
-        """Score an agent for a given capability and department.
+        """DEPRECATED (Phase 2): Use services.department_coordinator.score_agent() instead.
+        Kept during Phase 2 migration.
+
+        Score an agent for a given capability and department.
 
         Args:
             recommended_tier: SmartRouter advisory tier (e.g. 'local', 'haiku').
@@ -1313,7 +1355,10 @@ class BridgeDispatcher:
         return (round(composite, 4), None)
 
     def _resolve_department(self, capability: str) -> str:
-        """Resolve department for capability, checking mission profile overrides first."""
+        """DEPRECATED (Phase 2): Use services.department_coordinator.resolve_department() instead.
+        Kept during Phase 2 migration.
+
+        Resolve department for capability, checking mission profile overrides first."""
         try:
             from ai_bridge.mission_manager import MissionManager
 
@@ -1336,7 +1381,10 @@ class BridgeDispatcher:
         skip_busy_refresh: bool = False,
         recommended_tier: Optional[str] = None,
     ) -> Optional[Dict]:
-        """Select the best agent for a capability within a department.
+        """DEPRECATED (Phase 2): Use services.department_coordinator.select_agent() instead.
+        Kept during Phase 2 migration.
+
+        Select the best agent for a capability within a department.
 
         Prefers the department AI coordinator (is_department_ai=True),
         then falls back to highest-scoring agent in the department.
@@ -1417,7 +1465,10 @@ class BridgeDispatcher:
         capability: str,
         blocked_department: str,
     ) -> Optional[Dict]:
-        """Find an agent in another department that has the requested skill.
+        """DEPRECATED (Phase 2): Use services.department_coordinator.find_cross_department_agent() instead.
+        Kept during Phase 2 migration.
+
+        Find an agent in another department that has the requested skill.
 
         Department equivalent of the cross-station fallback in request_work().
         Returns the agent info dict or None.
@@ -1505,7 +1556,10 @@ class BridgeDispatcher:
         skip_busy_refresh: bool = False,
         recommended_tier: Optional[str] = None,
     ) -> Optional[Dict]:
-        """Select the best agent for a capability within a department.
+        """DEPRECATED (Phase 2): Use services.department_coordinator.select_agent() instead.
+        Kept during Phase 2 migration.
+
+        Select the best agent for a capability within a department.
 
         Uses multi-factor scoring: skills, specialization, welfare,
         availability, budget headroom, and SmartRouter tier match.
@@ -6899,27 +6953,16 @@ class BridgeDispatcher:
         return result
 
     def ensure_model_ready(self, agent_name, model, target_host=None):
-        """
-        Ensure a model is loaded and ready for inference on the target host.
+        """Ensure model is loaded — delegates to ModelService (Phase 2)."""
+        if _HAS_DEPT_HQ_SERVICES:
+            svc = get_model_service()
+            return svc.ensure_model_ready(agent_name, model, target_host)
+        # Fallback to legacy implementation if services unavailable
+        return self._ensure_model_ready_legacy(agent_name, model, target_host)
 
-        3-tier strategy:
-            1. GPU (VRAM) — fastest, check if already loaded with VRAM
-            2. CPU (RAM)  — warm standby, loaded but no VRAM
-            3. Cold (disk) — not loaded, needs warm boot
-
-        Args:
-            agent_name: Name of the agent requesting the model.
-            model: Ollama model tag (e.g. "llama3.2:3b").
-            target_host: Dict with {"hostname": str, "port": int} for remote
-                         node, or None for hub.
-
-        Returns:
-            {
-                "ready": bool,
-                "tier": "gpu" | "cpu" | "cold",
-                "host": str,
-                "warm_boot_ms": int,
-            }
+    def _ensure_model_ready_legacy(self, agent_name, model, target_host=None):
+        """DEPRECATED Phase 2: Original ensure_model_ready implementation.
+        Kept as fallback during migration — will be removed in Phase 5.
         """
         start_ms = time.time() * 1000
 

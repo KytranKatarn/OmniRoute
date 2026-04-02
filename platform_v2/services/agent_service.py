@@ -15,6 +15,7 @@ Import:
 import json
 import logging
 import os
+from typing import Dict
 from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
@@ -1136,3 +1137,95 @@ def check_shift_transitions():
 
     logger.info("[ShiftCheck] %d transitions triggered", len(transitions))
     return {"transitions": transitions}
+
+
+# ---------------------------------------------------------------------------
+# Caches for DepartmentCoordinator scoring
+# ---------------------------------------------------------------------------
+
+
+def get_agent_cache() -> Dict:
+    """Return dict of {agent_name: agent_info} for all active agents.
+
+    Used by department_coordinator for scoring and selection.
+    """
+    cache = {}
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT a.id, a.name, a.display_name, a.department, a.floor,
+                   a.model, a.status, a.shift_state,
+                   a.is_department_ai,
+                   COALESCE(json_agg(
+                       json_build_object('skill', s.skill_category, 'level', s.proficiency_level)
+                   ) FILTER (WHERE s.id IS NOT NULL), '[]') AS skills_list
+            FROM agents a
+            LEFT JOIN agent_skills s ON a.id = s.agent_id
+            WHERE a.status = 'active'
+            GROUP BY a.id
+        """
+        )
+        for row in cur.fetchall():
+            skills = {}
+            for s in row["skills_list"] if isinstance(row["skills_list"], list) else []:
+                if isinstance(s, dict) and s.get("skill"):
+                    skills[s["skill"]] = s.get("level", 1)
+            cache[row["name"]] = {
+                "id": row["id"],
+                "name": row["name"],
+                "display_name": row["display_name"],
+                "department": row["department"],
+                "floor": row["floor"],
+                "model": row["model"],
+                "status": row["status"],
+                "shift_state": row["shift_state"],
+                "is_department_ai": row["is_department_ai"],
+                "skills": skills,
+            }
+    return cache
+
+
+def get_welfare_cache() -> Dict:
+    """Return dict of {agent_id: welfare_info} for budget/stress scoring.
+
+    Used by department_coordinator for agent scoring.
+    """
+    cache = {}
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT a.id,
+                   COALESCE(es.stress_level, 0.0) AS stress,
+                   COALESCE(es.energy_level, 0.5) AS energy,
+                   COALESCE(ab.current_task_count, 0) AS task_count,
+                   COALESCE(ab.task_queue_limit, 10) AS task_limit,
+                   COALESCE(ab.tokens_used_today, 0) AS tokens_used,
+                   COALESCE(ab.token_limit_per_day, 100000) AS token_limit
+            FROM agents a
+            LEFT JOIN agent_emotional_state es ON a.id = es.agent_id
+            LEFT JOIN agent_budgets ab ON a.id = ab.agent_id
+            WHERE a.status = 'active'
+        """
+        )
+        for row in cur.fetchall():
+            task_limit = row["task_limit"] or 10
+            token_limit = row["token_limit"] or 100000
+            cache[row["id"]] = {
+                "stress": float(row["stress"]),
+                "energy": float(row["energy"]),
+                "budget": {
+                    "current_task_count": row["task_count"],
+                    "task_queue_limit": task_limit,
+                    "tokens_used_today": row["tokens_used"],
+                    "token_limit_per_day": token_limit,
+                    "utilization_pct": (
+                        max(
+                            row["task_count"] / task_limit,
+                            row["tokens_used"] / token_limit,
+                        )
+                        if task_limit > 0 and token_limit > 0
+                        else 0.0
+                    ),
+                },
+            }
+    return cache

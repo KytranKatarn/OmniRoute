@@ -15,7 +15,7 @@ import threading
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set
 
-from services.agent_service import match_capability
+from services.agent_service import match_capability, get_agent_cache, get_welfare_cache
 from services.model_service import ModelService, get_model_service
 
 logger = logging.getLogger(__name__)
@@ -36,6 +36,30 @@ class Assignment:
     department: str = ""
     queued: bool = False
     reason: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Capability → Department mapping
+# ---------------------------------------------------------------------------
+
+CAPABILITY_DEPARTMENT_MAP = {
+    "code": "Engineering & Technology",
+    "code_review": "Engineering & Technology",
+    "debug": "Engineering & Technology",
+    "general": "Engineering & Technology",
+    "classify": "Analytics & Intelligence",
+    "analyze": "Analytics & Intelligence",
+    "knowledge_analysis": "Analytics & Intelligence",
+    "summarize": "Documentation & Knowledge",
+    "translate": "Documentation & Knowledge",
+    "embedding": "Documentation & Knowledge",
+    "creative": "Creative & Design",
+    "image": "Creative & Design",
+    "security": "Security & Compliance",
+    "compliance": "Security & Compliance",
+    "support": "Customer Success & Support",
+    "research": "Research & Development",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -147,6 +171,152 @@ class DepartmentCoordinator:
             queued=True,
             reason=f"all agents for capability '{capability}' are busy or have insufficient capacity",
         )
+
+    # ------------------------------------------------------------------
+    # Scoring & Selection (Phase 2)
+    # ------------------------------------------------------------------
+
+    def _refresh_caches(self) -> None:
+        """Refresh agent and welfare caches if stale (>30s)."""
+        import time as _time
+
+        now = _time.time()
+        if not hasattr(self, "_cache_time") or (now - self._cache_time) > 30:
+            self._agent_cache = get_agent_cache()
+            self._welfare_cache = get_welfare_cache()
+            self._cache_time = now
+
+    def score_agent(
+        self,
+        agent_name: str,
+        agent_info: Dict,
+        capability: str,
+        department: str,
+    ) -> tuple:
+        """Score an agent for capability dispatch. Returns (score, block_reason_or_None).
+
+        Scoring factors:
+        - Status/shift must be active (hard block if not)
+        - Budget utilization (hard block at 95%+)
+        - Welfare: stress penalty, energy bonus
+        - Specialization: skill match bonus
+        - Department match bonus
+        """
+        agent_id = agent_info.get("id")
+
+        if agent_info.get("status") != "active":
+            return (
+                0.0,
+                f"{agent_name} is {agent_info.get('status')} (not available)",
+            )
+
+        shift = agent_info.get("shift_state", "active")
+        if shift not in ("active", "winding_down"):
+            return (0.0, f"{agent_name} shift_state={shift}")
+
+        self._refresh_caches()
+        welfare = self._welfare_cache.get(agent_id, {})
+        budget = welfare.get("budget", {})
+        util_pct = budget.get("utilization_pct", 0.0)
+        if util_pct >= 0.95:
+            return (0.0, f"{agent_name} budget exhausted ({util_pct:.0%})")
+
+        score = 1.0
+        stress = welfare.get("stress", 0.0)
+        energy = welfare.get("energy", 0.5)
+        score += (1.0 - stress) * 0.3
+        score += energy * 0.2
+        score -= util_pct * 0.5
+
+        if shift == "winding_down":
+            score -= 0.3
+
+        skills = agent_info.get("skills", {})
+        if capability in skills:
+            proficiency = skills[capability]
+            score += proficiency * 0.2
+
+        if agent_info.get("department") == department:
+            score += 0.2
+
+        if agent_info.get("is_department_ai"):
+            score += 0.3
+
+        return (max(score, 0.01), None)
+
+    def resolve_department(self, capability: str) -> str:
+        """Map a capability to its home department."""
+        return CAPABILITY_DEPARTMENT_MAP.get(capability, "Engineering & Technology")
+
+    def select_agent(
+        self,
+        capability: str,
+        department: str,
+    ) -> Optional[Dict]:
+        """Select the best agent for a capability within a department."""
+        self._refresh_caches()
+
+        candidates = []
+        for name, info in self._agent_cache.items():
+            if info.get("department") != department:
+                continue
+            score, block_reason = self.score_agent(name, info, capability, department)
+            if score > 0 and block_reason is None:
+                with self._lock:
+                    if info["id"] in self._reserved_agents:
+                        continue
+                candidates.append((score, name, info))
+
+        if not candidates:
+            return None
+
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        best_score, best_name, best_info = candidates[0]
+        logger.info(
+            "coordinator: selected %s (score=%.2f) for %s in %s",
+            best_name,
+            best_score,
+            capability,
+            department,
+        )
+        return best_info
+
+    def find_cross_department_agent(
+        self,
+        capability: str,
+        blocked_department: str,
+    ) -> Optional[Dict]:
+        """Find an agent in another department that has the requested skill."""
+        self._refresh_caches()
+
+        all_departments = set(info.get("department") for info in self._agent_cache.values() if info.get("department"))
+        skip = {blocked_department, "Executive Office"}
+
+        for dept in sorted(all_departments - skip):
+            for name, info in self._agent_cache.items():
+                if info.get("department") != dept:
+                    continue
+                skills = info.get("skills", {})
+                if capability not in skills:
+                    continue
+                score, block_reason = self.score_agent(name, info, capability, dept)
+                if score > 0 and block_reason is None:
+                    with self._lock:
+                        if info["id"] in self._reserved_agents:
+                            continue
+                    logger.info(
+                        "coordinator: cross-dept fallback %s→%s (%s) for %s",
+                        blocked_department,
+                        dept,
+                        name,
+                        capability,
+                    )
+                    return info
+        return None
+
+    # ------------------------------------------------------------------
+    # Reservation lifecycle
+    # ------------------------------------------------------------------
 
     def release_agent(self, agent_id: int, job_id: Optional[int] = None) -> None:
         """Release an agent reservation so it can accept new work."""

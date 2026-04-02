@@ -12,6 +12,7 @@ import time
 from typing import Dict, List, Optional
 
 from database import get_db_connection
+from services.department_coordinator import get_coordinator as get_dept_coordinator
 
 logger = logging.getLogger(__name__)
 
@@ -83,8 +84,8 @@ def get_eligible_agents(capability: str) -> List[Dict]:
             logger.debug("Skipping %s — embedding-only model %s", name, model)
             continue
 
-        station = info.get("station_code", "")
-        score, block_reason = _dispatcher._score_agent(name, info, capability, station)
+        department = info.get("department", "")
+        score, block_reason = get_dept_coordinator().score_agent(name, info, capability, department)
         if score > 0:
             eligible.append(
                 {

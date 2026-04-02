@@ -1194,182 +1194,16 @@ class BridgeDispatcher:
         department: str,
         recommended_tier: Optional[str] = None,
     ) -> tuple:
-        """DEPRECATED (Phase 2): Use services.department_coordinator.score_agent() instead.
-        Kept during Phase 2 migration.
-
-        Score an agent for a given capability and department.
-
-        Args:
-            recommended_tier: SmartRouter advisory tier (e.g. 'local', 'haiku').
-                              Provides a scoring bonus if agent's model matches.
-
-        Returns:
-            (score, block_reason_or_None) — score is 0.0 if hard-blocked.
-        """
-        agent_id = agent_info.get("id")
-        welfare = self._welfare_cache.get(agent_id, {})
-        budget = welfare.get("budget", {})
-
-        # ------------------------------------------------------------------
-        # Hard blocks (score = 0, agent cannot be selected)
-        # ------------------------------------------------------------------
-
-        # Agent must be active — paused, resting-in-lounge, or any non-active
-        # status means they are unavailable for dispatch.
-        agent_status = agent_info.get("status", "active")
-        if agent_status != "active":
-            return (
-                0.0,
-                f"{agent_name} is {agent_status} (not available for dispatch)",
-            )
-
-        if welfare.get("resting"):
-            return (
-                0.0,
-                f"{agent_name} is resting ({welfare.get('rest_type', 'unknown')})",
-            )
-
-        task_count = budget.get("current_task_count", 0)
-        task_limit = budget.get("task_queue_limit", 10)
-        if task_limit > 0 and task_count >= task_limit:
-            return (
-                0.0,
-                f"{agent_name} budget exhausted ({task_count}/{task_limit} tasks)",
-            )
-
-        stress = welfare.get("stress", 0.0)
-        energy = welfare.get("energy", 0.8)
-        if stress >= 0.9 and energy <= 0.15:
-            return (
-                0.0,
-                f"{agent_name} critical welfare (stress={stress}, energy={energy})",
-            )
-
-        # ------------------------------------------------------------------
-        # Skills score
-        # ------------------------------------------------------------------
-        skill_entry = agent_info.get("skills", {}).get(capability, {})
-        if skill_entry:
-            skills_score = skill_entry.get("level", 1) / 5.0
-        elif capability in CAPABILITY_REQUIRES_SKILL:
-            # Capability requires explicit skill — don't use generous default.
-            # Forces cross-department dispatch to an agent who actually has it.
-            return (0.0, f"{agent_name} lacks required skill '{capability}'")
-        else:
-            skills_score = 0.3  # generous default — agent may still handle it
-
-        # ------------------------------------------------------------------
-        # Specialization score: prefer performance ranking over static mapping
-        # ------------------------------------------------------------------
-        specialization_score = 0.0
-        agent_id = agent_info.get("id")
-        if agent_id:
-            # Try performance ranking first (data-driven)
-            perf_welfare = self._welfare_cache.get(agent_id, {})
-            rank_data = perf_welfare.get("perf_rankings", {}).get(capability)
-            if rank_data and rank_data.get("sample_size", 0) >= 10:
-                specialization_score = rank_data["rank_score"]
-            else:
-                # Fall back to dynamic benchmark winner
-                dyn_winner = self._get_dynamic_specialization(department, capability)
-                if dyn_winner and dyn_winner == agent_name:
-                    specialization_score = 1.0
-                else:
-                    # Fall back to static specialization map
-                    station_specs = AGENT_SPECIALIZATION.get(department, {})
-                    default_specs = AGENT_SPECIALIZATION.get("default", {})
-                    preferred = station_specs.get(capability) or default_specs.get(capability)
-                    specialization_score = 1.0 if preferred == agent_name else 0.0
-
-        # ------------------------------------------------------------------
-        # Welfare score — healthier agents score higher
-        # ------------------------------------------------------------------
-        welfare_score = (1.0 - stress) * energy
-
-        # ------------------------------------------------------------------
-        # Hard block: agent already has a running bridge_job
-        # ------------------------------------------------------------------
-        is_busy = agent_name in getattr(self, "_busy_agents", set())
-        if is_busy:
-            return (
-                0.0,
-                f"{agent_name} already has a running job (finish first)",
-            )
-        availability_score = 1.0
-
-        # ------------------------------------------------------------------
-        # Budget score — agents with more headroom preferred
-        # ------------------------------------------------------------------
-        if task_limit == 0:
-            budget_score = 1.0
-        else:
-            budget_score = max(1.0 - (task_count / task_limit), 0.0)
-
-        # ------------------------------------------------------------------
-        # Tier match score — SmartRouter advisory bonus
-        # ------------------------------------------------------------------
-        tier_match_score = 0.0
-        if recommended_tier:
-            agent_model = agent_info.get("model", "")
-            try:
-                from ai_bridge.smart_router import get_router
-
-                router = get_router()
-                configs = router._get_model_configs()
-                # Check if agent's model belongs to the recommended tier
-                tier_config = configs.get(recommended_tier)
-                if tier_config and (
-                    agent_model == tier_config.model_name
-                    or agent_model.startswith(tier_config.model_name.split(":")[0])
-                ):
-                    tier_match_score = 1.0
-            except Exception:
-                pass  # SmartRouter unavailable — no bonus, no penalty
-
-        # ------------------------------------------------------------------
-        # Composite weighted score
-        # ------------------------------------------------------------------
-        composite = (
-            SELECTION_WEIGHTS["skills"] * skills_score
-            + SELECTION_WEIGHTS["specialization"] * specialization_score
-            + SELECTION_WEIGHTS["welfare"] * welfare_score
-            + SELECTION_WEIGHTS["availability"] * availability_score
-            + SELECTION_WEIGHTS["budget"] * budget_score
-            + SELECTION_WEIGHTS["tier_match"] * tier_match_score
+        """DEPRECATED: Use get_dept_coordinator().score_agent() instead."""
+        logger.warning("DEPRECATED: _score_agent called — use coordinator.score_agent()")
+        return get_dept_coordinator().score_agent(
+            agent_name, agent_info, capability, department, recommended_tier=recommended_tier
         )
 
-        # Apply shift state modifiers
-        shift_state = agent_info.get("shift_state", "active")
-        if shift_state == "winding_down":
-            composite *= 1.0 - WINDING_DOWN_SCORE_PENALTY
-        elif shift_state == "cooldown":
-            return (0.0, f"{agent_name} is in cooldown (finishing current job only)")
-        elif shift_state == "off_duty":
-            return (0.0, f"{agent_name} is off duty (resting)")
-
-        # Fleet: network cost penalty for remote node agents
-        if agent_info.get("is_remote"):
-            composite *= 0.85  # 15% penalty for remote dispatch latency
-            if not agent_info.get("model_loaded", True):
-                composite *= 0.7  # Additional 30% if model not loaded on node
-
-        return (round(composite, 4), None)
-
     def _resolve_department(self, capability: str) -> str:
-        """DEPRECATED (Phase 2): Use services.department_coordinator.resolve_department() instead.
-        Kept during Phase 2 migration.
-
-        Resolve department for capability, checking mission profile overrides first."""
-        try:
-            from ai_bridge.mission_manager import MissionManager
-
-            mm = MissionManager()
-            overrides = mm.get_routing_overrides()
-            if overrides and capability in overrides:
-                return overrides[capability]
-        except Exception as e:
-            logger.warning("Capability routing override failed for %s: %s", capability, e)
-        return CAPABILITY_DEPARTMENT_MAP.get(capability, "Engineering & Technology")
+        """DEPRECATED: Use get_dept_coordinator().resolve_department() instead."""
+        logger.warning("DEPRECATED: _resolve_department called — use coordinator.resolve_department()")
+        return get_dept_coordinator().resolve_department(capability)
 
     # ------------------------------------------------------------------
     # Department-based routing (rebrand Phase 2.2)
@@ -1382,129 +1216,18 @@ class BridgeDispatcher:
         skip_busy_refresh: bool = False,
         recommended_tier: Optional[str] = None,
     ) -> Optional[Dict]:
-        """DEPRECATED (Phase 2): Use services.department_coordinator.select_agent() instead.
-        Kept during Phase 2 migration.
-
-        Select the best agent for a capability within a department.
-
-        Prefers the department AI coordinator (is_department_ai=True),
-        then falls back to highest-scoring agent in the department.
-        Uses the same multi-factor scoring as _select_agent().
-
-        This is the department equivalent of _select_agent() and can
-        be used as a drop-in replacement in the dispatch flow.
-        """
-        self._refresh_agent_cache()
-        self._refresh_welfare_cache(skip_busy_refresh=skip_busy_refresh)
-
-        # Gather all candidates in this department
-        candidates = []
-        coordinator = None
-        for name, info in self._agent_cache.items():
-            agent_dept = info.get("department", "")
-            if agent_dept != department:
-                continue
-            candidates.append((name, info))
-            if info.get("is_department_ai"):
-                coordinator = (name, info)
-
-        if not candidates:
-            logger.warning(
-                f"[BridgeDispatcher] No agents in department='{department}' "
-                f"for capability='{capability}'"
-            )
-            return None
-
-        # Try coordinator first (department AI) — if available and not blocked
-        if coordinator:
-            coord_name, coord_info = coordinator
-            score, block_reason = self._score_agent(
-                coord_name, coord_info, capability, department,
-                recommended_tier=recommended_tier,
-            )
-            if score > 0:
-                logger.info(
-                    f"[BridgeDispatcher] Department coordinator {coord_name} "
-                    f"(score={score}) selected for capability='{capability}' "
-                    f"department='{department}'"
-                )
-                return coord_info
-
-        # Score all candidates (same logic as _select_agent)
-        scored = []
-        blocked = []
-        for name, info in candidates:
-            score, block_reason = self._score_agent(
-                name, info, capability, department,
-                recommended_tier=recommended_tier,
-            )
-            if score > 0:
-                scored.append((score, name, info))
-            else:
-                blocked.append((name, block_reason))
-
-        if not scored:
-            reasons = "; ".join(f"{n}: {r}" for n, r in blocked)
-            logger.warning(
-                f"[BridgeDispatcher] All {len(blocked)} agent(s) blocked for "
-                f"capability='{capability}' department='{department}': {reasons}"
-            )
-            return None
-
-        scored.sort(key=lambda x: x[0], reverse=True)
-        best_score, best_name, best_info = scored[0]
-
-        logger.info(
-            f"[BridgeDispatcher] Selected {best_name} (score={best_score}) for "
-            f"capability='{capability}' department='{department}' "
-            f"({len(scored)} eligible, {len(blocked)} blocked)"
-        )
-        return best_info
+        """DEPRECATED: Use get_dept_coordinator().select_agent() instead."""
+        logger.warning("DEPRECATED: _select_agent_by_department called — use coordinator.select_agent()")
+        return get_dept_coordinator().select_agent(capability, department, recommended_tier=recommended_tier)
 
     def _find_cross_department_agent(
         self,
         capability: str,
         blocked_department: str,
     ) -> Optional[Dict]:
-        """DEPRECATED (Phase 2): Use services.department_coordinator.find_cross_department_agent() instead.
-        Kept during Phase 2 migration.
-
-        Find an agent in another department that has the requested skill.
-
-        Department equivalent of the cross-station fallback in request_work().
-        Returns the agent info dict or None.
-        """
-        self._refresh_agent_cache()
-
-        # Collect all departments that have agents
-        all_departments = set(
-            info.get("department")
-            for info in self._agent_cache.values()
-            if info.get("department")
-        )
-        tried = {blocked_department, "Executive Office"}  # Don't pull from exec
-
-        for other_dept in sorted(all_departments - tried):
-            for agent_name, info in self._agent_cache.items():
-                if info.get("department") != other_dept:
-                    continue
-                # Must have the skill explicitly
-                if capability not in (info.get("skills") or {}):
-                    continue
-                score, block_reason = self._score_agent(
-                    agent_name, info, capability, other_dept
-                )
-                if score <= 0:
-                    continue
-
-                logger.info(
-                    f"[BridgeDispatcher] Cross-department fallback: "
-                    f"'{blocked_department}' exhausted → '{other_dept}' "
-                    f"({agent_name}) for '{capability}'"
-                )
-                return info
-
-        return None
+        """DEPRECATED: Use get_dept_coordinator().find_cross_department_agent() instead."""
+        logger.warning("DEPRECATED: _find_cross_department_agent called — use coordinator")
+        return get_dept_coordinator().find_cross_department_agent(capability, blocked_department)
 
     def _resolve_module_department(self, module_id: str) -> Optional[str]:
         """Look up the home department for a module from bridge_stations.modules.
@@ -1557,26 +1280,9 @@ class BridgeDispatcher:
         skip_busy_refresh: bool = False,
         recommended_tier: Optional[str] = None,
     ) -> Optional[Dict]:
-        """DEPRECATED (Phase 2): Use services.department_coordinator.select_agent() instead.
-        Kept during Phase 2 migration.
-
-        Select the best agent for a capability within a department.
-
-        Uses multi-factor scoring: skills, specialization, welfare,
-        availability, budget headroom, and SmartRouter tier match.
-        Hard-blocked agents (resting, budget exhausted, critical welfare)
-        are filtered out.
-
-        This is now a thin wrapper around _select_agent_by_department
-        for backward compatibility.
-        """
-        return self._select_agent_by_department(
-            capability, department,
-            skip_busy_refresh=skip_busy_refresh,
-            recommended_tier=recommended_tier,
-        )
-
-        return best_info
+        """DEPRECATED: Use get_dept_coordinator().select_agent() instead."""
+        logger.warning("DEPRECATED: _select_agent called — use coordinator.select_agent()")
+        return get_dept_coordinator().select_agent(capability, department, recommended_tier=recommended_tier)
 
     # ====================================================================
     # FLEET NODE DISPATCH — Cross-node agent fallback (ADR-xxx)
@@ -4121,7 +3827,8 @@ class BridgeDispatcher:
             logger.debug(f"[BridgeDispatcher] SmartRouter advisory skipped: {sr_err}")
 
         # 1. Map capability → department
-        capability_department = self._resolve_department(capability)
+        _coord = get_dept_coordinator()
+        capability_department = _coord.resolve_department(capability)
         home_department = self._resolve_module_department(module_id)
 
         agent = None
@@ -4143,16 +3850,16 @@ class BridgeDispatcher:
             dispatch_department = agent.get("department", capability_department)
         else:
             # 1b. Department-based routing (primary path)
-            agent = self._select_agent_by_department(
-                capability, capability_department, skip_busy_refresh=_sbr,
+            agent = _coord.select_agent(
+                capability, capability_department,
                 recommended_tier=recommended_tier,
             )
             if agent:
                 dispatch_department = capability_department
             elif home_department and home_department != capability_department:
                 # 1c. Fallback: try home department
-                agent = self._select_agent_by_department(
-                    capability, home_department, skip_busy_refresh=_sbr,
+                agent = _coord.select_agent(
+                    capability, home_department,
                     recommended_tier=recommended_tier,
                 )
                 if agent:
@@ -4179,7 +3886,7 @@ class BridgeDispatcher:
                     f"{aux_reason}. Skipping cross-department → cloud."
                 )
             else:
-                cross_dept_agent = self._find_cross_department_agent(
+                cross_dept_agent = _coord.find_cross_department_agent(
                     capability, blocked_department
                 )
                 if cross_dept_agent:
@@ -4968,8 +4675,8 @@ class BridgeDispatcher:
         Used by modules that need to know which model will handle their work
         (e.g., chat modules that use archie_bridge for conversation context).
         """
-        station_code = CAPABILITY_DEPARTMENT_MAP.get(capability, "Engineering & Technology")
-        agent = self._select_agent(capability, station_code)
+        department = CAPABILITY_DEPARTMENT_MAP.get(capability, "Engineering & Technology")
+        agent = get_dept_coordinator().select_agent(capability, department)
         if agent:
             return agent.get("model", "")
         return ""
@@ -4989,7 +4696,7 @@ class BridgeDispatcher:
         Ensures all AI activity appears in task_execution_log for HR tracking.
         """
         station_code = CAPABILITY_DEPARTMENT_MAP.get(capability, "Engineering & Technology")
-        agent = self._select_agent(capability, station_code)
+        agent = get_dept_coordinator().select_agent(capability, station_code)
         agent_name = "ARCHIE"
         agent_id = 2
         if agent:
@@ -5313,28 +5020,28 @@ class BridgeDispatcher:
             # Resolve agent: try department routing first (post-rebrand),
             # fall back to station routing for backward compatibility
             cap_key = capability or job_type.split("_")[0]
-            capability_dept = self._resolve_department(cap_key)
-            capability_station = self._resolve_department(cap_key)
+            _coord = get_dept_coordinator()
+            capability_dept = _coord.resolve_department(cap_key)
 
             agent = None
-            dispatch_station = capability_station
-            home_station = capability_station
+            dispatch_station = capability_dept
+            home_station = capability_dept
             is_cross_station = False
 
             # Department-first routing (preferred)
-            agent = self._select_agent_by_department(cap_key, capability_dept)
+            agent = _coord.select_agent(cap_key, capability_dept)
             if not agent:
-                # Fallback to station routing
+                # Fallback to home department routing
                 home_station = self._resolve_module_department(module_source)
                 if home_station:
-                    agent = self._select_agent(cap_key, home_station)
+                    agent = _coord.select_agent(cap_key, home_station)
                     if agent:
                         dispatch_station = home_station
                     else:
-                        agent = self._select_agent(cap_key, capability_station)
-                        is_cross_station = home_station != capability_station
+                        agent = _coord.select_agent(cap_key, capability_dept)
+                        is_cross_station = home_station != capability_dept
                 else:
-                    agent = self._select_agent(cap_key, capability_station)
+                    agent = _coord.select_agent(cap_key, capability_dept)
 
             station_code = dispatch_station
             agent_name = None
@@ -5366,7 +5073,7 @@ class BridgeDispatcher:
                     )
                 else:
                     # Try cross-department dispatch
-                    cross_agent = self._find_cross_department_agent(
+                    cross_agent = _coord.find_cross_department_agent(
                         cap_key, blocked_station
                     )
                     if cross_agent:
@@ -6638,7 +6345,7 @@ class BridgeDispatcher:
             import requests
 
             # Find the right department for this capability
-            department = self._resolve_department(capability)
+            department = get_dept_coordinator().resolve_department(capability)
 
             # Get an active agent model for this department
             from database import get_db_cursor
@@ -6957,212 +6664,21 @@ class BridgeDispatcher:
         return result
 
     def ensure_model_ready(self, agent_name, model, target_host=None):
-        """Ensure model is loaded — delegates to ModelService (Phase 2)."""
-        if _HAS_DEPT_HQ_SERVICES:
-            svc = get_model_service()
-            return svc.ensure_model_ready(agent_name, model, target_host)
-        # Fallback to legacy implementation if services unavailable
-        return self._ensure_model_ready_legacy(agent_name, model, target_host)
+        """Ensure model is loaded — delegates to ModelService."""
+        svc = get_model_service()
+        return svc.ensure_model_ready(agent_name, model, target_host)
 
     def _ensure_model_ready_legacy(self, agent_name, model, target_host=None):
-        """DEPRECATED Phase 2: Original ensure_model_ready implementation.
-        Kept as fallback during migration — will be removed in Phase 5.
-        """
-        start_ms = time.time() * 1000
-
-        # Resolve Ollama URL
-        if target_host:
-            hostname = target_host.get("hostname", "unknown")
-            port = target_host.get("port", 11434)
-            ollama_url = f"http://{hostname}:{port}"
-            node_db_id = target_host.get("node_db_id")
-        else:
-            hostname = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
-            port = int(os.getenv("OLLAMA_LOCAL_PORT", "11434"))
-            ollama_url = f"http://{hostname}:{port}"
-            node_db_id = None
-
-        host_label = f"{hostname}:{port}"
-
-        # -- Step 1: Check if model is already loaded --
-        try:
-            ps_resp = requests.get(f"{ollama_url}/api/ps", timeout=10)
-            if ps_resp.status_code == 200:
-                for m in ps_resp.json().get("models", []):
-                    if m.get("name", "") == model or m.get("model", "") == model:
-                        size_vram = m.get("size_vram", 0)
-                        size_total = m.get("size", 0)
-                        if size_vram > 0 and size_vram >= size_total * 0.5:
-                            logger.info(
-                                f"[ModelOrch] {model} hot on GPU @ {host_label}"
-                            )
-                            return {
-                                "ready": True,
-                                "tier": "gpu",
-                                "host": host_label,
-                                "warm_boot_ms": 0,
-                            }
-                        else:
-                            logger.info(
-                                f"[ModelOrch] {model} warm in RAM @ {host_label}"
-                            )
-                            return {
-                                "ready": True,
-                                "tier": "cpu",
-                                "host": host_label,
-                                "warm_boot_ms": 0,
-                            }
-        except Exception as e:
-            logger.error(f"[ModelOrch] /api/ps failed on {host_label}: {e}")
-            return {
-                "ready": False,
-                "tier": "cold",
-                "host": host_label,
-                "warm_boot_ms": 0,
-            }
-
-        # -- Step 2: Model is cold — need to warm boot --
-        logger.info(
-            f"[ModelOrch] {model} cold on {host_label}, warm booting for {agent_name}"
-        )
-
-        # Get capacity to decide GPU vs CPU loading
-        capacity = self.get_host_capacity(node_db_id)
-        gpu_free = capacity.get("gpu_vram_free", 0)
-        ram_free = capacity.get("ram_free", 0)
-
-        # Estimate model size (use Ollama /api/show if available, else heuristic)
-        model_size_gb = self._estimate_model_size(model, ollama_url)
-
-        # Decide loading strategy
-        num_gpu = 0  # default: CPU only
-        if model_size_gb <= gpu_free and not capacity.get("comfyui_active", False):
-            num_gpu = 99  # Full GPU offload
-            target_tier = "gpu"
-            logger.info(
-                f"[ModelOrch] Loading {model} to GPU "
-                f"(need {model_size_gb:.1f}GB, free {gpu_free:.1f}GB)"
-            )
-        elif model_size_gb <= ram_free:
-            target_tier = "cpu"
-            logger.info(
-                f"[ModelOrch] Loading {model} to RAM "
-                f"(need {model_size_gb:.1f}GB, free {ram_free:.1f}GB)"
-            )
-        else:
-            # Need to evict LRU model first
-            target_tier = "cpu"
-            evicted = self._evict_lru_model(
-                capacity, model_size_gb, ollama_url
-            )
-            if not evicted:
-                logger.error(
-                    f"[ModelOrch] Cannot free enough RAM for {model} "
-                    f"on {host_label} (need {model_size_gb:.1f}GB, "
-                    f"free {ram_free:.1f}GB)"
-                )
-                return {
-                    "ready": False,
-                    "tier": "cold",
-                    "host": host_label,
-                    "warm_boot_ms": int(time.time() * 1000 - start_ms),
-                }
-
-        # -- Step 3: Load the model --
-        try:
-            load_resp = requests.post(
-                f"{ollama_url}/api/generate",
-                json={
-                    "model": model,
-                    "prompt": "",
-                    "keep_alive": "24h",
-                    "options": {"num_gpu": num_gpu, "num_predict": 1},
-                    "stream": False,
-                },
-                timeout=300,
-            )
-            elapsed_ms = int(time.time() * 1000 - start_ms)
-
-            if load_resp.status_code == 200:
-                logger.info(
-                    f"[ModelOrch] {model} loaded to {target_tier} on "
-                    f"{host_label} in {elapsed_ms}ms"
-                )
-                return {
-                    "ready": True,
-                    "tier": target_tier,
-                    "host": host_label,
-                    "warm_boot_ms": elapsed_ms,
-                }
-            else:
-                logger.error(
-                    f"[ModelOrch] Load {model} failed: "
-                    f"HTTP {load_resp.status_code} — {load_resp.text[:200]}"
-                )
-                return {
-                    "ready": False,
-                    "tier": "cold",
-                    "host": host_label,
-                    "warm_boot_ms": elapsed_ms,
-                }
-        except Exception as e:
-            elapsed_ms = int(time.time() * 1000 - start_ms)
-            logger.error(f"[ModelOrch] Load {model} exception: {e}")
-            return {
-                "ready": False,
-                "tier": "cold",
-                "host": host_label,
-                "warm_boot_ms": elapsed_ms,
-            }
+        """DEPRECATED: Use model_service.ensure_model_ready() instead."""
+        logger.warning("DEPRECATED: _ensure_model_ready_legacy called — use model_service")
+        svc = get_model_service()
+        return svc.ensure_model_ready(agent_name, model, target_host)
 
     def _estimate_model_size(self, model, ollama_url):
-        """
-        Estimate model runtime size in GB.
-        Uses /api/show for real size, falls back to name-based heuristic.
-        """
-        try:
-            resp = requests.post(
-                f"{ollama_url}/api/show",
-                json={"name": model},
-                timeout=10,
-            )
-            if resp.status_code == 200:
-                details = resp.json().get("details", {})
-                param_size = details.get("parameter_size", "")
-                # Parse "3.2B", "7B", "70B" etc.
-                if param_size:
-                    num_str = param_size.upper().replace("B", "").strip()
-                    try:
-                        params_b = float(num_str)
-                        # ~0.6 bytes per param for Q4 quant → GB
-                        return round(params_b * 0.6, 1)
-                    except ValueError:
-                        pass
-                # Fallback: use model file size * 1.3
-                model_info = resp.json().get("modelinfo", {})
-                for key, val in model_info.items():
-                    if "parameter" in key.lower() and isinstance(val, (int, float)):
-                        return round(val / 1e9 * 0.6, 1)
-        except Exception as _exc:
-            pass
-
-        # Name-based heuristic
-        name_lower = model.lower()
-        if "70b" in name_lower or "72b" in name_lower:
-            return 40.0
-        elif "34b" in name_lower or "35b" in name_lower:
-            return 20.0
-        elif "14b" in name_lower or "13b" in name_lower:
-            return 8.0
-        elif "8b" in name_lower or "7b" in name_lower:
-            return 5.0
-        elif "3b" in name_lower or "4b" in name_lower:
-            return 2.5
-        elif "1b" in name_lower or "1.7b" in name_lower:
-            return 1.5
-        elif "0.5b" in name_lower or "smol" in name_lower:
-            return 0.5
-        return 4.0  # Conservative default
+        """DEPRECATED: Use model_service.estimate_model_size() instead."""
+        logger.warning("DEPRECATED: _estimate_model_size called — use model_service")
+        svc = get_model_service()
+        return svc.estimate_model_size(model)
 
     def _evict_lru_model(self, capacity, needed_gb, ollama_url):
         """

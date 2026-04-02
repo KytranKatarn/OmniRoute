@@ -192,6 +192,7 @@ class DepartmentCoordinator:
         agent_info: Dict,
         capability: str,
         department: str,
+        recommended_tier: Optional[str] = None,
     ) -> tuple:
         """Score an agent for capability dispatch. Returns (score, block_reason_or_None).
 
@@ -242,6 +243,22 @@ class DepartmentCoordinator:
         if agent_info.get("is_department_ai"):
             score += 0.3
 
+        if recommended_tier:
+            agent_model = agent_info.get("model", "")
+            try:
+                from ai_bridge.smart_router import get_router
+
+                router = get_router()
+                configs = router._get_model_configs()
+                tier_config = configs.get(recommended_tier)
+                if tier_config and (
+                    agent_model == tier_config.model_name
+                    or agent_model.startswith(tier_config.model_name.split(":")[0])
+                ):
+                    score += 1.0
+            except Exception:
+                pass
+
         return (max(score, 0.01), None)
 
     def resolve_department(self, capability: str) -> str:
@@ -252,6 +269,7 @@ class DepartmentCoordinator:
         self,
         capability: str,
         department: str,
+        recommended_tier: Optional[str] = None,
     ) -> Optional[Dict]:
         """Select the best agent for a capability within a department."""
         self._refresh_caches()
@@ -260,7 +278,9 @@ class DepartmentCoordinator:
         for name, info in self._agent_cache.items():
             if info.get("department") != department:
                 continue
-            score, block_reason = self.score_agent(name, info, capability, department)
+            score, block_reason = self.score_agent(
+                name, info, capability, department, recommended_tier=recommended_tier
+            )
             if score > 0 and block_reason is None:
                 with self._lock:
                     if info["id"] in self._reserved_agents:

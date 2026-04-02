@@ -7400,3 +7400,88 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
 @media (max-width: 768px) {
     .fleet-providers-grid { grid-template-columns: 1fr; }
 }
+
+/* Fleet Provider Cards (Phase 4) */
+.fleet-provider-card {
+    background: rgba(30, 30, 50, 0.8);
+    border: 1px solid rgba(0, 229, 255, 0.2);
+    border-radius: 8px;
+    padding: 12px;
+    transition: border-color 0.2s;
+}
+.fleet-provider-card:hover {
+    border-color: rgba(0, 229, 255, 0.5);
+}
+.fleet-provider-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+.fleet-provider-name {
+    font-family: 'Antonio', sans-serif;
+    font-size: 1rem;
+    color: #00e5ff;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.fleet-provider-status {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+.fleet-provider-card-body {
+    font-size: 0.8rem;
+    color: #9ca3af;
+}
+.fleet-provider-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 2px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.fleet-provider-row span:last-child {
+    color: #e5e7eb;
+}
+.fleet-provider-budget-bar {
+    height: 4px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+    margin: 6px 0;
+    overflow: hidden;
+}
+.fleet-provider-caps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 8px;
+}
+.fleet-cap-tag {
+    font-size: 0.65rem;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: rgba(139, 92, 246, 0.2);
+    color: #a78bfa;
+    border: 1px solid rgba(139, 92, 246, 0.3);
+}
+.fleet-provider-card-actions {
+    margin-top: 8px;
+    display: flex;
+    gap: 6px;
+}
+.fleet-btn-sm {
+    font-size: 0.7rem;
+    padding: 3px 10px;
+    border-radius: 4px;
+    border: 1px solid rgba(0, 229, 255, 0.3);
+    background: rgba(0, 229, 255, 0.1);
+    color: #00e5ff;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-family: 'Antonio', sans-serif;
+    transition: background 0.2s;
+}
+.fleet-btn-sm:hover {
+    background: rgba(0, 229, 255, 0.25);
+}

@@ -6997,7 +6997,7 @@ Respond with ONLY a JSON object (no markdown, no explanation):
         """Job #62: Generate social video content from templates every 4 hours."""
         import random
         try:
-            from platform_v2.tools.media_studio.services import social_video_service as svs
+            from tools.media_studio.services import social_video_service as svs
 
             # Check budget
             budget = svs.check_budget()
@@ -7079,7 +7079,7 @@ Respond with ONLY a JSON object (no markdown, no explanation):
             logger.info("[SocialVideo] Created queue item id=%s type=%s tier=%s", item.get("id"), content_type, approval_tier)
 
             # Trigger generation worker
-            from platform_v2.tools.media_studio.services.social_video_worker import process_queue
+            from tools.media_studio.services.social_video_worker import process_queue
             process_queue()
 
         except Exception as e:
@@ -7090,7 +7090,7 @@ Respond with ONLY a JSON object (no markdown, no explanation):
     def _social_video_auto_approve(self):
         """Job #63: Auto-approve eligible social video queue items every 15 minutes."""
         try:
-            from platform_v2.tools.media_studio.services import social_video_service as svs
+            from tools.media_studio.services import social_video_service as svs
 
             items = svs.get_queue_items(status="ready", limit=20) or []
             for item in items:
@@ -7109,7 +7109,7 @@ Respond with ONLY a JSON object (no markdown, no explanation):
         import os as _os
         from datetime import datetime as _dt, timezone as _tz
         try:
-            from platform_v2.tools.media_studio.services import social_video_service as svs
+            from tools.media_studio.services import social_video_service as svs
 
             now = _dt.now(_tz.utc)
             items = svs.get_queue_items(status="scheduled", limit=10) or []
@@ -7140,12 +7140,12 @@ Respond with ONLY a JSON object (no markdown, no explanation):
                     for platform in platforms:
                         try:
                             if platform in ("instagram", "facebook"):
-                                from platform_v2.tools.social_media.publishing_service import publish_video
+                                from tools.social_media.publishing_service import publish_video
                                 result = publish_video(platform, video_path, caption, hashtags)
                                 if result:
                                     post_urls[platform] = result
                             elif platform == "indeed":
-                                from platform_v2.tools.social_media.platform_clients import get_indeed_client
+                                from tools.social_media.platform_clients import get_indeed_client
                                 result = get_indeed_client().post_video(video_path, caption, hashtags)
                                 if result:
                                     post_urls[platform] = result
@@ -7174,8 +7174,8 @@ Respond with ONLY a JSON object (no markdown, no explanation):
         """Check all security services are running. Auto-restart if down."""
         try:
             import subprocess
-            from platform_v2.tools.security_network.ntopng_service import NtopngService
-            from platform_v2.tools.security_network.nagios_service import NagiosService
+            from tools.security_network.ntopng_service import NtopngService
+            from tools.security_network.nagios_service import NagiosService
 
             issues = []
 
@@ -7218,7 +7218,7 @@ Respond with ONLY a JSON object (no markdown, no explanation):
     def _vigilil_traffic_aggregator(self):
         """Pull traffic data from ntopng and DNS stats from AdGuard into DB."""
         try:
-            from platform_v2.tools.security_network.ntopng_service import NtopngService
+            from tools.security_network.ntopng_service import NtopngService
             from database import get_db_cursor
             from datetime import datetime
 
@@ -7252,7 +7252,7 @@ Respond with ONLY a JSON object (no markdown, no explanation):
     def _vigilil_nagios_sync(self):
         """Sync Nagios check results into local cache table."""
         try:
-            from platform_v2.tools.security_network.nagios_service import NagiosService
+            from tools.security_network.nagios_service import NagiosService
             from database import get_db_cursor
 
             ng = NagiosService()
@@ -7279,7 +7279,7 @@ Respond with ONLY a JSON object (no markdown, no explanation):
     def _vigilil_device_watcher(self):
         """Detect new/unknown devices on the network."""
         try:
-            from platform_v2.tools.security_network.ntopng_service import NtopngService
+            from tools.security_network.ntopng_service import NtopngService
             from database import get_db_cursor
 
             nt = NtopngService()
@@ -7326,7 +7326,7 @@ Respond with ONLY a JSON object (no markdown, no explanation):
     def _vigilil_dns_anomaly(self):
         """Check AdGuard for DNS anomalies — tunneling, tracking spikes."""
         try:
-            from platform_v2.tools.security_network.adguard_service import AdGuardService
+            from tools.security_network.adguard_service import AdGuardService
 
             ag = AdGuardService()
             stats = ag.get_stats()
@@ -7374,7 +7374,7 @@ Respond with ONLY a JSON object (no markdown, no explanation):
     def _vigilil_daily_report(self):
         """Generate and deliver daily consumption reports."""
         try:
-            from platform_v2.tools.security_network.report_service import ReportService
+            from tools.security_network.report_service import ReportService
 
             svc = ReportService()
             device_report = svc.generate_daily_device_report()
@@ -7396,7 +7396,7 @@ Respond with ONLY a JSON object (no markdown, no explanation):
     def _vigilil_threat_responder(self):
         """Check for active threats and auto-respond."""
         try:
-            from platform_v2.tools.security_network.fail2ban_service import Fail2banService
+            from tools.security_network.fail2ban_service import Fail2banService
             from database import get_db_cursor
 
             f2b = Fail2banService()

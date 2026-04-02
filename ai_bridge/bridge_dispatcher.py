@@ -47,6 +47,7 @@ try:
     from services.model_service import get_model_service
     from services.department_coordinator import get_coordinator as get_dept_coordinator
     from services.dispatch_service import get_dispatch_service
+    from services.fleet_service import list_nodes, get_node_status, disconnect_node as svc_disconnect_node
     _HAS_DEPT_HQ_SERVICES = True
 except ImportError:
     _HAS_DEPT_HQ_SERVICES = False
@@ -1653,6 +1654,9 @@ class BridgeDispatcher:
         model_preference: Optional[str] = None,
     ) -> Optional[Dict]:
         """Find an available agent on a fleet node for cross-node dispatch.
+
+        Phase 3 note: fleet_service.list_nodes() and get_node_status() now available.
+        Full migration to fleet_service planned for Phase 5.
 
         Checks remote_nodes for online fleet nodes, then looks for agents
         in the requested department whose model is available on
@@ -7327,12 +7331,25 @@ class BridgeDispatcher:
     def check_fleet_health(self):
         """Monitor node heartbeats and handle offline/online transitions.
 
+        Phase 3 note: fleet_service.disconnect_node() handles agent recall.
+        Full migration to fleet_service planned for Phase 5.
+
         Called periodically (e.g., every 30s by agent loop).
         - Nodes with stale heartbeats (>2 min) → return agents to barracks
         - Nodes that come back online → restore previously deployed agents
         - Starbase nodes are always considered online (skip heartbeat check)
         - Idempotent: duplicate calls for same state produce no extra notifications
         """
+        # Phase 3: Use fleet_service for node data when available
+        if _HAS_DEPT_HQ_SERVICES:
+            try:
+                fleet_nodes = list_nodes()
+                for fn in fleet_nodes:
+                    if fn.get("status") == "offline" and fn.get("id"):
+                        logger.debug("[FleetHealth] Node %s offline per fleet_service", fn.get("node_name"))
+            except Exception as exc:
+                logger.debug("[FleetHealth] fleet_service unavailable, using direct SQL: %s", exc)
+
         from psycopg2.extras import RealDictCursor
 
         conn = self._get_db()

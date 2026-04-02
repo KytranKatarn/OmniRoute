@@ -812,14 +812,15 @@ class AgentLoop:
         #     replace_existing=True,
         # )
 
+        # Phase 5: Moved to security_network/jobs.py
         # Job #57 — Compliance scan: STIG rule evaluation every 6 hours
-        self.scheduler.add_job(
-            with_app_context(self._run_scheduled_compliance_scan),
-            trigger=IntervalTrigger(hours=6, start_date="2026-01-01 02:00:00"),
-            id="agent_compliance_scan",
-            name="Agent Loop: Compliance Scan",
-            replace_existing=True,
-        )
+        # self.scheduler.add_job(
+        #     with_app_context(self._run_scheduled_compliance_scan),
+        #     trigger=IntervalTrigger(hours=6, start_date="2026-01-01 02:00:00"),
+        #     id="agent_compliance_scan",
+        #     name="Agent Loop: Compliance Scan",
+        #     replace_existing=True,
+        # )
 
         # Job #59 — Dependabot vulnerability scan: poll alerts and triage every 6 hours
         self.scheduler.add_job(
@@ -843,14 +844,15 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Phase 5: Moved to security_network/jobs.py
         # Job #58 — Auto-remediation: fix low-risk compliance failures 30min after scan
-        self.scheduler.add_job(
-            with_app_context(self._run_auto_remediation),
-            trigger=IntervalTrigger(hours=6, start_date="2026-01-01 02:30:00"),
-            id="agent_auto_remediation",
-            name="Agent Loop: Compliance Auto-Remediation",
-            replace_existing=True,
-        )
+        # self.scheduler.add_job(
+        #     with_app_context(self._run_auto_remediation),
+        #     trigger=IntervalTrigger(hours=6, start_date="2026-01-01 02:30:00"),
+        #     id="agent_auto_remediation",
+        #     name="Agent Loop: Compliance Auto-Remediation",
+        #     replace_existing=True,
+        # )
 
         # Phase 5: Moved to consciousness/jobs.py
         # --- Migrated from consciousness_scheduler (APScheduler in app.py) ---
@@ -1071,6 +1073,13 @@ class AgentLoop:
             logger.info("[AgentLoop] Dev HQ jobs registered via module")
         except Exception as e:
             logger.error("[AgentLoop] Failed to register dev_hq jobs: %s", e)
+
+        try:
+            from tools.security_network.jobs import register_security_jobs
+            register_security_jobs(self.scheduler, self.flask_app)
+            logger.info("[AgentLoop] Security/network jobs registered via module")
+        except Exception as e:
+            logger.error("[AgentLoop] Failed to register security_network jobs: %s", e)
 
         self._running = True
         logger.info("Agent loop started with 72 jobs")
@@ -3350,7 +3359,7 @@ class AgentLoop:
             logger.warning(f"Failed: {e}")
 
     def _discover_network_devices(self):
-        """Discover new network devices via AdGuard + ARP (every 5 min)."""
+        """DEPRECATED (Phase 5): Moved to security_network/jobs.py discover_network_devices()"""
         try:
             from tools.security_network.device_registry_service import DeviceRegistryService
             from tools.security_network.security_alerts import create_security_alert
@@ -4566,7 +4575,7 @@ class AgentLoop:
             logger.warning(f"Failed: {e}")
 
     def _run_security_audit(self):
-        """Weekly security configuration audit — verify nothing has drifted."""
+        """DEPRECATED (Phase 5): Moved to security_network/jobs.py run_security_audit()"""
         try:
             from tools.security_network.security_alerts import create_security_alert
             import subprocess
@@ -4665,7 +4674,7 @@ class AgentLoop:
             logger.warning(f"Failed: {e}")
 
     def _run_scheduled_compliance_scan(self):
-        """Job #57: Run STIG compliance scan every 6 hours + auto-collect SOC 2 evidence."""
+        """DEPRECATED (Phase 5): Moved to security_network/jobs.py run_scheduled_compliance_scan()"""
         try:
             from tools.security_network.compliance_service import (
                 run_scan,
@@ -4722,7 +4731,7 @@ class AgentLoop:
             logger.error("Scheduled compliance scan failed: %s", e)
 
     def _run_auto_remediation(self):
-        """Job #58: Auto-fix low-risk compliance failures from the latest scan."""
+        """DEPRECATED (Phase 5): Moved to security_network/jobs.py run_auto_remediation()"""
         try:
             import json as _json
             from tools.security_network.compliance_service import (
@@ -4797,7 +4806,7 @@ class AgentLoop:
             logger.error("Auto-remediation failed: %s", e)
 
     def _check_ssl_expiry(self):
-        """Check SSL certificates for upcoming expiry (daily)."""
+        """DEPRECATED (Phase 5): Moved to security_network/jobs.py check_ssl_expiry()"""
         try:
             from tools.security_network.npm_service import NPMService
             from tools.security_network.security_alerts import create_security_alert
@@ -4855,7 +4864,7 @@ class AgentLoop:
             logger.warning(f"Failed: {e}")
 
     def _daily_dns_report(self):
-        """Generate daily DNS activity summary for Telegram (7 AM daily)."""
+        """DEPRECATED (Phase 5): Moved to security_network/jobs.py daily_dns_report()"""
         try:
             import requests
             import os
@@ -4911,7 +4920,7 @@ class AgentLoop:
             logger.warning(f"Failed: {e}")
 
     def _detect_query_spike(self):
-        """Detect unusual DNS query spikes (hourly)."""
+        """DEPRECATED (Phase 5): Moved to security_network/jobs.py detect_query_spike()"""
         try:
             import requests
             import os
@@ -4950,7 +4959,7 @@ class AgentLoop:
             logger.warning(f"Failed: {e}")
 
     def _check_camera_anomaly(self):
-        """Alert if cameras have been offline or no motion detected in 4+ hours."""
+        """DEPRECATED (Phase 5): Moved to security_network/jobs.py check_camera_anomaly()"""
         try:
             from tools.security_network.ha_surveillance_service import (
                 HASurveillanceService,
@@ -4978,7 +4987,7 @@ class AgentLoop:
             logger.warning(f"Failed: {e}")
 
     def _run_auto_block(self):
-        """Run suggestion engine and auto-execute critical/high suggestions (every 15 min)."""
+        """DEPRECATED (Phase 5): Moved to security_network/jobs.py run_auto_block()"""
         try:
             from tools.security_network.agent_automation import AgentAutomationService
             from tools.security_network.security_alerts import create_security_alert

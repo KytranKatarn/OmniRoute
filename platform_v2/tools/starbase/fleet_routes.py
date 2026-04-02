@@ -496,6 +496,144 @@ def register_fleet_routes(bp, admin_required):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+    # ── Cloud Provider CRUD ──────────────────────────────────────────
+
+    @bp.route("/api/cloud-providers")
+    @admin_required
+    def api_list_cloud_providers():
+        try:
+            from services.fleet_service import list_cloud_providers
+
+            providers = list_cloud_providers()
+            for p in providers:
+                for key in ("latitude", "longitude", "monthly_budget", "monthly_usage"):
+                    if p.get(key) is not None:
+                        p[key] = float(p[key])
+            return jsonify({"providers": providers})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @bp.route("/api/cloud-providers", methods=["POST"])
+    @admin_required
+    def api_create_cloud_provider():
+        try:
+            from services.fleet_service import register_provider
+
+            data = request.get_json() or {}
+            name = data.get("name", "").strip()
+            if not name:
+                return jsonify({"error": "name is required"}), 400
+            pid = register_provider(
+                name=name,
+                provider_type=data.get("provider_type", "cloud"),
+                api_key_env_var=data.get("api_key_env_var", ""),
+                tier=data.get("tier", "free"),
+                capabilities=data.get("capabilities", []),
+                models_available=data.get("models_available", []),
+                api_endpoint=data.get("api_endpoint", ""),
+                headquarters_city=data.get("headquarters_city", ""),
+                latitude=data.get("latitude"),
+                longitude=data.get("longitude"),
+                monthly_budget=data.get("monthly_budget", 0),
+            )
+            return jsonify({"success": True, "id": pid})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @bp.route("/api/cloud-providers/<int:provider_id>/toggle", methods=["POST"])
+    @admin_required
+    def api_toggle_cloud_provider(provider_id):
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """UPDATE cloud_providers
+                       SET status = CASE WHEN status = 'active' THEN 'inactive' ELSE 'active' END,
+                           updated_at = NOW()
+                       WHERE id = %s RETURNING id, name, status""",
+                    (provider_id,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return jsonify({"error": "Provider not found"}), 404
+                return jsonify(
+                    {
+                        "success": True,
+                        "id": row["id"],
+                        "name": row["name"],
+                        "status": row["status"],
+                    }
+                )
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @bp.route("/api/cloud-providers/<int:provider_id>/budget", methods=["POST"])
+    @admin_required
+    def api_update_cloud_provider_budget(provider_id):
+        try:
+            from database import get_db_cursor
+
+            data = request.get_json() or {}
+            budget = data.get("monthly_budget")
+            if budget is None:
+                return jsonify({"error": "monthly_budget is required"}), 400
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """UPDATE cloud_providers SET monthly_budget = %s, updated_at = NOW()
+                       WHERE id = %s RETURNING id, name, monthly_budget""",
+                    (budget, provider_id),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return jsonify({"error": "Provider not found"}), 404
+                return jsonify(
+                    {
+                        "success": True,
+                        "id": row["id"],
+                        "monthly_budget": float(row["monthly_budget"]),
+                    }
+                )
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @bp.route("/api/cloud-providers/<int:provider_id>/usage")
+    @admin_required
+    def api_cloud_provider_usage(provider_id):
+        try:
+            from database import get_db_cursor
+
+            days = int(request.args.get("days", 30))
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT model_name, COUNT(*) AS calls,
+                              SUM(tokens_in) AS tokens_in, SUM(tokens_out) AS tokens_out,
+                              SUM(estimated_cost) AS total_cost
+                       FROM cloud_usage_log
+                       WHERE provider_id = %s AND created_at > NOW() - INTERVAL '%s days'
+                       GROUP BY model_name ORDER BY total_cost DESC""",
+                    (provider_id, days),
+                )
+                rows = cur.fetchall()
+                return jsonify(
+                    {
+                        "provider_id": provider_id,
+                        "days": days,
+                        "by_model": [
+                            {
+                                "model": r["model_name"],
+                                "calls": r["calls"],
+                                "tokens_in": r["tokens_in"] or 0,
+                                "tokens_out": r["tokens_out"] or 0,
+                                "cost": float(r["total_cost"] or 0),
+                            }
+                            for r in rows
+                        ],
+                    }
+                )
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
     # ── Cert Distribution ────────────────────────────────────────────
 
     WILDCARD_CERT_DIR = os.path.join(os.environ.get("FLEET_CERT_DIR", "/opt/archie-fleet/certs"), "wildcard")

@@ -20,6 +20,7 @@ import logging
 import threading
 from datetime import datetime
 from flask import Blueprint, jsonify, request
+from services.department_coordinator import get_coordinator
 
 logger = logging.getLogger(__name__)
 
@@ -1191,6 +1192,12 @@ def _trigger_loop_op(op):
                 logger.debug("[ServerLoop] analysis: no items this cycle — will check again next run")
                 return
 
+            coordinator = get_coordinator()
+            assignment = coordinator.request_agent("knowledge_analysis", "consciousness", priority="normal")
+            if assignment.queued:
+                logger.info(f"[ServerLoop] analysis: queued — {assignment.reason}")
+                return
+
             batch_id = str(uuid.uuid4())
             job_id = dispatcher.create_job(
                 job_type="batch_analysis",
@@ -1201,13 +1208,17 @@ def _trigger_loop_op(op):
                 metadata={"category": "conversations", "batch_id": batch_id, "batch_size": 10, "server_loop": True},
             )
             if not job_id:
+                coordinator.release_agent(assignment.agent_id)
                 logger.info("[ServerLoop] analysis: duplicate job running — will retry after it completes")
                 return
+            coordinator.model_service.register_job(assignment.model, job_id)
             t = threading.Thread(
                 target=_run_analysis_job, args=(list(items), "conversations", batch_id, job_id), daemon=True
             )
             t.start()
-            logger.info(f"[ServerLoop] analysis: started job #{job_id} with {len(items)} items")
+            logger.info(
+                f"[ServerLoop] analysis: started job #{job_id} with {len(items)} items (agent={assignment.agent_name})"
+            )
 
         elif op == "embedding":
             cur.execute(
@@ -1233,6 +1244,12 @@ def _trigger_loop_op(op):
                 logger.debug("[ServerLoop] embedding: no items this cycle — will check again next run")
                 return
 
+            coordinator = get_coordinator()
+            assignment = coordinator.request_agent("embedding", "consciousness", priority="high")
+            if assignment.queued:
+                logger.info(f"[ServerLoop] embedding: queued — {assignment.reason}")
+                return
+
             job_id = dispatcher.create_job(
                 job_type="batch_embedding",
                 module_source="consciousness",
@@ -1242,14 +1259,24 @@ def _trigger_loop_op(op):
                 metadata={"batch_size": 25, "server_loop": True},
             )
             if not job_id:
+                coordinator.release_agent(assignment.agent_id)
                 logger.info("[ServerLoop] embedding: duplicate job running")
                 return
+            coordinator.model_service.register_job(assignment.model, job_id)
             t = threading.Thread(target=_run_embedding_job, args=(list(items), job_id), daemon=True)
             t.start()
-            logger.info(f"[ServerLoop] embedding: started job #{job_id} with {len(items)} items")
+            logger.info(
+                f"[ServerLoop] embedding: started job #{job_id} with {len(items)} items (agent={assignment.agent_name})"
+            )
 
         elif op == "translate":
             from tools.consciousness.language_routes import _run_translate_bg
+
+            coordinator = get_coordinator()
+            assignment = coordinator.request_agent("translate", "consciousness", priority="low")
+            if assignment.queued:
+                logger.info(f"[ServerLoop] translate: queued — {assignment.reason}")
+                return
 
             languages = ["fr", "es", "pt", "de", "zh", "ar", "he"]
             job_id = dispatcher.create_job(
@@ -1261,15 +1288,17 @@ def _trigger_loop_op(op):
                 metadata={"languages": languages, "server_loop": True},
             )
             if not job_id:
+                coordinator.release_agent(assignment.agent_id)
                 logger.info("[ServerLoop] translate: duplicate job running")
                 return
+            coordinator.model_service.register_job(assignment.model, job_id)
             t = threading.Thread(
                 target=_run_translate_bg,
                 args=(languages, None, job_id),
                 daemon=True,
             )
             t.start()
-            logger.info(f"[ServerLoop] translate: started job #{job_id}")
+            logger.info(f"[ServerLoop] translate: started job #{job_id} (agent={assignment.agent_name})")
 
     except Exception as e:
         logger.error(f"[ServerLoop] _trigger_loop_op({op}) failed: {e}")

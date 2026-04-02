@@ -1,4 +1,18 @@
 {
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /mnt/archie_brain/.claude/hooks/session-init.sh",
+            "timeout": 5,
+            "statusMessage": "Loading ARCHIE context..."
+          }
+        ]
+      }
+    ]
+  },
   "enabledPlugins": {
     "security-guidance@claude-code-plugins": true,
     "code-review@claude-plugins-official": true,

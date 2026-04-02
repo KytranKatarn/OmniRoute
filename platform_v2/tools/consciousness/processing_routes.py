@@ -703,6 +703,7 @@ def _run_embedding_job(item_ids_and_data, job_id):
 
                 if embedding:
                     cur.execute(_UPDATE_SQL[source], (embedding, item_id))
+                    conn.commit()
                     processed += 1
                 else:
                     failed += 1
@@ -712,11 +713,11 @@ def _run_embedding_job(item_ids_and_data, job_id):
 
             except Exception as e:
                 logger.error(f"Embedding for {source}:{item_id} failed: {e}")
+                conn.rollback()
                 failed += 1
                 if job_id:
                     dispatcher.update_job_progress(job_id, processed, failed)
 
-        conn.commit()
     except Exception as e:
         logger.error(f"Embedding background job failed: {e}")
     finally:
@@ -1165,16 +1166,29 @@ def _trigger_loop_op(op):
                 """
                 SELECT id, title, content, memory_metadata
                 FROM knowledge_base
-                WHERE source_type = 'conversation_log'
-                AND (ai_analysis IS NULL OR analysis_version = 0)
+                WHERE (ai_analysis IS NULL OR analysis_version = 0)
                 AND content IS NOT NULL AND LENGTH(content) > 100
-                ORDER BY created_at DESC LIMIT 10
+                AND knowledge_type IN (
+                    'vault_note', 'mistake_learned', 'conversation_memory',
+                    'github_file', 'code_snippet', 'api_endpoint'
+                )
+                ORDER BY
+                    CASE knowledge_type
+                        WHEN 'mistake_learned' THEN 1
+                        WHEN 'vault_note' THEN 2
+                        WHEN 'conversation_memory' THEN 3
+                        WHEN 'github_file' THEN 4
+                        WHEN 'code_snippet' THEN 5
+                        ELSE 6
+                    END,
+                    importance_score DESC NULLS LAST,
+                    created_at DESC
+                LIMIT 10
                 """
             )
             items = cur.fetchall()
             if not items:
-                logger.info("[ServerLoop] analysis: no items left — stopping loop")
-                set_server_loop(op, False)
+                logger.debug("[ServerLoop] analysis: no items this cycle — will check again next run")
                 return
 
             batch_id = str(uuid.uuid4())
@@ -1216,8 +1230,7 @@ def _trigger_loop_op(op):
             )
             items = cur.fetchall()
             if not items:
-                logger.info("[ServerLoop] embedding: no items left — stopping loop")
-                set_server_loop(op, False)
+                logger.debug("[ServerLoop] embedding: no items this cycle — will check again next run")
                 return
 
             job_id = dispatcher.create_job(
@@ -1236,7 +1249,7 @@ def _trigger_loop_op(op):
             logger.info(f"[ServerLoop] embedding: started job #{job_id} with {len(items)} items")
 
         elif op == "translate":
-            from tools.consciousness.routes import _run_translate_bg
+            from tools.consciousness.language_routes import _run_translate_bg
 
             languages = ["fr", "es", "pt", "de", "zh", "ar", "he"]
             job_id = dispatcher.create_job(

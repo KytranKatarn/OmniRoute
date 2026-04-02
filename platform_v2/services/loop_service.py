@@ -215,8 +215,9 @@ def server_loop_retrigger(job_type, module_source, final_status):
         _loop_failures[op] = retry_count
 
         if retry_count >= 5:
-            logger.warning(f"[ServerLoop] {op} failed {retry_count} times — auto-disabling")
-            set_server_loop(op, False)
+            logger.error(
+                f"[ServerLoop] ALERT: {op} failed {retry_count} consecutive times — resetting counter but keeping loop ENABLED. Investigate!"
+            )
             _loop_failures.pop(op, None)
             return
 

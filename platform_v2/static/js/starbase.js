@@ -10932,6 +10932,7 @@ function startFleetRefresh() {
     _fleetRefreshInterval = setInterval(function() {
         loadFleetData();
         loadFleetUsage();
+        loadCloudProviders();
         loadProviderManagement();
     }, 30000);
 }
@@ -10962,6 +10963,7 @@ function initFleetMap() {
     }).addTo(fleetMap);
 
     loadFleetData();
+    loadCloudProviders();
 }
 
 function loadFleetData() {
@@ -11083,6 +11085,123 @@ function updateFleetStats(data) {
     if (provEl) provEl.textContent = provCount + ' provider' + (provCount !== 1 ? 's' : '') + ' active';
 }
 
+async function loadCloudProviders() {
+    try {
+        const resp = await fetch('/tools/starbase/api/cloud-providers');
+        const data = await resp.json();
+        if (data.error) { console.error('Cloud providers error:', data.error); return; }
+
+        const grid = document.getElementById('fleetProvidersGrid');
+        if (!grid) return;
+
+        const providers = data.providers || [];
+        const countEl = document.getElementById('fleetProviderCount');
+        if (countEl) countEl.textContent = providers.length;
+
+        if (providers.length === 0) {
+            grid.textContent = '';
+            var emptyMsg = document.createElement('div');
+            emptyMsg.style.cssText = 'text-align:center;color:#6b7280;padding:24px;';
+            emptyMsg.textContent = 'No cloud providers configured';
+            grid.appendChild(emptyMsg);
+            return;
+        }
+
+        grid.textContent = '';
+        providers.forEach(function(p) {
+            var statusColor = p.status === 'active' ? '#10b981' : '#6b7280';
+            var budgetPct = p.monthly_budget > 0
+                ? Math.min(((p.monthly_usage || 0) / p.monthly_budget) * 100, 100).toFixed(0)
+                : 0;
+            var budgetColor = budgetPct > 80 ? '#ef4444' : budgetPct > 50 ? '#f59e0b' : '#10b981';
+
+            var card = document.createElement('div');
+            card.className = 'fleet-provider-card';
+
+            // Header
+            var header = document.createElement('div');
+            header.className = 'fleet-provider-card-header';
+            var nameSpan = document.createElement('span');
+            nameSpan.className = 'fleet-provider-name';
+            nameSpan.textContent = p.name;
+            var statusSpan = document.createElement('span');
+            statusSpan.className = 'fleet-provider-status';
+            statusSpan.style.color = statusColor;
+            statusSpan.textContent = (p.status || 'unknown').toUpperCase();
+            header.appendChild(nameSpan);
+            header.appendChild(statusSpan);
+            card.appendChild(header);
+
+            // Body rows
+            var body = document.createElement('div');
+            body.className = 'fleet-provider-card-body';
+            [['Type', p.provider_type || 'cloud'], ['Tier', p.tier || 'free'],
+             ['City', p.headquarters_city || '--'],
+             ['Budget', '$' + (p.monthly_usage || 0).toFixed(2) + ' / $' + (p.monthly_budget || 0).toFixed(2)]
+            ].forEach(function(pair) {
+                var row = document.createElement('div');
+                row.className = 'fleet-provider-row';
+                var lbl = document.createElement('span');
+                lbl.textContent = pair[0];
+                var val = document.createElement('span');
+                val.textContent = pair[1];
+                row.appendChild(lbl);
+                row.appendChild(val);
+                body.appendChild(row);
+            });
+
+            // Budget bar
+            if (p.monthly_budget > 0) {
+                var barWrap = document.createElement('div');
+                barWrap.className = 'fleet-provider-budget-bar';
+                var barFill = document.createElement('div');
+                barFill.style.cssText = 'width:' + budgetPct + '%;background:' + budgetColor + ';height:100%;border-radius:2px;';
+                barWrap.appendChild(barFill);
+                body.appendChild(barWrap);
+            }
+
+            // Capability tags
+            var caps = document.createElement('div');
+            caps.className = 'fleet-provider-caps';
+            (p.capabilities || []).forEach(function(c) {
+                var tag = document.createElement('span');
+                tag.className = 'fleet-cap-tag';
+                tag.textContent = c;
+                caps.appendChild(tag);
+            });
+            body.appendChild(caps);
+            card.appendChild(body);
+
+            // Actions
+            var actions = document.createElement('div');
+            actions.className = 'fleet-provider-card-actions';
+            var toggleBtn = document.createElement('button');
+            toggleBtn.className = 'fleet-btn-sm';
+            toggleBtn.textContent = p.status === 'active' ? 'Disable' : 'Enable';
+            toggleBtn.addEventListener('click', function() { toggleCloudProvider(p.id); });
+            actions.appendChild(toggleBtn);
+            card.appendChild(actions);
+
+            grid.appendChild(card);
+        });
+    } catch(e) {
+        console.error('loadCloudProviders failed:', e);
+    }
+}
+
+async function toggleCloudProvider(providerId) {
+    try {
+        const resp = await fetch('/tools/starbase/api/cloud-providers/' + providerId + '/toggle', { method: 'POST' });
+        const data = await resp.json();
+        if (data.success) {
+            loadCloudProviders();
+            loadFleetData();
+        }
+    } catch(e) {
+        console.error('Toggle cloud provider failed:', e);
+    }
+}
+
 function showNodeDetail(node) {
     var panel = document.getElementById('fleetDetailPanel');
     var titleEl = document.getElementById('fleetDetailTitle');
@@ -11194,6 +11313,7 @@ function closeFleetDetail() {
                     initFleetMap();
                     if (fleetMap) fleetMap.invalidateSize();
                     loadFleetUsage();
+                    loadCloudProviders();
                     loadProviderManagement();
                     startFleetRefresh();
                 }, 100);
@@ -11259,6 +11379,33 @@ async function loadFleetUsage() {
                     <td><span class="fleet-status-dot ${p.is_active ? 'active' : 'inactive'}"></span></td>
                 </tr>`;
             }).join('');
+
+        // Cloud providers budget rows (Phase 4)
+        try {
+            const cloudResp = await fetch('/tools/starbase/api/cloud-providers');
+            const cloudData = await cloudResp.json();
+            (cloudData.providers || []).forEach(function(p) {
+                var budgetPct = p.monthly_budget > 0
+                    ? ((p.monthly_usage || 0) / p.monthly_budget * 100).toFixed(0)
+                    : '--';
+                var statusColor = p.status === 'active' ? '#10b981' : '#6b7280';
+                var row = document.createElement('tr');
+                var cells = [p.name, p.tier || 'free',
+                    '$' + (p.monthly_budget || 0).toFixed(2),
+                    '$' + (p.monthly_usage || 0).toFixed(2),
+                    budgetPct + (budgetPct !== '--' ? '%' : ''),
+                    (p.status || '--').toUpperCase()];
+                cells.forEach(function(text, i) {
+                    var td = document.createElement('td');
+                    td.textContent = text;
+                    if (i === 5) td.style.color = statusColor;
+                    row.appendChild(td);
+                });
+                tbody.appendChild(row);
+            });
+        } catch(e) {
+            console.error('Cloud providers budget table error:', e);
+        }
     } catch (e) {
         console.error('Fleet usage load failed:', e);
     }
@@ -11325,6 +11472,7 @@ async function toggleProvider(key) {
         loadProviderManagement();
         loadFleetData();
         loadFleetUsage();
+        loadCloudProviders();
     } catch (e) {
         console.error('Toggle provider failed:', e);
     }
@@ -11337,6 +11485,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (activePanel) {
             initFleetMap();
             loadFleetUsage();
+            loadCloudProviders();
             loadProviderManagement();
             startFleetRefresh();
         }

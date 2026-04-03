@@ -20,6 +20,20 @@ ENTRIES_PER_RUN = 25
 MAX_RUN_SECONDS = 300
 
 
+def _mark_error(get_db_cursor, entry_id: int):
+    """Mark an entry as 'error' so it's not retried forever."""
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """UPDATE knowledge_base
+                   SET review_status = 'error', quality_scored_at = NOW()
+                   WHERE id = %s""",
+                (entry_id,),
+            )
+    except Exception:
+        pass
+
+
 def run_quality_review() -> Dict[str, Any]:
     """Score unscored knowledge entries one at a time.
 
@@ -84,21 +98,11 @@ def run_quality_review() -> Dict[str, Any]:
                 counts[result["review_status"]] += 1
             else:
                 counts["failed"] += 1
+                _mark_error(get_db_cursor, entry["id"])
         except Exception as e:
             logger.error("Quality review: entry %d failed: %s", entry["id"], e)
             counts["failed"] += 1
-            # Mark as failed so we don't retry it forever
-            try:
-                with get_db_cursor(commit=True) as (conn, cur):
-                    cur.execute(
-                        """UPDATE knowledge_base
-                           SET review_status = 'error',
-                               quality_scored_at = NOW()
-                           WHERE id = %s""",
-                        (entry["id"],),
-                    )
-            except Exception:
-                pass
+            _mark_error(get_db_cursor, entry["id"])
 
     elapsed = time.time() - start_time
     total = counts["scored"] + counts["flagged"] + counts["rejected"]

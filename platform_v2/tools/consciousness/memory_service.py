@@ -148,10 +148,12 @@ def semantic_search(
         if source_types:
             cur.execute(
                 """
-                SELECT id, title, content, knowledge_type, category, tags, embedding
+                SELECT id, title, content, knowledge_type, category, tags, embedding,
+                       quality_score, review_status
                 FROM knowledge_base
                 WHERE embedding IS NOT NULL
                 AND knowledge_type = ANY(%s)
+                AND (review_status IS NULL OR review_status != 'rejected')
                 ORDER BY created_at DESC
                 LIMIT 500
             """,
@@ -160,9 +162,11 @@ def semantic_search(
         else:
             cur.execute(
                 """
-                SELECT id, title, content, knowledge_type, category, tags, embedding
+                SELECT id, title, content, knowledge_type, category, tags, embedding,
+                       quality_score, review_status
                 FROM knowledge_base
                 WHERE embedding IS NOT NULL
+                AND (review_status IS NULL OR review_status != 'rejected')
                 ORDER BY created_at DESC
                 LIMIT 500
             """
@@ -191,6 +195,8 @@ def semantic_search(
                             "category": row["category"],
                             "tags": row["tags"],
                             "similarity": round(similarity, 4),
+                            "quality_score": row["quality_score"],
+                            "review_status": row["review_status"],
                             # Compatibility fields for callers expecting old format
                             "source_type": row["knowledge_type"],
                             "source_id": row["id"],

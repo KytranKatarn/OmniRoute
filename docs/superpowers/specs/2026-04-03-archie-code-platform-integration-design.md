@@ -122,6 +122,37 @@ Engine classifies intent as "code_review"
   → Result returns → TUI shows "Reviewed by S.H.I.E.L.D. (Security & Compliance)"
 ```
 
+### Escalation Learning Loop
+
+Escalation should be a self-correcting process. Every time the engine escalates to Claude (or platform agents), the outcome gets fed back as a learning:
+
+1. **Escalation happens** — engine packages context, sends to Claude/agent
+2. **Solution received** — Claude/agent solves the problem
+3. **Pattern extracted** — engine distills: "task type X with characteristics Y → solution approach Z"
+4. **Stored as learning** — via Consciousness pipeline: `store_memory(type='mistake_learned')` for failures, `vault_note` for successful patterns
+5. **Next occurrence** — DispatchStrategy checks learned patterns before escalating. If a match exists, engine handles it locally using the learned approach.
+
+**Goal**: Escalation count decreases over time. The engine gets smarter with every interaction. Learnings are shared across sessions via the knowledge base.
+
+**Anti-loop protection**: If a learned pattern fails twice, it gets flagged as stale and the engine escalates again to get a fresh solution.
+
+### Consciousness Module Integration
+
+The engine doesn't just read from the knowledge base — it actively participates in the Consciousness pipeline:
+
+| Action | How | When |
+|--------|-----|------|
+| **Search knowledge** | `search_knowledge(query)` | Before every platform dispatch — check if answer already exists |
+| **Store learnings** | `store_memory(type, content)` | After every escalation resolution, successful complex task |
+| **Log mistakes** | `store_memory(type='mistake_learned')` | When engine fails and gets corrected |
+| **Extract patterns** | Via Consciousness analysis loop | Engine outputs feed the existing embedding + analysis pipeline |
+| **Quality scoring** | Leverages existing quality pipeline | Learnings get scored, low-quality entries pruned automatically |
+
+The Consciousness module already has the infrastructure: embedding service, analysis loop, quality scoring (Decision #374). ARCHIE Code becomes another producer/consumer of knowledge alongside Claude and the platform agents.
+
+**Hub-connected mode**: Learnings go directly to the platform's `knowledge_base` table via MCP.
+**Offline mode**: Learnings stored in local SQLite. Synced to hub on next connection via `hub/sync.py`.
+
 ## Product Tiers
 
 | Tier | Connectivity | Capabilities |
@@ -142,12 +173,14 @@ Design constraint: `DispatchStrategy` must work when `hub_url` is empty. Hub is 
 - Fix `datetime.utcnow()` deprecation warnings
 - Test: start → classify → dispatch to Bridge → get agent response
 
-### Phase 2: Claude Bidirectional MCP
+### Phase 2: Claude Bidirectional MCP + Learning
 - Complete `mcp_server.py` — add `tools/call` handler
 - State sync channel — file watcher + git hook events over WebSocket
 - Escalation: engine → Claude with full context
 - Delegation: Claude → engine with task packages
 - Conflict awareness — same-file edit warnings
+- Escalation learning loop — extract patterns from resolutions, store via Consciousness
+- Consciousness integration — search KB before dispatch, store learnings after resolution
 
 ### Phase 3: Go TUI Polish
 - Compile and test Go TUI against running engine

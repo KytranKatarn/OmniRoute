@@ -2,7 +2,7 @@
 
 ## Before Any Work
 1. Run `/archie-boot` OR call `mcp__archie__session_briefing` with the task topic
-2. The knowledge base has 18,000+ entries with embeddings — **search before building, search before asking**
+2. The knowledge base has 22,000+ entries with embeddings — **search before building, search before asking**
 3. Check `mistake_learned` entries for the task area — these prevent repeating costly errors
 4. The user is REMOTE (not on the server) — never give localhost URLs, always use 192.168.1.200
 

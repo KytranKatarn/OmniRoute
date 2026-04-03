@@ -11,6 +11,28 @@
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /mnt/archie_brain/.claude/hooks/pre-edit-check.sh",
+            "timeout": 3
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /mnt/archie_brain/.claude/hooks/pre-edit-check.sh",
+            "timeout": 3
+          }
+        ]
+      }
     ]
   },
   "enabledPlugins": {

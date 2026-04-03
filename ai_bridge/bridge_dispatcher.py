@@ -4985,14 +4985,27 @@ class BridgeDispatcher:
             cur.execute("SELECT pg_advisory_xact_lock(%s)", (lock_key,))
 
             # ── Duplicate guard: block if same type+module already running ──
-            cur.execute(
-                """
-                SELECT id FROM bridge_jobs
-                WHERE job_type = %s AND module_source = %s AND status = 'running'
-                ORDER BY created_at DESC LIMIT 1
-                """,
-                (job_type, module_source),
-            )
+            # For jobs with repo metadata (GitHub), scope duplicate check per-repo
+            repo_scope = (metadata or {}).get("repo")
+            if repo_scope:
+                cur.execute(
+                    """
+                    SELECT id FROM bridge_jobs
+                    WHERE job_type = %s AND module_source = %s AND status = 'running'
+                      AND metadata->>'repo' = %s
+                    ORDER BY created_at DESC LIMIT 1
+                    """,
+                    (job_type, module_source, repo_scope),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT id FROM bridge_jobs
+                    WHERE job_type = %s AND module_source = %s AND status = 'running'
+                    ORDER BY created_at DESC LIMIT 1
+                    """,
+                    (job_type, module_source),
+                )
             existing = cur.fetchone()
             if existing:
                 eid = existing[0] if isinstance(existing, (list, tuple)) else existing["id"]
@@ -5044,19 +5057,17 @@ class BridgeDispatcher:
                     agent = _coord.select_agent(cap_key, capability_dept)
 
             station_code = dispatch_station
+            blocked_station = home_station or capability_dept
             agent_name = None
             if agent:
-                for name, info in self._agent_cache.items():
-                    if info.get("id") == agent.get("id"):
-                        agent_name = name
-                        break
+                agent_name = agent.get("name") or agent.get("display_name")
 
             # ── Cross-station fallback (mirrors dispatch() logic) ──
             #     Enforce max_auxiliary: only 1 cross-station helper per station.
             #     Use a RealDictCursor on the SAME connection to share the
             #     transaction and its advisory lock, preventing race conditions.
             if not agent:
-                blocked_station = home_station or capability_station
+                blocked_station = home_station or capability_dept
                 from psycopg2.extras import RealDictCursor
 
                 aux_cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -5078,10 +5089,7 @@ class BridgeDispatcher:
                     )
                     if cross_agent:
                         agent = cross_agent
-                        for aname, ainfo in self._agent_cache.items():
-                            if ainfo.get("id") == cross_agent.get("id"):
-                                agent_name = aname
-                                break
+                        agent_name = cross_agent.get("name") or cross_agent.get("display_name")
                         other_dept = cross_agent.get("department", blocked_station)
                         station_code = DEPARTMENT_FLOOR_MAP.get(other_dept, "ENGINEERING")
                         dispatch_station = other_dept
@@ -5096,7 +5104,7 @@ class BridgeDispatcher:
             if not agent_name:
                 # Department at capacity — request cloud approval via Telegram
                 # and REJECT the job so no orphan (agentless) jobs are created.
-                blocked_dept = home_station or capability_station
+                blocked_dept = home_station or capability_dept
                 logger.info(
                     f"[BridgeDispatcher] create_job: {blocked_dept} at "
                     f"full capacity for '{cap_key}'. Requesting cloud approval."
@@ -5105,12 +5113,7 @@ class BridgeDispatcher:
                 try:
                     from agent_loop import request_approval
 
-                    busy_names = [
-                        self._agent_display(aname)
-                        for aname, ainfo in self._agent_cache.items()
-                        if ainfo.get("department") == blocked_dept
-                    ]
-                    busy_str = ", ".join(busy_names) or blocked_dept
+                    busy_str = f"All agents in {blocked_dept}"
 
                     request_approval(
                         action_type="cloud_throughput_escalation",

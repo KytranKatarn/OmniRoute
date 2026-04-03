@@ -1,7 +1,7 @@
 /* Directory — Agent roster with live status polling */
 var Directory = {
-    API_URL: 'https://api.kytranempowerment.com/api/public/directory',
-    LIVE_URL: 'https://api.kytranempowerment.com/api/public/directory/live',
+    API_URL: 'https://api.kytranempowerment.com/api/directory',
+    LIVE_URL: 'https://api.kytranempowerment.com/api/directory/live-status',
     POLL_INTERVAL: 30000,
     agents: [],
     _pollTimer: null,

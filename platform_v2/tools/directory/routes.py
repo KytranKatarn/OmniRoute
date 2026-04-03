@@ -29,6 +29,7 @@ ALLOWED_ORIGINS = [
     "https://www.kytranempowerment.com",
     "https://kytranempowerment.com",
     "https://archie.kytranempowerment.com",
+    "https://api.kytranempowerment.com",
     "http://localhost",
 ]
 

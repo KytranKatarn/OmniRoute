@@ -15,9 +15,9 @@ from typing import Dict, Any
 logger = logging.getLogger(__name__)
 
 # How many entries to score per job run
-ENTRIES_PER_RUN = 25
+ENTRIES_PER_RUN = 50
 # Max seconds per job run (don't hog the LLM forever)
-MAX_RUN_SECONDS = 300
+MAX_RUN_SECONDS = 600
 
 
 def _mark_error(get_db_cursor, entry_id: int):

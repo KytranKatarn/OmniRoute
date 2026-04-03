@@ -85,13 +85,13 @@ async def search_knowledge_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
         if semantic_results:
             # Apply type weighting to semantic results
             type_weights = {
-                "mistake_learned": 1.3,
-                "vault_note": 1.2,
-                "code_snippet": 1.1,
-                "knowledge_card": 1.1,
+                "mistake_learned": 1.5,
+                "vault_note": 1.4,
+                "code_snippet": 1.3,
+                "knowledge_card": 1.0,
                 "improvement": 1.0,
-                "github_file": 0.8,
-                "conversation_memory": 0.8,
+                "github_file": 0.6,
+                "conversation_memory": 0.7,
             }
             formatted = []
             for r in semantic_results:
@@ -103,9 +103,9 @@ async def search_knowledge_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
                 weight_key = "knowledge_card" if kt.startswith("knowledge_card") else kt
                 weight = type_weights.get(weight_key, 0.8)
                 sim = r.get("similarity", 0.5)
-                # quality_factor: use score if present, else 0.7 neutral default
+                # quality_factor: use score if present, else 0.5 (penalize unscored)
                 raw_quality = r.get("quality_score")
-                quality_factor = float(raw_quality) if raw_quality is not None else 0.7
+                quality_factor = float(raw_quality) if raw_quality is not None else 0.5
                 formatted.append(
                     {
                         "id": r.get("id"),
@@ -152,14 +152,14 @@ async def search_knowledge_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
         return {"success": False, "error": "Database connection failed"}
 
     try:
-        # Type weights for ranking
+        # Type weights for ranking (curated content boosted)
         type_weights = {
-            "mistake_learned": 1.3,
-            "vault_note": 1.2,
-            "code_snippet": 1.1,
+            "mistake_learned": 1.5,
+            "vault_note": 1.4,
+            "code_snippet": 1.3,
             "improvement": 1.0,
-            "github_file": 0.8,
-            "conversation_memory": 0.8,
+            "github_file": 0.6,
+            "conversation_memory": 0.7,
         }
 
         # Build query conditions — split multi-word queries into AND'd terms

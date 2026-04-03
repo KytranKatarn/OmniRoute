@@ -1107,15 +1107,15 @@ class AgentLoop:
         except Exception as e:
             logger.error("[AgentLoop] Failed to register fleet jobs: %s", e)
 
-        # Job: Knowledge Quality Review (every 2 hours)
+        # Job: Knowledge Quality Review (every 30 min — accelerated backfill)
         self.scheduler.add_job(
             with_app_context(self._run_quality_review),
-            trigger=IntervalTrigger(hours=2),
+            trigger=IntervalTrigger(minutes=30),
             id="quality_review",
             name="Knowledge Quality Review",
             replace_existing=True,
         )
-        logger.info("Registered job: Knowledge Quality Review (every 2h)")
+        logger.info("Registered job: Knowledge Quality Review (every 30m)")
 
         self._running = True
         logger.info("Agent loop started with 72 jobs")

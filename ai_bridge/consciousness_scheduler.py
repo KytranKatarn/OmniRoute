@@ -13,6 +13,7 @@ Tasks:
 import os
 import sys
 import logging
+import threading
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 import psycopg2
@@ -172,6 +173,7 @@ def hourly_conversation_consolidation():
 
             total_consolidated = 0
             consolidation_hour = hour_ago.replace(minute=0, second=0, microsecond=0)
+            entries_to_score = []  # collect (knowledge_id, title, full_text) for async scoring
 
             for user_id, convs in user_conversations.items():
                 # Build conversation text
@@ -229,6 +231,7 @@ def hourly_conversation_consolidation():
                 )
 
                 knowledge_id = cur.fetchone()["id"]
+                entries_to_score.append((knowledge_id, title, full_text))
 
                 # Log the consolidation
                 cur.execute(
@@ -268,6 +271,17 @@ def hourly_conversation_consolidation():
                 conn.close()
             except Exception:
                 pass
+
+        # Quality gate: score each new conversation_memory entry asynchronously
+        def _score_conv(eid, t, c):
+            try:
+                from services.quality_scoring_service import score_entry
+                score_entry(eid, t, c, "conversation_memory", save_to_db=True)
+            except Exception as e:
+                logger.debug("Async quality scoring failed for conversation %d: %s", eid, e)
+
+        for eid, t, c in entries_to_score:
+            threading.Thread(target=_score_conv, args=(eid, t, c), daemon=True).start()
 
         result = {
             "users_processed": len(user_conversations),

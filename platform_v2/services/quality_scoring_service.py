@@ -9,6 +9,7 @@ Import:
 
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Optional, Dict, Any, List, Tuple
 from database import get_db_cursor
@@ -20,25 +21,19 @@ QUALITY_REJECT = 0.3  # Below this: rejected outright
 QUALITY_FLAG = 0.5  # Below this: flagged for review
 QUALITY_ACCEPT = 0.5  # At or above: accepted
 
-# Prompt for LLM quality assessment
-QUALITY_PROMPT = """You are a knowledge base quality assessor for A.R.C.H.I.E., a software platform management system.
+# Prompt for LLM quality assessment — concise for small models
+QUALITY_PROMPT = """Score this knowledge base entry for a software platform. Rate each 0.0-1.0:
+- relevance: Is it useful for developers? (0.1=generic filler, 0.9=specific actionable knowledge)
+- accuracy: Is it correct and specific? (0.1=vague, 0.9=precise with details)
+- actionability: Can someone act on it? (0.1=just states existence, 0.9=explains how to use)
+- uniqueness: Does it add non-obvious value? (0.1=restates obvious, 0.9=explains hidden patterns)
 
-Rate this knowledge entry on 4 dimensions (each 0.0 to 1.0):
-
-1. **Relevance** — Is this useful for platform development, operations, or decision-making? Generic filler scores 0.1. Specific platform knowledge scores 0.9.
-2. **Accuracy** — Is the information correct, specific, and current? Vague summaries score 0.2. Precise facts with context score 0.9.
-3. **Actionability** — Can someone act on this? "Code exists" scores 0.1. "Use function X in file Y for Z" scores 0.9.
-4. **Uniqueness** — Does this add value beyond what's already obvious from reading the code? Restating file names scores 0.1. Explaining non-obvious patterns scores 0.9.
-
-Entry to assess:
----
 Type: {knowledge_type}
 Title: {title}
 Content: {content}
----
 
-Respond with ONLY valid JSON (no markdown, no explanation):
-{{"relevance": 0.X, "accuracy": 0.X, "actionability": 0.X, "uniqueness": 0.X, "reason": "one sentence"}}"""
+Reply with ONLY this JSON format:
+{{"relevance":0.5,"accuracy":0.5,"actionability":0.5,"uniqueness":0.5,"reason":"one sentence"}}"""
 
 
 def score_entry(
@@ -60,9 +55,9 @@ def score_entry(
     Returns:
         Dict with quality_score, dimensions, reason, or None on failure.
     """
-    from ai_bridge.bridge_dispatcher import get_dispatcher
+    import urllib.request
 
-    content_truncated = (content or "")[:2000]
+    content_truncated = (content or "")[:500]
 
     prompt = QUALITY_PROMPT.format(
         knowledge_type=knowledge_type,
@@ -71,12 +66,45 @@ def score_entry(
     )
 
     try:
-        dispatcher = get_dispatcher()
-        result = dispatcher.dispatch_json(
-            prompt=prompt,
-            capability="classify",
-            timeout=60,
+        # Direct Ollama call — simple JSON scoring, Bridge dispatch not needed
+        raw_host = os.getenv("OLLAMA_HOST", "host.docker.internal:11434")
+        ollama_host = raw_host if raw_host.startswith("http") else f"http://{raw_host}"
+        model = os.getenv("QUALITY_SCORER_MODEL", "llama3.2:3b")
+        payload = json.dumps(
+            {
+                "model": model,
+                "prompt": prompt,
+                "stream": False,
+                "options": {"temperature": 0.1, "num_ctx": 2048, "num_predict": 150},
+            }
+        ).encode()
+        req = urllib.request.Request(
+            f"{ollama_host}/api/generate",
+            data=payload,
+            headers={"Content-Type": "application/json"},
         )
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            raw = json.loads(resp.read())
+            response_text = raw.get("response", "").strip()
+            # Extract JSON from response — model may output malformed JSON
+            import re
+
+            json_match = re.search(r"\{[^{}]*\}", response_text)
+            if not json_match:
+                logger.warning("Quality scorer: no JSON found in response for entry %d", entry_id)
+                return None
+            json_str = json_match.group()
+            # Fix common LLM JSON errors: "key=" -> "key":
+            json_str = re.sub(r'"(\w+)"=', r'"\1":', json_str)
+            try:
+                result = json.loads(json_str)
+            except json.JSONDecodeError:
+                # Last resort: extract numeric scores with regex
+                scores = {}
+                for key in ("relevance", "accuracy", "actionability", "uniqueness"):
+                    m = re.search(rf'"{key}":\s*([\d.]+)', json_str)
+                    scores[key] = float(m.group(1)) if m else 0.5
+                result = {**scores, "reason": "parsed from malformed JSON"}
 
         if not result or not isinstance(result, dict):
             logger.warning("Quality scorer: empty or invalid LLM response for entry %d", entry_id)

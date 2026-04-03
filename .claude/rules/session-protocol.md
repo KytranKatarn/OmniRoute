@@ -18,6 +18,7 @@
 - `mcp__archie__log_decision` for any architectural choices made
 - `mcp__archie__update_project_understanding` after working on a project
 - `mcp__archie__store_memory` for important learnings (use knowledge_type='mistake_learned' for errors)
+- **UPDATE `project_session-handoff.md`** — write what was done, what to do next, and any critical context the next session needs. This is the #1 way to prevent forgetting work across sessions.
 
 ## Keeping Memory & Index in Sync (MANDATORY)
 

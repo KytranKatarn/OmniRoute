@@ -2581,3 +2581,221 @@
         font-size: 0.85rem;
         font-family: var(--archie-font-mono);
     }
+
+/* ============================================================
+   UTILITY CLASSES — Extracted from inline styles (Project #210)
+   ============================================================ */
+
+/* --- Icon Sizing --- */
+.sysops-icon-12 { width: 12px; height: 12px; }
+.sysops-icon-14 { width: 14px; height: 14px; }
+.sysops-icon-16 { width: 16px; height: 16px; }
+.sysops-icon-18 { width: 18px; height: 18px; }
+.sysops-icon-20 { width: 20px; height: 20px; }
+
+/* --- Icon + Inline Block Combos --- */
+.sysops-icon-inline-20 {
+    width: 20px; height: 20px;
+    display: inline-block; vertical-align: middle; margin-right: 8px;
+}
+.sysops-icon-inline-16 {
+    width: 16px; height: 16px;
+    display: inline-block; vertical-align: middle; margin-right: 4px;
+}
+.sysops-icon-inline-14 {
+    width: 14px; height: 14px;
+    display: inline-block; vertical-align: middle; margin-right: 4px;
+}
+.sysops-icon-inline-16-red {
+    width: 16px; height: 16px;
+    display: inline-block; vertical-align: middle; color: var(--archie-red);
+}
+
+/* --- Text Colors --- */
+.sysops-text-muted { color: var(--archie-text-muted); }
+.sysops-text-secondary { color: var(--archie-text-secondary); }
+.sysops-text-cyan { color: var(--archie-cyan); }
+.sysops-text-purple { color: var(--archie-purple); }
+.sysops-text-orange { color: var(--archie-orange); }
+.sysops-text-red { color: var(--archie-red); }
+.sysops-text-green { color: var(--archie-green); }
+
+/* --- Text + Size Combos --- */
+.sysops-text-muted-sm {
+    color: var(--archie-text-muted); font-size: 0.8rem;
+}
+.sysops-text-cyan-lg {
+    color: var(--archie-cyan); font-size: 1.1rem;
+}
+.sysops-label {
+    color: var(--archie-text-secondary); font-size: 0.9rem;
+    display: block; margin-bottom: 8px;
+}
+.sysops-label-muted {
+    color: var(--archie-text-muted); font-size: 0.8rem;
+    display: block; margin-bottom: 6px;
+}
+.sysops-sublabel {
+    font-size: 0.7rem; color: var(--archie-text-muted); margin-bottom: 2px;
+}
+
+/* --- Font Sizes --- */
+.sysops-text-xxs { font-size: 0.7rem; }
+.sysops-text-xs { font-size: 0.75rem; }
+.sysops-text-sm { font-size: 0.8rem; }
+.sysops-text-md { font-size: 1.1rem; }
+.sysops-text-lg { font-size: 1.5rem; }
+.sysops-text-xl { font-size: 1.8rem; }
+.sysops-text-2xl { font-size: 1.4rem; }
+
+/* --- Layout --- */
+.sysops-hidden { display: none; }
+.sysops-grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.sysops-flex-between { display: flex; justify-content: space-between; }
+.sysops-flex-center { display: flex; align-items: center; gap: 8px; }
+
+/* --- Spacing --- */
+.sysops-mb-4 { margin-bottom: 4px; }
+.sysops-mb-8 { margin-bottom: 8px; }
+.sysops-mb-16 { margin-bottom: 16px; }
+.sysops-mt-4 { margin-top: 4px; }
+
+/* --- Components --- */
+.sysops-panel {
+    background: var(--archie-bg-tertiary); padding: 12px;
+    border-radius: 6px; margin-bottom: 16px;
+}
+.sysops-input {
+    width: 100%; padding: 10px;
+    background: var(--archie-bg-tertiary);
+    border: 1px solid var(--archie-border-default);
+    border-radius: 4px; color: var(--archie-text-primary);
+    font-size: 1rem; box-sizing: border-box;
+}
+.sysops-alert-warning {
+    background: rgba(255, 170, 0, 0.15);
+    border: 1px solid var(--archie-orange);
+    padding: 12px; border-radius: 6px; margin-bottom: 16px;
+}
+.sysops-alert-danger {
+    background: rgba(255, 107, 107, 0.1);
+    border: 1px solid var(--archie-red);
+    padding: 12px; border-radius: 6px; margin-bottom: 16px;
+}
+.sysops-divider {
+    border-top: 1px dashed var(--archie-border); margin: 10px 0 8px 0;
+}
+.sysops-max-w-500 { max-width: 500px; }
+.sysops-stat-footer { margin-top: 4px; font-size: 0.75rem; }
+.sysops-hw-detail {
+    font-size: 0.75rem; line-height: 1.4;
+}
+.sysops-hw-row {
+    display: flex; justify-content: space-between;
+}
+
+/* --- Sidebar Segments --- */
+.sysops-seg-red { --seg-color: #ef4444; }
+.sysops-seg-amber { --seg-color: #f59e0b; }
+.sysops-seg-danger { --seg-color: #dc2626; }
+
+/* --- Header Controls Override --- */
+.sysops-header-controls {
+    justify-content: flex-start; margin-bottom: 16px;
+    padding: 0; border: none;
+}
+
+/* --- Pass 2: Additional Utility Classes --- */
+.sysops-text-red-ml { color: var(--archie-red); margin-left: 6px; }
+.sysops-text-orange-ml { color: var(--archie-orange); margin-left: 6px; }
+.sysops-text-green { color: var(--archie-green); }
+.sysops-text-green-lg { color: var(--archie-green); font-size: 1.1rem; }
+.sysops-text-muted-085 { color: var(--archie-text-muted); font-size: 0.85rem; }
+.sysops-empty-state { color: var(--archie-text-muted); padding: 20px; text-align: center; }
+.sysops-icon-32 { width: 32px; height: 32px; }
+.sysops-max-w-450 { max-width: 450px; }
+.sysops-icon-inline-16-orange {
+    width: 16px; height: 16px;
+    display: inline-block; vertical-align: middle; color: var(--archie-orange);
+}
+.sysops-label-secondary {
+    color: var(--archie-text-secondary); font-size: 0.9rem;
+    display: block; margin-bottom: 6px;
+}
+.sysops-text-muted-sm-block {
+    color: var(--archie-text-muted); font-size: 0.8rem;
+    margin-top: 4px; display: block;
+}
+.sysops-tag-label {
+    font-size: 0.75rem; color: var(--archie-text-muted);
+    font-weight: normal; margin-left: 8px;
+}
+.sysops-icon-inline-14-bare {
+    width: 14px; height: 14px;
+    display: inline-block; vertical-align: middle;
+}
+.sysops-flex-between-center {
+    display: flex; align-items: center; justify-content: space-between;
+}
+.sysops-flex-center { display: flex; align-items: center; gap: 8px; }
+.sysops-btn-sm { font-size: 0.8rem; padding: 4px 12px; }
+.sysops-alert-danger-hidden {
+    display: none;
+    background: rgba(255, 107, 107, 0.1);
+    border: 1px solid var(--archie-red);
+    padding: 12px; border-radius: 6px; margin-bottom: 16px;
+}
+.sysops-subtitle-secondary {
+    margin: 8px 0 0 0; font-size: 0.9rem; color: var(--archie-text-secondary);
+}
+.sysops-mb-6 { margin-bottom: 6px; }
+.sysops-mb-12 { margin-bottom: 12px; }
+.sysops-mt-20 { margin-top: 20px; }
+.sysops-subtitle-secondary-085 {
+    margin: 8px 0 0 0; font-size: 0.85rem; color: var(--archie-text-secondary);
+}
+.sysops-input-mono {
+    width: 100%; padding: 10px;
+    background: var(--archie-bg-tertiary);
+    border: 1px solid var(--archie-border-default);
+    border-radius: 4px; color: var(--archie-text-primary);
+    font-size: 1rem; font-family: var(--archie-font-mono); box-sizing: border-box;
+}
+.sysops-input-plain {
+    width: 100%; padding: 10px;
+    background: var(--archie-bg-tertiary);
+    border: 1px solid var(--archie-border-default);
+    border-radius: 4px; color: var(--archie-text-primary); font-size: 1rem;
+}
+.sysops-text-2xl-muted { font-size: 1.4rem; color: var(--archie-text-muted); }
+.sysops-flex-center-mb { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.sysops-text-cyan-mb { color: var(--archie-cyan); margin-bottom: 10px; }
+.sysops-grid-2col-lg { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+.sysops-center-muted { text-align: center; color: var(--archie-text-muted); }
+.sysops-flex-gap-8 { display: flex; gap: 8px; }
+.sysops-icon-24 { width: 24px; height: 24px; }
+.sysops-select {
+    padding: 8px 12px; background: var(--archie-bg-tertiary);
+    border: 1px solid var(--archie-border-default);
+    border-radius: 6px; color: var(--archie-text-primary); font-size: 0.9rem;
+}
+.sysops-flex-gap-10 { display: flex; gap: 10px; align-items: center; }
+.sysops-pip-20 { width: 20px; }
+.sysops-pip-35 { width: 35px; }
+.sysops-pip-14 { width: 14px; }
+
+/* --- Code Blocks --- */
+.sysops-code-block {
+    background: var(--archie-bg-secondary, #1a1a2e); padding: 12px;
+    border-radius: 6px; font-family: var(--archie-font-mono);
+    font-size: 0.85rem; position: relative;
+}
+.sysops-code-block-flat {
+    background: var(--archie-bg-secondary, #1a1a2e); padding: 12px;
+    border-radius: 6px; font-family: var(--archie-font-mono);
+    font-size: 0.85rem;
+}
+.sysops-code-inline {
+    background: var(--archie-bg-secondary, #1a1a2e);
+    padding: 2px 6px; border-radius: 3px;
+}

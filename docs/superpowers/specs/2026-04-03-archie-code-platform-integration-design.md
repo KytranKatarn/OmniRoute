@@ -44,21 +44,27 @@ ENGINE DAEMON (the brain)
 
 A new `DispatchStrategy` component in the engine decides routing for every request:
 
-**Local Engine** (direct Ollama, fast, works offline):
-- Conversation / general chat
-- Simple code questions
+**Tool Operations** (always local, no LLM needed):
 - File operations (read, write, edit, glob, grep)
 - Git operations (status, diff, commit, branch)
 - Shell commands
 - Intent classification itself
 
-**Platform Dispatch** (via Bridge, uses specialist agents):
-- Code review → V.I.G.I.L. / F.O.R.G.E. team
-- Refactoring → F.O.R.G.E. Engineering team
-- Security analysis → V.I.G.I.L. Security team
-- Creative work → M.U.S.E. Creative team
-- Knowledge queries → search_knowledge API
-- Complex code generation (multi-file) → best available agent by capability
+**ALL LLM Calls — Bridge When Connected** (ADR-013 compliance):
+
+When hub is connected, ALL inference routes through the platform's AI Bridge dispatcher. This ensures:
+- Agents are properly assigned via `get_best_agent()` (skills, welfare, availability scoring)
+- VRAM is managed — no model collisions or stomping on active agents
+- Dispatch is logged in `bridge_jobs` for Starbase activity feed
+- Agent shift states, welfare, and workload are respected
+
+| LLM Intent | Hub Connected | Hub Offline |
+|------------|--------------|-------------|
+| Conversation / chat | Bridge → assigned agent | Direct Ollama |
+| Knowledge queries | Bridge → knowledge specialist | Direct Ollama |
+| Code tasks (review, refactor, generate) | Bridge → F.O.R.G.E. / V.I.G.I.L. team | Direct Ollama |
+| Security analysis | Bridge → V.I.G.I.L. Security team | Direct Ollama |
+| Creative work | Bridge → M.U.S.E. Creative team | Direct Ollama |
 
 **Claude Escalation** (via MCP bridge):
 - Architectural decisions spanning 4+ files
@@ -66,7 +72,7 @@ A new `DispatchStrategy` component in the engine decides routing for every reque
 - User explicitly requests Claude
 - Confidence below threshold after platform attempt
 
-**Offline Fallback**: When hub is unreachable, everything runs locally through Ollama. The engine logs what it would have dispatched, so next time hub is online it can sync learnings.
+**Offline Fallback**: When hub is unreachable, ALL LLM calls fall back to direct Ollama. The engine logs what it would have dispatched, so next time hub is online it can sync learnings. Tool operations (file/git/shell) always work regardless of hub status.
 
 ### State Sync — Bidirectional Claude Collaboration
 
@@ -198,7 +204,7 @@ Each phase is independently shippable.
 
 ## Testing Strategy
 
-Baseline: 156 existing tests must stay green through all phases. No regressions.
+Baseline: 205 tests passing after Phase 1+2. No regressions.
 
 ### Phase 1: Dispatch Strategy
 - **Unit**: `DispatchStrategy` correctly routes each intent type (local vs platform vs escalation)
@@ -228,15 +234,32 @@ Baseline: 156 existing tests must stay green through all phases. No regressions.
 
 ## Known Issues (From Testing)
 
-1. **Intent parser bug**: "What models are available on Ollama?" classified as `shell_command` — pattern matching too aggressive
-2. **MCP server incomplete**: `tools/call` handler missing — only metadata served
-3. **datetime.utcnow() deprecated**: 6 warnings in context_bridge.py — use `datetime.now(UTC)`
-4. **Go TUI untested**: Never compiled or run against the engine
+1. ~~**Intent parser bug**~~ — FIXED (Phase 1). Priority system added, 15 intent tests passing.
+2. ~~**MCP server incomplete**~~ — FIXED (Phase 2). `tools/call` handler added, Claude can invoke ARCHIE tools.
+3. ~~**datetime.utcnow() deprecated**~~ — FIXED (Phase 1). Using `datetime.now(timezone.utc)`.
+4. **Go TUI untested**: Never compiled or run against the engine (Phase 3).
+
+## Completed Work
+
+### Phase 1 — Smart Local + Platform Dispatch (7 commits, 180 tests)
+- Intent parser priority system (knowledge_query beats shell_command)
+- DispatchStrategy with LOCAL/PLATFORM/CLAUDE routing
+- Hub connector wired to Bridge with platform dispatch + error fallback
+- Job logging for Starbase activity feed
+- datetime deprecation fix
+
+### Phase 2 — Claude Bidirectional MCP + Learning (5 commits, 205 tests)
+- MCP tools/call handler — Claude can invoke ARCHIE tools
+- StateSyncChannel — event broadcasting, conflict detection, offline queue
+- LearningStore — escalation patterns stored, similarity matched, stale detection
+- Engine wired: delegation (Claude → ARCHIE), state sync, learning check before dispatch
+- ALL LLM calls route through Bridge when hub connected (ADR-013 fix)
 
 ## Key Decisions
 
 - **Approach B** selected: smart local engine + platform dispatch. Architected so Approach C (full mesh) is a clean upgrade later.
-- **Engine is the brain, agents are specialists**: Simple tasks handled locally, specialist work dispatched through Bridge.
+- **Bridge-first for ALL LLM calls**: When hub is connected, every inference call routes through Bridge dispatcher — no direct Ollama. This ensures agents are assigned, VRAM managed, no model collisions. Direct Ollama only when hub offline. (ADR-013 compliance)
 - **Bidirectional Claude MCP**: Both tools are peers. Either can escalate or delegate. State sync keeps them aligned.
+- **Learning loop**: Escalation resolutions get stored and reused. Engine gets smarter over time.
 - **Offline-first**: Everything works without hub. Hub makes it better, not required.
 - **Branding**: `A.R.C.H.I.E.` with dots in user-facing text, `archie` lowercase in code.

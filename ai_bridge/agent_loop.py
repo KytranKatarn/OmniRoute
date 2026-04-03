@@ -1107,6 +1107,16 @@ class AgentLoop:
         except Exception as e:
             logger.error("[AgentLoop] Failed to register fleet jobs: %s", e)
 
+        # Job: Knowledge Quality Review (every 2 hours)
+        self.scheduler.add_job(
+            with_app_context(self._run_quality_review),
+            trigger=IntervalTrigger(hours=2),
+            id="quality_review",
+            name="Knowledge Quality Review",
+            replace_existing=True,
+        )
+        logger.info("Registered job: Knowledge Quality Review (every 2h)")
+
         self._running = True
         logger.info("Agent loop started with 72 jobs")
 
@@ -4904,6 +4914,14 @@ class AgentLoop:
                 )
         except Exception as e:
             logger.error(f"Failed to create network alert: {e}")
+
+    def _run_quality_review(self):
+        """Job: Knowledge Quality Review — score unscored KB entries every 2 hours."""
+        try:
+            from services.quality_review_job import run_quality_review
+            run_quality_review()
+        except Exception as e:
+            logger.error("Quality review job failed: %s", e)
 
 
 # ---------------------------------------------------------------------------

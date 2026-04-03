@@ -607,6 +607,18 @@ def register_knowledge_routes(bp, admin_required):
                 ),
                 500,
             )
+
+    @bp.route("/api/knowledge/quality-stats")
+    @admin_required
+    def knowledge_quality_stats():
+        """Get quality score distribution for dashboard."""
+        try:
+            from services.quality_scoring_service import get_quality_stats
+
+            stats = get_quality_stats()
+            return jsonify({"success": True, **stats})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
         finally:
 
             cur.close()

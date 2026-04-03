@@ -54,10 +54,10 @@
         <!-- LEFT SIDEBAR -->
         <div class="lcars-sidebar">
             <div class="lcars-elbow-top"></div>
-            <div class="lcars-seg" style="--seg-color: #E5A00D"></div>
-            <div class="lcars-seg" style="--seg-color: #f59e0b"></div>
-            <div class="lcars-seg" style="--seg-color: #E5A00D"></div>
-            <div class="lcars-seg" style="--seg-color: #d97706"></div>
+            <div class="lcars-seg mh-seg-gold"></div>
+            <div class="lcars-seg mh-seg-amber"></div>
+            <div class="lcars-seg mh-seg-gold"></div>
+            <div class="lcars-seg mh-seg-dark"></div>
             <div class="lcars-seg-fill"></div>
             <div class="lcars-elbow-bottom"></div>
         </div>
@@ -68,9 +68,9 @@
                 <span class="lcars-bar-title" data-i18n="media_hub.media_hub">MEDIA HUB</span>
                 <div class="lcars-bar-spacer"></div>
                 <div class="lcars-pips">
-                    <span class="lcars-pip" style="width:20px"></span>
-                    <span class="lcars-pip" style="width:35px"></span>
-                    <span class="lcars-pip" style="width:14px"></span>
+                    <span class="lcars-pip mh-pip-20"></span>
+                    <span class="lcars-pip mh-pip-35"></span>
+                    <span class="lcars-pip mh-pip-14"></span>
                 </div>
                 <span class="lcars-bar-status">STREAMING</span>
             </div>
@@ -111,7 +111,7 @@
             </div>
 
             <!-- Install App Button (shown when PWA install available) -->
-            <button class="install-app-btn" id="installAppBtn" style="display: none;" onclick="installPWA()">
+            <button class="install-app-btn mh-hidden" id="installAppBtn" onclick="installPWA()">
                 <i data-lucide="download"></i>
                 <span><span data-i18n="media_hub.install_app">Install App</span></span>
             </button>
@@ -149,7 +149,7 @@
             <button class="nav-tab" data-tab="requests">
                 <i data-lucide="inbox"></i>
                 <span><span data-i18n="media_hub.requests">Requests</span></span>
-                <span class="nav-badge" id="requestBadge" style="display:none">0</span>
+                <span class="nav-badge mh-hidden" id="requestBadge">0</span>
                 <kbd class="nav-hotkey"><span data-i18n="media_hub.alt_4">Alt+4</span></kbd>
             </button>
             <button class="nav-tab" data-tab="calendar">
@@ -198,7 +198,7 @@
             </div>
 
             <!-- Continue Watching -->
-            <section class="content-section" id="continueWatchingSection" style="display:none">
+            <section class="content-section mh-hidden" id="continueWatchingSection">
                 <div class="section-header">
                     <h2><i data-lucide="play"></i><span data-i18n="media_hub.continue_watching"> Continue Watching</span></h2>
                     <button class="btn-ghost" onclick="loadContinueWatching()">
@@ -211,7 +211,7 @@
             </section>
 
             <!-- Watch History -->
-            <section class="content-section" id="watchHistorySection" style="display:none">
+            <section class="content-section mh-hidden" id="watchHistorySection">
                 <div class="section-header">
                     <h2><i data-lucide="history"></i><span data-i18n="media_hub.recently_watched"> Recently Watched</span></h2>
                     <button class="btn-ghost" onclick="loadWatchHistory()">
@@ -240,7 +240,7 @@
             </section>
 
             <!-- Trending (TMDB) -->
-            <section class="content-section" id="trendingSection" style="display:none">
+            <section class="content-section mh-hidden" id="trendingSection">
                 <div class="section-header">
                     <h2><i data-lucide="trending-up"></i><span data-i18n="media_hub.trending_this_week"> Trending This Week</span></h2>
                     <div class="trending-tabs">
@@ -326,7 +326,7 @@
                     <span><span data-i18n="media_hub.loading_movies">Loading movies...</span></span>
                 </div>
             </div>
-            <div class="load-more" id="loadMoreMovies" style="display:none">
+            <div class="load-more mh-hidden" id="loadMoreMovies">
                 <button class="btn-outline" onclick="loadMoreMovies()"><span data-i18n="media_hub.load_more">Load More</span></button>
             </div>
         </section>
@@ -357,7 +357,7 @@
                     <span><span data-i18n="media_hub.loading_tv_shows">Loading TV shows...</span></span>
                 </div>
             </div>
-            <div class="load-more" id="loadMoreShows" style="display:none">
+            <div class="load-more mh-hidden" id="loadMoreShows">
                 <button class="btn-outline" onclick="loadMoreShows()"><span data-i18n="media_hub.load_more_2">Load More</span></button>
             </div>
         </section>

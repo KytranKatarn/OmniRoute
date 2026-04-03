@@ -52,7 +52,9 @@ def get_rag_context(query, max_tokens=2000, knowledge_types=None):
 
     Returns a string of relevant KB entries formatted for LLM consumption.
     """
-    results = search_knowledge(query, limit=5, knowledge_types=knowledge_types)
+    results = search_knowledge(query, limit=8, knowledge_types=knowledge_types)
+    # Filter out low-quality entries from RAG context (stricter than search)
+    results = [r for r in results if r.get("quality_score") is None or r.get("quality_score", 0) >= 0.5][:5]
     if not results:
         return ""
 

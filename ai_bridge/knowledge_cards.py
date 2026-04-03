@@ -18,6 +18,7 @@ import os
 import json
 import logging
 import re
+import threading
 from datetime import datetime
 from typing import Optional
 from dataclasses import asdict
@@ -186,8 +187,25 @@ def save_knowledge_card(
             result = cur.fetchone()
             conn.commit()
 
-            logger.info(f"Saved knowledge card '{card.title}' as ID {result[0]}")
-            return result[0]
+            card_id = result[0]
+            logger.info(f"Saved knowledge card '{card.title}' as ID {card_id}")
+
+            # Quality gate: score asynchronously to not block card creation
+            if card_id:
+                def _score_async(cid, t, c, kt):
+                    try:
+                        from services.quality_scoring_service import score_entry
+                        score_entry(cid, t, c, kt, save_to_db=True)
+                    except Exception as e:
+                        logger.debug("Async quality scoring failed for card %d: %s", cid, e)
+
+                threading.Thread(
+                    target=_score_async,
+                    args=(card_id, card.title, card.summary, f"knowledge_card_{card.card_type}"),
+                    daemon=True,
+                ).start()
+
+            return card_id
         finally:
             try:
                 cur.close()

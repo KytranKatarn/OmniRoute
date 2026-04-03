@@ -1,3 +1,7 @@
+---
+globs: ["platform_v2/tools/media_hub/**"]
+---
+
 # Media Home Rules
 
 ## Module

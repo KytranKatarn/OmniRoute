@@ -1,3 +1,7 @@
+---
+globs: ["platform_v2/tools/fitness/**", "platform_v2/tools/therapy/**", "platform_v2/tools/doc/**"]
+---
+
 # Applications Rules
 
 ## Modules

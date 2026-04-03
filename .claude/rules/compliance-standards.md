@@ -1,3 +1,7 @@
+---
+globs: ["platform_v2/tools/compliance/**", "platform_v2/services/compliance_*", "rule_packs/**", "Dockerfile*", "docker-compose*.yml"]
+---
+
 # Compliance Standards (Established 2026-03-25)
 
 Platform-wide security, code quality, compliance scanning, and public posture rules.

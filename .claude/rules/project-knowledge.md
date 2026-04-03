@@ -1,3 +1,7 @@
+---
+globs: ["platform_v2/tools/dev_hq/**", "platform_v2/services/knowledge_service.py", "platform_v2/services/project_service.py"]
+---
+
 # Project & Knowledge Rules
 
 ## Modules

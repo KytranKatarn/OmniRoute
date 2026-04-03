@@ -1,3 +1,7 @@
+---
+globs: ["platform_v2/tools/crm/**", "platform_v2/tools/website_studio/**", "platform_v2/tools/store_builder/**", "platform_v2/tools/call_center/**", "platform_v2/tools/stockbot/**", "platform_v2/tools/invoicing/**", "platform_v2/tools/social_media/**", "platform_v2/tools/content_studio/**", "platform_v2/tools/google_work_suite/**"]
+---
+
 # SaaS Services Rules
 
 ## Modules (9 total)

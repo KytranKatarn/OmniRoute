@@ -1,3 +1,7 @@
+---
+globs: ["platform_v2/tools/media_studio/**", "platform_v2/tools/game_studio/**"]
+---
+
 # Creative Studios Rules
 
 ## Modules

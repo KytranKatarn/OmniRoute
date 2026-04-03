@@ -1,3 +1,7 @@
+---
+globs: ["kytran-server-manager/**", "kytran-business-suite/**", "kytran-*/**"]
+---
+
 # Standalone Extraction Playbook (Established 2026-03-25)
 
 Tiered checklist for pulling any module out of A.R.C.H.I.E. into an independent standalone product.

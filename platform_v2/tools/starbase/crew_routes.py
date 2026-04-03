@@ -5,7 +5,8 @@ not agent CRUD.  All agent management, model catalog, model-control, and
 fleet-mode endpoints now live in Department HQ.
 
 KEPT ENDPOINTS:
-  /api/bridge/crew/manifest   — full implementation (complex capacity logic for Starbase UI)
+  /api/bridge/crew/manifest           — full implementation (complex capacity logic for Starbase UI)
+  /api/bridge/agent-personality/<id>  — personality, mood, relationship data for CLI identity
 """
 
 import logging
@@ -235,3 +236,72 @@ def register_crew_routes(bp, admin_required):
         except Exception as e:
             logger.error(f"Error getting crew manifest: {e}")
             return jsonify({"success": False, "error": "Internal server error"}), 500
+
+    @bp.route("/api/bridge/agent-personality/<int:agent_id>")
+    @login_required
+    def get_agent_personality(agent_id):
+        """Return personality, mood, and relationship data for an agent.
+        Used by ARCHIE Code CLI to build dynamic system prompts."""
+        try:
+            with get_db_cursor(commit=False) as (conn, cur):
+                # Core agent info
+                cur.execute(
+                    """SELECT id, name, display_name, title, department, bio,
+                              pronouns, communication_style, personality_prompt
+                       FROM agents WHERE id = %s""",
+                    (agent_id,),
+                )
+                agent = cur.fetchone()
+                if not agent:
+                    return jsonify({"error": "Agent not found"}), 404
+
+                # Latest emotional state
+                cur.execute(
+                    """SELECT current_mood, mood_intensity, stress_level, energy_level
+                       FROM agent_emotional_state
+                       WHERE agent_id = %s
+                       ORDER BY timestamp DESC LIMIT 1""",
+                    (agent_id,),
+                )
+                emotional = cur.fetchone()
+
+                # Personality traits (archie_personality key-value pairs)
+                personality_traits = {}
+                cur.execute("SELECT trait_name, trait_value FROM archie_personality")
+                for row in cur.fetchall():
+                    personality_traits[row["trait_name"]] = row["trait_value"]
+
+                # Build response matching CLI PersonalityBuilder expected shape
+                mood_data = {
+                    "current": "neutral",
+                    "intensity": 0.5,
+                }
+                if emotional:
+                    mood_data["current"] = emotional["current_mood"] or "neutral"
+                    mood_data["intensity"] = float(emotional["mood_intensity"] or 0.5)
+
+                # No relationship_strength table — derive from stress_level
+                # Low stress + high energy = strong relationship context
+                relationship_data = {
+                    "strength": 0.99,  # Default high for Kytran (primary user)
+                    "user_stress": float(emotional["stress_level"] or 0.0) if emotional else 0.0,
+                }
+
+                return jsonify(
+                    {
+                        "agent_id": agent["id"],
+                        "name": agent["name"],
+                        "display_name": agent["display_name"],
+                        "pronouns": agent["pronouns"],
+                        "title": agent["title"],
+                        "department": agent["department"],
+                        "communication_style": agent["communication_style"],
+                        "personality_traits": personality_traits,
+                        "mood": mood_data,
+                        "relationship": relationship_data,
+                    }
+                )
+
+        except Exception as e:
+            logger.error("Error fetching agent personality: %s", e)
+            return jsonify({"error": str(e)}), 500

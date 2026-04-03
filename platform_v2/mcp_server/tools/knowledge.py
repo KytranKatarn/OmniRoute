@@ -95,9 +95,17 @@ async def search_knowledge_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             }
             formatted = []
             for r in semantic_results:
+                # Skip rejected entries
+                if r.get("review_status") == "rejected":
+                    continue
                 kt = r.get("knowledge_type", "")
-                weight = type_weights.get(kt, 0.8)
+                # Match knowledge_card_* subtypes to base weight
+                weight_key = "knowledge_card" if kt.startswith("knowledge_card") else kt
+                weight = type_weights.get(weight_key, 0.8)
                 sim = r.get("similarity", 0.5)
+                # quality_factor: use score if present, else 0.7 neutral default
+                raw_quality = r.get("quality_score")
+                quality_factor = float(raw_quality) if raw_quality is not None else 0.7
                 formatted.append(
                     {
                         "id": r.get("id"),
@@ -106,7 +114,8 @@ async def search_knowledge_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
                         "content": (r.get("content", "") or "")[:500],
                         "category": r.get("category"),
                         "tags": r.get("tags") or [],
-                        "relevance_score": round(float(sim) * weight, 4),
+                        "quality_score": raw_quality,
+                        "relevance_score": round(float(sim) * weight * quality_factor, 4),
                     }
                 )
             formatted.sort(key=lambda x: x["relevance_score"], reverse=True)
@@ -177,6 +186,8 @@ async def search_knowledge_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             conditions.append("category = %s")
             params.append(category)
 
+        # Exclude rejected entries
+        conditions.append("(review_status IS NULL OR review_status != 'rejected')")
         where_clause = " AND ".join(conditions)
 
         # Execute search with weighted ranking (type weight * recency bonus)
@@ -191,6 +202,7 @@ async def search_knowledge_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
                 category,
                 tags,
                 importance_score,
+                quality_score,
                 access_count,
                 created_at,
                 CASE

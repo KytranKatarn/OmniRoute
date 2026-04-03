@@ -54,7 +54,7 @@ Every new session MUST begin with one of:
 - Run `/archie-boot` (preferred — guided session boot)
 - Call `mcp__archie__session_briefing` with the task topic (one-call alternative)
 
-**The knowledge base has 18,000+ entries with embeddings. Search before building. Search before asking.**
+**The knowledge base has 22,000+ entries with embeddings. Search before building. Search before asking.**
 - `search_knowledge` — semantic + text search across all knowledge types
 - `recall_context` — recall past context for a topic
 - `search_knowledge` with types: ["mistake_learned"] — prevent repeating costly errors
@@ -76,7 +76,7 @@ Every new session MUST begin with one of:
 
 ## Architecture (10 Systems)
 
-1. **Knowledge Base** - `knowledge_base` table (~18,000 active entries, 99% embedded)
+1. **Knowledge Base** - `knowledge_base` table (~22,000 active entries, 97% embedded, quality-scored)
 2. **AI Bridge** - `/ai_bridge/archie_bridge.py` (multi-model router)
 3. **Module System** - Flask Blueprints in `/platform_v2/tools/`
 4. **Dev HQ** - Development command center (`/dev-hq`)

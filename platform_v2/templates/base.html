@@ -79,7 +79,7 @@
                 <span class="admin-notification-title" id="adminNotifyTitle">System Alert</span>
                 <span class="admin-notification-text" id="adminNotifyText">Loading...</span>
             </div>
-            <span class="admin-notification-timer" id="adminNotifyTimer" style="display: none;">0s</span>
+            <span class="admin-notification-timer archie-hidden" id="adminNotifyTimer">0s</span>
             <button class="admin-notification-close" onclick="dismissAdminNotification()" title="Dismiss">
                 <i data-lucide="x"></i>
             </button>
@@ -96,7 +96,7 @@
 
     {% if current_user.is_authenticated %}
     <!-- Global Profile Modal -->
-    <div class="global-profile-modal" id="globalProfileModal" style="display:none;">
+    <div class="global-profile-modal archie-hidden" id="globalProfileModal">
         <div class="global-profile-modal-content">
             <div class="global-profile-modal-header">
                 <div class="global-profile-avatar-large">

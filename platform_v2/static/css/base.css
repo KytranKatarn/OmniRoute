@@ -3,6 +3,9 @@
    Flash messages, profile modal, admin notification bar
    ═══════════════════════════════════════════════════════════════════════════════ */
 
+/* ── Shared Utilities ──────────────────────────────────── */
+.archie-hidden { display: none; }
+
 /* ── Flash Messages ─────────────────────────────────────── */
 .flash-messages {
     position: fixed;

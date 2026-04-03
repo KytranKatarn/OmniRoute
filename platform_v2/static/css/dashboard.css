@@ -2676,3 +2676,125 @@ body.light-mode .module-card-accent {
     letter-spacing: 0.05em;
     z-index: 2;
 }
+
+/* ============================================================
+   UTILITY CLASSES — Extracted from inline styles (Project #210)
+   ============================================================ */
+
+/* --- Frame Color Themes --- */
+.dash-frame-green {
+    --frame-color: var(--archie-green);
+    --frame-rgb: var(--archie-green-rgb, 0,255,65);
+}
+.dash-frame-cyan {
+    --frame-color: var(--archie-cyan);
+    --frame-rgb: var(--archie-cyan-rgb, 0,255,255);
+}
+.dash-frame-orange {
+    --frame-color: var(--archie-orange);
+    --frame-rgb: var(--archie-orange-rgb, 245,158,11);
+}
+
+/* --- Briefing Section Accents --- */
+.dash-accent-green {
+    --col-accent: var(--archie-green);
+    --col-accent-rgb: var(--archie-green-rgb, 0,255,65);
+}
+.dash-accent-amber {
+    --col-accent: #f59e0b;
+    --col-accent-rgb: 245,158,11;
+}
+
+/* --- Sidebar Segments --- */
+.dash-seg-green { --seg-color: var(--archie-green); }
+.dash-seg-cyan { --seg-color: var(--archie-cyan); }
+.dash-seg-info { --seg-color: var(--archie-info); }
+.dash-seg-orange { --seg-color: var(--archie-orange); }
+.dash-seg-green-sm { --seg-color: var(--archie-green); min-height: 12px !important; height: 12px !important; }
+.dash-seg-cyan-sm { --seg-color: var(--archie-cyan); min-height: 12px !important; height: 12px !important; }
+
+/* --- Pip Widths (dark bg variant) --- */
+.dash-pip-20 { width: 20px; background: rgba(0,0,0,0.3); }
+.dash-pip-35 { width: 35px; background: rgba(0,0,0,0.3); }
+.dash-pip-14 { width: 14px; background: rgba(0,0,0,0.3); }
+
+/* --- Footer Dots --- */
+.dash-dot-green { background: var(--archie-green); }
+.dash-dot-cyan { background: var(--archie-cyan); }
+.dash-dot-info { background: var(--archie-info); }
+.dash-dot-orange { background: var(--archie-orange); }
+
+/* --- Footer Bar Override --- */
+.dash-footer-bar {
+    background: var(--frame-color) !important;
+    height: var(--frame-footer-h) !important;
+    display: flex !important;
+    opacity: 1 !important;
+}
+
+/* --- Command Bar Structural Overrides --- */
+.command-bar-frame .lcars-frame {
+    display: flex !important;
+    align-items: stretch !important;
+}
+.command-bar-frame .lcars-sidebar {
+    display: flex !important;
+    flex-direction: column !important;
+}
+.command-bar-frame .lcars-content {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 !important;
+}
+.command-bar-frame .cb-top-mirror {
+    display: block !important;
+    opacity: 1 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    transform: scaleY(-1) !important;
+    height: 28px !important;
+}
+.command-bar-frame .lcars-sidebar > .lcars-elbow-bottom:not(.cb-top-mirror) {
+    display: block !important;
+    opacity: 1 !important;
+    max-height: none !important;
+    overflow: visible !important;
+}
+.command-bar-frame .lcars-bar {
+    background: var(--frame-color) !important;
+    height: 14px !important;
+    min-height: 14px !important;
+    flex-shrink: 0 !important;
+    border-radius: 0 var(--frame-radius, 20px) var(--frame-radius, 20px) 0 !important;
+    padding: 0 !important;
+}
+.command-bar-frame #command-bar {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 16px;
+    flex: 1 !important;
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+}
+.command-bar-frame .lcars-footer-bar {
+    background: var(--frame-color) !important;
+    height: 10px !important;
+    min-height: 10px !important;
+    flex-shrink: 0 !important;
+    display: flex !important;
+    opacity: 1 !important;
+    max-height: none !important;
+    overflow: visible !important;
+}
+
+/* --- Misc --- */
+.dash-profile-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    color: inherit;
+}
+.dash-notif-wrapper { position: relative; }
+.dash-hidden { display: none; }

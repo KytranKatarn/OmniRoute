@@ -42,23 +42,23 @@
 <div class="dashboard-content" id="dashboardContent">
 
     <!-- Section 3: Command Bar — LCARS Compact Frame -->
-    <div class="command-bar-frame" style="--frame-color: var(--archie-green); --frame-rgb: var(--archie-green-rgb, 0,255,65)">
-        <div class="lcars-frame boot-hidden" style="display: flex !important; align-items: stretch !important;">
-            <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important;">
+    <div class="command-bar-frame dash-frame-green">
+        <div class="lcars-frame boot-hidden ">
+            <div class="lcars-sidebar ">
                 <div class="lcars-elbow-top"></div>
-                <div class="lcars-elbow-bottom cb-top-mirror" style="display: block !important; opacity: 1 !important; max-height: none !important; overflow: visible !important; transform: scaleY(-1) !important; height: 28px !important;"></div>
-                <div class="lcars-seg" style="--seg-color: var(--archie-green); min-height: 12px !important; height: 12px !important;"></div>
-                <div class="lcars-seg" style="--seg-color: var(--archie-cyan); min-height: 12px !important; height: 12px !important;"></div>
-                <div class="lcars-elbow-bottom" style="display: block !important; opacity: 1 !important; max-height: none !important; overflow: visible !important;"></div>
+                <div class="lcars-elbow-bottom cb-top-mirror "></div>
+                <div class="lcars-seg dash-seg-green-sm"></div>
+                <div class="lcars-seg dash-seg-cyan-sm"></div>
+                <div class="lcars-elbow-bottom "></div>
             </div>
-            <div class="lcars-content" style="display: flex !important; flex-direction: column !important; flex: 1 !important;">
+            <div class="lcars-content ">
                 <!-- Thin 16px green bar across the top -->
-                <div class="lcars-bar" style="background: var(--frame-color) !important; height: 14px !important; min-height: 14px !important; flex-shrink: 0 !important; border-radius: 0 var(--frame-radius, 20px) var(--frame-radius, 20px) 0 !important; padding: 0 !important;"></div>
+                <div class="lcars-bar "></div>
                 <!-- Nav elements in body area -->
-                <div class="lcars-body" id="command-bar" role="navigation" aria-label="Dashboard command bar" style="display: flex !important; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 16px; flex: 1 !important; font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);">
+                <div class="lcars-body" id="command-bar" role="navigation" aria-label="Dashboard command bar">
                     <!-- Left Zone: User info -->
                     <div class="cb-zone cb-zone-left">
-                        <a href="#" onclick="toggleProfileModal(); return false;" title="My Profile" style="display:flex; align-items:center; gap:8px; text-decoration:none; color:inherit;">
+                        <a href="#" onclick="toggleProfileModal(); return false;" title="My Profile" class="dash-profile-link">
                             <div class="cb-avatar">{{ current_user.username[0] | upper }}</div>
                             <span class="cb-username">{{ current_user.username }}</span>
                         </a>
@@ -77,7 +77,7 @@
                     <!-- Right Zone: Actions -->
                     <div class="cb-zone cb-zone-right">
                         <!-- Notifications — bell -->
-                        <div style="position:relative;">
+                        <div class="dash-notif-wrapper">
                             <button class="cb-icon-btn" data-accent="amber" id="cbNotifBtn" title="Notifications" data-i18n-title="js.nav.notifications" aria-label="Notifications">
                                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a6 6 0 0 0-6 6v4l-2 3h16l-2-3V8a6 6 0 0 0-6-6z"/><path d="M10 20a2 2 0 0 0 4 0h-4z"/></svg>
                                 <span class="cb-notif-badge hidden" id="cbNotifBadge">0</span>
@@ -85,7 +85,7 @@
                         </div>
                         <!-- Theme toggle — sun/moon -->
                         <button class="cb-icon-btn" data-accent="cyan" id="cbThemeBtn" title="Toggle Theme" data-i18n-title="js.nav.toggle_theme" aria-label="Toggle light/dark theme" onclick="if(typeof toggleTheme==='function') toggleTheme();">
-                            <svg id="cbThemeIconSun" viewBox="0 0 24 24" fill="currentColor" style="display:none;"><circle cx="12" cy="12" r="5"/><rect x="11" y="1" width="2" height="4" rx="1"/><rect x="11" y="19" width="2" height="4" rx="1"/><rect x="1" y="11" width="4" height="2" rx="1"/><rect x="19" y="11" width="4" height="2" rx="1"/><rect x="3.9" y="3.9" width="2" height="4" rx="1" transform="rotate(-45 4.9 5.9)"/><rect x="17.1" y="16.1" width="2" height="4" rx="1" transform="rotate(-45 18.1 18.1)"/><rect x="16.1" y="3.9" width="4" height="2" rx="1" transform="rotate(-45 18.1 4.9)"/><rect x="2.9" y="17.1" width="4" height="2" rx="1" transform="rotate(-45 4.9 18.1)"/></svg>
+                            <svg id="cbThemeIconSun" viewBox="0 0 24 24" fill="currentColor" class="dash-hidden"><circle cx="12" cy="12" r="5"/><rect x="11" y="1" width="2" height="4" rx="1"/><rect x="11" y="19" width="2" height="4" rx="1"/><rect x="1" y="11" width="4" height="2" rx="1"/><rect x="19" y="11" width="4" height="2" rx="1"/><rect x="3.9" y="3.9" width="2" height="4" rx="1" transform="rotate(-45 4.9 5.9)"/><rect x="17.1" y="16.1" width="2" height="4" rx="1" transform="rotate(-45 18.1 18.1)"/><rect x="16.1" y="3.9" width="4" height="2" rx="1" transform="rotate(-45 18.1 4.9)"/><rect x="2.9" y="17.1" width="4" height="2" rx="1" transform="rotate(-45 4.9 18.1)"/></svg>
                             <svg id="cbThemeIconMoon" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/></svg>
                         </button>
                         <!-- Language — globe -->
@@ -105,7 +105,7 @@
                     </div>
                 </div>
                 <!-- Command Bar Footer Bar -->
-                <div class="lcars-footer-bar" style="background: var(--frame-color) !important; height: 10px !important; min-height: 10px !important; flex-shrink: 0 !important; display: flex !important; opacity: 1 !important; max-height: none !important; overflow: visible !important;">
+                <div class="lcars-footer-bar ">
                 </div>
             </div>
         </div>
@@ -153,16 +153,16 @@
 
     <!-- Section 3: HUD Vitals — LCARS Full Frame (cyan) — Admin only -->
     {% if dashboard_data.user_role in ['ADMIN', 'SUPER_ADMIN'] %}
-    <div class="hud-frame" style="--frame-color: var(--archie-cyan); --frame-rgb: var(--archie-cyan-rgb, 0,255,255)">
+    <div class="hud-frame dash-frame-cyan">
         <div class="lcars-frame boot-hidden">
             <div class="lcars-sidebar">
                 <div class="lcars-elbow-top"></div>
-                <div class="lcars-seg" style="--seg-color: var(--archie-cyan)"></div>
-                <div class="lcars-seg-light" style="--seg-color: var(--archie-green)"></div>
-                <div class="lcars-seg" style="--seg-color: var(--archie-green)"></div>
-                <div class="lcars-seg" style="--seg-color: var(--archie-green)"></div>
-                <div class="lcars-seg-light" style="--seg-color: var(--archie-cyan)"></div>
-                <div class="lcars-seg" style="--seg-color: var(--archie-info)"></div>
+                <div class="lcars-seg dash-seg-cyan"></div>
+                <div class="lcars-seg-light dash-seg-green"></div>
+                <div class="lcars-seg dash-seg-green"></div>
+                <div class="lcars-seg dash-seg-green"></div>
+                <div class="lcars-seg-light dash-seg-cyan"></div>
+                <div class="lcars-seg dash-seg-info"></div>
                 <div class="lcars-seg-fill"></div>
                 <div class="lcars-elbow-bottom"></div>
             </div>
@@ -171,9 +171,9 @@
                     <span class="lcars-bar-title" data-i18n="dashboard_hud_title">SYSTEM STATUS</span>
                     <div class="lcars-bar-spacer"></div>
                     <div class="lcars-pips">
-                        <span class="lcars-pip" style="width:20px; background:rgba(0,0,0,0.3)"></span>
-                        <span class="lcars-pip" style="width:35px; background:rgba(0,0,0,0.3)"></span>
-                        <span class="lcars-pip" style="width:14px; background:rgba(0,0,0,0.3)"></span>
+                        <span class="lcars-pip dash-pip-20"></span>
+                        <span class="lcars-pip dash-pip-35"></span>
+                        <span class="lcars-pip dash-pip-14"></span>
                     </div>
                     <span class="lcars-bar-status" id="hudUptime" data-i18n-title="dashboard_hud_uptime">--</span>
                 </div>
@@ -216,13 +216,13 @@
                         <span class="hud-status-extra"><span data-i18n="hud.uptime">UPTIME</span>: <span id="hudValUptime">--h --m</span></span>
                     </div>
                 </div>
-                <div class="lcars-footer-bar" style="background: var(--frame-color) !important; height: var(--frame-footer-h) !important; display: flex !important; opacity: 1 !important;">
+                <div class="lcars-footer-bar dash-footer-bar">
                     <span class="lcars-footer-stardate" id="hudStardate" data-i18n="dashboard_hud_stardate">SD 79145.7</span>
                     <span class="lcars-footer-stardate" data-i18n="dashboard_version_label">v{{ config.get('VERSION','5.32.0') }}</span>
                     <div class="lcars-footer-dots">
-                        <span class="lcars-footer-dot" style="background:var(--archie-cyan)"></span>
-                        <span class="lcars-footer-dot" style="background:var(--archie-green)"></span>
-                        <span class="lcars-footer-dot" style="background:var(--archie-info)"></span>
+                        <span class="lcars-footer-dot dash-dot-cyan"></span>
+                        <span class="lcars-footer-dot dash-dot-green"></span>
+                        <span class="lcars-footer-dot dash-dot-info"></span>
                     </div>
                 </div>
             </div>
@@ -232,12 +232,12 @@
 
     <!-- Section 5: Mission Briefing — Admin-only collapsible sections -->
     {% if dashboard_data.user_role in ['ADMIN', 'SUPER_ADMIN'] %}
-    <div id="mission-briefing" class="briefing-frame" style="--frame-color: var(--archie-green); --frame-rgb: var(--archie-green-rgb, 0,255,65)">
+    <div id="mission-briefing" class="briefing-frame dash-frame-green">
         <div class="lcars-frame boot-hidden">
             <div class="lcars-sidebar">
                 <div class="lcars-elbow-top"></div>
-                <div class="lcars-seg" style="--seg-color: var(--archie-green)"></div>
-                <div class="lcars-seg" style="--seg-color: var(--archie-orange)"></div>
+                <div class="lcars-seg dash-seg-green"></div>
+                <div class="lcars-seg dash-seg-orange"></div>
                 <div class="lcars-seg-fill"></div>
                 <div class="lcars-elbow-bottom"></div>
             </div>
@@ -246,15 +246,15 @@
                     <span class="lcars-bar-title" data-i18n="dashboard_briefing_title">MISSION BRIEFING</span>
                     <div class="lcars-bar-spacer"></div>
                     <div class="lcars-pips">
-                        <span class="lcars-pip" style="width:20px; background:rgba(0,0,0,0.3)"></span>
-                        <span class="lcars-pip" style="width:35px; background:rgba(0,0,0,0.3)"></span>
-                        <span class="lcars-pip" style="width:14px; background:rgba(0,0,0,0.3)"></span>
+                        <span class="lcars-pip dash-pip-20"></span>
+                        <span class="lcars-pip dash-pip-35"></span>
+                        <span class="lcars-pip dash-pip-14"></span>
                     </div>
                 </div>
                 <div class="lcars-body">
                     <div class="briefing-sections">
                         <!-- Section 1: Recent Activity (collapsed by default) -->
-                        <div class="briefing-section" id="briefingSectionActivity" data-key="activity" style="--col-accent: var(--archie-green); --col-accent-rgb: var(--archie-green-rgb, 0,255,65)">
+                        <div class="briefing-section dash-accent-green" id="briefingSectionActivity" data-key="activity">
                             <div class="briefing-section-header" onclick="toggleBriefingSection('activity')">
                                 <svg class="briefing-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                                 <span data-i18n="dashboard_activity_title">RECENT ACTIVITY</span>
@@ -268,7 +268,7 @@
                             </div>
                         </div>
                         <!-- Section 2: System Alerts (collapsed by default) -->
-                        <div class="briefing-section" id="briefingSectionAlerts" data-key="alerts" style="--col-accent: #f59e0b; --col-accent-rgb: 245,158,11">
+                        <div class="briefing-section dash-accent-amber" id="briefingSectionAlerts" data-key="alerts">
                             <div class="briefing-section-header" onclick="toggleBriefingSection('alerts')">
                                 <svg class="briefing-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                                 <span data-i18n="dashboard_alerts_title">SYSTEM ALERTS</span>
@@ -283,11 +283,11 @@
                         </div>
                     </div>
                 </div>
-                <div class="lcars-footer-bar" style="background: var(--frame-color) !important; height: var(--frame-footer-h) !important; display: flex !important; opacity: 1 !important;">
+                <div class="lcars-footer-bar dash-footer-bar">
                     <span class="lcars-footer-stardate" id="briefingTimestamp" data-i18n="dashboard_briefing_updated">--</span>
                     <div class="lcars-footer-dots">
-                        <span class="lcars-footer-dot" style="background:var(--archie-green)"></span>
-                        <span class="lcars-footer-dot" style="background:var(--archie-orange)"></span>
+                        <span class="lcars-footer-dot dash-dot-green"></span>
+                        <span class="lcars-footer-dot dash-dot-orange"></span>
                     </div>
                 </div>
             </div>
@@ -296,15 +296,15 @@
     {% endif %}
 
     <!-- Section 6: Featured Modules — Priority Stations (LCARS Amber Frame) -->
-    <div id="featured-modules" class="featured-frame" style="--frame-color: var(--archie-orange); --frame-rgb: var(--archie-orange-rgb, 245,158,11)">
+    <div id="featured-modules" class="featured-frame dash-frame-orange">
         <div class="lcars-frame boot-hidden">
             <div class="lcars-sidebar">
                 <div class="lcars-elbow-top"></div>
-                <div class="lcars-seg" style="--seg-color: var(--archie-orange)"></div>
-                <div class="lcars-seg" style="--seg-color: var(--archie-green)"></div>
-                <div class="lcars-seg" style="--seg-color: var(--archie-cyan)"></div>
+                <div class="lcars-seg dash-seg-orange"></div>
+                <div class="lcars-seg dash-seg-green"></div>
+                <div class="lcars-seg dash-seg-cyan"></div>
                 <div class="lcars-seg-fill"></div>
-                <div class="lcars-seg" style="--seg-color: var(--archie-info)"></div>
+                <div class="lcars-seg dash-seg-info"></div>
                 <div class="lcars-elbow-bottom"></div>
             </div>
             <div class="lcars-content">
@@ -312,9 +312,9 @@
                     <span class="lcars-bar-title" data-i18n="dashboard_featured_title">PRIORITY STATIONS</span>
                     <div class="lcars-bar-spacer"></div>
                     <div class="lcars-pips">
-                        <span class="lcars-pip" style="width:20px; background:rgba(0,0,0,0.3)"></span>
-                        <span class="lcars-pip" style="width:14px; background:rgba(0,0,0,0.3)"></span>
-                        <span class="lcars-pip" style="width:35px; background:rgba(0,0,0,0.3)"></span>
+                        <span class="lcars-pip dash-pip-20"></span>
+                        <span class="lcars-pip dash-pip-14"></span>
+                        <span class="lcars-pip dash-pip-35"></span>
                     </div>
                 </div>
                 <div class="lcars-body">
@@ -348,12 +348,12 @@
                         {% endfor %}
                     </div>
                 </div>
-                <div class="lcars-footer-bar" style="background: var(--frame-color) !important; height: var(--frame-footer-h) !important; display: flex !important; opacity: 1 !important;">
+                <div class="lcars-footer-bar dash-footer-bar">
                     <span class="lcars-footer-stardate" id="featuredPinCount" data-i18n="dashboard_featured_pinned">PINNED</span>
                     <div class="lcars-footer-dots">
-                        <span class="lcars-footer-dot" style="background:var(--archie-orange)"></span>
-                        <span class="lcars-footer-dot" style="background:var(--archie-green)"></span>
-                        <span class="lcars-footer-dot" style="background:var(--archie-info)"></span>
+                        <span class="lcars-footer-dot dash-dot-orange"></span>
+                        <span class="lcars-footer-dot dash-dot-green"></span>
+                        <span class="lcars-footer-dot dash-dot-info"></span>
                     </div>
                 </div>
             </div>
@@ -424,7 +424,7 @@
                     </div>
                 </div>
                 <!-- Footer Bar -->
-                <div class="lcars-footer-bar" style="background: var(--frame-color) !important; height: var(--frame-footer-h) !important; display: flex !important; opacity: 1 !important;">
+                <div class="lcars-footer-bar dash-footer-bar">
                     <span class="lcars-footer-stardate" data-i18n="cat.{{ cat_key }}">{{ cat_info.name | upper }}</span>
                     <div class="lcars-footer-dots">
                         <span class="lcars-footer-dot" style="background: var(--frame-color)"></span>

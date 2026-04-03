@@ -163,6 +163,36 @@ Design constraint: `DispatchStrategy` must work when `hub_url` is empty. Hub is 
 
 Each phase is independently shippable.
 
+## Testing Strategy
+
+Baseline: 156 existing tests must stay green through all phases. No regressions.
+
+### Phase 1: Dispatch Strategy
+- **Unit**: `DispatchStrategy` correctly routes each intent type (local vs platform vs escalation)
+- **Unit**: Intent parser fixes — test cases for misclassification bugs (e.g., "What models..." should not be shell_command)
+- **Integration**: Engine → HubConnector → mock Bridge endpoint → agent response returned
+- **Offline fallback**: Disconnect hub, verify engine degrades gracefully to local Ollama without crash
+- **Job logging**: Dispatched work creates entry in `bridge_jobs` (verified via mock or live)
+
+### Phase 2: Claude MCP
+- **State sync**: File change event → sync channel → received by other side
+- **Escalation**: Trigger escalation conditions → verify full context package (intent, history, attempts, failure reason)
+- **Delegation**: Receive task from Claude → engine executes → result returned with status
+- **Conflict detection**: Both edit same file → warning fires on sync channel
+- **Reconnection**: Disconnect MCP → queue events → reconnect → queued events replayed
+
+### Phase 3: Go TUI
+- **Build**: `go build` succeeds on Linux (and cross-compile for macOS/Windows)
+- **Connection**: TUI connects to engine WebSocket, sends ping, gets pong
+- **Render**: Bubble Tea snapshot tests for each panel (chat, status, skills)
+- **Skill invocation**: Type `/review` in TUI → skill executes → response displays
+
+### Phase 4: Mesh
+- **Node registration**: Engine registers with Starbase, appears in node list via API
+- **Inbound work**: Platform sends task → engine receives, executes, returns result
+- **Round-trip**: Platform dispatches to engine → engine dispatches back to platform agent → result propagates
+- **Health monitoring**: Platform detects engine offline within heartbeat window (2 min)
+
 ## Known Issues (From Testing)
 
 1. **Intent parser bug**: "What models are available on Ollama?" classified as `shell_command` — pattern matching too aggressive

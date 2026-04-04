@@ -1,0 +1,222 @@
+/* AI Directors Showcase — ai-directors.css */
+
+/* Hero */
+.dir-hero {
+    padding: 6rem 0 3rem;
+    text-align: center;
+}
+.dir-hero__title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin-bottom: 1rem;
+}
+.dir-hero__subtitle {
+    color: var(--text-secondary, #8892a4);
+    font-size: clamp(1rem, 2.5vw, 1.15rem);
+    max-width: 640px;
+    margin: 0 auto;
+    line-height: 1.6;
+}
+
+/* C.R.E.E.D. section */
+.dir-creed {
+    max-width: 800px;
+    margin: 0 auto 3rem;
+    padding: 2rem;
+    border-left: 4px solid #8b5cf6;
+    text-align: center;
+}
+.dir-creed__title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #8b5cf6;
+    margin-bottom: 0.75rem;
+    letter-spacing: 0.04em;
+}
+.dir-creed__text {
+    color: var(--text-secondary, #8892a4);
+    font-size: 0.95rem;
+    line-height: 1.7;
+}
+
+/* Floor sections */
+.dir-floor {
+    margin-bottom: 3.5rem;
+}
+.dir-floor__header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+.dir-floor__bar {
+    width: 6px;
+    height: 40px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+.dir-floor__name {
+    font-family: 'Antonio', sans-serif;
+    font-size: 1.5rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.dir-floor__badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    margin-left: auto;
+}
+
+/* Director card grid */
+.dir-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.25rem;
+}
+.dir-grid--single {
+    grid-template-columns: 1fr;
+    max-width: 520px;
+}
+
+/* Director card */
+.dir-card {
+    padding: 1.75rem;
+    border-left: 4px solid var(--floor-accent, #8892a4);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.dir-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+}
+.dir-card__acronym {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.3rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--floor-accent, #00e5ff);
+}
+.dir-card__name {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--text-secondary, #8892a4);
+    letter-spacing: 0.03em;
+    line-height: 1.4;
+}
+.dir-card__dept {
+    font-family: 'Antonio', sans-serif;
+    font-size: 1.05rem;
+    letter-spacing: 0.02em;
+    margin-top: 0.25rem;
+}
+.dir-card__desc {
+    color: var(--text-secondary, #8892a4);
+    font-size: 0.88rem;
+    line-height: 1.65;
+    margin-top: 0.25rem;
+}
+
+/* Floor accent custom properties */
+.dir-floor--bridge    { --floor-accent: #00e5ff; }
+.dir-floor--ops       { --floor-accent: #a3e635; }
+.dir-floor--eng       { --floor-accent: #fbbf24; }
+.dir-floor--creative  { --floor-accent: #f472b6; }
+.dir-floor--services  { --floor-accent: #8b5cf6; }
+
+/* How They Work Together */
+.dir-collab {
+    max-width: 800px;
+    margin: 0 auto 2rem;
+    padding: 2rem;
+    text-align: center;
+}
+.dir-collab__title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    letter-spacing: 0.03em;
+}
+.dir-collab__text {
+    color: var(--text-secondary, #8892a4);
+    font-size: 0.95rem;
+    line-height: 1.7;
+}
+
+/* CTA */
+.dir-cta {
+    text-align: center;
+    padding-bottom: 4rem;
+}
+.dir-cta__row {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 2rem;
+}
+.dir-cta__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.9rem 2rem;
+    border-radius: 8px;
+    font-family: 'Antonio', sans-serif;
+    font-size: 1.05rem;
+    letter-spacing: 0.04em;
+    text-decoration: none;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    text-transform: uppercase;
+}
+.dir-cta__btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+}
+.dir-cta__btn--primary {
+    background: linear-gradient(135deg, #00e5ff 0%, #00b8d4 100%);
+    color: #0a0a1a;
+    font-weight: 700;
+}
+.dir-cta__btn--secondary {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(0,229,255,0.25);
+    color: #00e5ff;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .dir-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .dir-hero {
+        padding: 5rem 0 2rem;
+    }
+}
+@media (max-width: 480px) {
+    .dir-grid,
+    .dir-grid--single {
+        grid-template-columns: 1fr;
+        max-width: none;
+    }
+    .dir-floor__header {
+        flex-wrap: wrap;
+    }
+    .dir-floor__badge {
+        margin-left: 0;
+    }
+    .dir-creed,
+    .dir-collab {
+        padding: 1.5rem;
+    }
+}

@@ -70,6 +70,27 @@
         align-items: center;
     }
 
+    /* --- Card grid: single column, centered --- */
+    .card-grid {
+        grid-template-columns: 1fr;
+        gap: var(--space-md);
+        justify-items: center;
+    }
+
+    .card-grid .card {
+        max-width: 100%;
+        width: 100%;
+    }
+
+    /* --- Hero centering --- */
+    .hero {
+        text-align: center;
+    }
+
+    .hero__stats {
+        justify-content: center;
+    }
+
     /* --- Directory --- */
     .directory-filters {
         flex-direction: column;
@@ -133,9 +154,23 @@
         padding-inline: 1rem;
     }
 
-    /* --- Single column card grid --- */
-    .card-grid {
+    /* --- Single column for all grids --- */
+    .card-grid,
+    .grid,
+    [class*="grid"] {
         grid-template-columns: 1fr;
+    }
+
+    /* --- Prevent media overflow --- */
+    img, video, iframe {
+        max-width: 100%;
+        height: auto;
+    }
+
+    /* --- Section padding --- */
+    section {
+        padding-left: var(--space-md);
+        padding-right: var(--space-md);
     }
 
     /* --- Footer --- */

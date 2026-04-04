@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en" data-barba="wrapper">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Store — Kytran Empowerment</title>
+    <meta name="description" content="Shop official Kytran Empowerment merchandise. Branded gear designed for builders, strategists, and the empowered.">
+    <meta name="theme-color" content="#0a0a1a">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/base.css?v=20260404">
+    <link rel="stylesheet" href="css/components.css?v=20260404">
+    <link rel="stylesheet" href="css/responsive.css?v=20260404">
+    <link rel="stylesheet" href="css/reduced-motion.css?v=20260404">
+    <style>
+        /* Store-specific styles */
+        .store-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            max-width: 1200px;
+            margin: 0 auto 2rem;
+            padding: 0 1.5rem;
+        }
+        .store-bar__count {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: .85rem;
+            color: rgba(255,255,255,.5);
+        }
+        .cart-link {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            font-family: 'Orbitron', sans-serif;
+            font-size: .8rem;
+            font-weight: 700;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            color: var(--accent, #00e5ff);
+            text-decoration: none;
+            padding: .55rem 1.2rem;
+            border: 1px solid rgba(0,229,255,.25);
+            border-radius: 6px;
+            backdrop-filter: blur(12px);
+            background: rgba(0,229,255,.06);
+            transition: background .3s, border-color .3s;
+        }
+        .cart-link:hover {
+            background: rgba(0,229,255,.14);
+            border-color: rgba(0,229,255,.5);
+        }
+        .cart-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 20px;
+            height: 20px;
+            padding: 0 6px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: .7rem;
+            font-weight: 700;
+            color: #0a0a1a;
+            background: var(--accent, #00e5ff);
+            border-radius: 999px;
+            line-height: 1;
+        }
+
+        /* Product grid */
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.5rem;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1.5rem;
+        }
+
+        /* Product card — glass panel style */
+        .product-card {
+            position: relative;
+            background: rgba(255,255,255,.03);
+            border: 1px solid rgba(255,255,255,.06);
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: transform .35s cubic-bezier(.22,1,.36,1), border-color .35s, box-shadow .35s;
+        }
+        .product-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(0,229,255,.2);
+            box-shadow: 0 12px 40px rgba(0,229,255,.08);
+        }
+        .product-card__img {
+            width: 100%;
+            height: 260px;
+            object-fit: contain;
+            background: rgba(255,255,255,.02);
+            border-bottom: 1px solid rgba(255,255,255,.06);
+            padding: 1rem;
+        }
+        .product-card__body {
+            padding: 1.25rem 1.5rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+        }
+        .product-card__name {
+            font-family: 'Antonio', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            color: #fff;
+            margin: 0 0 .5rem;
+            flex-grow: 1;
+        }
+        .product-card__price {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--accent, #00e5ff);
+            margin: 0 0 1rem;
+        }
+        .product-card__btn {
+            display: inline-block;
+            padding: .6rem 1.4rem;
+            font-family: 'Orbitron', sans-serif;
+            font-size: .75rem;
+            font-weight: 700;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+            text-decoration: none;
+            text-align: center;
+            color: #0a0a1a;
+            background: var(--accent, #00e5ff);
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: opacity .3s;
+        }
+        .product-card__btn:hover {
+            opacity: .85;
+        }
+
+        /* Loading / error states */
+        .store-loading,
+        .store-error {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 3rem 1rem;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: .95rem;
+        }
+        .store-loading {
+            color: rgba(255,255,255,.4);
+        }
+        .store-error {
+            color: #ef4444;
+        }
+
+        /* Skeleton shimmer while loading */
+        .skeleton-card {
+            background: rgba(255,255,255,.03);
+            border: 1px solid rgba(255,255,255,.06);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .skeleton-card__img {
+            width: 100%;
+            height: 260px;
+            background: linear-gradient(90deg, rgba(255,255,255,.03) 25%, rgba(255,255,255,.06) 50%, rgba(255,255,255,.03) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+        .skeleton-card__body {
+            padding: 1.25rem 1.5rem 1.5rem;
+        }
+        .skeleton-card__line {
+            height: 14px;
+            border-radius: 4px;
+            background: linear-gradient(90deg, rgba(255,255,255,.04) 25%, rgba(255,255,255,.08) 50%, rgba(255,255,255,.04) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            margin-bottom: .75rem;
+        }
+        .skeleton-card__line--short { width: 50%; }
+        .skeleton-card__line--btn { width: 40%; height: 34px; border-radius: 6px; }
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        @media (max-width: 480px) {
+            .product-grid {
+                grid-template-columns: 1fr;
+            }
+            .store-bar {
+                flex-direction: column;
+                gap: .75rem;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Global background layers -->
+    <div class="aurora"></div>
+    <div class="dot-grid"></div>
+    <div class="noise-overlay"></div>
+    <div class="cursor-glow" id="cursorGlow"></div>
+
+
+    <!-- Navigation -->
+    <nav class="nav" role="navigation" aria-label="Main navigation">
+      <div class="nav__inner">
+        <a href="/" class="nav__brand">
+          <img src="assets/logo-sm.png" alt="Kytran Empowerment logo" class="nav__logo-img">
+          <span class="nav__brand-text">Kytran Empowerment</span>
+        </a>
+
+        <div class="nav__links">
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.products">Products</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="platform.html" class="nav__dropdown-item" data-i18n="nav.platform">Platform (A.R.C.H.I.E.)</a>
+              <a href="ai-directors.html" class="nav__dropdown-item" data-i18n="nav.ai_directors">AI Directors</a>
+              <a href="archie-code.html" class="nav__dropdown-item" data-i18n="nav.archie_code">ARCHIE Code CLI</a>
+              <div class="nav__dropdown-divider"></div>
+              <a href="market-watch.html" class="nav__dropdown-item" data-i18n="nav.market_watch">Market Watch</a>
+              <a href="civic-watch.html" class="nav__dropdown-item" data-i18n="nav.civic_watch">Civic Watch</a>
+              <a href="legal-watch.html" class="nav__dropdown-item" data-i18n="nav.legal_watch">Legal Watch</a>
+              <a href="gov-watch.html" class="nav__dropdown-item" data-i18n="nav.gov_watch">Gov Watch</a>
+              <div class="nav__dropdown-divider"></div>
+              <a href="https://business.kytranempowerment.com" class="nav__dropdown-item" data-i18n="nav.business_suite">Business Suite</a>
+            </div>
+          </div>
+
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.services">Services</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="services.html" class="nav__dropdown-item" data-i18n="nav.all_services">All Services</a>
+              <a href="compliance-services.html" class="nav__dropdown-item" data-i18n="nav.compliance_scanning">Compliance Scanning</a>
+              <a href="membership.html" class="nav__dropdown-item" data-i18n="nav.pricing">Membership &amp; Pricing</a>
+            </div>
+          </div>
+
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.trust">Trust</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="compliance.html" class="nav__dropdown-item" data-i18n="nav.trust_center">Trust Center</a>
+              <a href="competitors.html" class="nav__dropdown-item" data-i18n="nav.competitors">Why A.R.C.H.I.E.</a>
+              <a href="creed.html" class="nav__dropdown-item" data-i18n="nav.creed">C.R.E.E.D.</a>
+            </div>
+          </div>
+
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.company">Company</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="about.html" class="nav__dropdown-item" data-i18n="nav.about">About</a>
+              <a href="vision.html" class="nav__dropdown-item" data-i18n="nav.vision">Vision</a>
+              <a href="directory.html" class="nav__dropdown-item" data-i18n="nav.directory">Directory</a>
+              <a href="books.html" class="nav__dropdown-item" data-i18n="nav.books">Books</a>
+              <a href="tips.html" class="nav__dropdown-item" data-i18n="nav.tips">Tips &amp; Tricks</a>
+            </div>
+          </div>
+
+          <a href="store.html" class="nav__link" data-i18n="nav.store">Store</a>
+          <a href="contact.html" class="nav__link" data-i18n="nav.contact">Contact</a>
+        </div>
+
+        <div class="nav__actions">
+          <button class="nav__lang-btn" aria-label="Change language" title="Change language">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M2 10h16M10 2c-2.5 3-2.5 13 0 16M10 2c2.5 3 2.5 13 0 16" stroke="currentColor" stroke-width="1.5"/></svg>
+          </button>
+          <a href="membership.html" class="nav__link nav__link--cta" data-i18n="nav.get_started">Get Started</a>
+          <button class="nav__menu-btn" aria-label="Toggle menu" aria-expanded="false">
+            <span class="nav__menu-icon"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="lang-overlay" hidden>
+        <div class="lang-overlay__panel">
+          <button class="lang-overlay__close" aria-label="Close language selector">&times;</button>
+          <h3 class="lang-overlay__title" data-i18n="lang.choose">Choose Language</h3>
+          <div class="lang-overlay__grid">
+            <button class="lang-overlay__btn" data-lang="en">English</button>
+            <button class="lang-overlay__btn" data-lang="fr">Fran&ccedil;ais (QC)</button>
+            <button class="lang-overlay__btn" data-lang="es">Espa&ntilde;ol</button>
+            <button class="lang-overlay__btn" data-lang="pt">Portugu&ecirc;s</button>
+            <button class="lang-overlay__btn" data-lang="de">Deutsch</button>
+            <button class="lang-overlay__btn" data-lang="zh">&#20013;&#25991;</button>
+            <button class="lang-overlay__btn" data-lang="ar" dir="rtl">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</button>
+            <button class="lang-overlay__btn" data-lang="he" dir="rtl">&#1506;&#1489;&#1512;&#1497;&#1514;</button>
+          </div>
+        </div>
+      </div>
+    </nav></div></div></div></div>
+        <a href="store.html" class="nav-mobile__direct" data-i18n="nav.store">Store</a>
+        <a href="contact.html" class="nav-mobile__direct" data-i18n="nav.contact">Contact</a>
+        <a href="membership.html" class="nav-mobile__cta" data-i18n="nav.get_started">Get Started</a>
+      </div>
+    </div>
+
+
+    <!-- Page content -->
+    <main data-barba="container" data-barba-namespace="store">
+        <section class="hero">
+            <div class="hero__content container">
+                <h1 class="hero__title gradient-text">Merchandise</h1>
+                <p class="hero__sub" style="max-width:600px;margin:1rem auto 0;font-family:'IBM Plex Mono',monospace;font-size:.95rem;color:rgba(255,255,255,.55);text-align:center;">Official Kytran branded gear. Built for builders, strategists, and the empowered.</p>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="container">
+                <div class="store-bar">
+                    <span class="store-bar__count" id="productCount"></span>
+                    <a href="cart.html" class="cart-link">
+                        View Cart <span class="cart-badge" id="cartBadge">0</span>
+                    </a>
+                </div>
+                <div class="product-grid" id="productGrid">
+                    <!-- Skeleton placeholders while loading -->
+                    <div class="skeleton-card"><div class="skeleton-card__img"></div><div class="skeleton-card__body"><div class="skeleton-card__line"></div><div class="skeleton-card__line skeleton-card__line--short"></div><div class="skeleton-card__line skeleton-card__line--btn"></div></div></div>
+                    <div class="skeleton-card"><div class="skeleton-card__img"></div><div class="skeleton-card__body"><div class="skeleton-card__line"></div><div class="skeleton-card__line skeleton-card__line--short"></div><div class="skeleton-card__line skeleton-card__line--btn"></div></div></div>
+                    <div class="skeleton-card"><div class="skeleton-card__img"></div><div class="skeleton-card__body"><div class="skeleton-card__line"></div><div class="skeleton-card__line skeleton-card__line--short"></div><div class="skeleton-card__line skeleton-card__line--btn"></div></div></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer__inner container">
+            <div class="footer__brand">
+                <span class="footer__logo">KYTRAN EMPOWERMENT</span>
+                <p class="footer__tagline">Montreal, Canada</p>
+            </div>
+            <div class="footer__links">
+                <a href="about.html">About</a>
+                <a href="compliance.html">Trust Center</a>
+                <a href="creed.html">C.R.E.E.D.</a>
+                <a href="contact.html">Contact</a>
+            </div>
+            <div class="footer__copy">&copy; 2026 Kytran Empowerment Inc. All rights reserved.</div>
+        </div>
+    </footer>
+
+    <!-- Language Overlay -->
+    <div class="lang-overlay" id="langOverlay" hidden>
+        <div class="lang-overlay__panel glass-panel">
+            <h3>Select Language</h3>
+            <div class="lang-overlay__grid">
+                <button data-lang="en" class="lang-btn active">English</button>
+                <button data-lang="fr" class="lang-btn">Francais</button>
+                <button data-lang="es" class="lang-btn">Espanol</button>
+                <button data-lang="de" class="lang-btn">Deutsch</button>
+                <button data-lang="zh" class="lang-btn">中文</button>
+                <button data-lang="ja" class="lang-btn">日本語</button>
+                <button data-lang="ar" class="lang-btn" dir="rtl">العربية</button>
+                <button data-lang="he" class="lang-btn" dir="rtl">עברית</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script defer src="js/lib/gsap.min.js?v=20260404"></script>
+    <script defer src="js/lib/ScrollTrigger.min.js?v=20260404"></script>
+    <script defer src="js/lib/lenis.min.js?v=20260404"></script>
+    <script defer src="js/lib/splitting.min.js?v=20260404"></script>
+    <script defer src="js/lib/barba.min.js?v=20260404"></script>
+    <script defer src="js/effects.js?v=20260404"></script>
+    <script defer src="js/nav.js?v=20260404"></script>
+    <script defer src="js/transitions.js?v=20260404"></script>
+    <script defer src="js/app.js?v=20260404"></script>
+
+    <!-- Store logic (inlined, no script.js dependency) -->
+    <script>
+        (function() {
+            // --- Session ID (persistent across pages via localStorage) ---
+            var userSessionId = localStorage.getItem('userSessionId');
+            if (!userSessionId) {
+                userSessionId = crypto.randomUUID();
+                localStorage.setItem('userSessionId', userSessionId);
+            }
+
+            // --- Cart count ---
+            async function updateCartCount() {
+                try {
+                    var response = await fetch('https://store.kytranempowerment.com/api/cart/' + userSessionId);
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    var data = await response.json();
+                    var cart = data.cart_items || [];
+                    var count = cart.reduce(function(total, item) { return total + item.quantity; }, 0);
+                    var badge = document.getElementById('cartBadge');
+                    if (badge) badge.textContent = count;
+                } catch (err) {
+                    console.error('Cart count error:', err);
+                    var badge = document.getElementById('cartBadge');
+                    if (badge) badge.textContent = '0';
+                }
+            }
+
+            // --- Add to cart (exposed globally for future use) ---
+            window.addToCartBackend = async function(productId, selectedVariantId, quantity) {
+                quantity = quantity || 1;
+                try {
+                    var variantSelect = document.getElementById('variant-select');
+                    if (variantSelect && (!selectedVariantId || selectedVariantId === '')) {
+                        alert('Please select a size/variant.');
+                        return;
+                    }
+                    var response = await fetch('https://store.kytranempowerment.com/api/cart/add', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            session_id: userSessionId,
+                            product_id: productId,
+                            quantity: quantity,
+                            selected_printful_variant_id: selectedVariantId
+                        }),
+                    });
+                    var result = await response.json();
+                    if (!response.ok) throw new Error(result.detail || 'HTTP ' + response.status);
+                    alert(result.message);
+                    updateCartCount();
+                } catch (err) {
+                    console.error('Add to cart error:', err);
+                    alert('Failed to add product to cart: ' + err.message);
+                }
+            };
+
+            // --- Escape HTML to prevent XSS ---
+            function esc(str) {
+                var div = document.createElement('div');
+                div.textContent = str || '';
+                return div.textContent;
+            }
+
+            // --- Build a product card using safe DOM methods ---
+            function createProductCard(product) {
+                var imageUrl = product.image_url || 'https://via.placeholder.com/400x260?text=No+Image';
+                var name = product.name || 'Untitled';
+                var price = typeof product.price === 'number' ? '$' + product.price.toFixed(2) : '';
+
+                var card = document.createElement('div');
+                card.className = 'product-card';
+
+                var img = document.createElement('img');
+                img.className = 'product-card__img';
+                img.src = imageUrl;
+                img.alt = esc(name);
+                img.loading = 'lazy';
+                card.appendChild(img);
+
+                var body = document.createElement('div');
+                body.className = 'product-card__body';
+
+                var h3 = document.createElement('h3');
+                h3.className = 'product-card__name';
+                h3.textContent = name;
+                body.appendChild(h3);
+
+                var p = document.createElement('p');
+                p.className = 'product-card__price';
+                p.textContent = price;
+                body.appendChild(p);
+
+                var btn = document.createElement('a');
+                btn.className = 'product-card__btn';
+                btn.href = 'product-detail.html?id=' + encodeURIComponent(product.id);
+                btn.textContent = 'View Details';
+                body.appendChild(btn);
+
+                card.appendChild(body);
+                return card;
+            }
+
+            // --- Fetch and render products ---
+            async function fetchProducts() {
+                var grid = document.getElementById('productGrid');
+                var countEl = document.getElementById('productCount');
+
+                try {
+                    var response = await fetch('https://store.kytranempowerment.com/api/products');
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    var data = await response.json();
+                    var products = (data.products || []).filter(function(p) {
+                        return p.vendor_name !== 'Kytran Local Goods';
+                    });
+
+                    grid.textContent = '';
+
+                    if (products.length === 0) {
+                        var msg = document.createElement('p');
+                        msg.className = 'store-loading';
+                        msg.textContent = 'No products available right now. Check back soon.';
+                        grid.appendChild(msg);
+                        if (countEl) countEl.textContent = '';
+                        return;
+                    }
+
+                    if (countEl) countEl.textContent = products.length + ' product' + (products.length !== 1 ? 's' : '');
+
+                    products.forEach(function(product) {
+                        grid.appendChild(createProductCard(product));
+                    });
+
+                } catch (err) {
+                    console.error('Fetch products error:', err);
+                    grid.textContent = '';
+                    var errMsg = document.createElement('p');
+                    errMsg.className = 'store-error';
+                    errMsg.textContent = 'Failed to load products. Please try again later. ' + err.message;
+                    grid.appendChild(errMsg);
+                    if (countEl) countEl.textContent = '';
+                }
+            }
+
+            // --- Init ---
+            document.addEventListener('DOMContentLoaded', function() {
+                fetchProducts();
+                updateCartCount();
+            });
+        })();
+    </script>
+</body>
+</html>

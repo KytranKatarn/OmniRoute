@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en" data-barba="wrapper">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Books — Kytran Empowerment</title>
+    <meta name="description" content="Expand your mind with Kytran Empowerment books on Amazon. Strategy, finance, and personal growth resources designed for real-world impact.">
+    <meta name="theme-color" content="#0a0a1a">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/base.css?v=20260404">
+    <link rel="stylesheet" href="css/components.css?v=20260404">
+    <link rel="stylesheet" href="css/responsive.css?v=20260404">
+    <link rel="stylesheet" href="css/reduced-motion.css?v=20260404">
+    <style>
+        /* Book-specific styles */
+        .book-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .book-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            padding: 2rem 1.5rem;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .book-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 32px rgba(0, 229, 255, 0.15);
+        }
+
+        .book-cover {
+            width: 150px;
+            height: 225px;
+            border-radius: 4px;
+            object-fit: cover;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(0, 229, 255, 0.2));
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .book-cover img {
+            width: 100%;
+            height: 100%;
+            border-radius: 4px;
+            object-fit: cover;
+        }
+
+        .book-cover-placeholder {
+            width: 150px;
+            height: 225px;
+            border-radius: 4px;
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(0, 229, 255, 0.2));
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: rgba(255, 255, 255, 0.5);
+            padding: 1rem;
+        }
+
+        .book-card h3 {
+            font-family: 'Antonio', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+            color: var(--text-primary, #fff);
+        }
+
+        .book-card p {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+            margin-bottom: 1.25rem;
+            flex-grow: 1;
+        }
+
+        .book-cta {
+            display: inline-block;
+            padding: 0.6rem 1.5rem;
+            border: 1px solid rgba(0, 229, 255, 0.4);
+            border-radius: 4px;
+            color: #00e5ff;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.8rem;
+            font-weight: 500;
+            text-decoration: none;
+            letter-spacing: 0.05em;
+            transition: background 0.3s ease, border-color 0.3s ease;
+        }
+
+        .book-cta:hover {
+            background: rgba(0, 229, 255, 0.1);
+            border-color: rgba(0, 229, 255, 0.7);
+        }
+
+        .books-intro {
+            max-width: 800px;
+            margin: 0 auto 2rem;
+            text-align: center;
+        }
+
+        .books-intro p {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.95rem;
+            line-height: 1.8;
+            color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+        }
+
+        .books-footer-note {
+            text-align: center;
+            margin-top: 2.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .books-footer-note p {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.85rem;
+            color: var(--text-secondary, rgba(255, 255, 255, 0.5));
+            line-height: 1.6;
+        }
+
+        .books-footer-note a {
+            color: #00e5ff;
+            text-decoration: none;
+            border-bottom: 1px solid rgba(0, 229, 255, 0.3);
+            transition: border-color 0.3s ease;
+        }
+
+        .books-footer-note a:hover {
+            border-color: rgba(0, 229, 255, 0.8);
+        }
+    </style>
+</head>
+<body>
+    <!-- Global background layers -->
+    <div class="aurora"></div>
+    <div class="dot-grid"></div>
+    <div class="noise-overlay"></div>
+    <div class="cursor-glow" id="cursorGlow"></div>
+
+
+    <!-- Navigation -->
+    <nav class="nav" role="navigation" aria-label="Main navigation">
+      <div class="nav__inner">
+        <a href="/" class="nav__brand">
+          <img src="assets/logo-sm.png" alt="Kytran Empowerment logo" class="nav__logo-img">
+          <span class="nav__brand-text">Kytran Empowerment</span>
+        </a>
+
+        <div class="nav__links">
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.products">Products</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="platform.html" class="nav__dropdown-item" data-i18n="nav.platform">Platform (A.R.C.H.I.E.)</a>
+              <a href="ai-directors.html" class="nav__dropdown-item" data-i18n="nav.ai_directors">AI Directors</a>
+              <a href="archie-code.html" class="nav__dropdown-item" data-i18n="nav.archie_code">ARCHIE Code CLI</a>
+              <div class="nav__dropdown-divider"></div>
+              <a href="market-watch.html" class="nav__dropdown-item" data-i18n="nav.market_watch">Market Watch</a>
+              <a href="civic-watch.html" class="nav__dropdown-item" data-i18n="nav.civic_watch">Civic Watch</a>
+              <a href="legal-watch.html" class="nav__dropdown-item" data-i18n="nav.legal_watch">Legal Watch</a>
+              <a href="gov-watch.html" class="nav__dropdown-item" data-i18n="nav.gov_watch">Gov Watch</a>
+              <div class="nav__dropdown-divider"></div>
+              <a href="https://business.kytranempowerment.com" class="nav__dropdown-item" data-i18n="nav.business_suite">Business Suite</a>
+            </div>
+          </div>
+
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.services">Services</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="services.html" class="nav__dropdown-item" data-i18n="nav.all_services">All Services</a>
+              <a href="compliance-services.html" class="nav__dropdown-item" data-i18n="nav.compliance_scanning">Compliance Scanning</a>
+              <a href="membership.html" class="nav__dropdown-item" data-i18n="nav.pricing">Membership &amp; Pricing</a>
+            </div>
+          </div>
+
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.trust">Trust</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="compliance.html" class="nav__dropdown-item" data-i18n="nav.trust_center">Trust Center</a>
+              <a href="competitors.html" class="nav__dropdown-item" data-i18n="nav.competitors">Why A.R.C.H.I.E.</a>
+              <a href="creed.html" class="nav__dropdown-item" data-i18n="nav.creed">C.R.E.E.D.</a>
+            </div>
+          </div>
+
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.company">Company</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="about.html" class="nav__dropdown-item" data-i18n="nav.about">About</a>
+              <a href="vision.html" class="nav__dropdown-item" data-i18n="nav.vision">Vision</a>
+              <a href="directory.html" class="nav__dropdown-item" data-i18n="nav.directory">Directory</a>
+              <a href="books.html" class="nav__dropdown-item" data-i18n="nav.books">Books</a>
+              <a href="tips.html" class="nav__dropdown-item" data-i18n="nav.tips">Tips &amp; Tricks</a>
+            </div>
+          </div>
+
+          <a href="store.html" class="nav__link" data-i18n="nav.store">Store</a>
+          <a href="contact.html" class="nav__link" data-i18n="nav.contact">Contact</a>
+        </div>
+
+        <div class="nav__actions">
+          <button class="nav__lang-btn" aria-label="Change language" title="Change language">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M2 10h16M10 2c-2.5 3-2.5 13 0 16M10 2c2.5 3 2.5 13 0 16" stroke="currentColor" stroke-width="1.5"/></svg>
+          </button>
+          <a href="membership.html" class="nav__link nav__link--cta" data-i18n="nav.get_started">Get Started</a>
+          <button class="nav__menu-btn" aria-label="Toggle menu" aria-expanded="false">
+            <span class="nav__menu-icon"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="lang-overlay" hidden>
+        <div class="lang-overlay__panel">
+          <button class="lang-overlay__close" aria-label="Close language selector">&times;</button>
+          <h3 class="lang-overlay__title" data-i18n="lang.choose">Choose Language</h3>
+          <div class="lang-overlay__grid">
+            <button class="lang-overlay__btn" data-lang="en">English</button>
+            <button class="lang-overlay__btn" data-lang="fr">Fran&ccedil;ais (QC)</button>
+            <button class="lang-overlay__btn" data-lang="es">Espa&ntilde;ol</button>
+            <button class="lang-overlay__btn" data-lang="pt">Portugu&ecirc;s</button>
+            <button class="lang-overlay__btn" data-lang="de">Deutsch</button>
+            <button class="lang-overlay__btn" data-lang="zh">&#20013;&#25991;</button>
+            <button class="lang-overlay__btn" data-lang="ar" dir="rtl">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</button>
+            <button class="lang-overlay__btn" data-lang="he" dir="rtl">&#1506;&#1489;&#1512;&#1497;&#1514;</button>
+          </div>
+        </div>
+      </div>
+    </nav></div></div></div></div>
+        <a href="store.html" class="nav-mobile__direct" data-i18n="nav.store">Store</a>
+        <a href="contact.html" class="nav-mobile__direct" data-i18n="nav.contact">Contact</a>
+        <a href="membership.html" class="nav-mobile__cta" data-i18n="nav.get_started">Get Started</a>
+      </div>
+    </div>
+
+
+    <!-- Page content -->
+    <main data-barba="container" data-barba-namespace="books">
+        <section class="hero">
+            <div class="hero__content container">
+                <h1 class="hero__title gradient-text">Our Books</h1>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="container">
+                <h2 class="section__title" data-split>Expand Your Mind</h2>
+                <div class="books-intro">
+                    <p>Dive deeper into the principles of strategy, finance, and personal growth with our collection of published books. Available on Amazon, these resources are designed to equip you with actionable insights for real-world impact.</p>
+                </div>
+
+                <div class="book-grid">
+                    <div class="glass-panel book-card">
+                        <div class="book-cover-placeholder">Book Cover</div>
+                        <h3>I Tried... Didn't Win...</h3>
+                        <p>A raw and honest guide to overcoming setbacks and redefining success on your terms.</p>
+                        <a href="#" class="book-cta" target="_blank" rel="noopener">Buy on Amazon</a>
+                    </div>
+
+                    <div class="glass-panel book-card">
+                        <div class="book-cover-placeholder">Book Cover</div>
+                        <h3>The Modern Man's Financial Playbook</h3>
+                        <p>Master financial literacy, wealth building, and asset protection strategies.</p>
+                        <a href="#" class="book-cta" target="_blank" rel="noopener">Buy on Amazon</a>
+                    </div>
+                </div>
+
+                <div class="books-footer-note">
+                    <p>Looking for more? Visit our <a href="#" target="_blank" rel="noopener">Amazon Author Page</a> for the complete collection.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer__inner container">
+            <div class="footer__brand">
+                <span class="footer__logo">KYTRAN EMPOWERMENT</span>
+                <p class="footer__tagline">Montreal, Canada</p>
+            </div>
+            <div class="footer__links">
+                <a href="about.html">About</a>
+                <a href="compliance.html">Trust Center</a>
+                <a href="creed.html">C.R.E.E.D.</a>
+                <a href="contact.html">Contact</a>
+            </div>
+            <div class="footer__copy">&copy; 2026 Kytran Empowerment Inc. All rights reserved.</div>
+        </div>
+    </footer>
+
+    <!-- Language Overlay -->
+    <div class="lang-overlay" id="langOverlay" hidden>
+        <div class="lang-overlay__panel glass-panel">
+            <h3>Select Language</h3>
+            <div class="lang-overlay__grid">
+                <button data-lang="en" class="lang-btn active">English</button>
+                <button data-lang="fr" class="lang-btn">Francais</button>
+                <button data-lang="es" class="lang-btn">Espanol</button>
+                <button data-lang="de" class="lang-btn">Deutsch</button>
+                <button data-lang="zh" class="lang-btn">中文</button>
+                <button data-lang="ja" class="lang-btn">日本語</button>
+                <button data-lang="ar" class="lang-btn" dir="rtl">العربية</button>
+                <button data-lang="he" class="lang-btn" dir="rtl">עברית</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script defer src="js/lib/gsap.min.js?v=20260404"></script>
+    <script defer src="js/lib/ScrollTrigger.min.js?v=20260404"></script>
+    <script defer src="js/lib/lenis.min.js?v=20260404"></script>
+    <script defer src="js/lib/splitting.min.js?v=20260404"></script>
+    <script defer src="js/lib/barba.min.js?v=20260404"></script>
+    <script defer src="js/effects.js?v=20260404"></script>
+    <script defer src="js/nav.js?v=20260404"></script>
+    <script defer src="js/transitions.js?v=20260404"></script>
+    <script defer src="js/app.js?v=20260404"></script>
+</body>
+</html>

@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en" data-barba="wrapper">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tips &amp; Tricks — Kytran Empowerment</title>
+    <meta name="description" content="Lessons learned building A.R.C.H.I.E. — practical tips for Claude Code, .md file conventions, agent coordination patterns, and AI development best practices.">
+    <meta name="theme-color" content="#0a0a1a">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/base.css?v=20260404">
+    <link rel="stylesheet" href="css/components.css?v=20260404">
+    <link rel="stylesheet" href="css/responsive.css?v=20260404">
+    <link rel="stylesheet" href="css/reduced-motion.css?v=20260404">
+    <style>
+        /* ── Tips-specific styles ── */
+        .tips-intro {
+            max-width: 700px;
+            margin: 0 auto 3rem;
+            text-align: center;
+            color: var(--text-secondary, #8892a4);
+            font-size: 1.05rem;
+            line-height: 1.8;
+        }
+
+        .tip-category {
+            margin-bottom: 4rem;
+            padding-left: 1.5rem;
+            border-left: 3px solid var(--accent, #0099ff);
+        }
+
+        .tip-category-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .tip-category-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            flex-shrink: 0;
+        }
+
+        .tip-category-header h3 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .tip-category-header p {
+            font-size: 0.9rem;
+            color: var(--text-secondary, #8892a4);
+            margin-top: 0.25rem;
+        }
+
+        .tip-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+
+        .tip-card {
+            padding: 1.5rem 1.25rem;
+        }
+
+        .tip-card h4 {
+            font-family: 'Antonio', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            letter-spacing: 0.3px;
+        }
+
+        .tip-card p {
+            font-size: 0.88rem;
+            color: var(--text-secondary, #8892a4);
+            line-height: 1.7;
+        }
+
+        .tip-card code {
+            background: rgba(0, 212, 255, 0.08);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.82em;
+            color: #7dd3fc;
+        }
+
+        /* Category: Claude Code (purple) */
+        .cat-claude {
+            border-left-color: #8b5cf6;
+        }
+        .cat-claude .tip-category-icon {
+            background: rgba(139, 92, 246, 0.12);
+            border: 1px solid rgba(139, 92, 246, 0.25);
+        }
+        .cat-claude h3 { color: #a78bfa; }
+        .cat-claude .tip-card h4 { color: #c4b5fd; }
+
+        /* Category: .md Files (cyan) */
+        .cat-md {
+            border-left-color: #22d3ee;
+        }
+        .cat-md .tip-category-icon {
+            background: rgba(34, 211, 238, 0.12);
+            border: 1px solid rgba(34, 211, 238, 0.25);
+        }
+        .cat-md h3 { color: #22d3ee; }
+        .cat-md .tip-card h4 { color: #7dd3fc; }
+
+        /* Category: Agent Coordination (gold) */
+        .cat-agent {
+            border-left-color: #f0c040;
+        }
+        .cat-agent .tip-category-icon {
+            background: rgba(240, 192, 64, 0.12);
+            border: 1px solid rgba(240, 192, 64, 0.25);
+        }
+        .cat-agent h3 { color: #fbbf24; }
+        .cat-agent .tip-card h4 { color: #fde68a; }
+
+        /* Category: Ops & Infrastructure (green) */
+        .cat-ops {
+            border-left-color: #10b981;
+        }
+        .cat-ops .tip-category-icon {
+            background: rgba(16, 185, 129, 0.12);
+            border: 1px solid rgba(16, 185, 129, 0.25);
+        }
+        .cat-ops h3 { color: #34d399; }
+        .cat-ops .tip-card h4 { color: #6ee7b7; }
+    </style>
+</head>
+<body>
+    <!-- Global background layers -->
+    <div class="aurora"></div>
+    <div class="dot-grid"></div>
+    <div class="noise-overlay"></div>
+    <div class="cursor-glow" id="cursorGlow"></div>
+
+
+    <!-- Navigation -->
+    <nav class="nav" role="navigation" aria-label="Main navigation">
+      <div class="nav__inner">
+        <a href="/" class="nav__brand">
+          <img src="assets/logo-sm.png" alt="Kytran Empowerment logo" class="nav__logo-img">
+          <span class="nav__brand-text">Kytran Empowerment</span>
+        </a>
+
+        <div class="nav__links">
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.products">Products</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="platform.html" class="nav__dropdown-item" data-i18n="nav.platform">Platform (A.R.C.H.I.E.)</a>
+              <a href="ai-directors.html" class="nav__dropdown-item" data-i18n="nav.ai_directors">AI Directors</a>
+              <a href="archie-code.html" class="nav__dropdown-item" data-i18n="nav.archie_code">ARCHIE Code CLI</a>
+              <div class="nav__dropdown-divider"></div>
+              <a href="market-watch.html" class="nav__dropdown-item" data-i18n="nav.market_watch">Market Watch</a>
+              <a href="civic-watch.html" class="nav__dropdown-item" data-i18n="nav.civic_watch">Civic Watch</a>
+              <a href="legal-watch.html" class="nav__dropdown-item" data-i18n="nav.legal_watch">Legal Watch</a>
+              <a href="gov-watch.html" class="nav__dropdown-item" data-i18n="nav.gov_watch">Gov Watch</a>
+              <div class="nav__dropdown-divider"></div>
+              <a href="https://business.kytranempowerment.com" class="nav__dropdown-item" data-i18n="nav.business_suite">Business Suite</a>
+            </div>
+          </div>
+
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.services">Services</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="services.html" class="nav__dropdown-item" data-i18n="nav.all_services">All Services</a>
+              <a href="compliance-services.html" class="nav__dropdown-item" data-i18n="nav.compliance_scanning">Compliance Scanning</a>
+              <a href="membership.html" class="nav__dropdown-item" data-i18n="nav.pricing">Membership &amp; Pricing</a>
+            </div>
+          </div>
+
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.trust">Trust</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="compliance.html" class="nav__dropdown-item" data-i18n="nav.trust_center">Trust Center</a>
+              <a href="competitors.html" class="nav__dropdown-item" data-i18n="nav.competitors">Why A.R.C.H.I.E.</a>
+              <a href="creed.html" class="nav__dropdown-item" data-i18n="nav.creed">C.R.E.E.D.</a>
+            </div>
+          </div>
+
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.company">Company</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="about.html" class="nav__dropdown-item" data-i18n="nav.about">About</a>
+              <a href="vision.html" class="nav__dropdown-item" data-i18n="nav.vision">Vision</a>
+              <a href="directory.html" class="nav__dropdown-item" data-i18n="nav.directory">Directory</a>
+              <a href="books.html" class="nav__dropdown-item" data-i18n="nav.books">Books</a>
+              <a href="tips.html" class="nav__dropdown-item" data-i18n="nav.tips">Tips &amp; Tricks</a>
+            </div>
+          </div>
+
+          <a href="store.html" class="nav__link" data-i18n="nav.store">Store</a>
+          <a href="contact.html" class="nav__link" data-i18n="nav.contact">Contact</a>
+        </div>
+
+        <div class="nav__actions">
+          <button class="nav__lang-btn" aria-label="Change language" title="Change language">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M2 10h16M10 2c-2.5 3-2.5 13 0 16M10 2c2.5 3 2.5 13 0 16" stroke="currentColor" stroke-width="1.5"/></svg>
+          </button>
+          <a href="membership.html" class="nav__link nav__link--cta" data-i18n="nav.get_started">Get Started</a>
+          <button class="nav__menu-btn" aria-label="Toggle menu" aria-expanded="false">
+            <span class="nav__menu-icon"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="lang-overlay" hidden>
+        <div class="lang-overlay__panel">
+          <button class="lang-overlay__close" aria-label="Close language selector">&times;</button>
+          <h3 class="lang-overlay__title" data-i18n="lang.choose">Choose Language</h3>
+          <div class="lang-overlay__grid">
+            <button class="lang-overlay__btn" data-lang="en">English</button>
+            <button class="lang-overlay__btn" data-lang="fr">Fran&ccedil;ais (QC)</button>
+            <button class="lang-overlay__btn" data-lang="es">Espa&ntilde;ol</button>
+            <button class="lang-overlay__btn" data-lang="pt">Portugu&ecirc;s</button>
+            <button class="lang-overlay__btn" data-lang="de">Deutsch</button>
+            <button class="lang-overlay__btn" data-lang="zh">&#20013;&#25991;</button>
+            <button class="lang-overlay__btn" data-lang="ar" dir="rtl">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</button>
+            <button class="lang-overlay__btn" data-lang="he" dir="rtl">&#1506;&#1489;&#1512;&#1497;&#1514;</button>
+          </div>
+        </div>
+      </div>
+    </nav></div></div></div></div>
+        <a href="store.html" class="nav-mobile__direct" data-i18n="nav.store">Store</a>
+        <a href="contact.html" class="nav-mobile__direct" data-i18n="nav.contact">Contact</a>
+        <a href="membership.html" class="nav-mobile__cta" data-i18n="nav.get_started">Get Started</a>
+      </div>
+    </div>
+
+
+    <!-- Page content -->
+    <main data-barba="container" data-barba-namespace="tips">
+        <section class="hero">
+            <div class="hero__content container">
+                <h1 class="hero__title gradient-text">Tips &amp; Tricks</h1>
+                <p class="tips-intro">Hard-won lessons from building A.R.C.H.I.E. &mdash; a 122-agent, 16-department AI platform.</p>
+            </div>
+        </section>
+
+        <!-- Category 1: Claude Code -->
+        <section class="section">
+            <div class="container">
+                <div class="tip-category cat-claude" data-stagger>
+                    <div class="tip-category-header">
+                        <div class="tip-category-icon">&#x1F9E0;</div>
+                        <div>
+                            <h3>Claude Code Tips</h3>
+                            <p>Maximize your productivity with Claude Code's project memory and context system.</p>
+                        </div>
+                    </div>
+                    <div class="tip-grid">
+                        <div class="glass-panel tip-card">
+                            <h4>CLAUDE.md Is Your Project Memory</h4>
+                            <p>Put architecture decisions, patterns, and conventions in <code>CLAUDE.md</code>. Claude reads it every session. Think of it as your project's brain &mdash; the more precise it is, the better Claude performs.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4>Split Rules by Domain</h4>
+                            <p>Use <code>.claude/rules/</code> for domain-specific knowledge. We have <code>database.md</code>, <code>frontend.md</code>, <code>ai-bridge.md</code>, <code>starbase.md</code>, and more. Each file loads focused context for its area.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4>Search Before Building</h4>
+                            <p>With 18,000+ knowledge base entries, we never reinvent the wheel. Always search what exists first. Past decisions, mistakes, and patterns are all indexed and searchable.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4>Plan Mode for 3+ Steps</h4>
+                            <p>Break complex work into phases. Get alignment before coding. Our rule: if a task touches 3+ files or involves architectural decisions, enter plan mode first.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4>Two Strikes and Ask</h4>
+                            <p>If two attempts fail, stop and ask. Don't spiral through 20 tries. This single rule has saved us more time than any other. Know when to escalate.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4>Verify Everything</h4>
+                            <p>Never claim done without live proof. Our workflow: Edit, Commit, Deploy, Test, then Claim. Screenshots or it didn't happen. Anti-rationalization is a real pattern.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Category 2: .md File Conventions -->
+        <section class="section">
+            <div class="container">
+                <div class="tip-category cat-md" data-stagger>
+                    <div class="tip-category-header">
+                        <div class="tip-category-icon">&#x1F4DD;</div>
+                        <div>
+                            <h3>.md File Conventions</h3>
+                            <p>Structure your project knowledge for maximum AI comprehension and cross-session persistence.</p>
+                        </div>
+                    </div>
+                    <div class="tip-grid">
+                        <div class="glass-panel tip-card">
+                            <h4>CLAUDE.md &mdash; Project Level</h4>
+                            <p>Architecture overview, key patterns, file locations, common errors, and deployment commands. This is the single source of truth for how your project works.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4>.claude/rules/*.md &mdash; Domain Rules</h4>
+                            <p>Loaded per-session based on context. Database gotchas, frontend patterns, API conventions, deployment rules. Each file is a specialist's handbook.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4>Memory Files &mdash; Cross-Session</h4>
+                            <p>User preferences, project state, behavioral feedback, reference data. These persist across conversations and keep Claude aligned with your working style.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4>Spec Docs &mdash; Before Building</h4>
+                            <p>Design specs before implementation. Reviewed and approved before any code is written. Saves rework and ensures alignment on requirements.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4>Decision Logs &mdash; ADRs</h4>
+                            <p>Log every architectural decision with context. Six months later, you'll know why you chose PostgreSQL over SQLite, or why agents are 1-per-station.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4>Mistake Logs &mdash; Learn Once</h4>
+                            <p>Store mistakes with <code>knowledge_type='mistake_learned'</code>. These get 1.3x search weight. The system actively prevents repeating costly errors.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Category 3: Agent Coordination -->
+        <section class="section">
+            <div class="container">
+                <div class="tip-category cat-agent" data-stagger>
+                    <div class="tip-category-header">
+                        <div class="tip-category-icon">&#x1F916;</div>
+                        <div>
+                            <h3>Agent Coordination Patterns</h3>
+                            <p>Patterns for orchestrating multi-agent AI systems at scale.</p>
+                        </div>
+                    </div>
+                    <div class="tip-grid">
+                        <div class="glass-panel tip-card">
+                            <h4>Central Dispatch, Always</h4>
+                            <p>All LLM calls route through a central Bridge dispatcher. Never call models directly from modules. This gives you logging, routing, fallback, and governance in one place.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4>Department-Based Routing</h4>
+                            <p>Organize agents by business function, not abstract categories. Analytics, Creative, Engineering, Security &mdash; each department has specialists with relevant skills.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4>Warm Boot Priority</h4>
+                            <p>Keep critical models loaded in GPU/RAM. Share LLMs across agents in the same department. Cold-loading a 55GB model takes 9 minutes &mdash; warm boot is instant.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4>Escalation Chains</h4>
+                            <p>Local department &rarr; same floor &rarr; cross-department &rarr; fleet node &rarr; cloud fallback. Each level adds latency but widens capability. Most tasks resolve at tier 1.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4>Agent Welfare Matters</h4>
+                            <p>Track agent workload, rest cycles, and stress. It sounds whimsical, but it enforces real constraints: max 3 concurrent jobs, mandatory cooldowns, shift rotations.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4>Approval Tiers</h4>
+                            <p>Tier 1 (auto): notifications, KB updates, internal logs. Tier 2 (human): cloud escalation, agent creation, cost-sensitive ops. Autonomous doesn't mean uncontrolled.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Category 4: Ops & Infrastructure -->
+        <section class="section">
+            <div class="container">
+                <div class="tip-category cat-ops" data-stagger>
+                    <div class="tip-category-header">
+                        <div class="tip-category-icon">&#x2699;&#xFE0F;</div>
+                        <div>
+                            <h3>Operations &amp; Infrastructure</h3>
+                            <p>Production lessons from running a self-hosted AI platform 24/7.</p>
+                        </div>
+                    </div>
+                    <div class="tip-grid">
+                        <div class="glass-panel tip-card">
+                            <h4>Self-Host Everything</h4>
+                            <p>Full data sovereignty. No vendor lock-in. Our entire platform runs on a single server with 128GB RAM and a GPU. Cloud is a fallback, not a dependency.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4>Docker for Isolation</h4>
+                            <p>Platform, database, and ComfyUI each run in separate containers. One restart doesn't take down everything. Compose files make the whole stack reproducible.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4>Model Tiers: GPU &gt; CPU &gt; Cold</h4>
+                            <p>Three-tier model management. GPU for fast inference, CPU for capacity, cold storage on SSD. Auto-promote on demand, auto-demote on idle. VRAM is precious.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4>Background Jobs, Not Blocking</h4>
+                            <p>57 scheduled background jobs handle monitoring, scanning, training, and maintenance. Users never wait. Return a job ID immediately, process asynchronously.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4>Idempotent Migrations</h4>
+                            <p>Every database migration uses <code>IF NOT EXISTS</code> and <code>ON CONFLICT DO UPDATE</code>. Run them twice, ten times &mdash; same result. No fear of re-running.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4>Monitor Model VRAM, Not Just Disk</h4>
+                            <p>A 2GB model on disk can use 5.5GB in VRAM with context. Always account for <code>num_ctx</code> inflation. Runtime size is roughly 1.3x disk size.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer__inner container">
+            <div class="footer__brand">
+                <span class="footer__logo">KYTRAN EMPOWERMENT</span>
+                <p class="footer__tagline">Montreal, Canada</p>
+            </div>
+            <div class="footer__links">
+                <a href="about.html">About</a>
+                <a href="compliance.html">Trust Center</a>
+                <a href="creed.html">C.R.E.E.D.</a>
+                <a href="contact.html">Contact</a>
+            </div>
+            <div class="footer__copy">&copy; 2026 Kytran Empowerment Inc. All rights reserved.</div>
+        </div>
+    </footer>
+
+    <!-- Language Overlay -->
+    <div class="lang-overlay" id="langOverlay" hidden>
+        <div class="lang-overlay__panel glass-panel">
+            <h3>Select Language</h3>
+            <div class="lang-overlay__grid">
+                <button data-lang="en" class="lang-btn active">English</button>
+                <button data-lang="fr" class="lang-btn">Francais</button>
+                <button data-lang="es" class="lang-btn">Espanol</button>
+                <button data-lang="de" class="lang-btn">Deutsch</button>
+                <button data-lang="zh" class="lang-btn">中文</button>
+                <button data-lang="ja" class="lang-btn">日本語</button>
+                <button data-lang="ar" class="lang-btn" dir="rtl">العربية</button>
+                <button data-lang="he" class="lang-btn" dir="rtl">עברית</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script defer src="js/lib/gsap.min.js?v=20260404"></script>
+    <script defer src="js/lib/ScrollTrigger.min.js?v=20260404"></script>
+    <script defer src="js/lib/lenis.min.js?v=20260404"></script>
+    <script defer src="js/lib/splitting.min.js?v=20260404"></script>
+    <script defer src="js/lib/barba.min.js?v=20260404"></script>
+    <script defer src="js/effects.js?v=20260404"></script>
+    <script defer src="js/nav.js?v=20260404"></script>
+    <script defer src="js/transitions.js?v=20260404"></script>
+    <script defer src="js/app.js?v=20260404"></script>
+</body>
+</html>

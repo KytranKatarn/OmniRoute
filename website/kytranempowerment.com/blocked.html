@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Access Denied - Network Security</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{background:#010409;color:#e0e0e0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden}
+        .lcars-accent{position:fixed;top:0;left:0;width:48px;height:100vh;display:flex;flex-direction:column;gap:3px}
+        .lcars-elbow{height:60px;background:#ef4444;border-radius:20px 0 0 0}
+        .lcars-seg{border-radius:0 8px 8px 0;margin-right:6px}
+        .lcars-fill{flex:1;background:rgba(239,68,68,0.15);border-radius:0 8px 0 0;margin-right:6px}
+        .lcars-bottom{height:40px;background:#ef4444;border-radius:0 0 0 20px}
+        .lcars-right{position:fixed;top:0;right:0;width:12px;height:100vh;display:flex;flex-direction:column;gap:3px}
+        .lcars-r-top{height:80px;background:#ef4444;border-radius:0 20px 0 0}
+        .lcars-r-fill{flex:1;background:rgba(239,68,68,0.08);border-radius:8px 0 0 0}
+        .lcars-r-bot{height:60px;background:#ef4444;border-radius:0 0 20px 0}
+        .container{text-align:center;max-width:560px;padding:40px 24px;margin-left:48px}
+        .shield{width:90px;height:90px;margin:0 auto 20px}
+        .shield svg{width:100%;height:100%}
+        .brand{font-size:11px;letter-spacing:5px;color:#ef4444;text-transform:uppercase;margin-bottom:28px;font-weight:600}
+        h1{font-size:36px;font-weight:800;color:#fff;letter-spacing:4px;margin-bottom:8px;text-transform:uppercase}
+        .line{height:2px;background:linear-gradient(90deg,transparent,#ef4444,transparent);margin:20px auto;width:50%}
+        .domain{font-size:15px;color:#ef4444;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:8px;padding:12px 24px;display:inline-block;margin:16px 0;font-family:'SF Mono',Monaco,'Cascadia Code',monospace;word-break:break-all;letter-spacing:1px}
+        .msg{font-size:14px;color:#777;line-height:1.7;margin:16px 0 24px}
+        .info{font-size:12px;color:#444;border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:14px 18px;background:rgba(255,255,255,0.02);line-height:1.5}
+        .footer{margin-top:32px;font-size:9px;letter-spacing:3px;color:#2a2a2a;text-transform:uppercase}
+        .footer a{color:#333;text-decoration:none}
+        .dots{display:flex;justify-content:center;gap:6px;margin:20px 0}
+        .dot{width:6px;height:6px;border-radius:50%}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+        .pulse{animation:pulse 2s ease-in-out infinite}
+        @media(max-width:600px){.lcars-accent{width:32px}.container{margin-left:32px;padding:30px 16px}h1{font-size:26px;letter-spacing:2px}.domain{font-size:13px;padding:10px 16px}}
+    </style>
+</head>
+<body>
+    <div class="lcars-accent">
+        <div class="lcars-elbow"></div>
+        <div class="lcars-seg" style="height:28px;background:#ef4444"></div>
+        <div class="lcars-seg" style="height:20px;background:#ef4444;opacity:0.5"></div>
+        <div class="lcars-seg" style="height:24px;background:#8b5cf6"></div>
+        <div style="width:10px;height:10px;border-radius:50%;background:#ef4444;margin:6px auto;box-shadow:0 0 10px #ef4444" class="pulse"></div>
+        <div style="width:10px;height:10px;border-radius:50%;background:#FFAA00;margin:4px auto;box-shadow:0 0 8px #FFAA00;animation:pulse 2s ease-in-out infinite 0.7s"></div>
+        <div style="width:10px;height:10px;border-radius:50%;background:#00d4ff;margin:4px auto;box-shadow:0 0 8px #00d4ff;animation:pulse 2s ease-in-out infinite 1.4s"></div>
+        <div class="lcars-fill"></div>
+        <div class="lcars-bottom"></div>
+    </div>
+    <div class="lcars-right">
+        <div class="lcars-r-top"></div>
+        <div class="lcars-r-fill"></div>
+        <div class="lcars-r-bot"></div>
+    </div>
+    <div class="container">
+        <div class="shield">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                <line x1="12" y1="9" x2="12" y2="13" stroke-width="2" stroke-linecap="round"/>
+                <circle cx="12" cy="16" r="0.8" fill="#ef4444"/>
+            </svg>
+        </div>
+        <div class="brand">A.R.C.H.I.E. Security</div>
+        <h1>Access Denied</h1>
+        <div class="line"></div>
+        <div class="domain" id="blocked-domain">blocked domain</div>
+        <p class="msg">This domain has been blocked by your network security policy.<br>It has been identified as restricted or potentially harmful.</p>
+        <div class="dots">
+            <div class="dot" style="background:#ef4444"></div>
+            <div class="dot" style="background:#FFAA00"></div>
+            <div class="dot" style="background:#00d4ff"></div>
+            <div class="dot" style="background:#8b5cf6"></div>
+            <div class="dot" style="background:#10b981"></div>
+        </div>
+        <div class="info">If you believe this is an error, contact your network administrator to request access to this domain.</div>
+        <div class="footer">Protected by <a href="https://archie.kytranempowerment.com">A.R.C.H.I.E.</a> Security &amp; Network Module</div>
+    </div>
+    <script>
+        var params = new URLSearchParams(window.location.search);
+        var domain = params.get('domain') || 'unknown domain';
+        document.getElementById('blocked-domain').textContent = domain;
+        document.title = 'Blocked: ' + domain + ' - A.R.C.H.I.E. Security';
+    </script>
+</body>
+</html>

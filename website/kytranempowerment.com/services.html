@@ -10,10 +10,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/base.css">
-    <link rel="stylesheet" href="css/components.css">
-    <link rel="stylesheet" href="css/responsive.css">
-    <link rel="stylesheet" href="css/reduced-motion.css">
+    <link rel="stylesheet" href="css/base.css?v=20260404">
+    <link rel="stylesheet" href="css/components.css?v=20260404">
+    <link rel="stylesheet" href="css/responsive.css?v=20260404">
+    <link rel="stylesheet" href="css/reduced-motion.css?v=20260404">
 </head>
 <body>
     <!-- Global background layers -->
@@ -22,27 +22,111 @@
     <div class="noise-overlay"></div>
     <div class="cursor-glow" id="cursorGlow"></div>
 
+
     <!-- Navigation -->
-    <nav class="nav" id="mainNav">
-        <div class="nav__inner container">
-            <a href="/" class="nav__logo"><span class="nav__logo-text">KYTRAN</span></a>
-            <div class="nav__links" id="navLinks">
-                <a href="services.html" class="nav__link active">Services</a>
-                <a href="platform.html" class="nav__link">Platform</a>
-                <a href="directory.html" class="nav__link">Directory</a>
-                <a href="compliance.html" class="nav__link">Trust</a>
-                <a href="creed.html" class="nav__link">C.R.E.E.D.</a>
-                <a href="about.html" class="nav__link">About</a>
-                <a href="contact.html" class="nav__link nav__link--cta">Contact</a>
+    <nav class="nav" role="navigation" aria-label="Main navigation">
+      <div class="nav__inner">
+        <a href="/" class="nav__brand">
+          <img src="assets/logo-sm.png" alt="Kytran Empowerment logo" class="nav__logo-img">
+          <span class="nav__brand-text">Kytran Empowerment</span>
+        </a>
+
+        <div class="nav__links">
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.products">Products</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="platform.html" class="nav__dropdown-item" data-i18n="nav.platform">Platform (A.R.C.H.I.E.)</a>
+              <a href="ai-directors.html" class="nav__dropdown-item" data-i18n="nav.ai_directors">AI Directors</a>
+              <a href="archie-code.html" class="nav__dropdown-item" data-i18n="nav.archie_code">ARCHIE Code CLI</a>
+              <div class="nav__dropdown-divider"></div>
+              <a href="market-watch.html" class="nav__dropdown-item" data-i18n="nav.market_watch">Market Watch</a>
+              <a href="civic-watch.html" class="nav__dropdown-item" data-i18n="nav.civic_watch">Civic Watch</a>
+              <a href="legal-watch.html" class="nav__dropdown-item" data-i18n="nav.legal_watch">Legal Watch</a>
+              <a href="gov-watch.html" class="nav__dropdown-item" data-i18n="nav.gov_watch">Gov Watch</a>
+              <div class="nav__dropdown-divider"></div>
+              <a href="https://business.kytranempowerment.com" class="nav__dropdown-item" data-i18n="nav.business_suite">Business Suite</a>
             </div>
-            <div class="nav__controls">
-                <button class="nav__lang-btn" id="langSwitcher" aria-label="Change language">EN</button>
-                <button class="nav__menu-btn" id="menuToggle" aria-label="Toggle menu">
-                    <span></span><span></span><span></span>
-                </button>
+          </div>
+
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.services">Services</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="services.html" class="nav__dropdown-item" data-i18n="nav.all_services">All Services</a>
+              <a href="compliance-services.html" class="nav__dropdown-item" data-i18n="nav.compliance_scanning">Compliance Scanning</a>
+              <a href="membership.html" class="nav__dropdown-item" data-i18n="nav.pricing">Membership &amp; Pricing</a>
             </div>
+          </div>
+
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.trust">Trust</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="compliance.html" class="nav__dropdown-item" data-i18n="nav.trust_center">Trust Center</a>
+              <a href="competitors.html" class="nav__dropdown-item" data-i18n="nav.competitors">Why A.R.C.H.I.E.</a>
+              <a href="creed.html" class="nav__dropdown-item" data-i18n="nav.creed">C.R.E.E.D.</a>
+            </div>
+          </div>
+
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.company">Company</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="about.html" class="nav__dropdown-item" data-i18n="nav.about">About</a>
+              <a href="vision.html" class="nav__dropdown-item" data-i18n="nav.vision">Vision</a>
+              <a href="directory.html" class="nav__dropdown-item" data-i18n="nav.directory">Directory</a>
+              <a href="books.html" class="nav__dropdown-item" data-i18n="nav.books">Books</a>
+              <a href="tips.html" class="nav__dropdown-item" data-i18n="nav.tips">Tips &amp; Tricks</a>
+            </div>
+          </div>
+
+          <a href="store.html" class="nav__link" data-i18n="nav.store">Store</a>
+          <a href="contact.html" class="nav__link" data-i18n="nav.contact">Contact</a>
         </div>
-    </nav>
+
+        <div class="nav__actions">
+          <button class="nav__lang-btn" aria-label="Change language" title="Change language">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M2 10h16M10 2c-2.5 3-2.5 13 0 16M10 2c2.5 3 2.5 13 0 16" stroke="currentColor" stroke-width="1.5"/></svg>
+          </button>
+          <a href="membership.html" class="nav__link nav__link--cta" data-i18n="nav.get_started">Get Started</a>
+          <button class="nav__menu-btn" aria-label="Toggle menu" aria-expanded="false">
+            <span class="nav__menu-icon"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="lang-overlay" hidden>
+        <div class="lang-overlay__panel">
+          <button class="lang-overlay__close" aria-label="Close language selector">&times;</button>
+          <h3 class="lang-overlay__title" data-i18n="lang.choose">Choose Language</h3>
+          <div class="lang-overlay__grid">
+            <button class="lang-overlay__btn" data-lang="en">English</button>
+            <button class="lang-overlay__btn" data-lang="fr">Fran&ccedil;ais (QC)</button>
+            <button class="lang-overlay__btn" data-lang="es">Espa&ntilde;ol</button>
+            <button class="lang-overlay__btn" data-lang="pt">Portugu&ecirc;s</button>
+            <button class="lang-overlay__btn" data-lang="de">Deutsch</button>
+            <button class="lang-overlay__btn" data-lang="zh">&#20013;&#25991;</button>
+            <button class="lang-overlay__btn" data-lang="ar" dir="rtl">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</button>
+            <button class="lang-overlay__btn" data-lang="he" dir="rtl">&#1506;&#1489;&#1512;&#1497;&#1514;</button>
+          </div>
+        </div>
+      </div>
+    </nav></div></div></div></div>
+        <a href="store.html" class="nav-mobile__direct" data-i18n="nav.store">Store</a>
+        <a href="contact.html" class="nav-mobile__direct" data-i18n="nav.contact">Contact</a>
+        <a href="membership.html" class="nav-mobile__cta" data-i18n="nav.get_started">Get Started</a>
+      </div>
+    </div>
+
 
     <!-- Page content -->
     <main data-barba="container" data-barba-namespace="services">
@@ -216,6 +300,171 @@
             </div>
         </section>
 
+        <!-- Pricing Tiers -->
+        <section class="section" id="pricing">
+            <div class="container">
+                <h2 class="section__title gradient-text" data-split>Choose Your Plan</h2>
+                <p class="section__subtitle" style="text-align:center; color:var(--text-secondary,#94a3b8); margin-bottom:2.5rem;">Scalable solutions for businesses of every size.</p>
+                <div class="pricing-grid" data-stagger>
+                    <!-- Starter -->
+                    <div class="glass-panel pricing-card">
+                        <div class="pricing-card__name">Starter</div>
+                        <div class="pricing-card__price"><span class="pricing-card__amount">$499</span><span class="pricing-card__period">/ month</span></div>
+                        <p class="pricing-card__desc">Perfect for small businesses taking the first step into AI-powered operations.</p>
+                        <ul class="pricing-card__features">
+                            <li>AI consulting assessment</li>
+                            <li>Basic workflow automation</li>
+                            <li>Email support (48hr response)</li>
+                            <li>Monthly progress report</li>
+                            <li>Up to 5 automation workflows</li>
+                        </ul>
+                        <a href="contact.html" class="btn btn--primary">Get Started</a>
+                    </div>
+                    <!-- Growth (Popular) -->
+                    <div class="glass-panel pricing-card pricing-card--popular">
+                        <span class="pricing-card__badge">Popular</span>
+                        <div class="pricing-card__name">Growth</div>
+                        <div class="pricing-card__price"><span class="pricing-card__amount">$1,499</span><span class="pricing-card__period">/ month</span></div>
+                        <p class="pricing-card__desc">Full platform access with dedicated AI agent deployment for growing teams.</p>
+                        <ul class="pricing-card__features">
+                            <li>Everything in Starter</li>
+                            <li>Dedicated AI agent deployment</li>
+                            <li>Priority support (24hr response)</li>
+                            <li>Weekly progress reports</li>
+                            <li>Up to 20 automation workflows</li>
+                            <li>Custom training data</li>
+                        </ul>
+                        <a href="contact.html" class="btn btn--primary">Get Started</a>
+                    </div>
+                    <!-- Enterprise -->
+                    <div class="glass-panel pricing-card">
+                        <div class="pricing-card__name">Enterprise</div>
+                        <div class="pricing-card__price"><span class="pricing-card__amount">$3,999</span><span class="pricing-card__period">/ month</span></div>
+                        <p class="pricing-card__desc">Dedicated infrastructure and custom agent training for organizations with complex needs.</p>
+                        <ul class="pricing-card__features">
+                            <li>Everything in Growth</li>
+                            <li>Full platform deployment</li>
+                            <li>24/7 support with SLA</li>
+                            <li>Real-time dashboard</li>
+                            <li>Unlimited workflows</li>
+                            <li>Dedicated account manager</li>
+                            <li>Custom model fine-tuning</li>
+                        </ul>
+                        <a href="contact.html" class="btn btn--primary">Get Started</a>
+                    </div>
+                    <!-- Custom -->
+                    <div class="glass-panel pricing-card">
+                        <div class="pricing-card__name">Custom</div>
+                        <div class="pricing-card__price"><span class="pricing-card__amount">Let's Talk</span></div>
+                        <p class="pricing-card__desc">Bespoke AI solutions tailored to your organization's unique requirements.</p>
+                        <ul class="pricing-card__features">
+                            <li>Bespoke AI solutions</li>
+                            <li>On-premises deployment</li>
+                            <li>White-label options</li>
+                            <li>Dedicated engineering team</li>
+                            <li>Custom integrations</li>
+                            <li>Compliance packages</li>
+                        </ul>
+                        <a href="contact.html" class="btn btn--primary">Contact Us</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <style>
+            /* Pricing Section */
+            .pricing-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+                gap: 1.5rem;
+            }
+            .pricing-card {
+                display: flex;
+                flex-direction: column;
+                padding: 2rem 1.5rem;
+                position: relative;
+                text-align: center;
+            }
+            .pricing-card__badge {
+                position: absolute;
+                top: -0.75rem;
+                left: 50%;
+                transform: translateX(-50%);
+                background: linear-gradient(135deg, var(--accent-primary, #00e5ff), var(--accent-secondary, #8b5cf6));
+                color: #fff;
+                font-family: 'Orbitron', sans-serif;
+                font-size: 0.65rem;
+                font-weight: 700;
+                letter-spacing: 1.5px;
+                text-transform: uppercase;
+                padding: 0.25rem 1rem;
+                border-radius: 50px;
+                white-space: nowrap;
+            }
+            .pricing-card--popular {
+                border-color: var(--accent-primary, #00e5ff);
+                box-shadow: 0 0 30px rgba(0, 229, 255, 0.1);
+            }
+            .pricing-card__name {
+                font-family: 'Orbitron', sans-serif;
+                font-size: 0.85rem;
+                font-weight: 700;
+                letter-spacing: 2px;
+                text-transform: uppercase;
+                color: var(--accent-primary, #00e5ff);
+                margin-bottom: 0.75rem;
+            }
+            .pricing-card__price {
+                margin-bottom: 0.75rem;
+            }
+            .pricing-card__amount {
+                font-family: 'Orbitron', sans-serif;
+                font-size: 2.4rem;
+                font-weight: 900;
+                background: linear-gradient(135deg, #fff 30%, var(--accent-primary, #00e5ff) 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+            }
+            .pricing-card__period {
+                font-size: 0.9rem;
+                color: var(--text-secondary, #94a3b8);
+                margin-left: 0.25rem;
+            }
+            .pricing-card__desc {
+                color: var(--text-secondary, #94a3b8);
+                font-size: 0.9rem;
+                line-height: 1.6;
+                margin-bottom: 1.5rem;
+            }
+            .pricing-card__features {
+                list-style: none;
+                padding: 0;
+                margin: 0 0 2rem 0;
+                flex: 1;
+                text-align: left;
+            }
+            .pricing-card__features li {
+                padding: 0.5rem 0;
+                color: var(--text-secondary, #94a3b8);
+                font-size: 0.88rem;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+                display: flex;
+                align-items: center;
+                gap: 0.6rem;
+            }
+            .pricing-card__features li::before {
+                content: '\2713';
+                color: var(--accent-primary, #00e5ff);
+                font-weight: 700;
+                font-size: 0.8rem;
+                flex-shrink: 0;
+            }
+            .pricing-card .btn {
+                margin-top: auto;
+            }
+        </style>
+
         <section class="section" style="text-align:center;">
             <div class="container">
                 <h2 class="section__title gradient-text" data-split data-i18n="services-cta-title">Ready to get started?</h2>
@@ -259,14 +508,14 @@
     </div>
 
     <!-- Scripts -->
-    <script defer src="js/lib/gsap.min.js"></script>
-    <script defer src="js/lib/ScrollTrigger.min.js"></script>
-    <script defer src="js/lib/lenis.min.js"></script>
-    <script defer src="js/lib/splitting.min.js"></script>
-    <script defer src="js/lib/barba.min.js"></script>
-    <script defer src="js/effects.js"></script>
-    <script defer src="js/nav.js"></script>
-    <script defer src="js/transitions.js"></script>
-    <script defer src="js/app.js"></script>
+    <script defer src="js/lib/gsap.min.js?v=20260404"></script>
+    <script defer src="js/lib/ScrollTrigger.min.js?v=20260404"></script>
+    <script defer src="js/lib/lenis.min.js?v=20260404"></script>
+    <script defer src="js/lib/splitting.min.js?v=20260404"></script>
+    <script defer src="js/lib/barba.min.js?v=20260404"></script>
+    <script defer src="js/effects.js?v=20260404"></script>
+    <script defer src="js/nav.js?v=20260404"></script>
+    <script defer src="js/transitions.js?v=20260404"></script>
+    <script defer src="js/app.js?v=20260404"></script>
 </body>
 </html>

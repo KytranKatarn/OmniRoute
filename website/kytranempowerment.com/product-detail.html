@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en" data-barba="wrapper">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Details — Kytran Empowerment</title>
+    <meta name="description" content="View product details and add to cart. Kytran Empowerment merchandise store.">
+    <meta name="theme-color" content="#0a0a1a">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/base.css?v=20260404">
+    <link rel="stylesheet" href="css/components.css?v=20260404">
+    <link rel="stylesheet" href="css/responsive.css?v=20260404">
+    <link rel="stylesheet" href="css/reduced-motion.css?v=20260404">
+    <style>
+        /* ── Product Detail Page ── */
+        .pd-wrapper {
+            display: flex;
+            gap: 2.5rem;
+            max-width: 1100px;
+            margin: 0 auto;
+            align-items: flex-start;
+            flex-wrap: wrap;
+        }
+
+        .pd-image-box {
+            flex: 1 1 400px;
+            min-width: 280px;
+            max-width: 520px;
+            border-radius: 1rem;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1.5rem;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .pd-image-box img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            object-fit: contain;
+            max-height: 480px;
+            border-radius: .5rem;
+        }
+
+        .pd-info {
+            flex: 1 1 400px;
+            min-width: 300px;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .pd-name {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(1.4rem, 3vw, 2rem);
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: .5px;
+        }
+
+        .pd-description {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: .95rem;
+            color: rgba(255,255,255,0.65);
+            line-height: 1.6;
+        }
+        .pd-description.hidden-description { display: none; }
+
+        .pd-price {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: var(--accent, #00e5ff);
+        }
+
+        /* Variant groups */
+        .pd-variant-group {
+            margin-bottom: .25rem;
+        }
+        .pd-variant-group label {
+            display: block;
+            font-family: 'IBM Plex Mono', monospace;
+            font-weight: 500;
+            font-size: .85rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: rgba(255,255,255,0.5);
+            margin-bottom: .5rem;
+        }
+
+        /* Color swatches */
+        .pd-color-swatches {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .6rem;
+        }
+        .pd-color-swatch {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.15);
+            cursor: pointer;
+            transition: border-color .2s, transform .2s, box-shadow .2s;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+        }
+        .pd-color-swatch:hover {
+            transform: scale(1.08);
+        }
+        .pd-color-swatch.selected {
+            border-color: var(--accent, #00e5ff);
+            transform: scale(1.12);
+            box-shadow: 0 0 0 3px rgba(0,229,255,0.35);
+        }
+
+        /* Size buttons */
+        .pd-size-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .5rem;
+        }
+        .pd-size-btn {
+            padding: .45rem 1rem;
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 999px;
+            background: rgba(255,255,255,0.05);
+            color: rgba(255,255,255,0.8);
+            cursor: pointer;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: .85rem;
+            transition: background .2s, border-color .2s, transform .2s, color .2s;
+        }
+        .pd-size-btn:hover:not(.disabled) {
+            background: rgba(255,255,255,0.1);
+        }
+        .pd-size-btn.selected {
+            background: var(--accent, #00e5ff);
+            color: #0a0a1a;
+            border-color: var(--accent, #00e5ff);
+            transform: translateY(-2px);
+            font-weight: 700;
+        }
+        .pd-size-btn.disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+        }
+
+        /* Variant details */
+        .pd-variant-details {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: .82rem;
+            color: rgba(255,255,255,0.45);
+            min-height: 1.2rem;
+            line-height: 1.5;
+        }
+        .pd-variant-details span { display: block; }
+
+        /* Quantity */
+        .pd-quantity-group {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+        }
+        .pd-quantity-group label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-weight: 500;
+            font-size: .85rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: rgba(255,255,255,0.5);
+        }
+        .pd-qty-input {
+            width: 70px;
+            text-align: center;
+            padding: .5rem;
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: .5rem;
+            background: rgba(255,255,255,0.05);
+            color: #fff;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 1rem;
+        }
+
+        /* Actions */
+        .pd-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .75rem;
+            margin-top: .5rem;
+        }
+        .pd-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: .65rem 1.5rem;
+            border-radius: .5rem;
+            font-family: 'Orbitron', sans-serif;
+            font-size: .85rem;
+            font-weight: 600;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: background .25s, transform .2s, opacity .2s;
+            letter-spacing: .5px;
+        }
+        .pd-btn--primary {
+            background: var(--accent, #00e5ff);
+            color: #0a0a1a;
+        }
+        .pd-btn--primary:hover { opacity: .85; transform: translateY(-2px); }
+        .pd-btn--primary.disabled {
+            background: rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.3);
+            cursor: not-allowed;
+            transform: none;
+        }
+        .pd-btn--secondary {
+            background: rgba(255,255,255,0.06);
+            color: rgba(255,255,255,0.7);
+            border: 1px solid rgba(255,255,255,0.12);
+        }
+        .pd-btn--secondary:hover { background: rgba(255,255,255,0.1); transform: translateY(-2px); }
+
+        /* Loading / error */
+        .pd-loading, .pd-error {
+            text-align: center;
+            font-family: 'IBM Plex Mono', monospace;
+            color: rgba(255,255,255,0.5);
+            padding: 3rem 1rem;
+            width: 100%;
+        }
+        .pd-error { color: #ef4444; }
+
+        @media (max-width: 768px) {
+            .pd-wrapper {
+                flex-direction: column;
+                align-items: center;
+            }
+            .pd-image-box, .pd-info {
+                min-width: unset;
+                width: 100%;
+                max-width: 500px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Global background layers -->
+    <div class="aurora"></div>
+    <div class="dot-grid"></div>
+    <div class="noise-overlay"></div>
+    <div class="cursor-glow" id="cursorGlow"></div>
+
+
+    <!-- Navigation -->
+    <nav class="nav" role="navigation" aria-label="Main navigation">
+      <div class="nav__inner">
+        <a href="/" class="nav__brand">
+          <img src="assets/logo-sm.png" alt="Kytran Empowerment logo" class="nav__logo-img">
+          <span class="nav__brand-text">Kytran Empowerment</span>
+        </a>
+
+        <div class="nav__links">
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.products">Products</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="platform.html" class="nav__dropdown-item" data-i18n="nav.platform">Platform (A.R.C.H.I.E.)</a>
+              <a href="ai-directors.html" class="nav__dropdown-item" data-i18n="nav.ai_directors">AI Directors</a>
+              <a href="archie-code.html" class="nav__dropdown-item" data-i18n="nav.archie_code">ARCHIE Code CLI</a>
+              <div class="nav__dropdown-divider"></div>
+              <a href="market-watch.html" class="nav__dropdown-item" data-i18n="nav.market_watch">Market Watch</a>
+              <a href="civic-watch.html" class="nav__dropdown-item" data-i18n="nav.civic_watch">Civic Watch</a>
+              <a href="legal-watch.html" class="nav__dropdown-item" data-i18n="nav.legal_watch">Legal Watch</a>
+              <a href="gov-watch.html" class="nav__dropdown-item" data-i18n="nav.gov_watch">Gov Watch</a>
+              <div class="nav__dropdown-divider"></div>
+              <a href="https://business.kytranempowerment.com" class="nav__dropdown-item" data-i18n="nav.business_suite">Business Suite</a>
+            </div>
+          </div>
+
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.services">Services</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="services.html" class="nav__dropdown-item" data-i18n="nav.all_services">All Services</a>
+              <a href="compliance-services.html" class="nav__dropdown-item" data-i18n="nav.compliance_scanning">Compliance Scanning</a>
+              <a href="membership.html" class="nav__dropdown-item" data-i18n="nav.pricing">Membership &amp; Pricing</a>
+            </div>
+          </div>
+
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.trust">Trust</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="compliance.html" class="nav__dropdown-item" data-i18n="nav.trust_center">Trust Center</a>
+              <a href="competitors.html" class="nav__dropdown-item" data-i18n="nav.competitors">Why A.R.C.H.I.E.</a>
+              <a href="creed.html" class="nav__dropdown-item" data-i18n="nav.creed">C.R.E.E.D.</a>
+            </div>
+          </div>
+
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.company">Company</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="about.html" class="nav__dropdown-item" data-i18n="nav.about">About</a>
+              <a href="vision.html" class="nav__dropdown-item" data-i18n="nav.vision">Vision</a>
+              <a href="directory.html" class="nav__dropdown-item" data-i18n="nav.directory">Directory</a>
+              <a href="books.html" class="nav__dropdown-item" data-i18n="nav.books">Books</a>
+              <a href="tips.html" class="nav__dropdown-item" data-i18n="nav.tips">Tips &amp; Tricks</a>
+            </div>
+          </div>
+
+          <a href="store.html" class="nav__link" data-i18n="nav.store">Store</a>
+          <a href="contact.html" class="nav__link" data-i18n="nav.contact">Contact</a>
+        </div>
+
+        <div class="nav__actions">
+          <button class="nav__lang-btn" aria-label="Change language" title="Change language">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M2 10h16M10 2c-2.5 3-2.5 13 0 16M10 2c2.5 3 2.5 13 0 16" stroke="currentColor" stroke-width="1.5"/></svg>
+          </button>
+          <a href="membership.html" class="nav__link nav__link--cta" data-i18n="nav.get_started">Get Started</a>
+          <button class="nav__menu-btn" aria-label="Toggle menu" aria-expanded="false">
+            <span class="nav__menu-icon"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="lang-overlay" hidden>
+        <div class="lang-overlay__panel">
+          <button class="lang-overlay__close" aria-label="Close language selector">&times;</button>
+          <h3 class="lang-overlay__title" data-i18n="lang.choose">Choose Language</h3>
+          <div class="lang-overlay__grid">
+            <button class="lang-overlay__btn" data-lang="en">English</button>
+            <button class="lang-overlay__btn" data-lang="fr">Fran&ccedil;ais (QC)</button>
+            <button class="lang-overlay__btn" data-lang="es">Espa&ntilde;ol</button>
+            <button class="lang-overlay__btn" data-lang="pt">Portugu&ecirc;s</button>
+            <button class="lang-overlay__btn" data-lang="de">Deutsch</button>
+            <button class="lang-overlay__btn" data-lang="zh">&#20013;&#25991;</button>
+            <button class="lang-overlay__btn" data-lang="ar" dir="rtl">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</button>
+            <button class="lang-overlay__btn" data-lang="he" dir="rtl">&#1506;&#1489;&#1512;&#1497;&#1514;</button>
+          </div>
+        </div>
+      </div>
+    </nav></div></div></div></div>
+        <a href="store.html" class="nav-mobile__direct" data-i18n="nav.store">Store</a>
+        <a href="contact.html" class="nav-mobile__direct" data-i18n="nav.contact">Contact</a>
+        <a href="membership.html" class="nav-mobile__cta" data-i18n="nav.get_started">Get Started</a>
+      </div>
+    </div>
+
+
+    <!-- Page content -->
+    <main data-barba="container" data-barba-namespace="product-detail">
+        <section class="section" style="padding-top:8rem;">
+            <div class="container">
+                <p class="pd-loading" id="product-loading">Loading product details...</p>
+                <p class="pd-error" id="product-error" style="display:none;"></p>
+
+                <div class="pd-wrapper" id="product-wrapper" style="display:none;">
+                    <div class="pd-image-box glass-panel">
+                        <img id="product-image" src="" alt="Product Image">
+                    </div>
+
+                    <div class="pd-info">
+                        <h1 class="pd-name" id="product-name"></h1>
+                        <p class="pd-description hidden-description" id="product-description"></p>
+                        <p class="pd-price" id="product-price"></p>
+
+                        <div id="variant-selection-container">
+                            <div class="pd-variant-group" id="color-options" style="display:none;">
+                                <label>Color:</label>
+                                <div class="pd-color-swatches"></div>
+                            </div>
+
+                            <div class="pd-variant-group" id="size-options" style="display:none;">
+                                <label>Size:</label>
+                                <div class="pd-size-buttons"></div>
+                            </div>
+
+                            <input type="hidden" id="selected-variant-id">
+                            <input type="hidden" id="selected-variant-name">
+                            <input type="hidden" id="selected-variant-price">
+                            <input type="hidden" id="selected-variant-details-json">
+
+                            <div class="pd-variant-details" id="variant-details-display"></div>
+                        </div>
+
+                        <div class="pd-quantity-group">
+                            <label for="quantity-input">Qty:</label>
+                            <input type="number" id="quantity-input" class="pd-qty-input" value="1" min="1">
+                        </div>
+
+                        <div class="pd-actions">
+                            <button id="add-to-cart-btn" class="pd-btn pd-btn--primary disabled" disabled>Add to Cart</button>
+                            <a href="cart.html" class="pd-btn pd-btn--secondary">View Cart</a>
+                            <a href="merch_store.html" class="pd-btn pd-btn--secondary">Back to Store</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer__inner container">
+            <div class="footer__brand">
+                <span class="footer__logo">KYTRAN EMPOWERMENT</span>
+                <p class="footer__tagline">Montreal, Canada</p>
+            </div>
+            <div class="footer__links">
+                <a href="about.html">About</a>
+                <a href="compliance.html">Trust Center</a>
+                <a href="creed.html">C.R.E.E.D.</a>
+                <a href="contact.html">Contact</a>
+            </div>
+            <div class="footer__copy">&copy; 2026 Kytran Empowerment Inc. All rights reserved.</div>
+        </div>
+    </footer>
+
+    <!-- Language Overlay -->
+    <div class="lang-overlay" id="langOverlay" hidden>
+        <div class="lang-overlay__panel glass-panel">
+            <h3>Select Language</h3>
+            <div class="lang-overlay__grid">
+                <button data-lang="en" class="lang-btn active">English</button>
+                <button data-lang="fr" class="lang-btn">Francais</button>
+                <button data-lang="es" class="lang-btn">Espanol</button>
+                <button data-lang="de" class="lang-btn">Deutsch</button>
+                <button data-lang="zh" class="lang-btn">中文</button>
+                <button data-lang="ja" class="lang-btn">日本語</button>
+                <button data-lang="ar" class="lang-btn" dir="rtl">العربية</button>
+                <button data-lang="he" class="lang-btn" dir="rtl">עברית</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script defer src="js/lib/gsap.min.js?v=20260404"></script>
+    <script defer src="js/lib/ScrollTrigger.min.js?v=20260404"></script>
+    <script defer src="js/lib/lenis.min.js?v=20260404"></script>
+    <script defer src="js/lib/splitting.min.js?v=20260404"></script>
+    <script defer src="js/lib/barba.min.js?v=20260404"></script>
+    <script defer src="js/effects.js?v=20260404"></script>
+    <script defer src="js/nav.js?v=20260404"></script>
+    <script defer src="js/transitions.js?v=20260404"></script>
+    <script defer src="js/app.js?v=20260404"></script>
+
+    <script>
+    /* ── Product Detail Logic ── */
+    /* NOTE: variant details use innerHTML with data from our own store API (trusted source) */
+    (function() {
+        let userSessionId = localStorage.getItem('userSessionId');
+        if (!userSessionId) {
+            userSessionId = crypto.randomUUID();
+            localStorage.setItem('userSessionId', userSessionId);
+        }
+
+        let currentProductData = null;
+        let allProductVariants = [];
+        let uniqueColors = [];
+        let uniqueSizes = [];
+        let selectedColor = null;
+        let selectedSize = null;
+        let isVariantSelected = false;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateCartCount();
+            fetchProductDetails();
+        });
+
+        async function updateCartCount() {
+            try {
+                const response = await fetch(`https://store.kytranempowerment.com/api/cart/${userSessionId}`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const data = await response.json();
+                const cart = data.cart_items || [];
+                const count = cart.reduce((total, item) => total + item.quantity, 0);
+                const el = document.getElementById('cart-count');
+                if (el) el.innerText = count;
+            } catch (e) {
+                console.error('Error updating cart count:', e);
+            }
+        }
+
+        async function fetchProductDetails() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const productId = urlParams.get('id');
+
+            const productLoading = document.getElementById('product-loading');
+            const productError = document.getElementById('product-error');
+            const productWrapper = document.getElementById('product-wrapper');
+            const colorOptionsDiv = document.getElementById('color-options');
+            const sizeOptionsDiv = document.getElementById('size-options');
+            const colorSwatchesContainer = colorOptionsDiv.querySelector('.pd-color-swatches');
+            const sizeButtonsContainer = sizeOptionsDiv.querySelector('.pd-size-buttons');
+            const addToCartBtn = document.getElementById('add-to-cart-btn');
+            const variantDetailsDisplay = document.getElementById('variant-details-display');
+            const productDescriptionElement = document.getElementById('product-description');
+            const quantityInput = document.getElementById('quantity-input');
+
+            productLoading.style.display = 'block';
+            productError.style.display = 'none';
+            productWrapper.style.display = 'none';
+            colorOptionsDiv.style.display = 'none';
+            sizeOptionsDiv.style.display = 'none';
+            variantDetailsDisplay.textContent = '';
+            addToCartBtn.classList.add('disabled');
+            addToCartBtn.disabled = true;
+
+            if (!productId) {
+                productLoading.style.display = 'none';
+                productError.style.display = 'block';
+                productError.textContent = 'Error: Product ID not found in URL.';
+                return;
+            }
+
+            try {
+                const response = await fetch(`https://store.kytranempowerment.com/api/products/${productId}`);
+                if (!response.ok) {
+                    const errorDetail = await response.text();
+                    throw new Error(`HTTP error! Status: ${response.status}. Detail: ${errorDetail}`);
+                }
+                currentProductData = await response.json();
+
+                if (!currentProductData || Object.keys(currentProductData).length === 0) {
+                    productLoading.style.display = 'none';
+                    productError.style.display = 'block';
+                    productError.textContent = 'Product not found.';
+                    return;
+                }
+
+                document.getElementById('product-name').textContent = currentProductData.name;
+                if (currentProductData.description && currentProductData.description.trim() !== '' && currentProductData.description.trim() !== 'No description available.') {
+                    productDescriptionElement.textContent = currentProductData.description;
+                    productDescriptionElement.classList.remove('hidden-description');
+                } else {
+                    productDescriptionElement.classList.add('hidden-description');
+                }
+
+                document.getElementById('product-image').src = currentProductData.image_url || 'https://via.placeholder.com/400?text=No+Image';
+                document.getElementById('product-price').textContent = `$${currentProductData.price.toFixed(2)}`;
+
+                if (currentProductData.printful_variant_ids) {
+                    try {
+                        allProductVariants = JSON.parse(currentProductData.printful_variant_ids);
+
+                        uniqueColors = [...new Set(allProductVariants.map(v => v.color).filter(Boolean))].sort();
+                        uniqueSizes = [...new Set(allProductVariants.map(v => v.size).filter(Boolean))].sort((a, b) => {
+                            const sizeOrder = ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"];
+                            return sizeOrder.indexOf(a) - sizeOrder.indexOf(b);
+                        });
+
+                        colorSwatchesContainer.replaceChildren();
+                        if (uniqueColors.length > 0) {
+                            uniqueColors.forEach(color => {
+                                const swatch = document.createElement('div');
+                                swatch.className = 'pd-color-swatch';
+                                swatch.style.backgroundColor = mapColorNameToHex(color);
+                                swatch.title = color;
+                                swatch.dataset.color = color;
+                                swatch.addEventListener('click', () => selectColor(color));
+                                colorSwatchesContainer.appendChild(swatch);
+                            });
+                            colorOptionsDiv.style.display = 'block';
+                            selectedColor = uniqueColors[0];
+                            document.querySelector(`.pd-color-swatch[data-color="${selectedColor}"]`).classList.add('selected');
+                            selectedSize = null;
+                            updateSizeButtons();
+                        } else {
+                            colorOptionsDiv.style.display = 'none';
+                        }
+
+                        sizeButtonsContainer.replaceChildren();
+                        if (uniqueSizes.length > 0) {
+                            sizeOptionsDiv.style.display = 'block';
+                        } else {
+                            sizeOptionsDiv.style.display = 'none';
+                        }
+
+                        if (uniqueColors.length === 0 && uniqueSizes.length > 0) {
+                            selectedSize = uniqueSizes[0];
+                            updateDisplayedVariantDetails();
+                        } else {
+                            updateDisplayedVariantDetails();
+                        }
+
+                    } catch (e) {
+                        console.error("Error parsing Printful variants JSON:", e);
+                        document.getElementById('variant-selection-container').style.display = 'none';
+                        document.getElementById('product-price').textContent = `$${currentProductData.price.toFixed(2)}`;
+                        document.getElementById('selected-variant-id').value = '';
+                        document.getElementById('selected-variant-name').value = currentProductData.name;
+                        document.getElementById('selected-variant-price').value = currentProductData.price;
+                        document.getElementById('selected-variant-details-json').value = '';
+                        variantDetailsDisplay.textContent = '';
+                        isVariantSelected = true;
+                        addToCartBtn.classList.remove('disabled');
+                        addToCartBtn.disabled = false;
+                    }
+                } else {
+                    document.getElementById('variant-selection-container').style.display = 'none';
+                    document.getElementById('product-price').textContent = `$${currentProductData.price.toFixed(2)}`;
+                    document.getElementById('selected-variant-id').value = '';
+                    document.getElementById('selected-variant-name').value = currentProductData.name;
+                    document.getElementById('selected-variant-price').value = currentProductData.price;
+                    document.getElementById('selected-variant-details-json').value = '';
+                    variantDetailsDisplay.textContent = '';
+                    isVariantSelected = true;
+                    addToCartBtn.classList.remove('disabled');
+                    addToCartBtn.disabled = false;
+                }
+
+                addToCartBtn.onclick = () => {
+                    const selectedVariantId = document.getElementById('selected-variant-id').value;
+                    const selectedVariantName = document.getElementById('selected-variant-name').value;
+                    const selectedVariantPrice = parseFloat(document.getElementById('selected-variant-price').value);
+                    const selectedVariantDetailsJson = document.getElementById('selected-variant-details-json').value;
+                    const quantity = parseInt(quantityInput.value, 10);
+
+                    if (isNaN(quantity) || quantity < 1) {
+                        alert('Please enter a valid quantity (1 or more).');
+                        return;
+                    }
+
+                    if (allProductVariants.length > 0 && (!isVariantSelected || !selectedVariantId)) {
+                        alert('Please select all required product options (e.g., color and size).');
+                        return;
+                    }
+
+                    const finalProductId = currentProductData.id;
+                    const finalVariantId = selectedVariantId || null;
+                    const finalVariantName = selectedVariantName || currentProductData.name;
+                    const finalVariantPrice = isNaN(selectedVariantPrice) ? currentProductData.price : selectedVariantPrice;
+                    const finalVariantDetailsJson = finalVariantId ? selectedVariantDetailsJson : null;
+
+                    addToCartBackend(
+                        finalProductId,
+                        finalVariantId,
+                        quantity,
+                        finalVariantName,
+                        finalVariantPrice,
+                        finalVariantDetailsJson
+                    );
+                };
+
+                productLoading.style.display = 'none';
+                productWrapper.style.display = 'flex';
+
+            } catch (error) {
+                console.error('Error fetching product details:', error);
+                productLoading.style.display = 'none';
+                productError.style.display = 'block';
+                productError.textContent = `Failed to load product details. Please try again later. Error: ${error.message}`;
+                productWrapper.style.display = 'none';
+                addToCartBtn.classList.add('disabled');
+                addToCartBtn.disabled = true;
+            }
+        }
+
+        function mapColorNameToHex(colorName) {
+            const colorMap = {
+                'black': '#000000', 'white': '#FFFFFF', 'navy': '#000080', 'dark navy': '#000050',
+                'royal blue': '#4169E1', 'red': '#FF0000', 'maroon': '#800000', 'green camo': '#7C7F60',
+                'dark grey': '#A9A9A9', 'silver': '#C0C0C0', 'heather/black': '#696969', 'heather grey/navy': '#778899',
+                'heather grey/red': '#8B0000', 'heather grey': '#B0B0B0', 'oxford blue': '#4682B4', 'olive': '#808000',
+                'charcoal': '#36454F', 'blue': '#0000FF', 'desert sunrise': '#EDC9AF', 'clear': '#E0E0E0',
+                'athletic heather': '#C0C0C0', 'natural': '#F5F5DC', 'j. navy': '#2C3E50', 'black heather': '#36454F',
+                'sport grey': '#999999', 'cranberry': '#800020', 'spruce': '#0A7570', 'khaki': '#C3B091',
+                'stone': '#D3D3D3', 'truered': '#A80000', 'athleticheather': '#C0C0C0', 'darkheathergrey': '#36454F',
+                'graphiteheather': '#555555', 'carbonheather': '#3C3C3C', 'carolina blue': '#82BBEF', 'forest': '#228B22',
+                'oxford': '#002147', 'steel': '#4682B4', 'true royal': '#00008B', 'true navy': '#000080',
+                'dark green': '#006400', 'kelly': '#4CBB17', 'light blue': '#ADD8E6', 'light steel': '#B0C4DE',
+                'gold': '#FFD700', 'orange': '#FFA500', 'purple': '#800080', 'squad green': '#005D00',
+                'sunshine': '#FFD700', 'yellow': '#FFFF00', 'irish green': '#009A49', 'safety green': '#66CD00',
+                'safety orange': '#FF8C00', 'safety pink': '#FF1493', 'neon blue': '#0000FF', 'neon green': '#39FF14',
+                'azalea': '#F75B70', 'berry': '#C91C5C', 'coral': '#FF7F50', 'daisy': '#FFFF00',
+                'electric green': '#00FF00', 'fuchsia': '#FF00FF', 'heather sport royal': '#4169E1', 'heather radiant orchid': '#B065B8',
+                'heather irish green': '#009A49', 'heather safety pink': '#FF1493', 'heather military green': '#6B8E23', 'heather dark grey': '#A9A9A9',
+                'heather orange': '#FFA500', 'heather purple': '#800080', 'heather red': '#FF0000', 'heather sapphire': '#0F52BA',
+                'heather sport dark green': '#006400', 'heather sport scarlet': '#FF2400', 'heather sport yellow': '#FFFF00',
+            };
+            return colorMap[colorName.toLowerCase()] || '#CCCCCC';
+        }
+
+        function selectColor(color) {
+            selectedColor = color;
+            document.querySelectorAll('.pd-color-swatch').forEach(swatch => {
+                swatch.classList.remove('selected');
+            });
+            const selectedSwatch = document.querySelector(`.pd-color-swatch[data-color="${color}"]`);
+            if (selectedSwatch) selectedSwatch.classList.add('selected');
+
+            selectedSize = null;
+            updateSizeButtons();
+            updateDisplayedVariantDetails();
+        }
+
+        function selectSize(size) {
+            selectedSize = size;
+            document.querySelectorAll('.pd-size-btn').forEach(button => {
+                button.classList.remove('selected');
+            });
+            const selectedButton = document.querySelector(`.pd-size-btn[data-size="${size}"]`);
+            if (selectedButton) selectedButton.classList.add('selected');
+
+            updateDisplayedVariantDetails();
+        }
+
+        function updateSizeButtons() {
+            const sizeButtonsContainer = document.getElementById('size-options').querySelector('.pd-size-buttons');
+            if (!sizeButtonsContainer) return;
+            sizeButtonsContainer.replaceChildren();
+
+            const availableSizesForSelectedColor = new Set();
+            allProductVariants.forEach(variant => {
+                if ((selectedColor === null || variant.color === selectedColor) && (variant.availability_status === 'active' || variant.availability_status === true)) {
+                    if (variant.size) availableSizesForSelectedColor.add(variant.size);
+                }
+            });
+
+            const sortedAvailableSizes = [...availableSizesForSelectedColor].sort((a, b) => {
+                const sizeOrder = ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"];
+                const indexA = sizeOrder.indexOf(a);
+                const indexB = sizeOrder.indexOf(b);
+                if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+                if (indexA === -1) return 1;
+                if (indexB === -1) return -1;
+                return indexA - indexB;
+            });
+
+            if (sortedAvailableSizes.length > 0) {
+                sortedAvailableSizes.forEach(size => {
+                    const button = document.createElement('button');
+                    button.className = 'pd-size-btn';
+                    button.textContent = size;
+                    button.dataset.size = size;
+
+                    const variantAvailable = allProductVariants.some(v =>
+                        (selectedColor === null || v.color === selectedColor) &&
+                        v.size === size &&
+                        (v.availability_status === 'active' || v.availability_status === true)
+                    );
+
+                    if (!variantAvailable) {
+                        button.classList.add('disabled');
+                        button.disabled = true;
+                    } else {
+                        button.addEventListener('click', () => selectSize(size));
+                    }
+                    sizeButtonsContainer.appendChild(button);
+                });
+                document.getElementById('size-options').style.display = 'block';
+            } else {
+                document.getElementById('size-options').style.display = 'none';
+            }
+
+            const currentlySelectedSizeButton = sizeButtonsContainer.querySelector(`.pd-size-btn[data-size="${selectedSize}"]`);
+            if (selectedSize && (!currentlySelectedSizeButton || currentlySelectedSizeButton.classList.contains('disabled'))) {
+                selectedSize = null;
+            }
+
+            updateDisplayedVariantDetails();
+        }
+
+        function renderVariantDetails(container, variant) {
+            container.replaceChildren();
+            if (variant.sku) {
+                const skuSpan = document.createElement('span');
+                skuSpan.textContent = `SKU: ${variant.sku}`;
+                container.appendChild(skuSpan);
+            }
+            if (variant.currency) {
+                const currSpan = document.createElement('span');
+                currSpan.textContent = `Currency: ${variant.currency}`;
+                container.appendChild(currSpan);
+            }
+            const availSpan = document.createElement('span');
+            availSpan.textContent = `Availability: ${variant.availability_status || 'N/A'}`;
+            container.appendChild(availSpan);
+        }
+
+        function renderSelectAllMessage(container) {
+            container.replaceChildren();
+            const msgSpan = document.createElement('span');
+            msgSpan.style.color = '#ef4444';
+            msgSpan.textContent = 'Please select all options.';
+            container.appendChild(msgSpan);
+        }
+
+        function updateDisplayedVariantDetails() {
+            const productPriceElement = document.getElementById('product-price');
+            const selectedVariantIdInput = document.getElementById('selected-variant-id');
+            const selectedVariantNameInput = document.getElementById('selected-variant-name');
+            const selectedVariantPriceInput = document.getElementById('selected-variant-price');
+            const selectedVariantDetailsJsonInput = document.getElementById('selected-variant-details-json');
+            const variantDetailsDisplay = document.getElementById('variant-details-display');
+            const productImage = document.getElementById('product-image');
+            const addToCartBtn = document.getElementById('add-to-cart-btn');
+
+            let matchingVariant = null;
+            isVariantSelected = false;
+
+            const hasVariants = allProductVariants.length > 0;
+            const requiresColor = uniqueColors.length > 0;
+            const requiresSize = uniqueSizes.length > 0;
+
+            if (hasVariants) {
+                if (requiresColor && requiresSize) {
+                    if (selectedColor !== null && selectedSize !== null) {
+                        matchingVariant = allProductVariants.find(v => v.color === selectedColor && v.size === selectedSize);
+                    }
+                } else if (requiresColor) {
+                    if (selectedColor !== null) {
+                        matchingVariant = allProductVariants.find(v => v.color === selectedColor);
+                    }
+                } else if (requiresSize) {
+                    if (selectedSize !== null) {
+                        matchingVariant = allProductVariants.find(v => v.size === selectedSize);
+                    }
+                }
+            }
+
+            if (matchingVariant) {
+                const displayPrice = parseFloat(matchingVariant.retail_price || matchingVariant.price || '0.00');
+                productPriceElement.textContent = `$${displayPrice.toFixed(2)}`;
+                selectedVariantIdInput.value = matchingVariant.id;
+                selectedVariantNameInput.value = matchingVariant.name;
+                selectedVariantPriceInput.value = displayPrice;
+                selectedVariantDetailsJsonInput.value = JSON.stringify(matchingVariant);
+
+                renderVariantDetails(variantDetailsDisplay, matchingVariant);
+
+                let variantImageUrl = currentProductData.image_url;
+                if (matchingVariant.files && matchingVariant.files.length > 0) {
+                    const previewFile = matchingVariant.files.find(f => f.type === 'preview' || f.type === 'mockup');
+                    if (previewFile && previewFile.preview_url) {
+                        variantImageUrl = previewFile.preview_url;
+                    } else if (matchingVariant.files[0].preview_url) {
+                        variantImageUrl = matchingVariant.files[0].preview_url;
+                    } else if (matchingVariant.files[0].url) {
+                        variantImageUrl = matchingVariant.files[0].url;
+                    }
+                }
+                productImage.src = variantImageUrl || 'https://via.placeholder.com/400?text=No+Image';
+
+                isVariantSelected = true;
+                addToCartBtn.classList.remove('disabled');
+                addToCartBtn.disabled = false;
+
+            } else if (!hasVariants) {
+                productPriceElement.textContent = `$${currentProductData.price.toFixed(2)}`;
+                selectedVariantIdInput.value = '';
+                selectedVariantNameInput.value = currentProductData.name;
+                selectedVariantPriceInput.value = currentProductData.price;
+                selectedVariantDetailsJsonInput.value = '';
+                variantDetailsDisplay.textContent = '';
+                productImage.src = currentProductData.image_url || 'https://via.placeholder.com/400?text=No+Image';
+
+                isVariantSelected = true;
+                addToCartBtn.classList.remove('disabled');
+                addToCartBtn.disabled = false;
+
+            } else {
+                productPriceElement.textContent = `$${currentProductData.price.toFixed(2)}`;
+                selectedVariantIdInput.value = '';
+                selectedVariantNameInput.value = '';
+                selectedVariantPriceInput.value = '';
+                selectedVariantDetailsJsonInput.value = '';
+                renderSelectAllMessage(variantDetailsDisplay);
+                productImage.src = currentProductData.image_url || 'https://via.placeholder.com/400?text=No+Image';
+
+                isVariantSelected = false;
+                addToCartBtn.classList.add('disabled');
+                addToCartBtn.disabled = true;
+            }
+        }
+
+        async function addToCartBackend(productId, selectedVariantId, quantity, variantName, variantPrice, variantDetailsJson) {
+            try {
+                const response = await fetch('https://store.kytranempowerment.com/api/cart/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: userSessionId,
+                        product_id: productId,
+                        quantity: quantity,
+                        selected_printful_variant_id: selectedVariantId,
+                        variant_name: variantName,
+                        variant_price: variantPrice,
+                        variant_details_json: variantDetailsJson
+                    }),
+                });
+
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.detail || `HTTP error! status: ${response.status}`);
+
+                alert(result.message);
+                updateCartCount();
+            } catch (error) {
+                console.error('Error adding product to cart:', error);
+                alert(`Failed to add product to cart: ${error.message}`);
+            }
+        }
+    })();
+    </script>
+</body>
+</html>

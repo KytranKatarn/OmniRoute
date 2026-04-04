@@ -527,7 +527,8 @@
         @media (max-width: 768px) {
             .cs-stats { gap: 0.75rem; }
             .cs-stat { min-width: 100px; padding: 0.75rem 1rem; }
-            .cs-compare-table { overflow-x: auto; }
+            .cs-compare-table { overflow-x: auto; max-width: 100%; }
+            .cs-compare-table table { min-width: 700px; }
             .cs-trust-grid { grid-template-columns: 1fr 1fr; }
         }
         @media (max-width: 480px) {
@@ -881,28 +882,77 @@
             </div>
         </section>
 
-        <!-- COMPARISON -->
-        <section class="section">
+        <!-- KSM DIFFERENTIATORS -->
+        <section class="section" id="differentiators">
+            <div class="container">
+                <h2 class="section__title" data-split data-i18n="cs.diff_title">What Sets KSM Apart</h2>
+                <p style="text-align:center;color:rgba(255,255,255,0.5);margin-bottom:2.5rem;max-width:640px;margin-left:auto;margin-right:auto;" data-i18n="cs.diff_subtitle">Four capabilities no other compliance platform offers at any price.</p>
+                <div class="cs-trust-grid">
+                    <div class="cs-trust-card glass-panel">
+                        <div class="cs-trust-card__icon">&#x1F3E0;</div>
+                        <div style="display:inline-block;padding:3px 10px;border-radius:10px;background:rgba(16,185,129,0.12);color:#10b981;font-size:0.65rem;font-weight:700;letter-spacing:1px;margin-bottom:0.5rem;font-family:'IBM Plex Mono',monospace;" data-i18n="cs.diff_exclusive">EXCLUSIVE</div>
+                        <div class="cs-trust-card__title" data-i18n="cs.diff_selfhosted">Self-Hosted</div>
+                        <p class="cs-trust-card__text" data-i18n="cs.diff_selfhosted_desc">Your data never leaves your servers. Vanta and Drata are cloud-only SaaS &mdash; your compliance data lives on their infrastructure.</p>
+                    </div>
+                    <div class="cs-trust-card glass-panel">
+                        <div class="cs-trust-card__icon">&#x1F4B0;</div>
+                        <div style="display:inline-block;padding:3px 10px;border-radius:10px;background:rgba(16,185,129,0.12);color:#10b981;font-size:0.65rem;font-weight:700;letter-spacing:1px;margin-bottom:0.5rem;font-family:'IBM Plex Mono',monospace;" data-i18n="cs.diff_free_badge">FREE FOREVER</div>
+                        <div class="cs-trust-card__title" data-i18n="cs.diff_free">Free &amp; Open Source</div>
+                        <p class="cs-trust-card__text" data-i18n="cs.diff_free_desc">Apache 2.0 licensed. Competitors charge $15,000&ndash;$100,000/year. KSM is free to download, run, and audit.</p>
+                    </div>
+                    <div class="cs-trust-card glass-panel">
+                        <div class="cs-trust-card__icon">&#x26A1;</div>
+                        <div style="display:inline-block;padding:3px 10px;border-radius:10px;background:rgba(16,185,129,0.12);color:#10b981;font-size:0.65rem;font-weight:700;letter-spacing:1px;margin-bottom:0.5rem;font-family:'IBM Plex Mono',monospace;" data-i18n="cs.diff_realtime_badge">REAL-TIME</div>
+                        <div class="cs-trust-card__title" data-i18n="cs.diff_realtime">Real-Time Scanning</div>
+                        <p class="cs-trust-card__text" data-i18n="cs.diff_realtime_desc">Full 178-rule scan in 30 seconds, every 6 hours automatically. Vanta and Drata run periodic checks with hours-long delays.</p>
+                    </div>
+                    <div class="cs-trust-card glass-panel">
+                        <div class="cs-trust-card__icon">&#x1F529;</div>
+                        <div style="display:inline-block;padding:3px 10px;border-radius:10px;background:rgba(16,185,129,0.12);color:#10b981;font-size:0.65rem;font-weight:700;letter-spacing:1px;margin-bottom:0.5rem;font-family:'IBM Plex Mono',monospace;" data-i18n="cs.diff_auto_badge">AUTOMATED</div>
+                        <div class="cs-trust-card__title" data-i18n="cs.diff_auto">One-Click Remediation</div>
+                        <p class="cs-trust-card__text" data-i18n="cs.diff_auto_desc">KSM finds problems AND fixes them. Competitors only monitor &mdash; you still need engineers to remediate manually.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- FULL COMPARISON MATRIX -->
+        <section class="section" id="comparison">
             <div class="container">
                 <div class="cs-compare-callout glass-panel">
-                    <div class="cs-compare-callout__amount">Save $15,000+/year</div>
-                    <p>Compared to Vanta, Drata, and other compliance automation platforms that charge $20,000+/year with annual contracts and per-seat pricing.</p>
+                    <div class="cs-compare-callout__amount" data-i18n="cs.save_amount">Save $15,000+/year</div>
+                    <p data-i18n="cs.save_desc">Compliance platforms charge $15,000&ndash;$100,000/year. Kytran Server Manager is free, open-source, and self-hosted.</p>
                 </div>
-                <div class="cs-compare-table glass-panel">
+                <div class="cs-compare-table glass-panel" style="max-width:1100px;overflow-x:auto;">
                     <table>
                         <thead>
-                            <tr><th>Feature</th><th>Kytran</th><th>Vanta / Drata</th></tr>
+                            <tr>
+                                <th data-i18n="cs.col_feature">Feature</th>
+                                <th style="color:#10b981;" data-i18n="cs.col_ksm">Kytran SM</th>
+                                <th data-i18n="cs.col_vanta">Vanta ($15K+/yr)</th>
+                                <th data-i18n="cs.col_drata">Drata ($10K+/yr)</th>
+                                <th data-i18n="cs.col_cockpit">Cockpit (Free)</th>
+                                <th data-i18n="cs.col_portainer">Portainer (Free)</th>
+                            </tr>
                         </thead>
                         <tbody>
-                            <tr><td>Starting price</td><td class="cs-highlight">Free (open source)</td><td class="cs-dim">$20,000+/year</td></tr>
-                            <tr><td>STIG scanning</td><td class="cs-highlight">108 rules included</td><td class="cs-dim">Not available</td></tr>
-                            <tr><td>HIPAA checks</td><td class="cs-highlight">30 rules included</td><td>Available (paid tier)</td></tr>
-                            <tr><td>SOC 2 evidence</td><td class="cs-highlight">Included in prep package</td><td>Requires annual contract</td></tr>
-                            <tr><td>Self-hosted option</td><td class="cs-highlight">Yes &mdash; your data stays local</td><td class="cs-dim">No &mdash; cloud only</td></tr>
-                            <tr><td>Per-seat pricing</td><td class="cs-highlight">None</td><td class="cs-dim">Yes</td></tr>
-                            <tr><td>One-click remediation</td><td class="cs-highlight">Built-in</td><td class="cs-dim">Manual guidance only</td></tr>
-                            <tr><td>Scan speed</td><td class="cs-highlight">30 seconds</td><td>Minutes to hours</td></tr>
-                            <tr><td>Contract commitment</td><td class="cs-highlight">None &mdash; cancel anytime</td><td class="cs-dim">Annual minimum</td></tr>
+                            <tr><td colspan="6" style="font-weight:700;color:#10b981;font-family:'Antonio',sans-serif;padding-top:1.25rem;" data-i18n="cs.group_compliance">Compliance &amp; Security</td></tr>
+                            <tr><td>STIG Compliance Scanning</td><td class="cs-highlight">YES (138 rules)</td><td class="cs-dim">NO</td><td class="cs-dim">NO</td><td class="cs-dim">NO</td><td class="cs-dim">NO</td></tr>
+                            <tr><td>SOC 2 Evidence Collection</td><td class="cs-highlight">YES</td><td>YES</td><td>YES</td><td class="cs-dim">NO</td><td class="cs-dim">NO</td></tr>
+                            <tr><td>HIPAA Compliance</td><td class="cs-highlight">YES</td><td>YES</td><td>YES</td><td class="cs-dim">NO</td><td class="cs-dim">NO</td></tr>
+                            <tr><td>One-Click Remediation</td><td class="cs-highlight">YES</td><td class="cs-dim">Monitor only</td><td class="cs-dim">Monitor only</td><td class="cs-dim">NO</td><td class="cs-dim">NO</td></tr>
+                            <tr><td>AI-Powered Analysis (S.H.I.E.L.D.)</td><td class="cs-highlight">YES</td><td class="cs-dim">NO</td><td class="cs-dim">NO</td><td class="cs-dim">NO</td><td class="cs-dim">NO</td></tr>
+                            <tr><td>Live Compliance Badges</td><td class="cs-highlight">YES</td><td class="cs-dim">NO</td><td class="cs-dim">NO</td><td class="cs-dim">NO</td><td class="cs-dim">NO</td></tr>
+                            <tr><td>.ckl STIG Viewer Export</td><td class="cs-highlight">YES</td><td class="cs-dim">NO</td><td class="cs-dim">NO</td><td class="cs-dim">NO</td><td class="cs-dim">NO</td></tr>
+                            <tr><td colspan="6" style="font-weight:700;color:#00d4ff;font-family:'Antonio',sans-serif;padding-top:1.25rem;" data-i18n="cs.group_server">Server Management</td></tr>
+                            <tr><td>Server Monitoring (CPU/RAM/Disk)</td><td class="cs-highlight">YES</td><td class="cs-dim">NO</td><td class="cs-dim">NO</td><td>YES</td><td class="cs-dim">NO</td></tr>
+                            <tr><td>Docker Management</td><td class="cs-highlight">YES</td><td class="cs-dim">NO</td><td class="cs-dim">NO</td><td>YES</td><td>YES</td></tr>
+                            <tr><td>UFW Firewall Management</td><td class="cs-highlight">YES</td><td class="cs-dim">NO</td><td class="cs-dim">NO</td><td class="cs-dim">NO</td><td class="cs-dim">NO</td></tr>
+                            <tr><td>LVM Storage Management</td><td class="cs-highlight">YES</td><td class="cs-dim">NO</td><td class="cs-dim">NO</td><td>YES</td><td class="cs-dim">NO</td></tr>
+                            <tr><td colspan="6" style="font-weight:700;color:#f0c040;font-family:'Antonio',sans-serif;padding-top:1.25rem;" data-i18n="cs.group_pricing">Pricing &amp; Licensing</td></tr>
+                            <tr><td>Self-Hosted</td><td class="cs-highlight">YES</td><td class="cs-dim">SaaS only</td><td class="cs-dim">SaaS only</td><td>YES</td><td>YES</td></tr>
+                            <tr><td>Open Source</td><td class="cs-highlight">YES (Apache 2.0)</td><td class="cs-dim">NO</td><td class="cs-dim">NO</td><td>YES</td><td>Partial</td></tr>
+                            <tr><td>Price</td><td class="cs-highlight">Free</td><td class="cs-dim">$15&ndash;100K/yr</td><td class="cs-dim">$10&ndash;30K/yr</td><td>Free</td><td>Free / $5K</td></tr>
                         </tbody>
                     </table>
                 </div>

@@ -189,6 +189,7 @@
         <section class="hero">
             <div class="hero__content container">
                 <h1 class="hero__title gradient-text" data-i18n="contact-hero-title">Get in Touch</h1>
+                <p class="hero__tagline" data-i18n="contact-hero-subtitle">Sales, support, engineering, or partnerships &mdash; we'd love to hear from you.</p>
             </div>
         </section>
 
@@ -199,48 +200,67 @@
                     <div style="flex:1;min-width:320px;max-width:560px;">
                         <form action="#" method="post" class="glass-panel" style="padding:2rem;display:flex;flex-direction:column;gap:1.25rem;">
                             <div>
-                                <label for="contactName" style="display:block;margin-bottom:0.4rem;font-size:0.85rem;color:var(--text-secondary,#94a3b8);font-family:'IBM Plex Mono',monospace;">Name</label>
+                                <label for="contactName" style="display:block;margin-bottom:0.4rem;font-size:0.85rem;color:var(--text-secondary,#94a3b8);font-family:'IBM Plex Mono',monospace;" data-i18n="contact.form_name">Name</label>
                                 <input type="text" id="contactName" name="name" required placeholder="Your name" style="width:100%;padding:0.7rem 1rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:var(--text-primary,#e2e8f0);font-family:'IBM Plex Mono',monospace;font-size:0.95rem;outline:none;" />
                             </div>
                             <div>
-                                <label for="contactEmail" style="display:block;margin-bottom:0.4rem;font-size:0.85rem;color:var(--text-secondary,#94a3b8);font-family:'IBM Plex Mono',monospace;">Email</label>
+                                <label for="contactEmail" style="display:block;margin-bottom:0.4rem;font-size:0.85rem;color:var(--text-secondary,#94a3b8);font-family:'IBM Plex Mono',monospace;" data-i18n="contact.form_email">Email</label>
                                 <input type="email" id="contactEmail" name="email" required placeholder="you@example.com" style="width:100%;padding:0.7rem 1rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:var(--text-primary,#e2e8f0);font-family:'IBM Plex Mono',monospace;font-size:0.95rem;outline:none;" />
                             </div>
                             <div>
-                                <label for="contactDept" style="display:block;margin-bottom:0.4rem;font-size:0.85rem;color:var(--text-secondary,#94a3b8);font-family:'IBM Plex Mono',monospace;">Department</label>
+                                <label for="contactSubject" style="display:block;margin-bottom:0.4rem;font-size:0.85rem;color:var(--text-secondary,#94a3b8);font-family:'IBM Plex Mono',monospace;" data-i18n="contact.form_subject">Subject</label>
+                                <input type="text" id="contactSubject" name="subject" required placeholder="What is this about?" style="width:100%;padding:0.7rem 1rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:var(--text-primary,#e2e8f0);font-family:'IBM Plex Mono',monospace;font-size:0.95rem;outline:none;" />
+                            </div>
+                            <div>
+                                <label for="contactDept" style="display:block;margin-bottom:0.4rem;font-size:0.85rem;color:var(--text-secondary,#94a3b8);font-family:'IBM Plex Mono',monospace;" data-i18n="contact.form_dept">Department</label>
                                 <select id="contactDept" name="department" style="width:100%;padding:0.7rem 1rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:var(--text-primary,#e2e8f0);font-family:'IBM Plex Mono',monospace;font-size:0.95rem;outline:none;">
-                                    <option value="general">General</option>
-                                    <option value="sales">Sales</option>
-                                    <option value="support">Support</option>
-                                    <option value="engineering">Engineering</option>
-                                    <option value="partnership">Partnership</option>
+                                    <option value="general" data-i18n="contact.dept_general">General</option>
+                                    <option value="sales" data-i18n="contact.dept_sales">Sales</option>
+                                    <option value="support" data-i18n="contact.dept_support">Support</option>
+                                    <option value="engineering" data-i18n="contact.dept_engineering">Engineering</option>
+                                    <option value="partnership" data-i18n="contact.dept_partnership">Partnership</option>
                                 </select>
                             </div>
                             <div>
-                                <label for="contactMessage" style="display:block;margin-bottom:0.4rem;font-size:0.85rem;color:var(--text-secondary,#94a3b8);font-family:'IBM Plex Mono',monospace;">Message</label>
+                                <label for="contactMessage" style="display:block;margin-bottom:0.4rem;font-size:0.85rem;color:var(--text-secondary,#94a3b8);font-family:'IBM Plex Mono',monospace;" data-i18n="contact.form_message">Message</label>
                                 <textarea id="contactMessage" name="message" rows="6" required placeholder="How can we help?" style="width:100%;padding:0.7rem 1rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:var(--text-primary,#e2e8f0);font-family:'IBM Plex Mono',monospace;font-size:0.95rem;outline:none;resize:vertical;"></textarea>
                             </div>
-                            <button type="submit" class="btn btn--primary magnetic" style="width:100%;">Send Message</button>
+                            <button type="submit" class="btn btn--primary magnetic" style="width:100%;" data-i18n="contact.form_submit">Send Message</button>
                         </form>
                     </div>
 
                     <!-- Company Info -->
                     <div style="flex:0 0 320px;min-width:280px;">
                         <div class="glass-panel" style="padding:2rem;">
-                            <h3 style="font-family:'Orbitron',sans-serif;font-size:1.1rem;margin-bottom:1.25rem;">Kytran Empowerment Inc.</h3>
+                            <h3 style="font-family:'Orbitron',sans-serif;font-size:1.1rem;margin-bottom:1.25rem;" data-i18n="contact.company_name">Kytran Empowerment Inc.</h3>
                             <div style="display:flex;flex-direction:column;gap:1rem;font-family:'IBM Plex Mono',monospace;font-size:0.9rem;color:var(--text-secondary,#94a3b8);">
                                 <div>
-                                    <div style="color:var(--text-primary,#e2e8f0);margin-bottom:0.25rem;">Location</div>
-                                    Montreal, Quebec, Canada
+                                    <div style="color:var(--text-primary,#e2e8f0);margin-bottom:0.25rem;" data-i18n="contact.label_phone">Phone</div>
+                                    <a href="tel:+18774633352" style="color:var(--accent,#00e5ff);text-decoration:none;">1-877-463-3352</a>
                                 </div>
                                 <div>
-                                    <div style="color:var(--text-primary,#e2e8f0);margin-bottom:0.25rem;">Email</div>
-                                    <a href="mailto:info@kytranempowerment.com" style="color:var(--accent,#00e5ff);text-decoration:none;">info@kytranempowerment.com</a>
+                                    <div style="color:var(--text-primary,#e2e8f0);margin-bottom:0.25rem;" data-i18n="contact.label_email">Email</div>
+                                    <a href="mailto:contact@kytranempowerment.com" style="color:var(--accent,#00e5ff);text-decoration:none;">contact@kytranempowerment.com</a>
                                 </div>
                                 <div>
-                                    <div style="color:var(--text-primary,#e2e8f0);margin-bottom:0.25rem;">Hours</div>
-                                    Monday &ndash; Friday, 9 AM &ndash; 5 PM EST
+                                    <div style="color:var(--text-primary,#e2e8f0);margin-bottom:0.25rem;" data-i18n="contact.label_location">Location</div>
+                                    <span data-i18n="contact.location_value">Montreal, Quebec, Canada</span>
                                 </div>
+                                <div>
+                                    <div style="color:var(--text-primary,#e2e8f0);margin-bottom:0.25rem;" data-i18n="contact.label_hours">Hours</div>
+                                    <span data-i18n="contact.hours_value">Monday &ndash; Friday, 9 AM &ndash; 5 PM EST</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Quick Links -->
+                        <div class="glass-panel" style="padding:1.5rem;margin-top:1.25rem;">
+                            <h4 style="font-family:'Antonio',sans-serif;font-size:0.95rem;margin-bottom:1rem;" data-i18n="contact.quick_links">Quick Links</h4>
+                            <div style="display:flex;flex-direction:column;gap:0.6rem;font-size:0.85rem;">
+                                <a href="mailto:security@kytranempowerment.com" style="color:var(--accent,#00e5ff);text-decoration:none;" data-i18n="contact.link_security">Security inquiries &rarr;</a>
+                                <a href="mailto:partnerships@kytranempowerment.com" style="color:var(--accent,#00e5ff);text-decoration:none;" data-i18n="contact.link_partnerships">Partnership opportunities &rarr;</a>
+                                <a href="compliance-services.html" style="color:var(--accent,#00e5ff);text-decoration:none;" data-i18n="contact.link_compliance">Compliance services &rarr;</a>
+                                <a href="membership.html" style="color:var(--accent,#00e5ff);text-decoration:none;" data-i18n="contact.link_pricing">Membership &amp; pricing &rarr;</a>
                             </div>
                         </div>
                     </div>

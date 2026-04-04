@@ -45,6 +45,102 @@
             color: var(--text-secondary, #8892a4);
         }
 
+        /* Floor sections */
+        .floor-section { margin-bottom: 3rem; }
+        .floor-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .floor-header__bar {
+            width: 6px;
+            height: 36px;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+        .floor-header__title {
+            font-family: 'Antonio', sans-serif;
+            font-size: 1.4rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+        .floor-header__count {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-secondary, #8892a4);
+            margin-left: auto;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        /* Department cards grid */
+        .dept-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.25rem;
+        }
+        .dept-grid--single { grid-template-columns: 1fr; max-width: 480px; }
+
+        .dept-card {
+            padding: 1.75rem;
+            border-left: 4px solid var(--dept-accent, #8892a4);
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .dept-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+        .dept-card__acronym {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            color: var(--dept-accent, #00e5ff);
+        }
+        .dept-card__expansion {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.72rem;
+            color: var(--text-secondary, #8892a4);
+            letter-spacing: 0.03em;
+            line-height: 1.4;
+        }
+        .dept-card__dept {
+            font-family: 'Antonio', sans-serif;
+            font-size: 1.05rem;
+            letter-spacing: 0.02em;
+            margin-top: 0.25rem;
+        }
+        .dept-card__floor-badge {
+            display: inline-block;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: var(--dept-accent, #8892a4);
+            width: fit-content;
+        }
+        .dept-card__text {
+            color: var(--text-secondary, #8892a4);
+            font-size: 0.88rem;
+            line-height: 1.6;
+            margin-top: 0.25rem;
+        }
+
+        /* Floor accent colors */
+        .floor--bridge    { --dept-accent: #00e5ff; }
+        .floor--ops       { --dept-accent: #a3e635; }
+        .floor--eng       { --dept-accent: #fbbf24; }
+        .floor--creative  { --dept-accent: #f472b6; }
+        .floor--services  { --dept-accent: #8b5cf6; }
+
         /* Architecture grid */
         .arch-grid {
             display: grid;
@@ -87,9 +183,77 @@
             line-height: 1.65;
         }
 
+        /* Capabilities grid */
+        .cap-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .cap-card {
+            padding: 1.5rem;
+            text-align: center;
+        }
+        .cap-card__icon {
+            font-size: 2rem;
+            margin-bottom: 0.75rem;
+            display: block;
+        }
+        .cap-card__title {
+            font-family: 'Antonio', sans-serif;
+            font-size: 1rem;
+            margin-bottom: 0.4rem;
+            letter-spacing: 0.02em;
+        }
+        .cap-card__text {
+            color: var(--text-secondary, #8892a4);
+            font-size: 0.82rem;
+            line-height: 1.55;
+        }
+
+        /* CTA section */
+        .cta-row {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 2rem;
+        }
+        .cta-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.9rem 2rem;
+            border-radius: 8px;
+            font-family: 'Antonio', sans-serif;
+            font-size: 1.05rem;
+            letter-spacing: 0.04em;
+            text-decoration: none;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            text-transform: uppercase;
+        }
+        .cta-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(0,0,0,0.4); }
+        .cta-btn--primary {
+            background: linear-gradient(135deg, #00e5ff 0%, #00b8d4 100%);
+            color: #0a0a1a;
+            font-weight: 700;
+        }
+        .cta-btn--secondary {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(0,229,255,0.25);
+            color: #00e5ff;
+        }
+
+        @media (max-width: 768px) {
+            .dept-grid { grid-template-columns: repeat(2, 1fr); }
+            .arch-grid--2col { grid-template-columns: 1fr; }
+        }
         @media (max-width: 480px) {
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .dept-grid, .dept-grid--single { grid-template-columns: 1fr; max-width: none; }
             .arch-grid, .arch-grid--2col { grid-template-columns: 1fr; }
+            .cap-grid { grid-template-columns: repeat(2, 1fr); }
         }
     </style>
 </head>
@@ -264,6 +428,8 @@
 
     <!-- Page content -->
     <main data-barba="container" data-barba-namespace="platform">
+
+        <!-- Hero -->
         <section class="hero">
             <div class="hero__content container">
                 <h1 class="hero__title gradient-text" data-i18n="platform-hero-title">Meet A.R.C.H.I.E.</h1>
@@ -271,130 +437,298 @@
             </div>
         </section>
 
-        <!-- Platform at a Glance — Stats -->
+        <!-- Platform at a Glance -->
         <section class="section">
             <div class="container">
-                <h2 class="section__title gradient-text" data-split>Platform at a Glance</h2>
-                <p style="text-align:center;color:var(--text-secondary,#8892a4);max-width:560px;margin:0 auto 2rem;font-size:1.05rem;">A self-orchestrating AI operations platform — fully self-hosted, privacy-first, and continuously improving.</p>
                 <div class="stats-grid" data-stagger>
                     <div class="glass-panel stat-card">
-                        <span class="stat-card__number gradient-text">122</span>
-                        <span class="stat-card__label">AI Agents</span>
+                        <span class="stat-card__number gradient-text">16</span>
+                        <span class="stat-card__label" data-i18n="platform-stat-depts">Departments</span>
                     </div>
                     <div class="glass-panel stat-card">
-                        <span class="stat-card__number gradient-text">16</span>
-                        <span class="stat-card__label">Departments</span>
+                        <span class="stat-card__number gradient-text">122</span>
+                        <span class="stat-card__label" data-i18n="platform-stat-agents">AI Agents</span>
+                    </div>
+                    <div class="glass-panel stat-card">
+                        <span class="stat-card__number gradient-text">22K+</span>
+                        <span class="stat-card__label" data-i18n="platform-stat-kb">Knowledge Entries</span>
                     </div>
                     <div class="glass-panel stat-card">
                         <span class="stat-card__number gradient-text">46+</span>
-                        <span class="stat-card__label">Modules</span>
+                        <span class="stat-card__label" data-i18n="platform-stat-modules">Modules</span>
                     </div>
                     <div class="glass-panel stat-card">
                         <span class="stat-card__number gradient-text">90</span>
-                        <span class="stat-card__label">Autonomous Jobs</span>
+                        <span class="stat-card__label" data-i18n="platform-stat-jobs">Autonomous Jobs</span>
                     </div>
                     <div class="glass-panel stat-card">
-                        <span class="stat-card__number gradient-text">128</span>
-                        <span class="stat-card__label">GB RAM</span>
-                    </div>
-                    <div class="glass-panel stat-card">
-                        <span class="stat-card__number gradient-text">M4000</span>
-                        <span class="stat-card__label">Quadro GPU</span>
+                        <span class="stat-card__number gradient-text">8</span>
+                        <span class="stat-card__label" data-i18n="platform-stat-langs">Languages</span>
                     </div>
                 </div>
             </div>
         </section>
 
+        <!-- What is A.R.C.H.I.E.? -->
         <section class="section">
             <div class="container">
                 <h2 class="section__title" data-split data-i18n="platform-what-title">What is A.R.C.H.I.E.?</h2>
                 <div class="glass-panel" style="padding:2rem;max-width:800px;margin:0 auto 2rem;">
-                    <p style="margin-bottom:1rem;">A.R.C.H.I.E. is an AI-powered operations platform that orchestrates 122 autonomous agents across 16 specialized departments. Every agent has a role, a department, and a set of capabilities — from writing code to analyzing financial data to generating creative content.</p>
-                    <p style="margin-bottom:1rem;">Unlike traditional automation tools that require constant human direction, A.R.C.H.I.E. agents collaborate, escalate, and self-improve. The platform continuously audits its own codebase, scans for security vulnerabilities, and proposes improvements — all governed by ethical oversight through C.R.E.E.D.</p>
-                    <p>Self-hosted and privacy-first, A.R.C.H.I.E. runs on your infrastructure. No data leaves your network unless you choose to enable cloud escalation. Every decision is logged, every action is auditable, and every agent operates within clearly defined ethical boundaries.</p>
+                    <p style="margin-bottom:1rem;">A.R.C.H.I.E. is a self-orchestrating AI operations platform that coordinates 122 autonomous agents across 16 specialized departments. Each agent has a defined role, a home department, and a skill set ranging from code generation and financial analysis to creative design and compliance scanning.</p>
+                    <p style="margin-bottom:1rem;">Unlike traditional automation that waits for human direction, A.R.C.H.I.E. agents collaborate, escalate tasks across departments, and continuously self-improve. The platform audits its own codebase, detects security vulnerabilities, and proposes fixes — all governed by ethical oversight through the C.R.E.E.D. institute.</p>
+                    <p>Fully self-hosted and privacy-first, A.R.C.H.I.E. runs on your infrastructure. No data leaves your network unless you explicitly enable cloud escalation. Every decision is logged, every action is auditable, and every agent operates within clearly defined ethical boundaries.</p>
                 </div>
             </div>
         </section>
 
+        <!-- 16 Departments by Floor -->
         <section class="section">
             <div class="container">
-                <h2 class="section__title" data-split data-i18n="platform-depts-title">16 Departments</h2>
-                <div class="card-grid" data-stagger>
-                    <div class="card"><div class="card__icon">&#9733;</div><h3 class="card__title">Executive Office</h3><p class="card__text">Strategic oversight and platform-wide coordination led by A.R.C.H.I.E. itself.</p></div>
-                    <div class="card"><div class="card__icon">&#9881;</div><h3 class="card__title">Operations &amp; Infrastructure</h3><p class="card__text">Server management, deployment pipelines, and system reliability.</p></div>
-                    <div class="card"><div class="card__icon">&#9830;</div><h3 class="card__title">Logistics &amp; Supply Chain</h3><p class="card__text">Resource allocation, scheduling, and capacity planning across the fleet.</p></div>
-                    <div class="card"><div class="card__icon">&#9830;</div><h3 class="card__title">Finance &amp; Accounting</h3><p class="card__text">Invoicing, billing, and financial analytics for platform services.</p></div>
-                    <div class="card"><div class="card__icon">&#9998;</div><h3 class="card__title">Engineering &amp; Technology</h3><p class="card__text">Code generation, self-healing pipelines, and continuous improvement.</p></div>
-                    <div class="card"><div class="card__icon">&#9745;</div><h3 class="card__title">Security &amp; Compliance</h3><p class="card__text">Automated scanning, vulnerability detection, and compliance enforcement.</p></div>
-                    <div class="card"><div class="card__icon">&#9670;</div><h3 class="card__title">Research &amp; Development</h3><p class="card__text">Exploring new capabilities, model evaluation, and experimental features.</p></div>
-                    <div class="card"><div class="card__icon">&#9827;</div><h3 class="card__title">Creative &amp; Design</h3><p class="card__text">Image generation, UI design, and creative asset production.</p></div>
-                    <div class="card"><div class="card__icon">&#9788;</div><h3 class="card__title">Marketing &amp; Communications</h3><p class="card__text">Content strategy, social media management, and brand messaging.</p></div>
-                    <div class="card"><div class="card__icon">&#9997;</div><h3 class="card__title">Documentation &amp; Knowledge</h3><p class="card__text">Knowledge base management with 18,000+ entries and semantic search.</p></div>
-                    <div class="card"><div class="card__icon">&#9742;</div><h3 class="card__title">Customer Success &amp; Support</h3><p class="card__text">User onboarding, issue resolution, and satisfaction tracking.</p></div>
-                    <div class="card"><div class="card__icon">&#9829;</div><h3 class="card__title">Human Resources &amp; Culture</h3><p class="card__text">Agent welfare, training programs, and workforce development.</p></div>
-                    <div class="card"><div class="card__icon">&#9764;</div><h3 class="card__title">Medical &amp; Wellness</h3><p class="card__text">Health-focused applications and wellness tracking tools.</p></div>
-                    <div class="card"><div class="card__icon">&#9878;</div><h3 class="card__title">Legal &amp; Regulatory</h3><p class="card__text">Policy enforcement, regulatory compliance, and governance frameworks.</p></div>
-                    <div class="card"><div class="card__icon">&#9883;</div><h3 class="card__title">Diplomatic &amp; External Relations</h3><p class="card__text">Partnership coordination and external integration management.</p></div>
-                    <div class="card"><div class="card__icon">&#9650;</div><h3 class="card__title">Analytics &amp; Intelligence</h3><p class="card__text">Data analysis, trend detection, and business intelligence dashboards.</p></div>
+                <h2 class="section__title gradient-text" data-split data-i18n="platform-depts-title">16 Departments &amp; AI Directors</h2>
+                <p style="text-align:center;color:var(--text-secondary,#8892a4);max-width:620px;margin:0 auto 2.5rem;font-size:1.05rem;" data-i18n="platform-depts-subtitle">Organized across five operational floors, each department is led by a dedicated AI Director with specialized staff agents.</p>
+
+                <!-- BRIDGE -->
+                <div class="floor-section floor--bridge">
+                    <div class="floor-header">
+                        <div class="floor-header__bar" style="background:#00e5ff;"></div>
+                        <span class="floor-header__title" style="color:#00e5ff;">Bridge</span>
+                        <span class="floor-header__count">1 Department</span>
+                    </div>
+                    <div class="dept-grid dept-grid--single" data-stagger>
+                        <div class="glass-panel dept-card" style="--dept-accent:#00e5ff;">
+                            <span class="dept-card__acronym">A.R.C.H.I.E.</span>
+                            <span class="dept-card__expansion">Autonomous Resource &amp; Cognitive Hyperintelligence Engine</span>
+                            <span class="dept-card__dept">Executive Office</span>
+                            <span class="dept-card__floor-badge">Bridge</span>
+                            <p class="dept-card__text">The command center of the entire platform. A.R.C.H.I.E. provides strategic oversight, coordinates cross-department operations, and serves as the primary decision-making intelligence for the organization.</p>
+                        </div>
+                    </div>
                 </div>
+
+                <!-- OPERATIONS -->
+                <div class="floor-section floor--ops">
+                    <div class="floor-header">
+                        <div class="floor-header__bar" style="background:#a3e635;"></div>
+                        <span class="floor-header__title" style="color:#a3e635;">Operations</span>
+                        <span class="floor-header__count">3 Departments</span>
+                    </div>
+                    <div class="dept-grid" data-stagger>
+                        <div class="glass-panel dept-card" style="--dept-accent:#a3e635;">
+                            <span class="dept-card__acronym">B.A.S.E.</span>
+                            <span class="dept-card__expansion">Backbone Administration &amp; Systems Engineering</span>
+                            <span class="dept-card__dept">Operations &amp; Infrastructure</span>
+                            <span class="dept-card__floor-badge">Operations</span>
+                            <p class="dept-card__text">Manages servers, deployment pipelines, container orchestration, and system reliability. B.A.S.E. ensures the platform stays online and performs optimally across all nodes.</p>
+                        </div>
+                        <div class="glass-panel dept-card" style="--dept-accent:#a3e635;">
+                            <span class="dept-card__acronym">C.A.R.G.O.</span>
+                            <span class="dept-card__expansion">Coordinated Allocation &amp; Resource Governance Operations</span>
+                            <span class="dept-card__dept">Logistics &amp; Supply Chain</span>
+                            <span class="dept-card__floor-badge">Operations</span>
+                            <p class="dept-card__text">Handles resource allocation, capacity planning, and scheduling across the fleet. C.A.R.G.O. optimizes compute distribution so every task gets the resources it needs.</p>
+                        </div>
+                        <div class="glass-panel dept-card" style="--dept-accent:#a3e635;">
+                            <span class="dept-card__acronym">L.E.D.G.E.R.</span>
+                            <span class="dept-card__expansion">Ledger Engine for Digital Governance, Economics &amp; Reporting</span>
+                            <span class="dept-card__dept">Finance &amp; Accounting</span>
+                            <span class="dept-card__floor-badge">Operations</span>
+                            <p class="dept-card__text">Oversees invoicing, billing, subscription management, and financial analytics. L.E.D.G.E.R. tracks costs across services and generates financial reports.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ENGINEERING -->
+                <div class="floor-section floor--eng">
+                    <div class="floor-header">
+                        <div class="floor-header__bar" style="background:#fbbf24;"></div>
+                        <span class="floor-header__title" style="color:#fbbf24;">Engineering</span>
+                        <span class="floor-header__count">3 Departments</span>
+                    </div>
+                    <div class="dept-grid" data-stagger>
+                        <div class="glass-panel dept-card" style="--dept-accent:#fbbf24;">
+                            <span class="dept-card__acronym">F.O.R.G.E.</span>
+                            <span class="dept-card__expansion">Full-cycle Optimization &amp; Regenerative GitHub Engine</span>
+                            <span class="dept-card__dept">Engineering &amp; Technology</span>
+                            <span class="dept-card__floor-badge">Engineering</span>
+                            <p class="dept-card__text">Drives code generation, self-healing repair pipelines, and continuous integration. F.O.R.G.E. identifies code issues, generates fixes, tests them in sandboxes, and deploys verified patches.</p>
+                        </div>
+                        <div class="glass-panel dept-card" style="--dept-accent:#fbbf24;">
+                            <span class="dept-card__acronym">V.I.G.I.L.</span>
+                            <span class="dept-card__expansion">Vigilant Intelligence for Governance, Integrity &amp; Liability</span>
+                            <span class="dept-card__dept">Security &amp; Compliance</span>
+                            <span class="dept-card__floor-badge">Engineering</span>
+                            <p class="dept-card__text">Runs automated vulnerability scans, enforces compliance rule packs (STIG, SOC 2, HIPAA, CIS), and monitors security events. V.I.G.I.L. never sleeps — scanning every six hours.</p>
+                        </div>
+                        <div class="glass-panel dept-card" style="--dept-accent:#fbbf24;">
+                            <span class="dept-card__acronym">D.A.R.W.I.N.</span>
+                            <span class="dept-card__expansion">Directed Autonomous Research &amp; Weighted Intelligence Network</span>
+                            <span class="dept-card__dept">Research &amp; Development</span>
+                            <span class="dept-card__floor-badge">Engineering</span>
+                            <p class="dept-card__text">Explores new AI capabilities, evaluates emerging models, and benchmarks experimental features. D.A.R.W.I.N. pushes the boundaries of what the platform can do.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CREATIVE -->
+                <div class="floor-section floor--creative">
+                    <div class="floor-header">
+                        <div class="floor-header__bar" style="background:#f472b6;"></div>
+                        <span class="floor-header__title" style="color:#f472b6;">Creative</span>
+                        <span class="floor-header__count">3 Departments</span>
+                    </div>
+                    <div class="dept-grid" data-stagger>
+                        <div class="glass-panel dept-card" style="--dept-accent:#f472b6;">
+                            <span class="dept-card__acronym">M.U.S.E.</span>
+                            <span class="dept-card__expansion">Multimodal Unified Studio Engine</span>
+                            <span class="dept-card__dept">Creative &amp; Design</span>
+                            <span class="dept-card__floor-badge">Creative</span>
+                            <p class="dept-card__text">Produces images, UI components, and creative assets using GPU-accelerated generation. M.U.S.E. handles everything from LCARS interface design to SDXL art generation.</p>
+                        </div>
+                        <div class="glass-panel dept-card" style="--dept-accent:#f472b6;">
+                            <span class="dept-card__acronym">S.I.G.N.A.L.</span>
+                            <span class="dept-card__expansion">Strategic Intelligence for Growth, Narrative &amp; Audience Leverage</span>
+                            <span class="dept-card__dept">Marketing &amp; Communications</span>
+                            <span class="dept-card__floor-badge">Creative</span>
+                            <p class="dept-card__text">Crafts content strategy, manages social media presence, and delivers brand messaging. S.I.G.N.A.L. ensures consistent voice across all eight supported languages.</p>
+                        </div>
+                        <div class="glass-panel dept-card" style="--dept-accent:#f472b6;">
+                            <span class="dept-card__acronym">C.O.D.E.X.</span>
+                            <span class="dept-card__expansion">Comprehensive Operational Documentation &amp; Exchange</span>
+                            <span class="dept-card__dept">Documentation &amp; Knowledge</span>
+                            <span class="dept-card__floor-badge">Creative</span>
+                            <p class="dept-card__text">Curates and maintains the 22,000+ entry knowledge base with semantic search, automated quality scoring, and embedding coverage tracking.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SERVICES -->
+                <div class="floor-section floor--services">
+                    <div class="floor-header">
+                        <div class="floor-header__bar" style="background:#8b5cf6;"></div>
+                        <span class="floor-header__title" style="color:#8b5cf6;">Services</span>
+                        <span class="floor-header__count">6 Departments</span>
+                    </div>
+                    <div class="dept-grid" data-stagger>
+                        <div class="glass-panel dept-card" style="--dept-accent:#8b5cf6;">
+                            <span class="dept-card__acronym">R.E.S.O.L.V.E.</span>
+                            <span class="dept-card__expansion">Responsive Engagement &amp; Solutions for Optimized Lifecycle Value Exchange</span>
+                            <span class="dept-card__dept">Customer Success &amp; Support</span>
+                            <span class="dept-card__floor-badge">Services</span>
+                            <p class="dept-card__text">Handles user onboarding, issue resolution, and satisfaction tracking. R.E.S.O.L.V.E. ensures every customer interaction drives value and retention.</p>
+                        </div>
+                        <div class="glass-panel dept-card" style="--dept-accent:#8b5cf6;">
+                            <span class="dept-card__acronym">K.I.N.</span>
+                            <span class="dept-card__expansion">Knowledge, Inclusion &amp; Nurture</span>
+                            <span class="dept-card__dept">Human Resources &amp; Culture</span>
+                            <span class="dept-card__floor-badge">Services</span>
+                            <p class="dept-card__text">Manages agent welfare, training programs, proficiency benchmarks, and workforce development. K.I.N. nurtures agents from onboarding through career progression.</p>
+                        </div>
+                        <div class="glass-panel dept-card" style="--dept-accent:#8b5cf6;">
+                            <span class="dept-card__acronym">V.I.T.A.L.</span>
+                            <span class="dept-card__expansion">Versatile Intelligence for Therapy, Assessment &amp; Lifestyle</span>
+                            <span class="dept-card__dept">Medical &amp; Wellness</span>
+                            <span class="dept-card__floor-badge">Services</span>
+                            <p class="dept-card__text">Powers health-focused applications, wellness tracking, and therapeutic tools. V.I.T.A.L. brings AI-assisted care and lifestyle management to the platform.</p>
+                        </div>
+                        <div class="glass-panel dept-card" style="--dept-accent:#8b5cf6;">
+                            <span class="dept-card__acronym">G.A.V.E.L.</span>
+                            <span class="dept-card__expansion">Governance, Accountability, Verification, Ethics &amp; Law</span>
+                            <span class="dept-card__dept">Legal &amp; Regulatory</span>
+                            <span class="dept-card__floor-badge">Services</span>
+                            <p class="dept-card__text">Enforces policy, monitors regulatory compliance, and manages governance frameworks. G.A.V.E.L. works alongside V.I.G.I.L. to keep the platform legally sound.</p>
+                        </div>
+                        <div class="glass-panel dept-card" style="--dept-accent:#8b5cf6;">
+                            <span class="dept-card__acronym">A.C.C.O.R.D.</span>
+                            <span class="dept-card__expansion">Alliance Coordination &amp; Cooperative Operations for Relational Diplomacy</span>
+                            <span class="dept-card__dept">Diplomatic &amp; External Relations</span>
+                            <span class="dept-card__floor-badge">Services</span>
+                            <p class="dept-card__text">Coordinates partnerships, external integrations, and cross-platform collaboration. A.C.C.O.R.D. manages relationships with third-party services and APIs.</p>
+                        </div>
+                        <div class="glass-panel dept-card" style="--dept-accent:#8b5cf6;">
+                            <span class="dept-card__acronym">S.P.E.C.T.R.A.</span>
+                            <span class="dept-card__expansion">Statistical Processing Engine for Comprehensive Trend &amp; Risk Analysis</span>
+                            <span class="dept-card__dept">Analytics &amp; Intelligence</span>
+                            <span class="dept-card__floor-badge">Services</span>
+                            <p class="dept-card__text">Runs data analysis, trend detection, and business intelligence. S.P.E.C.T.R.A. transforms raw platform data into actionable dashboards and strategic insights.</p>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </section>
 
+        <!-- Core Architecture -->
         <section class="section">
             <div class="container">
-                <h2 class="section__title" data-split data-i18n="platform-bridge-title">The AI Bridge</h2>
-                <div class="glass-panel" style="padding:2rem;max-width:800px;margin:0 auto;">
-                    <p style="margin-bottom:1rem;">Every AI request on the platform flows through a central dispatcher called the AI Bridge. It intelligently routes tasks to the best available agent based on capability, workload, and hardware availability.</p>
-                    <p>The Bridge supports GPU-aware routing, automatic model warm-up, multi-tier escalation from local to cloud, and full audit logging. No module talks directly to an LLM — everything is orchestrated, governed, and transparent.</p>
-                </div>
-            </div>
-        </section>
-        <!-- How It Works -->
-        <section class="section">
-            <div class="container">
-                <h2 class="section__title gradient-text" data-split>How It Works</h2>
-                <p style="text-align:center;color:var(--text-secondary,#8892a4);max-width:560px;margin:0 auto 2rem;font-size:1.05rem;">From task intake to autonomous execution in three stages.</p>
-                <div class="arch-grid" data-stagger>
+                <h2 class="section__title gradient-text" data-split data-i18n="platform-arch-title">Core Architecture</h2>
+                <p style="text-align:center;color:var(--text-secondary,#8892a4);max-width:560px;margin:0 auto 2rem;font-size:1.05rem;" data-i18n="platform-arch-subtitle">Four interlocking systems power the entire platform.</p>
+                <div class="arch-grid arch-grid--2col" data-stagger>
                     <div class="glass-panel arch-card">
                         <span class="arch-card__step">1</span>
-                        <h3 class="arch-card__title">Department Dispatch</h3>
-                        <p class="arch-card__text">Tasks arrive and are dispatched across 16 departments, each staffed by specialized AI agents with domain expertise. The orchestration engine matches intent to the best-qualified team.</p>
+                        <h3 class="arch-card__title">Autonomy Module</h3>
+                        <p class="arch-card__text">90 scheduled jobs run continuously — training agents, scanning for vulnerabilities, syncing fleet nodes, and maintaining the knowledge base. Tiered approval ensures sensitive actions always get human sign-off.</p>
                     </div>
                     <div class="glass-panel arch-card">
                         <span class="arch-card__step">2</span>
-                        <h3 class="arch-card__title">Multi-GPU Fleet Processing</h3>
-                        <p class="arch-card__text">The Smart Router uses an 11-tier escalation chain across fleet nodes, hub, and cloud — with hardware-aware model selection matching tasks to the best available GPU and VRAM.</p>
+                        <h3 class="arch-card__title">Department HQ</h3>
+                        <p class="arch-card__text">Manages all 122 agents across 16 departments and 5 floors. Handles agent lifecycle, skill assignments, shift scheduling, and welfare monitoring through a centralized service layer.</p>
                     </div>
                     <div class="glass-panel arch-card">
                         <span class="arch-card__step">3</span>
-                        <h3 class="arch-card__title">Continuous Self-Improvement</h3>
-                        <p class="arch-card__text">The self-healing pipeline scans for issues, generates proposals, tests in sandboxed environments, and deploys fixes — continuously upgrading the system without human intervention.</p>
+                        <h3 class="arch-card__title">AI Bridge &amp; Dispatcher</h3>
+                        <p class="arch-card__text">Every AI request flows through one central dispatcher with GPU-aware routing, automatic model warm-up, 11-tier escalation from local to cloud, and full audit logging on every call.</p>
+                    </div>
+                    <div class="glass-panel arch-card">
+                        <span class="arch-card__step">4</span>
+                        <h3 class="arch-card__title">Starbase Command</h3>
+                        <p class="arch-card__text">A distributed compute mesh that extends processing across multiple GPU nodes. OTA updates, remote deployment, and mesh sync let you add capacity to the fleet with a single command.</p>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- Architecture Overview -->
+        <!-- Key Capabilities -->
         <section class="section">
             <div class="container">
-                <h2 class="section__title gradient-text" data-split>Core Architecture</h2>
-                <div class="arch-grid arch-grid--2col" data-stagger>
-                    <div class="glass-panel arch-card">
-                        <h3 class="arch-card__title">AI Bridge</h3>
-                        <p class="arch-card__text">Every AI request flows through a central dispatcher with GPU-aware routing, automatic model warm-up, and multi-tier escalation from local hardware to cloud. Full audit logging on every call.</p>
+                <h2 class="section__title gradient-text" data-split data-i18n="platform-cap-title">Key Capabilities</h2>
+                <div class="cap-grid" data-stagger>
+                    <div class="glass-panel cap-card">
+                        <span class="cap-card__icon">&#9881;</span>
+                        <h3 class="cap-card__title" data-i18n="platform-cap-heal">Self-Healing</h3>
+                        <p class="cap-card__text">Scans its own codebase, generates fixes, tests in sandboxes, and deploys verified patches automatically.</p>
                     </div>
-                    <div class="glass-panel arch-card">
-                        <h3 class="arch-card__title">Department System</h3>
-                        <p class="arch-card__text">16 departments across 5 organizational floors — from Executive Office to Analytics. Each department has a director AI and specialized staff agents with distinct skills and capabilities.</p>
+                    <div class="glass-panel cap-card">
+                        <span class="cap-card__icon">&#9729;</span>
+                        <h3 class="cap-card__title" data-i18n="platform-cap-fleet">Fleet Compute</h3>
+                        <p class="cap-card__text">Extends GPU capacity across networked nodes with automatic load balancing and mesh synchronization.</p>
                     </div>
-                    <div class="glass-panel arch-card">
-                        <h3 class="arch-card__title">Starbase Fleet</h3>
-                        <p class="arch-card__text">Distributed compute mesh that extends processing power across multiple GPU nodes. OTA updates, remote deployment, and mesh sync let you add capacity with a one-liner installer.</p>
+                    <div class="glass-panel cap-card">
+                        <span class="cap-card__icon">&#9878;</span>
+                        <h3 class="cap-card__title" data-i18n="platform-cap-ethics">Ethics Governance</h3>
+                        <p class="cap-card__text">C.R.E.E.D. enforces ethical boundaries, audit logging, and compliance scanning across all operations.</p>
                     </div>
-                    <div class="glass-panel arch-card">
-                        <h3 class="arch-card__title">Self-Healing Pipeline</h3>
-                        <p class="arch-card__text">Scan, Propose, Sandbox, Deploy. The platform identifies its own code issues, generates fixes, tests them in isolation, and applies verified patches — all governed by C.R.E.E.D. ethics.</p>
+                    <div class="glass-panel cap-card">
+                        <span class="cap-card__icon">&#9670;</span>
+                        <h3 class="cap-card__title" data-i18n="platform-cap-multi">Multi-Model AI</h3>
+                        <p class="cap-card__text">Routes requests to the best available model — local or cloud — with automatic warm-up and VRAM management.</p>
                     </div>
+                    <div class="glass-panel cap-card">
+                        <span class="cap-card__icon">&#127760;</span>
+                        <h3 class="cap-card__title" data-i18n="platform-cap-i18n">8-Language Support</h3>
+                        <p class="cap-card__text">Full i18n across English, French, Spanish, Portuguese, German, Chinese, Arabic, and Hebrew with RTL support.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA -->
+        <section class="section" style="padding-bottom:4rem;">
+            <div class="container" style="text-align:center;">
+                <h2 class="section__title gradient-text" data-split data-i18n="platform-cta-title">Ready to Explore?</h2>
+                <p style="color:var(--text-secondary,#8892a4);max-width:480px;margin:0 auto;font-size:1.05rem;" data-i18n="platform-cta-text">Discover the AI Directors that lead each department, or get started with a membership.</p>
+                <div class="cta-row">
+                    <a href="ai-directors.html" class="cta-btn cta-btn--primary" data-i18n="platform-cta-directors">Meet the AI Directors</a>
+                    <a href="membership.html" class="cta-btn cta-btn--secondary" data-i18n="platform-cta-start">Get Started</a>
                 </div>
             </div>
         </section>

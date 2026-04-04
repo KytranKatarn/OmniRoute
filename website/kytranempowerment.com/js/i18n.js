@@ -115,3 +115,6 @@ const I18n = (() => {
 
     return { init: init, setLang: setLang, getLang: getLang };
 })();
+
+// Expose globally for nav.js language switcher
+window.I18n = I18n;

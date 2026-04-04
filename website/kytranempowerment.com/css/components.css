@@ -69,10 +69,10 @@
 
 .nav__link {
     font-family: var(--font-nav);
-    font-size: var(--text-sm);
+    font-size: 0.8rem;
     font-weight: 400;
     text-transform: uppercase;
-    letter-spacing: 0.15em;
+    letter-spacing: 0.08em;
     color: var(--color-text);
     position: relative;
     padding-block: var(--space-xs);
@@ -356,11 +356,15 @@
     z-index: 999;
     overflow-y: auto;
     transform: translateX(100%);
-    transition: transform var(--speed-medium) var(--ease-out);
+    transition: transform var(--speed-medium) var(--ease-out), visibility var(--speed-medium);
     box-shadow: -4px 4px 30px rgba(0, 0, 0, 0.4);
+    visibility: hidden;
+    pointer-events: none;
 }
 .nav-mobile[aria-hidden="false"] {
     transform: translateX(0);
+    visibility: visible;
+    pointer-events: auto;
 }
 
 .nav-mobile__inner {

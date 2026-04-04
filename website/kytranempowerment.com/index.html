@@ -30,6 +30,7 @@
     <link rel="stylesheet" href="css/pages/home.css?v=20260404b">
     <link rel="stylesheet" href="css/pages/hero-animations.css?v=20260405">
     <link rel="stylesheet" href="css/responsive.css?v=20260404b">
+    <link rel="stylesheet" href="css/pages/intro.css?v=20260405">
     <link rel="stylesheet" href="css/reduced-motion.css?v=20260404b">
     <style>
         /* Testimonials */
@@ -63,6 +64,20 @@
     <meta name="twitter:card" content="summary_large_image">
 </head>
 <body>
+    <!-- Cinematic Intro Overlay (first child so it covers everything) -->
+    <div id="introOverlay" class="intro-overlay">
+      <canvas class="intro-canvas" id="introCanvas"></canvas>
+      <div class="intro-flash" id="introFlash"></div>
+      <div class="intro-grid" id="introGrid"></div>
+      <img src="assets/logo-sm.png" alt="" class="intro-logo" id="introLogo">
+      <div class="intro-title" id="introTitle">KYTRAN</div>
+      <div class="intro-subtitle" id="introSubtitle">EMPOWERMENT</div>
+      <div class="intro-tagline" id="introTagline"></div>
+      <div class="intro-scanline" id="introScanline"></div>
+      <div class="intro-glow-ring" id="introGlowRing"></div>
+    </div>
+    <script src="js/intro.js?v=20260405"></script>
+
     <!-- Global background layers -->
     <div class="aurora"></div>
     <div class="dot-grid"></div>

@@ -1,0 +1,134 @@
+.intro-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10000;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.intro-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.intro-logo {
+  position: relative;
+  z-index: 1;
+  opacity: 0;
+  width: 120px;
+  height: auto;
+  filter: drop-shadow(0 0 30px rgba(0, 229, 255, 0.5));
+}
+
+.intro-title {
+  position: relative;
+  z-index: 1;
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(2rem, 6vw, 4rem);
+  color: #fff;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  opacity: 0;
+  margin-top: 1rem;
+  display: flex;
+  gap: 0;
+}
+
+.intro-title .intro-letter {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.intro-subtitle {
+  position: relative;
+  z-index: 1;
+  font-family: 'Antonio', sans-serif;
+  font-size: clamp(1rem, 3vw, 1.5rem);
+  color: #00e5ff;
+  letter-spacing: 0.5em;
+  text-transform: uppercase;
+  opacity: 0;
+}
+
+.intro-tagline {
+  position: relative;
+  z-index: 1;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: clamp(0.7rem, 2vw, 1rem);
+  color: rgba(0, 229, 255, 0.6);
+  opacity: 0;
+  margin-top: 1.5rem;
+  min-height: 1.5em;
+}
+
+.intro-scanline {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #00e5ff, transparent);
+  opacity: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.intro-glow-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 229, 255, 0.4);
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 0;
+  height: 0;
+}
+
+.intro-flash {
+  position: absolute;
+  z-index: 1;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff, #00e5ff, transparent);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  pointer-events: none;
+  opacity: 0;
+}
+
+.intro-grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  opacity: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(0, 229, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 229, 255, 0.05) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+/* Reduced motion: skip all animation */
+@media (prefers-reduced-motion: reduce) {
+  .intro-overlay {
+    display: none !important;
+  }
+}

@@ -341,6 +341,7 @@
    Mobile Navigation — Bounded accordion panel
    -------------------------------------------------------------------------- */
 .nav-mobile {
+    display: none;
     position: fixed;
     top: var(--nav-height);
     right: 0;
@@ -356,15 +357,12 @@
     z-index: 999;
     overflow-y: auto;
     transform: translateX(100%);
-    transition: transform var(--speed-medium) var(--ease-out), visibility var(--speed-medium);
+    transition: transform var(--speed-medium) var(--ease-out);
     box-shadow: -4px 4px 30px rgba(0, 0, 0, 0.4);
-    visibility: hidden;
-    pointer-events: none;
 }
 .nav-mobile[aria-hidden="false"] {
+    display: block;
     transform: translateX(0);
-    visibility: visible;
-    pointer-events: auto;
 }
 
 .nav-mobile__inner {

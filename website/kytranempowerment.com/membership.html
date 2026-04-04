@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Membership — Kytran Empowerment</title>
-    <meta name="description" content="Choose your plan. Free, Pro, or Enterprise — AI-powered business tools for every stage of growth.">
+    <title>Membership &amp; Pricing — Kytran Empowerment</title>
+    <meta name="description" content="One platform replaces 12+ tools. Compare plans, see real market savings, and choose the tier that fits your business.">
     <meta name="theme-color" content="#0a0a1a">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,6 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/base.css?v=20260404b">
     <link rel="stylesheet" href="css/components.css?v=20260404c">
+    <link rel="stylesheet" href="css/pages/membership.css?v=20260404b">
     <link rel="stylesheet" href="css/responsive.css?v=20260404b">
     <link rel="stylesheet" href="css/reduced-motion.css?v=20260404b">
 </head>
@@ -179,98 +180,328 @@
     <a href="membership.html" class="nav-mobile__cta" data-i18n="nav.get_started">Get Started</a>
   </div>
 </div>
-</div></div></div></div>
-        </div>
-    </div>
 
 
     <!-- Page content -->
     <main data-barba="container" data-barba-namespace="membership">
-        <section class="hero">
-            <div class="hero__content container">
-                <h1 class="hero__title gradient-text" data-i18n="membership-hero-title">Choose Your Plan</h1>
+
+        <!-- ── Hero ── -->
+        <section class="membership-hero">
+            <div class="container">
+                <h1 class="membership-hero__title gradient-text" data-i18n="membership.hero_title">Choose Your Plan</h1>
+                <p class="membership-hero__subtitle" data-i18n="membership.hero_subtitle">Everything you need. One platform. No tool sprawl.</p>
             </div>
         </section>
 
+        <!-- ── Pricing Cards ── -->
         <section class="section">
             <div class="container">
-                <div style="display:flex;gap:2rem;justify-content:center;flex-wrap:wrap;align-items:stretch;">
-                    <!-- Free -->
-                    <div class="glass-panel" style="padding:2rem;flex:1;min-width:280px;max-width:360px;display:flex;flex-direction:column;">
-                        <h3 style="font-family:'Orbitron',sans-serif;font-size:1.3rem;margin-bottom:0.5rem;">Free</h3>
-                        <div style="font-size:2.5rem;font-weight:700;font-family:'Orbitron',sans-serif;margin-bottom:1.5rem;">$0<span style="font-size:0.9rem;font-weight:400;color:var(--text-secondary,#94a3b8);">/mo</span></div>
-                        <ul style="list-style:none;padding:0;margin:0 0 2rem;flex:1;">
-                            <li style="padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.06);">&#10003; Basic CRM</li>
-                            <li style="padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.06);">&#10003; 1 user</li>
-                            <li style="padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.06);">&#10003; Community support</li>
-                            <li style="padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.06);">&#10003; Compliance dashboard</li>
+                <div class="pricing-cards" id="pricingCards">
+
+                    <!-- Explorer (Free) — static SEO fallback -->
+                    <div class="pricing-card" data-tier="free">
+                        <h3 class="pricing-card__name" data-i18n="membership.tier_explorer">Explorer</h3>
+                        <p class="pricing-card__tagline" data-i18n="membership.tag_explorer">See what's possible</p>
+                        <div class="pricing-card__market">&nbsp;</div>
+                        <div class="pricing-card__price">$0<span class="pricing-card__price-period"> / <span data-i18n="membership.forever">forever</span></span></div>
+                        <div class="pricing-card__savings"></div>
+                        <ul class="pricing-card__features">
+                            <li data-i18n="membership.feat_demo">Platform demo access</li>
+                            <li data-i18n="membership.feat_directors">View AI Directors</li>
+                            <li data-i18n="membership.feat_trust">Trust Center access</li>
+                            <li data-i18n="membership.feat_community">Community resources</li>
                         </ul>
-                        <a href="#" class="btn btn--outline magnetic" style="width:100%;text-align:center;">Get Started</a>
+                        <a href="#" class="pricing-card__cta" data-i18n="membership.cta_free">Start Free</a>
                     </div>
 
-                    <!-- Pro -->
-                    <div class="glass-panel" style="padding:2rem;flex:1;min-width:280px;max-width:360px;display:flex;flex-direction:column;border:1px solid var(--accent,#00e5ff);">
-                        <h3 style="font-family:'Orbitron',sans-serif;font-size:1.3rem;margin-bottom:0.5rem;color:var(--accent,#00e5ff);">Pro</h3>
-                        <div style="font-size:2.5rem;font-weight:700;font-family:'Orbitron',sans-serif;margin-bottom:1.5rem;">$49<span style="font-size:0.9rem;font-weight:400;color:var(--text-secondary,#94a3b8);">/mo</span></div>
-                        <ul style="list-style:none;padding:0;margin:0 0 2rem;flex:1;">
-                            <li style="padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.06);">&#10003; All 10 SaaS tools</li>
-                            <li style="padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.06);">&#10003; Up to 5 users</li>
-                            <li style="padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.06);">&#10003; Priority support</li>
-                            <li style="padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.06);">&#10003; API access</li>
-                            <li style="padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.06);">&#10003; AI content generation</li>
-                            <li style="padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.06);">&#10003; Compliance badges</li>
+                    <!-- Starter -->
+                    <div class="pricing-card" data-tier="starter">
+                        <h3 class="pricing-card__name" data-i18n="membership.tier_starter">Starter</h3>
+                        <p class="pricing-card__tagline" data-i18n="membership.tag_starter">For solo entrepreneurs &amp; small teams</p>
+                        <div class="pricing-card__market" data-i18n="membership.market_starter">Market avg: $800/mo</div>
+                        <div class="pricing-card__price">$299<span class="pricing-card__price-period"> /mo</span></div>
+                        <div class="pricing-card__savings" data-i18n="membership.save_starter">Save 63%</div>
+                        <ul class="pricing-card__features">
+                            <li data-i18n="membership.feat_crm">CRM &amp; Contact Management</li>
+                            <li data-i18n="membership.feat_invoicing">Invoicing &amp; Payments</li>
+                            <li data-i18n="membership.feat_store">Store Builder</li>
+                            <li data-i18n="membership.feat_content">Content Studio</li>
+                            <li data-i18n="membership.feat_1watch">1 Watch product included</li>
+                            <li data-i18n="membership.feat_5agents">5 AI Staff agents</li>
+                            <li data-i18n="membership.feat_email_support">Email support</li>
                         </ul>
-                        <a href="#" class="btn btn--primary magnetic" style="width:100%;text-align:center;">Start Free Trial</a>
+                        <a href="#" class="pricing-card__cta" data-i18n="membership.cta_starter">Get Started</a>
+                    </div>
+
+                    <!-- Professional (Highlighted) -->
+                    <div class="pricing-card pricing-card--highlighted" data-tier="professional">
+                        <span class="pricing-card__badge" data-i18n="membership.popular">Popular</span>
+                        <h3 class="pricing-card__name" data-i18n="membership.tier_professional">Professional</h3>
+                        <p class="pricing-card__tagline" data-i18n="membership.tag_professional">For growing businesses</p>
+                        <div class="pricing-card__market" data-i18n="membership.market_professional">Market avg: $2,500/mo</div>
+                        <div class="pricing-card__price">$799<span class="pricing-card__price-period"> /mo</span></div>
+                        <div class="pricing-card__savings" data-i18n="membership.save_professional">Save 68%</div>
+                        <ul class="pricing-card__features">
+                            <li data-i18n="membership.feat_everything_starter">Everything in Starter</li>
+                            <li data-i18n="membership.feat_all_modules">All platform modules</li>
+                            <li data-i18n="membership.feat_2watch">2 Watch products included</li>
+                            <li data-i18n="membership.feat_social">Social Media Management</li>
+                            <li data-i18n="membership.feat_website">Website Designer</li>
+                            <li data-i18n="membership.feat_callcenter">Call Center</li>
+                            <li data-i18n="membership.feat_google">Google Work Suite</li>
+                            <li data-i18n="membership.feat_20agents">20 AI Staff agents</li>
+                            <li data-i18n="membership.feat_priority_support">Priority support</li>
+                        </ul>
+                        <a href="#" class="pricing-card__cta pricing-card__cta--primary" data-i18n="membership.cta_professional">Go Professional</a>
                     </div>
 
                     <!-- Enterprise -->
-                    <div class="glass-panel" style="padding:2rem;flex:1;min-width:280px;max-width:360px;display:flex;flex-direction:column;">
-                        <h3 style="font-family:'Orbitron',sans-serif;font-size:1.3rem;margin-bottom:0.5rem;">Enterprise</h3>
-                        <div style="font-size:2.5rem;font-weight:700;font-family:'Orbitron',sans-serif;margin-bottom:1.5rem;">Custom</div>
-                        <ul style="list-style:none;padding:0;margin:0 0 2rem;flex:1;">
-                            <li style="padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.06);">&#10003; Unlimited users</li>
-                            <li style="padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.06);">&#10003; Dedicated support</li>
-                            <li style="padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.06);">&#10003; Custom integrations</li>
-                            <li style="padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.06);">&#10003; SLA guarantee</li>
-                            <li style="padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.06);">&#10003; SOC 2 evidence reports</li>
-                            <li style="padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.06);">&#10003; On-premise deployment</li>
+                    <div class="pricing-card" data-tier="enterprise">
+                        <h3 class="pricing-card__name" data-i18n="membership.tier_enterprise">Enterprise</h3>
+                        <p class="pricing-card__tagline" data-i18n="membership.tag_enterprise">For organizations that need everything</p>
+                        <div class="pricing-card__market" data-i18n="membership.market_enterprise">Market avg: $5,000/mo</div>
+                        <div class="pricing-card__price">$1,499<span class="pricing-card__price-period"> /mo</span></div>
+                        <div class="pricing-card__savings" data-i18n="membership.save_enterprise">Save 70%</div>
+                        <ul class="pricing-card__features">
+                            <li data-i18n="membership.feat_everything_pro">Everything in Professional</li>
+                            <li data-i18n="membership.feat_all_watch">All Watch products</li>
+                            <li data-i18n="membership.feat_fleet">Fleet compute (Starbase)</li>
+                            <li data-i18n="membership.feat_custom_directors">Custom AI Directors</li>
+                            <li data-i18n="membership.feat_compliance_scan">Compliance scanning &amp; badges</li>
+                            <li data-i18n="membership.feat_studios">Media Studio &amp; Game Studio</li>
+                            <li data-i18n="membership.feat_unlimited_agents">Unlimited AI Staff</li>
+                            <li data-i18n="membership.feat_dedicated_support">Dedicated support + SLA</li>
                         </ul>
-                        <a href="contact.html" class="btn btn--outline magnetic" style="width:100%;text-align:center;">Contact Sales</a>
+                        <a href="contact.html" class="pricing-card__cta" data-i18n="membership.cta_enterprise">Contact Sales</a>
                     </div>
+
+                    <!-- VIP -->
+                    <div class="pricing-card pricing-card--vip" data-tier="vip">
+                        <h3 class="pricing-card__name" data-i18n="membership.tier_vip">VIP</h3>
+                        <p class="pricing-card__tagline" data-i18n="membership.tag_vip">By invitation only</p>
+                        <div class="pricing-card__market">&nbsp;</div>
+                        <div class="pricing-card__price pricing-card__price--invitation" data-i18n="membership.by_invitation">By Invitation</div>
+                        <div class="pricing-card__savings"></div>
+                        <ul class="pricing-card__features">
+                            <li data-i18n="membership.feat_unrestricted">Full unrestricted access</li>
+                            <li data-i18n="membership.feat_all_future">All current &amp; future products</li>
+                            <li data-i18n="membership.feat_direct_eng">Direct line to engineering</li>
+                            <li data-i18n="membership.feat_custom_int">Custom integrations</li>
+                            <li data-i18n="membership.feat_onboarding">White-glove onboarding</li>
+                        </ul>
+                        <a href="contact.html" class="pricing-card__cta pricing-card__cta--vip" data-i18n="membership.cta_vip">Request Invitation</a>
+                    </div>
+
                 </div>
             </div>
         </section>
 
+        <!-- ── Feature Comparison Table ── -->
         <section class="section">
             <div class="container">
-                <h2 class="section__title" data-split data-i18n="membership-compare-title">Feature Comparison</h2>
+                <h2 class="section__title" data-split data-i18n="membership.compare_title">Feature Comparison</h2>
                 <div class="glass-panel" style="padding:2rem;overflow-x:auto;">
-                    <table style="width:100%;border-collapse:collapse;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:0.9rem;">
+                    <table class="comparison-table">
                         <thead>
-                            <tr style="border-bottom:1px solid rgba(255,255,255,0.15);">
-                                <th style="text-align:left;padding:0.75rem 1rem;color:var(--text-secondary,#94a3b8);">Feature</th>
-                                <th style="padding:0.75rem 1rem;">Free</th>
-                                <th style="padding:0.75rem 1rem;color:var(--accent,#00e5ff);">Pro</th>
-                                <th style="padding:0.75rem 1rem;">Enterprise</th>
+                            <tr>
+                                <th data-i18n="membership.th_feature">Feature</th>
+                                <th data-i18n="membership.tier_explorer">Explorer</th>
+                                <th data-i18n="membership.tier_starter">Starter</th>
+                                <th class="comparison-table__th--highlighted" data-i18n="membership.tier_professional">Professional</th>
+                                <th data-i18n="membership.tier_enterprise">Enterprise</th>
+                                <th data-i18n="membership.tier_vip">VIP</th>
                             </tr>
                         </thead>
                         <tbody data-stagger>
-                            <tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="text-align:left;padding:0.75rem 1rem;">CRM</td><td>Basic</td><td>Full</td><td>Full</td></tr>
-                            <tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="text-align:left;padding:0.75rem 1rem;">Website Designer</td><td>&#10007;</td><td>&#10003;</td><td>&#10003;</td></tr>
-                            <tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="text-align:left;padding:0.75rem 1rem;">Store Builder</td><td>&#10007;</td><td>&#10003;</td><td>&#10003;</td></tr>
-                            <tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="text-align:left;padding:0.75rem 1rem;">Invoicing</td><td>&#10007;</td><td>&#10003;</td><td>&#10003;</td></tr>
-                            <tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="text-align:left;padding:0.75rem 1rem;">Content Studio</td><td>&#10007;</td><td>&#10003;</td><td>&#10003;</td></tr>
-                            <tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="text-align:left;padding:0.75rem 1rem;">Social Media</td><td>&#10007;</td><td>&#10003;</td><td>&#10003;</td></tr>
-                            <tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="text-align:left;padding:0.75rem 1rem;">AI Generation</td><td>&#10007;</td><td>&#10003;</td><td>&#10003;</td></tr>
-                            <tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="text-align:left;padding:0.75rem 1rem;">API Access</td><td>&#10007;</td><td>&#10003;</td><td>&#10003;</td></tr>
-                            <tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="text-align:left;padding:0.75rem 1rem;">Users</td><td>1</td><td>5</td><td>Unlimited</td></tr>
-                            <tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="text-align:left;padding:0.75rem 1rem;">Support</td><td>Community</td><td>Priority</td><td>Dedicated</td></tr>
-                            <tr><td style="text-align:left;padding:0.75rem 1rem;">SLA</td><td>&#10007;</td><td>&#10007;</td><td>&#10003;</td></tr>
+                            <tr>
+                                <td data-i18n="membership.feat_crm">CRM &amp; Contact Management</td>
+                                <td class="cross">&#10007;</td>
+                                <td class="check">&#10003;</td>
+                                <td class="check">&#10003;</td>
+                                <td class="check">&#10003;</td>
+                                <td class="check">&#10003;</td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="membership.feat_invoicing">Invoicing &amp; Payments</td>
+                                <td class="cross">&#10007;</td>
+                                <td class="check">&#10003;</td>
+                                <td class="check">&#10003;</td>
+                                <td class="check">&#10003;</td>
+                                <td class="check">&#10003;</td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="membership.feat_store">Store Builder</td>
+                                <td class="cross">&#10007;</td>
+                                <td class="check">&#10003;</td>
+                                <td class="check">&#10003;</td>
+                                <td class="check">&#10003;</td>
+                                <td class="check">&#10003;</td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="membership.feat_content">Content Studio</td>
+                                <td class="cross">&#10007;</td>
+                                <td class="check">&#10003;</td>
+                                <td class="check">&#10003;</td>
+                                <td class="check">&#10003;</td>
+                                <td class="check">&#10003;</td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="membership.feat_website">Website Designer</td>
+                                <td class="cross">&#10007;</td>
+                                <td class="cross">&#10007;</td>
+                                <td class="check">&#10003;</td>
+                                <td class="check">&#10003;</td>
+                                <td class="check">&#10003;</td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="membership.feat_social">Social Media Management</td>
+                                <td class="cross">&#10007;</td>
+                                <td class="cross">&#10007;</td>
+                                <td class="check">&#10003;</td>
+                                <td class="check">&#10003;</td>
+                                <td class="check">&#10003;</td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="membership.feat_callcenter">Call Center</td>
+                                <td class="cross">&#10007;</td>
+                                <td class="cross">&#10007;</td>
+                                <td class="check">&#10003;</td>
+                                <td class="check">&#10003;</td>
+                                <td class="check">&#10003;</td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="membership.feat_google">Google Work Suite</td>
+                                <td class="cross">&#10007;</td>
+                                <td class="cross">&#10007;</td>
+                                <td class="check">&#10003;</td>
+                                <td class="check">&#10003;</td>
+                                <td class="check">&#10003;</td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="membership.row_watch">Watch Products</td>
+                                <td class="cross">&#10007;</td>
+                                <td>1</td>
+                                <td>2</td>
+                                <td data-i18n="membership.all">All</td>
+                                <td data-i18n="membership.all">All</td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="membership.row_agents">AI Staff Agents</td>
+                                <td class="cross">&#10007;</td>
+                                <td>5</td>
+                                <td>20</td>
+                                <td data-i18n="membership.unlimited">Unlimited</td>
+                                <td data-i18n="membership.unlimited">Unlimited</td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="membership.feat_fleet">Fleet Compute (Starbase)</td>
+                                <td class="cross">&#10007;</td>
+                                <td class="cross">&#10007;</td>
+                                <td class="cross">&#10007;</td>
+                                <td class="check">&#10003;</td>
+                                <td class="check">&#10003;</td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="membership.feat_custom_directors">Custom AI Directors</td>
+                                <td class="cross">&#10007;</td>
+                                <td class="cross">&#10007;</td>
+                                <td class="cross">&#10007;</td>
+                                <td class="check">&#10003;</td>
+                                <td class="check">&#10003;</td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="membership.feat_compliance_scan">Compliance Scanning</td>
+                                <td class="cross">&#10007;</td>
+                                <td class="cross">&#10007;</td>
+                                <td class="cross">&#10007;</td>
+                                <td class="check">&#10003;</td>
+                                <td class="check">&#10003;</td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="membership.row_support">Support</td>
+                                <td data-i18n="membership.community">Community</td>
+                                <td data-i18n="membership.email">Email</td>
+                                <td data-i18n="membership.priority">Priority</td>
+                                <td data-i18n="membership.dedicated_sla">Dedicated + SLA</td>
+                                <td data-i18n="membership.direct_eng">Direct Engineering</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
         </section>
+
+        <!-- ── FAQ ── -->
+        <section class="section">
+            <div class="container">
+                <h2 class="section__title" data-split data-i18n="membership.faq_title">Frequently Asked Questions</h2>
+                <div class="faq-section" id="faqSection">
+
+                    <div class="faq-item">
+                        <button class="faq-item__question" aria-expanded="false">
+                            <span data-i18n="membership.faq_q1">What's included in each plan?</span>
+                            <span class="faq-item__icon">+</span>
+                        </button>
+                        <div class="faq-item__answer">
+                            <p data-i18n="membership.faq_a1">Each plan gives you access to a set of integrated business tools -- CRM, invoicing, content creation, and more. Higher tiers unlock additional modules like Website Designer, Social Media Management, and fleet compute. All plans include platform updates and access to the Trust Center.</p>
+                        </div>
+                    </div>
+
+                    <div class="faq-item">
+                        <button class="faq-item__question" aria-expanded="false">
+                            <span data-i18n="membership.faq_q2">How does billing work?</span>
+                            <span class="faq-item__icon">+</span>
+                        </button>
+                        <div class="faq-item__answer">
+                            <p data-i18n="membership.faq_a2">Plans are billed monthly. You can cancel anytime. Enterprise plans are billed annually with custom terms. There are no hidden fees -- the price you see is the price you pay.</p>
+                        </div>
+                    </div>
+
+                    <div class="faq-item">
+                        <button class="faq-item__question" aria-expanded="false">
+                            <span data-i18n="membership.faq_q3">Can I upgrade or downgrade?</span>
+                            <span class="faq-item__icon">+</span>
+                        </button>
+                        <div class="faq-item__answer">
+                            <p data-i18n="membership.faq_a3">Yes. You can upgrade at any time and the difference is prorated. Downgrading takes effect at the start of your next billing cycle. Your data is always preserved when changing plans.</p>
+                        </div>
+                    </div>
+
+                    <div class="faq-item">
+                        <button class="faq-item__question" aria-expanded="false">
+                            <span data-i18n="membership.faq_q4">What is the refund policy?</span>
+                            <span class="faq-item__icon">+</span>
+                        </button>
+                        <div class="faq-item__answer">
+                            <p data-i18n="membership.faq_a4">We offer a 14-day money-back guarantee on all paid plans. If the platform is not the right fit, contact us within 14 days for a full refund -- no questions asked.</p>
+                        </div>
+                    </div>
+
+                    <div class="faq-item">
+                        <button class="faq-item__question" aria-expanded="false">
+                            <span data-i18n="membership.faq_q5">How do the savings compare to buying separate tools?</span>
+                            <span class="faq-item__icon">+</span>
+                        </button>
+                        <div class="faq-item__answer">
+                            <p data-i18n="membership.faq_a5">We calculated market averages from leading competitors: Salesforce for CRM, Vanta for compliance, Shopify Plus for e-commerce, and more. A Professional plan replaces $2,500+/mo in separate subscriptions for just $799/mo -- a 68% savings.</p>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- ── Final CTA ── -->
+        <section class="section membership-cta">
+            <div class="container">
+                <h2 class="membership-cta__title" data-i18n="membership.final_cta_title">Not sure which plan is right for you?</h2>
+                <div class="membership-cta__actions">
+                    <a href="#" class="btn btn--primary magnetic" data-i18n="membership.cta_try_free">Try Explorer for Free</a>
+                    <a href="contact.html" class="btn btn--outline magnetic" data-i18n="membership.cta_talk_sales">Talk to Sales</a>
+                </div>
+            </div>
+        </section>
+
     </main>
 
     <!-- Footer -->
@@ -294,23 +525,6 @@
         </div>
     </footer>
 
-    <!-- Language Overlay -->
-    <div class="lang-overlay" id="langOverlay" hidden>
-        <div class="lang-overlay__panel glass-panel">
-            <h3>Select Language</h3>
-            <div class="lang-overlay__grid">
-                <button data-lang="en" class="lang-btn active">English</button>
-                <button data-lang="fr" class="lang-btn">Francais</button>
-                <button data-lang="es" class="lang-btn">Espanol</button>
-                <button data-lang="de" class="lang-btn">Deutsch</button>
-                <button data-lang="zh" class="lang-btn">中文</button>
-                <button data-lang="ja" class="lang-btn">日本語</button>
-                <button data-lang="ar" class="lang-btn" dir="rtl">العربية</button>
-                <button data-lang="he" class="lang-btn" dir="rtl">עברית</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Scripts -->
     <script defer src="js/lib/gsap.min.js?v=20260404b"></script>
     <script defer src="js/lib/ScrollTrigger.min.js?v=20260404b"></script>
@@ -322,5 +536,26 @@
     <script defer src="js/transitions.js?v=20260404b"></script>
     <script defer src="js/i18n.js?v=20260404b"></script>
     <script defer src="js/app.js?v=20260404b"></script>
+    <script>
+    /* FAQ accordion */
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.faq-item__question').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var item = btn.closest('.faq-item');
+                var isOpen = item.classList.contains('is-open');
+                /* close all */
+                document.querySelectorAll('.faq-item.is-open').forEach(function (el) {
+                    el.classList.remove('is-open');
+                    el.querySelector('.faq-item__question').setAttribute('aria-expanded', 'false');
+                });
+                /* toggle clicked */
+                if (!isOpen) {
+                    item.classList.add('is-open');
+                    btn.setAttribute('aria-expanded', 'true');
+                }
+            });
+        });
+    });
+    </script>
 </body>
 </html>

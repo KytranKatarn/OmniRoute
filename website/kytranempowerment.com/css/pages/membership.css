@@ -1,0 +1,435 @@
+/* Membership / Pricing Page Styles */
+
+/* ── Hero ── */
+.membership-hero {
+    padding-top: 8rem;
+    padding-bottom: 3rem;
+    text-align: center;
+}
+
+.membership-hero__title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.75rem;
+}
+
+.membership-hero__subtitle {
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--text-muted, #94a3b8);
+    font-size: 1.1rem;
+    max-width: 600px;
+    margin: 0 auto 2rem;
+}
+
+/* ── Pricing Grid ── */
+.pricing-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    padding: 0 1rem;
+    margin-bottom: 4rem;
+    align-items: start;
+}
+
+/* ── Card ── */
+.pricing-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 2rem 1.75rem;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    transition: border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.pricing-card:hover {
+    border-color: rgba(0, 229, 255, 0.3);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 32px rgba(0, 229, 255, 0.08);
+}
+
+/* ── Highlighted (Popular) ── */
+.pricing-card--highlighted {
+    border-color: rgba(139, 92, 246, 0.5);
+    background: rgba(139, 92, 246, 0.06);
+    transform: scale(1.03);
+    z-index: 2;
+}
+
+.pricing-card--highlighted:hover {
+    border-color: rgba(139, 92, 246, 0.7);
+    transform: scale(1.03) translateY(-4px);
+    box-shadow: 0 8px 40px rgba(139, 92, 246, 0.15);
+}
+
+.pricing-card__badge {
+    position: absolute;
+    top: -14px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #8b5cf6, #a78bfa);
+    color: #fff;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    padding: 0.35rem 1.25rem;
+    border-radius: 999px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+/* ── VIP Card ── */
+.pricing-card--vip {
+    border-color: rgba(251, 191, 36, 0.3);
+    background: rgba(251, 191, 36, 0.04);
+}
+
+.pricing-card--vip:hover {
+    border-color: rgba(251, 191, 36, 0.5);
+    box-shadow: 0 8px 32px rgba(251, 191, 36, 0.1);
+}
+
+/* ── Card Header ── */
+.pricing-card__name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+    color: var(--text-primary, #e2e8f0);
+}
+
+.pricing-card--highlighted .pricing-card__name {
+    color: #a78bfa;
+}
+
+.pricing-card--vip .pricing-card__name {
+    color: #fbbf24;
+}
+
+.pricing-card__tagline {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--text-muted, #94a3b8);
+    margin-bottom: 1.5rem;
+}
+
+/* ── Market Price (crossed out) ── */
+.pricing-card__market {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.9rem;
+    color: #64748b;
+    text-decoration: line-through;
+    margin-bottom: 0.25rem;
+    min-height: 1.4em;
+}
+
+/* ── Kytran Price ── */
+.pricing-card__price {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2.75rem;
+    font-weight: 700;
+    color: var(--accent, #00e5ff);
+    line-height: 1.1;
+    margin-bottom: 0.25rem;
+}
+
+.pricing-card__price-period {
+    font-size: 0.85rem;
+    font-weight: 400;
+    color: var(--text-muted, #94a3b8);
+}
+
+.pricing-card__price--invitation {
+    font-size: 1.6rem;
+    color: #fbbf24;
+    letter-spacing: 0.05em;
+}
+
+/* ── Savings Pill ── */
+.pricing-card__savings {
+    display: inline-block;
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 0.3rem 0.85rem;
+    border-radius: 999px;
+    margin-top: 0.5rem;
+    margin-bottom: 1.5rem;
+    min-height: 1.6em;
+}
+
+.pricing-card__savings:empty {
+    visibility: hidden;
+}
+
+/* ── Feature List ── */
+.pricing-card__features {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 2rem;
+    flex: 1;
+}
+
+.pricing-card__features li {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 0.9rem;
+    color: var(--text-secondary, #cbd5e1);
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.pricing-card__features li::before {
+    content: "\2713";
+    color: var(--accent, #00e5ff);
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.pricing-card--highlighted .pricing-card__features li::before {
+    color: #a78bfa;
+}
+
+.pricing-card--vip .pricing-card__features li::before {
+    color: #fbbf24;
+}
+
+/* ── CTA Button ── */
+.pricing-card__cta {
+    display: block;
+    width: 100%;
+    padding: 0.85rem 1.5rem;
+    text-align: center;
+    font-family: 'Antonio', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-decoration: none;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 229, 255, 0.4);
+    color: var(--accent, #00e5ff);
+    background: transparent;
+    cursor: pointer;
+    transition: background 0.3s, color 0.3s, border-color 0.3s, box-shadow 0.3s;
+}
+
+.pricing-card__cta:hover {
+    background: rgba(0, 229, 255, 0.1);
+    border-color: rgba(0, 229, 255, 0.7);
+    box-shadow: 0 0 20px rgba(0, 229, 255, 0.15);
+}
+
+.pricing-card__cta--primary {
+    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+    border-color: transparent;
+    color: #fff;
+}
+
+.pricing-card__cta--primary:hover {
+    background: linear-gradient(135deg, #a78bfa, #8b5cf6);
+    box-shadow: 0 0 24px rgba(139, 92, 246, 0.3);
+    border-color: transparent;
+}
+
+.pricing-card__cta--vip {
+    border-color: rgba(251, 191, 36, 0.4);
+    color: #fbbf24;
+}
+
+.pricing-card__cta--vip:hover {
+    background: rgba(251, 191, 36, 0.1);
+    border-color: rgba(251, 191, 36, 0.7);
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.15);
+}
+
+/* ── Feature Comparison Table ── */
+.comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+}
+
+.comparison-table thead th {
+    padding: 0.75rem 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    color: var(--text-muted, #94a3b8);
+    font-weight: 600;
+    text-align: center;
+    font-size: 0.8rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.comparison-table thead th:first-child {
+    text-align: left;
+}
+
+.comparison-table thead th.comparison-table__th--highlighted {
+    color: #a78bfa;
+}
+
+.comparison-table tbody td {
+    padding: 0.65rem 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    text-align: center;
+    color: var(--text-secondary, #cbd5e1);
+}
+
+.comparison-table tbody td:first-child {
+    text-align: left;
+    color: var(--text-primary, #e2e8f0);
+}
+
+.comparison-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.comparison-table .check {
+    color: var(--accent, #00e5ff);
+}
+
+.comparison-table .cross {
+    color: #475569;
+}
+
+/* ── FAQ Section ── */
+.faq-section {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.faq-item {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.faq-item__question {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 0;
+    background: none;
+    border: none;
+    color: var(--text-primary, #e2e8f0);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    transition: color 0.2s;
+}
+
+.faq-item__question:hover {
+    color: var(--accent, #00e5ff);
+}
+
+.faq-item__icon {
+    font-size: 1.5rem;
+    line-height: 1;
+    transition: transform 0.3s;
+    color: var(--text-muted, #94a3b8);
+    flex-shrink: 0;
+    margin-left: 1rem;
+}
+
+.faq-item.is-open .faq-item__icon {
+    transform: rotate(45deg);
+}
+
+.faq-item__answer {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.35s ease, padding 0.35s ease;
+    padding: 0 0;
+}
+
+.faq-item.is-open .faq-item__answer {
+    max-height: 300px;
+    padding: 0 0 1.25rem;
+}
+
+.faq-item__answer p {
+    color: var(--text-muted, #94a3b8);
+    font-size: 0.9rem;
+    line-height: 1.7;
+    margin: 0;
+}
+
+/* ── Final CTA ── */
+.membership-cta {
+    text-align: center;
+    padding: 4rem 0;
+}
+
+.membership-cta__title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(1.5rem, 3vw, 2rem);
+    font-weight: 700;
+    margin-bottom: 1rem;
+    color: var(--text-primary, #e2e8f0);
+}
+
+.membership-cta__actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+/* ── Responsive ── */
+
+/* Tablet: 2 columns, VIP spans full */
+@media (max-width: 1024px) {
+    .pricing-cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .pricing-card--highlighted {
+        transform: scale(1);
+    }
+
+    .pricing-card--highlighted:hover {
+        transform: translateY(-4px);
+    }
+}
+
+/* Mobile: single column */
+@media (max-width: 600px) {
+    .pricing-cards {
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+    }
+
+    .membership-hero {
+        padding-top: 6rem;
+    }
+
+    .pricing-card__price {
+        font-size: 2.25rem;
+    }
+
+    .comparison-table {
+        font-size: 0.75rem;
+    }
+
+    .comparison-table thead th,
+    .comparison-table tbody td {
+        padding: 0.5rem 0.4rem;
+    }
+
+    .membership-cta__actions {
+        flex-direction: column;
+        align-items: center;
+    }
+}

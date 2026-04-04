@@ -1,0 +1,73 @@
+{
+  "tiers": [
+    {
+      "id": "free",
+      "name": "Explorer",
+      "price": 0,
+      "period": "forever",
+      "market_avg": null,
+      "tagline": "See what's possible",
+      "features": ["Platform demo access", "View AI Directors", "Trust Center access", "Community resources"],
+      "cta": "Start Free",
+      "highlighted": false
+    },
+    {
+      "id": "starter",
+      "name": "Starter",
+      "price": 299,
+      "period": "mo",
+      "market_avg": 800,
+      "tagline": "For solo entrepreneurs & small teams",
+      "features": ["CRM & Contact Management", "Invoicing & Payments", "Store Builder", "Content Studio", "1 Watch product included", "5 AI Staff agents", "Email support"],
+      "cta": "Get Started",
+      "highlighted": false
+    },
+    {
+      "id": "professional",
+      "name": "Professional",
+      "price": 799,
+      "period": "mo",
+      "market_avg": 2500,
+      "tagline": "For growing businesses",
+      "features": ["Everything in Starter", "All platform modules", "2 Watch products included", "Social Media Management", "Website Designer", "Call Center", "Google Work Suite", "20 AI Staff agents", "Priority support"],
+      "cta": "Go Professional",
+      "highlighted": true
+    },
+    {
+      "id": "enterprise",
+      "name": "Enterprise",
+      "price": 1499,
+      "period": "mo",
+      "market_avg": 5000,
+      "tagline": "For organizations that need everything",
+      "features": ["Everything in Professional", "All Watch products", "Fleet compute (Starbase)", "Custom AI Directors", "Compliance scanning & badges", "Media Studio & Game Studio", "Unlimited AI Staff", "Dedicated support + SLA"],
+      "cta": "Contact Sales",
+      "highlighted": false
+    },
+    {
+      "id": "vip",
+      "name": "VIP",
+      "price": null,
+      "period": "invitation",
+      "market_avg": null,
+      "tagline": "By invitation only",
+      "features": ["Full unrestricted access", "All current & future products", "Direct line to engineering", "Custom integrations", "White-glove onboarding"],
+      "cta": "Request Invitation",
+      "highlighted": false
+    }
+  ],
+  "competitor_prices": {
+    "crm": { "tool": "Salesforce", "price": 300, "period": "mo", "label": "CRM & Contact Management" },
+    "compliance": { "tool": "Vanta", "price": 1250, "period": "mo", "label": "Compliance Scanning" },
+    "ai_agents": { "tool": "CrewAI Enterprise", "price": 200, "period": "mo", "label": "AI Agent Orchestration" },
+    "media": { "tool": "Adobe Creative Cloud", "price": 80, "period": "mo", "label": "Media Production" },
+    "website": { "tool": "Webflow", "price": 49, "period": "mo", "label": "Website Builder" },
+    "store": { "tool": "Shopify Plus", "price": 299, "period": "mo", "label": "E-Commerce Store" },
+    "invoicing": { "tool": "QuickBooks", "price": 90, "period": "mo", "label": "Invoicing & Accounting" },
+    "social": { "tool": "Hootsuite", "price": 99, "period": "mo", "label": "Social Media Management" },
+    "call_center": { "tool": "Zendesk", "price": 115, "period": "mo", "label": "Support & Call Center" },
+    "monitoring": { "tool": "Datadog", "price": 150, "period": "mo", "label": "Infrastructure Monitoring" },
+    "email": { "tool": "Google Workspace", "price": 18, "period": "mo/user", "label": "Email & Productivity" },
+    "security": { "tool": "Drata", "price": 833, "period": "mo", "label": "Security Compliance" }
+  }
+}

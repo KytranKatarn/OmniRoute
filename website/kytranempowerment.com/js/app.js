@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     /* ---- Core Initialization ---- */
     Nav.init();
+    I18n.init();
     Effects.init();
     Transitions.init();
 

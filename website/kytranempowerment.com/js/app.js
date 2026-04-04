@@ -47,6 +47,7 @@ document.addEventListener('DOMContentLoaded', function () {
     switch (namespace) {
         case 'home':
             if (typeof Hero !== 'undefined' && typeof Hero.init === 'function') Hero.init();
+            if (typeof HeroAnimations !== 'undefined' && typeof HeroAnimations.init === 'function') HeroAnimations.init();
             break;
         case 'directory':
             if (typeof Directory !== 'undefined' && typeof Directory.init === 'function') Directory.init();

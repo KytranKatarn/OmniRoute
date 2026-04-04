@@ -1,85 +1,179 @@
-/* nav.js — Navigation controller for kytranempowerment.com */
+/* nav.js — Navigation controller for kytranempowerment.com
+ * Handles: hamburger toggle, mobile accordion, desktop dropdowns,
+ * language overlay, escape key, active-language highlight.
+ */
 
 var Nav = (function () {
     'use strict';
 
-    var menuToggle, navLinks, langSwitcher, langOverlay;
+    var menuBtn, navMobile, langOverlay;
 
-    function toggleMenu() {
-        if (!navLinks || !menuToggle) return;
-        navLinks.classList.toggle('nav__links--open');
-        menuToggle.classList.toggle('nav__menu-btn--active');
+    /* ---- Helpers ---- */
+    function closeAllDropdowns() {
+        var triggers = document.querySelectorAll('.nav__dropdown-trigger');
+        triggers.forEach(function (t) { t.setAttribute('aria-expanded', 'false'); });
     }
 
-    function toggleLangOverlay() {
-        if (!langOverlay) return;
-        if (langOverlay.hidden) {
-            langOverlay.hidden = false;
-        } else {
-            langOverlay.hidden = true;
-        }
+    function closeMobile() {
+        if (!navMobile || !menuBtn) return;
+        navMobile.setAttribute('aria-hidden', 'true');
+        menuBtn.setAttribute('aria-expanded', 'false');
+        document.body.style.overflow = '';
+        // Collapse all mobile accordion sections
+        var mobileTriggers = navMobile.querySelectorAll('.nav-mobile__trigger');
+        mobileTriggers.forEach(function (t) { t.setAttribute('aria-expanded', 'false'); });
     }
 
     function closeLangOverlay() {
         if (langOverlay) langOverlay.hidden = true;
     }
 
-    function highlightActive() {
-        var path = window.location.pathname;
-        var links = document.querySelectorAll('.nav__link');
-        links.forEach(function (link) {
-            var href = link.getAttribute('href');
-            // Match exact path or filename
-            if (href === path || path.endsWith('/' + href) || (href === '/' && (path === '/' || path === '/index.html'))) {
-                link.classList.add('active');
-            } else {
-                link.classList.remove('active');
+    /* ---- Hamburger toggle ---- */
+    function toggleMobile() {
+        if (!navMobile || !menuBtn) return;
+        var isOpen = navMobile.getAttribute('aria-hidden') === 'false';
+        if (isOpen) {
+            closeMobile();
+        } else {
+            navMobile.setAttribute('aria-hidden', 'false');
+            menuBtn.setAttribute('aria-expanded', 'true');
+            document.body.style.overflow = 'hidden';
+        }
+    }
+
+    /* ---- Mobile accordion ---- */
+    function bindMobileAccordion() {
+        var triggers = document.querySelectorAll('.nav-mobile__trigger');
+        triggers.forEach(function (trigger) {
+            trigger.addEventListener('click', function () {
+                var expanded = trigger.getAttribute('aria-expanded') === 'true';
+                trigger.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+            });
+        });
+
+        // Close mobile nav when any link inside is clicked
+        if (navMobile) {
+            navMobile.addEventListener('click', function (e) {
+                if (e.target.tagName === 'A') {
+                    closeMobile();
+                }
+            });
+        }
+    }
+
+    /* ---- Desktop dropdowns ---- */
+    function bindDesktopDropdowns() {
+        var triggers = document.querySelectorAll('.nav__dropdown-trigger');
+        triggers.forEach(function (trigger) {
+            trigger.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var expanded = trigger.getAttribute('aria-expanded') === 'true';
+                // Close all other dropdowns first
+                closeAllDropdowns();
+                if (!expanded) {
+                    trigger.setAttribute('aria-expanded', 'true');
+                }
+            });
+        });
+
+        // Click outside closes all dropdowns
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest('.nav__dropdown')) {
+                closeAllDropdowns();
             }
         });
     }
 
-    function _bindLangButtons() {
-        var buttons = document.querySelectorAll('[data-lang]');
-        buttons.forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                var lang = btn.getAttribute('data-lang');
-                // Mark active button
-                buttons.forEach(function (b) { b.classList.remove('active'); });
-                btn.classList.add('active');
-                // Call Translate if available
-                if (typeof Translate !== 'undefined' && typeof Translate.setLanguage === 'function') {
-                    Translate.setLanguage(lang);
-                }
-                closeLangOverlay();
+    /* ---- Language overlay ---- */
+    function bindLangOverlay() {
+        var langBtn = document.querySelector('.nav__lang-btn');
+        var closeBtn = langOverlay ? langOverlay.querySelector('.lang-overlay__close') : null;
+
+        if (langBtn) {
+            langBtn.addEventListener('click', function () {
+                if (!langOverlay) return;
+                langOverlay.hidden = !langOverlay.hidden;
             });
-        });
-    }
+        }
 
-    function init() {
-        menuToggle = document.getElementById('menuToggle');
-        navLinks = document.getElementById('navLinks');
-        langSwitcher = document.getElementById('langSwitcher');
-        langOverlay = document.getElementById('langOverlay');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', closeLangOverlay);
+        }
 
-        if (menuToggle) menuToggle.addEventListener('click', toggleMenu);
-        if (langSwitcher) langSwitcher.addEventListener('click', toggleLangOverlay);
-
-        // Close overlay when clicking outside the panel
+        // Click outside panel closes overlay
         if (langOverlay) {
             langOverlay.addEventListener('click', function (e) {
                 if (e.target === langOverlay) closeLangOverlay();
             });
         }
+    }
 
-        _bindLangButtons();
-        highlightActive();
+    /* ---- Language selection ---- */
+    function bindLangButtons() {
+        var buttons = document.querySelectorAll('.lang-overlay__btn');
+        buttons.forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var lang = btn.getAttribute('data-lang');
+                // Mark active
+                buttons.forEach(function (b) { b.classList.remove('active'); });
+                btn.classList.add('active');
+                // Dispatch to i18n system
+                if (typeof window.I18n !== 'undefined' && typeof window.I18n.setLang === 'function') {
+                    window.I18n.setLang(lang);
+                } else if (typeof Translate !== 'undefined' && typeof Translate.setLanguage === 'function') {
+                    Translate.setLanguage(lang);
+                }
+                // Persist choice
+                try { localStorage.setItem('ke-lang', lang); } catch (e) { /* noop */ }
+                closeLangOverlay();
+            });
+        });
+    }
+
+    /* ---- Active language highlight ---- */
+    function highlightActiveLang() {
+        var lang;
+        try { lang = localStorage.getItem('ke-lang'); } catch (e) { /* noop */ }
+        if (!lang) return;
+        var buttons = document.querySelectorAll('.lang-overlay__btn');
+        buttons.forEach(function (btn) {
+            if (btn.getAttribute('data-lang') === lang) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+    }
+
+    /* ---- Escape key ---- */
+    function bindEscape() {
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                closeMobile();
+                closeAllDropdowns();
+                closeLangOverlay();
+            }
+        });
+    }
+
+    /* ---- Init ---- */
+    function init() {
+        menuBtn = document.querySelector('.nav__menu-btn');
+        navMobile = document.getElementById('navMobile');
+        langOverlay = document.querySelector('.lang-overlay');
+
+        if (menuBtn) menuBtn.addEventListener('click', toggleMobile);
+
+        bindMobileAccordion();
+        bindDesktopDropdowns();
+        bindLangOverlay();
+        bindLangButtons();
+        highlightActiveLang();
+        bindEscape();
     }
 
     return {
         init: init,
-        toggleMenu: toggleMenu,
-        toggleLangOverlay: toggleLangOverlay,
-        closeLangOverlay: closeLangOverlay,
-        highlightActive: highlightActive
+        closeMobile: closeMobile
     };
 })();

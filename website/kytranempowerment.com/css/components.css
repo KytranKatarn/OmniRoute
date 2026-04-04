@@ -141,6 +141,9 @@
     width: 32px;
     height: 32px;
     padding: 4px;
+    cursor: pointer;
+    background: none;
+    border: none;
 }
 
 .nav__menu-btn span {
@@ -163,6 +166,29 @@
 
 .nav__menu-btn.is-open span:nth-child(3) {
     transform: translateY(-7px) rotate(-45deg);
+}
+
+/* Nav brand (Task 1 — logo restore, used in Task 3 nav rewrite) */
+.nav__logo-img {
+  height: 40px;
+  width: auto;
+  object-fit: contain;
+}
+
+.nav__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  text-decoration: none;
+  color: var(--color-text);
+}
+
+.nav__brand-text {
+  font-family: var(--font-nav);
+  font-size: 1.2rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-primary);
 }
 
 /* --------------------------------------------------------------------------

@@ -1,12 +1,27 @@
 <!DOCTYPE html>
 <html lang="en" data-barba="wrapper">
 <head>
+    <!-- Google Analytics (fires only after consent) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-PLACEHOLDER"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('consent', 'default', { analytics_storage: 'denied' });
+      if (localStorage.getItem('ke-cookie-consent') === 'accepted') {
+        gtag('consent', 'update', { analytics_storage: 'granted' });
+        gtag('config', 'G-PLACEHOLDER', { anonymize_ip: true });
+      }
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kytran Empowerment — AI-Powered Business Platform</title>
     <meta name="description" content="Kytran Empowerment — AI-powered business automation platform with 16 departments, 122 agents, and enterprise compliance built in.">
     <meta name="theme-color" content="#0a0a1a">
-    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="favicon.ico" sizes="32x32">
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+    <link rel="manifest" href="site.webmanifest">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
@@ -575,6 +590,36 @@
                 }
             }
         ]
+    }
+    </script>
+    <!-- Cookie Consent -->
+    <div id="cookieConsent" class="cookie-consent" style="display:none;">
+      <div class="cookie-consent__inner">
+        <p class="cookie-consent__text" data-i18n="cookie.text">We use cookies to improve your experience and analyze site traffic. By continuing, you agree to our use of cookies.</p>
+        <div class="cookie-consent__actions">
+          <button class="cookie-consent__btn cookie-consent__btn--accept" onclick="acceptCookies()" data-i18n="cookie.accept">Accept</button>
+          <button class="cookie-consent__btn cookie-consent__btn--decline" onclick="declineCookies()" data-i18n="cookie.decline">Decline</button>
+        </div>
+      </div>
+    </div>
+    <script>
+    (function() {
+      var consent = localStorage.getItem('ke-cookie-consent');
+      if (!consent) {
+        document.getElementById('cookieConsent').style.display = 'block';
+      }
+    })();
+    function acceptCookies() {
+      localStorage.setItem('ke-cookie-consent', 'accepted');
+      document.getElementById('cookieConsent').style.display = 'none';
+      if (typeof gtag === 'function') {
+        gtag('consent', 'update', { analytics_storage: 'granted' });
+        gtag('config', 'G-PLACEHOLDER', { anonymize_ip: true });
+      }
+    }
+    function declineCookies() {
+      localStorage.setItem('ke-cookie-consent', 'declined');
+      document.getElementById('cookieConsent').style.display = 'none';
     }
     </script>
 </body>

@@ -1,8 +1,26 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- Google Analytics (fires only after consent) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-PLACEHOLDER"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('consent', 'default', { analytics_storage: 'denied' });
+      if (localStorage.getItem('ke-cookie-consent') === 'accepted') {
+        gtag('consent', 'update', { analytics_storage: 'granted' });
+        gtag('config', 'G-PLACEHOLDER', { anonymize_ip: true });
+      }
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="favicon.ico" sizes="32x32">
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+    <link rel="manifest" href="site.webmanifest">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <title>Access Denied - Network Security</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
@@ -79,6 +97,36 @@
         var domain = params.get('domain') || 'unknown domain';
         document.getElementById('blocked-domain').textContent = domain;
         document.title = 'Blocked: ' + domain + ' - A.R.C.H.I.E. Security';
+    </script>
+    <!-- Cookie Consent -->
+    <div id="cookieConsent" class="cookie-consent" style="display:none;">
+      <div class="cookie-consent__inner">
+        <p class="cookie-consent__text" data-i18n="cookie.text">We use cookies to improve your experience and analyze site traffic. By continuing, you agree to our use of cookies.</p>
+        <div class="cookie-consent__actions">
+          <button class="cookie-consent__btn cookie-consent__btn--accept" onclick="acceptCookies()" data-i18n="cookie.accept">Accept</button>
+          <button class="cookie-consent__btn cookie-consent__btn--decline" onclick="declineCookies()" data-i18n="cookie.decline">Decline</button>
+        </div>
+      </div>
+    </div>
+    <script>
+    (function() {
+      var consent = localStorage.getItem('ke-cookie-consent');
+      if (!consent) {
+        document.getElementById('cookieConsent').style.display = 'block';
+      }
+    })();
+    function acceptCookies() {
+      localStorage.setItem('ke-cookie-consent', 'accepted');
+      document.getElementById('cookieConsent').style.display = 'none';
+      if (typeof gtag === 'function') {
+        gtag('consent', 'update', { analytics_storage: 'granted' });
+        gtag('config', 'G-PLACEHOLDER', { anonymize_ip: true });
+      }
+    }
+    function declineCookies() {
+      localStorage.setItem('ke-cookie-consent', 'declined');
+      document.getElementById('cookieConsent').style.display = 'none';
+    }
     </script>
 </body>
 </html>

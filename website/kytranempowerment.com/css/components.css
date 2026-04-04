@@ -760,3 +760,57 @@
 .cta-section {
     padding-bottom: var(--space-section);
 }
+
+/* --------------------------------------------------------------------------
+   Cookie Consent Banner
+   -------------------------------------------------------------------------- */
+.cookie-consent {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    background: rgba(10, 10, 26, 0.95);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid rgba(0, 229, 255, 0.15);
+    padding: 1rem 1.5rem;
+}
+.cookie-consent__inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.cookie-consent__text {
+    font-size: 0.85rem;
+    color: #999;
+    flex: 1;
+    min-width: 200px;
+}
+.cookie-consent__actions {
+    display: flex;
+    gap: 0.5rem;
+}
+.cookie-consent__btn {
+    padding: 0.5rem 1.25rem;
+    border-radius: 4px;
+    font-family: var(--font-nav);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    border: none;
+}
+.cookie-consent__btn--accept {
+    background: var(--color-primary);
+    color: var(--color-base);
+}
+.cookie-consent__btn--decline {
+    background: transparent;
+    color: var(--color-text-muted);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}

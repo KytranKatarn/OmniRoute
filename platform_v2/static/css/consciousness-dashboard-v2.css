@@ -239,6 +239,156 @@
     cursor: not-allowed;
 }
 
+/* --- Agent Expertise Panel --- */
+
+.cs-expertise-project-tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+.cs-expertise-tab {
+    padding: 4px 12px;
+    border-radius: 4px;
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-family: 'Antonio', sans-serif;
+    text-transform: uppercase;
+    transition: all 0.2s;
+}
+
+.cs-expertise-tab.active {
+    background: rgba(139, 92, 246, 0.2);
+    color: #8b5cf6;
+    border-color: #8b5cf6;
+}
+
+.cs-expertise-tab:hover:not(.active) {
+    border-color: rgba(139, 92, 246, 0.5);
+    color: #cbd5e1;
+}
+
+.cs-expertise-section-title {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.85rem;
+    color: #8b5cf6;
+    text-transform: uppercase;
+    margin: 16px 0 8px 0;
+    letter-spacing: 0.5px;
+}
+
+.cs-expertise-section-title:first-child {
+    margin-top: 0;
+}
+
+.cs-expertise-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    margin-bottom: 12px;
+}
+
+.cs-expertise-table th {
+    text-align: left;
+    padding: 8px 12px;
+    color: #8b5cf6;
+    font-family: 'Antonio', sans-serif;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    border-bottom: 1px solid rgba(139, 92, 246, 0.25);
+}
+
+.cs-expertise-table td {
+    padding: 8px 12px;
+    color: #cbd5e1;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.cs-expertise-score-bar {
+    display: inline-block;
+    width: 60px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+    vertical-align: middle;
+    margin-right: 6px;
+}
+
+.cs-expertise-score-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.4s ease;
+}
+
+.cs-expertise-score-fill.high { background: #10b981; }
+.cs-expertise-score-fill.mid { background: #fbbf24; }
+.cs-expertise-score-fill.low { background: #ef4444; }
+
+.cs-expertise-score-num {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #e2e8f0;
+}
+
+.cs-recommended-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: rgba(139, 92, 246, 0.06);
+    border: 1px solid rgba(139, 92, 246, 0.15);
+    border-radius: 6px;
+    margin-bottom: 8px;
+}
+
+.cs-recommended-info {
+    flex: 1;
+}
+
+.cs-recommended-name {
+    font-size: 0.9rem;
+    color: #e2e8f0;
+    font-weight: 500;
+}
+
+.cs-recommended-dept {
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-top: 2px;
+}
+
+.cs-skill-chips {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.cs-skill-chip {
+    font-size: 0.65rem;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(0, 229, 255, 0.12);
+    color: #00e5ff;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.cs-director-badge {
+    font-size: 0.6rem;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+    font-weight: 700;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
 @media (max-width: 768px) {
     .cs-gap-row {
         flex-direction: column;
@@ -253,6 +403,17 @@
     .cs-contrib-filters {
         flex-wrap: wrap;
     }
+    .cs-expertise-project-tabs {
+        gap: 4px;
+    }
+    .cs-expertise-table {
+        font-size: 0.8rem;
+    }
+    .cs-recommended-card {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
 }
 
 @media (max-width: 480px) {
@@ -262,5 +423,12 @@
     .cs-gap-action-btn {
         flex: 1;
         text-align: center;
+    }
+    .cs-expertise-tab {
+        font-size: 0.7rem;
+        padding: 3px 8px;
+    }
+    .cs-expertise-score-bar {
+        width: 40px;
     }
 }

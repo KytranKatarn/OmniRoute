@@ -3735,6 +3735,7 @@ class BridgeDispatcher:
         job_id: Optional[int] = None,
         prefer_agent: Optional[str] = None,
         local_only: bool = False,
+        project_id: Optional[int] = None,
     ) -> DispatchResult:
         """
         Main entry point — request AI work by capability.
@@ -4603,6 +4604,7 @@ class BridgeDispatcher:
         system_prompt: Optional[str] = None,
         user_id: Optional[int] = None,
         timeout: int = 120,
+        project_id: Optional[int] = None,
     ) -> Dict:
         """
         Convenience method for JSON-mode requests.
@@ -4616,6 +4618,7 @@ class BridgeDispatcher:
             user_id=user_id,
             json_mode=True,
             timeout=timeout,
+            project_id=project_id,
         )
         if result.success:
             try:
@@ -5235,8 +5238,8 @@ class BridgeDispatcher:
             cur.execute(
                 """
                 INSERT INTO bridge_jobs (job_type, module_source, description,
-                    total_steps, status, agent_name, station_code, metadata)
-                VALUES (%s, %s, %s, %s, 'running', %s, %s, %s)
+                    total_steps, status, agent_name, station_code, metadata, project_id)
+                VALUES (%s, %s, %s, %s, 'running', %s, %s, %s, %s)
                 RETURNING id
                 """,
                 (
@@ -5247,6 +5250,7 @@ class BridgeDispatcher:
                     agent_name,
                     station_code,
                     json.dumps(enriched_meta),
+                    project_id,
                 ),
             )
             job_id = cur.fetchone()[0]
@@ -7333,6 +7337,7 @@ def dispatch(
         except (ValueError, TypeError):
             user_id = None
 
+    project_id = kwargs.pop("project_id", None)
     return get_dispatcher().request_work(
         capability=capability,
         prompt=prompt,
@@ -7340,6 +7345,7 @@ def dispatch(
         system_prompt=system_prompt,
         user_id=user_id,
         json_mode=json_mode,
+        project_id=project_id,
         **kwargs,
     )
 
@@ -7374,11 +7380,13 @@ def dispatch_json(
         except (ValueError, TypeError):
             user_id = None
 
+    project_id = kwargs.pop("project_id", None)
     return get_dispatcher().request_json(
         capability=capability,
         prompt=prompt,
         module_id=module_id,
         system_prompt=system_prompt,
         user_id=user_id,
+        project_id=project_id,
         **kwargs,
     )

@@ -729,6 +729,8 @@ async function openAgentDetail(agentId) {
             + '</select></div></div>'
             + '<label class="dhq-form-label">Appearance Notes</label>'
             + '<textarea id="identity-appearance" class="dhq-textarea" rows="2" placeholder="Distinguishing features..."></textarea>'
+            + '<label class="dhq-form-label">Email</label>'
+            + '<input id="identity-email" class="dhq-input" type="email" placeholder="agent@kytranempowerment.com">'
             + '<div class="dhq-form-actions">'
             + '<button class="dhq-action-btn dhq-action-save" onclick="saveIdentity(' + a.id + ')">Save Identity</button>'
             + '<button class="dhq-action-btn" onclick="toggleIdentityEdit(' + a.id + ')">Cancel</button>'
@@ -889,6 +891,9 @@ async function loadAgentIdentity(agentId) {
         if (id.appearance_notes) {
             html += '<div class="dhq-identity-appearance">' + esc(id.appearance_notes) + '</div>';
         }
+        if (id.email) {
+            html += '<div class="dhq-identity-email" style="margin-top:0.3rem"><span style="color:#8b8b8b">Email:</span> <a href="mailto:' + esc(id.email) + '" style="color:#00e5ff">' + esc(id.email) + '</a></div>';
+        }
         if (!id.bio && traits.length === 0) {
             html += '<div class="dhq-empty" style="padding:0.3rem">No identity data yet. Click Edit to add.</div>';
         }
@@ -948,6 +953,7 @@ function toggleIdentityEdit(agentId) {
             document.getElementById('identity-ethnicity').value = id.ethnicity || '';
             document.getElementById('identity-age').value = id.age_range || '';
             document.getElementById('identity-appearance').value = id.appearance_notes || '';
+            document.getElementById('identity-email').value = id.email || '';
         });
     }
 }
@@ -959,6 +965,7 @@ async function saveIdentity(agentId) {
         ethnicity: document.getElementById('identity-ethnicity').value,
         age_range: document.getElementById('identity-age').value,
         appearance_notes: document.getElementById('identity-appearance').value,
+        email: document.getElementById('identity-email').value,
     };
     try {
         var resp = await apiPost('/api/agent/' + agentId + '/identity', body);

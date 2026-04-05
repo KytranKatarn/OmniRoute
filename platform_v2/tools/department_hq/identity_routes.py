@@ -58,6 +58,7 @@ def register_identity_routes(bp, admin_required):
                         "appearance_notes": identity.get("appearance_notes") or "",
                         "portrait_prompt": identity.get("portrait_prompt") or "",
                         "avatar_url": identity.get("avatar_url") or "",
+                        "email": identity.get("email") or "",
                     },
                     "portraits": portraits,
                     "gallery": gallery,
@@ -85,6 +86,7 @@ def register_identity_routes(bp, admin_required):
                 age_range=data.get("age_range"),
                 appearance_notes=data.get("appearance_notes"),
                 portrait_prompt=data.get("portrait_prompt"),
+                email=data.get("email"),
             )
 
             return jsonify({"success": True, "updated": updated})

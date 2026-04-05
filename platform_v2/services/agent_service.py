@@ -540,7 +540,7 @@ def get_identity(agent_id):
         cur.execute(
             """SELECT id, name, display_name, department, floor, is_department_ai,
                       bio, gender, ethnicity, age_range, appearance_notes, portrait_prompt,
-                      model, system_prompt, avatar_url
+                      model, system_prompt, avatar_url, email
                FROM agents WHERE id = %s""",
             (agent_id,),
         )
@@ -550,7 +550,7 @@ def get_identity(agent_id):
 
 def update_identity(agent_id, **fields):
     """Update agent identity fields (bio, gender, ethnicity, age_range, appearance_notes, portrait_prompt)."""
-    allowed = {"bio", "gender", "ethnicity", "age_range", "appearance_notes", "portrait_prompt"}
+    allowed = {"bio", "gender", "ethnicity", "age_range", "appearance_notes", "portrait_prompt", "email"}
     filtered = {k: v for k, v in fields.items() if k in allowed}
     if not filtered:
         return False
@@ -578,8 +578,8 @@ def add_portrait(agent_id, prompt, style="professional", negative_prompt=""):
     """
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
-            """INSERT INTO agent_portraits (agent_id, prompt, negative_prompt, style, generation_status)
-               VALUES (%s, %s, %s, %s, 'queued') RETURNING id""",
+            """INSERT INTO agent_portraits (agent_id, prompt, negative_prompt, style, generation_status, is_primary)
+               VALUES (%s, %s, %s, %s, 'queued', false) RETURNING id""",
             (agent_id, prompt, negative_prompt, style),
         )
         portrait_id = cur.fetchone()["id"]

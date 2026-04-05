@@ -28,6 +28,8 @@ class KnowledgeEmbeddingGenerator:
         model: str = "arctic-embed-cpu",
         dimension: int = 768,
     ):
+        if ollama_url and not ollama_url.startswith("http"):
+            ollama_url = "http://" + ollama_url
         self.ollama_url = ollama_url
         self.model = model
         self.dimension = dimension

@@ -5032,6 +5032,7 @@ class BridgeDispatcher:
         total_steps: int,
         capability: Optional[str] = None,
         metadata: Optional[Dict] = None,
+        project_id: Optional[int] = None,
     ) -> Optional[int]:
         """Create a new bridge job for tracking multi-step operations.
 
@@ -5047,6 +5048,7 @@ class BridgeDispatcher:
             capability: Bridge capability key for agent resolution (e.g. 'translate').
                         Falls back to parsing from job_type if not provided.
             metadata: Additional job metadata (language, batch_size, etc.).
+            project_id: Optional project ID to tag this job with.
 
         Returns:
             job_id on success, None on failure or duplicate.

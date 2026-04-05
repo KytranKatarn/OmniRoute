@@ -128,6 +128,13 @@ class AdGuardService:
     def get_clients(self) -> Optional[Dict]:
         return self._request("GET", "clients")
 
+    def get_persistent_clients(self) -> Optional[List[Dict]]:
+        """Get AdGuard persistent client list (named devices with IPs/MACs)."""
+        result = self._request("GET", "clients")
+        if result and isinstance(result, dict):
+            return result.get("clients", [])
+        return []
+
     # --- Filtering Check ---
     def check_host(self, domain: str) -> Optional[Dict]:
         """Check if a domain is blocked by any filter (user rules + all filter lists)."""

@@ -39,11 +39,7 @@ def _log_cycle(
     error_message: str = None,
 ):
     """Log an agent loop execution cycle to autonomy_loop_log."""
-    status = (
-        "error"
-        if items_failed > 0 and items_processed == 0
-        else "partial" if items_failed > 0 else "success"
-    )
+    status = "error" if items_failed > 0 and items_processed == 0 else "partial" if items_failed > 0 else "success"
     try:
         from database import get_db_cursor
 
@@ -144,11 +140,7 @@ def run_security_audit():
                 text=True,
                 timeout=5,
             )
-            if (
-                "5432" in r.stdout
-                and "Anywhere" in r.stdout
-                and "192.168.1.0/24" not in r.stdout
-            ):
+            if "5432" in r.stdout and "Anywhere" in r.stdout and "192.168.1.0/24" not in r.stdout:
                 issues.append("PostgreSQL port 5432 may be exposed to internet")
         except Exception:
             pass
@@ -231,11 +223,7 @@ def check_ssl_expiry():
                     days_left = (expiry - datetime.utcnow()).days
 
                     if days_left <= 14:
-                        priority = (
-                            "critical"
-                            if days_left <= 3
-                            else "high" if days_left <= 7 else "normal"
-                        )
+                        priority = "critical" if days_left <= 3 else "high" if days_left <= 7 else "normal"
                         create_security_alert(
                             "ssl_expiry",
                             f"SSL cert expiring: {domain}",
@@ -243,9 +231,7 @@ def check_ssl_expiry():
                             priority=priority,
                             telegram=True,
                         )
-                        logger.warning(
-                            f"SSL cert expiry: {domain} expires in {days_left} days"
-                        )
+                        logger.warning(f"SSL cert expiry: {domain} expires in {days_left} days")
             except Exception:
                 pass  # Can't check this domain
 
@@ -339,9 +325,7 @@ def detect_query_spike():
                     priority="high",
                     telegram=True,
                 )
-                logger.warning(
-                    f"Query spike: {block_rate:.0%} blocked ({blocked}/{queries})"
-                )
+                logger.warning(f"Query spike: {block_rate:.0%} blocked ({blocked}/{queries})")
     except Exception as e:
         logger.warning(f"Failed: {e}")
 
@@ -415,9 +399,7 @@ def run_auto_block():
                                 priority="high",
                                 telegram=True,
                             )
-                            logger.info(
-                                f"Auto-block: executed suggestion #{suggestion['id']} ({stype})"
-                            )
+                            logger.info(f"Auto-block: executed suggestion #{suggestion['id']} ({stype})")
                         except Exception as e:
                             logger.warning(f"Failed: {e}")
     except Exception as e:
@@ -458,11 +440,13 @@ def run_scheduled_compliance_scan():
             from tools.security_network.security_alerts import create_security_alert
 
             with get_db_cursor() as (conn, cur):
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT score FROM compliance_scans
                     WHERE completed_at IS NOT NULL
                     ORDER BY started_at DESC LIMIT 2
-                """)
+                """
+                )
                 rows = cur.fetchall()
                 if len(rows) >= 2:
                     new_score = float(rows[0]["score"])
@@ -509,11 +493,7 @@ def run_auto_remediation():
         with get_db_cursor(commit=False) as (conn, cur):
             cur.execute("SELECT pack_id, rules FROM compliance_rule_packs")
             for pack_row in cur.fetchall():
-                rules = (
-                    pack_row["rules"]
-                    if isinstance(pack_row["rules"], list)
-                    else _json.loads(pack_row["rules"])
-                )
+                rules = pack_row["rules"] if isinstance(pack_row["rules"], list) else _json.loads(pack_row["rules"])
                 for rule in rules:
                     rid = rule.get("rule_id", "")
                     fix = rule.get("fix", {})
@@ -542,9 +522,7 @@ def run_auto_remediation():
                         fix_result.get("error", "unknown"),
                     )
             except Exception as fix_err:
-                logger.warning(
-                    "Auto-remediation: error fixing %s: %s", rule_id, fix_err
-                )
+                logger.warning("Auto-remediation: error fixing %s: %s", rule_id, fix_err)
 
         if fixed > 0 or skipped > 0:
             logger.info(
@@ -571,9 +549,7 @@ def collect_traffic_stats():
         svc = NtopngService()
         if not svc.is_healthy():
             logger.warning("collect_traffic_stats: ntopng unavailable, skipping")
-            _log_cycle(
-                "collect_traffic_stats", 0, 0, 0, error_message="ntopng unavailable"
-            )
+            _log_cycle("collect_traffic_stats", 0, 0, 0, error_message="ntopng unavailable")
             return
 
         # Discover the active (non-loopback) interface
@@ -599,9 +575,7 @@ def collect_traffic_stats():
             )
             return
 
-        logger.debug(
-            f"collect_traffic_stats: {len(local_host_list)} local hosts to process"
-        )
+        logger.debug(f"collect_traffic_stats: {len(local_host_list)} local hosts to process")
 
         with get_db_cursor(commit=True) as (conn, cur):
             for host in local_host_list:
@@ -653,9 +627,7 @@ def collect_traffic_stats():
 
         dur = int((time.time() - t0) * 1000)
         if processed > 0:
-            logger.info(
-                f"collect_traffic_stats: {processed} devices stored, {failed} failed ({dur}ms)"
-            )
+            logger.info(f"collect_traffic_stats: {processed} devices stored, {failed} failed ({dur}ms)")
         _log_cycle(
             "collect_traffic_stats",
             processed,
@@ -667,9 +639,7 @@ def collect_traffic_stats():
     except Exception as e:
         dur = int((time.time() - t0) * 1000)
         logger.error(f"collect_traffic_stats failed: {e}")
-        _log_cycle(
-            "collect_traffic_stats", processed, failed, dur, error_message=str(e)
-        )
+        _log_cycle("collect_traffic_stats", processed, failed, dur, error_message=str(e))
 
 
 # NOTE: pattern_compliance_check is registered in dev_hq/jobs.py (code quality job)
@@ -790,9 +760,7 @@ def collect_dns_history():
                 "total_entries": len(entries),
             },
         )
-        logger.info(
-            f"[collect_dns_history] upserted {inserted} buckets, skipped {skipped} entries ({dur}ms)"
-        )
+        logger.info(f"[collect_dns_history] upserted {inserted} buckets, skipped {skipped} entries ({dur}ms)")
 
     except Exception as e:
         dur = int((time.time() - t0) * 1000)
@@ -803,6 +771,188 @@ def collect_dns_history():
 # ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
+
+
+def sync_device_mappings():
+    """Sync device-user mappings from AdGuard persistent clients into network_device_users.
+
+    AdGuard persistent clients use IPs (not MACs) as identifiers, so we join against
+    the network_devices table to resolve IP -> MAC. Each client's name becomes the
+    user_name and device_label for that MAC.
+
+    Runs every 6 hours — device names don't change often.
+    """
+    import re
+    import time as _time
+
+    MAC_RE = re.compile(r"^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$")
+
+    def _infer_device_type(name: str, tags: list = None) -> str:
+        # AdGuard tags take priority
+        if tags:
+            tag_map = {
+                "device_phone": "phone",
+                "device_tablet": "tablet",
+                "device_laptop": "laptop",
+                "device_pc": "desktop",
+                "device_tv": "media",
+                "device_gameconsole": "media",
+                "device_printer": "printer",
+                "device_camera": "camera",
+                "device_nas": "server",
+            }
+            for tag in tags:
+                if tag in tag_map:
+                    return tag_map[tag]
+        n = name.lower()
+        if any(k in n for k in ("iphone", "android", "phone", "pixel", "galaxy", "mobile")):
+            return "phone"
+        if any(k in n for k in ("ipad", "tablet", "kindle")):
+            return "tablet"
+        if any(k in n for k in ("laptop", "macbook", "notebook", "chromebook")):
+            return "laptop"
+        if any(k in n for k in ("desktop", "pc", "imac", "workstation", "tower", "gaming", "rig")):
+            return "desktop"
+        if any(k in n for k in ("tv", "firestick", "roku", "appletv", "chromecast", "shield")):
+            return "media"
+        if any(k in n for k in ("printer", "scanner")):
+            return "printer"
+        if any(k in n for k in ("camera", "cam", "doorbell", "ring", "nest")):
+            return "camera"
+        if any(k in n for k in ("router", "switch", "access point", "ap ", "hub")):
+            return "network"
+        if any(k in n for k in ("nas", "server", "synology", "qnap")):
+            return "server"
+        if any(k in n for k in ("watch", "band", "fitbit")):
+            return "wearable"
+        return "unknown"
+
+    t0 = _time.time()
+    upserted = 0
+    skipped = 0
+    failed = 0
+
+    try:
+        from .adguard_service import AdGuardService
+        from database import get_db_cursor
+
+        ag = AdGuardService()
+        clients = ag.get_persistent_clients()
+        if not clients:
+            logger.info("[sync_device_mappings] No persistent clients returned from AdGuard")
+            return
+
+        # Build ip -> (name, device_type) from AdGuard clients
+        ip_to_client = {}
+        for client in clients:
+            name = (client.get("name") or "").strip()
+            if not name:
+                continue
+            tags = client.get("tags") or []
+            device_type = _infer_device_type(name, tags)
+            for cid in client.get("ids") or []:
+                cid = cid.strip()
+                # Accept plain IPs and MAC addresses directly
+                if MAC_RE.match(cid):
+                    # Store MAC directly — used below even without DB lookup
+                    mac = cid.upper()
+                    ip_to_client[f"__mac__{mac}"] = (mac, name, device_type)
+                else:
+                    # Treat as IP
+                    ip_to_client[cid] = (None, name, device_type)
+
+        if not ip_to_client:
+            logger.info("[sync_device_mappings] No usable IDs found in AdGuard clients")
+            return
+
+        # Resolve IPs -> MACs via network_devices table
+        ips = [ip for ip in ip_to_client if not ip.startswith("__mac__")]
+        mappings = []  # list of (mac, user_name, device_type)
+
+        with get_db_cursor(commit=False) as (conn, cur):
+            if ips:
+                cur.execute(
+                    """
+                    SELECT host(ip_address) AS ip, mac_address
+                    FROM network_devices
+                    WHERE ip_address = ANY(%s::inet[])
+                      AND mac_address IS NOT NULL
+                    """,
+                    (ips,),
+                )
+                for row in cur.fetchall():
+                    ip = row["ip"] if isinstance(row, dict) else str(row[0])
+                    mac = row["mac_address"] if isinstance(row, dict) else row[1]
+                    if mac and ip in ip_to_client:
+                        _, name, device_type = ip_to_client[ip]
+                        mappings.append((mac.upper(), name, device_type))
+
+        # Also add any direct-MAC entries
+        for key, (mac, name, device_type) in ip_to_client.items():
+            if key.startswith("__mac__") and mac:
+                mappings.append((mac, name, device_type))
+
+        if not mappings:
+            logger.info(
+                "[sync_device_mappings] AdGuard has %d clients but none resolved to a MAC "
+                "(devices may not have been seen yet by discovery)",
+                len(clients),
+            )
+            return
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            for mac, user_name, device_type in mappings:
+                try:
+                    cur.execute(
+                        """
+                        INSERT INTO network_device_users
+                            (mac_address, user_name, device_label, device_type, updated_at)
+                        VALUES (%s, %s, %s, %s, NOW())
+                        ON CONFLICT (mac_address)
+                        DO UPDATE SET
+                            device_label = EXCLUDED.device_label,
+                            device_type  = EXCLUDED.device_type,
+                            updated_at   = NOW()
+                        WHERE network_device_users.device_label IS DISTINCT FROM EXCLUDED.device_label
+                           OR network_device_users.device_type  IS DISTINCT FROM EXCLUDED.device_type
+                        """,
+                        (mac, user_name, user_name, device_type),
+                    )
+                    if cur.rowcount:
+                        upserted += 1
+                    else:
+                        skipped += 1
+                except Exception as e:
+                    logger.warning("[sync_device_mappings] Failed to upsert %s: %s", mac, e)
+                    failed += 1
+
+        dur = int((_time.time() - t0) * 1000)
+        _log_cycle(
+            "sync_device_mappings",
+            upserted,
+            failed,
+            dur,
+            details={
+                "clients_found": len(clients),
+                "macs_resolved": len(mappings),
+                "upserted": upserted,
+                "skipped_no_change": skipped,
+            },
+        )
+        logger.info(
+            "[sync_device_mappings] %d clients → %d MACs resolved, %d upserted, %d skipped, %d failed (%dms)",
+            len(clients),
+            len(mappings),
+            upserted,
+            skipped,
+            failed,
+            dur,
+        )
+
+    except Exception as e:
+        dur = int((_time.time() - t0) * 1000)
+        _log_cycle("sync_device_mappings", 0, 1, dur, error_message=str(e))
+        logger.error("[sync_device_mappings] Failed: %s", e)
 
 
 def register_security_jobs(scheduler, flask_app):
@@ -921,4 +1071,13 @@ def register_security_jobs(scheduler, flask_app):
         replace_existing=True,
     )
 
-    logger.info("[SecurityJobs] Registered 11 security/network jobs")
+    # --- Device-user mapping sync (Job #60) ---
+    scheduler.add_job(
+        with_ctx(sync_device_mappings),
+        trigger=IntervalTrigger(hours=6, start_date="2026-01-01 03:00:00"),
+        id="agent_sync_device_mappings",
+        name="Agent Loop: Device-User Mapping Sync",
+        replace_existing=True,
+    )
+
+    logger.info("[SecurityJobs] Registered 12 security/network jobs")

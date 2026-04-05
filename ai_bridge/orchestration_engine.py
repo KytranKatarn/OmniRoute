@@ -205,6 +205,7 @@ class OrchestrationEngine:
         voice_mode: bool = False,
         user_context: Optional[Dict] = None,
         agent_target: Optional[str] = None,
+        project_id: Optional[int] = None,
     ) -> OrchestrationResult:
         """
         Main orchestration pipeline.
@@ -1378,12 +1379,17 @@ class OrchestrationEngine:
             task_type = (routing or {}).get("task_type", "general")
             capability = intent.get("primary_intent", task_type)
 
+            # Extract project_id from user_context if not explicitly provided
+            if project_id is None and user_context and isinstance(user_context, dict):
+                project_id = user_context.get("project_id")
+
             result = dispatcher.request_work(
                 capability=capability,
                 prompt=message,
                 module_id="orchestration_engine",
                 user_id=user_id,
                 timeout=120,
+                project_id=project_id,
             )
             if result.success and result.response:
                 response_text = result.response

@@ -8,6 +8,7 @@
 
   var _contribDays = null;
   var _contribProjectId = null;
+  var _expertiseData = null;
 
   function renderCompletenessRing(pct) {
     var r = 20, circ = 2 * Math.PI * r;
@@ -42,6 +43,194 @@
     el.appendChild(txt);
 
     return el;
+  }
+
+  function renderExpertiseScoreBar(score) {
+    var wrap = document.createElement("span");
+    wrap.style.display = "inline-flex";
+    wrap.style.alignItems = "center";
+    wrap.style.gap = "4px";
+
+    var bar = document.createElement("span");
+    bar.className = "cs-expertise-score-bar";
+    var fill = document.createElement("span");
+    fill.className = "cs-expertise-score-fill " + (score >= 70 ? "high" : score >= 40 ? "mid" : "low");
+    fill.style.width = Math.min(score, 100) + "%";
+    bar.appendChild(fill);
+    wrap.appendChild(bar);
+
+    var num = document.createElement("span");
+    num.className = "cs-expertise-score-num";
+    num.textContent = String(score);
+    wrap.appendChild(num);
+
+    return wrap;
+  }
+
+  function renderExpertisePanel(data) {
+    if (!data || !data.success) return;
+
+    _expertiseData = data.projects || [];
+
+    var tabsEl = document.getElementById("cs-expertise-project-tabs");
+    if (!tabsEl) return;
+
+    tabsEl.textContent = "";
+
+    if (_expertiseData.length === 0) {
+      var body = document.getElementById("cs-agent-expertise-body");
+      if (body) {
+        body.textContent = "";
+        var p = document.createElement("p");
+        p.style.color = "#94a3b8";
+        p.textContent = "No active projects found.";
+        body.appendChild(p);
+      }
+      return;
+    }
+
+    _expertiseData.forEach(function (proj, idx) {
+      var tab = document.createElement("button");
+      tab.className = "cs-expertise-tab" + (idx === 0 ? " active" : "");
+      tab.textContent = proj.name.length > 25 ? proj.name.substring(0, 25) + "..." : proj.name;
+      tab.title = proj.name;
+      tab.addEventListener("click", function () {
+        tabsEl.querySelectorAll(".cs-expertise-tab").forEach(function (t) {
+          t.classList.remove("active");
+        });
+        tab.classList.add("active");
+        renderExpertiseProject(proj);
+      });
+      tabsEl.appendChild(tab);
+    });
+
+    renderExpertiseProject(_expertiseData[0]);
+  }
+
+  function renderExpertiseProject(proj) {
+    var container = document.getElementById("cs-agent-expertise-body");
+    if (!container) return;
+
+    container.textContent = "";
+
+    var contributors = proj.contributors || [];
+    var recommended = proj.recommended || [];
+
+    if (contributors.length === 0 && recommended.length === 0) {
+      var p = document.createElement("p");
+      p.style.color = "#94a3b8";
+      p.textContent = "No expertise data yet \u2014 scores will build as agents work on this project.";
+      container.appendChild(p);
+      return;
+    }
+
+    // Active Contributors
+    if (contributors.length > 0) {
+      var title1 = document.createElement("div");
+      title1.className = "cs-expertise-section-title";
+      title1.textContent = "Active Contributors";
+      container.appendChild(title1);
+
+      var table = document.createElement("table");
+      table.className = "cs-expertise-table";
+
+      var thead = document.createElement("thead");
+      var headRow = document.createElement("tr");
+      ["Agent", "Department", "Dispatches", "Success", "Score"].forEach(function (h) {
+        var th = document.createElement("th");
+        th.textContent = h;
+        headRow.appendChild(th);
+      });
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+
+      var tbody = document.createElement("tbody");
+      contributors.forEach(function (c) {
+        var tr = document.createElement("tr");
+
+        var tdName = document.createElement("td");
+        tdName.textContent = c.display_name;
+        if (c.is_director) {
+          var badge = document.createElement("span");
+          badge.className = "cs-director-badge";
+          badge.textContent = "DIR";
+          tdName.appendChild(badge);
+        }
+        tr.appendChild(tdName);
+
+        var tdDept = document.createElement("td");
+        tdDept.textContent = c.department;
+        tdDept.style.fontSize = "0.8rem";
+        tr.appendChild(tdDept);
+
+        var tdDisp = document.createElement("td");
+        tdDisp.textContent = String(c.dispatches);
+        tr.appendChild(tdDisp);
+
+        var tdSucc = document.createElement("td");
+        var rate = c.dispatches > 0 ? Math.round(c.successes / c.dispatches * 100) : 0;
+        tdSucc.textContent = rate + "%";
+        tdSucc.style.color = rate >= 80 ? "#10b981" : rate >= 50 ? "#fbbf24" : "#ef4444";
+        tr.appendChild(tdSucc);
+
+        var tdScore = document.createElement("td");
+        tdScore.appendChild(renderExpertiseScoreBar(c.expertise_score));
+        tr.appendChild(tdScore);
+
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      container.appendChild(table);
+    }
+
+    // Recommended Agents
+    if (recommended.length > 0) {
+      var title2 = document.createElement("div");
+      title2.className = "cs-expertise-section-title";
+      title2.textContent = "Recommended Agents";
+      container.appendChild(title2);
+
+      recommended.forEach(function (r) {
+        var card = document.createElement("div");
+        card.className = "cs-recommended-card";
+
+        var info = document.createElement("div");
+        info.className = "cs-recommended-info";
+
+        var nameEl = document.createElement("div");
+        nameEl.className = "cs-recommended-name";
+        nameEl.textContent = r.display_name;
+        if (r.is_director) {
+          var dirBadge = document.createElement("span");
+          dirBadge.className = "cs-director-badge";
+          dirBadge.textContent = "DIR";
+          nameEl.appendChild(dirBadge);
+        }
+        info.appendChild(nameEl);
+
+        var deptEl = document.createElement("div");
+        deptEl.className = "cs-recommended-dept";
+        deptEl.textContent = r.department + (r.dept_match ? " \u2022 Department Match" : "");
+        info.appendChild(deptEl);
+
+        card.appendChild(info);
+
+        if (r.matching_skills && r.matching_skills.length > 0) {
+          var chips = document.createElement("div");
+          chips.className = "cs-skill-chips";
+          r.matching_skills.forEach(function (sk) {
+            var chip = document.createElement("span");
+            chip.className = "cs-skill-chip";
+            chip.textContent = sk;
+            chips.appendChild(chip);
+          });
+          card.appendChild(chips);
+        }
+
+        card.appendChild(renderExpertiseScoreBar(r.expertise_score));
+        container.appendChild(card);
+      });
+    }
   }
 
   function renderProjectKnowledgeMap(data) {
@@ -327,6 +516,9 @@
     api("/api/dashboard/knowledge-gaps").then(function (data) {
       renderProjectKnowledgeMap(data);
       renderKnowledgeGaps(data);
+    });
+    api("/api/dashboard/agent-expertise").then(function (data) {
+      renderExpertisePanel(data);
     });
   };
 

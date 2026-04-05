@@ -402,10 +402,8 @@ function loadNeuralCore() {
     }
   }).catch(function() {});
 
-  // Code Health stats
-  api("/api/code-health/current").then(function(data) {
-    if (!data.success || !data.data) return;
-    var d = data.data;
+  // Code Health stats (response is flat, no success/data wrapper)
+  api("/api/code-health/current").then(function(d) {
     if (d.total_lines) countUp("ncCodeLines", d.total_lines);
     var gradeEl = document.getElementById("ncHealthGrade");
     if (gradeEl && d.health_score) {

@@ -3271,7 +3271,7 @@ async function loadNetworkMonitor() {
     container.textContent = '';
 
     try {
-        var resp = await fetch(SN_API + '/api/devices/list?hours=24');
+        var resp = await fetch(SN_API + '/devices/list?hours=24');
         var d = await resp.json();
         if (!d.success || !d.devices || d.devices.length === 0) {
             var empty = document.createElement('div');
@@ -3379,7 +3379,7 @@ async function openDeviceDetail(deviceIp) {
     body.appendChild(spinner);
 
     try {
-        var resp = await fetch(SN_API + '/api/devices/detail/' + deviceIp);
+        var resp = await fetch(SN_API + '/devices/detail/' + deviceIp);
         var d = await resp.json();
         if (!d.success) throw new Error(d.error || 'Failed to load');
 

@@ -365,12 +365,13 @@ def get_unread_count(user_id, is_admin):
             cur.execute(
                 f"""
                 SELECT
-                    COUNT(DISTINCT (sn.title, sn.source)) FILTER (WHERE nr.notification_id IS NULL AND sn.is_archived = FALSE) as unread,
+                    COUNT(DISTINCT (sn.title, sn.source)) FILTER (WHERE nr.notification_id IS NULL) as unread,
                     COUNT(*) FILTER (WHERE sn.priority = 'critical' AND nr.notification_id IS NULL) as critical,
                     COUNT(*) FILTER (WHERE sn.type = 'error' AND nr.notification_id IS NULL) as errors
                 FROM system_notifications sn
                 LEFT JOIN notification_reads nr ON nr.notification_id = sn.id AND nr.user_id = %s
-                WHERE sn.created_at >= NOW() - INTERVAL '7 days'
+                WHERE sn.is_archived = FALSE
+                  AND sn.created_at >= NOW() - INTERVAL '7 days'
                   {vis_sql}
             """,
                 [user_id] + vis_params,

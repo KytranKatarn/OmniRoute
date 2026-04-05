@@ -263,8 +263,6 @@ def generate_weekly_report(project_id: int) -> dict:
                 INSERT INTO knowledge_base
                     (title, content, knowledge_type, source_type, importance_score, tags, category)
                 VALUES (%s, %s, 'vault_note', %s, %s, %s, %s)
-                ON CONFLICT (title) DO UPDATE
-                    SET content = EXCLUDED.content, updated_at = NOW()
                 RETURNING id
                 """,
                 (

@@ -322,7 +322,12 @@ def register_dashboard_routes(bp, admin_required):
                 )
                 row = cur.fetchone()
                 if row:
-                    return jsonify({"success": True, "removed": {"project_id": row[0], "knowledge_id": row[1]}})
+                    return jsonify(
+                        {
+                            "success": True,
+                            "removed": {"project_id": row["project_id"], "knowledge_id": row["knowledge_id"]},
+                        }
+                    )
                 return jsonify({"success": False, "error": "Link not found"}), 404
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500

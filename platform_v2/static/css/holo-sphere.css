@@ -356,7 +356,7 @@
 .holo-hud-item.amber .holo-hud-value  { color: #f59e0b; }
 
 /* ── Responsive ───────────────────────────────────── */
-@media (max-width: 767px) {
+@media (max-width: 768px) {
     .holo-container { max-height: 350px; }
     .holo-ring-5 { display: none; }
     .holo-ring-4 { display: none; }
@@ -367,10 +367,17 @@
     .holo-core-name { font-size: 0.38rem; }
     .holo-hud { grid-template-columns: repeat(2, 1fr); }
 }
-@media (max-width: 500px) {
+@media (max-width: 480px) {
     .holo-container { max-height: 260px; aspect-ratio: auto; height: 260px; }
     .holo-ring-3 { display: none; }
     .holo-scanlines { display: none; }
+}
+@media (max-width: 360px) {
+    .holo-container { max-height: 200px; height: 200px; }
+    .holo-ring-2 { display: none; }
+    .holo-hud { gap: 4px; }
+    .holo-hud-item { padding: 8px 6px; }
+    .holo-hud-value { font-size: 0.9rem; }
 }
 
 /* ── Reduced Motion ───────────────────────────────── */

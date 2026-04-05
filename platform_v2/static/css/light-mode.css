@@ -592,3 +592,127 @@ body.light-mode .theme-controls .header-icon-btn:hover {
         justify-content: center;
     }
 }
+
+/* ── LCARS Header (Light Mode) ───────────────────── */
+
+body.light-mode .lcars-header {
+    background: var(--archie-bg-primary, #ffffff);
+}
+
+body.light-mode .lcars-header-bar {
+    /* Accent gradient stays — dark text on accent is fine in both modes */
+}
+
+body.light-mode .lcars-header-tabs {
+    background: rgba(var(--cat-accent-rgb), 0.05);
+    border-bottom-color: rgba(var(--cat-accent-rgb), 0.15);
+}
+
+body.light-mode .lcars-header-tab {
+    color: #6b7280;
+}
+
+body.light-mode .lcars-header-tab:hover {
+    background: rgba(var(--cat-accent-rgb), 0.1);
+    color: #1f2937;
+}
+
+body.light-mode .lcars-header-tab.active {
+    background: rgba(var(--cat-accent-rgb), 0.15);
+    color: #1f2937;
+    border-color: rgba(var(--cat-accent-rgb), 0.3);
+}
+
+body.light-mode .lcars-header-stardate {
+    color: rgba(0, 0, 0, 0.3);
+}
+
+/* Toast light mode */
+body.light-mode .lcars-toast {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(var(--cat-accent-rgb), 0.2);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .lcars-toast-title {
+    color: #1f2937;
+}
+
+body.light-mode .lcars-toast-message {
+    color: #6b7280;
+}
+
+body.light-mode .lcars-toast-close {
+    color: #9ca3af;
+}
+
+body.light-mode .lcars-toast-close:hover {
+    color: #1f2937;
+}
+
+/* Notification badge stays red in both modes — intentional */
+
+/* ── Intelligence Panels (Light Mode) ────────────── */
+
+body.light-mode .cs-project-card {
+    background: rgba(var(--cat-accent-rgb), 0.04);
+    border-color: rgba(var(--cat-accent-rgb), 0.15);
+}
+
+body.light-mode .cs-project-card:hover {
+    border-color: rgba(var(--cat-accent-rgb), 0.3);
+    box-shadow: 0 2px 8px rgba(var(--cat-accent-rgb), 0.1);
+}
+
+body.light-mode .cs-project-card-title {
+    color: #1f2937;
+}
+
+body.light-mode .cs-kb-entry {
+    color: #374151;
+}
+
+body.light-mode .cs-contrib-table td,
+body.light-mode .cs-expertise-table td {
+    color: #374151;
+    border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+body.light-mode .cs-contrib-table tbody tr:hover td,
+body.light-mode .cs-expertise-table tbody tr:hover td {
+    background: rgba(var(--cat-accent-rgb), 0.06);
+}
+
+body.light-mode .cs-gap-name {
+    color: #1f2937;
+}
+
+body.light-mode .cs-recommended-card {
+    background: rgba(var(--cat-accent-rgb), 0.03);
+    border-color: rgba(var(--cat-accent-rgb), 0.1);
+}
+
+body.light-mode .cs-recommended-name {
+    color: #1f2937;
+}
+
+body.light-mode .cs-recommended-dept {
+    color: #6b7280;
+}
+
+body.light-mode .cs-phase-stat {
+    color: #6b7280;
+}
+
+body.light-mode .cs-phase-label {
+    color: #6b7280;
+}
+
+body.light-mode .cs-expertise-score-num {
+    color: #1f2937;
+}
+
+body.light-mode #cs-knowledge-graph-canvas {
+    background: rgba(var(--cat-accent-rgb), 0.03);
+    border-color: rgba(var(--cat-accent-rgb), 0.1);
+}

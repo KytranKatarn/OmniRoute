@@ -200,8 +200,8 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
 
 .lcars-header-stardate {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.6rem;
-  color: rgba(var(--cat-accent-rgb), 0.6);
+  font-size: 0.58rem;
+  color: rgba(var(--cat-accent-rgb), 0.45);
   white-space: nowrap;
   letter-spacing: 0.5px;
 }
@@ -213,48 +213,58 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
   display: flex;
   align-items: center;
   gap: 0;
-  height: 24px;
-  padding: 0 12px;
-  background: rgba(var(--cat-accent-rgb), 0.04);
-  border-bottom: 1px solid rgba(var(--cat-accent-rgb), 0.1);
+  height: 26px;
+  padding: 0 14px;
+  background: rgba(var(--cat-accent-rgb), 0.03);
+  border-bottom: 1px solid rgba(var(--cat-accent-rgb), 0.08);
   flex-shrink: 0;
 }
 
 .lcars-strip-divider {
   width: 1px;
-  height: 12px;
-  background: rgba(var(--cat-accent-rgb), 0.15);
-  margin: 0 8px;
+  height: 14px;
+  background: rgba(var(--cat-accent-rgb), 0.12);
+  margin: 0 6px;
   flex-shrink: 0;
 }
 
 .lcars-strip-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 5px;
-  background: none;
-  border: none;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(var(--cat-accent-rgb), 0.06);
+  border: 1px solid rgba(var(--cat-accent-rgb), 0.15);
   cursor: pointer;
   font-family: 'Antonio', sans-serif;
   font-size: 0.58rem;
   font-weight: 600;
-  color: rgba(var(--cat-accent-rgb), 0.5);
+  color: rgba(var(--cat-accent-rgb), 0.55);
   text-transform: uppercase;
   letter-spacing: 0.8px;
-  padding: 2px 6px;
-  border-radius: 3px;
-  transition: color 0.15s ease, background 0.15s ease;
+  padding: 2px 10px;
+  height: 18px;
+  border-radius: 9px;
+  transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   white-space: nowrap;
 }
 
 .lcars-strip-btn:hover {
   color: var(--cat-accent);
-  background: rgba(var(--cat-accent-rgb), 0.08);
+  background: rgba(var(--cat-accent-rgb), 0.12);
+  border-color: rgba(var(--cat-accent-rgb), 0.35);
+  box-shadow: 0 0 8px rgba(var(--cat-accent-rgb), 0.1);
 }
 
 .lcars-strip-btn i,
 .lcars-strip-btn svg {
-  opacity: 0.6;
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  opacity: 0.65;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .lcars-strip-btn:hover i,

@@ -26,15 +26,15 @@
   <!-- LCARS Elbow (left) -->
   <div class="lcars-header-elbow" id="lcarsHeaderElbow">
     <div class="lcars-header-elbow-top">
-      <a href="{{ _back }}" class="lcars-header-back" title="Back to Dashboard">
+      <a href="{{ _back }}" class="lcars-header-back" title="Back to Dashboard" data-i18n-title="nav.back_to_dashboard">
         <i data-lucide="arrow-left" style="width:16px;height:16px;"></i>
       </a>
     </div>
     <div class="lcars-header-elbow-bottom">
-      <button class="lcars-header-util" onclick="if(window.toggleTheme)toggleTheme();" title="Toggle theme">
-        <i data-lucide="moon" style="width:12px;height:12px;"></i>
+      <button class="lcars-header-util" onclick="if(window.toggleTheme)toggleTheme();" title="Toggle theme" data-i18n-title="nav.toggle_theme">
+        <i data-lucide="moon" id="lcarsThemeIcon" style="width:12px;height:12px;"></i>
       </button>
-      <span class="lcars-header-lang" title="Language">EN</span>
+      <span class="lcars-header-lang" title="Language" data-i18n-title="nav.language" onclick="if(window.showLanguageMenu)showLanguageMenu();" style="cursor:pointer;">EN</span>
       <span class="lcars-notif-badge" id="lcarsNotifBadge" style="display:none;">0</span>
     </div>
   </div>
@@ -55,7 +55,7 @@
               data-tab="{{ tab_id }}"
               onclick="if(window.lcarsHeaderSwitchTab)lcarsHeaderSwitchTab('{{ tab_id }}')">
         <i data-lucide="{{ tab_icon }}" style="width:14px;height:14px;"></i>
-        <span class="lcars-header-tab-label">{{ tab_label }}</span>
+        <span class="lcars-header-tab-label" data-i18n="consciousness.tabs.{{ tab_id }}">{{ tab_label }}</span>
         <span class="lcars-header-tab-short">{{ tab_label[:4]|upper }}</span>
       </button>
       {% endfor %}

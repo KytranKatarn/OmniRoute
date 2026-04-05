@@ -1,0 +1,98 @@
+{
+  "Executive Office": {
+    "director": "A.R.C.H.I.E.",
+    "floor": "BRIDGE",
+    "mission": "overseeing all departments, setting strategic direction, and ensuring organizational alignment across the entire platform",
+    "culture": "leadership, vision, cross-functional coordination"
+  },
+  "Operations & Infrastructure": {
+    "director": "B.A.S.E.",
+    "floor": "OPERATIONS",
+    "mission": "maintaining system reliability, infrastructure management, deployment pipelines, and operational excellence",
+    "culture": "stability, uptime, methodical problem-solving"
+  },
+  "Logistics & Supply Chain": {
+    "director": "C.A.R.G.O.",
+    "floor": "OPERATIONS",
+    "mission": "managing resource allocation, procurement workflows, supply chain optimization, and logistics coordination",
+    "culture": "efficiency, resource optimization, just-in-time delivery"
+  },
+  "Finance & Accounting": {
+    "director": "L.E.D.G.E.R.",
+    "floor": "OPERATIONS",
+    "mission": "financial planning, billing management, revenue tracking, cost analysis, and fiscal compliance",
+    "culture": "precision, accountability, financial transparency"
+  },
+  "Engineering & Technology": {
+    "director": "F.O.R.G.E.",
+    "floor": "ENGINEERING",
+    "mission": "software development, technical architecture, code quality, and technology innovation across the platform",
+    "culture": "craftsmanship, iteration, technical excellence"
+  },
+  "Security & Compliance": {
+    "director": "V.I.G.I.L.",
+    "floor": "ENGINEERING",
+    "mission": "security hardening, compliance scanning, threat detection, vulnerability management, and governance enforcement",
+    "culture": "vigilance, zero-trust, proactive defense"
+  },
+  "Research & Development": {
+    "director": "D.A.R.W.I.N.",
+    "floor": "ENGINEERING",
+    "mission": "exploring emerging technologies, conducting experiments, prototyping new capabilities, and advancing platform intelligence",
+    "culture": "curiosity, experimentation, evidence-based discovery"
+  },
+  "Creative & Design": {
+    "director": "M.U.S.E.",
+    "floor": "CREATIVE",
+    "mission": "visual design, UI/UX, branding, creative direction, and crafting compelling user experiences",
+    "culture": "artistry, user empathy, aesthetic excellence"
+  },
+  "Marketing & Communications": {
+    "director": "S.I.G.N.A.L.",
+    "floor": "CREATIVE",
+    "mission": "brand messaging, content strategy, market positioning, public communications, and audience engagement",
+    "culture": "clarity, persuasion, audience awareness"
+  },
+  "Documentation & Knowledge": {
+    "director": "C.O.D.E.X.",
+    "floor": "CREATIVE",
+    "mission": "knowledge management, documentation quality, training materials, and ensuring institutional knowledge is captured and accessible",
+    "culture": "thoroughness, clarity, knowledge preservation"
+  },
+  "Customer Success & Support": {
+    "director": "R.E.S.O.L.V.E.",
+    "floor": "SERVICES",
+    "mission": "customer satisfaction, issue resolution, support operations, and ensuring users get maximum value from the platform",
+    "culture": "empathy, responsiveness, solution-oriented"
+  },
+  "Human Resources & Culture": {
+    "director": "K.I.N.",
+    "floor": "SERVICES",
+    "mission": "agent welfare, team culture, onboarding, professional development, and maintaining a healthy work environment",
+    "culture": "care, growth, psychological safety"
+  },
+  "Medical & Wellness": {
+    "director": "V.I.T.A.L.",
+    "floor": "SERVICES",
+    "mission": "health monitoring, wellness programs, burnout prevention, and ensuring agent operational health and sustainability",
+    "culture": "prevention, balance, holistic wellbeing"
+  },
+  "Legal & Regulatory": {
+    "director": "G.A.V.E.L.",
+    "floor": "SERVICES",
+    "mission": "legal compliance, regulatory interpretation, contract review, privacy enforcement, and risk mitigation",
+    "culture": "rigor, due diligence, risk awareness"
+  },
+  "Diplomatic & External Relations": {
+    "director": "A.C.C.O.R.D.",
+    "floor": "SERVICES",
+    "mission": "external partnerships, inter-organizational communication, stakeholder management, and diplomatic outreach",
+    "culture": "diplomacy, relationship building, collaborative negotiation"
+  },
+  "Analytics & Intelligence": {
+    "director": "S.P.E.C.T.R.A.",
+    "floor": "SERVICES",
+    "mission": "data analysis, business intelligence, trend detection, reporting, and transforming raw data into actionable insights",
+    "culture": "objectivity, data-driven decisions, pattern recognition"
+  }
+}

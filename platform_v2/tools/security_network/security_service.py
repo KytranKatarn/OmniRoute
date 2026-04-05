@@ -11,8 +11,8 @@ import socket
 import ssl
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
-from psycopg2.extras import RealDictCursor, Json
-from database import get_db
+from psycopg2.extras import Json
+from database import get_db_cursor
 
 
 # ============================================================================
@@ -108,10 +108,8 @@ def get_active_connections() -> List[Dict[str, Any]]:
 
 def analyze_failed_logins(hours: int = 24) -> Dict[str, Any]:
     """Analyze failed login attempts for brute force detection"""
-    conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    with get_db_cursor(commit=False) as (conn, cur):
 
-    try:
         # Get failed logins grouped by IP
         cur.execute(
             """
@@ -173,17 +171,10 @@ def analyze_failed_logins(hours: int = 24) -> Dict[str, Any]:
             "window_minutes": window,
         }
 
-    finally:
-        cur.close()
-        conn.close()
-
 
 def get_auto_block_settings() -> Dict[str, Any]:
     """Get auto-block configuration"""
-    conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-
-    try:
+    with get_db_cursor(commit=False) as (conn, cur):
         cur.execute("SELECT setting_key, setting_value FROM security_auto_block_settings")
         settings = {}
         for row in cur.fetchall():
@@ -200,40 +191,30 @@ def get_auto_block_settings() -> Dict[str, Any]:
             settings[row["setting_key"]] = value
 
         return settings
-    finally:
-        cur.close()
-        conn.close()
 
 
 def update_auto_block_settings(settings: Dict[str, Any], user_id: int) -> bool:
     """Update auto-block configuration"""
-    conn = get_db()
-    cur = conn.cursor()
-
     try:
-        for key, value in settings.items():
-            if isinstance(value, (list, dict)):
-                value = json.dumps(value)
-            else:
-                value = str(value)
+        with get_db_cursor(commit=True) as (conn, cur):
+            for key, value in settings.items():
+                if isinstance(value, (list, dict)):
+                    value = json.dumps(value)
+                else:
+                    value = str(value)
 
-            cur.execute(
-                """
-                UPDATE security_auto_block_settings
-                SET setting_value = %s, updated_by = %s, updated_at = NOW()
-                WHERE setting_key = %s
-            """,
-                (value, user_id, key),
-            )
+                cur.execute(
+                    """
+                    UPDATE security_auto_block_settings
+                    SET setting_value = %s, updated_by = %s, updated_at = NOW()
+                    WHERE setting_key = %s
+                """,
+                    (value, user_id, key),
+                )
 
-        conn.commit()
         return True
     except Exception:
-        conn.rollback()
         return False
-    finally:
-        cur.close()
-        conn.close()
 
 
 # ============================================================================
@@ -243,104 +224,84 @@ def update_auto_block_settings(settings: Dict[str, Any], user_id: int) -> bool:
 
 def block_ip(ip_address: str, reason: str, user_id: int = None, duration_hours: int = None) -> Dict[str, Any]:
     """Block an IP address"""
-    conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-
     try:
         expires_at = None
         if duration_hours:
             expires_at = datetime.now() + timedelta(hours=duration_hours)
 
-        cur.execute(
-            """
-            INSERT INTO security_ip_access (ip_address, access_type, reason, source, expires_at, created_by)
-            VALUES (%s::inet, 'block', %s, 'manual', %s, %s)
-            ON CONFLICT (ip_address) DO UPDATE
-            SET access_type = 'block',
-                reason = EXCLUDED.reason,
-                expires_at = EXCLUDED.expires_at,
-                is_active = TRUE,
-                updated_at = NOW()
-            RETURNING *
-        """,
-            (ip_address, reason, expires_at, user_id),
-        )
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO security_ip_access (ip_address, access_type, reason, source, expires_at, created_by)
+                VALUES (%s::inet, 'block', %s, 'manual', %s, %s)
+                ON CONFLICT (ip_address) DO UPDATE
+                SET access_type = 'block',
+                    reason = EXCLUDED.reason,
+                    expires_at = EXCLUDED.expires_at,
+                    is_active = TRUE,
+                    updated_at = NOW()
+                RETURNING *
+            """,
+                (ip_address, reason, expires_at, user_id),
+            )
 
-        result = cur.fetchone()
-        conn.commit()
+            result = cur.fetchone()
 
-        # Log the action
-        cur.execute(
-            """
-            INSERT INTO audit_log (action, user_id, details)
-            VALUES ('ip_blocked', %s, %s)
-        """,
-            (user_id, Json({"ip": ip_address, "reason": reason})),
-        )
-        conn.commit()
+            # Log the action
+            cur.execute(
+                """
+                INSERT INTO audit_log (action, user_id, details)
+                VALUES ('ip_blocked', %s, %s)
+            """,
+                (user_id, Json({"ip": ip_address, "reason": reason})),
+            )
 
-        # Create security event
-        cur.execute(
-            """
-            INSERT INTO security_events (event_type, severity, source_ip, description, status)
-            VALUES ('ip_blocked', 'medium', %s::inet, %s, 'resolved')
-        """,
-            (ip_address, f"IP blocked: {reason}"),
-        )
-        conn.commit()
+            # Create security event
+            cur.execute(
+                """
+                INSERT INTO security_events (event_type, severity, source_ip, description, status)
+                VALUES ('ip_blocked', 'medium', %s::inet, %s, 'resolved')
+            """,
+                (ip_address, f"IP blocked: {reason}"),
+            )
 
         return {"success": True, "blocked": dict(result) if result else None}
     except Exception as e:
-        conn.rollback()
         return {"success": False, "error": str(e)}
-    finally:
-        cur.close()
-        conn.close()
 
 
 def unblock_ip(ip_address: str, user_id: int = None) -> Dict[str, Any]:
     """Unblock an IP address"""
-    conn = get_db()
-    cur = conn.cursor()
-
     try:
-        cur.execute(
-            """
-            UPDATE security_ip_access
-            SET is_active = FALSE, updated_at = NOW()
-            WHERE ip_address = %s::inet AND is_active = TRUE
-        """,
-            (ip_address,),
-        )
-
-        affected = cur.rowcount
-        conn.commit()
-
-        if affected > 0:
+        with get_db_cursor(commit=True) as (conn, cur):
             cur.execute(
                 """
-                INSERT INTO audit_log (action, user_id, details)
-                VALUES ('ip_unblocked', %s, %s)
+                UPDATE security_ip_access
+                SET is_active = FALSE, updated_at = NOW()
+                WHERE ip_address = %s::inet AND is_active = TRUE
             """,
-                (user_id, Json({"ip": ip_address})),
+                (ip_address,),
             )
-            conn.commit()
+
+            affected = cur.rowcount
+
+            if affected > 0:
+                cur.execute(
+                    """
+                    INSERT INTO audit_log (action, user_id, details)
+                    VALUES ('ip_unblocked', %s, %s)
+                """,
+                    (user_id, Json({"ip": ip_address})),
+                )
 
         return {"success": True, "unblocked": affected > 0}
     except Exception as e:
-        conn.rollback()
         return {"success": False, "error": str(e)}
-    finally:
-        cur.close()
-        conn.close()
 
 
 def get_blocked_ips() -> List[Dict[str, Any]]:
     """Get list of currently blocked IPs"""
-    conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-
-    try:
+    with get_db_cursor(commit=False) as (conn, cur):
         cur.execute(
             """
             SELECT ip_address::text, access_type, reason, source,
@@ -351,17 +312,11 @@ def get_blocked_ips() -> List[Dict[str, Any]]:
         """
         )
         return [dict(row) for row in cur.fetchall()]
-    finally:
-        cur.close()
-        conn.close()
 
 
 def get_whitelisted_ips() -> List[Dict[str, Any]]:
     """Get list of whitelisted IPs"""
-    conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-
-    try:
+    with get_db_cursor(commit=False) as (conn, cur):
         cur.execute(
             """
             SELECT ip_address::text, reason, created_at
@@ -371,9 +326,6 @@ def get_whitelisted_ips() -> List[Dict[str, Any]]:
         """
         )
         return [dict(row) for row in cur.fetchall()]
-    finally:
-        cur.close()
-        conn.close()
 
 
 def auto_block_threats(user_id: int = None) -> Dict[str, Any]:
@@ -421,10 +373,7 @@ def get_security_events(
     status: str = None, severity: str = None, event_type: str = None, limit: int = 50
 ) -> List[Dict[str, Any]]:
     """Get security events with filters"""
-    conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-
-    try:
+    with get_db_cursor(commit=False) as (conn, cur):
         query = "SELECT * FROM security_events WHERE 1=1"
         params = []
 
@@ -445,9 +394,6 @@ def get_security_events(
         events = cur.fetchall()
 
         return [dict(e) for e in events]
-    finally:
-        cur.close()
-        conn.close()
 
 
 def create_security_event(
@@ -459,62 +405,50 @@ def create_security_event(
     raw_data: dict = None,
 ) -> Dict[str, Any]:
     """Create a security event"""
-    conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-
     try:
-        cur.execute(
-            """
-            INSERT INTO security_events
-            (event_type, severity, description, source_ip, target_ip, raw_data)
-            VALUES (%s, %s, %s, %s::inet, %s::inet, %s)
-            RETURNING *
-        """,
-            (
-                event_type,
-                severity,
-                description,
-                source_ip,
-                target_ip,
-                Json(raw_data) if raw_data else None,
-            ),
-        )
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO security_events
+                (event_type, severity, description, source_ip, target_ip, raw_data)
+                VALUES (%s, %s, %s, %s::inet, %s::inet, %s)
+                RETURNING *
+            """,
+                (
+                    event_type,
+                    severity,
+                    description,
+                    source_ip,
+                    target_ip,
+                    Json(raw_data) if raw_data else None,
+                ),
+            )
 
-        event = cur.fetchone()
-        conn.commit()
+            event = cur.fetchone()
 
         return {"success": True, "event": dict(event) if event else None}
     except Exception as e:
-        conn.rollback()
         return {"success": False, "error": str(e)}
-    finally:
-        cur.close()
-        conn.close()
 
 
 def resolve_security_event(event_id: int, user_id: int, notes: str = None) -> Dict[str, Any]:
     """Resolve a security event"""
-    conn = get_db()
-    cur = conn.cursor()
-
     try:
-        cur.execute(
-            """
-            UPDATE security_events
-            SET status = 'resolved', resolved_by = %s, resolved_at = NOW(), resolution_notes = %s
-            WHERE id = %s
-        """,
-            (user_id, notes, event_id),
-        )
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                UPDATE security_events
+                SET status = 'resolved', resolved_by = %s, resolved_at = NOW(), resolution_notes = %s
+                WHERE id = %s
+            """,
+                (user_id, notes, event_id),
+            )
 
-        conn.commit()
-        return {"success": True, "resolved": cur.rowcount > 0}
+            resolved = cur.rowcount > 0
+
+        return {"success": True, "resolved": resolved}
     except Exception as e:
-        conn.rollback()
         return {"success": False, "error": str(e)}
-    finally:
-        cur.close()
-        conn.close()
 
 
 # ============================================================================
@@ -581,46 +515,43 @@ def add_ssl_monitor(domain: str, user_id: int, alert_days: int = 30) -> Dict[str
     # First check the certificate
     check_result = check_ssl_certificate(domain)
 
-    conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-
     try:
-        cur.execute(
-            """
-            INSERT INTO security_ssl_monitors
-            (domain, issuer, subject, valid_from, valid_until, days_until_expiry,
-             protocol_version, cipher_suite, grade, alert_days_before, created_by, last_checked_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
-            ON CONFLICT (domain) DO UPDATE
-            SET issuer = EXCLUDED.issuer,
-                subject = EXCLUDED.subject,
-                valid_from = EXCLUDED.valid_from,
-                valid_until = EXCLUDED.valid_until,
-                days_until_expiry = EXCLUDED.days_until_expiry,
-                protocol_version = EXCLUDED.protocol_version,
-                cipher_suite = EXCLUDED.cipher_suite,
-                grade = EXCLUDED.grade,
-                last_checked_at = NOW(),
-                updated_at = NOW()
-            RETURNING *
-        """,
-            (
-                domain,
-                check_result.get("issuer"),
-                check_result.get("subject"),
-                check_result.get("valid_from"),
-                check_result.get("valid_until"),
-                check_result.get("days_until_expiry"),
-                check_result.get("protocol_version"),
-                check_result.get("cipher_suite"),
-                check_result.get("grade", "F"),
-                alert_days,
-                user_id,
-            ),
-        )
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO security_ssl_monitors
+                (domain, issuer, subject, valid_from, valid_until, days_until_expiry,
+                 protocol_version, cipher_suite, grade, alert_days_before, created_by, last_checked_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                ON CONFLICT (domain) DO UPDATE
+                SET issuer = EXCLUDED.issuer,
+                    subject = EXCLUDED.subject,
+                    valid_from = EXCLUDED.valid_from,
+                    valid_until = EXCLUDED.valid_until,
+                    days_until_expiry = EXCLUDED.days_until_expiry,
+                    protocol_version = EXCLUDED.protocol_version,
+                    cipher_suite = EXCLUDED.cipher_suite,
+                    grade = EXCLUDED.grade,
+                    last_checked_at = NOW(),
+                    updated_at = NOW()
+                RETURNING *
+            """,
+                (
+                    domain,
+                    check_result.get("issuer"),
+                    check_result.get("subject"),
+                    check_result.get("valid_from"),
+                    check_result.get("valid_until"),
+                    check_result.get("days_until_expiry"),
+                    check_result.get("protocol_version"),
+                    check_result.get("cipher_suite"),
+                    check_result.get("grade", "F"),
+                    alert_days,
+                    user_id,
+                ),
+            )
 
-        monitor = cur.fetchone()
-        conn.commit()
+            monitor = cur.fetchone()
 
         return {
             "success": True,
@@ -628,19 +559,12 @@ def add_ssl_monitor(domain: str, user_id: int, alert_days: int = 30) -> Dict[str
             "check": check_result,
         }
     except Exception as e:
-        conn.rollback()
         return {"success": False, "error": str(e)}
-    finally:
-        cur.close()
-        conn.close()
 
 
 def get_ssl_monitors() -> List[Dict[str, Any]]:
     """Get all SSL monitors"""
-    conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-
-    try:
+    with get_db_cursor(commit=False) as (conn, cur):
         cur.execute(
             """
             SELECT * FROM security_ssl_monitors
@@ -649,9 +573,6 @@ def get_ssl_monitors() -> List[Dict[str, Any]]:
         """
         )
         return [dict(row) for row in cur.fetchall()]
-    finally:
-        cur.close()
-        conn.close()
 
 
 def refresh_ssl_monitors() -> Dict[str, Any]:
@@ -660,52 +581,45 @@ def refresh_ssl_monitors() -> Dict[str, Any]:
     updated = 0
     alerts = []
 
-    conn = get_db()
-    cur = conn.cursor()
-
     try:
-        for monitor in monitors:
-            check = check_ssl_certificate(monitor["domain"])
+        with get_db_cursor(commit=True) as (conn, cur):
+            for monitor in monitors:
+                check = check_ssl_certificate(monitor["domain"])
 
-            if check.get("success"):
-                cur.execute(
-                    """
-                    UPDATE security_ssl_monitors
-                    SET issuer = %s, subject = %s, valid_from = %s, valid_until = %s,
-                        days_until_expiry = %s, protocol_version = %s, cipher_suite = %s,
-                        grade = %s, last_checked_at = NOW(), updated_at = NOW()
-                    WHERE domain = %s
-                """,
-                    (
-                        check.get("issuer"),
-                        check.get("subject"),
-                        check.get("valid_from"),
-                        check.get("valid_until"),
-                        check.get("days_until_expiry"),
-                        check.get("protocol_version"),
-                        check.get("cipher_suite"),
-                        check.get("grade", "F"),
-                        monitor["domain"],
-                    ),
-                )
-                updated += 1
-
-                # Check if alert needed
-                days = check.get("days_until_expiry", 0)
-                if days <= monitor.get("alert_days_before", 30):
-                    alerts.append(
-                        {
-                            "domain": monitor["domain"],
-                            "days_until_expiry": days,
-                            "grade": check.get("grade"),
-                        }
+                if check.get("success"):
+                    cur.execute(
+                        """
+                        UPDATE security_ssl_monitors
+                        SET issuer = %s, subject = %s, valid_from = %s, valid_until = %s,
+                            days_until_expiry = %s, protocol_version = %s, cipher_suite = %s,
+                            grade = %s, last_checked_at = NOW(), updated_at = NOW()
+                        WHERE domain = %s
+                    """,
+                        (
+                            check.get("issuer"),
+                            check.get("subject"),
+                            check.get("valid_from"),
+                            check.get("valid_until"),
+                            check.get("days_until_expiry"),
+                            check.get("protocol_version"),
+                            check.get("cipher_suite"),
+                            check.get("grade", "F"),
+                            monitor["domain"],
+                        ),
                     )
+                    updated += 1
 
-        conn.commit()
+                    # Check if alert needed
+                    days = check.get("days_until_expiry", 0)
+                    if days <= monitor.get("alert_days_before", 30):
+                        alerts.append(
+                            {
+                                "domain": monitor["domain"],
+                                "days_until_expiry": days,
+                                "grade": check.get("grade"),
+                            }
+                        )
+
         return {"success": True, "updated": updated, "alerts": alerts}
     except Exception as e:
-        conn.rollback()
         return {"success": False, "error": str(e)}
-    finally:
-        cur.close()
-        conn.close()

@@ -14,8 +14,8 @@ import threading
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 import requests
-from psycopg2.extras import RealDictCursor, Json
-from database import get_db
+from psycopg2.extras import Json
+from database import get_db_cursor
 
 
 CURATED_MODULES = {
@@ -118,17 +118,15 @@ class ArgusService:
         self, module_id: str, target: str, options: dict = None, triggered_by: str = "user"
     ) -> Optional[int]:
         try:
-            conn = get_db()
-            cur = conn.cursor()
-            cur.execute(
-                """
-                INSERT INTO security_recon_scans (module_name, target, options, status, triggered_by)
-                VALUES (%s, %s, %s, 'running', %s) RETURNING id
-            """,
-                (module_id, target, Json(options or {}), triggered_by),
-            )
-            scan_id = cur.fetchone()[0]
-            conn.commit()
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    INSERT INTO security_recon_scans (module_name, target, options, status, triggered_by)
+                    VALUES (%s, %s, %s, 'running', %s) RETURNING id
+                """,
+                    (module_id, target, Json(options or {}), triggered_by),
+                )
+                scan_id = cur.fetchone()["id"]
 
             thread = threading.Thread(
                 target=self._execute_scan, args=(scan_id, module_id, target, options or {}), daemon=True
@@ -137,12 +135,6 @@ class ArgusService:
             return scan_id
         except Exception:
             return None
-        finally:
-            try:
-                cur.close()
-                conn.close()
-            except Exception:
-                pass
 
     def _execute_scan(self, scan_id: int, module_id: str, target: str, options: dict):
         results = {}
@@ -171,25 +163,17 @@ class ArgusService:
             status = "failed"
 
         try:
-            conn = get_db()
-            cur = conn.cursor()
-            cur.execute(
-                """
-                UPDATE security_recon_scans
-                SET results = %s, status = %s, completed_at = NOW()
-                WHERE id = %s
-            """,
-                (Json(results), status, scan_id),
-            )
-            conn.commit()
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    UPDATE security_recon_scans
+                    SET results = %s, status = %s, completed_at = NOW()
+                    WHERE id = %s
+                """,
+                    (Json(results), status, scan_id),
+                )
         except Exception:
             pass
-        finally:
-            try:
-                cur.close()
-                conn.close()
-            except Exception:
-                pass
 
     def _dns_lookup(self, target: str) -> Dict:
         try:
@@ -359,41 +343,27 @@ class ArgusService:
 
     def get_scan(self, scan_id: int) -> Optional[Dict]:
         try:
-            conn = get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("SELECT * FROM security_recon_scans WHERE id = %s", (scan_id,))
-            result = cur.fetchone()
-            return dict(result) if result else None
+            with get_db_cursor(commit=False) as (conn, cur):
+                cur.execute("SELECT * FROM security_recon_scans WHERE id = %s", (scan_id,))
+                result = cur.fetchone()
+                return dict(result) if result else None
         except Exception:
             return None
-        finally:
-            try:
-                cur.close()
-                conn.close()
-            except Exception:
-                pass
 
     def get_scan_history(self, limit: int = 50) -> List[Dict]:
         try:
-            conn = get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute(
-                """
-                SELECT id, module_name, target, status, started_at, completed_at, triggered_by
-                FROM security_recon_scans ORDER BY started_at DESC LIMIT %s
-            """,
-                (limit,),
-            )
-            results = cur.fetchall()
-            return [dict(r) for r in results]
+            with get_db_cursor(commit=False) as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT id, module_name, target, status, started_at, completed_at, triggered_by
+                    FROM security_recon_scans ORDER BY started_at DESC LIMIT %s
+                """,
+                    (limit,),
+                )
+                results = cur.fetchall()
+                return [dict(r) for r in results]
         except Exception:
             return []
-        finally:
-            try:
-                cur.close()
-                conn.close()
-            except Exception:
-                pass
 
     def get_container_status(self) -> Dict[str, bool]:
         """Check which scanning containers are running."""

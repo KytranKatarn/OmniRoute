@@ -207,6 +207,7 @@ def register_ha_routes(bp):
                     conversation_id=conversation_id,
                     agent_target="ARCHIE",
                     user_context=user_context,
+                    project_id=user_context.get("project_id") if isinstance(user_context, dict) else None,
                 )
             except Exception as orch_err:
                 logger.error(f"HA orchestration failed: {orch_err}")

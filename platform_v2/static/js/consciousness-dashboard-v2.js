@@ -11,36 +11,75 @@
   var _expertiseData = null;
 
   function renderCompletenessRing(pct) {
-    var r = 20, circ = 2 * Math.PI * r;
-    var offset = circ - (pct / 100) * circ;
     var el = document.createElement("div");
     el.className = "cs-completeness-ring";
+    el.style.width = "56px";
+    el.style.height = "56px";
 
-    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("viewBox", "0 0 48 48");
+    if (typeof ApexCharts === "undefined") {
+      // Fallback: simple text
+      el.textContent = pct + "%";
+      el.style.cssText = "width:56px;height:56px;display:flex;align-items:center;justify-content:center;color:var(--cat-accent);font-weight:bold;";
+      return el;
+    }
 
-    var bg = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    bg.setAttribute("class", "ring-bg");
-    bg.setAttribute("cx", "24");
-    bg.setAttribute("cy", "24");
-    bg.setAttribute("r", String(r));
-    svg.appendChild(bg);
+    var accentHex = getComputedStyle(document.documentElement).getPropertyValue("--cat-accent").trim() || "#00ffff";
 
-    var fill = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    fill.setAttribute("class", "ring-fill");
-    fill.setAttribute("cx", "24");
-    fill.setAttribute("cy", "24");
-    fill.setAttribute("r", String(r));
-    fill.setAttribute("stroke-dasharray", String(circ));
-    fill.setAttribute("stroke-dashoffset", String(offset));
-    svg.appendChild(fill);
-
-    el.appendChild(svg);
-
-    var txt = document.createElement("div");
-    txt.className = "ring-text";
-    txt.textContent = pct + "%";
-    el.appendChild(txt);
+    // Must render after DOM insertion, so use setTimeout
+    setTimeout(function () {
+      if (!el.parentElement) return;
+      var chart = new ApexCharts(el, {
+        chart: {
+          type: "radialBar",
+          height: 56,
+          width: 56,
+          sparkline: { enabled: true },
+          animations: {
+            enabled: true,
+            easing: "easeinout",
+            speed: 1200
+          }
+        },
+        series: [pct],
+        plotOptions: {
+          radialBar: {
+            hollow: { size: "50%" },
+            track: {
+              background: "rgba(148,163,184,0.15)",
+              strokeWidth: "100%"
+            },
+            dataLabels: {
+              name: { show: false },
+              value: {
+                show: true,
+                fontSize: "11px",
+                fontFamily: "IBM Plex Mono, monospace",
+                fontWeight: 700,
+                color: accentHex,
+                offsetY: 4,
+                formatter: function (val) { return Math.round(val) + "%"; }
+              }
+            }
+          }
+        },
+        fill: {
+          type: "gradient",
+          gradient: {
+            shade: "dark",
+            type: "vertical",
+            gradientToColors: [accentHex],
+            stops: [0, 100],
+            colorStops: [
+              { offset: 0, color: accentHex, opacity: 1 },
+              { offset: 100, color: accentHex, opacity: 0.4 }
+            ]
+          }
+        },
+        colors: [accentHex],
+        stroke: { lineCap: "round" }
+      });
+      chart.render();
+    }, 50);
 
     return el;
   }
@@ -72,34 +111,108 @@
 
     var wrap = document.createElement("div");
     wrap.className = "cs-phase-progress";
+    wrap.style.width = "100%";
+    wrap.style.minHeight = (phases.length * 28 + 40) + "px";
 
-    phases.forEach(function (p) {
-      var row = document.createElement("div");
-      row.className = "cs-phase-row";
+    if (typeof ApexCharts === "undefined") {
+      // Fallback to simple bars
+      phases.forEach(function (p) {
+        var row = document.createElement("div");
+        row.className = "cs-phase-row";
+        var label = document.createElement("span");
+        label.className = "cs-phase-label";
+        label.textContent = "P" + p.phase_num;
+        row.appendChild(label);
+        var barBg = document.createElement("div");
+        barBg.className = "cs-phase-bar";
+        var barFill = document.createElement("div");
+        barFill.className = "cs-phase-bar-fill";
+        barFill.style.width = p.pct + "%";
+        barBg.appendChild(barFill);
+        row.appendChild(barBg);
+        var pctSpan = document.createElement("span");
+        pctSpan.className = "cs-phase-pct";
+        pctSpan.textContent = p.pct + "%";
+        row.appendChild(pctSpan);
+        wrap.appendChild(row);
+      });
+      return wrap;
+    }
 
-      var label = document.createElement("span");
-      label.className = "cs-phase-label";
-      label.textContent = p.phase;
-      row.appendChild(label);
+    var accentHex = getComputedStyle(document.documentElement).getPropertyValue("--cat-accent").trim() || "#00ffff";
 
-      var barWrap = document.createElement("div");
-      barWrap.className = "cs-phase-bar-wrap";
+    var categories = phases.map(function (p) { return "Phase " + p.phase_num; });
+    var seriesData = phases.map(function (p) { return p.pct; });
 
-      var bar = document.createElement("div");
-      bar.className = "cs-phase-bar";
-      bar.style.width = Math.min(p.pct, 100) + "%";
-      if (p.pct >= 100) bar.classList.add("complete");
-      else if (p.pct >= 50) bar.classList.add("mid");
-      barWrap.appendChild(bar);
-      row.appendChild(barWrap);
-
-      var stat = document.createElement("span");
-      stat.className = "cs-phase-stat";
-      stat.textContent = p.completed + "/" + p.total + " (" + p.pct + "%)";
-      row.appendChild(stat);
-
-      wrap.appendChild(row);
-    });
+    setTimeout(function () {
+      if (!wrap.parentElement) return;
+      var chart = new ApexCharts(wrap, {
+        chart: {
+          type: "bar",
+          height: phases.length * 28 + 40,
+          toolbar: { show: false },
+          background: "transparent",
+          animations: {
+            enabled: true,
+            easing: "easeinout",
+            speed: 800,
+            animateGradually: { enabled: true, delay: 150 }
+          }
+        },
+        series: [{ name: "Complete", data: seriesData }],
+        plotOptions: {
+          bar: {
+            horizontal: true,
+            barHeight: "60%",
+            borderRadius: 3,
+            distributed: false
+          }
+        },
+        xaxis: {
+          categories: categories,
+          max: 100,
+          labels: {
+            style: { colors: "#64748b", fontSize: "10px", fontFamily: "IBM Plex Mono" },
+            formatter: function (val) { return val + "%"; }
+          },
+          axisBorder: { show: false },
+          axisTicks: { show: false }
+        },
+        yaxis: {
+          labels: {
+            style: { colors: "#94a3b8", fontSize: "10px", fontFamily: "Antonio" }
+          }
+        },
+        grid: {
+          borderColor: "rgba(148,163,184,0.08)",
+          xaxis: { lines: { show: true } },
+          yaxis: { lines: { show: false } }
+        },
+        colors: [accentHex],
+        fill: {
+          type: "gradient",
+          gradient: {
+            shade: "dark",
+            type: "horizontal",
+            gradientToColors: [accentHex + "66"],
+            stops: [0, 100]
+          }
+        },
+        dataLabels: {
+          enabled: true,
+          formatter: function (val) { return val + "%"; },
+          style: {
+            fontSize: "10px",
+            fontFamily: "IBM Plex Mono",
+            colors: ["#e2e8f0"]
+          },
+          offsetX: 6
+        },
+        tooltip: { enabled: false },
+        theme: { mode: "dark" }
+      });
+      chart.render();
+    }, 80);
 
     return wrap;
   }
@@ -478,17 +591,73 @@
 
         row.appendChild(renderCompletenessRing(proj.completeness));
 
-        // Quality score indicator
+        // Quality score indicator with radar chart
         if (typeof proj.quality_score === "number") {
+          var qWrap = document.createElement("div");
+          qWrap.className = "cs-quality-wrap";
+          qWrap.style.cssText = "display:inline-flex;align-items:center;gap:4px;position:relative;";
+
           var qBadge = document.createElement("span");
           qBadge.className = "cs-quality-badge";
           var qVal = proj.quality_score;
           qBadge.classList.add(qVal >= 70 ? "high" : qVal >= 40 ? "mid" : "low");
           qBadge.textContent = "Q" + qVal;
-          qBadge.title = "Quality: Content " + (proj.quality_breakdown ? proj.quality_breakdown.content : 0)
-            + "/40, Coverage " + (proj.quality_breakdown ? proj.quality_breakdown.coverage : 0)
-            + "/30, Freshness " + (proj.quality_breakdown ? proj.quality_breakdown.freshness : 0) + "/30";
-          row.appendChild(qBadge);
+          qWrap.appendChild(qBadge);
+
+          // Mini radar chart on hover
+          if (typeof ApexCharts !== "undefined" && proj.quality_breakdown) {
+            var radarEl = document.createElement("div");
+            radarEl.className = "cs-quality-radar";
+            radarEl.style.cssText = "display:none;position:absolute;left:100%;top:50%;transform:translateY(-50%);z-index:100;width:160px;height:140px;background:rgba(10,10,26,0.95);border:1px solid var(--cat-accent);border-radius:6px;padding:4px;";
+
+            qWrap.addEventListener("mouseenter", function () {
+              radarEl.style.display = "block";
+              if (!radarEl._rendered) {
+                var accentHex = getComputedStyle(document.documentElement).getPropertyValue("--cat-accent").trim() || "#00ffff";
+                var bd = proj.quality_breakdown;
+                var chart = new ApexCharts(radarEl, {
+                  chart: {
+                    type: "radar",
+                    height: 130,
+                    width: 152,
+                    toolbar: { show: false },
+                    background: "transparent",
+                    animations: { enabled: true, speed: 400 }
+                  },
+                  series: [{
+                    name: "Quality",
+                    data: [
+                      Math.round((bd.content || 0) / 40 * 100),
+                      Math.round((bd.coverage || 0) / 30 * 100),
+                      Math.round((bd.freshness || 0) / 30 * 100)
+                    ]
+                  }],
+                  xaxis: {
+                    categories: ["Content", "Coverage", "Fresh"],
+                    labels: {
+                      style: { colors: ["#94a3b8","#94a3b8","#94a3b8"], fontSize: "9px", fontFamily: "Antonio" }
+                    }
+                  },
+                  yaxis: { show: false, max: 100 },
+                  colors: [accentHex],
+                  fill: { opacity: 0.25 },
+                  stroke: { width: 2 },
+                  markers: { size: 3, colors: [accentHex], strokeWidth: 0 },
+                  plotOptions: { radar: { polygons: { strokeColors: "rgba(148,163,184,0.12)", connectorColors: "rgba(148,163,184,0.12)" } } },
+                  theme: { mode: "dark" },
+                  grid: { show: false }
+                });
+                chart.render();
+                radarEl._rendered = true;
+              }
+            });
+            qWrap.addEventListener("mouseleave", function () {
+              radarEl.style.display = "none";
+            });
+            qWrap.appendChild(radarEl);
+          }
+
+          row.appendChild(qWrap);
         }
 
         var nameSpan = document.createElement("span");

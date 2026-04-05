@@ -62,7 +62,7 @@
             </div>
             <div class="bm-actions">
                 <button class="btn-cancel" onclick="lcarsCloseNotifications()">Close</button>
-                <button class="btn-submit" onclick="fetch('/api/notifications/mark-all-read',{method:'POST'}).then(function(){lcarsCloseNotifications();if(window._pollNotifications)_pollNotifications();})">Mark All Read</button>
+                <button class="btn-submit" onclick="fetch('/api/notifications/mark-all-read',{method:'POST'}).then(function(){var b=document.getElementById('lcarsNotifBody');if(b){b.textContent='';var p=document.createElement('p');p.style.color='#64748b';p.textContent='All clear — no notifications';b.appendChild(p);}if(window._pollNotifications)window._pollNotifications();})">Mark All Read</button>
             </div>
             <div class="bm-footer">
                 <div class="bm-footer-strip">

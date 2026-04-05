@@ -168,6 +168,9 @@
       .catch(function () {}); // Silent fail — polling recovers next tick
   }
 
+  // Expose for Mark All Read button
+  window._pollNotifications = _pollNotifications;
+
   function _startNotifPolling() {
     _pollNotifications(); // Immediate first check
     _notifPollInterval = setInterval(_pollNotifications, 30000); // Every 30s
@@ -220,12 +223,12 @@
 
         data.notifications.forEach(function (n) {
           var item = document.createElement("div");
-          item.style.cssText = "display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid rgba(var(--cat-accent-rgb,0,255,255),0.1);cursor:pointer;";
+          item.style.cssText = "display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-bottom:1px solid rgba(var(--cat-accent-rgb,0,255,255),0.08);transition:opacity 0.3s ease,transform 0.3s ease,max-height 0.3s ease;max-height:120px;overflow:hidden;";
 
           // Severity dot
           var dot = document.createElement("span");
           var dotColor = n.type === "error" ? "#ef4444" : n.type === "warning" ? "#ff9f43" : "var(--cat-accent, #00ffff)";
-          dot.style.cssText = "width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px;background:" + dotColor + ";box-shadow:0 0 6px " + dotColor + ";";
+          dot.style.cssText = "width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:6px;background:" + dotColor + ";box-shadow:0 0 6px " + dotColor + ";";
           item.appendChild(dot);
 
           // Content
@@ -238,28 +241,70 @@
           content.appendChild(title);
 
           if (n.message) {
+            // Parse message — might be JSON string
+            var msgText = n.message;
+            try {
+              var parsed = JSON.parse(n.message);
+              if (parsed.agent) msgText = parsed.agent + " — " + (parsed.department || "");
+              else if (typeof parsed === "string") msgText = parsed;
+            } catch (e) { /* not JSON, use as-is */ }
             var msg = document.createElement("div");
             msg.style.cssText = "font-size:0.7rem;color:#94a3b8;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
-            msg.textContent = n.message;
+            msg.textContent = msgText;
             content.appendChild(msg);
           }
 
           var meta = document.createElement("div");
           meta.style.cssText = "font-size:0.6rem;color:#475569;margin-top:3px;";
-          meta.textContent = (n.source || "") + (n.time_ago ? " \u2022 " + n.time_ago : "");
+          var metaParts = [];
+          if (n.source) metaParts.push(n.source);
+          if (n.priority && n.priority !== "low") metaParts.push(n.priority);
+          if (n.time_ago) metaParts.push(n.time_ago);
+          if (n.created_at && !n.time_ago) {
+            var d = new Date(n.created_at);
+            if (!isNaN(d)) metaParts.push(d.toLocaleString());
+          }
+          meta.textContent = metaParts.join(" \u2022 ");
           content.appendChild(meta);
 
           item.appendChild(content);
 
-          // Click to mark read
+          // Dismiss button
           if (n.id) {
-            item.addEventListener("click", function () {
+            var dismissBtn = document.createElement("button");
+            dismissBtn.style.cssText = "flex-shrink:0;background:none;border:1px solid rgba(var(--cat-accent-rgb,0,255,255),0.2);color:rgba(var(--cat-accent-rgb,0,255,255),0.5);font-size:0.55rem;font-family:'Antonio',sans-serif;letter-spacing:0.5px;padding:3px 8px;border-radius:3px;cursor:pointer;text-transform:uppercase;transition:color 0.15s,border-color 0.15s;margin-top:2px;";
+            dismissBtn.textContent = "CLEAR";
+            dismissBtn.addEventListener("mouseenter", function () {
+              dismissBtn.style.color = "var(--cat-accent, #00ffff)";
+              dismissBtn.style.borderColor = "var(--cat-accent, #00ffff)";
+            });
+            dismissBtn.addEventListener("mouseleave", function () {
+              dismissBtn.style.color = "rgba(var(--cat-accent-rgb,0,255,255),0.5)";
+              dismissBtn.style.borderColor = "rgba(var(--cat-accent-rgb,0,255,255),0.2)";
+            });
+            dismissBtn.addEventListener("click", function (e) {
+              e.stopPropagation();
               fetch("/api/notifications/mark-read/" + n.id, { method: "POST" })
                 .then(function () {
-                  item.style.opacity = "0.4";
-                  _pollNotifications();
+                  item.style.opacity = "0";
+                  item.style.transform = "translateX(30px)";
+                  item.style.maxHeight = "0";
+                  item.style.padding = "0 12px";
+                  setTimeout(function () {
+                    if (item.parentNode) item.parentNode.removeChild(item);
+                    _pollNotifications();
+                    // Check if list is now empty
+                    var remaining = body.querySelectorAll("div").length;
+                    if (remaining === 0) {
+                      var empty = document.createElement("p");
+                      empty.style.color = "#64748b";
+                      empty.textContent = "All clear — no notifications";
+                      body.appendChild(empty);
+                    }
+                  }, 300);
                 });
             });
+            item.appendChild(dismissBtn);
           }
 
           body.appendChild(item);

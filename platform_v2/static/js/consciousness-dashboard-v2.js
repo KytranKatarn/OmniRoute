@@ -758,7 +758,7 @@
     if (_origSwitch) {
       window.switchConsciousnessTab = function (tab) {
         _origSwitch(tab);
-        if (tab === "dashboard") {
+        if (tab === "intelligence") {
           loadDashboardV2Panels();
         }
       };

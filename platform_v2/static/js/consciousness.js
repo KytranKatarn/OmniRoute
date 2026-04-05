@@ -117,7 +117,7 @@ window.switchConsciousnessTab = function (tab) {
     checkActiveJobs();
   }
   /* Job polling — only needed on dashboard/knowledge/github/languages tabs */
-  if (tab !== "dashboard" && tab !== "knowledge" && tab !== "github" && tab !== "languages") {
+  if (tab !== "dashboard" && tab !== "knowledge" && tab !== "intelligence" && tab !== "github" && tab !== "languages") {
     _stopJobPolling();
   }
 };
@@ -146,7 +146,8 @@ function loadTabData(tab) {
   _cache[tab] = true;
 
   switch (tab) {
-    case "dashboard":   loadDashboard(); if (typeof loadDashboardV2Panels === "function") { loadDashboardV2Panels(); } break;
+    case "dashboard":   loadDashboard(); break;
+    case "intelligence": if (typeof loadDashboardV2Panels === "function") { loadDashboardV2Panels(); } break;
     case "knowledge":   loadKnowledge(); break;
     /* team tab merged into Starbase Command */
     case "github":      loadGitHub(); break;
@@ -2157,7 +2158,7 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   var hash = window.location.hash.replace("#", "");
-  var validTabs = ["dashboard", "knowledge", "github", "languages"];
+  var validTabs = ["dashboard", "knowledge", "intelligence", "github", "languages"];
   if (hash && validTabs.indexOf(hash) !== -1) {
     switchConsciousnessTab(hash);
   } else {

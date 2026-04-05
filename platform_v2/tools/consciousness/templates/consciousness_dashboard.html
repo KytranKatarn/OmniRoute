@@ -107,6 +107,70 @@
     50%      { box-shadow: 0 0 12px currentColor, 0 0 20px currentColor; }
 }
 
+/* -- Sci-fi Panel Effects -- */
+
+@keyframes csScanline {
+    0%   { top: -2px; }
+    100% { top: 100%; }
+}
+
+@keyframes csPanelSlideIn {
+    0%   { opacity: 0; transform: translateY(12px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+/* Scanline overlay on Intelligence tab panels */
+.cs-panel#panel-intelligence .lcars-frame {
+    position: relative;
+    overflow: hidden;
+}
+
+.cs-panel#panel-intelligence .lcars-frame::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(var(--cat-accent-rgb, 0,255,255), 0.4), transparent);
+    animation: csScanline 4s linear infinite;
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* Panel entrance animation */
+.cs-panel.active .lcars-frame {
+    animation: csPanelSlideIn 0.4s ease-out;
+}
+
+/* Stagger panel animations */
+.cs-panel.active .lcars-frame:nth-child(2) { animation-delay: 0.1s; }
+.cs-panel.active .lcars-frame:nth-child(3) { animation-delay: 0.2s; }
+.cs-panel.active .lcars-frame:nth-child(4) { animation-delay: 0.3s; }
+.cs-panel.active .lcars-frame:nth-child(5) { animation-delay: 0.4s; }
+
+/* Subtle data pulse on HUD stat numbers */
+.cs-hud-value, .cs-readout-value {
+    animation: pulse-glow 3s ease-in-out infinite;
+}
+
+/* Active tab glow underline */
+.lcars-header-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 20%;
+    right: 20%;
+    height: 2px;
+    background: var(--cat-accent);
+    box-shadow: 0 0 8px var(--cat-accent);
+    border-radius: 1px;
+}
+
+.lcars-header-tab {
+    position: relative;
+}
+
 /* --- GitHub Tab: Knowledge Intake (LCARS) --- */
 .gh-intake {
     background: rgba(255,255,255,0.03);
@@ -3697,6 +3761,10 @@
 <script src="{{ url_for('static', filename='js/pixel-crew.js') }}"></script>
 <script src="{{ url_for('static', filename='js/glass-nav.js') }}"></script>
 <script src="{{ url_for('static', filename='js/department-ops.js') }}"></script>
+
+<!-- Sci-fi visual libraries (CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<script src="https://unpkg.com/3d-force-graph"></script>
 
 <!-- Consciousness Module JS -->
 <script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>

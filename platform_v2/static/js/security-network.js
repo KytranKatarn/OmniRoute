@@ -543,7 +543,7 @@ function loadDevices() {
         var items = d.consumption || d.devices || [];
         if (!items.length) { snShowEmpty(container, 'No consumption data'); return; }
         var rows = items.slice(0, 20).map(function(item) {
-            return [item.mac || '-', item.ip || '-', item.hostname || '-', formatBytes(item.bytes_sent || 0), formatBytes(item.bytes_rcvd || 0), snFormatTime(item.last_seen)];
+            return [item.device_mac || item.mac || '-', item.device_ip || item.ip || '-', item.device_label || item.user_name || item.hostname || '-', formatBytes(item.bytes_sent || 0), formatBytes(item.bytes_recv || item.bytes_rcvd || 0), snFormatTime(item.last_seen)];
         });
         container.textContent = '';
         container.appendChild(snBuildTable(['MAC', 'IP', 'Hostname', 'Sent', 'Rcvd', 'Last Seen'], rows));

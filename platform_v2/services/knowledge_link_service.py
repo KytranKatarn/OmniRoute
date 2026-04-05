@@ -5,6 +5,7 @@ and per-project knowledge gap analysis.
 """
 
 import logging
+import time as _time
 import numpy as np
 from typing import List, Dict, Optional, Tuple
 from database import get_db_cursor
@@ -29,6 +30,37 @@ GAP_WEIGHTS = {
     "decisions": 0.20,
     "agent_activity": 0.15,
 }
+
+# --- Agent Expertise ---
+TAG_TO_DEPARTMENT = {
+    "ui": "Creative & Design",
+    "css": "Creative & Design",
+    "lcars": "Creative & Design",
+    "design": "Creative & Design",
+    "layout": "Creative & Design",
+    "knowledge": "Documentation & Knowledge",
+    "consciousness": "Documentation & Knowledge",
+    "dashboard": "Documentation & Knowledge",
+    "auth": "Security & Compliance",
+    "security": "Security & Compliance",
+    "compliance": "Security & Compliance",
+    "business": "Finance & Accounting",
+    "billing": "Finance & Accounting",
+    "commercial": "Finance & Accounting",
+    "agents": "Analytics & Intelligence",
+    "automation": "Analytics & Intelligence",
+    "intelligence": "Analytics & Intelligence",
+    "analytics": "Analytics & Intelligence",
+    "website": "Marketing & Communications",
+    "consolidation": "Marketing & Communications",
+    "navigation": "Engineering & Technology",
+    "i18n": "Engineering & Technology",
+    "engineering": "Engineering & Technology",
+}
+
+_agent_skill_cache: Dict = {}
+_agent_skill_cache_time: float = 0
+_AGENT_SKILL_CACHE_TTL = 300  # 5 minutes
 
 
 def _parse_embedding(emb) -> List[float]:
@@ -503,3 +535,187 @@ def auto_link_bridge_jobs(batch_size: int = DEFAULT_BATCH_SIZE) -> Dict:
         logger.error("[KnowledgeLink] auto_link_bridge_jobs failed: %s", e)
         stats["errors"] += 1
         return stats
+
+
+# --- Agent Expertise ---
+
+
+def _load_agent_skills() -> Dict:
+    """Load all agent skills + department info, cached for 5 minutes."""
+    global _agent_skill_cache, _agent_skill_cache_time
+
+    now = _time.time()
+    if now - _agent_skill_cache_time < _AGENT_SKILL_CACHE_TTL and _agent_skill_cache:
+        return _agent_skill_cache
+
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT a.id, a.name, a.display_name, a.department, a.is_department_ai
+                   FROM agents a
+                   WHERE a.shift_state IN ('active', 'barracked')"""
+            )
+            agents = {
+                row["name"]: {
+                    "display_name": row["display_name"] or row["name"],
+                    "department": row["department"] or "",
+                    "is_director": bool(row["is_department_ai"]),
+                    "skills": [],
+                }
+                for row in cur.fetchall()
+            }
+
+            cur.execute(
+                """SELECT a.name, s.skill_name, s.skill_category, s.proficiency_level
+                   FROM agent_skills s
+                   JOIN agents a ON a.id = s.agent_id
+                   WHERE a.shift_state IN ('active', 'barracked')"""
+            )
+            for row in cur.fetchall():
+                agent_name = row["name"]
+                if agent_name in agents:
+                    agents[agent_name]["skills"].append(
+                        {
+                            "skill_name": row["skill_name"],
+                            "skill_category": row["skill_category"] or "",
+                            "proficiency_level": row["proficiency_level"] or 1,
+                        }
+                    )
+
+        _agent_skill_cache = agents
+        _agent_skill_cache_time = now
+        return agents
+    except Exception as e:
+        logger.error("[AgentExpertise] _load_agent_skills failed: %s", e)
+        return _agent_skill_cache or {}
+
+
+def _compute_expertise_score(dispatches: int, successes: int, agent_info: Dict, project_tags: list) -> Dict:
+    """Compute expertise score (0-100) from 3 signals."""
+    dispatch_score = min(dispatches * 5, 50)
+
+    skill_score = 0
+    matching_skills = []
+    tags_lower = [t.lower() for t in (project_tags or [])]
+    for skill in agent_info.get("skills", []):
+        skill_name_lower = (skill["skill_name"] or "").lower()
+        skill_cat_lower = (skill["skill_category"] or "").lower()
+        matched = False
+        for tag in tags_lower:
+            if tag in skill_name_lower or tag in skill_cat_lower or skill_name_lower in tag:
+                matched = True
+                break
+        if matched:
+            skill_score += skill["proficiency_level"]
+            matching_skills.append(skill["skill_name"])
+    skill_score = min(skill_score * 7, 35)
+
+    dept_match = False
+    agent_dept = agent_info.get("department", "")
+    for tag in tags_lower:
+        if TAG_TO_DEPARTMENT.get(tag) == agent_dept:
+            dept_match = True
+            break
+    dept_score = 15 if dept_match else 0
+
+    total = dispatch_score + skill_score + dept_score
+
+    return {
+        "dispatches": dispatches,
+        "successes": successes,
+        "skill_score": skill_score,
+        "dept_match": dept_match,
+        "matching_skills": matching_skills,
+        "expertise_score": total,
+    }
+
+
+def get_agent_expertise(project_id: Optional[int] = None) -> List[Dict]:
+    """Get agent expertise data per project — active contributors + recommended agents."""
+    try:
+        with get_db_cursor() as (conn, cur):
+            if project_id:
+                cur.execute(
+                    "SELECT id, name, tags FROM unified_projects WHERE id = %s",
+                    (project_id,),
+                )
+            else:
+                cur.execute(
+                    "SELECT id, name, tags FROM unified_projects WHERE status IN ('active', 'planning') ORDER BY priority DESC"
+                )
+            projects = cur.fetchall()
+
+        if not projects:
+            return []
+
+        all_agents = _load_agent_skills()
+
+        results = []
+        for proj in projects:
+            pid = proj["id"]
+            pname = proj["name"]
+            ptags = proj["tags"] if isinstance(proj["tags"], list) else []
+
+            dispatch_data = {}
+            try:
+                with get_db_cursor() as (conn, cur):
+                    cur.execute(
+                        """SELECT agent_name, COUNT(*) as dispatches,
+                                  COUNT(*) FILTER (WHERE status = 'completed') as successes
+                           FROM bridge_jobs
+                           WHERE project_id = %s AND agent_name IS NOT NULL
+                           GROUP BY agent_name
+                           ORDER BY dispatches DESC""",
+                        (pid,),
+                    )
+                    for row in cur.fetchall():
+                        dispatch_data[row["agent_name"]] = {
+                            "dispatches": row["dispatches"],
+                            "successes": row["successes"],
+                        }
+            except Exception:
+                pass
+
+            contributors = []
+            recommended = []
+
+            for agent_name, agent_info in all_agents.items():
+                disp = dispatch_data.get(agent_name, {})
+                dispatches = disp.get("dispatches", 0)
+                successes = disp.get("successes", 0)
+
+                score_data = _compute_expertise_score(dispatches, successes, agent_info, ptags)
+
+                if score_data["expertise_score"] == 0:
+                    continue
+
+                entry = {
+                    "agent_name": agent_name,
+                    "display_name": agent_info["display_name"],
+                    "department": agent_info["department"],
+                    "is_director": agent_info["is_director"],
+                    **score_data,
+                }
+
+                if dispatches > 0:
+                    contributors.append(entry)
+                else:
+                    recommended.append(entry)
+
+            contributors.sort(key=lambda x: x["expertise_score"], reverse=True)
+            recommended.sort(key=lambda x: x["expertise_score"], reverse=True)
+
+            results.append(
+                {
+                    "project_id": pid,
+                    "name": pname,
+                    "contributors": contributors[:5],
+                    "recommended": recommended[:3],
+                }
+            )
+
+        return results
+
+    except Exception as e:
+        logger.error("[AgentExpertise] get_agent_expertise failed: %s", e)
+        return []

@@ -210,3 +210,180 @@ def register_device_routes(bp, admin_required_decorator):
         except Exception as exc:
             logger.error("devices_consumption_by_user error: %s", exc)
             return jsonify({"success": False, "error": str(exc)}), 500
+
+    # ---------------------------------------------------------------------------
+    # Device list with bandwidth (for Devices tab table)
+    # ---------------------------------------------------------------------------
+
+    @bp.route("/api/devices/list")
+    @login_required
+    @admin_required_decorator
+    def devices_list_with_bandwidth():
+        """Return all local devices with recent bandwidth and unique domain counts."""
+        hours = request.args.get("hours", 24, type=int)
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT
+                        nts.device_ip,
+                        nts.device_mac,
+                        ndu.user_name,
+                        ndu.device_label,
+                        ndu.device_type,
+                        SUM(nts.bytes_in)  AS total_in,
+                        SUM(nts.bytes_out) AS total_out,
+                        COUNT(DISTINCT ddh.domain) AS unique_domains
+                    FROM network_traffic_stats nts
+                    LEFT JOIN network_device_users ndu
+                        ON ndu.mac_address = nts.device_mac
+                    LEFT JOIN device_dns_history ddh
+                        ON ddh.device_ip = nts.device_ip
+                        AND ddh.hour_bucket >= NOW() - INTERVAL '1 hour' * %s
+                    WHERE nts.hour_bucket >= NOW() - INTERVAL '1 hour' * %s
+                      AND nts.device_ip LIKE '192.168.%%'
+                    GROUP BY
+                        nts.device_ip, nts.device_mac,
+                        ndu.user_name, ndu.device_label, ndu.device_type
+                    ORDER BY (SUM(nts.bytes_in) + SUM(nts.bytes_out)) DESC
+                    """,
+                    (hours, hours),
+                )
+                rows = cur.fetchall()
+                devices = [
+                    {
+                        "device_ip": row["device_ip"],
+                        "device_mac": row["device_mac"],
+                        "user_name": row["user_name"],
+                        "device_label": row["device_label"],
+                        "device_type": row["device_type"],
+                        "total_in": row["total_in"] or 0,
+                        "total_out": row["total_out"] or 0,
+                        "total": (row["total_in"] or 0) + (row["total_out"] or 0),
+                        "unique_domains": row["unique_domains"] or 0,
+                    }
+                    for row in rows
+                ]
+            return jsonify({"success": True, "devices": devices, "hours": hours})
+        except Exception as exc:
+            logger.error("devices_list_with_bandwidth error: %s", exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
+    # ---------------------------------------------------------------------------
+    # Per-device detail endpoint
+    # ---------------------------------------------------------------------------
+
+    IP_PATTERN = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
+
+    @bp.route("/api/devices/detail/<device_ip>")
+    @login_required
+    @admin_required_decorator
+    def device_detail(device_ip):
+        """Get comprehensive detail for a single device: info, bandwidth, top domains, timeline."""
+        if not IP_PATTERN.match(device_ip):
+            return jsonify({"success": False, "error": "Invalid IP address"}), 400
+
+        try:
+            with get_db_cursor() as (conn, cur):
+                # --- Device info ---
+                cur.execute(
+                    """
+                    SELECT
+                        nts.device_mac,
+                        ndu.user_name,
+                        ndu.device_label,
+                        ndu.device_type
+                    FROM network_traffic_stats nts
+                    LEFT JOIN network_device_users ndu
+                        ON ndu.mac_address = nts.device_mac
+                    WHERE nts.device_ip = %s
+                    ORDER BY nts.hour_bucket DESC
+                    LIMIT 1
+                    """,
+                    (device_ip,),
+                )
+                info_row = cur.fetchone()
+                device_info = {
+                    "ip": device_ip,
+                    "mac": info_row["device_mac"] if info_row else None,
+                    "user_name": info_row["user_name"] if info_row else None,
+                    "device_label": info_row["device_label"] if info_row else None,
+                    "device_type": info_row["device_type"] if info_row else None,
+                }
+
+                # --- Bandwidth summary (last 24 h) ---
+                cur.execute(
+                    """
+                    SELECT SUM(bytes_in) AS total_in, SUM(bytes_out) AS total_out
+                    FROM network_traffic_stats
+                    WHERE device_ip = %s
+                      AND hour_bucket >= NOW() - INTERVAL '24 hours'
+                    """,
+                    (device_ip,),
+                )
+                bw_row = cur.fetchone()
+                total_in = int(bw_row["total_in"] or 0) if bw_row else 0
+                total_out = int(bw_row["total_out"] or 0) if bw_row else 0
+                bandwidth = {
+                    "total_in": total_in,
+                    "total_out": total_out,
+                    "total": total_in + total_out,
+                    "hours": 24,
+                }
+
+                # --- Top domains (last 24 h) ---
+                cur.execute(
+                    """
+                    SELECT domain, SUM(query_count) AS queries, bool_or(blocked) AS blocked
+                    FROM device_dns_history
+                    WHERE device_ip = %s
+                      AND hour_bucket >= NOW() - INTERVAL '24 hours'
+                    GROUP BY domain
+                    ORDER BY queries DESC
+                    LIMIT 20
+                    """,
+                    (device_ip,),
+                )
+                domain_rows = cur.fetchall()
+                top_domains = [
+                    {
+                        "domain": r["domain"],
+                        "queries": int(r["queries"] or 0),
+                        "blocked": bool(r["blocked"]),
+                    }
+                    for r in domain_rows
+                ]
+
+                # --- Hourly bandwidth timeline (last 24 h) ---
+                cur.execute(
+                    """
+                    SELECT hour_bucket, bytes_in, bytes_out
+                    FROM network_traffic_stats
+                    WHERE device_ip = %s
+                      AND hour_bucket >= NOW() - INTERVAL '24 hours'
+                    ORDER BY hour_bucket
+                    """,
+                    (device_ip,),
+                )
+                timeline_rows = cur.fetchall()
+                timeline = [
+                    {
+                        "hour": r["hour_bucket"].isoformat() if r["hour_bucket"] else None,
+                        "bytes_in": int(r["bytes_in"] or 0),
+                        "bytes_out": int(r["bytes_out"] or 0),
+                    }
+                    for r in timeline_rows
+                ]
+
+            return jsonify(
+                {
+                    "success": True,
+                    "device": device_info,
+                    "bandwidth": bandwidth,
+                    "top_domains": top_domains,
+                    "timeline": timeline,
+                }
+            )
+        except Exception as exc:
+            logger.error("device_detail error for %s: %s", device_ip, exc)
+            return jsonify({"success": False, "error": str(exc)}), 500

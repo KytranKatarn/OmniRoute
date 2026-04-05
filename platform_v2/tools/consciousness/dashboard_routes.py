@@ -10,7 +10,7 @@ import os
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from flask import jsonify
+from flask import jsonify, request
 from flask_login import login_required
 
 from database import _get_db_password
@@ -230,3 +230,72 @@ def register_dashboard_routes(bp, admin_required):
                 cur.close()
             if conn:
                 conn.close()
+
+    @bp.route("/api/dashboard/project-knowledge/<int:project_id>")
+    @login_required
+    @admin_required
+    def api_project_knowledge(project_id):
+        """Get linked knowledge entries and gap analysis for a project."""
+        from services.knowledge_link_service import get_project_knowledge, get_project_knowledge_gaps
+
+        type_filter = request.args.get("type")
+        knowledge = get_project_knowledge(project_id, type_filter=type_filter)
+        gaps = get_project_knowledge_gaps(project_id)
+        return jsonify({"success": True, "knowledge": knowledge, "gaps": gaps})
+
+    @bp.route("/api/dashboard/agent-contributions/<int:project_id>")
+    @login_required
+    @admin_required
+    def api_agent_contributions(project_id):
+        """Get agent work stats for a project."""
+        from services.project_service import get_agent_contributions
+
+        days = request.args.get("days", type=int)
+        contributions = get_agent_contributions(project_id, days=days)
+        return jsonify({"success": True, "contributions": contributions})
+
+    @bp.route("/api/dashboard/knowledge-gaps")
+    @login_required
+    @admin_required
+    def api_knowledge_gaps():
+        """Get gap analysis for all active projects, sorted worst-first."""
+        from services.knowledge_link_service import get_all_gaps
+
+        status = request.args.get("status", "active")
+        gaps = get_all_gaps(status=status)
+        return jsonify({"success": True, "gaps": gaps})
+
+    @bp.route("/api/dashboard/link-knowledge", methods=["POST"])
+    @login_required
+    @admin_required
+    def api_link_knowledge():
+        """Manually link a knowledge entry to a project."""
+        from services.knowledge_link_service import link_knowledge_to_project
+
+        data = request.get_json() or {}
+        project_id = data.get("project_id")
+        knowledge_id = data.get("knowledge_id")
+        if not project_id or not knowledge_id:
+            return jsonify({"success": False, "error": "project_id and knowledge_id required"}), 400
+        ok = link_knowledge_to_project(int(knowledge_id), int(project_id), link_type="manual")
+        return jsonify({"success": ok})
+
+    @bp.route("/api/dashboard/unlink-knowledge/<int:link_id>", methods=["DELETE"])
+    @login_required
+    @admin_required
+    def api_unlink_knowledge(link_id):
+        """Remove a project-knowledge link."""
+        from database import get_db_cursor
+
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "DELETE FROM project_knowledge_links WHERE id = %s RETURNING project_id, knowledge_id",
+                    (link_id,),
+                )
+                row = cur.fetchone()
+                if row:
+                    return jsonify({"success": True, "removed": {"project_id": row[0], "knowledge_id": row[1]}})
+                return jsonify({"success": False, "error": "Link not found"}), 404
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500

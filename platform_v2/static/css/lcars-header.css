@@ -198,37 +198,85 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
   white-space: nowrap;
 }
 
-.lcars-header-bar-spacer {
-  flex: 1;
-}
-
-.lcars-header-bar-lang {
-  background: rgba(0, 0, 0, 0.15);
-  border: 1px solid rgba(0, 0, 0, 0.2);
-  border-radius: 4px;
-  padding: 2px 8px;
-  font-family: 'Antonio', sans-serif;
-  font-size: 0.6rem;
-  font-weight: 700;
-  color: rgba(0, 0, 0, 0.7);
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-  white-space: nowrap;
-}
-
-.lcars-header-bar-lang:hover {
-  background: rgba(0, 0, 0, 0.25);
-  color: rgba(0, 0, 0, 0.9);
-}
-
 .lcars-header-stardate {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.65rem;
-  color: rgba(0, 0, 0, 0.55);
+  font-size: 0.6rem;
+  color: rgba(var(--cat-accent-rgb), 0.6);
   white-space: nowrap;
   letter-spacing: 0.5px;
+}
+
+/* ============================================================
+   5b. STATUS STRIP (stardate, lang, theme, alerts)
+   ============================================================ */
+.lcars-header-strip {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 24px;
+  padding: 0 12px;
+  background: rgba(var(--cat-accent-rgb), 0.04);
+  border-bottom: 1px solid rgba(var(--cat-accent-rgb), 0.1);
+  flex-shrink: 0;
+}
+
+.lcars-strip-divider {
+  width: 1px;
+  height: 12px;
+  background: rgba(var(--cat-accent-rgb), 0.15);
+  margin: 0 8px;
+  flex-shrink: 0;
+}
+
+.lcars-strip-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: 'Antonio', sans-serif;
+  font-size: 0.58rem;
+  font-weight: 600;
+  color: rgba(var(--cat-accent-rgb), 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  transition: color 0.15s ease, background 0.15s ease;
+  white-space: nowrap;
+}
+
+.lcars-strip-btn:hover {
+  color: var(--cat-accent);
+  background: rgba(var(--cat-accent-rgb), 0.08);
+}
+
+.lcars-strip-btn i,
+.lcars-strip-btn svg {
+  opacity: 0.6;
+}
+
+.lcars-strip-btn:hover i,
+.lcars-strip-btn:hover svg {
+  opacity: 1;
+}
+
+.lcars-strip-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: #ef4444;
+  color: white;
+  font-size: 0.45rem;
+  font-weight: 700;
+  font-family: 'IBM Plex Mono', monospace;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
+  margin-left: 2px;
 }
 
 /* ============================================================
@@ -592,9 +640,11 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
     width: 56px;
   }
 
-  .lcars-header-bar-lang {
-    padding: 2px 6px;
-    font-size: 0.55rem;
+  .lcars-strip-btn span {
+    display: none;
+  }
+  .lcars-strip-divider {
+    margin: 0 4px;
   }
 }
 

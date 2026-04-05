@@ -151,16 +151,19 @@
           lcarsSetAlertState("normal");
         }
 
-        // Update badge count on elbow
-        var badge = document.getElementById("lcarsNotifBadge");
-        if (badge) {
-          if (unread > 0) {
-            badge.textContent = unread > 99 ? "99+" : String(unread);
-            badge.style.display = "flex";
-          } else {
-            badge.style.display = "none";
+        // Update badge counts (strip + elbow)
+        var badges = ["lcarsStripBadge", "lcarsNotifBadge"];
+        badges.forEach(function (id) {
+          var badge = document.getElementById(id);
+          if (badge) {
+            if (unread > 0) {
+              badge.textContent = unread > 99 ? "99+" : String(unread);
+              badge.style.display = "inline-flex";
+            } else {
+              badge.style.display = "none";
+            }
           }
-        }
+        });
       })
       .catch(function () {}); // Silent fail — polling recovers next tick
   }

@@ -237,7 +237,7 @@ def generate_project_docs(project_id: int, gap_data: Optional[Dict] = None) -> D
                     content,
                     AUTO_DOC_SOURCE_TYPE,
                     AUTO_DOC_QUALITY_SCORE,
-                    "{" + ",".join([project_slug, "auto-generated", "project-report"]) + "}",
+                    [project_slug, "auto-generated", "project-report"],
                     project_slug,
                 ),
             )

@@ -270,7 +270,7 @@ def generate_weekly_report(project_id: int) -> dict:
                     content,
                     REPORT_SOURCE_TYPE,
                     REPORT_QUALITY_SCORE,
-                    "{" + f"{project_slug},weekly-report,codex" + "}",
+                    [project_slug, "weekly-report", "codex"],
                     project_slug,
                 ),
             )

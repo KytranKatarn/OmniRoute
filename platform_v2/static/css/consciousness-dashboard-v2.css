@@ -10,11 +10,13 @@
     padding: 16px;
     margin-bottom: 12px;
     cursor: pointer;
-    transition: border-color 0.2s;
+    transition: all 0.25s ease;
 }
 
 .cs-project-card:hover {
-    border-color: rgba(139, 92, 246, 0.5);
+    border-color: rgba(139, 92, 246, 0.6);
+    box-shadow: 0 0 15px rgba(139, 92, 246, 0.15), inset 0 0 20px rgba(139, 92, 246, 0.05);
+    transform: translateY(-1px);
 }
 
 .cs-project-card-header {
@@ -102,6 +104,7 @@
     stroke-width: 4;
     stroke-linecap: round;
     transition: stroke-dashoffset 0.6s ease;
+    filter: drop-shadow(0 0 4px rgba(139, 92, 246, 0.6));
 }
 
 .cs-completeness-ring .ring-text {
@@ -129,12 +132,22 @@
     text-transform: uppercase;
     font-size: 0.8rem;
     border-bottom: 1px solid rgba(139, 92, 246, 0.25);
+    text-shadow: 0 0 8px rgba(139, 92, 246, 0.4);
 }
 
 .cs-contrib-table td {
     padding: 8px 12px;
     color: #cbd5e1;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    transition: background 0.15s;
+}
+
+.cs-contrib-table tbody tr:nth-child(even) td {
+    background: rgba(139, 92, 246, 0.04);
+}
+
+.cs-contrib-table tbody tr:hover td {
+    background: rgba(139, 92, 246, 0.12);
 }
 
 .cs-contrib-filters {
@@ -166,6 +179,11 @@
     gap: 16px;
     padding: 12px 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    transition: background 0.2s;
+}
+
+.cs-gap-row:hover {
+    background: rgba(139, 92, 246, 0.06);
 }
 
 .cs-gap-name {
@@ -187,11 +205,11 @@
     font-weight: 600;
 }
 
-.cs-gap-chip.docs { background: rgba(139, 92, 246, 0.15); color: #8b5cf6; }
-.cs-gap-chip.mistakes { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
-.cs-gap-chip.snippets { background: rgba(34, 211, 238, 0.15); color: #22d3ee; }
-.cs-gap-chip.decisions { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
-.cs-gap-chip.activity { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+.cs-gap-chip.docs { background: rgba(139, 92, 246, 0.15); color: #8b5cf6; text-shadow: 0 0 4px rgba(139, 92, 246, 0.3); }
+.cs-gap-chip.mistakes { background: rgba(239, 68, 68, 0.15); color: #ef4444; text-shadow: 0 0 4px rgba(239, 68, 68, 0.3); }
+.cs-gap-chip.snippets { background: rgba(34, 211, 238, 0.15); color: #22d3ee; text-shadow: 0 0 4px rgba(34, 211, 238, 0.3); }
+.cs-gap-chip.decisions { background: rgba(251, 191, 36, 0.15); color: #fbbf24; text-shadow: 0 0 4px rgba(251, 191, 36, 0.3); }
+.cs-gap-chip.activity { background: rgba(16, 185, 129, 0.15); color: #10b981; text-shadow: 0 0 4px rgba(16, 185, 129, 0.3); }
 
 .cs-gap-actions {
     display: flex;
@@ -265,6 +283,8 @@
     background: rgba(139, 92, 246, 0.2);
     color: #8b5cf6;
     border-color: #8b5cf6;
+    box-shadow: 0 0 10px rgba(139, 92, 246, 0.25);
+    text-shadow: 0 0 6px rgba(139, 92, 246, 0.4);
 }
 
 .cs-expertise-tab:hover:not(.active) {
@@ -279,6 +299,8 @@
     text-transform: uppercase;
     margin: 16px 0 8px 0;
     letter-spacing: 0.5px;
+    padding-left: 10px;
+    border-left: 3px solid #8b5cf6;
 }
 
 .cs-expertise-section-title:first-child {
@@ -300,12 +322,22 @@
     text-transform: uppercase;
     font-size: 0.8rem;
     border-bottom: 1px solid rgba(139, 92, 246, 0.25);
+    text-shadow: 0 0 8px rgba(139, 92, 246, 0.4);
 }
 
 .cs-expertise-table td {
     padding: 8px 12px;
     color: #cbd5e1;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    transition: background 0.15s;
+}
+
+.cs-expertise-table tbody tr:nth-child(even) td {
+    background: rgba(139, 92, 246, 0.04);
+}
+
+.cs-expertise-table tbody tr:hover td {
+    background: rgba(139, 92, 246, 0.12);
 }
 
 .cs-expertise-score-bar {
@@ -325,9 +357,9 @@
     transition: width 0.4s ease;
 }
 
-.cs-expertise-score-fill.high { background: #10b981; }
-.cs-expertise-score-fill.mid { background: #fbbf24; }
-.cs-expertise-score-fill.low { background: #ef4444; }
+.cs-expertise-score-fill.high { background: #10b981; box-shadow: 0 0 6px rgba(16, 185, 129, 0.5); }
+.cs-expertise-score-fill.mid { background: #fbbf24; box-shadow: 0 0 6px rgba(251, 191, 36, 0.5); }
+.cs-expertise-score-fill.low { background: #ef4444; box-shadow: 0 0 6px rgba(239, 68, 68, 0.5); }
 
 .cs-expertise-score-num {
     font-size: 0.8rem;
@@ -344,6 +376,13 @@
     border: 1px solid rgba(139, 92, 246, 0.15);
     border-radius: 6px;
     margin-bottom: 8px;
+    transition: all 0.25s ease;
+}
+
+.cs-recommended-card:hover {
+    border-color: rgba(139, 92, 246, 0.35);
+    box-shadow: 0 0 12px rgba(139, 92, 246, 0.1);
+    transform: translateY(-1px);
 }
 
 .cs-recommended-info {
@@ -376,6 +415,13 @@
     color: #00e5ff;
     text-transform: uppercase;
     font-weight: 600;
+    text-shadow: 0 0 4px rgba(0, 229, 255, 0.3);
+    transition: all 0.2s;
+}
+
+.cs-skill-chip:hover {
+    background: rgba(0, 229, 255, 0.2);
+    box-shadow: 0 0 8px rgba(0, 229, 255, 0.15);
 }
 
 .cs-director-badge {
@@ -387,6 +433,7 @@
     font-weight: 700;
     margin-left: 6px;
     vertical-align: middle;
+    text-shadow: 0 0 4px rgba(251, 191, 36, 0.4);
 }
 
 /* --- Phase Progress (Knowledge Gaps drill-down) --- */
@@ -425,7 +472,7 @@
 
 .cs-phase-bar-wrap {
     flex: 1;
-    height: 6px;
+    height: 8px;
     background: rgba(255, 255, 255, 0.08);
     border-radius: 3px;
     overflow: hidden;
@@ -433,17 +480,20 @@
 
 .cs-phase-bar {
     height: 100%;
-    border-radius: 3px;
+    border-radius: 4px;
     background: #fbbf24;
+    box-shadow: 0 0 6px rgba(251, 191, 36, 0.4);
     transition: width 0.4s ease;
 }
 
 .cs-phase-bar.complete {
     background: #10b981;
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
 }
 
 .cs-phase-bar.mid {
     background: #8b5cf6;
+    box-shadow: 0 0 6px rgba(139, 92, 246, 0.5);
 }
 
 .cs-phase-stat {
@@ -468,6 +518,9 @@
     font-weight: 700;
     font-family: 'IBM Plex Mono', monospace;
     flex-shrink: 0;
+    letter-spacing: 0.5px;
+    text-shadow: 0 0 6px currentColor;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
 }
 
 .cs-quality-badge.high {
@@ -489,7 +542,8 @@
 
 #cs-knowledge-graph-canvas {
     background: rgba(15, 23, 42, 0.6);
-    border: 1px solid rgba(139, 92, 246, 0.15);
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    box-shadow: inset 0 0 30px rgba(139, 92, 246, 0.05), 0 0 15px rgba(139, 92, 246, 0.08);
 }
 
 @media (max-width: 768px) {

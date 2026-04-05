@@ -229,6 +229,12 @@ def gateway_chat():
 
     conversation_id_param = body.get("conversation_id")
     agent_target = body.get("agent_target") or "ARCHIE"
+    project_id = body.get("project_id")
+    if project_id is not None:
+        try:
+            project_id = int(project_id)
+        except (ValueError, TypeError):
+            project_id = None
 
     start = _time.time()
 
@@ -273,6 +279,7 @@ def gateway_chat():
             user_id=gateway_user_id,
             conversation_id=str(conv["conversation_uuid"]),
             agent_target=agent_target,
+            project_id=project_id,
             user_context={
                 "username": "gateway",
                 "conversation_history": conversation_history,

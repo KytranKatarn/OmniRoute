@@ -31,11 +31,20 @@
 
   var _toastId = 0;
 
-  window.lcarsToast = function (title, message, severity, durationMs) {
+  /**
+   * lcarsToast(title, message, severity, options)
+   * options: { durationMs, href, actionLabel }
+   * - href: clicking toast navigates here
+   * - actionLabel: text shown at bottom (e.g. "VIEW APPROVALS")
+   */
+  window.lcarsToast = function (title, message, severity, options) {
     severity = severity || "info";
-    if (typeof durationMs === "undefined") {
-      durationMs = severity === "error" ? 0 : severity === "warning" ? 10000 : 5000;
+    if (typeof options === "number") {
+      options = { durationMs: options }; // backwards compat
     }
+    options = options || {};
+    var durationMs = typeof options.durationMs !== "undefined" ? options.durationMs
+      : severity === "error" ? 0 : severity === "warning" ? 10000 : 5000;
 
     var container = document.getElementById("lcarsToastContainer");
     if (!container) return;
@@ -45,32 +54,59 @@
     toast.dataset.severity = severity;
     toast.id = "lcarsToast" + (++_toastId);
 
+    // Click to navigate
+    if (options.href) {
+      toast.addEventListener("click", function (e) {
+        if (e.target.closest(".lcars-toast-close")) return;
+        window.location.href = options.href;
+      });
+    }
+
+    // LCARS elbow accent
     var accent = document.createElement("div");
     accent.className = "lcars-toast-accent";
     toast.appendChild(accent);
 
+    // Content area
     var content = document.createElement("div");
     content.className = "lcars-toast-content";
+
+    // Header row (title + close)
+    var header = document.createElement("div");
+    header.className = "lcars-toast-header";
 
     var titleEl = document.createElement("span");
     titleEl.className = "lcars-toast-title";
     titleEl.textContent = title;
-    content.appendChild(titleEl);
+    header.appendChild(titleEl);
 
+    var closeBtn = document.createElement("button");
+    closeBtn.className = "lcars-toast-close";
+    closeBtn.textContent = "\u00d7";
+    closeBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      _removeToast(toast);
+    });
+    header.appendChild(closeBtn);
+    content.appendChild(header);
+
+    // Message
     if (message) {
       var msgEl = document.createElement("span");
       msgEl.className = "lcars-toast-message";
       msgEl.textContent = message;
       content.appendChild(msgEl);
     }
+
+    // Action hint
+    if (options.actionLabel || options.href) {
+      var actionEl = document.createElement("span");
+      actionEl.className = "lcars-toast-action";
+      actionEl.textContent = options.actionLabel || "TAP TO VIEW \u25B8";
+      content.appendChild(actionEl);
+    }
+
     toast.appendChild(content);
-
-    var closeBtn = document.createElement("button");
-    closeBtn.className = "lcars-toast-close";
-    closeBtn.textContent = "\u00d7";
-    closeBtn.addEventListener("click", function () { _removeToast(toast); });
-    toast.appendChild(closeBtn);
-
     container.appendChild(toast);
 
     if (durationMs > 0) {
@@ -276,10 +312,20 @@
 
         // Toast on new issues only (not every poll)
         if (changed && approvals > 0) {
-          lcarsToast("Approvals Pending", approvals + " approval" + (approvals > 1 ? "s" : "") + " waiting", "warning");
+          lcarsToast(
+            "Approvals Pending",
+            approvals + " approval" + (approvals > 1 ? "s" : "") + " require your review",
+            "warning",
+            { href: "/tools/autonomy#approvals", actionLabel: "OPEN APPROVALS \u25B8" }
+          );
         }
         if (changed && errors > 0) {
-          lcarsToast("Errors Detected", errors + " error" + (errors > 1 ? "s" : "") + " in last hour", "error");
+          lcarsToast(
+            "System Errors",
+            errors + " error" + (errors > 1 ? "s" : "") + " detected in the last hour",
+            "error",
+            { href: "/tools/autonomy#active", actionLabel: "VIEW ERROR LOG \u25B8" }
+          );
         }
       })
       .catch(function () {}); // Silent fail — recovers next tick
@@ -296,7 +342,10 @@
         if (d && d.type === "show" && d.notification) {
           var n = d.notification;
           var severity = n.type === "error" ? "error" : n.type === "warning" ? "warning" : "info";
-          lcarsToast(n.title || "System Alert", n.text || "", severity);
+          lcarsToast(n.title || "System Alert", n.text || "", severity, {
+            href: n.href || null,
+            actionLabel: n.actionLabel || null
+          });
         }
       });
     } catch (e) {}

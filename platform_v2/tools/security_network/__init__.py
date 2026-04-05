@@ -19,6 +19,7 @@ from .traffic_routes import register_traffic_routes
 from .device_routes import register_device_routes
 from .report_routes import register_report_routes
 from .adguard_routes import register_adguard_routes
+from .hostinger_routes import register_hostinger_routes
 
 register_compliance_routes(security_network_bp, _admin_required)
 register_defense_routes(security_network_bp, _admin_required)
@@ -27,6 +28,7 @@ register_traffic_routes(security_network_bp, _admin_required)
 register_device_routes(security_network_bp, _admin_required)
 register_report_routes(security_network_bp, _admin_required)
 register_adguard_routes(security_network_bp, _admin_required)
+register_hostinger_routes(security_network_bp, _admin_required)
 
 # Load rule packs on startup
 try:

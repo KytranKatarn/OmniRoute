@@ -146,7 +146,7 @@ def run_security_audit():
             pass
 
         # 4. Check DDNS updater freshness
-        ddns_file = "/mnt/archie_brain/scripts/.ddns_last_ip"
+        ddns_file = os.path.join(os.getenv("ARCHIE_BASE_DIR", "/mnt/archie_brain"), "scripts", ".ddns_last_ip")
         if os.path.exists(ddns_file):
             age_hours = (time.time() - os.path.getmtime(ddns_file)) / 3600
             if age_hours > 1:

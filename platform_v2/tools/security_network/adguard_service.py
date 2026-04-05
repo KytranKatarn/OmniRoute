@@ -17,7 +17,8 @@ class AdGuardService:
         host = os.getenv("ADGUARD_HOST", "network_adguard")
         port = int(os.getenv("ADGUARD_PORT", "80"))
         self.base_url = f"http://{host}:{port}"
-        self.fallback_url = "http://192.168.1.200:5355"
+        _fallback_host = os.getenv("ARCHIE_HOST", "192.168.1.200")
+        self.fallback_url = f"http://{_fallback_host}:5355"
         self.username = os.getenv("ADGUARD_USER", "archie_admin")
         self.password = os.getenv("ADGUARD_PASS", "")
         self._active_url = None

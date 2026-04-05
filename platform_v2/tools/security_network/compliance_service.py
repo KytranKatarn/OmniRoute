@@ -1389,7 +1389,7 @@ def generate_ckl(scan_id):
         ("ROLE", "None"),
         ("ASSET_TYPE", "Computing"),
         ("HOST_NAME", "archie-hub"),
-        ("HOST_IP", "192.168.1.200"),
+        ("HOST_IP", os.getenv("ARCHIE_HOST", "192.168.1.200")),
         ("HOST_FQDN", "archie.local"),
         ("TARGET_KEY", "4072"),
         ("WEB_OR_DATABASE", "false"),

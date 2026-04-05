@@ -1275,7 +1275,7 @@ def _check_ssh_health():
 
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(2)
-        s.connect(("192.168.1.200", 22))
+        s.connect((os.getenv("ARCHIE_HOST", "192.168.1.200"), 22))
         s.close()
         return True
     except Exception as e:
@@ -1286,7 +1286,7 @@ def _check_ssh_health():
 def _check_fail2ban_health():
     """Check if fail2ban is running by checking its log file freshness."""
     try:
-        log_file = "/mnt/archie_brain/host_monitor_data.json"
+        log_file = os.path.join(os.getenv("ARCHIE_BASE_DIR", "/mnt/archie_brain"), "host_monitor_data.json")
         if not os.path.exists(log_file):
             return False
         # If host_monitor is running, fail2ban is likely running too
@@ -1301,7 +1301,7 @@ def _check_fail2ban_health():
 def _check_ddns_health():
     """Check if DDNS updater ran recently (last IP file updated within 10 min)."""
     try:
-        ip_file = "/mnt/archie_brain/scripts/.ddns_last_ip"
+        ip_file = os.path.join(os.getenv("ARCHIE_BASE_DIR", "/mnt/archie_brain"), "scripts", ".ddns_last_ip")
         if not os.path.exists(ip_file):
             return False
         age = time.time() - os.path.getmtime(ip_file)

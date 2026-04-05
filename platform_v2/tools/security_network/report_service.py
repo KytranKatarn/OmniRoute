@@ -12,8 +12,9 @@ from typing import Dict, Any, List
 from database import get_db_cursor
 
 
-SCANS_DIR = "/mnt/archie_brain/security_scans"
-REPORTS_DIR = "/mnt/archie_brain/security_scans/reports"
+_BASE_DIR = os.getenv("ARCHIE_BASE_DIR", "/mnt/archie_brain")
+SCANS_DIR = os.path.join(_BASE_DIR, "security_scans")
+REPORTS_DIR = os.path.join(_BASE_DIR, "security_scans", "reports")
 
 
 def ensure_reports_dir():

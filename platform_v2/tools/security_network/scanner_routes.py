@@ -246,7 +246,7 @@ def register_scanner_routes(bp, admin_required_decorator):
         import os
         import glob
 
-        scans_dir = "/mnt/archie_brain/security_scans"
+        scans_dir = os.path.join(os.getenv("ARCHIE_BASE_DIR", "/mnt/archie_brain"), "security_scans")
         scans = []
 
         try:
@@ -292,7 +292,7 @@ def register_scanner_routes(bp, admin_required_decorator):
         """Get scan result contents"""
         import os
 
-        scans_dir = "/mnt/archie_brain/security_scans"
+        scans_dir = os.path.join(os.getenv("ARCHIE_BASE_DIR", "/mnt/archie_brain"), "security_scans")
 
         # Security: validate filename
         if ".." in filename or "/" in filename or "\\" in filename:

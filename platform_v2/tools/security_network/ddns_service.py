@@ -7,8 +7,9 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-DDNS_SCRIPT = "/mnt/archie_brain/scripts/ddns_updater.sh"
-DDNS_LAST_IP_FILE = "/mnt/archie_brain/scripts/.ddns_last_ip"
+_BASE_DIR = os.getenv("ARCHIE_BASE_DIR", "/mnt/archie_brain")
+DDNS_SCRIPT = os.path.join(_BASE_DIR, "scripts", "ddns_updater.sh")
+DDNS_LAST_IP_FILE = os.path.join(_BASE_DIR, "scripts", ".ddns_last_ip")
 TIMEOUT_SECONDS = 30
 
 

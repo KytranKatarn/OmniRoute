@@ -116,7 +116,8 @@ class SecurityScannerService:
     """Interface with security scanner containers via Docker SDK"""
 
     def __init__(self):
-        self.scans_dir = "/mnt/archie_brain/security_scans"
+        _base_dir = os.getenv("ARCHIE_BASE_DIR", "/mnt/archie_brain")
+        self.scans_dir = os.path.join(_base_dir, "security_scans")
 
     def _docker_exec(self, container: str, command: List[str], timeout: int = 300) -> Dict[str, Any]:
         """Execute command in a container using Docker SDK (not shell)"""

@@ -1125,13 +1125,11 @@ function loadInsights() {
 }
 
 function loadSystemHealth() {
-  // Dev HQ — check if projects endpoint responds
-  fetch("/tools/dev-hq/api/projects-summary").then(function(r) {
-    return r.ok ? r.json() : null;
-  }).then(function(d) {
+  // Dev HQ — count active projects
+  api("/api/dashboard/knowledge-gaps").then(function(d) {
     var el = document.getElementById("intDevhqStatus");
-    if (el) {
-      var count = d && d.projects ? d.projects.length : (d && d.total ? d.total : 1);
+    if (el && d.success) {
+      var count = (d.gaps || []).length;
       el.textContent = count;
       el.style.color = "#22c55e";
     }
@@ -1140,25 +1138,19 @@ function loadSystemHealth() {
     if (el) { el.textContent = "Offline"; el.style.color = "#ef4444"; }
   });
 
-  // Bridge — check dispatcher
-  fetch("/ai_bridge/api/health").then(function(r) {
+  // Bridge — count loaded models via Ollama ps
+  fetch("http://192.168.1.200:11434/api/ps").then(function(r) {
     return r.ok ? r.json() : null;
   }).then(function(d) {
     var el = document.getElementById("intBridgeStatus");
     if (el) {
-      var models = d && d.loaded_models ? d.loaded_models : (d && d.models ? d.models : 0);
-      el.textContent = models || "Online";
+      var count = d && d.models ? d.models.length : 0;
+      el.textContent = count;
       el.style.color = "#3b82f6";
     }
   }).catch(function() {
-    // Try Ollama tags as fallback for bridge count
-    fetch("http://192.168.1.200:11434/api/tags").then(function(r) { return r.json(); }).then(function(d) {
-      var el = document.getElementById("intBridgeStatus");
-      if (el) { el.textContent = (d.models ? d.models.length : 0); el.style.color = "#3b82f6"; }
-    }).catch(function() {
-      var el = document.getElementById("intBridgeStatus");
-      if (el) { el.textContent = "Offline"; el.style.color = "#ef4444"; }
-    });
+    var el = document.getElementById("intBridgeStatus");
+    if (el) { el.textContent = "Offline"; el.style.color = "#ef4444"; }
   });
 
   // Ollama — check if running

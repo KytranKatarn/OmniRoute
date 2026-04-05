@@ -5,6 +5,7 @@ and per-project knowledge gap analysis.
 """
 
 import logging
+import re
 import time as _time
 import numpy as np
 from typing import List, Dict, Optional, Tuple
@@ -167,6 +168,68 @@ def get_knowledge_projects(knowledge_id: int) -> List[Dict]:
 # --- Gap Analysis ---
 
 
+def _extract_phases(project_id: int) -> List[Dict]:
+    """Extract phase-grouped task progress for a project.
+
+    Parses task titles for phase markers like 'Phase 1:', 'Phase 2.1:', 'P1:', etc.
+    Tasks without markers are grouped as 'General'.
+
+    Returns list of {phase, total, completed, pct} sorted by phase number.
+    """
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT title, status FROM unified_tasks WHERE project_id = %s",
+                (project_id,),
+            )
+            tasks = cur.fetchall()
+
+        if not tasks:
+            return []
+
+        phase_pattern = re.compile(r"^(?:Phase\s+|P)(\d+(?:\.\d+)?)", re.IGNORECASE)
+        phases: Dict[str, Dict] = {}
+
+        for task in tasks:
+            title = task["title"] or ""
+            match = phase_pattern.match(title.strip())
+            if match:
+                phase_num = match.group(1)
+                # Normalize: "1.1" -> "Phase 1", "2" -> "Phase 2"
+                major = phase_num.split(".")[0]
+                phase_key = f"Phase {major}"
+            else:
+                phase_key = "General"
+
+            if phase_key not in phases:
+                phases[phase_key] = {"phase": phase_key, "total": 0, "completed": 0}
+
+            phases[phase_key]["total"] += 1
+            if task["status"] == "completed":
+                phases[phase_key]["completed"] += 1
+
+        # Sort: Phase 1, Phase 2, ..., General last
+        result = []
+        numbered = sorted(
+            [(k, v) for k, v in phases.items() if k != "General"],
+            key=lambda x: int(x[0].split(" ")[1]),
+        )
+        for _, v in numbered:
+            v["pct"] = round(v["completed"] / v["total"] * 100) if v["total"] > 0 else 0
+            result.append(v)
+
+        if "General" in phases:
+            g = phases["General"]
+            g["pct"] = round(g["completed"] / g["total"] * 100) if g["total"] > 0 else 0
+            result.append(g)
+
+        return result
+
+    except Exception as e:
+        logger.error("[KnowledgeLink] _extract_phases failed for project %s: %s", project_id, e)
+        return []
+
+
 def get_project_knowledge_gaps(project_id: int) -> Dict:
     """Compute knowledge completeness score and gap details for a project."""
     try:
@@ -235,10 +298,13 @@ def get_project_knowledge_gaps(project_id: int) -> Dict:
             else:
                 gaps["agent_activity"] = "No agent activity recorded"
 
+            phases = _extract_phases(project_id)
+
             return {
                 "project_id": project_id,
                 "completeness": round(score * 100),
                 "gaps": gaps,
+                "phases": phases,
                 "counts": {
                     "vault_note": type_counts.get("vault_note", 0),
                     "mistake_learned": type_counts.get("mistake_learned", 0),
@@ -251,7 +317,14 @@ def get_project_knowledge_gaps(project_id: int) -> Dict:
             }
     except Exception as e:
         logger.error("[KnowledgeLink] get_project_knowledge_gaps failed: %s", e)
-        return {"project_id": project_id, "completeness": 0, "gaps": {}, "counts": {}, "needs_attention": True}
+        return {
+            "project_id": project_id,
+            "completeness": 0,
+            "gaps": {},
+            "phases": [],
+            "counts": {},
+            "needs_attention": True,
+        }
 
 
 def get_all_gaps(status: str = "active,planning") -> List[Dict]:

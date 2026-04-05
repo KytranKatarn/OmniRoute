@@ -8,6 +8,7 @@
     {
       "rule_id": "V-238196",
       "severity": "high",
+      "category": "encryption",
       "title": "SSH must use FIPS-validated MACs",
       "description": "Without cryptographic integrity protections, information can be altered without detection.",
       "check": {
@@ -32,6 +33,7 @@
     {
       "rule_id": "V-238197",
       "severity": "high",
+      "category": "encryption",
       "title": "SSH must use FIPS-validated ciphers",
       "description": "Without confidentiality protection mechanisms, unauthorized individuals may gain access to sensitive information.",
       "check": {
@@ -56,6 +58,7 @@
     {
       "rule_id": "V-238198",
       "severity": "high",
+      "category": "access_control",
       "title": "SSH must disable root login",
       "description": "Direct root login must be disabled to ensure accountability of actions performed on the system.",
       "check": {
@@ -82,6 +85,7 @@
     {
       "rule_id": "V-238199",
       "severity": "medium",
+      "category": "access_control",
       "title": "SSH must disable empty passwords",
       "description": "Permitting login without a password is inherently risky.",
       "check": {
@@ -106,6 +110,7 @@
     {
       "rule_id": "V-238200",
       "severity": "medium",
+      "category": "access_control",
       "title": "SSH must set MaxAuthTries to 4 or less",
       "description": "Setting the maximum number of authentication attempts protects against brute force attacks.",
       "check": {
@@ -129,6 +134,7 @@
     {
       "rule_id": "V-238201",
       "severity": "medium",
+      "category": "encryption",
       "title": "SSH must use protocol version 2",
       "description": "SSH protocol version 1 has known vulnerabilities and must not be used.",
       "check": {
@@ -152,6 +158,7 @@
     {
       "rule_id": "V-238202",
       "severity": "medium",
+      "category": "access_control",
       "title": "SSH must disable X11 forwarding",
       "description": "X11 forwarding over SSH can allow unauthorized GUI access to the server.",
       "check": {
@@ -175,6 +182,7 @@
     {
       "rule_id": "V-238203",
       "severity": "medium",
+      "category": "authentication",
       "title": "SSH ClientAliveInterval must be set to 600 or less",
       "description": "Terminating idle sessions reduces the window of opportunity for unauthorized access.",
       "check": {
@@ -199,6 +207,7 @@
     {
       "rule_id": "V-238204",
       "severity": "medium",
+      "category": "authentication",
       "title": "SSH ClientAliveCountMax must be set to 1",
       "description": "This limits the number of unresponsive keepalive messages before disconnecting.",
       "check": {
@@ -223,6 +232,7 @@
     {
       "rule_id": "V-238205",
       "severity": "medium",
+      "category": "authentication",
       "title": "SSH must set LoginGraceTime to 60 or less",
       "description": "Limiting login grace time reduces the attack surface for brute force.",
       "check": {
@@ -248,6 +258,7 @@
     {
       "rule_id": "V-238210",
       "severity": "medium",
+      "category": "authentication",
       "title": "Password minimum length must be 14 characters",
       "description": "The shorter the password, the lower the number of possible combinations that need to be tested.",
       "check": {
@@ -270,6 +281,7 @@
     {
       "rule_id": "V-238211",
       "severity": "medium",
+      "category": "authentication",
       "title": "Password must require at least 1 uppercase character",
       "description": "Use of a complex password helps increase the time needed to compromise the password.",
       "check": {
@@ -292,6 +304,7 @@
     {
       "rule_id": "V-238212",
       "severity": "medium",
+      "category": "authentication",
       "title": "Password must require at least 1 lowercase character",
       "description": "Use of a complex password helps increase the time needed to compromise the password.",
       "check": {
@@ -314,6 +327,7 @@
     {
       "rule_id": "V-238213",
       "severity": "medium",
+      "category": "authentication",
       "title": "Password must require at least 1 digit",
       "description": "Use of a complex password helps increase the time needed to compromise the password.",
       "check": {
@@ -336,6 +350,7 @@
     {
       "rule_id": "V-238214",
       "severity": "medium",
+      "category": "authentication",
       "title": "Password must require at least 1 special character",
       "description": "Use of a complex password helps increase the time needed to compromise the password.",
       "check": {
@@ -358,6 +373,7 @@
     {
       "rule_id": "V-238215",
       "severity": "medium",
+      "category": "authentication",
       "title": "Password must require minimum 8 characters changed from old password",
       "description": "Requiring a minimum number of changed characters prevents trivial password rotations.",
       "check": {
@@ -380,6 +396,7 @@
     {
       "rule_id": "V-238216",
       "severity": "medium",
+      "category": "authentication",
       "title": "Password must enforce history of 5 previous passwords",
       "description": "Prevents reuse of recent passwords to avoid compromised credential reuse.",
       "check": {
@@ -401,6 +418,7 @@
     {
       "rule_id": "V-238217",
       "severity": "medium",
+      "category": "authentication",
       "title": "Account lockout must be configured for 3 failed attempts",
       "description": "Locking accounts after failed login attempts reduces brute force attack effectiveness.",
       "check": {
@@ -423,6 +441,7 @@
     {
       "rule_id": "V-238220",
       "severity": "medium",
+      "category": "audit_logging",
       "title": "Audit system must be configured to audit login events",
       "description": "Without auditing login events, security incidents may go undetected.",
       "check": {
@@ -446,6 +465,7 @@
     {
       "rule_id": "V-238221",
       "severity": "medium",
+      "category": "audit_logging",
       "title": "Audit must log all privileged commands (sudo)",
       "description": "Privileged command execution must be audited for accountability.",
       "check": {
@@ -470,6 +490,7 @@
     {
       "rule_id": "V-238222",
       "severity": "medium",
+      "category": "audit_logging",
       "title": "Audit must log file deletion events",
       "description": "Auditing file deletions enables investigation of unauthorized data destruction.",
       "check": {
@@ -493,6 +514,7 @@
     {
       "rule_id": "V-238223",
       "severity": "medium",
+      "category": "audit_logging",
       "title": "Audit must log permission changes (chmod)",
       "description": "Monitoring permission changes is essential for detecting unauthorized access modifications.",
       "check": {
@@ -517,6 +539,7 @@
     {
       "rule_id": "V-238224",
       "severity": "medium",
+      "category": "audit_logging",
       "title": "Audit log files must be owned by root",
       "description": "Unauthorized access to audit logs could allow tampering with forensic evidence.",
       "check": {
@@ -539,6 +562,7 @@
     {
       "rule_id": "V-238225",
       "severity": "medium",
+      "category": "audit_logging",
       "title": "auditd service must be enabled and running",
       "description": "The audit daemon must be running to capture security events.",
       "check": {
@@ -562,6 +586,7 @@
     {
       "rule_id": "V-238226",
       "severity": "medium",
+      "category": "audit_logging",
       "title": "Audit must log ownership changes (chown)",
       "description": "Monitoring ownership changes helps detect unauthorized privilege escalation.",
       "check": {
@@ -585,6 +610,7 @@
     {
       "rule_id": "V-238227",
       "severity": "medium",
+      "category": "audit_logging",
       "title": "Audit must log module loading events",
       "description": "Kernel module loading can introduce rootkits and must be audited.",
       "check": {
@@ -608,6 +634,7 @@
     {
       "rule_id": "V-238230",
       "severity": "medium",
+      "category": "configuration",
       "title": "Kernel must restrict core dumps",
       "description": "Core dumps can contain sensitive data including passwords and encryption keys.",
       "check": {
@@ -630,6 +657,7 @@
     {
       "rule_id": "V-238231",
       "severity": "medium",
+      "category": "configuration",
       "title": "Kernel must enable address space layout randomization",
       "description": "ASLR makes it more difficult for an attacker to predict the location of attack code.",
       "check": {
@@ -651,6 +679,7 @@
     {
       "rule_id": "V-238232",
       "severity": "medium",
+      "category": "network",
       "title": "Kernel must disable IP forwarding unless acting as router",
       "description": "IP forwarding allows the system to route packets between networks. Docker hosts require ip_forward=1 for container networking.",
       "check": {
@@ -673,6 +702,7 @@
     {
       "rule_id": "V-238233",
       "severity": "medium",
+      "category": "network",
       "title": "Kernel must reject ICMP redirects",
       "description": "ICMP redirects can be used to alter routing tables for man-in-the-middle attacks.",
       "check": {
@@ -694,6 +724,7 @@
     {
       "rule_id": "V-238234",
       "severity": "medium",
+      "category": "network",
       "title": "Kernel must not send ICMP redirects",
       "description": "Sending ICMP redirects could allow an attacker to update routing tables.",
       "check": {
@@ -715,6 +746,7 @@
     {
       "rule_id": "V-238235",
       "severity": "medium",
+      "category": "network",
       "title": "Kernel must enable TCP SYN cookies",
       "description": "SYN cookies protect against SYN flood denial-of-service attacks.",
       "check": {
@@ -737,6 +769,7 @@
     {
       "rule_id": "V-238236",
       "severity": "medium",
+      "category": "network",
       "title": "Kernel must ignore source-routed packets",
       "description": "Source-routed packets allow the sender to dictate the route, bypassing security controls.",
       "check": {
@@ -758,6 +791,7 @@
     {
       "rule_id": "V-238237",
       "severity": "medium",
+      "category": "network",
       "title": "Kernel must log martian packets",
       "description": "Logging martian packets helps detect spoofed traffic and misconfigured networks.",
       "check": {
@@ -781,6 +815,7 @@
     {
       "rule_id": "V-238240",
       "severity": "high",
+      "category": "filesystem",
       "title": "/etc/shadow must have permissions 0640 or more restrictive or more restrictive",
       "description": "The shadow file contains password hashes and must be protected from unauthorized access.",
       "check": {
@@ -806,6 +841,7 @@
     {
       "rule_id": "V-238241",
       "severity": "medium",
+      "category": "filesystem",
       "title": "/etc/passwd must have permissions 0644 or more restrictive",
       "description": "The passwd file must be readable but not writable by unauthorized users.",
       "check": {
@@ -829,6 +865,7 @@
     {
       "rule_id": "V-238242",
       "severity": "medium",
+      "category": "filesystem",
       "title": "/etc/group must have permissions 0644 or more restrictive",
       "description": "The group file must not be writable by unauthorized users.",
       "check": {
@@ -852,6 +889,7 @@
     {
       "rule_id": "V-238243",
       "severity": "medium",
+      "category": "filesystem",
       "title": "/etc/gshadow must have permissions 0640 or more restrictive or more restrictive",
       "description": "The gshadow file contains group password hashes and must be protected.",
       "check": {
@@ -877,6 +915,7 @@
     {
       "rule_id": "V-238244",
       "severity": "high",
+      "category": "filesystem",
       "title": "/etc/ssh/sshd_config must have permissions 0644 or more restrictive",
       "description": "SSH configuration must be protected from unauthorized modification. 0644 is acceptable as it is not world-writable.",
       "check": {
@@ -900,6 +939,7 @@
     {
       "rule_id": "V-238245",
       "severity": "medium",
+      "category": "filesystem",
       "title": "/boot/grub/grub.cfg must have permissions 0600 or not be accessible",
       "description": "The bootloader config must be protected from unauthorized modification. Not applicable in containers.",
       "check": {
@@ -922,6 +962,7 @@
     {
       "rule_id": "V-238246",
       "severity": "medium",
+      "category": "filesystem",
       "title": "/var/log must have permissions 0755 or more restrictive",
       "description": "Log directory must be protected from unauthorized writes that could tamper with evidence.",
       "check": {
@@ -946,6 +987,7 @@
     {
       "rule_id": "V-238247",
       "severity": "medium",
+      "category": "filesystem",
       "title": "/etc/crontab must have permissions 0600 or not exist",
       "description": "Crontab must be restricted to prevent unauthorized scheduled task modifications. Absence in containers is acceptable.",
       "check": {
@@ -968,6 +1010,7 @@
     {
       "rule_id": "V-238250",
       "severity": "high",
+      "category": "services",
       "title": "telnet must not be installed",
       "description": "Telnet transmits credentials in cleartext and must not be present.",
       "check": {
@@ -989,6 +1032,7 @@
     {
       "rule_id": "V-238251",
       "severity": "high",
+      "category": "services",
       "title": "rsh-server must not be installed",
       "description": "Remote Shell transmits credentials in cleartext and must not be present.",
       "check": {
@@ -1009,6 +1053,7 @@
     {
       "rule_id": "V-238252",
       "severity": "medium",
+      "category": "services",
       "title": "NIS (ypserv) must not be installed",
       "description": "NIS transmits unencrypted authentication information and must not be present.",
       "check": {
@@ -1029,6 +1074,7 @@
     {
       "rule_id": "V-238253",
       "severity": "medium",
+      "category": "services",
       "title": "rsync must not be installed or must be configured securely",
       "description": "An improperly configured rsync can allow unauthorized file access.",
       "check": {
@@ -1050,6 +1096,7 @@
     {
       "rule_id": "V-238254",
       "severity": "medium",
+      "category": "services",
       "title": "Avahi daemon must be disabled",
       "description": "Avahi provides mDNS/DNS-SD which is unnecessary on servers and increases attack surface.",
       "check": {
@@ -1071,6 +1118,7 @@
     {
       "rule_id": "V-238255",
       "severity": "medium",
+      "category": "services",
       "title": "CUPS must be disabled if not needed",
       "description": "Printing services are unnecessary on most servers and increase attack surface.",
       "check": {
@@ -1092,6 +1140,7 @@
     {
       "rule_id": "V-238256",
       "severity": "medium",
+      "category": "network",
       "title": "ufw must be enabled",
       "description": "A host-based firewall must be configured to restrict incoming network traffic.",
       "check": {
@@ -1114,6 +1163,7 @@
     {
       "rule_id": "V-238257",
       "severity": "medium",
+      "category": "configuration",
       "title": "chrony or systemd-timesyncd must be enabled for NTP",
       "description": "Accurate timestamps are essential for log correlation and forensic analysis.",
       "check": {
@@ -1135,6 +1185,7 @@
     {
       "rule_id": "V-238258",
       "severity": "medium",
+      "category": "configuration",
       "title": "AppArmor must be enabled",
       "description": "AppArmor provides mandatory access control to confine programs to limited resources.",
       "check": {

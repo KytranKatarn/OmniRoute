@@ -22,7 +22,7 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
 }
 
 .lcars-header-elbow {
-  width: 56px;
+  width: 64px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;

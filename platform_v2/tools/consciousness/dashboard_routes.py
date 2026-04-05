@@ -331,3 +331,44 @@ def register_dashboard_routes(bp, admin_required):
                 return jsonify({"success": False, "error": "Link not found"}), 404
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/dashboard/generate-docs", methods=["POST"])
+    @login_required
+    @admin_required
+    def api_generate_docs():
+        """Trigger D.A.R.W.I.N. doc generation for a specific project."""
+        from services.auto_doc_service import generate_project_docs, check_cooldown
+
+        data = request.get_json() or {}
+        project_id = data.get("project_id")
+        if not project_id:
+            return jsonify({"success": False, "error": "project_id required"}), 400
+
+        try:
+            project_id = int(project_id)
+        except (ValueError, TypeError):
+            return jsonify({"success": False, "error": "Invalid project_id"}), 400
+
+        # Check cooldown (but allow override with force=true)
+        force = data.get("force", False)
+        if not force:
+            from database import get_db_cursor
+
+            with get_db_cursor() as (conn, cur):
+                cur.execute("SELECT slug FROM unified_projects WHERE id = %s", (project_id,))
+                row = cur.fetchone()
+                if row and check_cooldown(row["slug"]):
+                    return (
+                        jsonify(
+                            {
+                                "success": False,
+                                "error": "Report generated within last 7 days. Use force=true to override.",
+                            }
+                        ),
+                        429,
+                    )
+
+        result = generate_project_docs(project_id)
+        if result["success"]:
+            return jsonify({"success": True, "kb_id": result["kb_id"], "message": "Report generated successfully"})
+        return jsonify({"success": False, "error": result["error"]}), 500

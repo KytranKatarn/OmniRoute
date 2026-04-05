@@ -214,6 +214,31 @@
     color: #8b5cf6;
 }
 
+.cs-link-badge.draft {
+    background: rgba(251, 146, 60, 0.15);
+    color: #fb923c;
+}
+
+.cs-gap-chip.drafts {
+    background: rgba(251, 146, 60, 0.15);
+    color: #fb923c;
+}
+
+.cs-generate-report-btn {
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+.cs-generate-report-btn:hover:not(:disabled) {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    border-color: #10b981;
+}
+
+.cs-generate-report-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 @media (max-width: 768px) {
     .cs-gap-row {
         flex-direction: column;

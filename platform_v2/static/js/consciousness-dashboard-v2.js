@@ -587,178 +587,113 @@
 
   function renderKnowledgeGraph(data) {
     if (!data || !data.success) return;
-    var canvas = document.getElementById("cs-knowledge-graph-canvas");
-    if (!canvas) return;
-    var _accentRgb = getComputedStyle(document.documentElement).getPropertyValue('--cat-accent-rgb').trim() || '0,229,255';
+    var container = document.getElementById("cs-knowledge-graph-canvas");
+    if (!container) return;
 
     var nodes = data.nodes || [];
     var edges = data.edges || [];
-    if (nodes.length === 0) {
-      canvas.parentElement.querySelector("p") && (canvas.style.display = "none");
+    if (nodes.length === 0) return;
+
+    // Hide loading text
+    var loadingP = container.parentElement.querySelector("p");
+    if (loadingP) loadingP.style.display = "none";
+
+    // Replace canvas with a div for 3D graph
+    var graphEl = document.getElementById("cs-knowledge-graph-3d");
+    if (!graphEl) {
+      graphEl = document.createElement("div");
+      graphEl.id = "cs-knowledge-graph-3d";
+      graphEl.style.cssText = "width:100%;height:360px;border-radius:6px;overflow:hidden;";
+      container.parentElement.insertBefore(graphEl, container);
+      container.style.display = "none";
+    }
+
+    // Check if ForceGraph3D is available (CDN loaded)
+    if (typeof ForceGraph3D === "undefined") {
+      // Fallback: show message
+      graphEl.style.cssText += "display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,0.6);";
+      graphEl.textContent = "3D graph library loading...";
       return;
     }
 
-    var width = canvas.parentElement.offsetWidth || 600;
-    var height = 320;
-    canvas.width = width;
-    canvas.height = height;
-    canvas.style.display = "block";
+    // Get accent color from CSS
+    var accentRgb = getComputedStyle(document.documentElement).getPropertyValue("--cat-accent-rgb").trim() || "0,255,255";
+    var accentHex = getComputedStyle(document.documentElement).getPropertyValue("--cat-accent").trim() || "#00ffff";
 
-    // Hide loading text
-    var loadingP = canvas.parentElement.querySelector("p");
-    if (loadingP) loadingP.style.display = "none";
-
-    var ctx = canvas.getContext("2d");
-
-    // Initialize node positions in a circle
-    var cx = width / 2, cy = height / 2, radius = Math.min(width, height) * 0.32;
-    nodes.forEach(function (n, i) {
-      var angle = (2 * Math.PI * i) / nodes.length - Math.PI / 2;
-      n.x = cx + radius * Math.cos(angle);
-      n.y = cy + radius * Math.sin(angle);
-      n.vx = 0;
-      n.vy = 0;
-      n.radius = Math.max(8, Math.min(22, 6 + Math.sqrt(n.links_count) * 2));
-    });
-
-    // Build edge lookup for quick source/target access
-    var nodeMap = {};
-    nodes.forEach(function (n) { nodeMap[n.id] = n; });
+    // Build graph data
+    var graphData = {
+      nodes: nodes.map(function (n) {
+        return {
+          id: n.id,
+          name: n.name.length > 25 ? n.name.substring(0, 25) + "..." : n.name,
+          fullName: n.name,
+          val: Math.max(4, Math.sqrt(n.links_count) * 3),
+          links_count: n.links_count
+        };
+      }),
+      links: edges.map(function (e) {
+        return {
+          source: e.source,
+          target: e.target,
+          shared: e.shared
+        };
+      })
+    };
 
     var maxShared = 1;
-    edges.forEach(function (e) {
-      if (e.shared > maxShared) maxShared = e.shared;
-    });
+    edges.forEach(function (e) { if (e.shared > maxShared) maxShared = e.shared; });
 
-    // Simple force simulation (80 iterations, no animation needed)
-    for (var iter = 0; iter < 80; iter++) {
-      // Repulsion between all nodes
-      for (var i = 0; i < nodes.length; i++) {
-        for (var j = i + 1; j < nodes.length; j++) {
-          var dx = nodes[j].x - nodes[i].x;
-          var dy = nodes[j].y - nodes[i].y;
-          var dist = Math.sqrt(dx * dx + dy * dy) || 1;
-          var force = 2000 / (dist * dist);
-          var fx = (dx / dist) * force;
-          var fy = (dy / dist) * force;
-          nodes[i].vx -= fx;
-          nodes[i].vy -= fy;
-          nodes[j].vx += fx;
-          nodes[j].vy += fy;
-        }
+    // Clear previous graph
+    graphEl.textContent = "";
+
+    var Graph = ForceGraph3D()(graphEl)
+      .graphData(graphData)
+      .width(graphEl.offsetWidth)
+      .height(360)
+      .backgroundColor("#0a0a1a")
+      .showNavInfo(false)
+      // Node styling
+      .nodeLabel(function (node) {
+        return "<div style='background:rgba(10,10,26,0.9);padding:6px 10px;border:1px solid " + accentHex + ";border-radius:4px;font-family:Antonio,sans-serif;color:#e2e8f0;font-size:12px;'>"
+          + "<b>" + node.fullName + "</b><br>"
+          + "<span style='color:" + accentHex + ";'>" + node.links_count + " knowledge links</span>"
+          + "</div>";
+      })
+      .nodeColor(function () { return accentHex; })
+      .nodeOpacity(0.9)
+      .nodeResolution(16)
+      // Link styling
+      .linkWidth(function (link) { return 0.5 + (link.shared / maxShared) * 3; })
+      .linkColor(function (link) {
+        var alpha = 0.15 + (link.shared / maxShared) * 0.5;
+        return "rgba(0, 229, 255, " + alpha + ")";
+      })
+      .linkOpacity(0.8)
+      // Camera
+      .cameraPosition({ z: 300 });
+
+    // Slow auto-rotation
+    var angle = 0;
+    var rotationInterval = setInterval(function () {
+      if (!document.getElementById("cs-knowledge-graph-3d")) {
+        clearInterval(rotationInterval);
+        return;
       }
-
-      // Attraction along edges
-      edges.forEach(function (e) {
-        var s = nodeMap[e.source], t = nodeMap[e.target];
-        if (!s || !t) return;
-        var dx = t.x - s.x;
-        var dy = t.y - s.y;
-        var dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        var strength = 0.01 * e.shared;
-        var fx = dx * strength;
-        var fy = dy * strength;
-        s.vx += fx;
-        s.vy += fy;
-        t.vx -= fx;
-        t.vy -= fy;
+      angle += 0.002;
+      var dist = 300;
+      Graph.cameraPosition({
+        x: dist * Math.sin(angle),
+        z: dist * Math.cos(angle)
       });
+    }, 30);
 
-      // Center gravity
-      nodes.forEach(function (n) {
-        n.vx += (cx - n.x) * 0.005;
-        n.vy += (cy - n.y) * 0.005;
-      });
-
-      // Apply velocity with damping
-      var damping = 0.85;
-      nodes.forEach(function (n) {
-        n.vx *= damping;
-        n.vy *= damping;
-        n.x += n.vx;
-        n.y += n.vy;
-        // Bounds
-        n.x = Math.max(n.radius + 5, Math.min(width - n.radius - 5, n.x));
-        n.y = Math.max(n.radius + 5, Math.min(height - n.radius - 5, n.y));
-      });
-    }
-
-    // Draw
-    ctx.clearRect(0, 0, width, height);
-
-    // Edges with neon glow
-    edges.forEach(function (e) {
-      var s = nodeMap[e.source], t = nodeMap[e.target];
-      if (!s || !t) return;
-      var lineWidth = 1 + (e.shared / maxShared) * 4;
-      var alpha = 0.2 + (e.shared / maxShared) * 0.5;
-      ctx.save();
-      ctx.shadowColor = "rgba(0, 229, 255, " + (alpha * 0.6) + ")";
-      ctx.shadowBlur = 8 + (e.shared / maxShared) * 8;
-      ctx.beginPath();
-      ctx.moveTo(s.x, s.y);
-      ctx.lineTo(t.x, t.y);
-      ctx.strokeStyle = "rgba(0, 229, 255, " + alpha + ")";
-      ctx.lineWidth = lineWidth;
-      ctx.stroke();
-      ctx.restore();
-
-      // Edge label (shared count)
-      if (e.shared >= 3) {
-        var mx = (s.x + t.x) / 2, my = (s.y + t.y) / 2;
-        ctx.font = "bold 10px 'IBM Plex Mono', monospace";
-        ctx.fillStyle = "rgba(0, 229, 255, 0.85)";
-        ctx.textAlign = "center";
-        ctx.fillText(String(e.shared), mx, my - 4);
+    // Handle resize
+    var resizeObserver = new ResizeObserver(function () {
+      if (graphEl.offsetWidth > 0) {
+        Graph.width(graphEl.offsetWidth);
       }
     });
-
-    // Nodes with neon glow
-    nodes.forEach(function (n) {
-      // Outer glow halo
-      ctx.save();
-      ctx.shadowColor = "rgba(" + _accentRgb + ", 0.6)";
-      ctx.shadowBlur = 20;
-      ctx.beginPath();
-      ctx.arc(n.x, n.y, n.radius + 4, 0, 2 * Math.PI);
-      ctx.fillStyle = "rgba(" + _accentRgb + ", 0.08)";
-      ctx.fill();
-      ctx.restore();
-
-      // Inner glow ring
-      ctx.save();
-      ctx.shadowColor = "rgba(" + _accentRgb + ", 0.8)";
-      ctx.shadowBlur = 12;
-      ctx.beginPath();
-      ctx.arc(n.x, n.y, n.radius, 0, 2 * Math.PI);
-      var grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.radius);
-      grad.addColorStop(0, "rgba(" + _accentRgb + ", 0.8)");
-      grad.addColorStop(0.7, "rgba(" + _accentRgb + ", 0.5)");
-      grad.addColorStop(1, "rgba(" + _accentRgb + ", 0.3)");
-      ctx.fillStyle = grad;
-      ctx.strokeStyle = "rgba(" + _accentRgb + ", 0.7)";
-      ctx.lineWidth = 2;
-      ctx.fill();
-      ctx.stroke();
-      ctx.restore();
-
-      // Label with shadow
-      var shortName = n.name.length > 20 ? n.name.substring(0, 20) + "..." : n.name;
-      ctx.save();
-      ctx.shadowColor = "rgba(0, 0, 0, 0.8)";
-      ctx.shadowBlur = 4;
-      ctx.font = "11px 'Antonio', sans-serif";
-      ctx.fillStyle = "#e2e8f0";
-      ctx.textAlign = "center";
-      ctx.fillText(shortName, n.x, n.y + n.radius + 15);
-      ctx.restore();
-
-      // Link count inside node
-      ctx.font = "bold 11px 'IBM Plex Mono', monospace";
-      ctx.fillStyle = "#ffffff";
-      ctx.textAlign = "center";
-      ctx.fillText(String(n.links_count), n.x, n.y + 4);
-    });
+    resizeObserver.observe(graphEl);
   }
 
   window.loadDashboardV2Panels = function () {

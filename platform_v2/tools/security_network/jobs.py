@@ -13,6 +13,7 @@ Jobs extracted:
   - run_auto_block (every 15 min)
   - run_scheduled_compliance_scan (Job #57, every 6h)
   - run_auto_remediation (Job #58, every 6h)
+  - run_anomaly_detection (Job #61, every 30 min)
 """
 
 import json
@@ -1123,6 +1124,100 @@ def run_anomaly_detection():
         _log_cycle("anomaly_detection", processed, 1, dur, error_message=error_msg)
 
 
+def enrich_ip_geolocation():
+    """Enrich remote IPs from network_traffic_stats and device_dns_history with geo data.
+
+    Finds public IPs not yet in ip_geolocation_cache, skips private ranges,
+    and batch-lookups up to 100 at a time via ip-api.com.
+    Runs every 30 minutes.
+    """
+    t0 = time.time()
+    enriched = 0
+
+    try:
+        from database import get_db_cursor
+        from tools.security_network.geo_service import batch_lookup, _is_private_ip
+
+        uncached_ips = set()
+
+        with get_db_cursor() as (conn, cur):
+            # Collect IPs from traffic stats not yet cached
+            cur.execute(
+                """
+                SELECT DISTINCT device_ip FROM network_traffic_stats
+                WHERE device_ip IS NOT NULL
+                  AND device_ip NOT IN (
+                      SELECT ip FROM ip_geolocation_cache
+                      WHERE cached_at > NOW() - INTERVAL '30 days'
+                  )
+                LIMIT 500
+                """
+            )
+            for row in cur.fetchall():
+                ip = row["device_ip"] if isinstance(row, dict) else row[0]
+                if ip:
+                    uncached_ips.add(str(ip))
+
+            # Collect IPs from DNS history not yet cached
+            cur.execute(
+                """
+                SELECT DISTINCT device_ip FROM device_dns_history
+                WHERE device_ip IS NOT NULL
+                  AND device_ip NOT IN (
+                      SELECT ip FROM ip_geolocation_cache
+                      WHERE cached_at > NOW() - INTERVAL '30 days'
+                  )
+                LIMIT 500
+                """
+            )
+            for row in cur.fetchall():
+                ip = row["device_ip"] if isinstance(row, dict) else row[0]
+                if ip:
+                    uncached_ips.add(str(ip))
+
+        # Filter out private IPs
+        public_ips = [ip for ip in uncached_ips if not _is_private_ip(ip)]
+
+        if not public_ips:
+            dur = int((time.time() - t0) * 1000)
+            _log_cycle(
+                "enrich_ip_geolocation",
+                0,
+                0,
+                dur,
+                details={"reason": "no uncached public IPs found"},
+            )
+            return
+
+        # Batch lookup (handles chunking and rate limits internally)
+        results = batch_lookup(public_ips)
+        enriched = len(results)
+
+        dur = int((time.time() - t0) * 1000)
+        _log_cycle(
+            "enrich_ip_geolocation",
+            enriched,
+            0,
+            dur,
+            details={
+                "candidates": len(public_ips),
+                "enriched": enriched,
+            },
+        )
+        if enriched > 0:
+            logger.info(
+                "[enrich_ip_geolocation] enriched %d/%d public IPs (%dms)",
+                enriched,
+                len(public_ips),
+                dur,
+            )
+
+    except Exception as e:
+        dur = int((time.time() - t0) * 1000)
+        logger.error("enrich_ip_geolocation failed: %s", e)
+        _log_cycle("enrich_ip_geolocation", enriched, 1, dur, error_message=str(e))
+
+
 def register_security_jobs(scheduler, flask_app):
     """Register all security/network jobs with the APScheduler instance.
 
@@ -1257,4 +1352,31 @@ def register_security_jobs(scheduler, flask_app):
         replace_existing=True,
     )
 
-    logger.info("[SecurityJobs] Registered 13 security/network jobs")
+    # --- Anomaly detection ---
+    scheduler.add_job(
+        with_ctx(run_anomaly_detection),
+        trigger=IntervalTrigger(minutes=15),
+        id="agent_anomaly_detection",
+        name="Agent Loop: Network Anomaly Detection",
+        replace_existing=True,
+    )
+
+    # --- IP geolocation enrichment ---
+    scheduler.add_job(
+        with_ctx(enrich_ip_geolocation),
+        trigger=IntervalTrigger(minutes=30),
+        id="agent_ip_geolocation",
+        name="Agent Loop: IP Geolocation Enrichment",
+        replace_existing=True,
+    )
+
+    # --- Anomaly detection (Job #61) ---
+    scheduler.add_job(
+        with_ctx(run_anomaly_detection),
+        trigger=IntervalTrigger(minutes=30),
+        id="agent_anomaly_detection",
+        name="Agent Loop: Network Anomaly Detection",
+        replace_existing=True,
+    )
+
+    logger.info("[SecurityJobs] Registered 16 security/network jobs")

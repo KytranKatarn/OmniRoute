@@ -589,6 +589,7 @@
     if (!data || !data.success) return;
     var canvas = document.getElementById("cs-knowledge-graph-canvas");
     if (!canvas) return;
+    var _accentRgb = getComputedStyle(document.documentElement).getPropertyValue('--cat-accent-rgb').trim() || '0,229,255';
 
     var nodes = data.nodes || [];
     var edges = data.edges || [];
@@ -716,11 +717,11 @@
     nodes.forEach(function (n) {
       // Outer glow halo
       ctx.save();
-      ctx.shadowColor = "rgba(139, 92, 246, 0.6)";
+      ctx.shadowColor = "rgba(" + _accentRgb + ", 0.6)";
       ctx.shadowBlur = 20;
       ctx.beginPath();
       ctx.arc(n.x, n.y, n.radius + 4, 0, 2 * Math.PI);
-      ctx.fillStyle = "rgba(139, 92, 246, 0.08)";
+      ctx.fillStyle = "rgba(" + _accentRgb + ", 0.08)";
       ctx.fill();
       ctx.restore();
 
@@ -731,9 +732,9 @@
       ctx.beginPath();
       ctx.arc(n.x, n.y, n.radius, 0, 2 * Math.PI);
       var grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.radius);
-      grad.addColorStop(0, "rgba(139, 92, 246, 0.8)");
-      grad.addColorStop(0.7, "rgba(139, 92, 246, 0.5)");
-      grad.addColorStop(1, "rgba(139, 92, 246, 0.3)");
+      grad.addColorStop(0, "rgba(" + _accentRgb + ", 0.8)");
+      grad.addColorStop(0.7, "rgba(" + _accentRgb + ", 0.5)");
+      grad.addColorStop(1, "rgba(" + _accentRgb + ", 0.3)");
       ctx.fillStyle = grad;
       ctx.strokeStyle = "#a78bfa";
       ctx.lineWidth = 2;

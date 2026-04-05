@@ -1,11 +1,11 @@
 /* consciousness-dashboard-v2.css -- Project-Knowledge Integration Panels
    Prefix: cs- (matches consciousness module)
-   Accent: #8b5cf6 (purple)
+   Accent: var(--cat-accent) (purple)
 */
 
 .cs-project-card {
-    background: rgba(139, 92, 246, 0.08);
-    border: 1px solid rgba(139, 92, 246, 0.25);
+    background: rgba(var(--cat-accent-rgb), 0.08);
+    border: 1px solid rgba(var(--cat-accent-rgb), 0.25);
     border-radius: 8px;
     padding: 16px;
     margin-bottom: 12px;
@@ -14,8 +14,8 @@
 }
 
 .cs-project-card:hover {
-    border-color: rgba(139, 92, 246, 0.6);
-    box-shadow: 0 0 15px rgba(139, 92, 246, 0.15), inset 0 0 20px rgba(139, 92, 246, 0.05);
+    border-color: rgba(var(--cat-accent-rgb), 0.6);
+    box-shadow: 0 0 15px rgba(var(--cat-accent-rgb), 0.15), inset 0 0 20px rgba(var(--cat-accent-rgb), 0.05);
     transform: translateY(-1px);
 }
 
@@ -45,7 +45,7 @@
     display: none;
     margin-top: 12px;
     padding-top: 12px;
-    border-top: 1px solid rgba(139, 92, 246, 0.15);
+    border-top: 1px solid rgba(var(--cat-accent-rgb), 0.15);
 }
 
 .cs-project-card.expanded .cs-project-card-expanded {
@@ -94,17 +94,17 @@
 
 .cs-completeness-ring .ring-bg {
     fill: none;
-    stroke: rgba(139, 92, 246, 0.15);
+    stroke: rgba(var(--cat-accent-rgb), 0.15);
     stroke-width: 4;
 }
 
 .cs-completeness-ring .ring-fill {
     fill: none;
-    stroke: #8b5cf6;
+    stroke: var(--cat-accent);
     stroke-width: 4;
     stroke-linecap: round;
     transition: stroke-dashoffset 0.6s ease;
-    filter: drop-shadow(0 0 4px rgba(139, 92, 246, 0.6));
+    filter: drop-shadow(0 0 4px rgba(var(--cat-accent-rgb), 0.6));
 }
 
 .cs-completeness-ring .ring-text {
@@ -127,12 +127,12 @@
 .cs-contrib-table th {
     text-align: left;
     padding: 8px 12px;
-    color: #8b5cf6;
+    color: var(--cat-accent);
     font-family: 'Antonio', sans-serif;
     text-transform: uppercase;
     font-size: 0.8rem;
-    border-bottom: 1px solid rgba(139, 92, 246, 0.25);
-    text-shadow: 0 0 8px rgba(139, 92, 246, 0.4);
+    border-bottom: 1px solid rgba(var(--cat-accent-rgb), 0.25);
+    text-shadow: 0 0 8px rgba(var(--cat-accent-rgb), 0.4);
 }
 
 .cs-contrib-table td {
@@ -143,11 +143,11 @@
 }
 
 .cs-contrib-table tbody tr:nth-child(even) td {
-    background: rgba(139, 92, 246, 0.04);
+    background: rgba(var(--cat-accent-rgb), 0.04);
 }
 
 .cs-contrib-table tbody tr:hover td {
-    background: rgba(139, 92, 246, 0.12);
+    background: rgba(var(--cat-accent-rgb), 0.12);
 }
 
 .cs-contrib-filters {
@@ -159,7 +159,7 @@
 .cs-contrib-filter-btn {
     padding: 4px 12px;
     border-radius: 4px;
-    border: 1px solid rgba(139, 92, 246, 0.3);
+    border: 1px solid rgba(var(--cat-accent-rgb), 0.3);
     background: transparent;
     color: #94a3b8;
     cursor: pointer;
@@ -168,9 +168,9 @@
 }
 
 .cs-contrib-filter-btn.active {
-    background: rgba(139, 92, 246, 0.2);
-    color: #8b5cf6;
-    border-color: #8b5cf6;
+    background: rgba(var(--cat-accent-rgb), 0.2);
+    color: var(--cat-accent);
+    border-color: var(--cat-accent);
 }
 
 .cs-gap-row {
@@ -183,7 +183,7 @@
 }
 
 .cs-gap-row:hover {
-    background: rgba(139, 92, 246, 0.06);
+    background: rgba(var(--cat-accent-rgb), 0.06);
 }
 
 .cs-gap-name {
@@ -205,7 +205,7 @@
     font-weight: 600;
 }
 
-.cs-gap-chip.docs { background: rgba(139, 92, 246, 0.15); color: #8b5cf6; text-shadow: 0 0 4px rgba(139, 92, 246, 0.3); }
+.cs-gap-chip.docs { background: rgba(var(--cat-accent-rgb), 0.15); color: var(--cat-accent); text-shadow: 0 0 4px rgba(var(--cat-accent-rgb), 0.3); }
 .cs-gap-chip.mistakes { background: rgba(239, 68, 68, 0.15); color: #ef4444; text-shadow: 0 0 4px rgba(239, 68, 68, 0.3); }
 .cs-gap-chip.snippets { background: rgba(34, 211, 238, 0.15); color: #22d3ee; text-shadow: 0 0 4px rgba(34, 211, 238, 0.3); }
 .cs-gap-chip.decisions { background: rgba(251, 191, 36, 0.15); color: #fbbf24; text-shadow: 0 0 4px rgba(251, 191, 36, 0.3); }
@@ -219,7 +219,7 @@
 .cs-gap-action-btn {
     padding: 4px 10px;
     border-radius: 4px;
-    border: 1px solid rgba(139, 92, 246, 0.3);
+    border: 1px solid rgba(var(--cat-accent-rgb), 0.3);
     background: transparent;
     color: #94a3b8;
     cursor: pointer;
@@ -228,8 +228,8 @@
 }
 
 .cs-gap-action-btn:hover {
-    background: rgba(139, 92, 246, 0.15);
-    color: #8b5cf6;
+    background: rgba(var(--cat-accent-rgb), 0.15);
+    color: var(--cat-accent);
 }
 
 .cs-link-badge.draft {
@@ -269,7 +269,7 @@
 .cs-expertise-tab {
     padding: 4px 12px;
     border-radius: 4px;
-    border: 1px solid rgba(139, 92, 246, 0.3);
+    border: 1px solid rgba(var(--cat-accent-rgb), 0.3);
     background: transparent;
     color: #94a3b8;
     cursor: pointer;
@@ -280,27 +280,27 @@
 }
 
 .cs-expertise-tab.active {
-    background: rgba(139, 92, 246, 0.2);
-    color: #8b5cf6;
-    border-color: #8b5cf6;
-    box-shadow: 0 0 10px rgba(139, 92, 246, 0.25);
-    text-shadow: 0 0 6px rgba(139, 92, 246, 0.4);
+    background: rgba(var(--cat-accent-rgb), 0.2);
+    color: var(--cat-accent);
+    border-color: var(--cat-accent);
+    box-shadow: 0 0 10px rgba(var(--cat-accent-rgb), 0.25);
+    text-shadow: 0 0 6px rgba(var(--cat-accent-rgb), 0.4);
 }
 
 .cs-expertise-tab:hover:not(.active) {
-    border-color: rgba(139, 92, 246, 0.5);
+    border-color: rgba(var(--cat-accent-rgb), 0.5);
     color: #cbd5e1;
 }
 
 .cs-expertise-section-title {
     font-family: 'Antonio', sans-serif;
     font-size: 0.85rem;
-    color: #8b5cf6;
+    color: var(--cat-accent);
     text-transform: uppercase;
     margin: 16px 0 8px 0;
     letter-spacing: 0.5px;
     padding-left: 10px;
-    border-left: 3px solid #8b5cf6;
+    border-left: 3px solid var(--cat-accent);
 }
 
 .cs-expertise-section-title:first-child {
@@ -317,12 +317,12 @@
 .cs-expertise-table th {
     text-align: left;
     padding: 8px 12px;
-    color: #8b5cf6;
+    color: var(--cat-accent);
     font-family: 'Antonio', sans-serif;
     text-transform: uppercase;
     font-size: 0.8rem;
-    border-bottom: 1px solid rgba(139, 92, 246, 0.25);
-    text-shadow: 0 0 8px rgba(139, 92, 246, 0.4);
+    border-bottom: 1px solid rgba(var(--cat-accent-rgb), 0.25);
+    text-shadow: 0 0 8px rgba(var(--cat-accent-rgb), 0.4);
 }
 
 .cs-expertise-table td {
@@ -333,11 +333,11 @@
 }
 
 .cs-expertise-table tbody tr:nth-child(even) td {
-    background: rgba(139, 92, 246, 0.04);
+    background: rgba(var(--cat-accent-rgb), 0.04);
 }
 
 .cs-expertise-table tbody tr:hover td {
-    background: rgba(139, 92, 246, 0.12);
+    background: rgba(var(--cat-accent-rgb), 0.12);
 }
 
 .cs-expertise-score-bar {
@@ -372,16 +372,16 @@
     align-items: center;
     gap: 12px;
     padding: 10px 12px;
-    background: rgba(139, 92, 246, 0.06);
-    border: 1px solid rgba(139, 92, 246, 0.15);
+    background: rgba(var(--cat-accent-rgb), 0.06);
+    border: 1px solid rgba(var(--cat-accent-rgb), 0.15);
     border-radius: 6px;
     margin-bottom: 8px;
     transition: all 0.25s ease;
 }
 
 .cs-recommended-card:hover {
-    border-color: rgba(139, 92, 246, 0.35);
-    box-shadow: 0 0 12px rgba(139, 92, 246, 0.1);
+    border-color: rgba(var(--cat-accent-rgb), 0.35);
+    box-shadow: 0 0 12px rgba(var(--cat-accent-rgb), 0.1);
     transform: translateY(-1px);
 }
 
@@ -442,7 +442,7 @@
     width: 100%;
     padding: 6px 0 2px 0;
     font-size: 0.75rem;
-    color: #8b5cf6;
+    color: var(--cat-accent);
     font-family: 'Antonio', sans-serif;
     text-transform: uppercase;
     letter-spacing: 0.3px;
@@ -492,8 +492,8 @@
 }
 
 .cs-phase-bar.mid {
-    background: #8b5cf6;
-    box-shadow: 0 0 6px rgba(139, 92, 246, 0.5);
+    background: var(--cat-accent);
+    box-shadow: 0 0 6px rgba(var(--cat-accent-rgb), 0.5);
 }
 
 .cs-phase-stat {
@@ -542,8 +542,8 @@
 
 #cs-knowledge-graph-canvas {
     background: rgba(15, 23, 42, 0.6);
-    border: 1px solid rgba(139, 92, 246, 0.2);
-    box-shadow: inset 0 0 30px rgba(139, 92, 246, 0.05), 0 0 15px rgba(139, 92, 246, 0.08);
+    border: 1px solid rgba(var(--cat-accent-rgb), 0.2);
+    box-shadow: inset 0 0 30px rgba(var(--cat-accent-rgb), 0.05), 0 0 15px rgba(var(--cat-accent-rgb), 0.08);
 }
 
 @media (max-width: 768px) {

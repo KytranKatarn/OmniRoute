@@ -499,16 +499,16 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
    ============================================================ */
 @media (max-width: 768px) {
   .lcars-header-elbow {
-    width: 44px;
+    width: 56px;
   }
 
   .lcars-header-elbow-top {
-    height: 24px;
-    border-radius: 12px 0 0 0;
+    height: 26px;
+    border-radius: 13px 0 0 0;
   }
 
   .lcars-header-elbow-bottom {
-    border-radius: 0 0 0 12px;
+    border-radius: 0 0 0 13px;
     gap: 4px;
     padding: 4px 3px;
   }
@@ -548,15 +548,11 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
    ============================================================ */
 @media (max-width: 717px) {
   .lcars-header-elbow {
-    width: 40px;
+    width: 56px;
   }
 
-  .lcars-header-lang-label {
+  .lcars-header-lang {
     display: none;
-  }
-
-  .lcars-header-theme-btn {
-    font-size: 0.65rem;
   }
 }
 

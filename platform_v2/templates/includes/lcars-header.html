@@ -32,9 +32,8 @@
     </div>
     <div class="lcars-header-elbow-bottom">
       <button class="lcars-header-util" onclick="if(window.toggleTheme)toggleTheme();" title="Toggle theme" data-i18n-title="nav.toggle_theme">
-        <i data-lucide="moon" id="lcarsThemeIcon" style="width:12px;height:12px;"></i>
+        <i data-lucide="moon" id="lcarsThemeIcon" style="width:14px;height:14px;"></i>
       </button>
-      <span class="lcars-header-lang" title="Language" data-i18n-title="nav.language" onclick="if(window.showLanguageMenu)showLanguageMenu();" style="cursor:pointer;">EN</span>
       <span class="lcars-notif-badge" id="lcarsNotifBadge" style="display:none;">0</span>
     </div>
   </div>
@@ -45,6 +44,8 @@
     <div class="lcars-header-bar">
       <span class="lcars-header-title">{{ _module }}</span>
       <span class="lcars-header-category">{{ cat_label|default('')|upper }}</span>
+      <span class="lcars-header-bar-spacer"></span>
+      <button class="lcars-header-bar-lang" onclick="if(window.showLanguageMenu)showLanguageMenu();" title="Language" data-i18n-title="nav.language">EN</button>
       <span class="lcars-header-stardate" id="lcarsStardate"></span>
     </div>
 

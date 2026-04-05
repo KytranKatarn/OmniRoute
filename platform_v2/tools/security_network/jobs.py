@@ -653,7 +653,7 @@ def collect_traffic_stats():
 def collect_dns_history():
     """Collect per-device DNS query history from AdGuard and store in device_dns_history.
 
-    Runs every 15 minutes. Fetches the last 500 AdGuard query log entries,
+    Runs every 5 minutes. Fetches the last 5000 AdGuard query log entries,
     groups them by (client_ip, domain, hour_bucket), and upserts counts.
     All clients are stored — Docker bridge IPs (172.x), localhost (127.x),
     and pure reverse-lookup IPs are skipped.
@@ -667,7 +667,7 @@ def collect_dns_history():
         from database import get_db_cursor
 
         ag = AdGuardService()
-        result = ag.get_query_log(limit=500)
+        result = ag.get_query_log(limit=5000)
         if not result:
             dur = int((time.time() - t0) * 1000)
             _log_cycle(
@@ -1065,7 +1065,7 @@ def register_security_jobs(scheduler, flask_app):
     # --- DNS history collection (Job #59) ---
     scheduler.add_job(
         with_ctx(collect_dns_history),
-        trigger=IntervalTrigger(minutes=15),
+        trigger=IntervalTrigger(minutes=5),
         id="agent_dns_history",
         name="Agent Loop: DNS History Collection",
         replace_existing=True,

@@ -384,6 +384,24 @@ function loadNeuralCore() {
     console.error("API error:", err);
   });
 
+  // Intelligence stats (from knowledge-gaps endpoint)
+  api("/api/dashboard/knowledge-gaps").then(function(data) {
+    if (!data.success) return;
+    var gaps = data.gaps || [];
+    countUp("ncActiveProjects", gaps.length);
+    if (gaps.length > 0) {
+      var avgComp = Math.round(gaps.reduce(function(s, g) { return s + (g.completeness || 0); }, 0) / gaps.length);
+      var avgQual = Math.round(gaps.reduce(function(s, g) { return s + (g.quality_score || 0); }, 0) / gaps.length);
+      countUp("ncCompleteness", avgComp, "%");
+      var qEl = document.getElementById("ncQualityScore");
+      if (qEl) {
+        countUp(qEl, avgQual);
+        // Color the quality score
+        qEl.style.color = avgQual >= 70 ? "#22c55e" : avgQual >= 40 ? "#f59e0b" : "#ef4444";
+      }
+    }
+  }).catch(function() {});
+
   // Emotional state for mood (from brain-state endpoint)
   api("/brain-state").then(function(data) {
     var emotion = data.current_emotion || {};

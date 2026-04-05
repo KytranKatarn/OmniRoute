@@ -31,7 +31,21 @@ DEPT_PROMPTS_PATH = os.path.join(
     "department_prompts.json",
 )
 
-BRIDGE_URL = "http://192.168.1.200:3000/ai_bridge/archie_bridge"
+DEPT_HQ_URL = "http://192.168.1.200:3000"
+_session = None
+
+
+def _get_session():
+    """Get or create an authenticated platform session."""
+    global _session
+    if _session is None:
+        _session = requests.Session()
+        _session.post(
+            f"{DEPT_HQ_URL}/login",
+            data={"username": "claude", "password": "ClaudeAdmin2026!"},
+            allow_redirects=False,
+        )
+    return _session
 
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "192.168.1.200"),
@@ -141,10 +155,10 @@ def call_bridge_for_role(agent):
     )
 
     try:
-        resp = requests.post(
-            BRIDGE_URL,
-            json={"message": prompt, "context": "agent_prompt_generation"},
-            timeout=120,
+        resp = _get_session().post(
+            f"{DEPT_HQ_URL}/api/ai/chat",
+            json={"prompt": prompt},
+            timeout=300,
         )
         resp.raise_for_status()
         data = resp.json()
@@ -153,7 +167,7 @@ def call_bridge_for_role(agent):
             return role_text
         return None
     except Exception as e:
-        print(f"    [BRIDGE ERROR] {name}: {e}")
+        print(f"    [DEPT HQ ERROR] {name}: {e}")
         return None
 
 

@@ -85,14 +85,14 @@ def _gather_project_data(project_id: int, days: int = REPORT_PERIOD_DAYS) -> dic
             # Recent decisions
             cur.execute(
                 """
-                SELECT decision FROM project_decisions
+                SELECT title FROM project_decisions
                 WHERE project_id = %s
                   AND created_at > NOW() - INTERVAL '%s days'
                 ORDER BY created_at DESC
                 """,
                 (project_id, days),
             )
-            data["decisions"] = [row["decision"] for row in cur.fetchall()]
+            data["decisions"] = [row["title"] for row in cur.fetchall()]
 
             # Completed tasks
             cur.execute(
@@ -137,7 +137,7 @@ def _gather_project_data(project_id: int, days: int = REPORT_PERIOD_DAYS) -> dic
     # Knowledge gaps (separate connection call is fine — service handles its own cursor)
     try:
         gap_data = get_project_knowledge_gaps(project_id)
-        data["completeness"] = gap_data.get("completeness_score", 0.0)
+        data["completeness"] = gap_data.get("completeness", 0)
         data["gaps"] = gap_data.get("gaps", {})
     except Exception as e:
         logger.warning("[WeeklyReport] Could not fetch gap data for project %s: %s", project_id, e)
@@ -193,8 +193,7 @@ def _format_report(project_name: str, data: dict) -> str:
 
     # Current Health
     lines.append("## Current Health")
-    score_pct = int(data["completeness"] * 100)
-    lines.append(f"- Knowledge completeness: **{score_pct}%**")
+    lines.append(f"- Knowledge completeness: **{data['completeness']}%**")
     if data["gaps"]:
         lines.append("- Gaps identified:")
         for gap_type, gap_desc in data["gaps"].items():
@@ -262,8 +261,10 @@ def generate_weekly_report(project_id: int) -> dict:
             cur.execute(
                 """
                 INSERT INTO knowledge_base
-                    (title, content, knowledge_type, source_type, importance_score, tags)
-                VALUES (%s, %s, 'vault_note', %s, %s, %s)
+                    (title, content, knowledge_type, source_type, importance_score, tags, category)
+                VALUES (%s, %s, 'vault_note', %s, %s, %s, %s)
+                ON CONFLICT (title) DO UPDATE
+                    SET content = EXCLUDED.content, updated_at = NOW()
                 RETURNING id
                 """,
                 (
@@ -272,6 +273,7 @@ def generate_weekly_report(project_id: int) -> dict:
                     REPORT_SOURCE_TYPE,
                     REPORT_QUALITY_SCORE,
                     "{" + f"{project_slug},weekly-report,codex" + "}",
+                    project_slug,
                 ),
             )
             kb_id = cur.fetchone()["id"]

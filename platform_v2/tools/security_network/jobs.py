@@ -534,7 +534,7 @@ def run_auto_remediation():
         logger.error("Auto-remediation failed: %s", e)
 
 
-# Schedule: every 15 min — collects per-device bandwidth from ntopng
+# Schedule: every 5 min — collects per-device bandwidth from ntopng
 def collect_traffic_stats():
     """Collect per-device network traffic snapshots from ntopng and store in network_traffic_stats."""
     t0 = time.time()
@@ -1056,7 +1056,7 @@ def register_security_jobs(scheduler, flask_app):
     # --- ntopng traffic collection ---
     scheduler.add_job(
         with_ctx(collect_traffic_stats),
-        trigger=IntervalTrigger(minutes=15),
+        trigger=IntervalTrigger(minutes=5),
         id="agent_traffic_stats",
         name="Agent Loop: ntopng Traffic Collection",
         replace_existing=True,

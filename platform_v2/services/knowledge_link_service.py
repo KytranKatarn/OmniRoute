@@ -190,13 +190,18 @@ def get_project_knowledge_gaps(project_id: int) -> Dict:
         return {"project_id": project_id, "completeness": 0, "gaps": {}, "counts": {}, "needs_attention": True}
 
 
-def get_all_gaps(status: str = "active") -> List[Dict]:
-    """Get gap analysis for all projects with given status, sorted worst-first."""
+def get_all_gaps(status: str = "active,planning") -> List[Dict]:
+    """Get gap analysis for all projects with given statuses, sorted worst-first.
+
+    status can be a single status or comma-separated list (e.g. 'active,planning').
+    """
     try:
+        statuses = [s.strip() for s in status.split(",")]
         with get_db_cursor() as (conn, cur):
+            placeholders = ",".join(["%s"] * len(statuses))
             cur.execute(
-                "SELECT id, name, slug FROM unified_projects WHERE status = %s ORDER BY priority DESC",
-                (status,),
+                f"SELECT id, name, slug FROM unified_projects WHERE status IN ({placeholders}) ORDER BY priority DESC",
+                statuses,
             )
             projects = cur.fetchall()
 

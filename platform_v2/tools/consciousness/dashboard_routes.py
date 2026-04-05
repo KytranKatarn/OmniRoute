@@ -166,6 +166,17 @@ def register_dashboard_routes(bp, admin_required):
             )
             trans_embedded = cur.fetchone()["embedded"]
 
+            # Project-Knowledge link stats
+            cur.execute(
+                """SELECT count(*) as total_links,
+                          count(*) FILTER (WHERE link_type = 'auto') as auto_links,
+                          count(*) FILTER (WHERE link_type = 'manual') as manual_links,
+                          count(DISTINCT project_id) as projects_linked,
+                          count(DISTINCT knowledge_id) as knowledge_linked
+                   FROM project_knowledge_links"""
+            )
+            link_stats = cur.fetchone()
+
             # Intelligence total: everything ARCHIE knows
             intelligence_total = knowledge["total"] + trans["total_translations"] + decisions["cnt"]
 
@@ -220,6 +231,13 @@ def register_dashboard_routes(bp, admin_required):
                     "activity": activity,
                     "stations_active": stations["cnt"],
                     "translations": trans["total_translations"],
+                    "project_links": {
+                        "total_links": link_stats["total_links"],
+                        "auto_links": link_stats["auto_links"],
+                        "manual_links": link_stats["manual_links"],
+                        "projects_linked": link_stats["projects_linked"],
+                        "knowledge_linked": link_stats["knowledge_linked"],
+                    },
                 }
             )
         except Exception as e:

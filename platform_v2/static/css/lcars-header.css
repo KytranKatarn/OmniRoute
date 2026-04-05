@@ -1,0 +1,589 @@
+/* ============================================================
+   LCARS Header — lcars-header.css
+   All accent colors via CSS vars: --cat-accent, --cat-accent-dark, --cat-accent-rgb
+   ============================================================ */
+
+/* ============================================================
+   1. BASE LAYOUT
+   ============================================================ */
+.lcars-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  background: var(--archie-bg-primary, #0a0a0f);
+  font-family: 'Antonio', sans-serif;
+}
+
+.lcars-header-elbow {
+  width: 64px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.lcars-header-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* ============================================================
+   2. ELBOW TOP
+   ============================================================ */
+.lcars-header-elbow-top {
+  height: 32px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, var(--cat-accent), var(--cat-accent-dark));
+  border-radius: 16px 0 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.lcars-header-back-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: rgba(0, 0, 0, 0.75);
+  text-decoration: none;
+  font-size: 0.75rem;
+  font-weight: 700;
+  transition: opacity 0.2s ease;
+}
+
+.lcars-header-back-link:hover {
+  opacity: 0.65;
+  color: rgba(0, 0, 0, 0.75);
+  text-decoration: none;
+}
+
+.lcars-header-back-link svg,
+.lcars-header-back-link i {
+  width: 14px;
+  height: 14px;
+  font-size: 14px;
+}
+
+/* ============================================================
+   3. ELBOW BOTTOM
+   ============================================================ */
+.lcars-header-elbow-bottom {
+  flex: 1;
+  background: linear-gradient(180deg, var(--cat-accent-dark), color-mix(in srgb, var(--cat-accent-dark) 70%, #000 30%));
+  border-radius: 0 0 0 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 4px;
+  overflow: hidden;
+}
+
+.lcars-header-theme-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: 3px;
+  transition: opacity 0.2s ease;
+  font-size: 0.7rem;
+}
+
+.lcars-header-theme-btn:hover {
+  opacity: 0.6;
+}
+
+.lcars-header-lang-label {
+  color: rgba(0, 0, 0, 0.65);
+  font-size: 0.55rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+}
+
+/* ============================================================
+   4. ALERT STATES
+   ============================================================ */
+[data-alert-state="warning"] .lcars-header-elbow-top,
+[data-alert-state="warning"] .lcars-header-elbow-bottom {
+  background: linear-gradient(135deg, #ff9f43, #e67e22);
+  animation: lcarsElbowPulse 2s ease-in-out infinite;
+}
+
+[data-alert-state="warning"] .lcars-header-elbow-bottom {
+  background: linear-gradient(180deg, #e67e22, color-mix(in srgb, #e67e22 70%, #000 30%));
+}
+
+[data-alert-state="critical"] .lcars-header-elbow-top,
+[data-alert-state="critical"] .lcars-header-elbow-bottom {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  animation: lcarsElbowPulse 1s ease-in-out infinite;
+}
+
+[data-alert-state="critical"] .lcars-header-elbow-bottom {
+  background: linear-gradient(180deg, #dc2626, color-mix(in srgb, #dc2626 70%, #000 30%));
+}
+
+@keyframes lcarsElbowPulse {
+  0%   { opacity: 1; }
+  50%  { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+
+/* ============================================================
+   5. TITLE BAR
+   ============================================================ */
+.lcars-header-bar {
+  background: linear-gradient(
+    to right,
+    var(--cat-accent),
+    var(--cat-accent-dark) 40%,
+    transparent 100%
+  );
+  padding: 5px 16px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.lcars-header-title {
+  font-family: 'Antonio', sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  color: rgba(0, 0, 0, 0.82);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.lcars-header-category {
+  font-family: 'Antonio', sans-serif;
+  font-size: 0.65rem;
+  color: rgba(0, 0, 0, 0.55);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+.lcars-header-stardate {
+  margin-left: auto;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem;
+  color: rgba(0, 0, 0, 0.55);
+  white-space: nowrap;
+  letter-spacing: 0.5px;
+}
+
+/* ============================================================
+   6. TABS
+   ============================================================ */
+.lcars-header-tabs {
+  display: flex;
+  flex-direction: row;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  gap: 4px;
+  padding: 6px 16px;
+  background: rgba(var(--cat-accent-rgb), 0.03);
+  border-bottom: 2px solid rgba(var(--cat-accent-rgb), 0.2);
+  flex-shrink: 0;
+}
+
+.lcars-header-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.lcars-header-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  font-family: 'Antonio', sans-serif;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  white-space: nowrap;
+  cursor: pointer;
+  color: rgba(var(--cat-accent-rgb), 0.7);
+  background: transparent;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  flex-shrink: 0;
+}
+
+.lcars-header-tab:hover {
+  background: rgba(var(--cat-accent-rgb), 0.08);
+  color: var(--cat-accent);
+  text-decoration: none;
+}
+
+.lcars-header-tab.active,
+.lcars-header-tab[aria-current="true"],
+.lcars-header-tab.lcars-tab-active {
+  background: rgba(var(--cat-accent-rgb), 0.15);
+  color: var(--cat-accent);
+  border-color: rgba(var(--cat-accent-rgb), 0.3);
+  box-shadow: 0 0 8px rgba(var(--cat-accent-rgb), 0.25);
+  text-shadow: 0 0 8px rgba(var(--cat-accent-rgb), 0.5);
+}
+
+.lcars-header-tab-icon {
+  width: 14px;
+  height: 14px;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.lcars-header-tab-short {
+  display: none;
+}
+
+.lcars-header-tab-full {
+  display: inline;
+}
+
+/* ============================================================
+   7. TOASTS
+   ============================================================ */
+.lcars-toast-container {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+  max-width: 360px;
+  width: calc(100vw - 32px);
+}
+
+.lcars-toast {
+  display: flex;
+  flex-direction: row;
+  background: rgba(10, 10, 15, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(var(--cat-accent-rgb), 0.3);
+  border-radius: 6px;
+  overflow: hidden;
+  pointer-events: auto;
+  animation: lcarsToastIn 0.3s ease forwards;
+}
+
+.lcars-toast.lcars-toast-hiding {
+  animation: lcarsToastOut 0.3s ease forwards;
+}
+
+.lcars-toast-accent {
+  width: 4px;
+  flex-shrink: 0;
+  background: var(--cat-accent);
+}
+
+.lcars-toast[data-toast-type="warning"] .lcars-toast-accent {
+  background: #ff9f43;
+}
+
+.lcars-toast[data-toast-type="error"] .lcars-toast-accent {
+  background: #ef4444;
+}
+
+.lcars-toast[data-toast-type="success"] .lcars-toast-accent {
+  background: #10b981;
+}
+
+.lcars-toast-body {
+  flex: 1;
+  padding: 10px 8px 10px 12px;
+  min-width: 0;
+}
+
+.lcars-toast-title {
+  font-family: 'Antonio', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--archie-text-primary, #e2e8f0);
+  margin-bottom: 3px;
+  line-height: 1.2;
+}
+
+.lcars-toast-message {
+  font-size: 0.7rem;
+  color: var(--archie-text-muted, #94a3b8);
+  line-height: 1.4;
+}
+
+.lcars-toast-close {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  padding: 8px 10px 8px 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--archie-text-muted, #94a3b8);
+  font-size: 0.75rem;
+  line-height: 1;
+  transition: color 0.15s ease;
+}
+
+.lcars-toast-close:hover {
+  color: var(--archie-text-primary, #e2e8f0);
+}
+
+@keyframes lcarsToastIn {
+  from {
+    transform: translateX(40px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes lcarsToastOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(40px);
+    opacity: 0;
+  }
+}
+
+/* ============================================================
+   8. RESPONSIVE — 1024px
+   ============================================================ */
+@media (max-width: 1024px) {
+  .lcars-header-elbow {
+    width: 56px;
+  }
+
+  .lcars-header-elbow-top {
+    height: 28px;
+    border-radius: 14px 0 0 0;
+  }
+
+  .lcars-header-elbow-bottom {
+    border-radius: 0 0 0 14px;
+  }
+
+  .lcars-header-title {
+    font-size: 0.9rem;
+  }
+}
+
+/* ============================================================
+   9. RESPONSIVE — 768px
+   ============================================================ */
+@media (max-width: 768px) {
+  .lcars-header-elbow {
+    width: 44px;
+  }
+
+  .lcars-header-elbow-top {
+    height: 24px;
+    border-radius: 12px 0 0 0;
+  }
+
+  .lcars-header-elbow-bottom {
+    border-radius: 0 0 0 12px;
+    gap: 4px;
+    padding: 4px 3px;
+  }
+
+  .lcars-header-category {
+    display: none;
+  }
+
+  .lcars-header-stardate {
+    display: none;
+  }
+
+  .lcars-header-title {
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+  }
+
+  .lcars-header-bar {
+    padding: 4px 12px;
+    min-height: 28px;
+  }
+
+  .lcars-header-tab {
+    font-size: 0.65rem;
+    padding: 4px 10px;
+    gap: 5px;
+  }
+
+  .lcars-header-tabs {
+    padding: 5px 12px;
+    gap: 3px;
+  }
+}
+
+/* ============================================================
+   10. RESPONSIVE — 717px (hide lang label)
+   ============================================================ */
+@media (max-width: 717px) {
+  .lcars-header-elbow {
+    width: 40px;
+  }
+
+  .lcars-header-lang-label {
+    display: none;
+  }
+
+  .lcars-header-theme-btn {
+    font-size: 0.65rem;
+  }
+}
+
+/* ============================================================
+   11. RESPONSIVE — 480px (column layout)
+   ============================================================ */
+@media (max-width: 480px) {
+  .lcars-header {
+    flex-direction: column;
+  }
+
+  .lcars-header-elbow {
+    width: 100%;
+    height: 3px;
+    flex-direction: row;
+    flex-shrink: 0;
+  }
+
+  .lcars-header-elbow-top {
+    flex: 1;
+    height: 3px;
+    border-radius: 0;
+    min-height: unset;
+  }
+
+  .lcars-header-back-link {
+    display: none;
+  }
+
+  .lcars-header-elbow-bottom {
+    display: none;
+  }
+
+  .lcars-header-bar {
+    padding: 5px 12px;
+    min-height: 30px;
+    position: relative;
+  }
+
+  .lcars-header-bar::before {
+    content: '←';
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.85rem;
+    color: rgba(var(--cat-accent-rgb), 0.7);
+    margin-right: 6px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .lcars-header-title {
+    font-size: 0.8rem;
+    letter-spacing: 0.8px;
+  }
+
+  .lcars-header-tabs {
+    padding: 4px 8px;
+    gap: 2px;
+    border-bottom-width: 1px;
+  }
+
+  .lcars-header-tab {
+    font-size: 0.6rem;
+    padding: 4px 8px;
+    gap: 4px;
+  }
+
+  .lcars-header-tab-short {
+    display: inline;
+  }
+
+  .lcars-header-tab-full {
+    display: none;
+  }
+
+  .lcars-toast-container {
+    top: 8px;
+    right: 8px;
+    width: calc(100vw - 16px);
+    max-width: unset;
+  }
+}
+
+/* ============================================================
+   12. RESPONSIVE — 360px
+   ============================================================ */
+@media (max-width: 360px) {
+  .lcars-header-title {
+    font-size: 0.72rem;
+    letter-spacing: 0.5px;
+  }
+
+  .lcars-header-bar {
+    padding: 4px 8px;
+    min-height: 26px;
+  }
+
+  .lcars-header-tabs {
+    padding: 3px 6px;
+    gap: 2px;
+  }
+
+  .lcars-header-tab {
+    font-size: 0.58rem;
+    padding: 3px 6px;
+    gap: 0;
+    letter-spacing: 0.4px;
+  }
+
+  .lcars-header-tab-icon {
+    display: none;
+  }
+
+  .lcars-toast-title {
+    font-size: 0.68rem;
+  }
+
+  .lcars-toast-message {
+    font-size: 0.63rem;
+  }
+}

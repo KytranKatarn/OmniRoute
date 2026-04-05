@@ -485,6 +485,13 @@
     color: #ef4444;
 }
 
+/* --- Knowledge Graph --- */
+
+#cs-knowledge-graph-canvas {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(139, 92, 246, 0.15);
+}
+
 @media (max-width: 768px) {
     .cs-gap-row {
         flex-direction: column;

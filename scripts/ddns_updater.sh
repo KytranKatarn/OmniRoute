@@ -50,6 +50,7 @@ if [ -f "$IP_FILE" ]; then
 fi
 
 if [ "$CURRENT_IP" = "$LAST_IP" ]; then
+    touch "$IP_FILE"  # Update mtime so health checks see we're running
     log "No change — IP is still $CURRENT_IP"
     exit 0
 fi

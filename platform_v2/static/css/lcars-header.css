@@ -22,7 +22,7 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
 }
 
 .lcars-header-elbow {
-  width: 64px;
+  width: 56px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -476,10 +476,6 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
    8. RESPONSIVE — 1024px
    ============================================================ */
 @media (max-width: 1024px) {
-  .lcars-header-elbow {
-    width: 56px;
-  }
-
   .lcars-header-elbow-top {
     height: 28px;
     border-radius: 14px 0 0 0;

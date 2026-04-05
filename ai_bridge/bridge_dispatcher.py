@@ -316,6 +316,79 @@ def create_job_via_service(job_type, module_source, description, total_steps,
     )
 
 
+# --- Project auto-detect cache ---
+_project_keyword_cache: Dict[str, int] = {}
+_project_cache_time: float = 0
+_PROJECT_CACHE_TTL = 300  # 5 minutes
+
+
+def _load_project_keywords() -> Dict[str, int]:
+    """Load project keywords from DB for auto-detection.
+
+    Returns {keyword: project_id} dict. Keywords are slug words (4+ chars)
+    and tags (4+ chars) from active/planning projects.
+    """
+    try:
+        from db import get_db
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, slug, tags FROM unified_projects WHERE status IN ('active', 'planning')"
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        keywords = {}
+        for row in rows:
+            pid, slug, tags = row[0], row[1], row[2]
+            for word in (slug or "").split("-"):
+                if len(word) >= 4:
+                    keywords[word.lower()] = pid
+            if isinstance(tags, list):
+                for tag in tags:
+                    if len(tag) >= 4:
+                        keywords[tag.lower()] = pid
+        return keywords
+    except Exception as e:
+        logger.warning("[Dispatcher] Failed to load project keywords: %s", e)
+        return {}
+
+
+def _detect_project_id(text: str) -> Optional[int]:
+    """Infer project_id from prompt/capability text via cached keyword matching.
+
+    Returns project_id if 2+ keywords match, None otherwise.
+    Cache refreshes every 5 minutes.
+    """
+    global _project_keyword_cache, _project_cache_time
+
+    now = time.time()
+    if now - _project_cache_time > _PROJECT_CACHE_TTL or not _project_keyword_cache:
+        _project_keyword_cache = _load_project_keywords()
+        _project_cache_time = now
+
+    if not _project_keyword_cache or not text:
+        return None
+
+    text_lower = text[:500].lower()
+    scores: Dict[int, int] = {}
+    for keyword, pid in _project_keyword_cache.items():
+        if keyword in text_lower:
+            scores[pid] = scores.get(pid, 0) + 1
+
+    if not scores:
+        return None
+
+    best_score = max(scores.values())
+    if best_score < 2:
+        return None
+
+    best_pids = [pid for pid, score in scores.items() if score == best_score]
+    return min(best_pids)
+
+
 class BridgeDispatcher:
     """
     Central dispatch system for all AI work on the ARCHIE Platform.
@@ -5234,6 +5307,10 @@ class BridgeDispatcher:
                     f"({station_running}/{max_station} running) — job rejected"
                 )
                 return None
+
+            # Auto-detect project if not explicitly provided
+            if project_id is None:
+                project_id = _detect_project_id(f"{capability} {prompt}")
 
             cur.execute(
                 """

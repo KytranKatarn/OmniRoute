@@ -1191,7 +1191,7 @@ def register_consciousness_jobs(scheduler, flask_app):
 
     scheduler.add_job(
         with_ctx(auto_link_knowledge_batch),
-        trigger=IntervalTrigger(minutes=30),
+        trigger=IntervalTrigger(minutes=5),
         id="agent_knowledge_auto_link",
         name="Agent Loop: Knowledge Auto-Link to Projects",
         replace_existing=True,

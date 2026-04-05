@@ -685,56 +685,77 @@
     // Draw
     ctx.clearRect(0, 0, width, height);
 
-    // Edges
+    // Edges with neon glow
     edges.forEach(function (e) {
       var s = nodeMap[e.source], t = nodeMap[e.target];
       if (!s || !t) return;
       var lineWidth = 1 + (e.shared / maxShared) * 4;
       var alpha = 0.2 + (e.shared / maxShared) * 0.5;
+      ctx.save();
+      ctx.shadowColor = "rgba(0, 229, 255, " + (alpha * 0.6) + ")";
+      ctx.shadowBlur = 8 + (e.shared / maxShared) * 8;
       ctx.beginPath();
       ctx.moveTo(s.x, s.y);
       ctx.lineTo(t.x, t.y);
       ctx.strokeStyle = "rgba(0, 229, 255, " + alpha + ")";
       ctx.lineWidth = lineWidth;
       ctx.stroke();
+      ctx.restore();
 
       // Edge label (shared count)
       if (e.shared >= 3) {
         var mx = (s.x + t.x) / 2, my = (s.y + t.y) / 2;
-        ctx.font = "10px 'IBM Plex Mono', monospace";
-        ctx.fillStyle = "rgba(0, 229, 255, 0.7)";
+        ctx.font = "bold 10px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = "rgba(0, 229, 255, 0.85)";
         ctx.textAlign = "center";
-        ctx.fillText(String(e.shared), mx, my - 3);
+        ctx.fillText(String(e.shared), mx, my - 4);
       }
     });
 
-    // Nodes
+    // Nodes with neon glow
     nodes.forEach(function (n) {
-      // Glow
+      // Outer glow halo
+      ctx.save();
+      ctx.shadowColor = "rgba(139, 92, 246, 0.6)";
+      ctx.shadowBlur = 20;
       ctx.beginPath();
-      ctx.arc(n.x, n.y, n.radius + 3, 0, 2 * Math.PI);
-      ctx.fillStyle = "rgba(139, 92, 246, 0.15)";
+      ctx.arc(n.x, n.y, n.radius + 4, 0, 2 * Math.PI);
+      ctx.fillStyle = "rgba(139, 92, 246, 0.08)";
       ctx.fill();
+      ctx.restore();
 
-      // Circle
+      // Inner glow ring
+      ctx.save();
+      ctx.shadowColor = "#8b5cf6";
+      ctx.shadowBlur = 12;
       ctx.beginPath();
       ctx.arc(n.x, n.y, n.radius, 0, 2 * Math.PI);
-      ctx.fillStyle = "rgba(139, 92, 246, 0.6)";
-      ctx.strokeStyle = "#8b5cf6";
+      var grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.radius);
+      grad.addColorStop(0, "rgba(139, 92, 246, 0.8)");
+      grad.addColorStop(0.7, "rgba(139, 92, 246, 0.5)");
+      grad.addColorStop(1, "rgba(139, 92, 246, 0.3)");
+      ctx.fillStyle = grad;
+      ctx.strokeStyle = "#a78bfa";
       ctx.lineWidth = 2;
       ctx.fill();
       ctx.stroke();
+      ctx.restore();
 
-      // Label
+      // Label with shadow
       var shortName = n.name.length > 20 ? n.name.substring(0, 20) + "..." : n.name;
+      ctx.save();
+      ctx.shadowColor = "rgba(0, 0, 0, 0.8)";
+      ctx.shadowBlur = 4;
       ctx.font = "11px 'Antonio', sans-serif";
       ctx.fillStyle = "#e2e8f0";
       ctx.textAlign = "center";
-      ctx.fillText(shortName, n.x, n.y + n.radius + 14);
+      ctx.fillText(shortName, n.x, n.y + n.radius + 15);
+      ctx.restore();
 
       // Link count inside node
-      ctx.font = "bold 10px 'IBM Plex Mono', monospace";
-      ctx.fillStyle = "#e2e8f0";
+      ctx.font = "bold 11px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = "#ffffff";
+      ctx.textAlign = "center";
       ctx.fillText(String(n.links_count), n.x, n.y + 4);
     });
   }

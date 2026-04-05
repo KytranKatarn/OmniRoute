@@ -200,13 +200,12 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
 
 .lcars-header-stardate {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.58rem;
-  color: rgba(var(--cat-accent-rgb), 0.45);
+  font-size: 0.55rem;
+  color: rgba(var(--cat-accent-rgb), 0.4);
   white-space: nowrap;
   letter-spacing: 0.5px;
   display: flex;
   align-items: center;
-  margin-right: auto;
 }
 
 /* ============================================================
@@ -215,19 +214,18 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
 .lcars-header-strip {
   display: flex;
   align-items: center;
-  gap: 0;
-  height: 26px;
+  gap: 6px;
+  height: 24px;
   padding: 0 12px;
-  background: rgba(var(--cat-accent-rgb), 0.03);
-  border-bottom: 1px solid rgba(var(--cat-accent-rgb), 0.08);
+  background: rgba(var(--cat-accent-rgb), 0.06);
+  border-bottom: 1px solid rgba(var(--cat-accent-rgb), 0.1);
   flex-shrink: 0;
 }
 
 .lcars-strip-divider {
   width: 1px;
-  height: 12px;
-  background: rgba(var(--cat-accent-rgb), 0.1);
-  margin: 0 4px;
+  height: 10px;
+  background: rgba(var(--cat-accent-rgb), 0.12);
   flex-shrink: 0;
 }
 
@@ -235,29 +233,27 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  background: rgba(var(--cat-accent-rgb), 0.12);
-  border: 1px solid rgba(var(--cat-accent-rgb), 0.2);
+  gap: 4px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
   cursor: pointer;
   font-family: 'Antonio', sans-serif;
-  font-size: 0.56rem;
+  font-size: 0.55rem;
   font-weight: 600;
-  color: rgba(var(--cat-accent-rgb), 0.6);
+  color: rgba(var(--cat-accent-rgb), 0.5);
   text-transform: uppercase;
   letter-spacing: 0.8px;
-  padding: 0 12px;
-  height: 18px;
-  border-radius: 4px;
-  transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  padding: 0 8px;
+  height: 100%;
+  border-radius: 0;
+  transition: color 0.2s ease, border-color 0.2s ease;
   white-space: nowrap;
-  margin: 0 2px;
 }
 
 .lcars-strip-btn:hover {
   color: var(--cat-accent);
-  background: rgba(var(--cat-accent-rgb), 0.2);
-  border-color: rgba(var(--cat-accent-rgb), 0.45);
-  box-shadow: 0 0 8px rgba(var(--cat-accent-rgb), 0.12);
+  border-bottom-color: var(--cat-accent);
 }
 
 .lcars-strip-btn i,

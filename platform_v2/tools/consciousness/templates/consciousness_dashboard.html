@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pixel-crew.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/glass-nav.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-frames.css') }}">
+<link rel="stylesheet" href="/static/css/consciousness-dashboard-v2.css">
 <script src="https://d3js.org/d3.v7.min.js"></script>
 {% endblock %}
 
@@ -2710,6 +2711,73 @@
             <!-- Last Updated -->
             <div class="cs-dashboard-timestamp" id="dashboardTimestamp"></div>
 
+            <!-- Project-Knowledge Map -->
+            <div style="--frame-color: #8b5cf6; --frame-rgb: 139,92,246; margin-bottom: 20px; margin-top: 20px;">
+              <div class="lcars-frame">
+                <div class="lcars-sidebar">
+                  <div style="background:#8b5cf6;flex:2;border-radius:8px 0 0 0"></div>
+                  <div style="background:#6d28d9;flex:1"></div>
+                  <div style="background:#8b5cf6;flex:1;border-radius:0 0 0 8px"></div>
+                </div>
+                <div class="lcars-content">
+                  <div class="lcars-bar" style="background:#8b5cf6">
+                    <span class="lcars-bar-text">PROJECT-KNOWLEDGE MAP</span>
+                  </div>
+                  <div class="lcars-body" id="cs-project-knowledge-map">
+                    <p style="color:#94a3b8">Loading project-knowledge map...</p>
+                  </div>
+                  <div class="lcars-footer-bar" style="background:#8b5cf6"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Agent Contributions -->
+            <div style="--frame-color: #8b5cf6; --frame-rgb: 139,92,246; margin-bottom: 20px;">
+              <div class="lcars-frame">
+                <div class="lcars-sidebar">
+                  <div style="background:#8b5cf6;flex:2;border-radius:8px 0 0 0"></div>
+                  <div style="background:#6d28d9;flex:1"></div>
+                  <div style="background:#8b5cf6;flex:1;border-radius:0 0 0 8px"></div>
+                </div>
+                <div class="lcars-content">
+                  <div class="lcars-bar" style="background:#8b5cf6">
+                    <span class="lcars-bar-text">AGENT CONTRIBUTIONS</span>
+                  </div>
+                  <div class="lcars-body">
+                    <div class="cs-contrib-filters">
+                      <button class="cs-contrib-filter-btn active" data-days="0" onclick="setContribFilter(null)">All Time</button>
+                      <button class="cs-contrib-filter-btn" data-days="7" onclick="setContribFilter(7)">7 Days</button>
+                      <button class="cs-contrib-filter-btn" data-days="30" onclick="setContribFilter(30)">30 Days</button>
+                    </div>
+                    <div id="cs-agent-contributions-body">
+                      <p style="color:#94a3b8">Select a project from the map above to see agent contributions.</p>
+                    </div>
+                  </div>
+                  <div class="lcars-footer-bar" style="background:#8b5cf6"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Knowledge Gaps -->
+            <div style="--frame-color: #8b5cf6; --frame-rgb: 139,92,246; margin-bottom: 20px;">
+              <div class="lcars-frame">
+                <div class="lcars-sidebar">
+                  <div style="background:#8b5cf6;flex:2;border-radius:8px 0 0 0"></div>
+                  <div style="background:#6d28d9;flex:1"></div>
+                  <div style="background:#8b5cf6;flex:1;border-radius:0 0 0 8px"></div>
+                </div>
+                <div class="lcars-content">
+                  <div class="lcars-bar" style="background:#8b5cf6">
+                    <span class="lcars-bar-text">KNOWLEDGE GAPS</span>
+                  </div>
+                  <div class="lcars-body" id="cs-knowledge-gaps-body">
+                    <p style="color:#94a3b8">Loading knowledge gaps...</p>
+                  </div>
+                  <div class="lcars-footer-bar" style="background:#8b5cf6"></div>
+                </div>
+              </div>
+            </div>
+
         </div>
 
         <!-- ════════════════════════════════════════════════════════ -->
@@ -3554,4 +3622,5 @@
 
 <!-- Consciousness Module JS -->
 <script src="{{ url_for('static', filename='js/consciousness.js') }}"></script>
+<script src="/static/js/consciousness-dashboard-v2.js"></script>
 {% endblock %}

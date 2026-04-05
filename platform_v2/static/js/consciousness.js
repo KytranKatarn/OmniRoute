@@ -146,7 +146,7 @@ function loadTabData(tab) {
   _cache[tab] = true;
 
   switch (tab) {
-    case "dashboard":   loadDashboard(); break;
+    case "dashboard":   loadDashboard(); if (typeof loadDashboardV2Panels === "function") { loadDashboardV2Panels(); } break;
     case "knowledge":   loadKnowledge(); break;
     /* team tab merged into Starbase Command */
     case "github":      loadGitHub(); break;
@@ -1922,18 +1922,47 @@ window.ingestRepo = function() {
 
   api("/github/index-selective", { method: "POST", body: body }).then(function(data) {
     if (data.success) {
-      setHtml("ghIntakeResult", lcarsMsg("ok", "\u2713", "Indexing job started \u2014 " + escHtml(data.message || "processing")));
+      var jobId = data.job_id;
+      setHtml("ghIntakeResult", lcarsMsg("ok", "\u2713", "Indexing job #" + (jobId || "?") + " started \u2014 " + escHtml(data.message || "processing")));
       document.getElementById("ghIntakeUrl").value = "";
+      /* Keep progress bar active and poll until job completes */
+      if (btn) { btn.disabled = true; btn.textContent = "INDEXING..."; }
+      setHtml("ghIntakeStatus", "Indexing in progress\u2026");
+      checkActiveJobs();
+      if (jobId) {
+        var pollKey = "gh_intake_" + jobId;
+        if (!_activeJobPolls[pollKey]) {
+          _activeJobPolls[pollKey] = true;
+          _pollJobStatus(jobId, "bjob-gh-" + jobId, function(completedJob) {
+            _activeJobPolls[pollKey] = false;
+            var meta = (completedJob && completedJob.metadata) || {};
+            var indexed = meta.indexed || "?";
+            var errCount = (completedJob && completedJob.errors) || 0;
+            if (errCount > 0) {
+              setHtml("ghIntakeResult", lcarsMsg("warn", "\u26A0", "Job #" + jobId + " completed with errors \u2014 " + indexed + " files indexed"));
+            } else {
+              setHtml("ghIntakeResult", lcarsMsg("ok", "\u2713", "Job #" + jobId + " complete \u2014 " + indexed + " files indexed"));
+            }
+            setHtml("ghIntakeStatus", "");
+            if (prog) prog.classList.remove("active");
+            if (btn) { btn.disabled = false; btn.textContent = "INGEST"; }
+            _cache.github = false;
+            loadGitHub();
+            loadGitHubEmbedStats();
+          });
+        }
+      }
     } else {
       setHtml("ghIntakeResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Failed to start indexing")));
+      if (btn) { btn.disabled = false; btn.textContent = "INGEST"; }
+      if (prog) prog.classList.remove("active");
     }
   }).catch(function(err) {
     setHtml("ghIntakeResult", lcarsMsg("err", "\u2717", escHtml(err.message || "Network error")));
-  }).finally(function() {
     if (btn) { btn.disabled = false; btn.textContent = "INGEST"; }
     if (prog) prog.classList.remove("active");
+  }).finally(function() {
     _cache.github = false;
-    loadGitHub();
   });
 };
 

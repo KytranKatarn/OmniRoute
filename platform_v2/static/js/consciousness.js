@@ -402,6 +402,19 @@ function loadNeuralCore() {
     }
   }).catch(function() {});
 
+  // Code Health stats
+  api("/api/code-health/current").then(function(data) {
+    if (!data.success || !data.data) return;
+    var d = data.data;
+    if (d.total_lines) countUp("ncCodeLines", d.total_lines);
+    var gradeEl = document.getElementById("ncHealthGrade");
+    if (gradeEl && d.health_score) {
+      gradeEl.textContent = d.health_score.grade || "--";
+      var score = d.health_score.score || 0;
+      gradeEl.style.color = score >= 90 ? "#22c55e" : score >= 70 ? "#06b6d4" : score >= 50 ? "#f59e0b" : "#ef4444";
+    }
+  }).catch(function() {});
+
   // Emotional state for mood (from brain-state endpoint)
   api("/brain-state").then(function(data) {
     var emotion = data.current_emotion || {};

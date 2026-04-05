@@ -129,8 +129,8 @@
   left: 16px;
   right: 16px;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
   z-index: 5;
   pointer-events: none;
 }
@@ -157,6 +157,8 @@
 .nc-hud-item:nth-child(6) { animation-delay: 0.35s; }
 .nc-hud-item:nth-child(7) { animation-delay: 0.4s; }
 .nc-hud-item:nth-child(8) { animation-delay: 0.45s; }
+.nc-hud-item:nth-child(9) { animation-delay: 0.5s; }
+.nc-hud-item:nth-child(10) { animation-delay: 0.55s; }
 
 @keyframes nc-hud-appear {
   from {

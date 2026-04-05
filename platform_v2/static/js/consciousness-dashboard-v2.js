@@ -727,7 +727,7 @@
 
       // Inner glow ring
       ctx.save();
-      ctx.shadowColor = "#8b5cf6";
+      ctx.shadowColor = "rgba(" + _accentRgb + ", 0.8)";
       ctx.shadowBlur = 12;
       ctx.beginPath();
       ctx.arc(n.x, n.y, n.radius, 0, 2 * Math.PI);
@@ -736,7 +736,7 @@
       grad.addColorStop(0.7, "rgba(" + _accentRgb + ", 0.5)");
       grad.addColorStop(1, "rgba(" + _accentRgb + ", 0.3)");
       ctx.fillStyle = grad;
-      ctx.strokeStyle = "#a78bfa";
+      ctx.strokeStyle = "rgba(" + _accentRgb + ", 0.7)";
       ctx.lineWidth = 2;
       ctx.fill();
       ctx.stroke();

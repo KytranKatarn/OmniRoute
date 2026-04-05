@@ -626,8 +626,74 @@ def set_primary_portrait(agent_id, portrait_id):
         )
 
 
+def _get_skin_tone_hint(ethnicity):
+    """Map ethnicity to explicit skin tone and feature descriptors for portrait prompts.
+
+    Diffusion models weight earlier tokens more heavily, so placing explicit
+    skin-tone and feature descriptors at the front of the prompt prevents
+    whitewashing of non-white agents.
+    """
+    if not ethnicity:
+        return ""
+
+    skin_tone_hints = {
+        "african": "dark brown skin, African features",
+        "nigerian": "dark brown skin, West African features",
+        "ethiopian": "medium-dark brown skin, East African features",
+        "korean": "East Asian features, light golden skin tone",
+        "japanese": "East Asian features, fair skin with warm undertones",
+        "chinese": "East Asian features",
+        "indian": "South Asian features, brown skin",
+        "punjabi": "South Asian features, wheat-toned skin",
+        "iranian": "Middle Eastern features, olive skin tone",
+        "arab": "Middle Eastern features, olive to tan skin",
+        "mexican": "Latin American features, warm brown skin",
+        "brazilian": "Latin American features",
+        "indigenous": "Indigenous features, warm brown skin",
+        "jamaican": "dark brown skin, Caribbean features",
+        "filipino": "Southeast Asian features, warm tan skin",
+        "vietnamese": "Southeast Asian features, light olive skin",
+        "thai": "Southeast Asian features, warm golden skin",
+        "turkish": "Mediterranean features, olive skin",
+        "somali": "dark brown skin, East African features",
+        "haitian": "dark brown skin, Caribbean features",
+        "dominican": "mixed features, warm brown skin",
+        "colombian": "Latin American features",
+        "peruvian": "Indigenous Latin American features, warm brown skin",
+        "moroccan": "North African features, olive to brown skin",
+        "egyptian": "North African features, olive to tan skin",
+        "pakistani": "South Asian features, brown skin",
+        "bengali": "South Asian features, brown skin",
+        "trinidadian": "Caribbean features, brown skin",
+        "eastern european": "Eastern European features, fair skin",
+    }
+
+    eth_lower = ethnicity.lower()
+    for key, hint in skin_tone_hints.items():
+        if key in eth_lower:
+            return hint
+
+    # Fallback: use the raw ethnicity string so it still appears in the prompt
+    return ethnicity
+
+
+def _is_non_white(ethnicity):
+    """Return True if the agent's ethnicity is not white/European/Caucasian."""
+    if not ethnicity:
+        return False
+    eth_lower = ethnicity.lower()
+    white_markers = ("white", "european", "caucasian")
+    return not any(m in eth_lower for m in white_markers)
+
+
 def generate_portrait_prompt(agent_id):
-    """Auto-generate a portrait prompt from agent identity data. Returns (prompt, negative)."""
+    """Auto-generate a portrait prompt from agent identity data. Returns (prompt, negative).
+
+    Ethnicity and skin-tone descriptors are placed FIRST in the prompt because
+    diffusion models (SDXL/SD) weight earlier tokens more heavily.  For
+    non-white agents an anti-whitewashing clause is appended to the negative
+    prompt.
+    """
     identity = get_identity(agent_id)
     if not identity:
         return "", ""
@@ -638,26 +704,30 @@ def generate_portrait_prompt(agent_id):
     age = identity.get("age_range") or "30s"
     appearance = identity.get("appearance_notes") or ""
 
+    skin_hint = _get_skin_tone_hint(ethnicity)
+    appearance_suffix = f", {appearance}" if appearance else ""
+
     if is_director:
         prompt = (
-            f"Professional corporate portrait photo of a {gender} in their {age}, "
-            f"{ethnicity + ', ' if ethnicity else ''}"
-            f"wearing sleek futuristic corporate attire. "
-            f"Subtle AI android features: slightly too-perfect skin, faint digital iris pattern, "
-            f"barely visible circuit-like patterns along jawline. "
-            f"Confident pose, soft studio lighting, dark background with teal accent. "
-            f"Photorealistic, 8k, cinematic. {appearance}"
+            f"{skin_hint}, {gender} in their {age}, "
+            f"professional corporate portrait photo of a department leader, "
+            f"wearing sleek futuristic corporate attire, "
+            f"subtle AI android features: slightly too-perfect skin, faint digital iris pattern, "
+            f"confident authoritative expression, studio lighting, "
+            f"high resolution{appearance_suffix}"
         )
-        negative = "cartoon, anime, robot, mechanical, obvious cyborg, glowing eyes, wires"
     else:
         prompt = (
-            f"Professional corporate portrait photo of a {gender} in their {age}, "
-            f"{ethnicity + ', ' if ethnicity else ''}"
-            f"wearing smart business attire. Natural expression, confident. "
-            f"Soft studio lighting, clean background. "
-            f"Photorealistic, 8k, sharp focus. {appearance}"
+            f"{skin_hint}, {gender} in their {age}, "
+            f"professional corporate portrait photo, "
+            f"wearing smart business attire, natural expression, confident pose, "
+            f"studio lighting, neutral background, "
+            f"high resolution{appearance_suffix}"
         )
-        negative = "cartoon, anime, robot, AI, cyborg, unrealistic"
+
+    negative = "cartoon, anime, illustration, painting, deformed, ugly, " "blurry, low quality, watermark, text, logo"
+    if _is_non_white(ethnicity):
+        negative += ", pale white skin, European features, light skin"
 
     return prompt, negative
 

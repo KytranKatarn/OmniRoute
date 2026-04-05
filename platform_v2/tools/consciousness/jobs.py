@@ -1136,6 +1136,58 @@ def auto_link_knowledge_batch():
         logger.warning(f"[Knowledge Auto-Link] Batch failed: {e}")
 
 
+def generate_weekly_reports():
+    """Job: C.O.D.E.X. weekly knowledge reports.
+
+    Generates a weekly digest for each active/planning project
+    that doesn't already have a report from the last 6 days.
+    """
+    start = time.time()
+    try:
+        from services.weekly_report_service import get_report_candidates, generate_weekly_report
+
+        candidates = get_report_candidates()
+        if not candidates:
+            logger.debug("[WeeklyReport Job] No candidates for weekly reports")
+            _log_cycle("weekly_knowledge_report", 0, 0, int((time.time() - start) * 1000))
+            return
+
+        logger.info("[WeeklyReport Job] Generating reports for %d projects", len(candidates))
+        succeeded = 0
+        failed = 0
+
+        for proj in candidates:
+            result = generate_weekly_report(proj["id"])
+            if result["success"]:
+                succeeded += 1
+            elif result["error"] == "No activity to report":
+                pass  # Not a failure, just skip
+            else:
+                failed += 1
+                logger.warning(
+                    "[WeeklyReport Job] Failed for '%s': %s",
+                    proj.get("name", "unknown"),
+                    result.get("error", "unknown"),
+                )
+
+        duration = int((time.time() - start) * 1000)
+        _log_cycle(
+            "weekly_knowledge_report",
+            succeeded,
+            failed,
+            duration,
+            details={
+                "candidates": len(candidates),
+                "succeeded": succeeded,
+                "failed": failed,
+            },
+        )
+    except Exception as e:
+        duration = int((time.time() - start) * 1000)
+        _log_cycle("weekly_knowledge_report", 0, 1, duration, error_message=str(e))
+        logger.warning(f"[WeeklyReport Job] Batch failed: {e}")
+
+
 def register_consciousness_jobs(scheduler, flask_app):
     """Register all consciousness background jobs with the scheduler."""
     from apscheduler.triggers.interval import IntervalTrigger
@@ -1255,4 +1307,12 @@ def register_consciousness_jobs(scheduler, flask_app):
         replace_existing=True,
     )
 
-    logger.info("[ConsciousnessJobs] Registered 13 consciousness jobs")
+    scheduler.add_job(
+        with_ctx(generate_weekly_reports),
+        trigger=CronTrigger(day_of_week="sun", hour=3, minute=0),
+        id="agent_weekly_knowledge_report",
+        name="Agent Loop: C.O.D.E.X. Weekly Knowledge Reports",
+        replace_existing=True,
+    )
+
+    logger.info("[ConsciousnessJobs] Registered 14 consciousness jobs")

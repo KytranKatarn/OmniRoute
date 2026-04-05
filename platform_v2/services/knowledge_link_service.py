@@ -312,7 +312,7 @@ def auto_link_knowledge(batch_size: int = DEFAULT_BATCH_SIZE) -> Dict:
                 """SELECT kb.id, kb.embedding, kb.category, kb.tags
                    FROM knowledge_base kb
                    WHERE kb.embedding IS NOT NULL
-                   AND kb.is_archived = false
+                   AND kb.knowledge_type != 'archie_v1'
                    AND NOT EXISTS (
                        SELECT 1 FROM project_knowledge_links pkl WHERE pkl.knowledge_id = kb.id
                    )

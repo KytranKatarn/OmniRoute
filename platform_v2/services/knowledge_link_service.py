@@ -91,8 +91,7 @@ def get_project_knowledge(project_id: int, type_filter: Optional[str] = None) ->
                 params.append(type_filter)
             sql += " ORDER BY pkl.confidence DESC, kb.importance_score DESC"
             cur.execute(sql, params)
-            cols = [d[0] for d in cur.description]
-            return [dict(zip(cols, row)) for row in cur.fetchall()]
+            return [dict(row) for row in cur.fetchall()]
     except Exception as e:
         logger.error("[KnowledgeLink] get_project_knowledge failed: %s", e)
         return []
@@ -110,8 +109,7 @@ def get_knowledge_projects(knowledge_id: int) -> List[Dict]:
                    ORDER BY pkl.confidence DESC""",
                 (knowledge_id,),
             )
-            cols = [d[0] for d in cur.description]
-            return [dict(zip(cols, row)) for row in cur.fetchall()]
+            return [dict(row) for row in cur.fetchall()]
     except Exception as e:
         logger.error("[KnowledgeLink] get_knowledge_projects failed: %s", e)
         return []
@@ -132,19 +130,19 @@ def get_project_knowledge_gaps(project_id: int) -> Dict:
                    GROUP BY kb.knowledge_type""",
                 (project_id,),
             )
-            type_counts = {row[0]: row[1] for row in cur.fetchall()}
+            type_counts = {row["knowledge_type"]: row["cnt"] for row in cur.fetchall()}
 
             cur.execute(
                 "SELECT COUNT(*) FROM project_decisions WHERE project_id = %s",
                 (project_id,),
             )
-            decision_count = cur.fetchone()[0]
+            decision_count = cur.fetchone()["count"]
 
             cur.execute(
                 "SELECT COUNT(*) FROM bridge_jobs WHERE project_id = %s",
                 (project_id,),
             )
-            agent_activity_count = cur.fetchone()[0]
+            agent_activity_count = cur.fetchone()["count"]
 
             gaps = {}
             score = 0.0
@@ -203,10 +201,10 @@ def get_all_gaps(status: str = "active") -> List[Dict]:
             projects = cur.fetchall()
 
         results = []
-        for pid, name, slug in projects:
-            gap_data = get_project_knowledge_gaps(pid)
-            gap_data["name"] = name
-            gap_data["slug"] = slug
+        for row in projects:
+            gap_data = get_project_knowledge_gaps(row["id"])
+            gap_data["name"] = row["name"]
+            gap_data["slug"] = row["slug"]
             results.append(gap_data)
 
         results.sort(key=lambda x: x["completeness"])
@@ -231,11 +229,11 @@ def _get_project_embeddings() -> List[Tuple[int, str, List[float], List[str]]]:
             )
             results = []
             for row in cur.fetchall():
-                pid, slug, emb, tags = row
+                emb = row["embedding"]
                 if emb is not None:
                     emb_list = list(emb) if hasattr(emb, "__iter__") else []
-                    tag_list = tags if isinstance(tags, list) else []
-                    results.append((pid, slug, emb_list, tag_list))
+                    tag_list = row["tags"] if isinstance(row["tags"], list) else []
+                    results.append((row["id"], row["slug"], emb_list, tag_list))
             return results
     except Exception as e:
         logger.error("[KnowledgeLink] _get_project_embeddings failed: %s", e)
@@ -253,7 +251,7 @@ def _compute_project_embedding(project_id: int) -> bool:
             row = cur.fetchone()
             if not row:
                 return False
-            name, desc, tags = row
+            name, desc, tags = row["name"], row["description"], row["tags"]
 
         text_parts = [name or ""]
         if desc:
@@ -293,7 +291,7 @@ def auto_link_knowledge(batch_size: int = DEFAULT_BATCH_SIZE) -> Dict:
                    WHERE status IN ('active', 'planning')
                    AND embedding IS NULL"""
             )
-            missing = [row[0] for row in cur.fetchall()]
+            missing = [row["id"] for row in cur.fetchall()]
 
         for pid in missing:
             if _compute_project_embedding(pid):
@@ -322,7 +320,8 @@ def auto_link_knowledge(batch_size: int = DEFAULT_BATCH_SIZE) -> Dict:
             "[KnowledgeLink] Processing %d unlinked entries against %d projects", len(unlinked), len(project_embeddings)
         )
 
-        for kb_id, kb_embedding, kb_category, kb_tags in unlinked:
+        for row in unlinked:
+            kb_id, kb_embedding, kb_category, kb_tags = row["id"], row["embedding"], row["category"], row["tags"]
             try:
                 if kb_embedding is None:
                     stats["skipped"] += 1
@@ -398,7 +397,8 @@ def auto_link_bridge_jobs(batch_size: int = DEFAULT_BATCH_SIZE) -> Dict:
 
         generator = KnowledgeEmbeddingGenerator()
 
-        for job_id, capability, prompt in unlinked_jobs:
+        for row in unlinked_jobs:
+            job_id, capability, prompt = row["id"], row["capability"], row["prompt"]
             try:
                 text = "{} {}".format(capability or "", (prompt or "")[:300]).strip()
                 if not text:

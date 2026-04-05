@@ -141,8 +141,9 @@
         row.className = "cs-kb-entry";
 
         var badge = document.createElement("span");
-        badge.className = "cs-link-badge " + entry.link_type;
-        badge.textContent = entry.link_type;
+        var isDraft = (entry.title || "").indexOf("Project Report:") === 0;
+        badge.className = "cs-link-badge " + (isDraft ? "draft" : entry.link_type);
+        badge.textContent = isDraft ? "DRAFT" : entry.link_type;
         row.appendChild(badge);
 
         var titleSpan = document.createElement("span");
@@ -262,8 +263,10 @@
           var info = gapChipMap[key];
           if (info) {
             var chip = document.createElement("span");
-            chip.className = "cs-gap-chip " + info.cls;
-            chip.textContent = info.label;
+            var gapText = proj.gaps[key];
+            var isDraftOnly = gapText && gapText.indexOf("Drafts only") === 0;
+            chip.className = "cs-gap-chip " + (isDraftOnly ? "drafts" : info.cls);
+            chip.textContent = isDraftOnly ? "DRAFTS ONLY" : info.label;
             chips.appendChild(chip);
           }
         });
@@ -291,6 +294,29 @@
           }
         });
         actions.appendChild(btnDocs);
+
+        var btnReport = document.createElement("button");
+        btnReport.className = "cs-gap-action-btn cs-generate-report-btn";
+        btnReport.textContent = proj.has_draft_docs ? "Report Pending" : "Generate Report";
+        btnReport.disabled = proj.has_draft_docs;
+        btnReport.addEventListener("click", function (e) {
+          e.stopPropagation();
+          btnReport.textContent = "Generating...";
+          btnReport.disabled = true;
+          api("/api/dashboard/generate-docs", {
+            method: "POST",
+            body: { project_id: proj.project_id },
+          }).then(function (data) {
+            if (data && data.success) {
+              btnReport.textContent = "Report Generated";
+              loadDashboardV2Panels();
+            } else {
+              btnReport.textContent = "Failed";
+              btnReport.disabled = false;
+            }
+          });
+        });
+        actions.appendChild(btnReport);
 
         row.appendChild(actions);
         container.appendChild(row);

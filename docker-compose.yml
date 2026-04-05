@@ -605,7 +605,7 @@ services:
     restart: unless-stopped
 
   security_nikto:
-    image: secfigo/nikto:2.1.6
+    image: secfigo/nikto:latest
     container_name: security_nikto
     networks:
       - archie_internal
@@ -620,7 +620,7 @@ services:
     restart: unless-stopped
 
   security_nuclei:
-    image: projectdiscovery/nuclei:v3.2.0
+    image: projectdiscovery/nuclei:latest
     container_name: security_nuclei
     networks:
       - archie_internal

@@ -278,8 +278,8 @@ function loadNocOverview() {
         /* service health panel */
         _renderNocServiceHealth(svc);
 
-        /* recent alerts */
-        _renderNocActivity(d.recent_alerts || []);
+        /* recent activity feed */
+        _renderNocActivity(d.recent_activity || []);
 
     }).catch(function(e) {
         console.warn('NOC overview error:', e);
@@ -326,22 +326,27 @@ function _renderNocActivity(alerts) {
     if (!feed) return;
     feed.textContent = '';
     if (!alerts.length) {
-        snShowEmpty(feed, 'No recent alerts');
+        snShowEmpty(feed, 'No recent activity');
         return;
     }
     alerts.forEach(function(a) {
-        var cls = a.severity === 'high' ? 'danger' : a.severity === 'medium' ? 'warning' : 'info';
+        /* Route returns: type (info/warning/error/alert), text, time (ISO string) */
+        var t = a.type || a.severity || 'info';
+        var cls = (t === 'error' || t === 'alert' || t === 'high') ? 'danger'
+                : (t === 'warning' || t === 'medium') ? 'warning'
+                : 'info';
         var item = document.createElement('div');
         item.className = 'sn-activity-item sn-activity-' + cls;
 
         var timeSpan = document.createElement('span');
         timeSpan.className = 'sn-activity-time';
-        timeSpan.textContent = snFormatTime(a.timestamp);
+        var rawTime = a.time || a.timestamp || '';
+        timeSpan.textContent = rawTime ? snFormatTime(rawTime) : '';
         item.appendChild(timeSpan);
 
         var msgSpan = document.createElement('span');
         msgSpan.className = 'sn-activity-msg';
-        msgSpan.textContent = a.message || a.msg || '';
+        msgSpan.textContent = a.text || a.message || a.msg || '';
         item.appendChild(msgSpan);
 
         feed.appendChild(item);

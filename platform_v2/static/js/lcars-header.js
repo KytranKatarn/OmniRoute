@@ -352,10 +352,14 @@
           item.addEventListener("click", function () {
             expanded = !expanded;
             if (expanded) {
-              detail.style.maxHeight = "300px";
+              detail.style.maxHeight = "600px";
               detail.style.padding = "8px 12px 8px 30px";
               arrow.style.transform = "rotate(90deg)";
               arrow.style.color = "var(--cat-accent, #00ffff)";
+              // Scroll expanded item into view
+              setTimeout(function () {
+                wrapper.scrollIntoView({ behavior: "smooth", block: "nearest" });
+              }, 100);
             } else {
               detail.style.maxHeight = "0";
               detail.style.padding = "0 12px 0 30px";

@@ -150,6 +150,17 @@ def get_project_knowledge_gaps(project_id: int) -> Dict:
             type_counts = {row["knowledge_type"]: row["cnt"] for row in cur.fetchall()}
 
             cur.execute(
+                """SELECT COUNT(*) as cnt
+                   FROM project_knowledge_links pkl
+                   JOIN knowledge_base kb ON kb.id = pkl.knowledge_id
+                   WHERE pkl.project_id = %s
+                   AND kb.knowledge_type = 'vault_note'
+                   AND kb.source_type = 'auto_documentation'""",
+                (project_id,),
+            )
+            auto_doc_count = cur.fetchone()["cnt"]
+
+            cur.execute(
                 "SELECT COUNT(*) FROM project_decisions WHERE project_id = %s",
                 (project_id,),
             )
@@ -164,8 +175,11 @@ def get_project_knowledge_gaps(project_id: int) -> Dict:
             gaps = {}
             score = 0.0
 
-            if type_counts.get("vault_note", 0) > 0:
+            human_vault_notes = type_counts.get("vault_note", 0) - auto_doc_count
+            if human_vault_notes > 0:
                 score += GAP_WEIGHTS["vault_note"]
+            elif auto_doc_count > 0:
+                gaps["vault_note"] = "Drafts only (auto-generated)"
             else:
                 gaps["vault_note"] = "No documentation linked"
 
@@ -201,6 +215,7 @@ def get_project_knowledge_gaps(project_id: int) -> Dict:
                     "agent_activity": agent_activity_count,
                 },
                 "needs_attention": score < 0.50,
+                "has_draft_docs": auto_doc_count > 0,
             }
     except Exception as e:
         logger.error("[KnowledgeLink] get_project_knowledge_gaps failed: %s", e)

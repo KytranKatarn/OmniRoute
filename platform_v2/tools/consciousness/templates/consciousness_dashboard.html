@@ -2574,33 +2574,61 @@
         <!-- ════════════════════════════════════════════════════════ -->
         <div class="cs-panel active" id="panel-dashboard">
 
-            <!-- 1. NEURAL CORE — WebGL Hero -->
-            <div class="nc-hero" id="neuralCoreHero" style="margin-bottom: 20px;">
-                <div class="nc-loading" id="ncLoading">
-                    <span class="nc-loading-text">INITIALIZING NEURAL CORE</span>
-                </div>
-                <div class="nc-flash"></div>
-                <div id="neuralCore" style="width:100%;height:100%;position:absolute;top:0;left:0;"></div>
-                <div class="nc-hud">
-                    <div class="nc-hud-item purple">
-                        <span class="nc-hud-value" id="ncTotalKnowledge">--</span>
-                        <span class="nc-hud-label">Knowledge</span>
+            <!-- 1. NEURAL CORE — WebGL Hero (LCARS Framed) -->
+            <div style="--frame-color: var(--cat-accent, #00ffff); --frame-rgb: var(--cat-accent-rgb, 0,255,255); margin-bottom: 20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 48px !important; gap: 4px !important;">
+                        <div class="lcars-elbow-top" style="height: 52px !important; background: var(--cat-accent, #00ffff) !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: var(--cat-accent, #00ffff) !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: var(--cat-accent-dark, #00cccc) !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#10b981;box-shadow:0 0 8px #10b981;animation:bmLightPulse 2s ease-in-out infinite;"></div>
+                        <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#FFAA00;box-shadow:0 0 8px #FFAA00;animation:bmLightPulse 2s ease-in-out infinite 0.7s;"></div>
+                        <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba(var(--cat-accent-rgb, 0,255,255),0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div class="lcars-elbow-bottom" style="height: 36px !important; background: var(--cat-accent, #00ffff) !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
                     </div>
-                    <div class="nc-hud-item blue">
-                        <span class="nc-hud-value" id="ncGitHubFiles">--</span>
-                        <span class="nc-hud-label">GitHub Files</span>
-                    </div>
-                    <div class="nc-hud-item green">
-                        <span class="nc-hud-value" id="ncEmbedPct">--</span>
-                        <span class="nc-hud-label">Embedded</span>
-                    </div>
-                    <div class="nc-hud-item amber">
-                        <span class="nc-hud-value" id="ncActiveAgents">--</span>
-                        <span class="nc-hud-label">Agents</span>
-                    </div>
-                    <div class="nc-hud-item purple">
-                        <span class="nc-hud-value" id="ncProjectLinks">--</span>
-                        <span class="nc-hud-label">Project Links</span>
+                    <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                        <div class="lcars-bar" style="height: 44px !important; background: var(--cat-accent, #00ffff) !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">NEURAL CORE</span>
+                            <div style="flex:1"></div>
+                            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">LIVE</span>
+                            <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span class="lcars-pip" style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span class="lcars-pip" style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div class="lcars-body" style="flex: 1 !important; padding: 0 !important; position: relative !important;">
+                            <div class="nc-hero" id="neuralCoreHero" style="margin-bottom: 0; border-radius: 0;">
+                                <div class="nc-loading" id="ncLoading">
+                                    <span class="nc-loading-text">INITIALIZING NEURAL CORE</span>
+                                </div>
+                                <div class="nc-flash"></div>
+                                <div id="neuralCore" style="width:100%;height:100%;position:absolute;top:0;left:0;"></div>
+                                <div class="nc-hud">
+                                    <div class="nc-hud-item purple">
+                                        <span class="nc-hud-value" id="ncTotalKnowledge">--</span>
+                                        <span class="nc-hud-label">Knowledge</span>
+                                    </div>
+                                    <div class="nc-hud-item blue">
+                                        <span class="nc-hud-value" id="ncGitHubFiles">--</span>
+                                        <span class="nc-hud-label">GitHub Files</span>
+                                    </div>
+                                    <div class="nc-hud-item green">
+                                        <span class="nc-hud-value" id="ncEmbedPct">--</span>
+                                        <span class="nc-hud-label">Embedded</span>
+                                    </div>
+                                    <div class="nc-hud-item amber">
+                                        <span class="nc-hud-value" id="ncActiveAgents">--</span>
+                                        <span class="nc-hud-label">Agents</span>
+                                    </div>
+                                    <div class="nc-hud-item purple">
+                                        <span class="nc-hud-value" id="ncProjectLinks">--</span>
+                                        <span class="nc-hud-label">Project Links</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="lcars-footer-bar" style="background: var(--cat-accent, #00ffff) !important; height: 12px !important; display: flex !important; border-radius: 0 20px 20px 0 !important; flex-shrink: 0 !important;"></div>
                     </div>
                 </div>
             </div>

@@ -767,7 +767,7 @@
 .cs-gh-strip.green .cs-gh-strip-value  { color: #22c55e; }
 .cs-gh-strip.amber .cs-gh-strip-value  { color: #f59e0b; }
 /* Responsive: 2-column at wider screens */
-@media (min-width: 600px) {
+@media (min-width: 480px) {
     #panel-github .cs-gh-readouts,
     #panel-languages .cs-gh-readouts {
         display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
@@ -847,7 +847,7 @@
 .cs-gh-repo-btn:hover { filter: brightness(1.3); }
 .cs-gh-repo-btn.reindex { background: rgba(var(--cat-accent-rgb),0.15); color: var(--cat-accent); }
 .cs-gh-repo-btn.link { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.5); text-decoration: none; display: inline-flex; }
-@media (max-width: 600px) {
+@media (max-width: 480px) {
     .cs-gh-repo-bar-search { max-width: none; }
     .cs-gh-repo-meta { display: none; }
 }
@@ -923,7 +923,7 @@
     outline: none;
 }
 .cs-lang-select option { background: #0a0a14; color: #fff; }
-@media (max-width: 600px) {
+@media (max-width: 480px) {
     .cs-lang-stats { display: none; }
     .cs-lang-name { min-width: 60px; font-size: 0.75rem; }
     .cs-lang-flag { font-size: 0.9rem; }
@@ -1123,11 +1123,15 @@
     gap: 20px;
     margin-bottom: 20px;
 }
-@media (max-width: 767px) {
+@media (max-width: 768px) {
     .cs-dashboard-grid { grid-template-columns: 1fr; }
     .cs-dashboard-grid-3 { grid-template-columns: 1fr; }
     .cs-mood-stats { display: none; }
     .cs-mood-indicator { max-width: none; }
+}
+@media (min-width: 481px) and (max-width: 717px) {
+    /* Fold 5 / narrow tablet: 2-col grid where 3-col is too cramped */
+    .cs-dashboard-grid-3 { grid-template-columns: 1fr 1fr; }
 }
 /* --- Compact stat cards (LCARS) --- */
 .cs-stats-compact .cs-stat {
@@ -1236,8 +1240,11 @@
 .cs-pipeline-toggle.open i {
     transform: rotate(180deg);
 }
-@media (max-width: 500px) {
+@media (max-width: 480px) {
     .holo-hud { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 360px) {
+    .holo-hud { grid-template-columns: 1fr; }
 }
 
 /* --- Activity Feed --- */

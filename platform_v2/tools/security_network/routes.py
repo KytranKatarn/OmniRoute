@@ -134,15 +134,6 @@ def api_stats():
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
-@security_network_bp.route("/api/auto-block", methods=["POST"])
-@login_required
-@admin_required
-def auto_block():
-    """Auto-block detected threats"""
-    # Placeholder for threat blocking logic
-    return jsonify({"success": True, "blocked": 0, "message": "No threats detected"})
-
-
 @security_network_bp.route("/api/audit-log")
 @login_required
 @admin_required
@@ -229,14 +220,6 @@ try:
 except ImportError:
     REPORT_SERVICE_AVAILABLE = False
 
-# Legacy network integration (fallback)
-try:
-    from tools.security_network.network_integration import get_network_overview, check_security_threats
-
-    NETWORK_AVAILABLE = True
-except ImportError:
-    NETWORK_AVAILABLE = False
-
 # Import AdGuard full service
 try:
     from .adguard_service import AdGuardService
@@ -307,63 +290,6 @@ except Exception as e:
     logger.debug("Device registry service unavailable: %s", e)
     device_registry = None
     DEVICE_REGISTRY_AVAILABLE = False
-
-
-@security_network_bp.route("/api/network/overview", methods=["GET"])
-@login_required
-@admin_required
-def network_overview():
-    """Get network overview"""
-    if not NETWORK_AVAILABLE:
-        return (
-            jsonify({"success": False, "error": "Network integration not available"}),
-            503,
-        )
-
-    try:
-        overview = get_network_overview()
-        return jsonify({"success": True, "data": overview})
-    except Exception as e:
-        logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": "Internal server error"}), 500
-
-
-@security_network_bp.route("/api/security/threats", methods=["GET"])
-@login_required
-@admin_required
-def security_threats():
-    """Get security threats"""
-    if not NETWORK_AVAILABLE:
-        return (
-            jsonify({"success": False, "error": "Network integration not available"}),
-            503,
-        )
-
-    try:
-        threats = check_security_threats()
-        return jsonify({"success": True, "threats": threats})
-    except Exception as e:
-        logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": "Internal server error"}), 500
-
-
-@security_network_bp.route("/api/security/auto-block", methods=["POST"])
-@login_required
-@admin_required
-def security_auto_block():
-    """Auto-block detected threats"""
-    if not NETWORK_AVAILABLE:
-        return (
-            jsonify({"success": False, "error": "Network integration not available"}),
-            503,
-        )
-
-    try:
-        blocked = auto_block_threats()
-        return jsonify({"success": True, "blocked": blocked})
-    except Exception as e:
-        logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 # ============================================================================
@@ -599,6 +525,7 @@ def external_tools_status():
 
 @security_network_bp.route("/api/stacks/status")
 @login_required
+@admin_required
 def stacks_status():
     """
     Get status of security-related stacks.
@@ -627,7 +554,6 @@ def health_check():
         {
             "healthy": True,
             "module": "security_network",
-            "network_available": NETWORK_AVAILABLE,
             "stack_available": STACK_AVAILABLE,
             "security_service_available": SECURITY_SERVICE_AVAILABLE,
             "report_service_available": REPORT_SERVICE_AVAILABLE,
@@ -925,48 +851,6 @@ def get_scan_result(filename):
 # ============================================================================
 # ADGUARD INTEGRATION
 # ============================================================================
-
-
-@security_network_bp.route("/api/adguard/stats")
-@login_required
-@admin_required
-def adguard_stats():
-    """Get AdGuard statistics"""
-    if not STACK_AVAILABLE:
-        return jsonify({"success": False, "error": "Stack not available"}), 503
-
-    try:
-        stats = adguard_api.get_stats()
-        if stats:
-            return jsonify({"success": True, "stats": stats})
-        return jsonify({"success": False, "error": "Could not connect to AdGuard"}), 503
-    except Exception as e:
-        logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": "Internal server error"}), 500
-
-
-@security_network_bp.route("/api/adguard/block", methods=["POST"])
-@login_required
-@admin_required
-def adguard_block_domain():
-    """Block a domain in AdGuard"""
-    if not STACK_AVAILABLE:
-        return jsonify({"success": False, "error": "Stack not available"}), 503
-
-    data = request.get_json() or {}
-    domain = data.get("domain", "")
-
-    if not domain:
-        return jsonify({"success": False, "error": "Domain is required"}), 400
-
-    try:
-        success = adguard_api.block_domain(domain)
-        if success:
-            return jsonify({"success": True, "message": f"Domain {domain} blocked"})
-        return jsonify({"success": False, "error": "Failed to block domain"}), 500
-    except Exception as e:
-        logger.exception("Route error: %s", e)
-        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 # ============================================================================

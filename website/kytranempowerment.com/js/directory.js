@@ -55,15 +55,21 @@ var Directory = {
             var avatarWrap = document.createElement('div');
             avatarWrap.className = 'agent-card__avatar';
 
+            var initial = (agent.full_name || agent.acronym || '?').charAt(0).toUpperCase();
             if (agent.avatar_url) {
                 var img = document.createElement('img');
                 img.src = agent.avatar_url;
                 img.alt = agent.full_name || agent.acronym || 'Agent';
+                img.onerror = function () {
+                    var ph = document.createElement('div');
+                    ph.className = 'agent-card__avatar-placeholder';
+                    ph.textContent = initial;
+                    this.replaceWith(ph);
+                };
                 avatarWrap.appendChild(img);
             } else {
                 var placeholder = document.createElement('div');
                 placeholder.className = 'agent-card__avatar-placeholder';
-                var initial = (agent.full_name || agent.acronym || '?').charAt(0).toUpperCase();
                 placeholder.textContent = initial;
                 avatarWrap.appendChild(placeholder);
             }
@@ -125,6 +131,15 @@ var Directory = {
                 deptEl.className = 'agent-card__department';
                 deptEl.textContent = agent.department;
                 card.appendChild(deptEl);
+            }
+
+            // Email
+            if (agent.email) {
+                var emailEl = document.createElement('a');
+                emailEl.className = 'agent-card__email';
+                emailEl.href = 'mailto:' + agent.email;
+                emailEl.textContent = agent.email;
+                card.appendChild(emailEl);
             }
 
             grid.appendChild(card);

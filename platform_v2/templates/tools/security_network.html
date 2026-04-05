@@ -696,12 +696,15 @@
             </div>
         </div>
 
-        <!-- Consumption Table -->
+        <!-- Network Monitor -->
         <div class="card">
             <div class="card-header">
-                <span class="card-title">Device Consumption</span>
+                <span class="card-title">Network Monitor</span>
+                <button class="btn btn-sm" onclick="loadNetworkMonitor()">
+                    <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh
+                </button>
             </div>
-            <div id="devices-consumption-table" style="overflow-x:auto">
+            <div id="network-monitor-table" style="overflow-x:auto">
                 <div class="loading-state"><span class="spinner"></span> Loading...</div>
             </div>
         </div>
@@ -1492,6 +1495,43 @@
                     <button class="btn-submit" onclick="saveDevice()">Save Device</button>
                     <button class="btn-submit" id="dev-report-btn" onclick="viewDeviceReport(_deviceEditId)" style="margin-left:8px;background:#3b82f6;display:none">DNS Report</button>
                     <button class="btn-danger" onclick="deleteDeviceFromModal()" id="dev-delete-btn" style="margin-left:auto">Delete</button>
+                </div>
+                <div class="bm-footer">
+                    <div class="bm-footer-strip">
+                        <div class="bm-footer-dot cyan"></div>
+                        <div class="bm-footer-dot gold"></div>
+                        <div class="bm-footer-dot green"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== DEVICE DETAIL MODAL ==================== -->
+    <div class="bm-overlay" id="device-detail-modal" style="--bm-accent:#00e5ff;--bm-accent-rgb:0,229,255;">
+        <div class="bm-shell" style="max-width:700px;">
+            <div class="bm-frame">
+                <div class="bm-frame-elbow-top"></div>
+                <div class="bm-frame-seg"></div>
+                <div class="bm-frame-seg dim"></div>
+                <div class="bm-frame-light on"></div>
+                <div class="bm-frame-light amber"></div>
+                <div class="bm-frame-seg purple"></div>
+                <div class="bm-frame-fill"></div>
+                <div class="bm-frame-elbow-bottom"></div>
+            </div>
+            <div class="bm-content">
+                <div class="bm-header">
+                    <span class="bm-header-title" id="device-detail-title">DEVICE DETAIL</span>
+                    <div class="bm-header-strip">
+                        <div class="bm-header-pip w1"></div>
+                        <div class="bm-header-pip w2"></div>
+                        <div class="bm-header-pip w3"></div>
+                        <button class="bm-close" onclick="closeDeviceDetail()">&times;</button>
+                    </div>
+                </div>
+                <div class="bm-body" id="device-detail-body" style="max-height:70vh;overflow-y:auto">
+                    <div class="loading-state"><span class="spinner"></span> Loading...</div>
                 </div>
                 <div class="bm-footer">
                     <div class="bm-footer-strip">

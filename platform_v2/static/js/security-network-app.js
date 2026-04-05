@@ -3262,3 +3262,296 @@ function onHardeningTabShown() {
         })
         .catch(function() {});
 }
+
+// ========== NETWORK MONITOR ==========
+
+async function loadNetworkMonitor() {
+    var container = document.getElementById('network-monitor-table');
+    if (!container) return;
+    container.textContent = '';
+
+    try {
+        var resp = await fetch(SN_API + '/api/devices/list?hours=24');
+        var d = await resp.json();
+        if (!d.success || !d.devices || d.devices.length === 0) {
+            var empty = document.createElement('div');
+            empty.className = 'empty-state';
+            empty.textContent = 'No device activity in the last 24 hours';
+            container.appendChild(empty);
+            return;
+        }
+
+        var table = document.createElement('table');
+        table.className = 'data-table';
+
+        // Header
+        var thead = document.createElement('thead');
+        var headerRow = document.createElement('tr');
+        ['Device', 'IP', 'MAC', 'Download', 'Upload', 'Total', 'Domains'].forEach(function(h) {
+            var th = document.createElement('th');
+            th.textContent = h;
+            headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+
+        // Body
+        var tbody = document.createElement('tbody');
+        d.devices.forEach(function(dev) {
+            var tr = document.createElement('tr');
+            tr.style.cursor = 'pointer';
+            tr.addEventListener('click', function() { openDeviceDetail(dev.device_ip); });
+
+            // Device name/label
+            var tdName = document.createElement('td');
+            var nameSpan = document.createElement('span');
+            nameSpan.style.fontWeight = '600';
+            nameSpan.textContent = dev.device_label || dev.user_name || 'Unknown';
+            tdName.appendChild(nameSpan);
+            if (dev.device_type) {
+                var typeSpan = document.createElement('span');
+                typeSpan.style.cssText = 'display:block;font-size:11px;opacity:0.6';
+                typeSpan.textContent = dev.device_type;
+                tdName.appendChild(typeSpan);
+            }
+            tr.appendChild(tdName);
+
+            // IP
+            var tdIp = document.createElement('td');
+            tdIp.textContent = dev.device_ip;
+            tdIp.style.fontFamily = 'monospace';
+            tr.appendChild(tdIp);
+
+            // MAC
+            var tdMac = document.createElement('td');
+            tdMac.textContent = dev.device_mac || '-';
+            tdMac.style.cssText = 'font-family:monospace;font-size:11px';
+            tr.appendChild(tdMac);
+
+            // Download (bytes_in = received from network)
+            var tdDown = document.createElement('td');
+            tdDown.textContent = formatBytes(dev.total_in || 0);
+            tdDown.style.color = '#22d3ee';
+            tr.appendChild(tdDown);
+
+            // Upload (bytes_out = sent to network)
+            var tdUp = document.createElement('td');
+            tdUp.textContent = formatBytes(dev.total_out || 0);
+            tdUp.style.color = '#f472b6';
+            tr.appendChild(tdUp);
+
+            // Total
+            var tdTotal = document.createElement('td');
+            tdTotal.textContent = formatBytes(dev.total || 0);
+            tdTotal.style.fontWeight = '600';
+            tr.appendChild(tdTotal);
+
+            // Domains count
+            var tdDomains = document.createElement('td');
+            tdDomains.textContent = dev.unique_domains || '0';
+            tr.appendChild(tdDomains);
+
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        container.appendChild(table);
+
+    } catch(e) {
+        console.error('loadNetworkMonitor error:', e);
+        var errDiv = document.createElement('div');
+        errDiv.className = 'empty-state';
+        errDiv.textContent = 'Error loading network monitor: ' + e.message;
+        container.appendChild(errDiv);
+    }
+}
+
+async function openDeviceDetail(deviceIp) {
+    var modal = document.getElementById('device-detail-modal');
+    var body = document.getElementById('device-detail-body');
+    var title = document.getElementById('device-detail-title');
+    if (!modal || !body) return;
+
+    modal.classList.add('active');
+    body.textContent = '';
+    var spinner = document.createElement('div');
+    spinner.className = 'loading-state';
+    spinner.textContent = 'Loading device detail...';
+    body.appendChild(spinner);
+
+    try {
+        var resp = await fetch(SN_API + '/api/devices/detail/' + deviceIp);
+        var d = await resp.json();
+        if (!d.success) throw new Error(d.error || 'Failed to load');
+
+        body.textContent = '';
+
+        // Title
+        title.textContent = (d.device.device_label || d.device.user_name || deviceIp) + ' \u2014 DEVICE DETAIL';
+
+        // === Info Section ===
+        var infoCard = document.createElement('div');
+        infoCard.style.cssText = 'background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:8px;padding:16px;margin-bottom:16px';
+
+        var infoGrid = document.createElement('div');
+        infoGrid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:8px';
+
+        var infoItems = [
+            {label: 'IP Address', value: d.device.ip},
+            {label: 'MAC Address', value: d.device.mac || 'Unknown'},
+            {label: 'Label', value: d.device.device_label || '-'},
+            {label: 'Type', value: d.device.device_type || 'Unknown'}
+        ];
+        infoItems.forEach(function(item) {
+            var div = document.createElement('div');
+            var label = document.createElement('div');
+            label.style.cssText = 'font-size:11px;opacity:0.5;text-transform:uppercase';
+            label.textContent = item.label;
+            var val = document.createElement('div');
+            val.style.cssText = 'font-family:monospace;font-size:14px';
+            val.textContent = item.value;
+            div.appendChild(label);
+            div.appendChild(val);
+            infoGrid.appendChild(div);
+        });
+        infoCard.appendChild(infoGrid);
+        body.appendChild(infoCard);
+
+        // === Bandwidth Section ===
+        var bwCard = document.createElement('div');
+        bwCard.style.cssText = 'background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:8px;padding:16px;margin-bottom:16px';
+
+        var bwTitle = document.createElement('div');
+        bwTitle.style.cssText = 'font-weight:600;margin-bottom:12px;color:var(--archie-text-primary)';
+        bwTitle.textContent = 'Bandwidth (Last 24h)';
+        bwCard.appendChild(bwTitle);
+
+        var bwGrid = document.createElement('div');
+        bwGrid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;text-align:center';
+
+        [{label:'Download', val: d.bandwidth.total_in, color:'#22d3ee'},
+         {label:'Upload', val: d.bandwidth.total_out, color:'#f472b6'},
+         {label:'Total', val: d.bandwidth.total, color:'#fbbf24'}].forEach(function(b) {
+            var div = document.createElement('div');
+            var valDiv = document.createElement('div');
+            valDiv.style.cssText = 'font-size:24px;font-weight:700;font-family:"Antonio",sans-serif;color:' + b.color;
+            valDiv.textContent = formatBytes(b.val);
+            var labelDiv = document.createElement('div');
+            labelDiv.style.cssText = 'font-size:11px;opacity:0.5;text-transform:uppercase';
+            labelDiv.textContent = b.label;
+            div.appendChild(valDiv);
+            div.appendChild(labelDiv);
+            bwGrid.appendChild(div);
+        });
+        bwCard.appendChild(bwGrid);
+        body.appendChild(bwCard);
+
+        // === Top Domains Section ===
+        if (d.top_domains && d.top_domains.length > 0) {
+            var domCard = document.createElement('div');
+            domCard.style.cssText = 'background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:8px;padding:16px;margin-bottom:16px';
+
+            var domTitle = document.createElement('div');
+            domTitle.style.cssText = 'font-weight:600;margin-bottom:12px;color:var(--archie-text-primary)';
+            domTitle.textContent = 'Top Domains (Last 24h)';
+            domCard.appendChild(domTitle);
+
+            var domTable = document.createElement('table');
+            domTable.className = 'data-table';
+            domTable.style.fontSize = '13px';
+
+            var domHead = document.createElement('thead');
+            var domHr = document.createElement('tr');
+            ['Domain', 'Queries', 'Status'].forEach(function(h) {
+                var th = document.createElement('th');
+                th.textContent = h;
+                domHr.appendChild(th);
+            });
+            domHead.appendChild(domHr);
+            domTable.appendChild(domHead);
+
+            var domBody = document.createElement('tbody');
+            d.top_domains.forEach(function(dom) {
+                var tr = document.createElement('tr');
+
+                var tdDom = document.createElement('td');
+                tdDom.textContent = dom.domain;
+                tdDom.style.fontFamily = 'monospace';
+                tr.appendChild(tdDom);
+
+                var tdQ = document.createElement('td');
+                tdQ.textContent = dom.queries;
+                tr.appendChild(tdQ);
+
+                var tdStatus = document.createElement('td');
+                var badge = document.createElement('span');
+                badge.style.cssText = 'padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;' +
+                    (dom.blocked ? 'background:rgba(239,68,68,0.2);color:#ef4444' : 'background:rgba(34,197,94,0.2);color:#22c55e');
+                badge.textContent = dom.blocked ? 'BLOCKED' : 'ALLOWED';
+                tdStatus.appendChild(badge);
+                tr.appendChild(tdStatus);
+
+                domBody.appendChild(tr);
+            });
+            domTable.appendChild(domBody);
+            domCard.appendChild(domTable);
+            body.appendChild(domCard);
+        }
+
+        // === Timeline Section ===
+        if (d.timeline && d.timeline.length > 1) {
+            var tlCard = document.createElement('div');
+            tlCard.style.cssText = 'background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:8px;padding:16px';
+
+            var tlTitle = document.createElement('div');
+            tlTitle.style.cssText = 'font-weight:600;margin-bottom:12px;color:var(--archie-text-primary)';
+            tlTitle.textContent = 'Hourly Bandwidth Timeline';
+            tlCard.appendChild(tlTitle);
+
+            var tlTable = document.createElement('table');
+            tlTable.className = 'data-table';
+            tlTable.style.fontSize = '12px';
+
+            var tlHead = document.createElement('thead');
+            var tlHr = document.createElement('tr');
+            ['Hour', 'Download', 'Upload'].forEach(function(h) {
+                var th = document.createElement('th');
+                th.textContent = h;
+                tlHr.appendChild(th);
+            });
+            tlHead.appendChild(tlHr);
+            tlTable.appendChild(tlHead);
+
+            var tlBody = document.createElement('tbody');
+            d.timeline.forEach(function(t) {
+                var tr = document.createElement('tr');
+                var tdH = document.createElement('td');
+                tdH.textContent = t.hour ? new Date(t.hour).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '-';
+                tr.appendChild(tdH);
+                var tdIn = document.createElement('td');
+                tdIn.textContent = formatBytes(t.bytes_in);
+                tdIn.style.color = '#22d3ee';
+                tr.appendChild(tdIn);
+                var tdOut = document.createElement('td');
+                tdOut.textContent = formatBytes(t.bytes_out);
+                tdOut.style.color = '#f472b6';
+                tr.appendChild(tdOut);
+                tlBody.appendChild(tr);
+            });
+            tlTable.appendChild(tlBody);
+            tlCard.appendChild(tlTable);
+            body.appendChild(tlCard);
+        }
+
+    } catch(e) {
+        body.textContent = '';
+        var errDiv = document.createElement('div');
+        errDiv.className = 'empty-state';
+        errDiv.textContent = 'Error: ' + e.message;
+        body.appendChild(errDiv);
+    }
+}
+
+function closeDeviceDetail() {
+    var modal = document.getElementById('device-detail-modal');
+    if (modal) modal.classList.remove('active');
+}

@@ -193,6 +193,7 @@ function switchSecurityTab(tabName) {
             break;
         case 'devices':
             loadDevices();
+            loadNetworkMonitor();
             break;
         case 'defense':
             loadDefense();

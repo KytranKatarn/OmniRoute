@@ -342,6 +342,8 @@ function loadNeuralCore() {
       kbEl.onclick = function() { showKnowledgeTimeline(); };
     }
     setHtml("ncActiveAgents", (agents.active || 0) + "/" + (agents.total || 0));
+    var pl = data.project_links || {};
+    setHtml("ncProjectLinks", (pl.total_links || 0).toLocaleString());
   }).catch(function(err) {
     console.error("Neural core data error:", err);
     var loading = document.getElementById("ncLoading");

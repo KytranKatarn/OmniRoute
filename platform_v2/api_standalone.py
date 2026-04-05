@@ -134,6 +134,9 @@ def _run_shield_analysis(app, scan_target, scan_data, db_scan_id):
                 "rule IDs and fix commands. Use markdown."
             )
 
+            # Extract project_id from scan_data
+            project_id = scan_data.get("project_id") if isinstance(scan_data, dict) else None
+
             # Dispatch to LLM via Bridge
             dispatcher = get_dispatcher()
             result = dispatcher.dispatch(
@@ -141,6 +144,7 @@ def _run_shield_analysis(app, scan_target, scan_data, db_scan_id):
                 prompt=prompt,
                 module_id="security-network",
                 system_prompt=system_prompt,
+                project_id=project_id,
             )
 
             response_text = result.get("response", "")

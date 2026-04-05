@@ -279,7 +279,7 @@ def register_dashboard_routes(bp, admin_required):
         """Get gap analysis for all active projects, sorted worst-first."""
         from services.knowledge_link_service import get_all_gaps
 
-        status = request.args.get("status", "active")
+        status = request.args.get("status", "active,planning")
         gaps = get_all_gaps(status=status)
         return jsonify({"success": True, "gaps": gaps})
 

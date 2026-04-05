@@ -280,17 +280,6 @@ except ImportError:
     agent_automation_service = None
     AGENT_AUTOMATION_AVAILABLE = False
 
-# Import Device Registry service
-try:
-    from tools.security_network.device_registry_service import DeviceRegistryService
-
-    device_registry = DeviceRegistryService()
-    DEVICE_REGISTRY_AVAILABLE = True
-except Exception as e:
-    logger.debug("Device registry service unavailable: %s", e)
-    device_registry = None
-    DEVICE_REGISTRY_AVAILABLE = False
-
 
 # ============================================================================
 # DOCKER CONTAINER SECURITY API

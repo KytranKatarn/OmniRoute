@@ -1,0 +1,12 @@
+/* archie-breakpoints.css -- Platform-Standard Responsive Breakpoints
+   ALL modules MUST use these. No ad-hoc values.
+   xs:360 sm:480 fold:717 md:768 lg:1024 xl:1440
+*/
+:root {
+  --bp-xs: 360px;
+  --bp-sm: 480px;
+  --bp-fold: 717px;
+  --bp-md: 768px;
+  --bp-lg: 1024px;
+  --bp-xl: 1440px;
+}

@@ -1046,6 +1046,46 @@ def weekly_memory_consolidation():
 # ---------------------------------------------------------------------------
 
 
+def auto_link_knowledge_batch():
+    """Job: Auto-link knowledge entries to projects via embedding similarity.
+
+    Processes one batch per tick (200 KB entries, 100 bridge jobs).
+    Logs results via _log_cycle like all other consciousness jobs.
+    """
+    start = time.time()
+    try:
+        from services.knowledge_link_service import auto_link_knowledge, auto_link_bridge_jobs
+
+        kb_stats = auto_link_knowledge(batch_size=200)
+        bj_stats = auto_link_bridge_jobs(batch_size=100)
+
+        total_linked = kb_stats.get("linked", 0) + bj_stats.get("linked", 0)
+        total_errors = kb_stats.get("errors", 0) + bj_stats.get("errors", 0)
+        duration = int((time.time() - start) * 1000)
+
+        _log_cycle(
+            "knowledge_auto_link",
+            total_linked,
+            total_errors,
+            duration,
+            details={
+                "kb_linked": kb_stats.get("linked", 0),
+                "kb_skipped": kb_stats.get("skipped", 0),
+                "bj_linked": bj_stats.get("linked", 0),
+                "bj_skipped": bj_stats.get("skipped", 0),
+                "projects_embedded": kb_stats.get("projects_embedded", 0),
+            },
+        )
+        if total_linked > 0:
+            logger.info(
+                f"[Knowledge Auto-Link] Linked {total_linked} items ({kb_stats.get('linked', 0)} KB + {bj_stats.get('linked', 0)} jobs)"
+            )
+    except Exception as e:
+        duration = int((time.time() - start) * 1000)
+        _log_cycle("knowledge_auto_link", 0, 1, duration, error_message=str(e))
+        logger.warning(f"[Knowledge Auto-Link] Batch failed: {e}")
+
+
 def register_consciousness_jobs(scheduler, flask_app):
     """Register all consciousness background jobs with the scheduler."""
     from apscheduler.triggers.interval import IntervalTrigger
@@ -1149,4 +1189,12 @@ def register_consciousness_jobs(scheduler, flask_app):
         replace_existing=True,
     )
 
-    logger.info("[ConsciousnessJobs] Registered 11 consciousness jobs")
+    scheduler.add_job(
+        with_ctx(auto_link_knowledge_batch),
+        trigger=IntervalTrigger(minutes=30),
+        id="agent_knowledge_auto_link",
+        name="Agent Loop: Knowledge Auto-Link to Projects",
+        replace_existing=True,
+    )
+
+    logger.info("[ConsciousnessJobs] Registered 12 consciousness jobs")

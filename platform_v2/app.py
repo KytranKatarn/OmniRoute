@@ -3271,9 +3271,6 @@ if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
 
             _job_service = JobService(scheduler=_scheduler)
             register_budget_jobs(_job_service)
-            from services.knowledge_link_jobs import register_knowledge_link_jobs
-
-            register_knowledge_link_jobs(_job_service)
             app.config["JOB_SERVICE"] = _job_service
             logger.info("[Startup] JobService initialized with budget reset jobs")
         except Exception as e:

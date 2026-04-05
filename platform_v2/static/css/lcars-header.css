@@ -281,6 +281,27 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
 }
 
 /* ============================================================
+   6b. FOOTER BAR (bridges nav to content below)
+   ============================================================ */
+.lcars-header-footer {
+  height: 12px;
+  background: linear-gradient(90deg, var(--cat-accent), var(--cat-accent-dark) 40%, transparent 100%);
+  border-radius: 0 20px 20px 0;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.lcars-header-footer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(var(--cat-accent-rgb), 0.3);
+}
+
+/* ============================================================
    7. TOASTS
    ============================================================ */
 /* -- Toast Container -- */

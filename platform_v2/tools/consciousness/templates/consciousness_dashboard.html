@@ -33,6 +33,48 @@
 ] %}
 {% include 'includes/lcars-header.html' %}
 
+<!-- Notification Modal (bm- LCARS tablet) -->
+<div class="bm-overlay" id="lcarsNotifModal"
+     style="--bm-accent:var(--cat-accent, #00ffff); --bm-accent-rgb:var(--cat-accent-rgb, 0,255,255);">
+    <div class="bm-shell" style="max-width:500px;">
+        <div class="bm-frame">
+            <div class="bm-frame-elbow-top"></div>
+            <div class="bm-frame-seg"></div>
+            <div class="bm-frame-seg dim"></div>
+            <div class="bm-frame-light on"></div>
+            <div class="bm-frame-light amber"></div>
+            <div class="bm-frame-seg cyan"></div>
+            <div class="bm-frame-fill"></div>
+            <div class="bm-frame-elbow-bottom"></div>
+        </div>
+        <div class="bm-content">
+            <div class="bm-header">
+                <span class="bm-header-title">NOTIFICATIONS</span>
+                <div class="bm-header-strip">
+                    <span class="bm-header-pip w1"></span>
+                    <span class="bm-header-pip w2"></span>
+                    <span class="bm-header-pip w3"></span>
+                    <button class="bm-close" onclick="lcarsCloseNotifications()">&times;</button>
+                </div>
+            </div>
+            <div class="bm-body" id="lcarsNotifBody" style="max-height:60vh;overflow-y:auto;">
+                <p style="color:#94a3b8;">Loading...</p>
+            </div>
+            <div class="bm-actions">
+                <button class="btn-cancel" onclick="lcarsCloseNotifications()">Close</button>
+                <button class="btn-submit" onclick="fetch('/api/notifications/mark-all-read',{method:'POST'}).then(function(){lcarsCloseNotifications();if(window._pollNotifications)_pollNotifications();})">Mark All Read</button>
+            </div>
+            <div class="bm-footer">
+                <div class="bm-footer-strip">
+                    <span class="bm-footer-dot cyan"></span>
+                    <span class="bm-footer-dot gold"></span>
+                    <span class="bm-footer-dot green"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
 /* ============================================================================
    A.R.C.H.I.E. CONSCIOUSNESS — LCARS Neural Core Rebuild

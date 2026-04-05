@@ -35,6 +35,7 @@
         <i data-lucide="moon" style="width:12px;height:12px;"></i>
       </button>
       <span class="lcars-header-lang" title="Language">EN</span>
+      <span class="lcars-notif-badge" id="lcarsNotifBadge" style="display:none;">0</span>
     </div>
   </div>
 
@@ -64,3 +65,21 @@
 
 <!-- Toast container -->
 <div class="lcars-toast-container" id="lcarsToastContainer"></div>
+
+<style>
+.lcars-notif-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #ef4444;
+  color: white;
+  font-size: 0.5rem;
+  font-weight: 700;
+  font-family: 'IBM Plex Mono', monospace;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+}
+</style>

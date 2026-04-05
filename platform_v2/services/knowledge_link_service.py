@@ -18,6 +18,9 @@ CONFIDENCE_BOOST = 0.15
 DEFAULT_BATCH_SIZE = 200
 BACKFILL_BATCH_SIZE = 500
 
+# Knowledge types worth auto-linking (skip external github_file noise)
+LINKABLE_TYPES = ("vault_note", "mistake_learned", "code_snippet", "conversation_memory", "api_endpoint")
+
 # --- Gap analysis weights ---
 GAP_WEIGHTS = {
     "vault_note": 0.30,
@@ -333,12 +336,12 @@ def auto_link_knowledge(batch_size: int = DEFAULT_BATCH_SIZE) -> Dict:
                 """SELECT kb.id, kb.embedding, kb.category, kb.tags
                    FROM knowledge_base kb
                    WHERE kb.embedding IS NOT NULL
-                   AND kb.knowledge_type != 'archie_v1'
+                   AND kb.knowledge_type IN %s
                    AND NOT EXISTS (
                        SELECT 1 FROM project_knowledge_links pkl WHERE pkl.knowledge_id = kb.id
                    )
                    LIMIT %s""",
-                (batch_size,),
+                (LINKABLE_TYPES, batch_size),
             )
             unlinked = cur.fetchall()
 
@@ -394,12 +397,43 @@ def auto_link_knowledge(batch_size: int = DEFAULT_BATCH_SIZE) -> Dict:
 
 
 def auto_link_bridge_jobs(batch_size: int = DEFAULT_BATCH_SIZE) -> Dict:
-    """Auto-link bridge jobs to projects via text matching."""
+    """Auto-link bridge jobs to projects via simple text matching.
+
+    Matches project name or slug keywords against job capability/prompt text.
+    Fast — no embedding generation needed.
+    """
     stats = {"linked": 0, "skipped": 0, "errors": 0}
 
     try:
-        project_embeddings = _get_project_embeddings()
-        if not project_embeddings:
+        # Get project names and slugs for text matching
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT id, name, slug, tags
+                   FROM unified_projects
+                   WHERE status IN ('active', 'planning')"""
+            )
+            projects = cur.fetchall()
+
+        if not projects:
+            return stats
+
+        # Build keyword sets per project from name + slug + tags
+        project_keywords = []
+        for proj in projects:
+            keywords = set()
+            # Split slug on hyphens (e.g. "lcars-ui-consolidation" -> ["lcars", "ui", "consolidation"])
+            for word in (proj["slug"] or "").split("-"):
+                if len(word) >= 4:  # Skip short words like "the", "and", "new"
+                    keywords.add(word.lower())
+            # Add tags
+            if isinstance(proj["tags"], list):
+                for tag in proj["tags"]:
+                    if len(tag) >= 4:
+                        keywords.add(tag.lower())
+            if keywords:
+                project_keywords.append((proj["id"], proj["name"], keywords))
+
+        if not project_keywords:
             return stats
 
         with get_db_cursor() as (conn, cur):
@@ -416,44 +450,35 @@ def auto_link_bridge_jobs(batch_size: int = DEFAULT_BATCH_SIZE) -> Dict:
         if not unlinked_jobs:
             return stats
 
-        from tools.consciousness.services.knowledge_embedding_generator import KnowledgeEmbeddingGenerator
-
-        generator = KnowledgeEmbeddingGenerator()
-
         for row in unlinked_jobs:
-            job_id, capability, prompt = row["id"], row["capability"], row["prompt"]
             try:
-                text = "{} {}".format(capability or "", (prompt or "")[:300]).strip()
-                if not text:
+                text = "{} {}".format(row["capability"] or "", (row["prompt"] or "")[:500]).lower()
+                if not text.strip():
                     stats["skipped"] += 1
                     continue
 
-                job_emb = generator.generate_embedding(text)
-                if not job_emb:
-                    stats["skipped"] += 1
-                    continue
-
-                best_sim = 0.0
+                best_match = 0
                 best_pid = None
 
-                for pid, slug, proj_emb, proj_tags in project_embeddings:
-                    sim = _cosine_similarity(job_emb, proj_emb)
-                    if sim > best_sim:
-                        best_sim = sim
+                for pid, pname, keywords in project_keywords:
+                    matches = sum(1 for kw in keywords if kw in text)
+                    if matches > best_match:
+                        best_match = matches
                         best_pid = pid
 
-                if best_sim >= BRIDGE_JOB_THRESHOLD and best_pid is not None:
+                # Require at least 2 keyword matches to link
+                if best_match >= 2 and best_pid is not None:
                     with get_db_cursor(commit=True) as (conn, cur):
                         cur.execute(
                             "UPDATE bridge_jobs SET project_id = %s WHERE id = %s",
-                            (best_pid, job_id),
+                            (best_pid, row["id"]),
                         )
                     stats["linked"] += 1
                 else:
                     stats["skipped"] += 1
 
             except Exception as e:
-                logger.error("[KnowledgeLink] Error linking bridge job %s: %s", job_id, e)
+                logger.error("[KnowledgeLink] Error linking bridge job %s: %s", row["id"], e)
                 stats["errors"] += 1
 
         logger.info("[KnowledgeLink] Bridge job auto-link: %s", stats)

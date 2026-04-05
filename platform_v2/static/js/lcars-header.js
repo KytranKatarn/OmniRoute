@@ -222,8 +222,14 @@
         }
 
         data.notifications.forEach(function (n) {
+          var wrapper = document.createElement("div");
+          wrapper.style.cssText = "border-bottom:1px solid rgba(var(--cat-accent-rgb,0,255,255),0.08);transition:opacity 0.3s ease,transform 0.3s ease,max-height 0.5s ease;overflow:hidden;";
+
+          // Summary row (clickable)
           var item = document.createElement("div");
-          item.style.cssText = "display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-bottom:1px solid rgba(var(--cat-accent-rgb,0,255,255),0.08);transition:opacity 0.3s ease,transform 0.3s ease,max-height 0.3s ease;max-height:120px;overflow:hidden;";
+          item.style.cssText = "display:flex;align-items:flex-start;gap:10px;padding:10px 12px;cursor:pointer;transition:background 0.15s ease;";
+          item.addEventListener("mouseenter", function () { item.style.background = "rgba(var(--cat-accent-rgb,0,255,255),0.04)"; });
+          item.addEventListener("mouseleave", function () { item.style.background = "none"; });
 
           // Severity dot
           var dot = document.createElement("span");
@@ -231,7 +237,7 @@
           dot.style.cssText = "width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:6px;background:" + dotColor + ";box-shadow:0 0 6px " + dotColor + ";";
           item.appendChild(dot);
 
-          // Content
+          // Summary content
           var content = document.createElement("div");
           content.style.cssText = "flex:1;min-width:0;";
 
@@ -240,62 +246,87 @@
           title.textContent = n.title || "Notification";
           content.appendChild(title);
 
-          if (n.message) {
-            // Parse message — might be JSON string
-            var msgText = n.message;
-            try {
-              var parsed = JSON.parse(n.message);
-              if (parsed.agent) msgText = parsed.agent + " — " + (parsed.department || "");
-              else if (typeof parsed === "string") msgText = parsed;
-            } catch (e) { /* not JSON, use as-is */ }
-            var msg = document.createElement("div");
-            msg.style.cssText = "font-size:0.7rem;color:#94a3b8;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
-            msg.textContent = msgText;
-            content.appendChild(msg);
-          }
-
-          var meta = document.createElement("div");
-          meta.style.cssText = "font-size:0.6rem;color:#475569;margin-top:3px;";
-          var metaParts = [];
-          if (n.source) metaParts.push(n.source);
-          if (n.priority && n.priority !== "low") metaParts.push(n.priority);
-          if (n.time_ago) metaParts.push(n.time_ago);
-          if (n.created_at && !n.time_ago) {
+          // Short preview
+          var preview = document.createElement("div");
+          preview.style.cssText = "font-size:0.65rem;color:#64748b;margin-top:2px;";
+          var previewParts = [];
+          if (n.source) previewParts.push(n.source);
+          if (n.created_at) {
             var d = new Date(n.created_at);
-            if (!isNaN(d)) metaParts.push(d.toLocaleString());
+            if (!isNaN(d)) previewParts.push(d.toLocaleString());
           }
-          meta.textContent = metaParts.join(" \u2022 ");
-          content.appendChild(meta);
+          preview.textContent = previewParts.join(" \u2022 ");
+          content.appendChild(preview);
 
           item.appendChild(content);
 
-          // Dismiss button
+          // Arrow indicator
+          var arrow = document.createElement("span");
+          arrow.style.cssText = "flex-shrink:0;color:rgba(var(--cat-accent-rgb,0,255,255),0.3);font-size:0.7rem;margin-top:4px;transition:transform 0.2s ease;";
+          arrow.textContent = "\u25B8";
+          item.appendChild(arrow);
+
+          wrapper.appendChild(item);
+
+          // Detail panel (hidden by default)
+          var detail = document.createElement("div");
+          detail.style.cssText = "max-height:0;overflow:hidden;transition:max-height 0.3s ease,padding 0.3s ease;padding:0 12px 0 30px;background:rgba(var(--cat-accent-rgb,0,255,255),0.03);";
+
+          // Parse message
+          var fullMsg = n.message || "No details available.";
+          try {
+            var parsed = JSON.parse(n.message);
+            if (typeof parsed === "object") {
+              fullMsg = Object.keys(parsed).map(function (k) { return k + ": " + parsed[k]; }).join("\n");
+            }
+          } catch (e) { /* not JSON */ }
+
+          // Detail fields
+          var fields = [
+            { label: "TYPE", value: (n.type || "info").toUpperCase() },
+            { label: "PRIORITY", value: (n.priority || "normal").toUpperCase() },
+            { label: "SOURCE", value: n.source || "—" },
+            { label: "MESSAGE", value: fullMsg },
+            { label: "CREATED", value: n.created_at ? new Date(n.created_at).toLocaleString() : "—" },
+            { label: "ID", value: n.id ? "#" + n.id : "—" }
+          ];
+
+          fields.forEach(function (f) {
+            var row = document.createElement("div");
+            row.style.cssText = "display:flex;gap:8px;padding:3px 0;";
+
+            var lbl = document.createElement("span");
+            lbl.style.cssText = "font-size:0.55rem;color:rgba(var(--cat-accent-rgb,0,255,255),0.5);font-family:'Antonio',sans-serif;letter-spacing:0.5px;width:60px;flex-shrink:0;text-transform:uppercase;";
+            lbl.textContent = f.label;
+            row.appendChild(lbl);
+
+            var val = document.createElement("span");
+            val.style.cssText = "font-size:0.65rem;color:#cbd5e1;font-family:'IBM Plex Mono',monospace;white-space:pre-wrap;word-break:break-word;";
+            val.textContent = f.value;
+            row.appendChild(val);
+
+            detail.appendChild(row);
+          });
+
+          // Action buttons in detail
+          var actions = document.createElement("div");
+          actions.style.cssText = "display:flex;gap:8px;padding:8px 0;margin-top:4px;border-top:1px solid rgba(var(--cat-accent-rgb,0,255,255),0.08);";
+
           if (n.id) {
-            var dismissBtn = document.createElement("button");
-            dismissBtn.style.cssText = "flex-shrink:0;background:none;border:1px solid rgba(var(--cat-accent-rgb,0,255,255),0.2);color:rgba(var(--cat-accent-rgb,0,255,255),0.5);font-size:0.55rem;font-family:'Antonio',sans-serif;letter-spacing:0.5px;padding:3px 8px;border-radius:3px;cursor:pointer;text-transform:uppercase;transition:color 0.15s,border-color 0.15s;margin-top:2px;";
-            dismissBtn.textContent = "CLEAR";
-            dismissBtn.addEventListener("mouseenter", function () {
-              dismissBtn.style.color = "var(--cat-accent, #00ffff)";
-              dismissBtn.style.borderColor = "var(--cat-accent, #00ffff)";
-            });
-            dismissBtn.addEventListener("mouseleave", function () {
-              dismissBtn.style.color = "rgba(var(--cat-accent-rgb,0,255,255),0.5)";
-              dismissBtn.style.borderColor = "rgba(var(--cat-accent-rgb,0,255,255),0.2)";
-            });
-            dismissBtn.addEventListener("click", function (e) {
+            var clearBtn = document.createElement("button");
+            clearBtn.style.cssText = "background:none;border:1px solid rgba(var(--cat-accent-rgb,0,255,255),0.25);color:var(--cat-accent,#00ffff);font-size:0.55rem;font-family:'Antonio',sans-serif;letter-spacing:0.8px;padding:4px 12px;border-radius:3px;cursor:pointer;text-transform:uppercase;transition:background 0.15s;";
+            clearBtn.textContent = "CLEAR";
+            clearBtn.addEventListener("click", function (e) {
               e.stopPropagation();
               fetch("/api/notifications/mark-read/" + n.id, { method: "POST" })
                 .then(function () {
-                  item.style.opacity = "0";
-                  item.style.transform = "translateX(30px)";
-                  item.style.maxHeight = "0";
-                  item.style.padding = "0 12px";
+                  wrapper.style.opacity = "0";
+                  wrapper.style.transform = "translateX(30px)";
+                  wrapper.style.maxHeight = "0";
                   setTimeout(function () {
-                    if (item.parentNode) item.parentNode.removeChild(item);
+                    if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
                     _pollNotifications();
-                    // Check if list is now empty
-                    var remaining = body.querySelectorAll("div").length;
-                    if (remaining === 0) {
+                    if (body.querySelectorAll("div").length === 0) {
                       var empty = document.createElement("p");
                       empty.style.color = "#64748b";
                       empty.textContent = "All clear — no notifications";
@@ -304,10 +335,32 @@
                   }, 300);
                 });
             });
-            item.appendChild(dismissBtn);
+            clearBtn.addEventListener("mouseenter", function () { clearBtn.style.background = "rgba(var(--cat-accent-rgb,0,255,255),0.1)"; });
+            clearBtn.addEventListener("mouseleave", function () { clearBtn.style.background = "none"; });
+            actions.appendChild(clearBtn);
           }
 
-          body.appendChild(item);
+          detail.appendChild(actions);
+          wrapper.appendChild(detail);
+
+          // Toggle detail on click
+          var expanded = false;
+          item.addEventListener("click", function () {
+            expanded = !expanded;
+            if (expanded) {
+              detail.style.maxHeight = "300px";
+              detail.style.padding = "8px 12px 8px 30px";
+              arrow.style.transform = "rotate(90deg)";
+              arrow.style.color = "var(--cat-accent, #00ffff)";
+            } else {
+              detail.style.maxHeight = "0";
+              detail.style.padding = "0 12px 0 30px";
+              arrow.style.transform = "rotate(0deg)";
+              arrow.style.color = "rgba(var(--cat-accent-rgb,0,255,255),0.3)";
+            }
+          });
+
+          body.appendChild(wrapper);
         });
       })
       .catch(function () {

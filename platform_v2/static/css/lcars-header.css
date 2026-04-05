@@ -616,9 +616,6 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
     display: none;
   }
 
-  .lcars-header-stardate {
-    display: none;
-  }
 
   .lcars-header-title {
     font-size: 0.85rem;
@@ -650,9 +647,60 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
     width: 56px;
   }
 
+  /* Compact the title bar */
+  .lcars-header-bar {
+    padding: 3px 10px;
+    min-height: 24px;
+  }
+
+  .lcars-header-title {
+    font-size: 0.8rem;
+  }
+
+  /* Strip: icons only */
+  .lcars-header-strip {
+    height: 20px;
+    padding-left: 10px;
+  }
+
   .lcars-strip-btn span {
     display: none;
   }
+
+  .lcars-strip-btn {
+    padding: 0 8px;
+  }
+
+  .lcars-header-stardate {
+    font-size: 0.5rem;
+  }
+
+  /* Tabs: short labels, tighter */
+  .lcars-header-tab-label {
+    display: none;
+  }
+
+  .lcars-header-tab-short {
+    display: inline;
+    font-size: 0.55rem;
+  }
+
+  .lcars-header-tab {
+    font-size: 0.6rem;
+    padding: 3px 8px;
+    gap: 3px;
+  }
+
+  .lcars-header-tabs {
+    padding: 3px 8px;
+    gap: 2px;
+  }
+
+  /* Compact footer */
+  .lcars-header-footer {
+    height: 8px;
+  }
+
   .lcars-strip-divider {
     margin: 0 4px;
   }

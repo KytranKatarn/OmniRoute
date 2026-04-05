@@ -213,15 +213,18 @@
       .then(function (data) {
         body.textContent = "";
 
-        if (!data.success || !data.notifications || data.notifications.length === 0) {
+        // Filter to unread only
+        var notifs = (data.notifications || []).filter(function (n) { return !n.is_read; });
+
+        if (!data.success || notifs.length === 0) {
           var empty = document.createElement("p");
           empty.style.color = "#64748b";
-          empty.textContent = "No notifications";
+          empty.textContent = "All clear \u2014 no notifications";
           body.appendChild(empty);
           return;
         }
 
-        data.notifications.forEach(function (n) {
+        notifs.forEach(function (n) {
           var wrapper = document.createElement("div");
           wrapper.style.cssText = "border-bottom:1px solid rgba(var(--cat-accent-rgb,0,255,255),0.08);transition:opacity 0.3s ease,transform 0.3s ease,max-height 0.5s ease;overflow:hidden;";
 

@@ -187,7 +187,7 @@ def get_project_knowledge_gaps(project_id: int) -> Dict:
                    JOIN knowledge_base kb ON kb.id = pkl.knowledge_id
                    WHERE pkl.project_id = %s
                    AND kb.knowledge_type = 'vault_note'
-                   AND kb.source_type = 'auto_documentation'""",
+                   AND kb.source_type IN ('auto_documentation', 'weekly_report')""",
                 (project_id,),
             )
             auto_doc_count = cur.fetchone()["cnt"]

@@ -389,6 +389,71 @@
     vertical-align: middle;
 }
 
+/* --- Phase Progress (Knowledge Gaps drill-down) --- */
+
+.cs-phase-toggle {
+    width: 100%;
+    padding: 6px 0 2px 0;
+    font-size: 0.75rem;
+    color: #8b5cf6;
+    font-family: 'Antonio', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    user-select: none;
+}
+
+.cs-phase-progress {
+    width: 100%;
+    padding: 4px 0 8px 0;
+}
+
+.cs-phase-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 3px 0;
+}
+
+.cs-phase-label {
+    width: 70px;
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    font-family: 'Antonio', sans-serif;
+    text-transform: uppercase;
+}
+
+.cs-phase-bar-wrap {
+    flex: 1;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.cs-phase-bar {
+    height: 100%;
+    border-radius: 3px;
+    background: #fbbf24;
+    transition: width 0.4s ease;
+}
+
+.cs-phase-bar.complete {
+    background: #10b981;
+}
+
+.cs-phase-bar.mid {
+    background: #8b5cf6;
+}
+
+.cs-phase-stat {
+    width: 80px;
+    flex-shrink: 0;
+    font-size: 0.7rem;
+    color: #64748b;
+    text-align: right;
+}
+
 @media (max-width: 768px) {
     .cs-gap-row {
         flex-direction: column;
@@ -413,6 +478,16 @@
         flex-direction: column;
         align-items: flex-start;
         gap: 6px;
+    }
+    .cs-phase-row {
+        gap: 6px;
+    }
+    .cs-phase-label {
+        width: 55px;
+        font-size: 0.7rem;
+    }
+    .cs-phase-stat {
+        width: 65px;
     }
 }
 

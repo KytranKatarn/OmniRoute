@@ -114,3 +114,4 @@ host_commands/
 repos/
 platform_v2/static/downloads/*.exe
 .superpowers/
+.secrets/

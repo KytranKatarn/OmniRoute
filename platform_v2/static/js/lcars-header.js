@@ -54,10 +54,16 @@
     toast.dataset.severity = severity;
     toast.id = "lcarsToast" + (++_toastId);
 
-    // Click to navigate
+    // Store dismiss callback on the element
+    if (options.onDismiss) {
+      toast._onDismiss = options.onDismiss;
+    }
+
+    // Click to navigate (also dismisses)
     if (options.href) {
       toast.addEventListener("click", function (e) {
         if (e.target.closest(".lcars-toast-close")) return;
+        if (toast._onDismiss) toast._onDismiss();
         window.location.href = options.href;
       });
     }
@@ -116,6 +122,7 @@
 
   function _removeToast(toast) {
     if (!toast || !toast.parentNode) return;
+    if (toast._onDismiss) toast._onDismiss();
     toast.classList.add("removing");
     setTimeout(function () {
       if (toast.parentNode) toast.parentNode.removeChild(toast);
@@ -281,8 +288,26 @@
 
   /* -- Ops Summary Integration (replaces ops-alert-bar when LCARS header present) -- */
 
-  var _opsLastSig = "";
+  var _opsLastSig = sessionStorage.getItem("lcars_ops_sig") || "";
+  var _opsFirstPoll = true;
   var _opsPollInterval = null;
+  var _SS_SIG = "lcars_ops_sig";
+  var _SS_DISMISSED = "lcars_ops_dismissed";
+
+  function _isOpsDismissed(key) {
+    try {
+      var d = JSON.parse(sessionStorage.getItem(_SS_DISMISSED) || "{}");
+      return !!d[key];
+    } catch (e) { return false; }
+  }
+
+  function _dismissOps(key) {
+    try {
+      var d = JSON.parse(sessionStorage.getItem(_SS_DISMISSED) || "{}");
+      d[key] = Date.now();
+      sessionStorage.setItem(_SS_DISMISSED, JSON.stringify(d));
+    } catch (e) {}
+  }
 
   function _pollOpsSummary() {
     fetch("/tools/autonomy/api/ops-summary")
@@ -300,8 +325,9 @@
         var sig = "a:" + approvals + "|e:" + errors + "|j:" + jobs;
         var changed = sig !== _opsLastSig;
         _opsLastSig = sig;
+        sessionStorage.setItem(_SS_SIG, sig);
 
-        // Update elbow alert state based on ops severity
+        // Update elbow alert state based on ops severity (always update, no toasts needed)
         if (errors > 0) {
           lcarsSetAlertState("critical");
         } else if (approvals > 0) {
@@ -310,21 +336,39 @@
           lcarsSetAlertState("normal");
         }
 
-        // Toast on new issues only (not every poll)
-        if (changed && approvals > 0) {
+        // On first poll (page load), just record state — don't toast
+        if (_opsFirstPoll) {
+          _opsFirstPoll = false;
+          // Clear dismissed if state changed (new issue)
+          if (changed) {
+            sessionStorage.removeItem(_SS_DISMISSED);
+          }
+          return;
+        }
+
+        // Toast only when state CHANGES and not dismissed this session
+        if (changed && approvals > 0 && !_isOpsDismissed("approvals")) {
           lcarsToast(
             "Approvals Pending",
             approvals + " approval" + (approvals > 1 ? "s" : "") + " require your review",
             "warning",
-            { href: "/tools/autonomy#approvals", actionLabel: "OPEN APPROVALS \u25B8" }
+            {
+              href: "/tools/autonomy#approvals",
+              actionLabel: "OPEN APPROVALS \u25B8",
+              onDismiss: function () { _dismissOps("approvals"); }
+            }
           );
         }
-        if (changed && errors > 0) {
+        if (changed && errors > 0 && !_isOpsDismissed("errors")) {
           lcarsToast(
             "System Errors",
             errors + " error" + (errors > 1 ? "s" : "") + " detected in the last hour",
             "error",
-            { href: "/tools/autonomy#active", actionLabel: "VIEW ERROR LOG \u25B8" }
+            {
+              href: "/tools/autonomy#active",
+              actionLabel: "VIEW ERROR LOG \u25B8",
+              onDismiss: function () { _dismissOps("errors"); }
+            }
           );
         }
       })

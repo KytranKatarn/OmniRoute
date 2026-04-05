@@ -1,0 +1,241 @@
+/* consciousness-dashboard-v2.css -- Project-Knowledge Integration Panels
+   Prefix: cs- (matches consciousness module)
+   Accent: #8b5cf6 (purple)
+*/
+
+.cs-project-card {
+    background: rgba(139, 92, 246, 0.08);
+    border: 1px solid rgba(139, 92, 246, 0.25);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.cs-project-card:hover {
+    border-color: rgba(139, 92, 246, 0.5);
+}
+
+.cs-project-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.cs-project-card-title {
+    font-family: 'Antonio', sans-serif;
+    font-size: 1.1rem;
+    color: #e2e8f0;
+    text-transform: uppercase;
+}
+
+.cs-project-card-stats {
+    display: flex;
+    gap: 12px;
+    font-size: 0.85rem;
+    color: #94a3b8;
+    align-items: center;
+}
+
+.cs-project-card-expanded {
+    display: none;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(139, 92, 246, 0.15);
+}
+
+.cs-project-card.expanded .cs-project-card-expanded {
+    display: block;
+}
+
+.cs-kb-entry {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    font-size: 0.85rem;
+    color: #cbd5e1;
+}
+
+.cs-link-badge {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.cs-link-badge.auto {
+    background: rgba(0, 229, 255, 0.15);
+    color: #00e5ff;
+}
+
+.cs-link-badge.manual {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+}
+
+.cs-completeness-ring {
+    width: 48px;
+    height: 48px;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.cs-completeness-ring svg {
+    transform: rotate(-90deg);
+    width: 48px;
+    height: 48px;
+}
+
+.cs-completeness-ring .ring-bg {
+    fill: none;
+    stroke: rgba(139, 92, 246, 0.15);
+    stroke-width: 4;
+}
+
+.cs-completeness-ring .ring-fill {
+    fill: none;
+    stroke: #8b5cf6;
+    stroke-width: 4;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.6s ease;
+}
+
+.cs-completeness-ring .ring-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #e2e8f0;
+}
+
+.cs-contrib-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.cs-contrib-table th {
+    text-align: left;
+    padding: 8px 12px;
+    color: #8b5cf6;
+    font-family: 'Antonio', sans-serif;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    border-bottom: 1px solid rgba(139, 92, 246, 0.25);
+}
+
+.cs-contrib-table td {
+    padding: 8px 12px;
+    color: #cbd5e1;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.cs-contrib-filters {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.cs-contrib-filter-btn {
+    padding: 4px 12px;
+    border-radius: 4px;
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.2s;
+}
+
+.cs-contrib-filter-btn.active {
+    background: rgba(139, 92, 246, 0.2);
+    color: #8b5cf6;
+    border-color: #8b5cf6;
+}
+
+.cs-gap-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.cs-gap-name {
+    flex: 1;
+    font-size: 0.9rem;
+    color: #e2e8f0;
+}
+
+.cs-gap-chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.cs-gap-chip {
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+.cs-gap-chip.docs { background: rgba(139, 92, 246, 0.15); color: #8b5cf6; }
+.cs-gap-chip.mistakes { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+.cs-gap-chip.snippets { background: rgba(34, 211, 238, 0.15); color: #22d3ee; }
+.cs-gap-chip.decisions { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+.cs-gap-chip.activity { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+
+.cs-gap-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.cs-gap-action-btn {
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: all 0.2s;
+}
+
+.cs-gap-action-btn:hover {
+    background: rgba(139, 92, 246, 0.15);
+    color: #8b5cf6;
+}
+
+@media (max-width: 768px) {
+    .cs-gap-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    .cs-project-card-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    .cs-contrib-filters {
+        flex-wrap: wrap;
+    }
+}
+
+@media (max-width: 480px) {
+    .cs-gap-actions {
+        width: 100%;
+    }
+    .cs-gap-action-btn {
+        flex: 1;
+        text-align: center;
+    }
+}

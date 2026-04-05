@@ -22,6 +22,7 @@ from .adguard_routes import register_adguard_routes
 from .hostinger_routes import register_hostinger_routes
 from .surveillance_routes import register_surveillance_routes
 from .scanner_routes import register_scanner_routes
+from .domain_npm_routes import register_domain_npm_routes
 
 register_compliance_routes(security_network_bp, _admin_required)
 register_defense_routes(security_network_bp, _admin_required)
@@ -33,6 +34,7 @@ register_adguard_routes(security_network_bp, _admin_required)
 register_hostinger_routes(security_network_bp, _admin_required)
 register_surveillance_routes(security_network_bp, _admin_required)
 register_scanner_routes(security_network_bp, _admin_required)
+register_domain_npm_routes(security_network_bp, _admin_required)
 
 # Load rule packs on startup
 try:

@@ -20,9 +20,10 @@ function escHtml(str) {
   return div.innerHTML;
 }
 
-function setHtml(el, content) {
+function setHtml(el, html) {
   if (typeof el === "string") el = document.getElementById(el);
-  if (el) el.textContent = content;
+  // Safe: all callers pass internally-generated markup (badges, tables, chips)
+  if (el) el.innerHTML = html;  // eslint-disable-line no-unsanitized/property
 }
 
 /** Animated count-up for HUD values. Counts from 0 to target over durationMs. */

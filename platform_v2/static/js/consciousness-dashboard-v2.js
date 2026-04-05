@@ -67,6 +67,43 @@
     return wrap;
   }
 
+  function renderPhaseProgress(phases) {
+    if (!phases || phases.length === 0) return null;
+
+    var wrap = document.createElement("div");
+    wrap.className = "cs-phase-progress";
+
+    phases.forEach(function (p) {
+      var row = document.createElement("div");
+      row.className = "cs-phase-row";
+
+      var label = document.createElement("span");
+      label.className = "cs-phase-label";
+      label.textContent = p.phase;
+      row.appendChild(label);
+
+      var barWrap = document.createElement("div");
+      barWrap.className = "cs-phase-bar-wrap";
+
+      var bar = document.createElement("div");
+      bar.className = "cs-phase-bar";
+      bar.style.width = Math.min(p.pct, 100) + "%";
+      if (p.pct >= 100) bar.classList.add("complete");
+      else if (p.pct >= 50) bar.classList.add("mid");
+      barWrap.appendChild(bar);
+      row.appendChild(barWrap);
+
+      var stat = document.createElement("span");
+      stat.className = "cs-phase-stat";
+      stat.textContent = p.completed + "/" + p.total + " (" + p.pct + "%)";
+      row.appendChild(stat);
+
+      wrap.appendChild(row);
+    });
+
+    return wrap;
+  }
+
   function renderExpertisePanel(data) {
     if (!data || !data.success) return;
 
@@ -508,6 +545,29 @@
         actions.appendChild(btnReport);
 
         row.appendChild(actions);
+
+        // Phase progress (expandable)
+        if (proj.phases && proj.phases.length > 0) {
+          var phaseToggle = document.createElement("div");
+          phaseToggle.className = "cs-phase-toggle";
+          phaseToggle.textContent = "▶ " + proj.phases.length + " phases";
+          phaseToggle.style.cursor = "pointer";
+
+          var phaseDetail = renderPhaseProgress(proj.phases);
+          if (phaseDetail) {
+            phaseDetail.style.display = "none";
+            phaseToggle.addEventListener("click", function (e) {
+              e.stopPropagation();
+              var showing = phaseDetail.style.display !== "none";
+              phaseDetail.style.display = showing ? "none" : "block";
+              phaseToggle.textContent = (showing ? "▶ " : "▼ ") + proj.phases.length + " phases";
+            });
+          }
+
+          row.appendChild(phaseToggle);
+          if (phaseDetail) row.appendChild(phaseDetail);
+        }
+
         container.appendChild(row);
       });
   }

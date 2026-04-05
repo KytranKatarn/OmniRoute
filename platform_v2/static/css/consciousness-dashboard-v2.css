@@ -454,6 +454,37 @@
     text-align: right;
 }
 
+/* --- Quality Score Badge --- */
+
+.cs-quality-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    font-family: 'IBM Plex Mono', monospace;
+    flex-shrink: 0;
+}
+
+.cs-quality-badge.high {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+}
+
+.cs-quality-badge.mid {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+}
+
+.cs-quality-badge.low {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+}
+
 @media (max-width: 768px) {
     .cs-gap-row {
         flex-direction: column;

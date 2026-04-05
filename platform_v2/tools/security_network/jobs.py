@@ -1352,15 +1352,6 @@ def register_security_jobs(scheduler, flask_app):
         replace_existing=True,
     )
 
-    # --- Anomaly detection ---
-    scheduler.add_job(
-        with_ctx(run_anomaly_detection),
-        trigger=IntervalTrigger(minutes=15),
-        id="agent_anomaly_detection",
-        name="Agent Loop: Network Anomaly Detection",
-        replace_existing=True,
-    )
-
     # --- IP geolocation enrichment ---
     scheduler.add_job(
         with_ctx(enrich_ip_geolocation),
@@ -1379,4 +1370,4 @@ def register_security_jobs(scheduler, flask_app):
         replace_existing=True,
     )
 
-    logger.info("[SecurityJobs] Registered 16 security/network jobs")
+    logger.info("[SecurityJobs] Registered 15 security/network jobs")

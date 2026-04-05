@@ -669,3 +669,217 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
     font-size: 0.63rem;
   }
 }
+
+/* ============================================================
+   8. BM- LCARS MODAL (shared notification modal styles)
+   These styles support the notification modal in lcars-header.html.
+   Duplicated from starbase.css for modules that don't load starbase CSS.
+   ============================================================ */
+.bm-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.8);
+  backdrop-filter: blur(8px);
+  z-index: 10000;
+  justify-content: center;
+  align-items: center;
+}
+.bm-overlay.active { display: flex; }
+
+.bm-shell {
+  background: #06060c;
+  border: none;
+  border-radius: 24px;
+  width: 90%; max-width: 500px;
+  max-height: 85vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: row;
+  box-shadow:
+    0 0 0 2px #1e1e35,
+    0 0 0 4px rgba(var(--bm-accent-rgb, 0,255,255),0.12),
+    0 24px 80px rgba(0,0,0,0.8),
+    0 0 60px rgba(var(--bm-accent-rgb, 0,255,255),0.06);
+  animation: bmTabletIn 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes bmTabletIn {
+  from { opacity: 0; transform: scale(0.9) translateY(20px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.bm-frame {
+  flex-shrink: 0;
+  width: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0;
+  background: transparent;
+}
+.bm-frame-elbow-top {
+  height: 52px;
+  background: var(--bm-accent, #00ffff);
+  border-radius: 20px 0 0 0;
+  position: relative;
+}
+.bm-frame-elbow-top::after {
+  content: '';
+  position: absolute;
+  bottom: 0; right: 0;
+  width: 18px; height: 18px;
+  background: #06060c;
+  border-radius: 0 10px 0 0;
+}
+.bm-frame-seg {
+  height: 28px;
+  border-radius: 0 8px 8px 0;
+  margin-right: 6px;
+  background: var(--bm-accent, #00ffff);
+}
+.bm-frame-seg.dim { opacity: 0.6; }
+.bm-frame-seg.cyan { background: #00d4ff; }
+.bm-frame-light {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  margin: 4px auto;
+  animation: bmLightPulse 2s ease-in-out infinite;
+}
+.bm-frame-light.on { background: #10b981; box-shadow: 0 0 8px #10b981; }
+.bm-frame-light.amber { background: #FFAA00; box-shadow: 0 0 8px #FFAA00; animation-delay: 0.7s; }
+@keyframes bmLightPulse {
+  0%, 100% { opacity: 1; }
+  40% { opacity: 0.3; }
+  60% { opacity: 0.3; }
+}
+.bm-frame-fill {
+  flex: 1;
+  background: rgba(var(--bm-accent-rgb, 0,255,255),0.25);
+  border-radius: 0 8px 0 0;
+  margin-right: 6px;
+  min-height: 20px;
+}
+.bm-frame-elbow-bottom {
+  height: 36px;
+  background: var(--bm-accent, #00ffff);
+  border-radius: 0 0 0 20px;
+  position: relative;
+}
+.bm-frame-elbow-bottom::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 18px; height: 14px;
+  background: #06060c;
+  border-radius: 0 0 0 10px;
+}
+
+.bm-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+.bm-header {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  padding: 0;
+  border-bottom: none;
+  background: transparent;
+  min-height: 44px;
+  flex-shrink: 0;
+}
+.bm-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 18px;
+  background: var(--bm-accent, #00ffff);
+  font-family: 'Antonio', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #fff;
+  white-space: nowrap;
+}
+.bm-header-strip {
+  flex: 1;
+  background: rgba(var(--bm-accent-rgb, 0,255,255),0.18);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 8px;
+  border-radius: 0 20px 0 0;
+  gap: 6px;
+}
+.bm-header-pip {
+  height: 8px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.bm-header-pip.w1 { width: 20px; background: rgba(var(--bm-accent-rgb, 0,255,255),0.35); }
+.bm-header-pip.w2 { width: 35px; background: rgba(255,170,0,0.3); }
+.bm-header-pip.w3 { width: 14px; background: rgba(0,212,255,0.3); }
+.bm-close {
+  background: rgba(var(--bm-accent-rgb, 0,255,255),0.15);
+  border: 1px solid rgba(var(--bm-accent-rgb, 0,255,255),0.3);
+  color: rgba(255,255,255,0.6);
+  font-size: 1rem;
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+  flex-shrink: 0;
+}
+.bm-close:hover {
+  background: rgba(var(--bm-accent-rgb, 0,255,255),0.3);
+  color: #fff;
+  box-shadow: 0 0 10px rgba(var(--bm-accent-rgb, 0,255,255),0.2);
+}
+.bm-body {
+  padding: 20px 24px;
+  overflow-y: auto;
+  flex: 1;
+  background: transparent;
+  font-family: 'Antonio', sans-serif;
+}
+.bm-body::-webkit-scrollbar { width: 4px; }
+.bm-body::-webkit-scrollbar-thumb { background: rgba(var(--bm-accent-rgb, 0,255,255),0.3); border-radius: 2px; }
+.bm-body::-webkit-scrollbar-track { background: transparent; }
+.bm-actions {
+  display: flex;
+  gap: 8px;
+  padding: 12px 24px 16px;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+.bm-actions button {
+  font-family: 'Antonio', sans-serif;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 8px 18px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid rgba(var(--bm-accent-rgb, 0,255,255),0.3);
+  background: rgba(var(--bm-accent-rgb, 0,255,255),0.08);
+  color: var(--bm-accent, #00ffff);
+  transition: background 0.15s, box-shadow 0.15s;
+}
+.bm-actions button:hover {
+  background: rgba(var(--bm-accent-rgb, 0,255,255),0.18);
+  box-shadow: 0 0 12px rgba(var(--bm-accent-rgb, 0,255,255),0.15);
+}
+.bm-actions .btn-cancel {
+  border-color: rgba(148,163,184,0.3);
+  background: rgba(148,163,184,0.08);
+  color: #94a3b8;
+}
+.bm-actions .btn-cancel:hover {
+  background: rgba(148,163,184,0.18);
+  box-shadow: none;
+}

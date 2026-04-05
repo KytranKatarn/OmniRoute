@@ -2560,32 +2560,10 @@
 
 <div class="cs-container" data-module="consciousness">
 
-    <!-- LCARS Header -->
-    <div class="cs-header">
-        <div class="cs-header-elbow"></div>
-        <div class="cs-header-title">
-            <i data-lucide="brain"></i>
-            <span data-i18n="consciousness.title">CONSCIOUSNESS</span>
-        </div>
-        <div class="cs-header-divider"></div>
-        <div class="cs-header-status">
-            <div class="cs-status-item">
-                <span class="status-dot online"></span>
-                <span class="status-label" data-i18n="consciousness.status.knowledge">Knowledge</span>
-                <span class="status-value" id="headerKnowledgeCount">--</span>
-            </div>
-            <div class="cs-status-item">
-                <span class="status-dot online"></span>
-                <span class="status-label" data-i18n="consciousness.status.agents">Agents</span>
-                <span class="status-value" id="headerAgentCount">--</span>
-            </div>
-            <div class="cs-status-item">
-                <span class="status-dot online"></span>
-                <span class="status-label" data-i18n="consciousness.status.translations">Translations</span>
-                <span class="status-value" id="headerTranslationCount">--</span>
-            </div>
-        </div>
-    </div>
+    <!-- Status counts (populated by consciousness.js, displayed in dashboard panels) -->
+    <span class="archie-hidden" id="headerKnowledgeCount">--</span>
+    <span class="archie-hidden" id="headerAgentCount">--</span>
+    <span class="archie-hidden" id="headerTranslationCount">--</span>
 
 
 

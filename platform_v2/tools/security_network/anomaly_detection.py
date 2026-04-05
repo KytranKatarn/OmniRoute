@@ -30,12 +30,51 @@ ODD_HOURS_START = 0  # midnight
 ODD_HOURS_END = 4  # up to 04:59 (EXTRACT HOUR BETWEEN 0 AND 4)
 ODD_HOURS_MIN_QUERIES = 50
 
-DNS_TUNNEL_LONG_DOMAIN_LEN = 50
-DNS_TUNNEL_HIGH_QUERY_RATE = 100  # queries/hour to one base domain
-DNS_TUNNEL_UNIQUE_SUBDOMAINS = 20  # distinct subdomains under one parent
+DNS_TUNNEL_LONG_DOMAIN_LEN = 80  # raised from 50 — CDNs/SRV records are 50-70 chars
+DNS_TUNNEL_HIGH_QUERY_RATE = 200  # queries/hour to one base domain (raised from 100)
+DNS_TUNNEL_UNIQUE_SUBDOMAINS = 50  # distinct subdomains under one parent (raised from 20)
 
 # Hub IP excluded from bandwidth spike alerts (it's a server)
 HUB_IP = "192.168.1.200"
+
+# Known legitimate domains with long names or many subdomains — NOT tunneling
+DNS_TUNNEL_WHITELIST = {
+    "epicgames.com",
+    "googleapis.com",
+    "google.com",
+    "apple.com",
+    "microsoft.com",
+    "facebook.com",
+    "fbcdn.net",
+    "akamai.net",
+    "akadns.net",
+    "aaplimg.com",
+    "tiktokcdn.com",
+    "gvt2.com",
+    "googlevideo.com",
+    "roblox.com",
+    "amazonaws.com",
+    "cloudflare.com",
+    "cae.com",
+    "cae.ca",  # work VPN
+    "a2z.com",  # Amazon devices (Alexa/Ring)
+    "icloud.com",
+    "mzstatic.com",  # Apple services
+    "xbox.com",
+    "xboxlive.com",  # Gaming
+    "twitch.tv",
+    "steampowered.com",
+    "snapchat.com",
+    "snap.com",
+    "spotify.com",
+    "scdn.co",
+    "netflix.com",
+    "nflxvideo.net",
+    "tiktokv.com",
+    "bytedance.com",
+    "adobe.com",
+    "adobelogin.com",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -204,13 +243,21 @@ def detect_dns_tunneling():
                 (DNS_TUNNEL_LONG_DOMAIN_LEN,),
             )
             for row in cur.fetchall():
+                domain = row["domain"]
+                # Skip whitelisted base domains
+                base = ".".join(domain.rsplit(".", 2)[-2:]) if "." in domain else domain
+                if base in DNS_TUNNEL_WHITELIST:
+                    continue
+                # Skip SRV/service records (_ldap, _kerberos, etc.)
+                if domain.startswith("_"):
+                    continue
                 findings.append(
                     {
                         "type": "long_domain",
                         "device_ip": row["device_ip"],
-                        "domain": row["domain"],
+                        "domain": domain,
                         "query_count": int(row["query_count"]),
-                        "domain_length": len(row["domain"]),
+                        "domain_length": len(domain),
                     }
                 )
 
@@ -230,11 +277,14 @@ def detect_dns_tunneling():
                 (DNS_TUNNEL_HIGH_QUERY_RATE, DNS_TUNNEL_UNIQUE_SUBDOMAINS),
             )
             for row in cur.fetchall():
+                base = row["base_domain"] or "unknown"
+                if base in DNS_TUNNEL_WHITELIST:
+                    continue
                 findings.append(
                     {
                         "type": "high_rate_or_unique_subdomains",
                         "device_ip": row["device_ip"],
-                        "base_domain": row["base_domain"] or "unknown",
+                        "base_domain": base,
                         "total_queries": int(row["total_queries"]),
                         "unique_subdomains": int(row["unique_subdomains"]),
                     }

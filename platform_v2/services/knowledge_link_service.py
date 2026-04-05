@@ -28,6 +28,20 @@ GAP_WEIGHTS = {
 }
 
 
+def _parse_embedding(emb) -> List[float]:
+    """Parse an embedding from DB — may be a string '[0.1, 0.2, ...]' or a list."""
+    if isinstance(emb, (list, tuple)):
+        return [float(x) for x in emb]
+    if isinstance(emb, str):
+        emb = emb.strip("[] ")
+        if not emb:
+            return []
+        return [float(x) for x in emb.split(",")]
+    if hasattr(emb, "__iter__"):
+        return [float(x) for x in emb]
+    return []
+
+
 def _cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
     """Compute cosine similarity between two vectors."""
     a = np.array(vec1, dtype=np.float32)
@@ -236,7 +250,7 @@ def _get_project_embeddings() -> List[Tuple[int, str, List[float], List[str]]]:
             for row in cur.fetchall():
                 emb = row["embedding"]
                 if emb is not None:
-                    emb_list = list(emb) if hasattr(emb, "__iter__") else []
+                    emb_list = _parse_embedding(emb)
                     tag_list = row["tags"] if isinstance(row["tags"], list) else []
                     results.append((row["id"], row["slug"], emb_list, tag_list))
             return results
@@ -332,7 +346,7 @@ def auto_link_knowledge(batch_size: int = DEFAULT_BATCH_SIZE) -> Dict:
                     stats["skipped"] += 1
                     continue
 
-                kb_emb_list = list(kb_embedding) if hasattr(kb_embedding, "__iter__") else []
+                kb_emb_list = _parse_embedding(kb_embedding)
                 if not kb_emb_list:
                     stats["skipped"] += 1
                     continue

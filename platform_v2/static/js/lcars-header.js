@@ -86,6 +86,148 @@
     }, 300);
   }
 
+  /* -- Notification Polling -- */
+
+  var _notifPollInterval = null;
+
+  function _pollNotifications() {
+    fetch("/api/notifications/count")
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data.success) return;
+        var critical = data.critical || 0;
+        var errors = data.errors || 0;
+        var unread = data.unread || 0;
+
+        // Update elbow alert state
+        if (critical > 0) {
+          lcarsSetAlertState("critical");
+        } else if (errors > 0) {
+          lcarsSetAlertState("warning");
+        } else {
+          lcarsSetAlertState("normal");
+        }
+
+        // Update badge count on elbow
+        var badge = document.getElementById("lcarsNotifBadge");
+        if (badge) {
+          if (unread > 0) {
+            badge.textContent = unread > 99 ? "99+" : String(unread);
+            badge.style.display = "flex";
+          } else {
+            badge.style.display = "none";
+          }
+        }
+      })
+      .catch(function () {}); // Silent fail — polling recovers next tick
+  }
+
+  function _startNotifPolling() {
+    _pollNotifications(); // Immediate first check
+    _notifPollInterval = setInterval(_pollNotifications, 30000); // Every 30s
+  }
+
+  function _stopNotifPolling() {
+    if (_notifPollInterval) {
+      clearInterval(_notifPollInterval);
+      _notifPollInterval = null;
+    }
+  }
+
+  /* -- Notification Modal -- */
+
+  window.lcarsOpenNotifications = function () {
+    var overlay = document.getElementById("lcarsNotifModal");
+    if (!overlay) return;
+
+    overlay.classList.add("active");
+    _loadNotificationList();
+  };
+
+  window.lcarsCloseNotifications = function () {
+    var overlay = document.getElementById("lcarsNotifModal");
+    if (overlay) overlay.classList.remove("active");
+  };
+
+  function _loadNotificationList() {
+    var body = document.getElementById("lcarsNotifBody");
+    if (!body) return;
+
+    body.textContent = "";
+    var loading = document.createElement("p");
+    loading.style.color = "#94a3b8";
+    loading.textContent = "Loading notifications...";
+    body.appendChild(loading);
+
+    fetch("/api/notifications")
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        body.textContent = "";
+
+        if (!data.success || !data.notifications || data.notifications.length === 0) {
+          var empty = document.createElement("p");
+          empty.style.color = "#64748b";
+          empty.textContent = "No notifications";
+          body.appendChild(empty);
+          return;
+        }
+
+        data.notifications.forEach(function (n) {
+          var item = document.createElement("div");
+          item.style.cssText = "display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid rgba(var(--cat-accent-rgb,0,255,255),0.1);cursor:pointer;";
+
+          // Severity dot
+          var dot = document.createElement("span");
+          var dotColor = n.type === "error" ? "#ef4444" : n.type === "warning" ? "#ff9f43" : "var(--cat-accent, #00ffff)";
+          dot.style.cssText = "width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px;background:" + dotColor + ";box-shadow:0 0 6px " + dotColor + ";";
+          item.appendChild(dot);
+
+          // Content
+          var content = document.createElement("div");
+          content.style.cssText = "flex:1;min-width:0;";
+
+          var title = document.createElement("div");
+          title.style.cssText = "font-size:0.8rem;color:#e2e8f0;font-family:'Antonio',sans-serif;text-transform:uppercase;letter-spacing:0.3px;";
+          title.textContent = n.title || "Notification";
+          content.appendChild(title);
+
+          if (n.message) {
+            var msg = document.createElement("div");
+            msg.style.cssText = "font-size:0.7rem;color:#94a3b8;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+            msg.textContent = n.message;
+            content.appendChild(msg);
+          }
+
+          var meta = document.createElement("div");
+          meta.style.cssText = "font-size:0.6rem;color:#475569;margin-top:3px;";
+          meta.textContent = (n.source || "") + (n.time_ago ? " \u2022 " + n.time_ago : "");
+          content.appendChild(meta);
+
+          item.appendChild(content);
+
+          // Click to mark read
+          if (n.id) {
+            item.addEventListener("click", function () {
+              fetch("/api/notifications/mark-read/" + n.id, { method: "POST" })
+                .then(function () {
+                  item.style.opacity = "0.4";
+                  _pollNotifications();
+                });
+            });
+          }
+
+          body.appendChild(item);
+        });
+      })
+      .catch(function () {
+        body.textContent = "";
+        var err = document.createElement("p");
+        err.style.color = "#ef4444";
+        err.textContent = "Failed to load notifications";
+        body.appendChild(err);
+      });
+  }
+
   /* -- Stardate -- */
 
   function _updateStardate() {
@@ -106,8 +248,19 @@
   document.addEventListener("DOMContentLoaded", function () {
     _updateStardate();
     setInterval(_updateStardate, 60000);
+    _startNotifPolling();
     if (typeof lucide !== "undefined" && lucide.createIcons) {
       lucide.createIcons();
+    }
+
+    // Wire elbow click to open notifications
+    var elbow = document.getElementById("lcarsHeaderElbow");
+    if (elbow) {
+      elbow.style.cursor = "pointer";
+      elbow.addEventListener("click", function (e) {
+        if (e.target.closest(".lcars-header-back") || e.target.closest(".lcars-header-util")) return;
+        lcarsOpenNotifications();
+      });
     }
   });
 })();

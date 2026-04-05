@@ -92,6 +92,43 @@ class NtopngService:
         data = self._get("/lua/rest/v2/get/host/active.lua", {"ifid": ifid})
         return data.get("rsp", [])
 
+    def get_local_hosts(self, ifid: int = 0) -> list:
+        """Fetch all local-network hosts (192.168.x.x) from ntopng.
+
+        Paginates through all results using perPage=100 and filters client-side
+        to local IPs. ntopng's localHost param is not supported in community edition.
+        """
+        all_hosts = []
+        page = 1
+        per_page = 100
+        while True:
+            data = self._get(
+                "/lua/rest/v2/get/host/active.lua",
+                {"ifid": ifid, "currentPage": page, "perPage": per_page},
+            )
+            rsp = data.get("rsp", {})
+            if isinstance(rsp, dict) and "data" in rsp:
+                hosts = rsp["data"]
+            elif isinstance(rsp, list):
+                hosts = rsp
+            else:
+                hosts = []
+
+            all_hosts.extend(hosts)
+
+            # Stop when we get a partial page (last page) or nothing
+            if len(hosts) < per_page:
+                break
+            page += 1
+            # Safety cap — max 20 pages (2000 hosts)
+            if page > 20:
+                break
+
+        # Filter to local LAN devices only
+        return [
+            h for h in all_hosts if isinstance(h, dict) and str(h.get("ip") or h.get("name", "")).startswith("192.168.")
+        ]
+
     def get_host_details(self, host_ip: str, ifid: int = 0) -> dict:
         data = self._get("/lua/rest/v2/get/host/data.lua", {"ifid": ifid, "host": host_ip})
         return data.get("rsp", {})

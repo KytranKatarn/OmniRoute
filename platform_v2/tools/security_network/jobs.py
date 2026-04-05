@@ -39,7 +39,11 @@ def _log_cycle(
     error_message: str = None,
 ):
     """Log an agent loop execution cycle to autonomy_loop_log."""
-    status = "error" if items_failed > 0 and items_processed == 0 else "partial" if items_failed > 0 else "success"
+    status = (
+        "error"
+        if items_failed > 0 and items_processed == 0
+        else "partial" if items_failed > 0 else "success"
+    )
     try:
         from database import get_db_cursor
 
@@ -140,13 +144,21 @@ def run_security_audit():
                 text=True,
                 timeout=5,
             )
-            if "5432" in r.stdout and "Anywhere" in r.stdout and "192.168.1.0/24" not in r.stdout:
+            if (
+                "5432" in r.stdout
+                and "Anywhere" in r.stdout
+                and "192.168.1.0/24" not in r.stdout
+            ):
                 issues.append("PostgreSQL port 5432 may be exposed to internet")
         except Exception:
             pass
 
         # 4. Check DDNS updater freshness
-        ddns_file = os.path.join(os.getenv("ARCHIE_BASE_DIR", "/mnt/archie_brain"), "scripts", ".ddns_last_ip")
+        ddns_file = os.path.join(
+            os.getenv("ARCHIE_BASE_DIR", "/mnt/archie_brain"),
+            "scripts",
+            ".ddns_last_ip",
+        )
         if os.path.exists(ddns_file):
             age_hours = (time.time() - os.path.getmtime(ddns_file)) / 3600
             if age_hours > 1:
@@ -219,7 +231,11 @@ def check_ssl_expiry():
                     days_left = (expiry - datetime.utcnow()).days
 
                     if days_left <= 14:
-                        priority = "critical" if days_left <= 3 else "high" if days_left <= 7 else "normal"
+                        priority = (
+                            "critical"
+                            if days_left <= 3
+                            else "high" if days_left <= 7 else "normal"
+                        )
                         create_security_alert(
                             "ssl_expiry",
                             f"SSL cert expiring: {domain}",
@@ -227,7 +243,9 @@ def check_ssl_expiry():
                             priority=priority,
                             telegram=True,
                         )
-                        logger.warning(f"SSL cert expiry: {domain} expires in {days_left} days")
+                        logger.warning(
+                            f"SSL cert expiry: {domain} expires in {days_left} days"
+                        )
             except Exception:
                 pass  # Can't check this domain
 
@@ -321,7 +339,9 @@ def detect_query_spike():
                     priority="high",
                     telegram=True,
                 )
-                logger.warning(f"Query spike: {block_rate:.0%} blocked ({blocked}/{queries})")
+                logger.warning(
+                    f"Query spike: {block_rate:.0%} blocked ({blocked}/{queries})"
+                )
     except Exception as e:
         logger.warning(f"Failed: {e}")
 
@@ -388,11 +408,16 @@ def run_auto_block():
                             create_security_alert(
                                 "block",
                                 f"Auto-blocked: {suggestion.get('title', stype)}",
-                                suggestion.get("description", "Threat auto-blocked by security pipeline"),
+                                suggestion.get(
+                                    "description",
+                                    "Threat auto-blocked by security pipeline",
+                                ),
                                 priority="high",
                                 telegram=True,
                             )
-                            logger.info(f"Auto-block: executed suggestion #{suggestion['id']} ({stype})")
+                            logger.info(
+                                f"Auto-block: executed suggestion #{suggestion['id']} ({stype})"
+                            )
                         except Exception as e:
                             logger.warning(f"Failed: {e}")
     except Exception as e:
@@ -433,19 +458,17 @@ def run_scheduled_compliance_scan():
             from tools.security_network.security_alerts import create_security_alert
 
             with get_db_cursor() as (conn, cur):
-                cur.execute(
-                    """
+                cur.execute("""
                     SELECT score FROM compliance_scans
                     WHERE completed_at IS NOT NULL
                     ORDER BY started_at DESC LIMIT 2
-                """
-                )
+                """)
                 rows = cur.fetchall()
                 if len(rows) >= 2:
                     new_score = float(rows[0]["score"])
                     old_score = float(rows[1]["score"])
                     if abs(new_score - old_score) >= 0.5:
-                        direction = "\u2B06" if new_score > old_score else "\u2B07"
+                        direction = "\u2b06" if new_score > old_score else "\u2b07"
                         create_security_alert(
                             "scan_result",
                             f"Compliance {direction} {old_score}% \u2192 {new_score}%",
@@ -486,7 +509,11 @@ def run_auto_remediation():
         with get_db_cursor(commit=False) as (conn, cur):
             cur.execute("SELECT pack_id, rules FROM compliance_rule_packs")
             for pack_row in cur.fetchall():
-                rules = pack_row["rules"] if isinstance(pack_row["rules"], list) else _json.loads(pack_row["rules"])
+                rules = (
+                    pack_row["rules"]
+                    if isinstance(pack_row["rules"], list)
+                    else _json.loads(pack_row["rules"])
+                )
                 for rule in rules:
                     rid = rule.get("rule_id", "")
                     fix = rule.get("fix", {})
@@ -515,7 +542,9 @@ def run_auto_remediation():
                         fix_result.get("error", "unknown"),
                     )
             except Exception as fix_err:
-                logger.warning("Auto-remediation: error fixing %s: %s", rule_id, fix_err)
+                logger.warning(
+                    "Auto-remediation: error fixing %s: %s", rule_id, fix_err
+                )
 
         if fixed > 0 or skipped > 0:
             logger.info(
@@ -527,7 +556,248 @@ def run_auto_remediation():
         logger.error("Auto-remediation failed: %s", e)
 
 
+# Schedule: every 15 min — collects per-device bandwidth from ntopng
+def collect_traffic_stats():
+    """Collect per-device network traffic snapshots from ntopng and store in network_traffic_stats."""
+    t0 = time.time()
+    processed = 0
+    failed = 0
+    error_msg = None
+
+    try:
+        from tools.security_network.ntopng_service import NtopngService
+        from database import get_db_cursor
+
+        svc = NtopngService()
+        if not svc.is_healthy():
+            logger.warning("collect_traffic_stats: ntopng unavailable, skipping")
+            _log_cycle(
+                "collect_traffic_stats", 0, 0, 0, error_message="ntopng unavailable"
+            )
+            return
+
+        # Discover the active (non-loopback) interface
+        interfaces = svc.get_interfaces()
+        ifid = 1  # sensible default for single-interface setups
+        for iface in interfaces:
+            if isinstance(iface, dict):
+                iface_name = iface.get("ifname", "")
+                if iface_name and iface_name != "lo":
+                    ifid = iface.get("ifid", 1)
+                    break
+
+        # Get local-network hosts only (192.168.1.x) via paginated local-host filter
+        local_host_list = svc.get_local_hosts(ifid=ifid)
+        if not local_host_list:
+            dur = int((time.time() - t0) * 1000)
+            _log_cycle(
+                "collect_traffic_stats",
+                0,
+                0,
+                dur,
+                details={"reason": "no local hosts found"},
+            )
+            return
+
+        logger.debug(
+            f"collect_traffic_stats: {len(local_host_list)} local hosts to process"
+        )
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            for host in local_host_list:
+                try:
+                    if not isinstance(host, dict):
+                        continue
+
+                    # Extract fields — ntopng uses various key formats
+                    ip = host.get("ip") or host.get("ipAddress") or host.get("name", "")
+                    mac = host.get("mac", "")
+
+                    # Skip hosts without an IP (can't track)
+                    if not ip:
+                        continue
+                    # Normalize empty/null MACs
+                    if not mac or mac == "00:00:00:00:00:00":
+                        mac = ""
+
+                    # Bytes: ntopng nests under "bytes" dict with "sent"/"recvd" keys
+                    bytes_blob = host.get("bytes") or {}
+                    if isinstance(bytes_blob, dict):
+                        bytes_in = bytes_blob.get("recvd", 0) or 0
+                        bytes_out = bytes_blob.get("sent", 0) or 0
+                    else:
+                        bytes_in = host.get("bytesRcvd") or host.get("bytes_rcvd") or 0
+                        bytes_out = host.get("bytesSent") or host.get("bytes_sent") or 0
+
+                    # Ensure integers
+                    bytes_in = int(bytes_in)
+                    bytes_out = int(bytes_out)
+
+                    cur.execute(
+                        """
+                        INSERT INTO network_traffic_stats
+                            (device_mac, device_ip, bytes_in, bytes_out, protocol, hour_bucket)
+                        VALUES (%s, %s, %s, %s, 'all', date_trunc('hour', NOW()))
+                        ON CONFLICT (device_ip, hour_bucket)
+                        DO UPDATE SET
+                            bytes_in = GREATEST(network_traffic_stats.bytes_in, EXCLUDED.bytes_in),
+                            bytes_out = GREATEST(network_traffic_stats.bytes_out, EXCLUDED.bytes_out),
+                            device_mac = EXCLUDED.device_mac
+                        """,
+                        (mac, ip, bytes_in, bytes_out),
+                    )
+                    processed += 1
+                except Exception as host_err:
+                    failed += 1
+                    logger.debug(f"collect_traffic_stats: host error: {host_err}")
+
+        dur = int((time.time() - t0) * 1000)
+        if processed > 0:
+            logger.info(
+                f"collect_traffic_stats: {processed} devices stored, {failed} failed ({dur}ms)"
+            )
+        _log_cycle(
+            "collect_traffic_stats",
+            processed,
+            failed,
+            dur,
+            details={"devices": processed, "ifid": ifid},
+            error_message=error_msg,
+        )
+    except Exception as e:
+        dur = int((time.time() - t0) * 1000)
+        logger.error(f"collect_traffic_stats failed: {e}")
+        _log_cycle(
+            "collect_traffic_stats", processed, failed, dur, error_message=str(e)
+        )
+
+
 # NOTE: pattern_compliance_check is registered in dev_hq/jobs.py (code quality job)
+
+
+# ---------------------------------------------------------------------------
+# DNS history collection (Job #59)
+# ---------------------------------------------------------------------------
+
+
+def collect_dns_history():
+    """Collect per-device DNS query history from AdGuard and store in device_dns_history.
+
+    Runs every 15 minutes. Fetches the last 500 AdGuard query log entries,
+    groups them by (client_ip, domain, hour_bucket), and upserts counts.
+    Only local 192.168.x.x devices are stored — Docker bridge IPs (172.x)
+    and pure reverse-lookup IPs are skipped.
+    """
+    t0 = time.time()
+    inserted = 0
+    skipped = 0
+
+    try:
+        from .adguard_service import AdGuardService
+        from database import get_db_cursor
+
+        ag = AdGuardService()
+        result = ag.get_query_log(limit=500)
+        if not result:
+            dur = int((time.time() - t0) * 1000)
+            _log_cycle(
+                "collect_dns_history",
+                0,
+                0,
+                dur,
+                error_message="AdGuard unavailable or empty response",
+            )
+            return
+
+        entries = result.get("data", [])
+        if not entries:
+            dur = int((time.time() - t0) * 1000)
+            _log_cycle(
+                "collect_dns_history",
+                0,
+                0,
+                dur,
+                details={"reason": "no entries in query log"},
+            )
+            return
+
+        # Group by (client_ip, domain) — aggregate counts and blocked flag
+        buckets: dict = {}
+        for entry in entries:
+            client_ip = entry.get("client", "")
+
+            # Only local 192.168.x.x devices — skip Docker bridges (172.x), IPv6, empty
+            if not client_ip or not client_ip.startswith("192.168."):
+                skipped += 1
+                continue
+
+            domain = entry.get("question", {}).get("name", "").lower().rstrip(".")
+            if not domain:
+                skipped += 1
+                continue
+
+            # Skip pure reverse-lookup entries (all digits + dots = IP, not a domain)
+            parts = domain.split(".")
+            if all(p.isdigit() for p in parts):
+                skipped += 1
+                continue
+
+            blocked = entry.get("reason", "") != ""
+
+            key = (client_ip, domain)
+            if key not in buckets:
+                buckets[key] = {"count": 0, "blocked": blocked}
+            buckets[key]["count"] += 1
+            # If any query was blocked, mark the bucket blocked
+            if blocked:
+                buckets[key]["blocked"] = True
+
+        if not buckets:
+            dur = int((time.time() - t0) * 1000)
+            _log_cycle(
+                "collect_dns_history",
+                0,
+                0,
+                dur,
+                details={"reason": "no local-device entries", "skipped": skipped},
+            )
+            return
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            for (client_ip, domain), data in buckets.items():
+                cur.execute(
+                    """
+                    INSERT INTO device_dns_history (device_ip, domain, query_count, blocked, hour_bucket)
+                    VALUES (%s, %s, %s, %s, date_trunc('hour', NOW()))
+                    ON CONFLICT (device_ip, domain, hour_bucket)
+                    DO UPDATE SET
+                        query_count = device_dns_history.query_count + EXCLUDED.query_count,
+                        blocked = device_dns_history.blocked OR EXCLUDED.blocked
+                    """,
+                    (client_ip, domain, data["count"], data["blocked"]),
+                )
+                inserted += 1
+
+        dur = int((time.time() - t0) * 1000)
+        _log_cycle(
+            "collect_dns_history",
+            inserted,
+            0,
+            dur,
+            details={
+                "buckets_upserted": inserted,
+                "entries_skipped": skipped,
+                "total_entries": len(entries),
+            },
+        )
+        logger.info(
+            f"[collect_dns_history] upserted {inserted} buckets, skipped {skipped} entries ({dur}ms)"
+        )
+
+    except Exception as e:
+        dur = int((time.time() - t0) * 1000)
+        logger.error(f"collect_dns_history failed: {e}")
+        _log_cycle("collect_dns_history", inserted, 1, dur, error_message=str(e))
 
 
 # ---------------------------------------------------------------------------
@@ -633,4 +903,22 @@ def register_security_jobs(scheduler, flask_app):
         replace_existing=True,
     )
 
-    logger.info("[SecurityJobs] Registered 9 security/network jobs")
+    # --- ntopng traffic collection ---
+    scheduler.add_job(
+        with_ctx(collect_traffic_stats),
+        trigger=IntervalTrigger(minutes=15),
+        id="agent_traffic_stats",
+        name="Agent Loop: ntopng Traffic Collection",
+        replace_existing=True,
+    )
+
+    # --- DNS history collection (Job #59) ---
+    scheduler.add_job(
+        with_ctx(collect_dns_history),
+        trigger=IntervalTrigger(minutes=15),
+        id="agent_dns_history",
+        name="Agent Loop: DNS History Collection",
+        replace_existing=True,
+    )
+
+    logger.info("[SecurityJobs] Registered 11 security/network jobs")

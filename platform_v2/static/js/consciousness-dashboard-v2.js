@@ -44,8 +44,7 @@
     return el;
   }
 
-  function loadProjectKnowledgeMap() {
-    api("/api/dashboard/knowledge-gaps").then(function (data) {
+  function renderProjectKnowledgeMap(data) {
       if (!data || !data.success) return;
       var container = document.getElementById("cs-project-knowledge-map");
       if (!container) return;
@@ -99,7 +98,6 @@
 
         container.appendChild(card);
       });
-    });
   }
 
   function toggleProjectCard(el, projectId) {
@@ -223,8 +221,7 @@
     }
   };
 
-  function loadKnowledgeGaps() {
-    api("/api/dashboard/knowledge-gaps").then(function (data) {
+  function renderKnowledgeGaps(data) {
       if (!data || !data.success) return;
       var container = document.getElementById("cs-knowledge-gaps-body");
       if (!container) return;
@@ -298,12 +295,13 @@
         row.appendChild(actions);
         container.appendChild(row);
       });
-    });
   }
 
   window.loadDashboardV2Panels = function () {
-    loadProjectKnowledgeMap();
-    loadKnowledgeGaps();
+    api("/api/dashboard/knowledge-gaps").then(function (data) {
+      renderProjectKnowledgeMap(data);
+      renderKnowledgeGaps(data);
+    });
   };
 
   if (typeof window._dashboardV2Loaded === "undefined") {

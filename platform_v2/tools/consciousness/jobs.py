@@ -1046,6 +1046,56 @@ def weekly_memory_consolidation():
 # ---------------------------------------------------------------------------
 
 
+def auto_generate_project_docs():
+    """Job: Auto-generate project intelligence reports via D.A.R.W.I.N.
+
+    Finds projects below 50% completeness with no recent auto-doc (7-day cooldown),
+    generates up to 3 reports per run via Bridge dispatch.
+    """
+    start = time.time()
+    try:
+        from services.auto_doc_service import get_doc_candidates, generate_project_docs
+
+        candidates = get_doc_candidates()
+        if not candidates:
+            logger.debug("[AutoDoc Job] No candidates for doc generation")
+            _log_cycle("auto_generate_docs", 0, 0, int((time.time() - start) * 1000))
+            return
+
+        logger.info("[AutoDoc Job] Generating docs for %d projects", len(candidates))
+        succeeded = 0
+        failed = 0
+
+        for gap_data in candidates:
+            result = generate_project_docs(gap_data["project_id"], gap_data=gap_data)
+            if result["success"]:
+                succeeded += 1
+            else:
+                failed += 1
+                logger.warning(
+                    "[AutoDoc Job] Failed for '%s': %s",
+                    gap_data.get("name", "unknown"),
+                    result.get("error", "unknown"),
+                )
+
+        duration = int((time.time() - start) * 1000)
+        _log_cycle(
+            "auto_generate_docs",
+            succeeded,
+            failed,
+            duration,
+            details={
+                "candidates": len(candidates),
+                "succeeded": succeeded,
+                "failed": failed,
+            },
+        )
+    except Exception as e:
+        duration = int((time.time() - start) * 1000)
+        _log_cycle("auto_generate_docs", 0, 1, duration, error_message=str(e))
+        logger.warning(f"[AutoDoc Job] Batch failed: {e}")
+
+
 def auto_link_knowledge_batch():
     """Job: Auto-link knowledge entries to projects via embedding similarity.
 
@@ -1197,4 +1247,12 @@ def register_consciousness_jobs(scheduler, flask_app):
         replace_existing=True,
     )
 
-    logger.info("[ConsciousnessJobs] Registered 12 consciousness jobs")
+    scheduler.add_job(
+        with_ctx(auto_generate_project_docs),
+        trigger=IntervalTrigger(hours=6),
+        id="agent_auto_generate_docs",
+        name="Agent Loop: D.A.R.W.I.N. Auto-Documentation",
+        replace_existing=True,
+    )
+
+    logger.info("[ConsciousnessJobs] Registered 13 consciousness jobs")

@@ -155,14 +155,14 @@ def register_device_routes(bp, admin_required_decorator):
                 rows = cur.fetchall()
                 consumption = [
                     {
-                        "device_ip": row[0],
-                        "device_mac": row[1],
-                        "user_name": row[2],
-                        "device_label": row[3],
-                        "device_type": row[4],
-                        "bytes_sent": row[5],
-                        "bytes_recv": row[6],
-                        "bytes_total": row[7],
+                        "device_ip": row["device_ip"],
+                        "device_mac": row["device_mac"],
+                        "user_name": row["user_name"],
+                        "device_label": row["device_label"],
+                        "device_type": row["device_type"],
+                        "bytes_sent": row["bytes_sent"],
+                        "bytes_recv": row["bytes_recv"],
+                        "bytes_total": row["bytes_total"],
                     }
                     for row in rows
                 ]
@@ -198,11 +198,11 @@ def register_device_routes(bp, admin_required_decorator):
                 rows = cur.fetchall()
                 by_user = [
                     {
-                        "user_name": row[0],
-                        "device_count": row[1],
-                        "bytes_sent": row[2],
-                        "bytes_recv": row[3],
-                        "bytes_total": row[4],
+                        "user_name": row["user_name"],
+                        "device_count": row["device_count"],
+                        "bytes_sent": row["bytes_sent"],
+                        "bytes_recv": row["bytes_recv"],
+                        "bytes_total": row["bytes_total"],
                     }
                     for row in rows
                 ]

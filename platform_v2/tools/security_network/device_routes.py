@@ -136,18 +136,18 @@ def register_device_routes(bp, admin_required_decorator):
                 cur.execute(
                     """
                     SELECT
-                        nts.device_mac,
                         nts.device_ip,
+                        nts.device_mac,
                         ndu.user_name,
                         ndu.device_label,
                         ndu.device_type,
-                        SUM(nts.bytes_out) AS bytes_sent,
-                        SUM(nts.bytes_in) AS bytes_recv,
-                        SUM(nts.bytes_in + nts.bytes_out) AS bytes_total
+                        MAX(nts.bytes_out) AS bytes_sent,
+                        MAX(nts.bytes_in) AS bytes_recv,
+                        MAX(nts.bytes_in + nts.bytes_out) AS bytes_total
                     FROM network_traffic_stats nts
                     LEFT JOIN network_device_users ndu ON ndu.mac_address = nts.device_mac
                     WHERE nts.hour_bucket >= NOW() - INTERVAL '%s hours'
-                    GROUP BY nts.device_mac, nts.device_ip, ndu.user_name, ndu.device_label, ndu.device_type
+                    GROUP BY nts.device_ip, nts.device_mac, ndu.user_name, ndu.device_label, ndu.device_type
                     ORDER BY bytes_total DESC
                     """,
                     (hours,),
@@ -155,8 +155,8 @@ def register_device_routes(bp, admin_required_decorator):
                 rows = cur.fetchall()
                 consumption = [
                     {
-                        "device_mac": row[0],
-                        "device_ip": row[1],
+                        "device_ip": row[0],
+                        "device_mac": row[1],
                         "user_name": row[2],
                         "device_label": row[3],
                         "device_type": row[4],
@@ -183,7 +183,7 @@ def register_device_routes(bp, admin_required_decorator):
                     """
                     SELECT
                         COALESCE(ndu.user_name, 'Unknown') AS user_name,
-                        COUNT(DISTINCT nts.device_mac) AS device_count,
+                        COUNT(DISTINCT nts.device_ip) AS device_count,
                         SUM(nts.bytes_out) AS bytes_sent,
                         SUM(nts.bytes_in) AS bytes_recv,
                         SUM(nts.bytes_in + nts.bytes_out) AS bytes_total

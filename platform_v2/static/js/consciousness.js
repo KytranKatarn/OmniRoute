@@ -20,9 +20,32 @@ function escHtml(str) {
   return div.innerHTML;
 }
 
-function setHtml(el, html) {
+function setHtml(el, content) {
   if (typeof el === "string") el = document.getElementById(el);
-  if (el) el.innerHTML = html;
+  if (el) el.textContent = content;
+}
+
+/** Animated count-up for HUD values. Counts from 0 to target over durationMs. */
+function countUp(elId, target, suffix, durationMs) {
+  var el = typeof elId === "string" ? document.getElementById(elId) : elId;
+  if (!el) return;
+  suffix = suffix || "";
+  durationMs = durationMs || 1200;
+  var num = typeof target === "number" ? target : parseInt(String(target).replace(/,/g, ""), 10);
+  if (isNaN(num) || num === 0) { el.textContent = "0" + suffix; return; }
+  var start = performance.now();
+  var prev = 0;
+  function step(ts) {
+    var p = Math.min((ts - start) / durationMs, 1);
+    var ease = 1 - Math.pow(1 - p, 3);
+    var cur = Math.round(num * ease);
+    if (cur !== prev) {
+      el.textContent = cur.toLocaleString() + suffix;
+      prev = cur;
+    }
+    if (p < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
 }
 
 function _jobTypeToNode(jobType) {
@@ -336,14 +359,14 @@ function loadNeuralCore() {
     // Stats HUD (works for both WebGL and fallback) — clickable for timeline chart
     var kbEl = document.getElementById("ncTotalKnowledge");
     if (kbEl) {
-      kbEl.textContent = (kb.total_entries || kb.total || 0).toLocaleString();
+      countUp(kbEl, kb.total_entries || kb.total || 0);
       kbEl.style.cursor = "pointer";
       kbEl.title = "Total intelligence: KB + translations + decisions — click for timeline";
       kbEl.onclick = function() { showKnowledgeTimeline(); };
     }
     setHtml("ncActiveAgents", (agents.active || 0) + "/" + (agents.total || 0));
     var pl = data.project_links || {};
-    setHtml("ncProjectLinks", (pl.total_links || 0).toLocaleString());
+    countUp("ncProjectLinks", pl.total_links || 0);
   }).catch(function(err) {
     console.error("Neural core data error:", err);
     var loading = document.getElementById("ncLoading");
@@ -353,8 +376,8 @@ function loadNeuralCore() {
   // GitHub stats for embed coverage
   api("/github/stats").then(function(data) {
     if (data.success) {
-      setHtml("ncGitHubFiles", (data.total_files || 0).toLocaleString());
-      setHtml("ncEmbedPct", (data.embed_pct || 0) + "%");
+      countUp("ncGitHubFiles", data.total_files || 0);
+      countUp("ncEmbedPct", data.embed_pct || 0, "%");
     }
   }).catch(function(err) {
     console.error("API error:", err);

@@ -28,18 +28,18 @@ var EXAMPLES  = "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm";
 var CDN_TIMEOUT = 5000;
 
 var MOOD_COLORS = {
-  focused:    "#8b5cf6",
+  focused:    "#00ffff",
   curious:    "#06b6d4",
   happy:      "#22c55e",
   processing: "#f59e0b",
   empathetic: "#ec4899",
-  neutral:    "#8b5cf6",
+  neutral:    "#00ffff",
   confident:  "#3b82f6",
   relaxed:    "#22c55e"
 };
 
 var STATION_COLORS = {
-  COMMAND:        "#8b5cf6",
+  COMMAND:        "#00ffff",
   ANALYTICS:      "#06b6d4",
   CREATIVE:       "#ec4899",
   ENGINEERING:    "#f59e0b",

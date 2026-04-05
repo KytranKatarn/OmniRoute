@@ -4,8 +4,8 @@
    ============================================================ */
 
 :root {
-  --nc-accent: #8b5cf6;
-  --nc-accent-rgb: 139, 92, 246;
+  --nc-accent: var(--cat-accent, #00ffff);
+  --nc-accent-rgb: var(--cat-accent-rgb, 0, 255, 255);
 }
 
 /* ---- Hero container ---- */
@@ -17,12 +17,52 @@
   max-height: 800px;
   overflow: hidden;
   border-radius: 4px;
+  background: radial-gradient(ellipse at 50% 50%, rgba(var(--nc-accent-rgb), 0.04) 0%, rgba(0,0,0,0) 70%);
 }
 
 .nc-hero #neuralCore canvas {
   display: block;
   width: 100% !important;
   height: 100% !important;
+}
+
+/* ---- Scanning sweep overlay ---- */
+.nc-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(var(--nc-accent-rgb), 0.03) 50%,
+    transparent 50.5%,
+    transparent 100%
+  );
+  background-size: 100% 4px;
+  pointer-events: none;
+  z-index: 4;
+  mix-blend-mode: screen;
+}
+
+/* Horizontal scan line */
+.nc-hero::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(var(--nc-accent-rgb), 0.4), transparent);
+  box-shadow: 0 0 20px rgba(var(--nc-accent-rgb), 0.3), 0 0 60px rgba(var(--nc-accent-rgb), 0.1);
+  z-index: 6;
+  animation: nc-scanline 4s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes nc-scanline {
+  0% { top: -2px; opacity: 0; }
+  5% { opacity: 1; }
+  95% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
 }
 
 /* ---- Loading shimmer ---- */
@@ -54,17 +94,13 @@
   font-size: 0.85rem;
   letter-spacing: 0.25em;
   color: var(--nc-accent);
+  text-shadow: 0 0 20px rgba(var(--nc-accent-rgb), 0.5);
   animation: nc-pulse 1.8s ease-in-out infinite;
 }
 
 @keyframes nc-pulse {
-  0%,
-  100% {
-    opacity: 0.4;
-  }
-  50% {
-    opacity: 1;
-  }
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
 }
 
 /* Shimmer sweep */
@@ -82,12 +118,8 @@
 }
 
 @keyframes nc-shimmer {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(100%);
-  }
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
 
 /* ---- Glass HUD overlay ---- */
@@ -97,54 +129,116 @@
   left: 16px;
   right: 16px;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
   z-index: 5;
   pointer-events: none;
 }
 
 .nc-hud-item {
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 4px;
-  padding: 8px 10px;
+  background: rgba(6, 6, 12, 0.65);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(var(--nc-accent-rgb), 0.2);
+  border-radius: 6px;
+  padding: 10px 12px;
   pointer-events: auto;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
+  animation: nc-hud-appear 0.6s ease backwards;
+}
+
+.nc-hud-item:nth-child(1) { animation-delay: 0.1s; }
+.nc-hud-item:nth-child(2) { animation-delay: 0.2s; }
+.nc-hud-item:nth-child(3) { animation-delay: 0.3s; }
+.nc-hud-item:nth-child(4) { animation-delay: 0.4s; }
+.nc-hud-item:nth-child(5) { animation-delay: 0.5s; }
+
+@keyframes nc-hud-appear {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.nc-hud-item:hover {
+  border-color: rgba(var(--nc-accent-rgb), 0.5);
+  box-shadow: 0 0 16px rgba(var(--nc-accent-rgb), 0.15), inset 0 0 20px rgba(var(--nc-accent-rgb), 0.05);
+  transform: translateY(-2px);
+}
+
+/* Top accent line on each card */
+.nc-hud-item::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--nc-item-color, var(--nc-accent)), transparent);
+  opacity: 0.6;
+}
+
+/* Shimmer sweep on each card */
+.nc-hud-item::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(var(--nc-accent-rgb), 0.06), transparent);
+  animation: nc-card-shimmer 6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.nc-hud-item:nth-child(odd)::after { animation-delay: 3s; }
+
+@keyframes nc-card-shimmer {
+  0% { left: -100%; }
+  40%, 100% { left: 200%; }
 }
 
 .nc-hud-value {
   font-family: "Orbitron", sans-serif;
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   font-weight: 700;
   line-height: 1.2;
+  text-shadow: 0 0 12px currentColor;
 }
 
 .nc-hud-label {
   font-family: "Antonio", sans-serif;
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: rgba(255, 255, 255, 0.5);
-  margin-top: 2px;
+  letter-spacing: 0.15em;
+  color: rgba(255, 255, 255, 0.45);
+  margin-top: 3px;
 }
 
 /* HUD color classes */
-.nc-hud-item.purple .nc-hud-value {
-  color: #8b5cf6;
-}
+.nc-hud-item.teal { --nc-item-color: #00ffff; }
+.nc-hud-item.teal .nc-hud-value { color: #00ffff; }
 
-.nc-hud-item.blue .nc-hud-value {
-  color: #3b82f6;
-}
+.nc-hud-item.purple { --nc-item-color: #8b5cf6; }
+.nc-hud-item.purple .nc-hud-value { color: #8b5cf6; }
 
-.nc-hud-item.green .nc-hud-value {
-  color: #22c55e;
-}
+.nc-hud-item.blue { --nc-item-color: #3b82f6; }
+.nc-hud-item.blue .nc-hud-value { color: #3b82f6; }
 
-.nc-hud-item.amber .nc-hud-value {
-  color: #f59e0b;
-}
+.nc-hud-item.green { --nc-item-color: #22c55e; }
+.nc-hud-item.green .nc-hud-value { color: #22c55e; }
+
+.nc-hud-item.amber { --nc-item-color: #f59e0b; }
+.nc-hud-item.amber .nc-hud-value { color: #f59e0b; }
+
+.nc-hud-item.cyan { --nc-item-color: #06b6d4; }
+.nc-hud-item.cyan .nc-hud-value { color: #06b6d4; }
 
 /* ---- CSS2D node labels ---- */
 .nc-node-label {
@@ -192,19 +286,11 @@
 @keyframes nc-flash-pulse {
   0% {
     opacity: 0.6;
-    background: radial-gradient(
-      ellipse at center,
-      rgba(var(--nc-accent-rgb), 0.4) 0%,
-      transparent 70%
-    );
+    background: radial-gradient(ellipse at center, rgba(var(--nc-accent-rgb), 0.4) 0%, transparent 70%);
   }
   100% {
     opacity: 0;
-    background: radial-gradient(
-      ellipse at center,
-      rgba(var(--nc-accent-rgb), 0) 0%,
-      transparent 70%
-    );
+    background: radial-gradient(ellipse at center, rgba(var(--nc-accent-rgb), 0) 0%, transparent 70%);
   }
 }
 
@@ -215,43 +301,74 @@
 @keyframes nc-flash-error {
   0% {
     opacity: 0.6;
-    background: radial-gradient(
-      ellipse at center,
-      rgba(239, 68, 68, 0.4) 0%,
-      transparent 70%
-    );
+    background: radial-gradient(ellipse at center, rgba(239, 68, 68, 0.4) 0%, transparent 70%);
   }
   100% {
     opacity: 0;
-    background: radial-gradient(
-      ellipse at center,
-      rgba(239, 68, 68, 0) 0%,
-      transparent 70%
-    );
+    background: radial-gradient(ellipse at center, rgba(239, 68, 68, 0) 0%, transparent 70%);
   }
+}
+
+/* ---- Corner brackets (sci-fi targeting HUD) ---- */
+.nc-hero .nc-hud {
+  position: absolute;
 }
 
 /* ---- Responsive ---- */
-@media (max-width: 767px) {
+@media (max-width: 1024px) {
+  .nc-hud {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+  }
+  .nc-hud-value { font-size: 1rem; }
+}
+
+@media (max-width: 768px) {
   .nc-hero {
     height: 50vh;
   }
+  .nc-hud {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .nc-hud-item { padding: 8px 10px; }
+  .nc-hud-value { font-size: 0.9rem; }
+}
 
+@media (max-width: 480px) {
+  .nc-hero {
+    height: 40vh;
+    min-height: 300px;
+  }
   .nc-hud {
     grid-template-columns: repeat(2, 1fr);
+    gap: 4px;
+    bottom: 8px;
+    left: 8px;
+    right: 8px;
+  }
+  .nc-hud-item { padding: 6px 8px; }
+  .nc-hud-value { font-size: 0.8rem; }
+  .nc-hud-label { font-size: 0.55rem; }
+
+  .nc-hero::before {
+    display: none; /* disable scan line on small screens */
   }
 }
 
-@media (max-width: 500px) {
+@media (max-width: 360px) {
   .nc-hero {
-    height: 40vh;
+    height: 35vh;
+    min-height: 250px;
   }
 }
 
 /* ---- Reduced motion ---- */
 @media (prefers-reduced-motion: reduce) {
   .nc-loading::after,
-  .nc-loading::before {
+  .nc-loading::before,
+  .nc-hero::before,
+  .nc-hud-item::after {
     animation: none;
   }
 
@@ -262,5 +379,9 @@
 
   .nc-loading {
     transition: none;
+  }
+
+  .nc-hud-item {
+    animation: none;
   }
 }

@@ -400,10 +400,15 @@ function loadTraffic() {
         snSetText('traffic-pkts', formatNum(clients.length));
         snSetText('traffic-iface', d.query_count + ' log entries');
 
-        /* Render bandwidth bar as queries vs blocked */
-        var total = totalQueries || 1;
-        var pctClean = Math.round((totalQueries - totalBlocked) / total * 100);
-        _renderBandwidthBar({ bytes_rcvd: totalQueries - totalBlocked, bytes_sent: totalBlocked, _labelIn: 'Clean: ' + formatNum(totalQueries - totalBlocked), _labelOut: 'Blocked: ' + formatNum(totalBlocked) });
+        /* Render bandwidth bar — use real bytes if available, else DNS counts */
+        var bwIn = d.bandwidth_bytes_in || 0;
+        var bwOut = d.bandwidth_bytes_out || 0;
+        if (bwIn > 0 || bwOut > 0) {
+            _renderBandwidthBar({ bytes_rcvd: bwIn, bytes_sent: bwOut, _labelIn: 'In: ' + formatBytes(bwIn), _labelOut: 'Out: ' + formatBytes(bwOut) });
+        } else {
+            var total = totalQueries || 1;
+            _renderBandwidthBar({ bytes_rcvd: totalQueries - totalBlocked, bytes_sent: totalBlocked, _labelIn: 'Clean: ' + formatNum(totalQueries - totalBlocked), _labelOut: 'Blocked: ' + formatNum(totalBlocked) });
+        }
     }).catch(function(e) {
         snShowEmpty(document.getElementById('traffic-hosts-table'), 'Failed to load activity');
     });

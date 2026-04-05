@@ -168,7 +168,34 @@ def register_traffic_routes(bp, admin_required_decorator):
                     }
                 )
 
-            return jsonify({"success": True, "clients": result, "query_count": len(entries)})
+            # Pull 24h bandwidth totals from network_traffic_stats
+            bandwidth_bytes_in = 0
+            bandwidth_bytes_out = 0
+            try:
+                with get_db_cursor() as (conn, cur):
+                    cur.execute(
+                        """
+                        SELECT COALESCE(SUM(bytes_in), 0), COALESCE(SUM(bytes_out), 0)
+                        FROM network_traffic_stats
+                        WHERE hour_bucket >= NOW() - INTERVAL '24 hours'
+                        """
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        bandwidth_bytes_in = int(row[0])
+                        bandwidth_bytes_out = int(row[1])
+            except Exception as bw_exc:
+                logger.warning("bandwidth_bytes lookup failed: %s", bw_exc)
+
+            return jsonify(
+                {
+                    "success": True,
+                    "clients": result,
+                    "query_count": len(entries),
+                    "bandwidth_bytes_in": bandwidth_bytes_in,
+                    "bandwidth_bytes_out": bandwidth_bytes_out,
+                }
+            )
         except Exception as exc:
             logger.error("traffic_activity error: %s", exc)
             return jsonify({"success": False, "error": str(exc)}), 500

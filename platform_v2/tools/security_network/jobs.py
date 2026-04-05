@@ -14,12 +14,14 @@ Jobs extracted:
   - run_scheduled_compliance_scan (Job #57, every 6h)
   - run_auto_remediation (Job #58, every 6h)
   - run_anomaly_detection (Job #61, every 30 min)
+  - generate_vigil_threat_report (daily 8AM)
 """
 
 import json
 import logging
 import os
 import time
+from datetime import datetime
 
 logger = logging.getLogger("agent_loop")
 
@@ -212,7 +214,6 @@ def check_ssl_expiry():
 
             import ssl
             import socket
-            from datetime import datetime
 
             try:
                 ctx = ssl.create_default_context()
@@ -1218,6 +1219,61 @@ def enrich_ip_geolocation():
         _log_cycle("enrich_ip_geolocation", enriched, 1, dur, error_message=str(e))
 
 
+def generate_vigil_threat_report():
+    """Generate V.I.G.I.L. daily security intelligence report and store in KB."""
+    t0 = time.time()
+    enriched = 0
+    try:
+        from tools.security_network.vigil_analysis import generate_threat_report
+        from tools.security_network.security_alerts import create_security_alert
+        from database import get_db_cursor
+
+        report = generate_threat_report()
+        enriched = 1
+
+        # Store in knowledge base for historical record
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    INSERT INTO knowledge_base (title, content, knowledge_type, importance_score, category)
+                    VALUES (%s, %s, 'vault_note', 0.85, 'security')
+                    """,
+                    (
+                        f"V.I.G.I.L. Threat Report — {datetime.now().strftime('%Y-%m-%d')}",
+                        json.dumps(report, indent=2, default=str),
+                    ),
+                )
+        except Exception as e:
+            logger.error("Failed to store V.I.G.I.L. threat report: %s", e)
+
+        # Alert if high/critical risk
+        risk = report.get("overall_risk", "low")
+        if risk in ("high", "critical"):
+            create_security_alert(
+                "scan_result",
+                f"V.I.G.I.L. Threat Report: {risk.upper()} risk",
+                report.get("summary", "See full report in Knowledge Base"),
+                priority="high",
+                telegram=True,
+            )
+
+        dur = int((time.time() - t0) * 1000)
+        _log_cycle(
+            "vigil_threat_report",
+            1,
+            0,
+            dur,
+            details={"overall_risk": risk},
+        )
+        logger.info("[vigil_threat_report] completed in %dms — risk: %s", dur, risk)
+
+    except Exception as e:
+        dur = int((time.time() - t0) * 1000)
+        logger.error("vigil_threat_report failed: %s", e)
+        _log_cycle("vigil_threat_report", 0, 1, dur, error_message=str(e))
+
+
 def register_security_jobs(scheduler, flask_app):
     """Register all security/network jobs with the APScheduler instance.
 
@@ -1370,4 +1426,13 @@ def register_security_jobs(scheduler, flask_app):
         replace_existing=True,
     )
 
-    logger.info("[SecurityJobs] Registered 15 security/network jobs")
+    # --- V.I.G.I.L. daily threat report ---
+    scheduler.add_job(
+        with_ctx(generate_vigil_threat_report),
+        trigger=CronTrigger(hour=8, minute=0),
+        id="agent_vigil_threat_report",
+        name="Agent Loop: V.I.G.I.L. Daily Threat Report",
+        replace_existing=True,
+    )
+
+    logger.info("[SecurityJobs] Registered 16 security/network jobs")

@@ -383,3 +383,13 @@ def register_dashboard_routes(bp, admin_required):
         project_id = request.args.get("project_id", type=int)
         projects = get_agent_expertise(project_id=project_id)
         return jsonify({"success": True, "projects": projects})
+
+    @bp.route("/api/dashboard/knowledge-graph")
+    @login_required
+    @admin_required
+    def api_knowledge_graph():
+        """Get knowledge graph data — projects as nodes, shared KB as edges."""
+        from services.knowledge_link_service import get_knowledge_graph
+
+        graph = get_knowledge_graph()
+        return jsonify({"success": True, **graph})

@@ -859,3 +859,44 @@ def get_agent_expertise(project_id: Optional[int] = None) -> List[Dict]:
     except Exception as e:
         logger.error("[AgentExpertise] get_agent_expertise failed: %s", e)
         return []
+
+
+def get_knowledge_graph() -> Dict:
+    """Build a knowledge graph showing shared KB entries across projects.
+
+    Returns {nodes: [{id, name, links_count}], edges: [{source, target, shared}]}
+    Nodes = active/planning projects, Edges = shared knowledge entries.
+    """
+    try:
+        with get_db_cursor() as (conn, cur):
+            # Nodes: projects with their total link counts
+            cur.execute(
+                """SELECT p.id, p.name, COUNT(pkl.id) as links_count
+                   FROM unified_projects p
+                   LEFT JOIN project_knowledge_links pkl ON pkl.project_id = p.id
+                   WHERE p.status IN ('active', 'planning')
+                   GROUP BY p.id, p.name
+                   ORDER BY links_count DESC"""
+            )
+            nodes = [
+                {"id": row["id"], "name": row["name"], "links_count": row["links_count"]} for row in cur.fetchall()
+            ]
+
+            # Edges: shared knowledge entries between project pairs
+            cur.execute(
+                """SELECT pkl1.project_id as source, pkl2.project_id as target, COUNT(*) as shared
+                   FROM project_knowledge_links pkl1
+                   JOIN project_knowledge_links pkl2
+                       ON pkl1.knowledge_id = pkl2.knowledge_id
+                       AND pkl1.project_id < pkl2.project_id
+                   GROUP BY pkl1.project_id, pkl2.project_id
+                   ORDER BY shared DESC"""
+            )
+            edges = [
+                {"source": row["source"], "target": row["target"], "shared": row["shared"]} for row in cur.fetchall()
+            ]
+
+        return {"nodes": nodes, "edges": edges}
+    except Exception as e:
+        logger.error("[KnowledgeLink] get_knowledge_graph failed: %s", e)
+        return {"nodes": [], "edges": []}

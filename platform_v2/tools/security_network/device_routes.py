@@ -274,6 +274,42 @@ def register_device_routes(bp, admin_required_decorator):
 
     IP_PATTERN = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
 
+    @bp.route("/api/devices/presence/<device_ip>")
+    @login_required
+    @admin_required_decorator
+    def device_presence_timeline(device_ip):
+        """Get online/offline timeline for a device."""
+        if not IP_PATTERN.match(device_ip):
+            return jsonify({"success": False, "error": "Invalid IP address"}), 400
+
+        days = request.args.get("days", 7, type=int)
+        days = max(1, min(days, 90))  # clamp to 1-90
+
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT event_type, detected_at
+                    FROM device_presence_log
+                    WHERE device_ip = %s AND detected_at >= NOW() - INTERVAL '1 day' * %s
+                    ORDER BY detected_at DESC
+                    LIMIT 100
+                    """,
+                    (device_ip, days),
+                )
+                rows = cur.fetchall()
+                events = [
+                    {
+                        "type": row["event_type"],
+                        "time": row["detected_at"].isoformat(),
+                    }
+                    for row in rows
+                ]
+            return jsonify({"success": True, "events": events, "device_ip": device_ip, "days": days})
+        except Exception as exc:
+            logger.error("device_presence_timeline error for %s: %s", device_ip, exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
     @bp.route("/api/devices/detail/<device_ip>")
     @login_required
     @admin_required_decorator

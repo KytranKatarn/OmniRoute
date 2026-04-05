@@ -955,6 +955,174 @@ def sync_device_mappings():
         logger.error("[sync_device_mappings] Failed: %s", e)
 
 
+def track_device_presence():
+    """Track device online/offline state and detect ARP spoofing (every 5 min).
+
+    1. Query ntopng for currently active local hosts.
+    2. Compare against last known state in device_presence_log.
+    3. Insert online/offline events for state changes.
+    4. UPSERT MAC-IP pairs into device_mac_history.
+    5. Alert on ARP spoofing (same IP with multiple MACs in last hour).
+    6. Alert on brand-new devices never seen before.
+    """
+    t0 = time.time()
+    processed = 0
+    failed = 0
+    try:
+        from database import get_db_cursor
+        from tools.security_network.ntopng_service import NtopngService
+        from tools.security_network.security_alerts import create_security_alert
+
+        ntopng = NtopngService()
+        current_hosts = ntopng.get_local_hosts(ifid=1)
+
+        # Build dict of currently visible devices: ip -> mac
+        current_map = {}
+        for h in current_hosts:
+            ip = str(h.get("ip") or h.get("name", ""))
+            mac = str(h.get("mac", "") or "").upper()
+            if ip.startswith("192.168."):
+                current_map[ip] = mac
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            # --- Get last known state per device ---
+            cur.execute(
+                """
+                SELECT DISTINCT ON (device_ip) device_ip, event_type
+                FROM device_presence_log
+                ORDER BY device_ip, detected_at DESC
+            """
+            )
+            last_state = {row[0]: row[1] for row in cur.fetchall()}
+
+            # --- Check for brand-new devices (never in presence log) ---
+            all_known_ips = set(last_state.keys())
+
+            # --- Process currently visible devices ---
+            for ip, mac in current_map.items():
+                prev = last_state.get(ip)
+                if prev != "online":
+                    # Device just came online (or first time seen)
+                    cur.execute(
+                        "INSERT INTO device_presence_log (device_ip, device_mac, event_type) VALUES (%s, %s, 'online')",
+                        (ip, mac or None),
+                    )
+                    processed += 1
+
+                    # Alert on brand-new device
+                    if ip not in all_known_ips:
+                        create_security_alert(
+                            "intrusion",
+                            f"New device detected: {ip}",
+                            f"A device with IP {ip} (MAC: {mac or 'unknown'}) appeared on the network for the first time.",
+                            priority="high",
+                            telegram=False,
+                        )
+
+                # --- UPSERT MAC-IP history ---
+                if mac:
+                    cur.execute(
+                        """
+                        INSERT INTO device_mac_history (device_ip, device_mac, first_seen, last_seen)
+                        VALUES (%s, %s, NOW(), NOW())
+                        ON CONFLICT (device_ip, device_mac)
+                        DO UPDATE SET last_seen = NOW()
+                        """,
+                        (ip, mac),
+                    )
+
+            # --- Detect devices that went offline ---
+            for ip, prev_state in last_state.items():
+                if prev_state == "online" and ip not in current_map:
+                    cur.execute(
+                        "INSERT INTO device_presence_log (device_ip, event_type) VALUES (%s, 'offline')",
+                        (ip,),
+                    )
+                    processed += 1
+
+            # --- ARP spoof detection: same IP with multiple MACs in last hour ---
+            cur.execute(
+                """
+                SELECT device_ip, array_agg(DISTINCT device_mac) AS macs
+                FROM device_mac_history
+                WHERE last_seen >= NOW() - INTERVAL '1 hour'
+                GROUP BY device_ip
+                HAVING COUNT(DISTINCT device_mac) > 1
+            """
+            )
+            spoofs = cur.fetchall()
+            for row in spoofs:
+                spoof_ip = row[0]
+                spoof_macs = row[1]
+                create_security_alert(
+                    "intrusion",
+                    f"ARP spoof detected on {spoof_ip}",
+                    f"Device IP {spoof_ip} has been associated with multiple MAC addresses "
+                    f"in the last hour: {', '.join(spoof_macs)}. This may indicate ARP spoofing.",
+                    priority="critical",
+                    telegram=True,
+                )
+                processed += 1
+
+        duration = int((time.time() - t0) * 1000)
+        _log_cycle(
+            "track_device_presence",
+            processed,
+            failed,
+            duration,
+            {"current_hosts": len(current_map), "spoofs_detected": len(spoofs)},
+        )
+        if processed:
+            logger.info("[track_device_presence] %d events logged in %dms", processed, duration)
+
+    except Exception as e:
+        failed = 1
+        duration = int((time.time() - t0) * 1000)
+        _log_cycle("track_device_presence", processed, failed, duration, error_message=str(e))
+        logger.error("[track_device_presence] Failed: %s", e)
+
+
+def run_anomaly_detection():
+    """Job #61: Run network anomaly detection (bandwidth spikes, exfiltration, odd hours, DNS tunneling).
+
+    Wraps run_all_anomaly_checks() with _log_cycle() for audit trail.
+    Runs every 30 minutes.
+    """
+    t0 = time.time()
+    processed = 0
+    failed = 0
+    error_msg = None
+
+    try:
+        from .anomaly_detection import run_all_anomaly_checks
+
+        results = run_all_anomaly_checks()
+        total = sum(len(v) for v in results.values())
+        processed = total
+
+        dur = int((time.time() - t0) * 1000)
+        _log_cycle(
+            "anomaly_detection",
+            processed,
+            failed,
+            dur,
+            details={
+                "bandwidth_spikes": len(results.get("bandwidth_spikes", [])),
+                "exfiltration": len(results.get("exfiltration", [])),
+                "odd_hours": len(results.get("odd_hours", [])),
+                "dns_tunneling": len(results.get("dns_tunneling", [])),
+            },
+        )
+        if total > 0:
+            logger.info(f"[anomaly_detection] {total} anomalies found ({dur}ms)")
+
+    except Exception as e:
+        dur = int((time.time() - t0) * 1000)
+        error_msg = str(e)
+        logger.error(f"anomaly_detection failed: {e}")
+        _log_cycle("anomaly_detection", processed, 1, dur, error_message=error_msg)
+
+
 def register_security_jobs(scheduler, flask_app):
     """Register all security/network jobs with the APScheduler instance.
 
@@ -1080,4 +1248,13 @@ def register_security_jobs(scheduler, flask_app):
         replace_existing=True,
     )
 
-    logger.info("[SecurityJobs] Registered 12 security/network jobs")
+    # --- Device presence & ARP spoof detection ---
+    scheduler.add_job(
+        with_ctx(track_device_presence),
+        trigger=IntervalTrigger(minutes=5),
+        id="agent_device_presence",
+        name="Agent Loop: Device Presence & ARP Spoof Detection",
+        replace_existing=True,
+    )
+
+    logger.info("[SecurityJobs] Registered 13 security/network jobs")

@@ -104,8 +104,7 @@ function api(path, opts) {
 /* ── Tab Switching ─────────────────────────────────── */
 
 window.switchConsciousnessTab = function (tab) {
-  // Update glass nav indicator
-  if (_glassNav) _glassNav.setActive(tab);
+  // LCARS header manages its own active state
 
   // Toggle panels
   document.querySelectorAll(".cs-panel").forEach(function (panel) {
@@ -2144,13 +2143,10 @@ document.addEventListener("DOMContentLoaded", function () {
   })();
 
   /* Agent modal overlay removed — profiles now in Starbase Command */
-  // Initialize Glass Nav
-  var navEl = document.getElementById("csNav");
-  if (navEl) {
-    _glassNav = new GlassNav(navEl, {
-      onSwitch: function(tab) { switchConsciousnessTab(tab); }
-    });
-  }
+  // Wire LCARS header tab switching
+  window.onLcarsTabSwitch = function(tab) {
+    switchConsciousnessTab(tab);
+  };
 
   // Resize handler for HoloSphere
   window.addEventListener("resize", function() {
@@ -2158,8 +2154,9 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   var hash = window.location.hash.replace("#", "");
-  var validTabs = ["dashboard", "knowledge", "intelligence", "github", "languages"];
+  var validTabs = ["dashboard", "intelligence", "knowledge", "github", "languages", "codehealth"];
   if (hash && validTabs.indexOf(hash) !== -1) {
+    lcarsHeaderSwitchTab(hash);
     switchConsciousnessTab(hash);
   } else {
     switchConsciousnessTab("dashboard");

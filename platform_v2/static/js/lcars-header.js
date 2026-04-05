@@ -134,13 +134,14 @@
   var _notifPollInterval = null;
 
   function _pollNotifications() {
-    fetch("/api/notifications/count")
+    fetch("/api/notifications")
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data.success) return;
-        var critical = data.critical || 0;
-        var errors = data.errors || 0;
-        var unread = data.unread || 0;
+        var notifs = (data.notifications || []);
+        var unread = notifs.filter(function (n) { return !n.is_read; }).length;
+        var errors = notifs.filter(function (n) { return !n.is_read && n.type === "error"; }).length;
+        var critical = notifs.filter(function (n) { return !n.is_read && n.priority === "critical"; }).length;
 
         // Update elbow alert state
         if (critical > 0) {

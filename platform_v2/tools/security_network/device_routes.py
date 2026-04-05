@@ -135,12 +135,12 @@ def register_device_routes(bp, admin_required_decorator):
                         ndu.user_name,
                         ndu.device_label,
                         ndu.device_type,
-                        SUM(nts.bytes_sent) AS bytes_sent,
-                        SUM(nts.bytes_recv) AS bytes_recv,
-                        SUM(nts.bytes_sent + nts.bytes_recv) AS bytes_total
+                        SUM(nts.bytes_out) AS bytes_sent,
+                        SUM(nts.bytes_in) AS bytes_recv,
+                        SUM(nts.bytes_in + nts.bytes_out) AS bytes_total
                     FROM network_traffic_stats nts
                     LEFT JOIN network_device_users ndu ON ndu.mac_address = nts.device_mac
-                    WHERE nts.recorded_at >= NOW() - INTERVAL '%s hours'
+                    WHERE nts.hour_bucket >= NOW() - INTERVAL '%s hours'
                     GROUP BY nts.device_mac, nts.device_ip, ndu.user_name, ndu.device_label, ndu.device_type
                     ORDER BY bytes_total DESC
                     """,
@@ -178,12 +178,12 @@ def register_device_routes(bp, admin_required_decorator):
                     SELECT
                         COALESCE(ndu.user_name, 'Unknown') AS user_name,
                         COUNT(DISTINCT nts.device_mac) AS device_count,
-                        SUM(nts.bytes_sent) AS bytes_sent,
-                        SUM(nts.bytes_recv) AS bytes_recv,
-                        SUM(nts.bytes_sent + nts.bytes_recv) AS bytes_total
+                        SUM(nts.bytes_out) AS bytes_sent,
+                        SUM(nts.bytes_in) AS bytes_recv,
+                        SUM(nts.bytes_in + nts.bytes_out) AS bytes_total
                     FROM network_traffic_stats nts
                     LEFT JOIN network_device_users ndu ON ndu.mac_address = nts.device_mac
-                    WHERE nts.recorded_at >= NOW() - INTERVAL '%s hours'
+                    WHERE nts.hour_bucket >= NOW() - INTERVAL '%s hours'
                     GROUP BY COALESCE(ndu.user_name, 'Unknown')
                     ORDER BY bytes_total DESC
                     """,

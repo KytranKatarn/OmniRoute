@@ -36,7 +36,7 @@ def check_cooldown(project_slug: str) -> bool:
                 """
                 SELECT id FROM knowledge_base
                 WHERE source_type = %s
-                  AND tags @> ARRAY[%s]::text[]
+                  AND category = %s
                   AND created_at > NOW() - INTERVAL '6 days'
                 LIMIT 1
                 """,

@@ -26,7 +26,7 @@ def check_cooldown(project_slug: str) -> bool:
             cur.execute(
                 """SELECT COUNT(*) as cnt FROM knowledge_base
                    WHERE source_type = %s
-                   AND tags @> ARRAY[%s]
+                   AND category = %s
                    AND created_at > NOW() - INTERVAL '%s days'""",
                 (AUTO_DOC_SOURCE_TYPE, project_slug, COOLDOWN_DAYS),
             )

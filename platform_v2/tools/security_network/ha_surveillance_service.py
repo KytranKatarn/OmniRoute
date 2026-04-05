@@ -129,10 +129,18 @@ class HASurveillanceService:
         return self._get_raw(f"camera_proxy/{entity_id}")
 
     def get_camera_stream_url(self, entity_id: str) -> Optional[str]:
-        """Get MJPEG stream URL for a camera entity"""
+        """Get MJPEG stream URL for a camera entity.
+
+        Returns the backend proxy URL — the HA token is added server-side by
+        the stream-proxy route in surveillance_routes.py, so it is never
+        exposed to the browser via URL, history, or referrer headers.
+        """
         if not entity_id.startswith("camera."):
             return None
-        return f"{self.base_url}/api/camera_proxy_stream/{entity_id}?token={self.token}"
+        # NOTE: Do NOT embed self.token in this URL. The proxy route
+        # /api/surveillance/camera/<entity_id>/stream-proxy handles HA auth
+        # server-side using the HA_API_TOKEN environment variable.
+        return f"/tools/security-network/api/surveillance/camera/{entity_id}/stream-proxy"
 
     def check_health(self) -> Dict[str, Any]:
         """Verify HA connection and return status details"""

@@ -993,6 +993,109 @@ def api_firewall_status():
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
+@security_network_bp.route("/api/firewall/rules")
+@login_required
+@admin_required
+def api_firewall_rules():
+    """Get firewall rules via host_command_client."""
+    try:
+        from tools.system_operations.host_command_client import submit_and_wait, is_queue_available
+
+        if not is_queue_available():
+            return jsonify({"success": True, "rules": []})
+        result_data = submit_and_wait("firewall_rules", {}, timeout=10, submitted_by="security_network")
+        cmd_result = result_data.get("result", {})
+        if cmd_result.get("success"):
+            return jsonify({"success": True, "rules": cmd_result.get("rules", [])})
+        return jsonify({"success": True, "rules": []})
+    except Exception as e:
+        logger.exception("firewall rules error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/firewall/enable", methods=["POST"])
+@login_required
+@admin_required
+def api_firewall_enable():
+    """Enable firewall via host_command_client."""
+    try:
+        from tools.system_operations.host_command_client import submit_and_wait, is_queue_available
+
+        if not is_queue_available():
+            return jsonify({"success": False, "error": "Host command queue not available"}), 503
+        result_data = submit_and_wait("firewall_enable", {}, timeout=10, submitted_by="security_network")
+        return jsonify(result_data.get("result", {"success": False}))
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/firewall/disable", methods=["POST"])
+@login_required
+@admin_required
+def api_firewall_disable():
+    """Disable firewall via host_command_client."""
+    try:
+        from tools.system_operations.host_command_client import submit_and_wait, is_queue_available
+
+        if not is_queue_available():
+            return jsonify({"success": False, "error": "Host command queue not available"}), 503
+        result_data = submit_and_wait("firewall_disable", {}, timeout=10, submitted_by="security_network")
+        return jsonify(result_data.get("result", {"success": False}))
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/firewall/allow", methods=["POST"])
+@login_required
+@admin_required
+def api_firewall_allow():
+    """Add firewall allow rule via host_command_client."""
+    data = request.get_json(silent=True) or {}
+    try:
+        from tools.system_operations.host_command_client import submit_and_wait, is_queue_available
+
+        if not is_queue_available():
+            return jsonify({"success": False, "error": "Host command queue not available"}), 503
+        result_data = submit_and_wait("firewall_allow", data, timeout=10, submitted_by="security_network")
+        return jsonify(result_data.get("result", {"success": False}))
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/firewall/deny", methods=["POST"])
+@login_required
+@admin_required
+def api_firewall_deny():
+    """Add firewall deny rule via host_command_client."""
+    data = request.get_json(silent=True) or {}
+    try:
+        from tools.system_operations.host_command_client import submit_and_wait, is_queue_available
+
+        if not is_queue_available():
+            return jsonify({"success": False, "error": "Host command queue not available"}), 503
+        result_data = submit_and_wait("firewall_deny", data, timeout=10, submitted_by="security_network")
+        return jsonify(result_data.get("result", {"success": False}))
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/firewall/delete", methods=["DELETE"])
+@login_required
+@admin_required
+def api_firewall_delete():
+    """Delete firewall rule via host_command_client."""
+    data = request.get_json(silent=True) or {}
+    try:
+        from tools.system_operations.host_command_client import submit_and_wait, is_queue_available
+
+        if not is_queue_available():
+            return jsonify({"success": False, "error": "Host command queue not available"}), 503
+        result_data = submit_and_wait("firewall_delete", data, timeout=10, submitted_by="security_network")
+        return jsonify(result_data.get("result", {"success": False}))
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @security_network_bp.route("/api/connections/active")
 @login_required
 @admin_required

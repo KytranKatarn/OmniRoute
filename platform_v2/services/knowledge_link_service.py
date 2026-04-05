@@ -12,8 +12,8 @@ from database import get_db_cursor
 logger = logging.getLogger(__name__)
 
 # --- Auto-linking constants ---
-SIMILARITY_THRESHOLD = 0.70
-BRIDGE_JOB_THRESHOLD = 0.60
+SIMILARITY_THRESHOLD = 0.40
+BRIDGE_JOB_THRESHOLD = 0.30
 CONFIDENCE_BOOST = 0.15
 DEFAULT_BATCH_SIZE = 200
 BACKFILL_BATCH_SIZE = 500

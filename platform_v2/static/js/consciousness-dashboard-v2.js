@@ -478,6 +478,19 @@
 
         row.appendChild(renderCompletenessRing(proj.completeness));
 
+        // Quality score indicator
+        if (typeof proj.quality_score === "number") {
+          var qBadge = document.createElement("span");
+          qBadge.className = "cs-quality-badge";
+          var qVal = proj.quality_score;
+          qBadge.classList.add(qVal >= 70 ? "high" : qVal >= 40 ? "mid" : "low");
+          qBadge.textContent = "Q" + qVal;
+          qBadge.title = "Quality: Content " + (proj.quality_breakdown ? proj.quality_breakdown.content : 0)
+            + "/40, Coverage " + (proj.quality_breakdown ? proj.quality_breakdown.coverage : 0)
+            + "/30, Freshness " + (proj.quality_breakdown ? proj.quality_breakdown.freshness : 0) + "/30";
+          row.appendChild(qBadge);
+        }
+
         var nameSpan = document.createElement("span");
         nameSpan.className = "cs-gap-name";
         nameSpan.textContent = proj.name;

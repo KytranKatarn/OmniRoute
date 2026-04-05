@@ -5,6 +5,7 @@ Network device user mappings and per-device bandwidth consumption endpoints.
 """
 
 import logging
+import re
 
 from flask import jsonify, request
 from flask_login import login_required
@@ -12,6 +13,8 @@ from flask_login import login_required
 from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
+
+MAC_PATTERN = re.compile(r"^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$")
 
 
 def register_device_routes(bp, admin_required_decorator):
@@ -76,6 +79,9 @@ def register_device_routes(bp, admin_required_decorator):
 
         if not mac_address or not user_name:
             return jsonify({"success": False, "error": "mac_address and user_name are required"}), 400
+
+        if not MAC_PATTERN.match(mac_address):
+            return jsonify({"success": False, "error": "Invalid MAC address format"}), 400
 
         try:
             with get_db_cursor(commit=True) as (conn, cur):

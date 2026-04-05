@@ -5,11 +5,14 @@ Fail2ban intrusion prevention and DDNS management endpoints.
 """
 
 import logging
+import re
 
 from flask import jsonify, request
 from flask_login import login_required
 
 logger = logging.getLogger(__name__)
+
+JAIL_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 
 def register_defense_routes(bp, admin_required_decorator):
@@ -48,6 +51,8 @@ def register_defense_routes(bp, admin_required_decorator):
     @admin_required_decorator
     def fail2ban_jail_detail(jail_name):
         """Get status of a specific Fail2ban jail."""
+        if not JAIL_NAME_PATTERN.match(jail_name):
+            return jsonify({"success": False, "error": "Invalid jail name"}), 400
         try:
             from .fail2ban_service import Fail2banService
 
@@ -67,6 +72,8 @@ def register_defense_routes(bp, admin_required_decorator):
         ip = data.get("ip")
         if not jail or not ip:
             return jsonify({"success": False, "error": "jail and ip are required"}), 400
+        if not JAIL_NAME_PATTERN.match(jail):
+            return jsonify({"success": False, "error": "Invalid jail name"}), 400
         try:
             from .fail2ban_service import Fail2banService
 
@@ -86,6 +93,8 @@ def register_defense_routes(bp, admin_required_decorator):
         ip = data.get("ip")
         if not jail or not ip:
             return jsonify({"success": False, "error": "jail and ip are required"}), 400
+        if not JAIL_NAME_PATTERN.match(jail):
+            return jsonify({"success": False, "error": "Invalid jail name"}), 400
         try:
             from .fail2ban_service import Fail2banService
 

@@ -147,3 +147,77 @@ def get_recent_activity(limit=15):
             return [dict(r) for r in cur.fetchall()]
         finally:
             cur.close()
+
+
+def get_agent_contributions(project_id, days=None):
+    """Get agent work stats for a project: dispatch counts and task completions."""
+    try:
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            try:
+                if days:
+                    cur.execute(
+                        """SELECT bj.agent_name, COUNT(*) as dispatch_count
+                            FROM bridge_jobs bj
+                            WHERE bj.project_id = %s
+                            AND bj.created_at >= NOW() - make_interval(days => %s)
+                            AND bj.agent_name IS NOT NULL
+                            GROUP BY bj.agent_name
+                            ORDER BY dispatch_count DESC""",
+                        (project_id, days),
+                    )
+                else:
+                    cur.execute(
+                        """SELECT bj.agent_name, COUNT(*) as dispatch_count
+                            FROM bridge_jobs bj
+                            WHERE bj.project_id = %s
+                            AND bj.agent_name IS NOT NULL
+                            GROUP BY bj.agent_name
+                            ORDER BY dispatch_count DESC""",
+                        (project_id,),
+                    )
+                dispatches = {row[0]: row[1] for row in cur.fetchall()}
+
+                if days:
+                    cur.execute(
+                        """SELECT a.name, COUNT(*) as task_count
+                            FROM unified_tasks t
+                            JOIN agents a ON a.id = t.assigned_agent
+                            WHERE t.project_id = %s
+                            AND t.status = 'completed'
+                            AND t.completed_at >= NOW() - make_interval(days => %s)
+                            GROUP BY a.name
+                            ORDER BY task_count DESC""",
+                        (project_id, days),
+                    )
+                else:
+                    cur.execute(
+                        """SELECT a.name, COUNT(*) as task_count
+                            FROM unified_tasks t
+                            JOIN agents a ON a.id = t.assigned_agent
+                            WHERE t.project_id = %s
+                            AND t.status = 'completed'
+                            GROUP BY a.name
+                            ORDER BY task_count DESC""",
+                        (project_id,),
+                    )
+                tasks = {row[0]: row[1] for row in cur.fetchall()}
+
+                all_agents = set(list(dispatches.keys()) + list(tasks.keys()))
+                contributions = []
+                for agent in all_agents:
+                    contributions.append(
+                        {
+                            "agent_name": agent,
+                            "dispatch_count": dispatches.get(agent, 0),
+                            "tasks_completed": tasks.get(agent, 0),
+                            "total_actions": dispatches.get(agent, 0) + tasks.get(agent, 0),
+                        }
+                    )
+                contributions.sort(key=lambda x: x["total_actions"], reverse=True)
+                return contributions
+            finally:
+                cur.close()
+    except Exception as e:
+        logger.error("[ProjectService] get_agent_contributions failed: %s", e)
+        return []

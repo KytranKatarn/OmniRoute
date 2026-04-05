@@ -1,0 +1,66 @@
+{#
+   LCARS Integrated Header -- Shared Module Component
+   Replaces category_nav + glass-nav with unified LCARS header.
+
+   Parameters (set before include):
+     cat_accent       -- CSS hex color (e.g. "#00ffff")
+     cat_accent_rgb   -- RGB triplet for rgba() (e.g. "0,255,255")
+     cat_accent_dark  -- Darker variant (e.g. "#00cccc"), defaults to cat_accent
+     cat_label        -- Category display name (e.g. "AI COMMAND")
+     module_title     -- Module display name (e.g. "CONSCIOUSNESS")
+     module_back_url  -- URL for back button (defaults to /dashboard)
+     header_tabs      -- List of tuples: [(id, label, icon), ...]
+#}
+
+{% set _accent = cat_accent|default('#00ffff') %}
+{% set _accent_rgb = cat_accent_rgb|default('0,255,255') %}
+{% set _accent_dark = cat_accent_dark|default(cat_accent_light|default(_accent)) %}
+{% set _module = module_title|default('MODULE')|upper %}
+{% set _back = module_back_url|default('/dashboard') %}
+{% set _tabs = header_tabs|default([]) %}
+
+<header class="lcars-header" id="lcarsHeader"
+        style="--cat-accent:{{ _accent }}; --cat-accent-dark:{{ _accent_dark }}; --cat-accent-rgb:{{ _accent_rgb }};"
+        data-alert-state="normal">
+
+  <!-- LCARS Elbow (left) -->
+  <div class="lcars-header-elbow" id="lcarsHeaderElbow">
+    <div class="lcars-header-elbow-top">
+      <a href="{{ _back }}" class="lcars-header-back" title="Back to Dashboard">
+        <i data-lucide="arrow-left" style="width:16px;height:16px;"></i>
+      </a>
+    </div>
+    <div class="lcars-header-elbow-bottom">
+      <button class="lcars-header-util" onclick="if(window.toggleTheme)toggleTheme();" title="Toggle theme">
+        <i data-lucide="moon" style="width:12px;height:12px;"></i>
+      </button>
+      <span class="lcars-header-lang" title="Language">EN</span>
+    </div>
+  </div>
+
+  <!-- Main area (right of elbow) -->
+  <div class="lcars-header-main">
+    <!-- Gradient title bar -->
+    <div class="lcars-header-bar">
+      <span class="lcars-header-title">{{ _module }}</span>
+      <span class="lcars-header-category">{{ cat_label|default('')|upper }}</span>
+      <span class="lcars-header-stardate" id="lcarsStardate"></span>
+    </div>
+
+    <!-- Tab row -->
+    <div class="lcars-header-tabs" id="lcarsHeaderTabs">
+      {% for tab_id, tab_label, tab_icon in _tabs %}
+      <button class="lcars-header-tab{% if loop.first %} active{% endif %}"
+              data-tab="{{ tab_id }}"
+              onclick="if(window.lcarsHeaderSwitchTab)lcarsHeaderSwitchTab('{{ tab_id }}')">
+        <i data-lucide="{{ tab_icon }}" style="width:14px;height:14px;"></i>
+        <span class="lcars-header-tab-label">{{ tab_label }}</span>
+        <span class="lcars-header-tab-short">{{ tab_label[:4]|upper }}</span>
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+</header>
+
+<!-- Toast container -->
+<div class="lcars-toast-container" id="lcarsToastContainer"></div>

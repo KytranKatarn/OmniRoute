@@ -1,82 +1,22 @@
-const API = '/tools/security-network/api'; /* legacy compat — snApi() used for new functions */
+// API base — canonical definition is SN_API in security-network.js (loaded first)
+var API = typeof SN_API !== 'undefined' ? SN_API : '/tools/security-network/api';
 
-/* ========== Utility Functions ========== */
-function esc(s) {
-    if (s == null) return '';
-    const d = document.createElement('div');
-    d.textContent = String(s);
-    return d.innerHTML;
-}
-function formatNum(n) {
-    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
-    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
-    return String(n);
-}
+/* ========== Utility aliases — canonical implementations in security-network.js ========== */
+// security-network.js (loaded first) defines: formatNum, setBadge, formatBytes, showToast
+// It also defines snEsc, snBuildTable, snCreateBadge, snShowLoading, snShowEmpty with sn- prefix.
+// These aliases let existing app.js call-sites work without renaming.
+var esc        = typeof snEsc         !== 'undefined' ? snEsc         : function(s) { return s == null ? '' : String(s); };
+var buildTable = typeof snBuildTable  !== 'undefined' ? snBuildTable  : function() { return document.createElement('table'); };
+var createBadge= typeof snCreateBadge !== 'undefined' ? snCreateBadge : function(t) { var s=document.createElement('span'); s.textContent=t; return s; };
+var showLoading= typeof snShowLoading !== 'undefined' ? snShowLoading : function() {};
+var showEmpty  = typeof snShowEmpty   !== 'undefined' ? snShowEmpty   : function() {};
+// formatNum and setBadge are already defined (without sn- prefix) in security-network.js — no alias needed.
+
 function formatTime(t) {
     if (!t) return '-';
-    return ArchieTime.format(t, 'short');
+    return typeof ArchieTime !== 'undefined' ? ArchieTime.format(t, 'short') : String(t);
 }
 function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
-function setBadge(id, online) {
-    const el = document.getElementById(id);
-    if (el) el.className = 'svc-badge ' + (online ? 'online' : 'offline');
-}
-
-/* Safe DOM table builder */
-function buildTable(headers, rows) {
-    const table = document.createElement('table');
-    table.className = 'data-table';
-    const thead = document.createElement('thead');
-    const headRow = document.createElement('tr');
-    headers.forEach(h => { const th = document.createElement('th'); th.textContent = h; headRow.appendChild(th); });
-    thead.appendChild(headRow);
-    table.appendChild(thead);
-    const tbody = document.createElement('tbody');
-    rows.forEach(rowData => {
-        const tr = document.createElement('tr');
-        rowData.forEach(cellData => {
-            const td = document.createElement('td');
-            if (typeof cellData === 'string' || typeof cellData === 'number') {
-                td.textContent = cellData;
-            } else if (cellData instanceof Node) {
-                td.appendChild(cellData);
-            } else if (cellData && cellData.html) {
-                td.className = cellData.cls || '';
-                td.textContent = cellData.text || '';
-            }
-            tr.appendChild(td);
-        });
-        tbody.appendChild(tr);
-    });
-    table.appendChild(tbody);
-    return table;
-}
-
-function createBadge(text, type) {
-    const span = document.createElement('span');
-    span.className = 'badge badge-' + type;
-    span.textContent = text;
-    return span;
-}
-
-function showLoading(el) {
-    el.textContent = '';
-    const d = document.createElement('div');
-    d.className = 'loading-state';
-    const sp = document.createElement('span');
-    sp.className = 'spinner';
-    d.appendChild(sp);
-    d.appendChild(document.createTextNode(' Loading...'));
-    el.appendChild(d);
-}
-
-function showEmpty(el, msg) {
-    el.textContent = '';
-    const d = document.createElement('div');
-    d.className = 'empty-state';
-    d.textContent = msg;
-    el.appendChild(d);
-}
 
 /* ========== Tab Management ========== */
 /* Tab load flags managed by security-network.js — skipping re-declaration */
@@ -1145,14 +1085,6 @@ function viewReconScan(scanId) {
     }).catch(e=>showToast('error',e.message));
 }
 
-function deleteReconScan(scanId) {
-    if(!confirm('Delete this scan record?')) return;
-    fetch(API+'/recon/scan/'+scanId,{method:'DELETE'}).then(r=>r.json()).then(d=>{
-        if(d.success){showToast('success','Scan deleted');loadScanResults();}
-        else showToast('error',d.error||'Failed');
-    }).catch(e=>showToast('error',e.message));
-}
-
 /* SSL Monitors */
 async function loadSSLMonitors() {
     const container = document.getElementById('ssl-monitors-list');
@@ -1231,7 +1163,8 @@ function refreshSSLMonitors() {
 }
 
 /* ========== Access Control ========== */
-var SYSOPS_API = '/tools/security-network/api';
+// SYSOPS_API alias — same base URL as SN_API / API
+var SYSOPS_API = typeof SN_API !== 'undefined' ? SN_API : '/tools/security-network/api';
 
 async function loadFirewall() {
     var panel = document.getElementById('firewall-panel');

@@ -230,6 +230,68 @@ def _extract_phases(project_id: int) -> List[Dict]:
         return []
 
 
+def _compute_quality_score(project_id: int) -> Dict:
+    """Compute knowledge quality score (0-100) for a project's linked entries.
+
+    Three signals:
+    - Content quality (40%): avg importance_score of linked entries
+    - Coverage diversity (30%): how many distinct knowledge types are linked (out of 5)
+    - Freshness (30%): % of linked entries updated in last 30 days
+
+    Returns {quality_score: int, breakdown: {content: int, coverage: int, freshness: int}}
+    """
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT
+                       COUNT(*) as total,
+                       AVG(kb.importance_score) as avg_importance,
+                       COUNT(DISTINCT kb.knowledge_type) as type_diversity,
+                       COUNT(*) FILTER (WHERE kb.updated_at > NOW() - INTERVAL '30 days'
+                                        OR kb.created_at > NOW() - INTERVAL '30 days') as recent_count,
+                       COUNT(*) FILTER (WHERE kb.embedding IS NOT NULL) as has_embedding,
+                       COUNT(*) FILTER (WHERE length(kb.content) > 200) as substantial
+                   FROM project_knowledge_links pkl
+                   JOIN knowledge_base kb ON kb.id = pkl.knowledge_id
+                   WHERE pkl.project_id = %s""",
+                (project_id,),
+            )
+            row = cur.fetchone()
+
+            total = row["total"] or 0
+            if total == 0:
+                return {"quality_score": 0, "breakdown": {"content": 0, "coverage": 0, "freshness": 0}}
+
+            # Content quality (0-40): based on avg importance + embedding coverage + substantial content
+            avg_imp = float(row["avg_importance"] or 0)
+            embed_pct = (row["has_embedding"] or 0) / total
+            substantial_pct = (row["substantial"] or 0) / total
+            content_raw = avg_imp * 0.5 + embed_pct * 0.25 + substantial_pct * 0.25
+            content_score = round(content_raw * 40)
+
+            # Coverage diversity (0-30): 5 types max (vault_note, mistake_learned, code_snippet, conversation_memory, api_endpoint)
+            diversity = min(row["type_diversity"] or 0, 5)
+            coverage_score = round((diversity / 5) * 30)
+
+            # Freshness (0-30): % of entries updated/created in last 30 days
+            recent_pct = (row["recent_count"] or 0) / total
+            freshness_score = round(recent_pct * 30)
+
+            total_score = min(content_score + coverage_score + freshness_score, 100)
+
+            return {
+                "quality_score": total_score,
+                "breakdown": {
+                    "content": content_score,
+                    "coverage": coverage_score,
+                    "freshness": freshness_score,
+                },
+            }
+    except Exception as e:
+        logger.error("[KnowledgeLink] _compute_quality_score failed for project %s: %s", project_id, e)
+        return {"quality_score": 0, "breakdown": {"content": 0, "coverage": 0, "freshness": 0}}
+
+
 def get_project_knowledge_gaps(project_id: int) -> Dict:
     """Compute knowledge completeness score and gap details for a project."""
     try:
@@ -299,6 +361,7 @@ def get_project_knowledge_gaps(project_id: int) -> Dict:
                 gaps["agent_activity"] = "No agent activity recorded"
 
             phases = _extract_phases(project_id)
+            quality = _compute_quality_score(project_id)
 
             return {
                 "project_id": project_id,
@@ -314,6 +377,8 @@ def get_project_knowledge_gaps(project_id: int) -> Dict:
                 },
                 "needs_attention": score < 0.50,
                 "has_draft_docs": auto_doc_count > 0,
+                "quality_score": quality["quality_score"],
+                "quality_breakdown": quality["breakdown"],
             }
     except Exception as e:
         logger.error("[KnowledgeLink] get_project_knowledge_gaps failed: %s", e)
@@ -324,6 +389,8 @@ def get_project_knowledge_gaps(project_id: int) -> Dict:
             "phases": [],
             "counts": {},
             "needs_attention": True,
+            "quality_score": 0,
+            "quality_breakdown": {"content": 0, "coverage": 0, "freshness": 0},
         }
 
 

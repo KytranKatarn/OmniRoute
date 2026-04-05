@@ -546,6 +546,27 @@
     box-shadow: inset 0 0 30px rgba(var(--cat-accent-rgb), 0.05), 0 0 15px rgba(var(--cat-accent-rgb), 0.08);
 }
 
+/* -- Responsive: Desktop (max 1440px) -- */
+@media (max-width: 1440px) {
+    .cs-gap-row {
+        gap: 12px;
+    }
+}
+
+/* -- Responsive: Laptop (max 1024px) -- */
+@media (max-width: 1024px) {
+    .cs-expertise-table th,
+    .cs-expertise-table td,
+    .cs-contrib-table th,
+    .cs-contrib-table td {
+        padding: 6px 8px;
+    }
+    .cs-recommended-card {
+        gap: 8px;
+        padding: 8px 10px;
+    }
+}
+
 @media (max-width: 768px) {
     .cs-gap-row {
         flex-direction: column;
@@ -583,6 +604,31 @@
     }
 }
 
+/* -- Responsive: Fold 5 Unfolded (max 717px) -- */
+@media (max-width: 717px) {
+    .cs-expertise-project-tabs {
+        gap: 3px;
+    }
+    .cs-expertise-tab {
+        padding: 3px 8px;
+        font-size: 0.65rem;
+    }
+    .cs-gap-actions {
+        flex-wrap: wrap;
+    }
+    .cs-gap-action-btn {
+        font-size: 0.7rem;
+        padding: 3px 8px;
+    }
+    .cs-phase-label {
+        width: 50px;
+        font-size: 0.65rem;
+    }
+    #cs-knowledge-graph-canvas {
+        min-height: 200px;
+    }
+}
+
 @media (max-width: 480px) {
     .cs-gap-actions {
         width: 100%;
@@ -597,5 +643,54 @@
     }
     .cs-expertise-score-bar {
         width: 40px;
+    }
+}
+
+/* -- Responsive: Small Phone / Fold Folded (max 360px) -- */
+@media (max-width: 360px) {
+    .cs-project-card {
+        padding: 10px;
+    }
+    .cs-project-card-title {
+        font-size: 0.9rem;
+    }
+    .cs-gap-row {
+        padding: 8px 0;
+    }
+    .cs-gap-name {
+        font-size: 0.8rem;
+    }
+    .cs-gap-chip {
+        font-size: 0.6rem;
+        padding: 1px 5px;
+    }
+    .cs-quality-badge {
+        min-width: 28px;
+        height: 18px;
+        font-size: 0.6rem;
+        padding: 0 4px;
+    }
+    .cs-expertise-table {
+        font-size: 0.7rem;
+    }
+    .cs-expertise-score-bar {
+        width: 30px;
+    }
+    .cs-recommended-card {
+        padding: 6px 8px;
+    }
+    .cs-recommended-name {
+        font-size: 0.8rem;
+    }
+    .cs-skill-chip {
+        font-size: 0.55rem;
+        padding: 1px 4px;
+    }
+    .cs-contrib-table {
+        font-size: 0.7rem;
+    }
+    .cs-contrib-table th,
+    .cs-contrib-table td {
+        padding: 4px 6px;
     }
 }

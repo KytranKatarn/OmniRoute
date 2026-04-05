@@ -438,7 +438,7 @@ def auto_link_bridge_jobs(batch_size: int = DEFAULT_BATCH_SIZE) -> Dict:
 
         with get_db_cursor() as (conn, cur):
             cur.execute(
-                """SELECT id, capability, prompt
+                """SELECT id, job_type, description
                    FROM bridge_jobs
                    WHERE project_id IS NULL
                    ORDER BY created_at DESC
@@ -452,7 +452,7 @@ def auto_link_bridge_jobs(batch_size: int = DEFAULT_BATCH_SIZE) -> Dict:
 
         for row in unlinked_jobs:
             try:
-                text = "{} {}".format(row["capability"] or "", (row["prompt"] or "")[:500]).lower()
+                text = "{} {}".format(row["job_type"] or "", (row["description"] or "")[:500]).lower()
                 if not text.strip():
                     stats["skipped"] += 1
                     continue

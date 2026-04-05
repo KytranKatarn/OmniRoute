@@ -71,14 +71,14 @@
 <body class="{% if theme_name is defined %}theme-{{ theme_name }}{% else %}theme-lcars-classic{% endif %}" data-module="{% block module_name %}default{% endblock %}">
     <!-- Global Admin Notification Bar (Admin users only) -->
     {% if current_user.is_authenticated and current_user.is_admin %}
-    <div id="adminNotificationBar" class="admin-notification-bar">
+    <div id="adminNotificationBar" class="admin-notification-bar" style="display:none">
         <div class="admin-notification-content">
             <div class="admin-notification-icon">
                 <i data-lucide="activity"></i>
             </div>
             <div class="admin-notification-message">
-                <span class="admin-notification-title" id="adminNotifyTitle">System Alert</span>
-                <span class="admin-notification-text" id="adminNotifyText">Loading...</span>
+                <span class="admin-notification-title" id="adminNotifyTitle"></span>
+                <span class="admin-notification-text" id="adminNotifyText"></span>
             </div>
             <span class="admin-notification-timer archie-hidden" id="adminNotifyTimer">0s</span>
             <button class="admin-notification-close" onclick="dismissAdminNotification()" title="Dismiss">
@@ -267,6 +267,7 @@
                 }
 
                 // Show the bar
+                bar.style.display = '';
                 bar.classList.add('visible');
                 activeNotification = notification;
 
@@ -308,6 +309,7 @@
                 const bar = document.getElementById('adminNotificationBar');
                 if (bar) {
                     bar.classList.remove('visible');
+                    bar.style.display = 'none';
                 }
                 stopNotificationTimer();
                 activeNotification = null;

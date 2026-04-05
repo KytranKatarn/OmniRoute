@@ -3,6 +3,10 @@
    All accent colors via CSS vars: --cat-accent, --cat-accent-dark, --cat-accent-rgb
    ============================================================ */
 
+/* Hide legacy notification bars when LCARS header is present */
+body:has(.lcars-header) .ops-alert-bar,
+body:has(.lcars-header) .admin-notification-bar { display: none !important; }
+
 /* ============================================================
    1. BASE LAYOUT
    ============================================================ */

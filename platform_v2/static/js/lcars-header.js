@@ -243,12 +243,79 @@
     el.textContent = "SD " + year + day + "." + fraction;
   }
 
+  /* -- Ops Summary Integration (replaces ops-alert-bar when LCARS header present) -- */
+
+  var _opsLastSig = "";
+  var _opsPollInterval = null;
+
+  function _pollOpsSummary() {
+    fetch("/tools/autonomy/api/ops-summary")
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data) return;
+
+        var approvals = (data.approvals && data.approvals.pending) || 0;
+        var aj = data.active_jobs || {};
+        var jobs = (aj.bridge_running || 0) + (aj.bridge_pending || 0);
+        var e1h = data.errors_1h || {};
+        var errors = (e1h.bridge_failed || 0) + (e1h.loop_errors || 0);
+
+        // Build signature for change detection
+        var sig = "a:" + approvals + "|e:" + errors + "|j:" + jobs;
+        var changed = sig !== _opsLastSig;
+        _opsLastSig = sig;
+
+        // Update elbow alert state based on ops severity
+        if (errors > 0) {
+          lcarsSetAlertState("critical");
+        } else if (approvals > 0) {
+          lcarsSetAlertState("warning");
+        } else {
+          lcarsSetAlertState("normal");
+        }
+
+        // Toast on new issues only (not every poll)
+        if (changed && approvals > 0) {
+          lcarsToast("Approvals Pending", approvals + " approval" + (approvals > 1 ? "s" : "") + " waiting", "warning");
+        }
+        if (changed && errors > 0) {
+          lcarsToast("Errors Detected", errors + " error" + (errors > 1 ? "s" : "") + " in last hour", "error");
+        }
+      })
+      .catch(function () {}); // Silent fail — recovers next tick
+  }
+
+  /* -- Admin Notification Channel Integration -- */
+
+  function _initAdminNotifChannel() {
+    if (typeof BroadcastChannel === "undefined") return;
+    try {
+      var channel = new BroadcastChannel("archie_admin_notifications");
+      channel.addEventListener("message", function (ev) {
+        var d = ev.data;
+        if (d && d.type === "show" && d.notification) {
+          var n = d.notification;
+          var severity = n.type === "error" ? "error" : n.type === "warning" ? "warning" : "info";
+          lcarsToast(n.title || "System Alert", n.text || "", severity);
+        }
+      });
+    } catch (e) {}
+  }
+
   /* -- Init -- */
 
   document.addEventListener("DOMContentLoaded", function () {
     _updateStardate();
     setInterval(_updateStardate, 60000);
     _startNotifPolling();
+
+    // Ops summary polling (replaces ops-alert-bar)
+    _pollOpsSummary();
+    _opsPollInterval = setInterval(_pollOpsSummary, 30000);
+
+    // Listen for admin notification broadcasts
+    _initAdminNotifChannel();
+
     if (typeof lucide !== "undefined" && lucide.createIcons) {
       lucide.createIcons();
     }

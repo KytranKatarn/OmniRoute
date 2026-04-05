@@ -372,3 +372,14 @@ def register_dashboard_routes(bp, admin_required):
         if result["success"]:
             return jsonify({"success": True, "kb_id": result["kb_id"], "message": "Report generated successfully"})
         return jsonify({"success": False, "error": result["error"]}), 500
+
+    @bp.route("/api/dashboard/agent-expertise")
+    @login_required
+    @admin_required
+    def api_agent_expertise():
+        """Get agent expertise scores per project — contributors + recommendations."""
+        from services.knowledge_link_service import get_agent_expertise
+
+        project_id = request.args.get("project_id", type=int)
+        projects = get_agent_expertise(project_id=project_id)
+        return jsonify({"success": True, "projects": projects})

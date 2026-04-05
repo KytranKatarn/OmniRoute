@@ -241,7 +241,6 @@ def register_device_routes(bp, admin_required_decorator):
                         ON ddh.device_ip = nts.device_ip
                         AND ddh.hour_bucket >= NOW() - INTERVAL '1 hour' * %s
                     WHERE nts.hour_bucket >= NOW() - INTERVAL '1 hour' * %s
-                      AND nts.device_ip LIKE '192.168.%%'
                     GROUP BY
                         nts.device_ip, nts.device_mac,
                         ndu.user_name, ndu.device_label, ndu.device_type

@@ -562,7 +562,7 @@ def collect_traffic_stats():
                     ifid = iface.get("ifid", 1)
                     break
 
-        # Get local-network hosts only (192.168.1.x) via paginated local-host filter
+        # Get all hosts (local + remote destinations) for full traffic visibility
         local_host_list = svc.get_local_hosts(ifid=ifid)
         if not local_host_list:
             dur = int((time.time() - t0) * 1000)
@@ -571,11 +571,11 @@ def collect_traffic_stats():
                 0,
                 0,
                 dur,
-                details={"reason": "no local hosts found"},
+                details={"reason": "no hosts found"},
             )
             return
 
-        logger.debug(f"collect_traffic_stats: {len(local_host_list)} local hosts to process")
+        logger.debug(f"collect_traffic_stats: {len(local_host_list)} hosts to process")
 
         with get_db_cursor(commit=True) as (conn, cur):
             for host in local_host_list:
@@ -655,7 +655,7 @@ def collect_dns_history():
 
     Runs every 15 minutes. Fetches the last 500 AdGuard query log entries,
     groups them by (client_ip, domain, hour_bucket), and upserts counts.
-    Only local 192.168.x.x devices are stored — Docker bridge IPs (172.x)
+    All clients are stored — Docker bridge IPs (172.x), localhost (127.x),
     and pure reverse-lookup IPs are skipped.
     """
     t0 = time.time()
@@ -696,8 +696,8 @@ def collect_dns_history():
         for entry in entries:
             client_ip = entry.get("client", "")
 
-            # Only local 192.168.x.x devices — skip Docker bridges (172.x), IPv6, empty
-            if not client_ip or not client_ip.startswith("192.168."):
+            # Skip Docker bridge IPs (172.x), localhost (127.x), and empty — collect all other clients
+            if not client_ip or client_ip.startswith("172.") or client_ip.startswith("127."):
                 skipped += 1
                 continue
 

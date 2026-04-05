@@ -321,6 +321,13 @@ def auto_link_knowledge(batch_size: int = DEFAULT_BATCH_SIZE) -> Dict:
             logger.info("[KnowledgeLink] No projects with embeddings, skipping auto-link")
             return stats
 
+        # Backfill detection: use larger batch on first run
+        with get_db_cursor() as (conn, cur):
+            cur.execute("SELECT COUNT(*) as cnt FROM project_knowledge_links")
+            if cur.fetchone()["cnt"] == 0:
+                batch_size = BACKFILL_BATCH_SIZE
+                logger.info("[KnowledgeLink] First run detected, using backfill batch size %d", batch_size)
+
         with get_db_cursor() as (conn, cur):
             cur.execute(
                 """SELECT kb.id, kb.embedding, kb.category, kb.tags
@@ -353,8 +360,7 @@ def auto_link_knowledge(batch_size: int = DEFAULT_BATCH_SIZE) -> Dict:
 
                 kb_tag_list = kb_tags if isinstance(kb_tags, list) else []
 
-                best_sim = 0.0
-                best_project_id = None
+                linked_any = False
 
                 for pid, slug, proj_emb, proj_tags in project_embeddings:
                     sim = _cosine_similarity(kb_emb_list, proj_emb)
@@ -364,16 +370,14 @@ def auto_link_knowledge(batch_size: int = DEFAULT_BATCH_SIZE) -> Dict:
                     elif kb_tag_list and proj_tags and set(kb_tag_list) & set(proj_tags):
                         sim = min(sim + CONFIDENCE_BOOST, 1.0)
 
-                    if sim > best_sim:
-                        best_sim = sim
-                        best_project_id = pid
+                    if sim >= SIMILARITY_THRESHOLD:
+                        if link_knowledge_to_project(kb_id, pid, link_type="auto", confidence=sim):
+                            stats["linked"] += 1
+                            linked_any = True
+                        else:
+                            stats["errors"] += 1
 
-                if best_sim >= SIMILARITY_THRESHOLD and best_project_id is not None:
-                    if link_knowledge_to_project(kb_id, best_project_id, link_type="auto", confidence=best_sim):
-                        stats["linked"] += 1
-                    else:
-                        stats["errors"] += 1
-                else:
+                if not linked_any:
                     stats["skipped"] += 1
 
             except Exception as e:

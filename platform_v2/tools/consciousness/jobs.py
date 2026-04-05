@@ -100,11 +100,11 @@ def deduplicate_knowledge():
                 # Keep the one with higher importance, archive the other
                 cur.execute(
                     """
-                    UPDATE knowledge_base SET is_archived = true
+                    UPDATE knowledge_base SET knowledge_type = 'archie_v1'
                     WHERE id = (
                         SELECT id FROM knowledge_base
                         WHERE id IN (%s, %s)
-                        ORDER BY importance ASC, created_at ASC
+                        ORDER BY importance_score ASC, created_at ASC
                         LIMIT 1
                     )
                 """,

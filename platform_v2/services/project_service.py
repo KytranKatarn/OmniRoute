@@ -153,7 +153,7 @@ def get_agent_contributions(project_id, days=None):
     """Get agent work stats for a project: dispatch counts and task completions."""
     try:
         with get_db_connection() as conn:
-            cur = conn.cursor()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
             try:
                 if days:
                     cur.execute(
@@ -176,7 +176,7 @@ def get_agent_contributions(project_id, days=None):
                             ORDER BY dispatch_count DESC""",
                         (project_id,),
                     )
-                dispatches = {row[0]: row[1] for row in cur.fetchall()}
+                dispatches = {row["agent_name"]: row["dispatch_count"] for row in cur.fetchall()}
 
                 if days:
                     cur.execute(
@@ -201,7 +201,7 @@ def get_agent_contributions(project_id, days=None):
                             ORDER BY task_count DESC""",
                         (project_id,),
                     )
-                tasks = {row[0]: row[1] for row in cur.fetchall()}
+                tasks = {row["name"]: row["task_count"] for row in cur.fetchall()}
 
                 all_agents = set(list(dispatches.keys()) + list(tasks.keys()))
                 contributions = []

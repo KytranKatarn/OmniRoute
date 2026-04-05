@@ -315,7 +315,7 @@
           var actions = document.createElement("div");
           actions.style.cssText = "display:flex;gap:8px;padding:8px 0;margin-top:4px;border-top:1px solid rgba(var(--cat-accent-rgb,0,255,255),0.08);";
 
-          if (n.id) {
+          if (typeof n.id === "number") {
             var clearBtn = document.createElement("button");
             clearBtn.style.cssText = "background:none;border:1px solid rgba(var(--cat-accent-rgb,0,255,255),0.25);color:var(--cat-accent,#00ffff);font-size:0.55rem;font-family:'Antonio',sans-serif;letter-spacing:0.8px;padding:4px 12px;border-radius:3px;cursor:pointer;text-transform:uppercase;transition:background 0.15s;";
             clearBtn.textContent = "CLEAR";

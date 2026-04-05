@@ -358,10 +358,6 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
   display: none;
 }
 
-.lcars-header-tab-full {
-  display: inline;
-}
-
 /* ============================================================
    6b. FOOTER BAR (bridges nav to content below)
    ============================================================ */
@@ -733,21 +729,24 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
 
   .lcars-header-tabs {
     padding: 4px 8px;
-    gap: 2px;
+    gap: 4px;
     border-bottom-width: 1px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .lcars-header-tab {
     font-size: 0.6rem;
     padding: 4px 8px;
-    gap: 4px;
+    gap: 3px;
+    flex-shrink: 0;
   }
 
   .lcars-header-tab-short {
     display: inline;
   }
 
-  .lcars-header-tab-full {
+  .lcars-header-tab-label {
     display: none;
   }
 

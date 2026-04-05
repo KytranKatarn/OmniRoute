@@ -284,6 +284,33 @@ function loadNocOverview() {
     }).catch(function(e) {
         console.warn('NOC overview error:', e);
     });
+
+    /* compliance summary panel */
+    snApi('/compliance/scores').then(function(cd) {
+        if (!cd || !cd.success) return;
+        var score = cd.score || 0;
+        var scoreEl = document.getElementById('compliance-dash-score');
+        if (scoreEl) {
+            scoreEl.textContent = score.toFixed(1) + '%';
+            scoreEl.style.color = score >= 80 ? '#22c55e' : score >= 50 ? '#f59e0b' : '#ef4444';
+        }
+        var grade = score >= 95 ? 'A+' : score >= 90 ? 'A' : score >= 80 ? 'B' : score >= 70 ? 'C' : 'F';
+        snSetText('compliance-dash-grade', grade);
+        var packs = cd.packs || {};
+        ['ubuntu', 'docker', 'network'].forEach(function(p) {
+            var el = document.getElementById('compliance-dash-' + p);
+            if (el && packs[p] !== undefined) {
+                var ps = packs[p];
+                el.textContent = ps.toFixed(0) + '%';
+                el.style.color = ps >= 80 ? '#22c55e' : ps >= 50 ? '#f59e0b' : '#ef4444';
+            }
+        });
+        if (cd.last_scan) {
+            snSetText('compliance-dash-time', formatTime(cd.last_scan));
+        }
+    }).catch(function(e) {
+        console.debug('Compliance panel error:', e);
+    });
 }
 
 function _renderNocServiceHealth(svc) {

@@ -82,18 +82,48 @@ def register_noc_routes(bp, admin_required_decorator):
                 except Exception:
                     services["nagios"] = {"status": "error"}
 
-                # ntopng — lightweight HTTP check + cached traffic
+                # ntopng — live bandwidth from interface stats
                 try:
-                    nt_r = requests.get(
-                        f"http://{os.getenv('NTOPNG_HOST', '192.168.1.200')}:{os.getenv('NTOPNG_PORT', '3001')}/",
-                        timeout=3,
+                    nt_host = os.getenv("NTOPNG_HOST", "192.168.1.200")
+                    nt_port = os.getenv("NTOPNG_PORT", "3001")
+                    nt_user = os.getenv("NTOPNG_USER", "admin")
+                    nt_pass = os.getenv("NTOPNG_ADMIN_PASSWORD", os.getenv("NTOPNG_PASS", "admin"))
+                    nt_session = requests.Session()
+                    nt_session.post(
+                        f"http://{nt_host}:{nt_port}/authorize.html",
+                        data={"user": nt_user, "password": nt_pass, "referer": "/"},
                         allow_redirects=False,
+                        timeout=3,
                     )
-                    services["ntopng"] = {"status": "online" if nt_r.status_code in (200, 302) else "offline"}
-                except Exception:
+                    # Discover first available interface id
+                    iface_r = nt_session.get(
+                        f"http://{nt_host}:{nt_port}/lua/rest/v2/get/ntopng/interfaces.lua",
+                        timeout=3,
+                    )
+                    ifid = 0
+                    if iface_r.status_code == 200:
+                        ifaces = iface_r.json().get("rsp", [])
+                        if ifaces:
+                            ifid = ifaces[0].get("ifid", 0)
+                    # Fetch interface traffic totals
+                    data_r = nt_session.get(
+                        f"http://{nt_host}:{nt_port}/lua/rest/v2/get/interface/data.lua",
+                        params={"ifid": ifid},
+                        timeout=3,
+                    )
+                    if data_r.status_code == 200:
+                        rsp = data_r.json().get("rsp", {})
+                        nt_bytes = rsp.get("bytes", 0) or (rsp.get("bytes_upload", 0) + rsp.get("bytes_download", 0))
+                        services["ntopng"] = {"status": "online"}
+                        if nt_bytes:
+                            hero_stats["traffic_bytes"] = int(nt_bytes)
+                    else:
+                        services["ntopng"] = {"status": "offline"}
+                except Exception as nt_exc:
+                    logger.debug("ntopng live fetch failed: %s", nt_exc)
                     services["ntopng"] = {"status": "error"}
 
-                # Traffic from cached DB
+                # Traffic from cached DB — override live ntopng if we have recent rows
                 try:
                     cur.execute(
                         "SELECT COALESCE(SUM(bytes_in + bytes_out), 0) "
@@ -101,7 +131,9 @@ def register_noc_routes(bp, admin_required_decorator):
                         "WHERE hour_bucket >= NOW() - INTERVAL '24 hours'"
                     )
                     row = cur.fetchone()
-                    hero_stats["traffic_bytes"] = row[0] if row else 0
+                    cached_bytes = int(row[0]) if row and row[0] else 0
+                    if cached_bytes:
+                        hero_stats["traffic_bytes"] = cached_bytes
                 except Exception:
                     pass
 

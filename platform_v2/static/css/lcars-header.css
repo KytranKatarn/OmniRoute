@@ -651,13 +651,36 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
     width: 56px;
   }
 
-  /* Strip: hide button text labels, keep icons */
+  /* Compact strip */
+  .lcars-header-strip {
+    height: 22px;
+    padding: 0 8px;
+  }
+
   .lcars-strip-btn span:not(.lcars-strip-badge) {
     display: none;
   }
 
+  .lcars-strip-btn {
+    height: 14px;
+    padding: 0 6px;
+    border-radius: 3px;
+    margin: 0 1px;
+  }
+
+  .lcars-strip-btn i,
+  .lcars-strip-btn svg {
+    width: 9px;
+    height: 9px;
+  }
+
   .lcars-strip-divider {
-    margin: 0 4px;
+    height: 8px;
+    margin: 0 2px;
+  }
+
+  .lcars-header-stardate {
+    font-size: 0.5rem;
   }
 }
 

@@ -294,9 +294,10 @@ function loadDashboard() {
 
     refreshIcons();
 
-    // Load merged tab data (Insights analytics + Integration health)
+    // Load merged tab data (Insights analytics + Integration health + System health)
     loadInsights();
     loadIntegration();
+    loadSystemHealth();
   }).catch(function (err) {
     console.error("loadDashboard error:", err);
   });
@@ -1113,14 +1114,82 @@ window.generateEmbeddings = function() {
 function loadInsights() {
   api("/api/insights/summary").then(function(data) {
     if (!data.success) return;
-    setHtml("insightsBridgeTotal", data.bridge_stats.total || 0);
-    setHtml("insightsAvgTime", data.bridge_stats.avg_time_ms || 0);
-    setHtml("insightsTokens", data.bridge_stats.total_tokens || 0);
-    setHtml("insightsGrowth", data.knowledge_growth || 0);
+    countUp("insightsBridgeTotal", data.bridge_stats.total || 0);
+    countUp("insightsAvgTime", data.bridge_stats.avg_time_ms || 0);
+    countUp("insightsTokens", data.bridge_stats.total_tokens || 0);
+    countUp("insightsGrowth", data.knowledge_growth || 0);
     refreshIcons();
   }).catch(function(err) {
     console.error("loadInsights error:", err);
   });
+}
+
+function loadSystemHealth() {
+  // Dev HQ — check if projects endpoint responds
+  fetch("/tools/dev-hq/api/projects-summary").then(function(r) {
+    return r.ok ? r.json() : null;
+  }).then(function(d) {
+    var el = document.getElementById("intDevhqStatus");
+    if (el) {
+      var count = d && d.projects ? d.projects.length : (d && d.total ? d.total : 1);
+      el.textContent = count;
+      el.style.color = "#22c55e";
+    }
+  }).catch(function() {
+    var el = document.getElementById("intDevhqStatus");
+    if (el) { el.textContent = "Offline"; el.style.color = "#ef4444"; }
+  });
+
+  // Bridge — check dispatcher
+  fetch("/ai_bridge/api/health").then(function(r) {
+    return r.ok ? r.json() : null;
+  }).then(function(d) {
+    var el = document.getElementById("intBridgeStatus");
+    if (el) {
+      var models = d && d.loaded_models ? d.loaded_models : (d && d.models ? d.models : 0);
+      el.textContent = models || "Online";
+      el.style.color = "#3b82f6";
+    }
+  }).catch(function() {
+    // Try Ollama tags as fallback for bridge count
+    fetch("http://192.168.1.200:11434/api/tags").then(function(r) { return r.json(); }).then(function(d) {
+      var el = document.getElementById("intBridgeStatus");
+      if (el) { el.textContent = (d.models ? d.models.length : 0); el.style.color = "#3b82f6"; }
+    }).catch(function() {
+      var el = document.getElementById("intBridgeStatus");
+      if (el) { el.textContent = "Offline"; el.style.color = "#ef4444"; }
+    });
+  });
+
+  // Ollama — check if running
+  fetch("http://192.168.1.200:11434/api/tags").then(function(r) {
+    return r.ok ? r.json() : null;
+  }).then(function(d) {
+    var el = document.getElementById("intOllamaStatus");
+    if (el) { el.textContent = "Online"; el.style.color = "#22c55e"; }
+  }).catch(function() {
+    var el = document.getElementById("intOllamaStatus");
+    if (el) { el.textContent = "Offline"; el.style.color = "#ef4444"; }
+  });
+
+  // GitHub — repos indexed count from knowledge base
+  api("/github/stats").then(function(d) {
+    var el = document.getElementById("intGithubStatus");
+    if (el && d.success) {
+      el.textContent = d.total_repos || d.total_files || 0;
+      el.style.color = "#f59e0b";
+    }
+  }).catch(function() {});
+
+  // Overall health — use code health grade
+  api("/api/code-health/current").then(function(d) {
+    var el = document.getElementById("intHealthStatus");
+    if (el && d.health_score) {
+      var score = d.health_score.score || 0;
+      el.textContent = d.health_score.grade || "--";
+      el.style.color = score >= 90 ? "#22c55e" : score >= 70 ? "#06b6d4" : score >= 50 ? "#f59e0b" : "#ef4444";
+    }
+  }).catch(function() {});
 }
 
 /* loadSessions / loadImprovements removed — no longer in UI */

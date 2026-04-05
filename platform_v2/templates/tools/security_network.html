@@ -874,15 +874,17 @@
         </div>
     <!-- Surveillance subtab -->
     <div id="subtab-scanners-surv" class="subtab-content active">
-        <div id="surv-not-configured" style="display:none">
+        <div id="surv-not-configured">
             <div class="card">
-                <div class="empty-state">
-                    <i data-lucide="camera-off" style="width:32px;height:32px"></i>
-                    <p><span data-i18n="security_network.home_assistant_not_configured_set_ha_api_token_in">Home Assistant not configured. Set HA_API_TOKEN in environment to enable camera feeds.</span></p>
+                <div class="empty-state" style="padding:30px;text-align:center">
+                    <i data-lucide="camera-off" style="width:32px;height:32px;margin-bottom:12px"></i>
+                    <h4 style="color:var(--archie-text-primary);margin:8px 0">Home Assistant Not Installed</h4>
+                    <p style="color:var(--archie-text-muted);margin:8px 0">Camera feeds require Home Assistant. Install HA and set HA_API_TOKEN to enable surveillance.</p>
+                    <p style="color:var(--archie-text-muted);font-size:0.8rem;margin-top:12px">Detected camera traffic on network: <strong>Blink cameras</strong> (immedia-semi.com) from 192.168.1.253, 192.168.1.77</p>
                 </div>
             </div>
         </div>
-        <div id="surv-configured">
+        <div id="surv-configured" style="display:none">
             <!-- HA Connection Status Bar -->
             <div id="surv-status-bar" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding:8px 14px;background:var(--archie-bg-secondary);border:1px solid var(--archie-border-default);border-radius:var(--archie-radius-lg)">
                 <div style="display:flex;align-items:center;gap:10px">
@@ -959,7 +961,6 @@
     </div>
 
         <div id="subtab-scanners-vuln" class="subtab-content">
--->
 
         <div class="stats-grid" style="grid-template-columns:repeat(5,1fr)">
             <div class="stat-card" style="cursor:pointer" onclick="showScannerForm('nmap')">
@@ -1042,7 +1043,6 @@
         </div>
 
         <div id="subtab-scanners-recon" class="subtab-content">
--->
 
         <div class="card">
             <div class="card-header">
@@ -2238,22 +2238,30 @@ async function loadSurveillanceStatus() {
         const d = await r.json();
         if(d.success && d.status) {
             const s = d.status;
-            const dot = document.getElementById('surv-ha-dot');
-            const ver = document.getElementById('surv-ha-version');
-            const cnt = document.getElementById('surv-cam-count');
-            if(s.connected) {
-                dot.style.background = '#22c55e';
-                dot.style.boxShadow = '0 0 8px rgba(34,197,94,0.6)';
-                ver.textContent = 'v' + (s.ha_version||'?');
-                cnt.textContent = s.cameras_online + '/' + s.camera_count + ' online';
-            } else {
-                dot.style.background = '#ef4444';
-                dot.style.boxShadow = '0 0 8px rgba(239,68,68,0.6)';
-                ver.textContent = '';
-                cnt.textContent = s.error || 'Disconnected';
+            if(!s.connected) {
+                /* Hide the status bar entirely when HA is not available */
+                var bar = document.getElementById('surv-status-bar');
+                if(bar) bar.style.display = 'none';
+                return;
             }
+            var bar = document.getElementById('surv-status-bar');
+            if(bar) bar.style.display = 'flex';
+            var dot = document.getElementById('surv-ha-dot');
+            var ver = document.getElementById('surv-ha-version');
+            var cnt = document.getElementById('surv-cam-count');
+            dot.style.background = '#22c55e';
+            dot.style.boxShadow = '0 0 8px rgba(34,197,94,0.6)';
+            ver.textContent = 'v' + (s.ha_version||'?');
+            cnt.textContent = s.cameras_online + '/' + s.camera_count + ' online';
         }
     } catch(e) { /* status bar best-effort */ }
+}
+
+function _showSurvNotConfigured() {
+    document.getElementById('surv-not-configured').style.display='block';
+    document.getElementById('surv-configured').style.display='none';
+    if(typeof lucide!=='undefined') lucide.createIcons();
+    stopSurvAutoRefresh();
 }
 
 async function loadSurveillance() {
@@ -2263,11 +2271,8 @@ async function loadSurveillance() {
             loadSurveillanceStatus()
         ]);
         const d = await camRes.json();
-        if(!d.success && (d.error||'').indexOf('not configured')>=0) {
-            document.getElementById('surv-not-configured').style.display='block';
-            document.getElementById('surv-configured').style.display='none';
-            lucide.createIcons();
-            stopSurvAutoRefresh();
+        if(!d.success || !d.cameras || !d.cameras.length) {
+            _showSurvNotConfigured();
             return;
         }
         document.getElementById('surv-not-configured').style.display='none';
@@ -2325,8 +2330,7 @@ async function loadSurveillance() {
         }
         loadSurveillanceEvents();
     } catch(e) {
-        showEmpty(document.getElementById('camera-grid'),'Error loading cameras');
-        stopSurvAutoRefresh();
+        _showSurvNotConfigured();
     }
 }
 

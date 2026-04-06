@@ -108,7 +108,7 @@ services:
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GITHUB_USERNAME: ${GITHUB_USERNAME:-KytranKatarn}
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - "host.docker.internal:192.168.1.200"
     secrets:
       - db_password
       - stripe_secret_key

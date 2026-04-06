@@ -688,6 +688,25 @@ MODULES: List[ModuleDefinition] = [
         ],
     ),
     # ============================================
+    # APPLICATIONS
+    # ============================================
+    ModuleDefinition(
+        id="family_tree",
+        name="Family Tree",
+        description="AI genealogist<br>Record search • Document OCR • Face matching • Photo restoration",
+        icon="git-branch",
+        category=ModuleCategory.APPLICATIONS,
+        route="/tools/family-tree",
+        blueprint_import="tools.family_tree:family_tree_bp",
+        required_permissions=[],
+        minimum_role="USER",
+        enabled=True,
+        coming_soon=False,
+        health_check=lambda: check_service_health("family_tree", "/tools/family-tree/api/status"),
+        priority=2,
+        tags=["genealogy", "family", "tree", "ancestry", "ai", "photos", "ocr"],
+    ),
+    # ============================================
     # PLACEHOLDERS - FUTURE (12 modules)
     # ============================================
     # fitness, therapy, doc, stockbot, game_studio, archie_pool, pool_management,

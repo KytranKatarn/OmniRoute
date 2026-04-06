@@ -1573,7 +1573,7 @@ def install_skills_to_claude():
 
     Takes quality 3+ registered skills not yet installed, normalizes content
     to standard superset format, writes to .claude/skills/github/<repo>/.
-    Processes up to 20 per run (every 2 hours).
+    Processes up to 5 per run (every 2 hours). No LLM dispatch — file writes only.
     """
     start = time.time()
     installed = 0
@@ -1598,7 +1598,7 @@ def install_skills_to_claude():
                          WHERE target = 'claude_code'
                      )
                    ORDER BY gs.quality_score DESC, gs.created_at ASC
-                   LIMIT 20"""
+                   LIMIT 5"""
             )
             skills = cur.fetchall()
 
@@ -1831,7 +1831,7 @@ def test_installed_skills():
 
     Picks up skill_installations rows where struct_valid IS NULL (untested),
     runs structural checks, then dry-runs passing skills through Bridge.
-    Processes up to 10 per run (every 4 hours).
+    Processes 1 per run (every 4 hours) — single dispatch to avoid model contention.
     """
     start = time.time()
     tested = 0
@@ -1842,7 +1842,7 @@ def test_installed_skills():
 
         from bridge_dispatcher import dispatch
 
-        # Fetch untested installations
+        # Fetch ONE untested installation — single dispatch per cycle
         with get_db_cursor() as (conn, cur):
             cur.execute(
                 """SELECT si.id, si.skill_id, si.install_path, si.normalized_content,
@@ -1852,7 +1852,7 @@ def test_installed_skills():
                    WHERE si.target = 'claude_code'
                      AND si.struct_valid IS NULL
                    ORDER BY si.installed_at ASC
-                   LIMIT 10"""
+                   LIMIT 1"""
             )
             installations = cur.fetchall()
 

@@ -2404,8 +2404,8 @@ class BridgeDispatcher:
                         "response": json.dumps(result["data"]),
                         "model": model,
                         "provider": "ollama",
-                        "prompt_tokens": 0,
-                        "completion_tokens": 0,
+                        "prompt_eval_count": result.get("prompt_eval_count", 0),
+                        "eval_count": result.get("eval_count", 0),
                     }
                 return {
                     "success": False,
@@ -3025,8 +3025,8 @@ class BridgeDispatcher:
                     station_code=station_code,
                     capability=capability,
                     duration_ms=duration_ms,
-                    prompt_tokens=llm_result.get("prompt_tokens", 0),
-                    completion_tokens=llm_result.get("completion_tokens", 0),
+                    prompt_tokens=llm_result.get("prompt_tokens", llm_result.get("prompt_eval_count", 0)),
+                    completion_tokens=llm_result.get("completion_tokens", llm_result.get("eval_count", 0)),
                     provider="ollama_cloud",
                     metadata={
                         "escalation": "throughput_free_cloud",
@@ -4183,8 +4183,8 @@ class BridgeDispatcher:
                             department=blocked_department,
                             capability=capability,
                             duration_ms=duration_ms,
-                            prompt_tokens=llm_result.get("prompt_tokens", 0),
-                            completion_tokens=llm_result.get("completion_tokens", 0),
+                            prompt_tokens=llm_result.get("prompt_tokens", llm_result.get("prompt_eval_count", 0)),
+                            completion_tokens=llm_result.get("completion_tokens", llm_result.get("eval_count", 0)),
                             provider="ollama_cloud",
                             metadata={
                                 "escalation": "department_exhausted_cloud",
@@ -4316,7 +4316,10 @@ class BridgeDispatcher:
 
         # 3.5 Proficiency-aware augmentation
         skill_entry = agent.get("skills", {}).get(capability, {})
-        proficiency_level = skill_entry.get("level", 1) if skill_entry else 1
+        if isinstance(skill_entry, int):
+            proficiency_level = skill_entry
+        else:
+            proficiency_level = skill_entry.get("level", 1) if skill_entry else 1
 
         augmented_prompt, model_override = self._augment_for_proficiency(
             agent_name, capability, proficiency_level,

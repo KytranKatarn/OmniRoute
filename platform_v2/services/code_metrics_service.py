@@ -182,9 +182,9 @@ def _match_module_name(filename, module_names):
     underscore = base.replace("-", "_")
     if underscore in module_names:
         return underscore
-    # Partial match: consciousness.js -> consciousness
-    for mod in module_names:
-        if base == mod or underscore == mod:
+    # Prefix match: consciousness-dashboard-v2 -> consciousness, security-network-app -> security_network
+    for mod in sorted(module_names, key=len, reverse=True):
+        if underscore.startswith(mod + "_") or underscore.startswith(mod + "-") or underscore == mod:
             return mod
     # Explicit static file map for files that don't follow naming convention
     mapped = _STATIC_FILE_MAP.get(base)
@@ -723,6 +723,20 @@ def _find_orphan_files(module_names):
         "dual-chat.css",
         "xterm.css",
         "system-operations-theme-vars.css",
+        "lcars-header.css",
+        "lcars-tokens.css",
+        "archie-breakpoints.css",
+        "consciousness-dashboard-v2.css",
+        "content-studio.css",
+        "website-studio.css",
+        "stockbot.css",
+        "security-network-theme-vars.css",
+        # Core JS (shared components + module-specific in static/)
+        "lcars-header.js",
+        "consciousness-dashboard-v2.js",
+        "content-studio.js",
+        "website-studio.js",
+        "security-network-app.js",
         # Core HTML
         "base.html",
     }

@@ -1789,18 +1789,25 @@ def _evaluate_dry_run(response: str, capabilities: list, skill_content: str) -> 
     assertions["length_ok"] = len(response.strip()) > 200
 
     # Required: format check — no errors or refusals
-    refusal_patterns = [
+    # Refusal patterns — only match clear refusals, not discussion of errors
+    refusal_phrases = [
         "i don't understand",
         "i cannot",
         "i'm not able",
-        "error:",
-        "traceback (most recent",
-        "syntaxerror",
-        "nameerror",
-        "typeerror",
+        "i can't help",
+        "as an ai",
+    ]
+    # Error patterns — only match when at start of line (actual stack traces)
+    error_line_patterns = [
+        "\ntraceback (most recent",
+        "\nsyntaxerror:",
+        "\nnameerror:",
+        "\ntypeerror:",
     ]
     response_lower = response.lower()
-    assertions["format_ok"] = not any(p in response_lower for p in refusal_patterns)
+    has_refusal = any(p in response_lower for p in refusal_phrases)
+    has_error = any(p in "\n" + response_lower for p in error_line_patterns)
+    assertions["format_ok"] = not has_refusal and not has_error
 
     # Advisory: relevance — keyword overlap
     cap_keywords = set()

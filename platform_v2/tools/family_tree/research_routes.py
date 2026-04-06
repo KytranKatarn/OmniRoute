@@ -70,6 +70,54 @@ def register_research_routes(bp, admin_required):
             return jsonify({"error": "Not found"}), 404
         return jsonify(dict(row))
 
+    @bp.route("/api/research/<int:queue_id>/analyze", methods=["POST"])
+    @login_required
+    def api_research_analyze(queue_id):
+        """Run AI analysis on research results via S.C.R.O.L.L. agent."""
+        from tools.family_tree.services.research_service import analyze_research_results
+
+        # Fetch the queue entry and verify ownership
+        sql_queue = """
+            SELECT rq.*, fp.first_name, fp.last_name, fp.birth_date,
+                   fp.birth_place, fp.death_date, fp.death_place
+            FROM family_research_queue rq
+            LEFT JOIN family_persons fp ON fp.id = rq.person_id
+            WHERE rq.id = %(id)s AND rq.user_id = %(user_id)s
+        """
+        with get_db_cursor() as (conn, cur):
+            cur.execute(sql_queue, {"id": queue_id, "user_id": current_user.id})
+            row = cur.fetchone()
+
+        if row is None:
+            return jsonify({"error": "Research queue entry not found"}), 404
+
+        row = dict(row)
+        raw_results = row.get("results")
+        if not raw_results:
+            return jsonify({"error": "No research results to analyze"}), 400
+
+        # Parse results — stored as JSONB
+        if isinstance(raw_results, str):
+            try:
+                import json as _json
+
+                raw_results = _json.loads(raw_results)
+            except (ValueError, TypeError):
+                return jsonify({"error": "Could not parse stored results"}), 400
+
+        # Build person context from the joined person record
+        person_context = {
+            "first_name": row.get("first_name", ""),
+            "last_name": row.get("last_name", ""),
+            "birth_date": str(row.get("birth_date", "") or ""),
+            "birth_place": row.get("birth_place", ""),
+            "death_date": str(row.get("death_date", "") or ""),
+            "death_place": row.get("death_place", ""),
+        }
+
+        analysis = analyze_research_results(raw_results, person_context)
+        return jsonify(analysis)
+
     @bp.route("/api/research/<int:research_id>/reject", methods=["POST"])
     @login_required
     def api_research_reject(research_id):

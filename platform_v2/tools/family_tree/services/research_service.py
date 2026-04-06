@@ -307,6 +307,90 @@ def search_europeana(query, **kwargs):
         return []
 
 
+def analyze_research_results(results, person_context):
+    """
+    Use Bridge dispatch to have S.C.R.O.L.L. analyze and rank combined
+    search results with AI, providing relevance scoring and insights.
+
+    Args:
+        results: List of result dicts from search_all_sources().
+        person_context: Dict with keys like first_name, last_name, birth_date,
+                        birth_place, etc. describing the person being researched.
+
+    Returns:
+        Dict with 'ranked_results' (list) and 'summary' (str), or error dict.
+    """
+    if not results:
+        return {"ranked_results": [], "summary": "No results to analyze."}
+
+    try:
+        from bridge_dispatcher import dispatch
+        import json as _json
+
+        person_desc = (
+            f"{person_context.get('first_name', '')} {person_context.get('last_name', '')}".strip() or "Unknown person"
+        )
+        extra_parts = []
+        if person_context.get("birth_date"):
+            extra_parts.append(f"born {person_context['birth_date']}")
+        if person_context.get("birth_place"):
+            extra_parts.append(f"in {person_context['birth_place']}")
+        if extra_parts:
+            person_desc += f" ({', '.join(extra_parts)})"
+
+        # Trim results to avoid oversized prompts
+        trimmed = results[:50]
+
+        system_prompt = (
+            "You are S.C.R.O.L.L., an expert genealogy research analyst. "
+            "Analyze search results from multiple sources, assess relevance to "
+            "the target person, identify duplicates across sources, and provide "
+            "a ranked summary. Always respond with valid JSON only."
+        )
+
+        prompt = (
+            f"Analyze these genealogy search results for: {person_desc}\n\n"
+            f"RESULTS ({len(trimmed)} of {len(results)}):\n"
+            f"{_json.dumps(trimmed, default=str)}\n\n"
+            "Return a JSON object with:\n"
+            '- "ranked_results": list of objects with: source, external_id, '
+            "title, relevance_score (0.0-1.0), reasoning (short string), "
+            "is_likely_match (bool)\n"
+            '- "duplicates": list of lists grouping external_ids that refer '
+            "to the same person across sources\n"
+            '- "summary": 2-3 sentence overview of the findings\n\n'
+            "Respond with JSON only."
+        )
+
+        result = dispatch(
+            prompt=prompt,
+            capability="text_analysis",
+            agent_name="scroll",
+            system_prompt=system_prompt,
+            temperature=0.1,
+        )
+
+        if not result.success:
+            logger.error("Bridge dispatch failed for analyze_research_results: %s", result.response)
+            return {"ranked_results": [], "summary": f"Analysis failed: {result.response}"}
+
+        import re
+
+        response_text = result.response.strip()
+        response_text = re.sub(r"^```(?:json)?\s*", "", response_text)
+        response_text = re.sub(r"\s*```$", "", response_text)
+        response_text = response_text.strip()
+
+        return _json.loads(response_text)
+
+    except (ValueError, KeyError) as e:
+        logger.error("Failed to parse analysis response: %s", e)
+        return {"ranked_results": [], "summary": f"Parse error: {e}"}
+    except Exception as e:
+        logger.error("analyze_research_results failed: %s", e)
+        return {"ranked_results": [], "summary": f"Error: {e}"}
+
+
 def search_all_sources(first_name, last_name, **kwargs):
     """
     Search all 5 genealogy sources and return combined results sorted by score.

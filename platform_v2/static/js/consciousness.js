@@ -1963,6 +1963,8 @@ async function loadSkillPipelineStats() {
         '<span style="color:' + ((p.passed || 0) > 0 ? '#10b981' : '#6b7280') + '">Tested: <b>' + (p.passed || 0) + '</b> pass</span>' +
         ((p.failed || 0) > 0 ? '<span style="color:#ef4444">Failed: <b>' + (p.failed || 0) + '</b></span>' : '') +
         '<span style="color:#fbbf24">Adapted: <b>' + (p.adapted || 0) + '</b></span>' +
+        (p.cli_synced > 0 ? '<span style="color:#818cf8">CLI Synced: <b>' + p.cli_synced + '</b></span>' : '') +
+        (p.cluster_pushed > 0 ? '<span style="color:#f97316">Fleet: <b>' + p.cluster_pushed + '</b></span>' : '') +
       '</div>';
 
     var repoList = document.getElementById("ghRepoGrid");

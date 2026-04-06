@@ -120,14 +120,91 @@ def register_photo_routes(bp, admin_required):
     @bp.route("/api/photos/<int:doc_id>/restore", methods=["POST"])
     @login_required
     def api_restore_photo(doc_id):
-        # ComfyUI integration TBD — return queued status
+        """Restore/upscale a photo via ComfyUI RealESRGAN."""
+        # Look up the photo record
+        sql = """
+            SELECT id, file_path, file_type FROM family_documents
+            WHERE id = %(id)s AND user_id = %(user_id)s
+        """
+        with get_db_cursor() as (conn, cur):
+            cur.execute(sql, {"id": doc_id, "user_id": current_user.id})
+            row = cur.fetchone()
+
+        if row is None:
+            return jsonify({"error": "Photo not found"}), 404
+
+        file_path = row["file_path"]
+        if not file_path or not os.path.isfile(file_path):
+            return jsonify({"error": "Original file not found on disk"}), 404
+
+        # Optional upscale model from request body
+        data = request.get_json(silent=True) or {}
+        upscale_model = data.get("upscale_model", "RealESRGAN_x4plus.pth")
+
+        # Run restoration via ComfyUI
+        from .services.restore_service import restore_photo
+
+        result = restore_photo(
+            file_path=file_path,
+            doc_id=doc_id,
+            user_id=current_user.id,
+            upscale_model=upscale_model,
+        )
+
+        if not result.success:
+            return jsonify({"status": "error", "doc_id": doc_id, "error": result.error}), 502
+
+        # Store the restored path in the DB for later retrieval
+        update_sql = """
+            UPDATE family_documents
+            SET metadata = COALESCE(metadata, '{}'::jsonb)
+                || jsonb_build_object('restored_path', %(restored_path)s,
+                                      'restore_duration_ms', %(duration_ms)s)
+            WHERE id = %(id)s AND user_id = %(user_id)s
+        """
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                update_sql,
+                {
+                    "restored_path": result.restored_path,
+                    "duration_ms": result.metadata.get("duration_ms", 0),
+                    "id": doc_id,
+                    "user_id": current_user.id,
+                },
+            )
+
         return jsonify(
             {
-                "status": "queued",
+                "status": "completed",
                 "doc_id": doc_id,
-                "message": "Photo restoration queued. ComfyUI integration coming soon.",
+                "restored_path": result.restored_path,
+                "metadata": result.metadata,
             }
         )
+
+    @bp.route("/api/photos/<int:doc_id>/restored/serve")
+    @login_required
+    def api_serve_restored_photo(doc_id):
+        """Serve the restored version of a photo."""
+        sql = """
+            SELECT metadata FROM family_documents
+            WHERE id = %(id)s AND user_id = %(user_id)s
+        """
+        with get_db_cursor() as (conn, cur):
+            cur.execute(sql, {"id": doc_id, "user_id": current_user.id})
+            row = cur.fetchone()
+
+        if row is None:
+            return jsonify({"error": "Photo not found"}), 404
+
+        metadata = row.get("metadata") or {}
+        restored_path = metadata.get("restored_path")
+        if not restored_path or not os.path.isfile(restored_path):
+            return jsonify({"error": "No restored version available"}), 404
+
+        ext = os.path.splitext(restored_path)[1].lower().lstrip(".")
+        mimetype = mimetypes.types_map.get(f".{ext}", "image/png")
+        return send_file(restored_path, mimetype=mimetype)
 
     @bp.route("/api/photos/<int:doc_id>/serve")
     @login_required

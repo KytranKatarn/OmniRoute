@@ -1151,7 +1151,7 @@ def register_github_repo_routes(bp, admin_required):
                 )
                 status_counts = {r["status"]: r["count"] for r in cur.fetchall()}
 
-                # Installation counts
+                # Claude Code installations
                 cur.execute(
                     """SELECT
                          COUNT(*) as installed,
@@ -1163,6 +1163,23 @@ def register_github_repo_routes(bp, admin_required):
                        WHERE target = 'claude_code'"""
                 )
                 inst = cur.fetchone()
+
+                # Archie CLI installations
+                cur.execute(
+                    """SELECT COUNT(*) as synced
+                       FROM skill_installations
+                       WHERE target = 'archie_cli'"""
+                )
+                cli_inst = cur.fetchone()
+
+                # Cluster push stats
+                cur.execute(
+                    """SELECT
+                         COUNT(*) FILTER (WHERE fail_count = 0) as pushed,
+                         COUNT(*) FILTER (WHERE fail_count > 0) as failed
+                       FROM node_skill_pushes"""
+                )
+                cluster = cur.fetchone()
 
             return jsonify(
                 {
@@ -1177,6 +1194,9 @@ def register_github_repo_routes(bp, admin_required):
                         "passed": inst["passed"],
                         "failed": inst["failed"],
                         "adapted": inst["adapted"],
+                        "cli_synced": cli_inst["synced"],
+                        "cluster_pushed": cluster["pushed"],
+                        "cluster_failed": cluster["failed"],
                     },
                 }
             )

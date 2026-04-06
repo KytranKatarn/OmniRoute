@@ -47,7 +47,8 @@
       { "id": "live_translation", "label": "Live AI translation (8 languages)" },
       { "id": "multi_gpu_fleet", "label": "Multi-GPU fleet orchestration (OTA)" },
       { "id": "image_gen_escalation", "label": "4-tier image gen escalation (GPU to cloud)" },
-      { "id": "cloud_contractors", "label": "19 cloud contractor integrations" }
+      { "id": "cloud_contractors", "label": "19 cloud contractor integrations" },
+      { "id": "ai_genealogy", "label": "AI-powered genealogy (OCR, face matching, 5 public record APIs)" }
     ],
     "shared": [
       {

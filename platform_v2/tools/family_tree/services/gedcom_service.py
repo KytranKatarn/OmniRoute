@@ -107,7 +107,7 @@ def import_gedcom(user_id: int, file_content: bytes) -> dict:
                 if plac_tag is not None:
                     death_place = (plac_tag.value or "").strip() or None
 
-            person_id = create_person(
+            person_result = create_person(
                 user_id=user_id,
                 first_name=first_name,
                 last_name=last_name,
@@ -118,6 +118,8 @@ def import_gedcom(user_id: int, file_content: bytes) -> dict:
                 death_place=death_place,
             )
 
+            # create_person may return a dict or an int ID
+            person_id = person_result["id"] if isinstance(person_result, dict) else person_result
             indi_map[xref_id] = person_id
             stats["persons_created"] += 1
 

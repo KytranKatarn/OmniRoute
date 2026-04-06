@@ -1183,3 +1183,154 @@ def register_github_repo_routes(bp, admin_required):
         except Exception as e:
             logger.error(f"[GitHub] Pipeline stats error: {e}")
             return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/github/skills/sync")
+    @login_or_api_key
+    def api_github_skills_sync():
+        """Return tested+passing skills for CLI sync.
+
+        Params:
+            since: ISO timestamp — only return skills newer than this
+            limit: int — max skills per response (default 50, max 200)
+        """
+        try:
+            from database import get_db_cursor
+
+            since = request.args.get("since")
+            limit = min(int(request.args.get("limit", 50)), 200)
+
+            with get_db_cursor() as (conn, cur):
+                # Total available (for pagination awareness)
+                cur.execute(
+                    """SELECT COUNT(*) as total
+                       FROM skill_installations si
+                       WHERE si.target = 'claude_code'
+                         AND si.dry_run_passed = TRUE"""
+                )
+                total_available = cur.fetchone()["total"]
+
+                # Fetch skills with optional since filter
+                if since:
+                    cur.execute(
+                        """SELECT si.skill_id, gs.repo_name, gs.skill_name,
+                                  COALESCE(si.adapted_content, si.normalized_content) AS content,
+                                  gs.quality_score, si.adapted,
+                                  si.installed_at::text, si.tested_at::text
+                           FROM skill_installations si
+                           JOIN github_skills gs ON gs.id = si.skill_id
+                           WHERE si.target = 'claude_code'
+                             AND si.dry_run_passed = TRUE
+                             AND si.installed_at > %s
+                           ORDER BY si.installed_at ASC
+                           LIMIT %s""",
+                        (since, limit),
+                    )
+                else:
+                    cur.execute(
+                        """SELECT si.skill_id, gs.repo_name, gs.skill_name,
+                                  COALESCE(si.adapted_content, si.normalized_content) AS content,
+                                  gs.quality_score, si.adapted,
+                                  si.installed_at::text, si.tested_at::text
+                           FROM skill_installations si
+                           JOIN github_skills gs ON gs.id = si.skill_id
+                           WHERE si.target = 'claude_code'
+                             AND si.dry_run_passed = TRUE
+                           ORDER BY si.installed_at ASC
+                           LIMIT %s""",
+                        (limit,),
+                    )
+                rows = cur.fetchall()
+
+            skills = []
+            max_installed_at = None
+            for row in rows:
+                repo_slug = row["repo_name"].replace("/", "-").lower()
+                skill_slug = row["skill_name"].replace("/", "-").replace(" ", "-").lower().rstrip(".md")
+                skills.append(
+                    {
+                        "skill_id": row["skill_id"],
+                        "repo": row["repo_name"],
+                        "name": row["skill_name"],
+                        "slug": skill_slug,
+                        "repo_slug": repo_slug,
+                        "content": row["content"] or "",
+                        "quality_score": row["quality_score"],
+                        "adapted": bool(row["adapted"]),
+                        "installed_at": row["installed_at"],
+                        "tested_at": row["tested_at"],
+                    }
+                )
+                max_installed_at = row["installed_at"]
+
+            return jsonify(
+                {
+                    "success": True,
+                    "skills": skills,
+                    "sync_token": max_installed_at,
+                    "total_available": total_available,
+                }
+            )
+        except Exception as e:
+            logger.error(f"[GitHub] Skill sync error: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/github/skills/sync-confirm", methods=["POST"])
+    @login_or_api_key
+    def api_github_skills_sync_confirm():
+        """Record confirmed skill installations from CLI nodes.
+
+        Body: {"skill_ids": [int, ...], "node_id": "hub"}
+        Creates skill_installations rows with target='archie_cli'.
+        """
+        try:
+            from database import get_db_cursor
+
+            data = request.get_json(force=True)
+            skill_ids = data.get("skill_ids", [])
+            node_id = data.get("node_id", "unknown")
+
+            if not skill_ids:
+                return jsonify({"success": True, "confirmed": 0})
+
+            confirmed = 0
+            with get_db_cursor(commit=True) as (conn, cur):
+                for skill_id in skill_ids:
+                    cur.execute(
+                        """SELECT install_path, normalized_content,
+                                  adapted_content
+                           FROM skill_installations
+                           WHERE skill_id = %s AND target = 'claude_code'""",
+                        (skill_id,),
+                    )
+                    source = cur.fetchone()
+                    if not source:
+                        continue
+
+                    cli_path = source["install_path"].replace(".claude/skills/github/", "skills/github/")
+
+                    cur.execute(
+                        """INSERT INTO skill_installations
+                           (skill_id, target, install_path,
+                            normalized_content, adapted_content,
+                            struct_valid, dry_run_passed,
+                            adapted, installed_at)
+                           VALUES (%s, 'archie_cli', %s, %s, %s,
+                                   TRUE, TRUE, %s, NOW())
+                           ON CONFLICT (skill_id, target) DO UPDATE
+                           SET install_path = EXCLUDED.install_path,
+                               installed_at = NOW()""",
+                        (
+                            skill_id,
+                            cli_path,
+                            source["normalized_content"],
+                            source["adapted_content"],
+                            source["adapted_content"] is not None,
+                        ),
+                    )
+                    confirmed += 1
+
+            logger.info(f"[GitHub] Skill sync confirmed: {confirmed} skills " f"for node '{node_id}'")
+            return jsonify({"success": True, "confirmed": confirmed})
+        except Exception as e:
+            logger.error(f"[GitHub] Sync confirm error: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500

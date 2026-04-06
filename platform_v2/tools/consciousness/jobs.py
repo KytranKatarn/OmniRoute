@@ -17,6 +17,8 @@ Jobs extracted:
   - agent_weekly_memory_consolidation (migrated from consciousness_scheduler)
   - agent_github_repo_analysis (Job #57) — repo-level relevance analysis
   - agent_skill_adaptation (Job #58) — auto-adapt registered skills for A.R.C.H.I.E.
+  - agent_skill_installer (Job #59) — install skills to Claude Code
+  - agent_skill_tester (Job #60) — structural validation + dry-run testing
 """
 
 import json
@@ -71,6 +73,89 @@ def _log_cycle(
         conn.close()
     except Exception as e:
         logger.error(f"Failed to log agent cycle: {e}")
+
+
+def _normalize_skill_content(
+    skill_name: str,
+    repo_name: str,
+    skill_id: int,
+    raw_content: str,
+    quality_score: int,
+    capabilities: list,
+    departments: list,
+    description: str = "",
+) -> str:
+    """Normalize skill content to standard superset markdown format.
+
+    For already-valid markdown with frontmatter: passthrough with extended fields.
+    For other content: wrap in standard format.
+    Returns normalized markdown string.
+    """
+    import re
+
+    import yaml
+
+    # Check if content already has YAML frontmatter
+    fm_match = re.match(r"^---\s*\n(.*?)\n---\s*\n(.*)$", raw_content, re.DOTALL)
+
+    if fm_match:
+        # Has frontmatter — merge our extended fields
+        try:
+            existing_meta = yaml.safe_load(fm_match.group(1)) or {}
+        except yaml.YAMLError:
+            existing_meta = {}
+        body = fm_match.group(2).strip()
+
+        # Preserve existing name/description if present, add ours if missing
+        existing_meta.setdefault("name", skill_name)
+        existing_meta.setdefault("description", description or skill_name)
+        existing_meta["source_repo"] = repo_name
+        existing_meta["quality_score"] = quality_score
+        existing_meta["capabilities"] = capabilities or existing_meta.get("capabilities", [])
+        existing_meta["departments"] = departments or existing_meta.get("departments", [])
+        existing_meta["installed_from"] = skill_id
+    else:
+        # No frontmatter — build from scratch
+        existing_meta = {
+            "name": skill_name,
+            "description": description or skill_name,
+            "source_repo": repo_name,
+            "quality_score": quality_score,
+            "capabilities": capabilities or [],
+            "departments": departments or [],
+            "installed_from": skill_id,
+        }
+        body = raw_content.strip()
+
+    # Build YAML frontmatter
+    fm_lines = ["---"]
+    fm_lines.append(f"name: {existing_meta['name']}")
+    fm_lines.append(f"description: {existing_meta['description']}")
+    fm_lines.append(f"source_repo: {existing_meta['source_repo']}")
+    fm_lines.append(f"quality_score: {existing_meta['quality_score']}")
+    if existing_meta.get("capabilities"):
+        caps = ", ".join(str(c) for c in existing_meta["capabilities"])
+        fm_lines.append(f"capabilities: [{caps}]")
+    if existing_meta.get("departments"):
+        depts = ", ".join(str(d) for d in existing_meta["departments"])
+        fm_lines.append(f"departments: [{depts}]")
+    fm_lines.append(f"installed_from: {existing_meta['installed_from']}")
+    fm_lines.append("---")
+
+    # Ensure body has a heading
+    if not body.startswith("## ") and not body.startswith("# "):
+        body = "## Instructions\n\n" + body
+
+    # Append Archie CLI placeholder if not present
+    if "## Archie CLI" not in body:
+        body += "\n\n## Archie CLI\n\n(Not yet adapted for A.R.C.H.I.E. platform.)\n"
+
+    # Truncate to 15,000 chars
+    result = "\n".join(fm_lines) + "\n\n" + body
+    if len(result) > 15000:
+        result = result[:14900] + "\n\n<!-- Truncated: original content exceeded 15,000 chars -->\n"
+
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -300,6 +385,29 @@ def sync_learned_skills():
                 desc = preview_lines[0][:120] if preview_lines else "No description"
                 lines.append(f"- **{title}** — {desc}")
             lines.append("")
+
+        # Add installation pipeline stats
+        try:
+            with get_db_cursor() as (conn_stats, cur_stats):
+                cur_stats.execute(
+                    """SELECT
+                         COUNT(*) as installed,
+                         COUNT(*) FILTER (WHERE dry_run_passed = TRUE) as passed,
+                         COUNT(*) FILTER (WHERE dry_run_passed = FALSE) as failed,
+                         COUNT(*) FILTER (WHERE adapted = TRUE) as adapted
+                       FROM skill_installations
+                       WHERE target = 'claude_code'"""
+                )
+                inst_stats = cur_stats.fetchone()
+                lines.append(f"\n## Installation Pipeline\n")
+                lines.append(f"| Metric | Count |")
+                lines.append(f"|--------|-------|")
+                lines.append(f"| Installed to Claude Code | {inst_stats['installed']} |")
+                lines.append(f"| Tested (pass) | {inst_stats['passed']} |")
+                lines.append(f"| Tested (fail) | {inst_stats['failed']} |")
+                lines.append(f"| Adapted for A.R.C.H.I.E. | {inst_stats['adapted']} |")
+        except Exception as stats_err:
+            logger.warning(f"[SkillSync] Installation stats failed: {stats_err}")
 
         lines.extend(
             [
@@ -1261,11 +1369,12 @@ Respond with ONLY valid JSON:
 
 
 def auto_adapt_skills():
-    """Job #58: Auto-adapt registered skills for A.R.C.H.I.E. platform.
+    """Job #58: Auto-adapt tested skills for A.R.C.H.I.E. platform.
 
-    Takes high-quality registered skills (quality 4+) and rewrites them
-    for A.R.C.H.I.E.'s departments, agents, and patterns.
-    Processes up to 10 per run (every 10 minutes during backlog clearing).
+    Takes quality 5 skills that passed dry-run testing, generates
+    ## Archie CLI section with A.R.C.H.I.E.-native directives.
+    Reads from skill_installations, not github_skills directly.
+    Processes up to 10 per run (every 12 hours).
     """
     start = time.time()
     adapted = 0
@@ -1277,14 +1386,17 @@ def auto_adapt_skills():
         # Fetch registered skills not yet adapted
         with get_db_cursor() as (conn, cur):
             cur.execute(
-                """SELECT gs.id, gs.repo_name, gs.skill_name, gs.description,
-                          gs.capabilities, gs.analysis, kb.content
-                   FROM github_skills gs
-                   LEFT JOIN knowledge_base kb ON kb.id = gs.kb_entry_id
-                   WHERE gs.status = 'registered'
-                     AND gs.quality_score >= 4
-                     AND gs.id NOT IN (SELECT adapted_from_id FROM github_skills WHERE adapted_from_id IS NOT NULL)
-                   ORDER BY gs.quality_score DESC, gs.created_at ASC
+                """SELECT si.id AS installation_id, si.skill_id, si.install_path,
+                          si.normalized_content,
+                          gs.repo_name, gs.skill_name, gs.description,
+                          gs.capabilities, gs.quality_score
+                   FROM skill_installations si
+                   JOIN github_skills gs ON gs.id = si.skill_id
+                   WHERE si.target = 'claude_code'
+                     AND si.dry_run_passed = TRUE
+                     AND si.adapted = FALSE
+                     AND gs.quality_score >= 5
+                   ORDER BY gs.quality_score DESC, si.installed_at ASC
                    LIMIT 10"""
             )
             skills = cur.fetchall()
@@ -1297,8 +1409,8 @@ def auto_adapt_skills():
         logger.info(f"[SkillAdapt] Adapting {len(skills)} skills for A.R.C.H.I.E.")
 
         for skill in skills:
-            skill_id = skill["id"]
-            content = skill.get("content") or skill.get("description") or ""
+            skill_id = skill["skill_id"]
+            content = skill.get("normalized_content") or skill.get("description") or ""
             if not content or len(content.strip()) < 50:
                 continue
 
@@ -1364,49 +1476,42 @@ capabilities: [<list>]
                 result = dispatch_result.response if dispatch_result and dispatch_result.success else None
 
                 if result and isinstance(result, str) and len(result) > 100:
-                    # Create adapted skill record
+                    # Read current content and inject ## Archie CLI section
+                    current = skill.get("normalized_content") or ""
+                    if "## Archie CLI" in current:
+                        # Replace existing Archie CLI section
+                        import re
+
+                        adapted_full = re.sub(
+                            r"## Archie CLI\n.*$",
+                            f"## Archie CLI\n\n{result}",
+                            current,
+                            flags=re.DOTALL,
+                        )
+                    else:
+                        adapted_full = current + f"\n\n## Archie CLI\n\n{result}"
+
+                    # Update skill_installations
                     with get_db_cursor(commit=True) as (conn2, cur2):
                         cur2.execute(
-                            """INSERT INTO github_skills
-                               (repo_name, skill_name, description, status,
-                                quality_score, adapted_from_id, created_at, updated_at)
-                               VALUES (%s, %s, %s, 'adapted', %s, %s, NOW(), NOW())
-                               RETURNING id""",
-                            (
-                                skill["repo_name"],
-                                "adapted/" + skill["skill_name"],
-                                f"Adapted from {skill['skill_name']} for A.R.C.H.I.E.",
-                                skill.get("quality_score", 4),
-                                skill_id,
-                            ),
+                            """UPDATE skill_installations
+                               SET adapted = TRUE,
+                                   adapted_content = %s,
+                                   adapted_at = NOW()
+                               WHERE id = %s""",
+                            (adapted_full[:15000], skill["installation_id"]),
                         )
-                        new_id = cur2.fetchone()["id"]
 
-                        # Store adapted content in knowledge_base
-                        cur2.execute(
-                            """INSERT INTO knowledge_base
-                               (knowledge_type, title, content, category,
-                                importance_score, tags, created_at)
-                               VALUES ('vault_note', %s, %s, 'adapted_skill',
-                                       0.90, %s, NOW())
-                               RETURNING id""",
-                            (
-                                f"Adapted Skill: {skill['skill_name']} from {skill['repo_name']}",
-                                result[:10000],
-                                ["adapted_skill", "github", skill["repo_name"]],
-                            ),
-                        )
-                        kb_id = cur2.fetchone()["id"]
-
-                        # Link back
-                        cur2.execute(
-                            "UPDATE github_skills SET kb_entry_id = %s WHERE id = %s",
-                            (kb_id, new_id),
-                        )
+                    # Overwrite installed file with adapted version
+                    full_path = os.path.join("/mnt/archie_brain", skill["install_path"])
+                    if os.path.exists(os.path.dirname(full_path)):
+                        with open(full_path, "w") as f:
+                            f.write(adapted_full[:15000])
 
                     adapted += 1
                     logger.info(
-                        f"[SkillAdapt] Adapted {skill['skill_name']} " f"from {skill['repo_name']} → skill #{new_id}"
+                        f"[SkillAdapt] Adapted {skill['skill_name']} "
+                        f"from {skill['repo_name']} → installation #{skill['installation_id']}"
                     )
                 else:
                     errors_count += 1
@@ -1461,6 +1566,409 @@ capabilities: [<list>]
     except Exception as e:
         logger.warning(f"[SkillAdapt] Job failed: {e}")
         _log_cycle("skill_adaptation", 0, 1, int((time.time() - start) * 1000), error_message=str(e))
+
+
+def install_skills_to_claude():
+    """Job #59: Install registered skills to Claude Code as usable skill files.
+
+    Takes quality 3+ registered skills not yet installed, normalizes content
+    to standard superset format, writes to .claude/skills/github/<repo>/.
+    Processes up to 20 per run (every 2 hours).
+    """
+    start = time.time()
+    installed = 0
+    errors_count = 0
+    skipped = 0
+
+    try:
+        from database import get_db_cursor
+
+        # Fetch registered skills not yet installed to claude_code
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT gs.id, gs.repo_name, gs.skill_name, gs.file_path,
+                          gs.description, gs.quality_score, gs.capabilities,
+                          gs.analysis, kb.content
+                   FROM github_skills gs
+                   LEFT JOIN knowledge_base kb ON kb.id = gs.kb_entry_id
+                   WHERE gs.status = 'registered'
+                     AND gs.quality_score >= 3
+                     AND gs.id NOT IN (
+                         SELECT skill_id FROM skill_installations
+                         WHERE target = 'claude_code'
+                     )
+                   ORDER BY gs.quality_score DESC, gs.created_at ASC
+                   LIMIT 20"""
+            )
+            skills = cur.fetchall()
+
+        if not skills:
+            logger.info("[SkillInstaller] No registered skills to install")
+            _log_cycle("skill_installer", 0, 0, int((time.time() - start) * 1000))
+            return
+
+        logger.info(f"[SkillInstaller] Installing {len(skills)} skills to Claude Code")
+
+        base_dir = "/mnt/archie_brain/.claude/skills/github"
+        os.makedirs(base_dir, exist_ok=True)
+
+        for skill in skills:
+            skill_id = skill["id"]
+            content = skill.get("content") or skill.get("description") or ""
+
+            if not content or len(content.strip()) < 50:
+                skipped += 1
+                continue
+
+            # Extract departments from analysis JSON
+            analysis = skill.get("analysis") or {}
+            if isinstance(analysis, str):
+                try:
+                    analysis = json.loads(analysis)
+                except Exception:
+                    analysis = {}
+            departments = analysis.get("target_departments", [])
+
+            # Extract capabilities
+            capabilities = skill.get("capabilities") or []
+            if isinstance(capabilities, str):
+                try:
+                    capabilities = json.loads(capabilities)
+                except Exception:
+                    capabilities = []
+
+            try:
+                # Normalize content
+                normalized = _normalize_skill_content(
+                    skill_name=skill["skill_name"],
+                    repo_name=skill["repo_name"],
+                    skill_id=skill_id,
+                    raw_content=content,
+                    quality_score=skill.get("quality_score", 3),
+                    capabilities=capabilities,
+                    departments=departments,
+                    description=skill.get("description", ""),
+                )
+
+                # Build install path: .claude/skills/github/<owner-repo>/<skill-slug>.md
+                repo_slug = skill["repo_name"].replace("/", "-").lower()
+                skill_slug = skill["skill_name"].replace("/", "-").replace(" ", "-").lower().rstrip(".md")
+                if not skill_slug.endswith(".md"):
+                    skill_slug += ".md"
+
+                repo_dir = os.path.join(base_dir, repo_slug)
+                os.makedirs(repo_dir, exist_ok=True)
+                install_path = os.path.join(repo_dir, skill_slug)
+
+                # Write skill file
+                with open(install_path, "w") as f:
+                    f.write(normalized)
+
+                # Record installation in DB
+                rel_path = install_path.replace("/mnt/archie_brain/", "")
+                with get_db_cursor(commit=True) as (conn2, cur2):
+                    cur2.execute(
+                        """INSERT INTO skill_installations
+                           (skill_id, target, install_path, normalized_content, installed_at)
+                           VALUES (%s, 'claude_code', %s, %s, NOW())
+                           ON CONFLICT (skill_id, target) DO UPDATE
+                           SET install_path = EXCLUDED.install_path,
+                               normalized_content = EXCLUDED.normalized_content,
+                               installed_at = NOW()""",
+                        (skill_id, rel_path, normalized),
+                    )
+
+                installed += 1
+                logger.info(
+                    f"[SkillInstaller] Installed {skill['skill_name']} " f"from {skill['repo_name']} → {rel_path}"
+                )
+
+            except Exception as inst_err:
+                errors_count += 1
+                logger.warning(f"[SkillInstaller] Failed to install {skill['skill_name']}: " f"{str(inst_err)[:80]}")
+
+        logger.info(f"[SkillInstaller] Done: {installed} installed, " f"{skipped} skipped, {errors_count} errors")
+        _log_cycle(
+            "skill_installer",
+            installed,
+            errors_count,
+            int((time.time() - start) * 1000),
+            details={"installed": installed, "skipped": skipped, "errors": errors_count},
+        )
+
+    except Exception as e:
+        logger.warning(f"[SkillInstaller] Job failed: {e}")
+        _log_cycle(
+            "skill_installer",
+            0,
+            1,
+            int((time.time() - start) * 1000),
+            error_message=str(e),
+        )
+
+
+# Capability → test prompt mapping for dry-run testing
+_SKILL_TEST_PROMPTS = {
+    "code-review": "Review this Python function for quality issues:\n\ndef calculate_total(items):\n    total = 0\n    for i in items:\n        total = total + i['price'] * i['qty']\n    return total",
+    "testing": "Write a unit test for a function `validate_email(email: str) -> bool` that checks if an email address is valid.",
+    "debugging": "Debug this error: TypeError: cannot unpack non-iterable NoneType object. The function returns None when the input list is empty.",
+    "documentation": "Document this API endpoint: POST /api/users — accepts JSON body with name, email, role fields. Returns 201 with user object or 400 with validation errors.",
+    "refactoring": "Refactor this code to be more readable:\n\ndef f(x):\n    return [i for i in x if i > 0 and i % 2 == 0 and i < 100]",
+    "security": 'Review this code for security vulnerabilities:\n\nquery = f"SELECT * FROM users WHERE id = {user_id}"',
+    "deployment": "Write a Dockerfile for a Python 3.11 Flask application that needs PostgreSQL and Redis connections.",
+    "ai-prompting": "Write a system prompt for an AI assistant that helps users debug Python code. The assistant should ask clarifying questions before suggesting fixes.",
+    "automation": "Write a bash script that backs up a PostgreSQL database, compresses it, and removes backups older than 7 days.",
+    "data-processing": "Write a Python function that reads a CSV file, filters rows where the 'status' column is 'active', and returns the count.",
+    "monitoring": "Set up a health check endpoint for a Flask application that verifies database connectivity and returns JSON status.",
+}
+
+_DEFAULT_TEST_PROMPT = (
+    "Using the skill described above, demonstrate your capability with a concrete example. Show your work step by step."
+)
+
+
+def _generate_test_prompt(capabilities: list) -> str:
+    """Generate a test prompt based on skill capabilities."""
+    for cap in capabilities:
+        cap_lower = cap.lower().strip()
+        if cap_lower in _SKILL_TEST_PROMPTS:
+            return _SKILL_TEST_PROMPTS[cap_lower]
+    return _DEFAULT_TEST_PROMPT
+
+
+def _validate_skill_structure(content: str) -> tuple:
+    """Validate skill markdown structure.
+
+    Returns (is_valid: bool, errors: list[str]).
+    """
+    import re
+
+    import yaml
+
+    errors = []
+
+    # Check YAML frontmatter
+    fm_match = re.match(r"^---\s*\n(.*?)\n---\s*\n(.*)$", content, re.DOTALL)
+    if not fm_match:
+        errors.append("Missing YAML frontmatter (---)")
+        return (False, errors)
+
+    try:
+        meta = yaml.safe_load(fm_match.group(1)) or {}
+    except Exception as e:
+        errors.append(f"Invalid YAML frontmatter: {str(e)[:80]}")
+        return (False, errors)
+
+    if not meta.get("name"):
+        errors.append("Missing 'name' in frontmatter")
+    if not meta.get("description"):
+        errors.append("Missing 'description' in frontmatter")
+
+    body = fm_match.group(2).strip()
+    if len(body) < 100:
+        errors.append(f"Body too short ({len(body)} chars, minimum 100)")
+
+    # Check for unclosed code blocks
+    fence_count = body.count("```")
+    if fence_count % 2 != 0:
+        errors.append(f"Unclosed code block ({fence_count} ``` markers)")
+
+    is_valid = len(errors) == 0
+    return (is_valid, errors)
+
+
+def _evaluate_dry_run(response: str, capabilities: list, skill_content: str) -> dict:
+    """Evaluate dry-run response against assertions.
+
+    Returns dict of assertion results:
+    {"length_ok": bool, "format_ok": bool, "relevant": bool, "no_hallucination": bool}
+    """
+    assertions = {}
+
+    # Required: length check
+    assertions["length_ok"] = len(response.strip()) > 200
+
+    # Required: format check — no errors or refusals
+    refusal_patterns = [
+        "i don't understand",
+        "i cannot",
+        "i'm not able",
+        "error:",
+        "traceback (most recent",
+        "syntaxerror",
+        "nameerror",
+        "typeerror",
+    ]
+    response_lower = response.lower()
+    assertions["format_ok"] = not any(p in response_lower for p in refusal_patterns)
+
+    # Advisory: relevance — keyword overlap
+    cap_keywords = set()
+    for cap in capabilities:
+        cap_keywords.update(cap.lower().replace("-", " ").split())
+    # Also extract keywords from skill content (first 500 chars)
+    content_words = set(skill_content[:500].lower().split())
+    check_words = cap_keywords | (
+        content_words & {"code", "test", "review", "api", "deploy", "security", "data", "build"}
+    )
+
+    if check_words:
+        response_words = set(response_lower.split())
+        overlap = check_words & response_words
+        assertions["relevant"] = len(overlap) / max(len(check_words), 1) >= 0.3
+    else:
+        assertions["relevant"] = True  # No keywords to check against
+
+    # Advisory: hallucination check (basic — flag obvious fabrications)
+    hallucination_markers = ["api key:", "password:", "secret:", "token:"]
+    assertions["no_hallucination"] = not any(m in response_lower for m in hallucination_markers)
+
+    return assertions
+
+
+def test_installed_skills():
+    """Job #60: Structural validation + dry-run testing of installed skills.
+
+    Picks up skill_installations rows where struct_valid IS NULL (untested),
+    runs structural checks, then dry-runs passing skills through Bridge.
+    Processes up to 10 per run (every 4 hours).
+    """
+    start = time.time()
+    tested = 0
+    errors_count = 0
+
+    try:
+        from database import get_db_cursor
+
+        from bridge_dispatcher import dispatch
+
+        # Fetch untested installations
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT si.id, si.skill_id, si.install_path, si.normalized_content,
+                          gs.skill_name, gs.capabilities, gs.description
+                   FROM skill_installations si
+                   JOIN github_skills gs ON gs.id = si.skill_id
+                   WHERE si.target = 'claude_code'
+                     AND si.struct_valid IS NULL
+                   ORDER BY si.installed_at ASC
+                   LIMIT 10"""
+            )
+            installations = cur.fetchall()
+
+        if not installations:
+            logger.info("[SkillTester] No untested installations")
+            _log_cycle("skill_tester", 0, 0, int((time.time() - start) * 1000))
+            return
+
+        logger.info(f"[SkillTester] Testing {len(installations)} installed skills")
+
+        for inst in installations:
+            inst_id = inst["id"]
+            content = inst.get("normalized_content") or ""
+            capabilities = inst.get("capabilities") or []
+            if isinstance(capabilities, str):
+                try:
+                    capabilities = json.loads(capabilities)
+                except Exception:
+                    capabilities = []
+
+            try:
+                # Phase 1: Structural validation
+                struct_valid, struct_errors = _validate_skill_structure(content)
+
+                if not struct_valid:
+                    # Record structural failure
+                    with get_db_cursor(commit=True) as (conn2, cur2):
+                        cur2.execute(
+                            """UPDATE skill_installations
+                               SET struct_valid = FALSE,
+                                   struct_errors = %s,
+                                   tested_at = NOW()
+                               WHERE id = %s""",
+                            (json.dumps(struct_errors), inst_id),
+                        )
+                    tested += 1
+                    logger.info(
+                        f"[SkillTester] {inst['skill_name']} — structural FAIL: "
+                        f"{struct_errors[0] if struct_errors else 'unknown'}"
+                    )
+                    continue
+
+                # Phase 2: Dry-run via Bridge
+                test_prompt = _generate_test_prompt(capabilities)
+
+                system_prompt = (
+                    f"You are using the following skill:\n\n"
+                    f"{content[:3000]}\n\n"
+                    f"Apply this skill to the task below. "
+                    f"Respond with a concrete, useful result."
+                )
+
+                dispatch_result = dispatch(
+                    capability="code_analysis",
+                    prompt=test_prompt,
+                    module_id="skill_tester",
+                    system_prompt=system_prompt,
+                )
+
+                response = ""
+                if dispatch_result and dispatch_result.success:
+                    response = dispatch_result.response or ""
+
+                # Phase 3: Evaluate assertions
+                assertions = _evaluate_dry_run(response, capabilities, content)
+
+                # Required assertions determine pass/fail
+                dry_run_passed = assertions.get("length_ok", False) and assertions.get("format_ok", False)
+
+                # Record results
+                with get_db_cursor(commit=True) as (conn2, cur2):
+                    cur2.execute(
+                        """UPDATE skill_installations
+                           SET struct_valid = TRUE,
+                               struct_errors = '[]'::jsonb,
+                               dry_run_passed = %s,
+                               dry_run_prompt = %s,
+                               dry_run_output = %s,
+                               dry_run_assertions = %s,
+                               tested_at = NOW()
+                           WHERE id = %s""",
+                        (
+                            dry_run_passed,
+                            test_prompt[:1000],
+                            response[:5000],
+                            json.dumps(assertions),
+                            inst_id,
+                        ),
+                    )
+
+                tested += 1
+                status = "PASS" if dry_run_passed else "FAIL"
+                logger.info(f"[SkillTester] {inst['skill_name']} — dry-run {status} " f"(assertions: {assertions})")
+
+            except Exception as test_err:
+                errors_count += 1
+                logger.warning(f"[SkillTester] Failed to test {inst['skill_name']}: " f"{str(test_err)[:80]}")
+
+        logger.info(f"[SkillTester] Done: {tested} tested, {errors_count} errors")
+        _log_cycle(
+            "skill_tester",
+            tested,
+            errors_count,
+            int((time.time() - start) * 1000),
+            details={"tested": tested, "errors": errors_count},
+        )
+
+    except Exception as e:
+        logger.warning(f"[SkillTester] Job failed: {e}")
+        _log_cycle(
+            "skill_tester",
+            0,
+            1,
+            int((time.time() - start) * 1000),
+            error_message=str(e),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1746,6 +2254,22 @@ def register_consciousness_jobs(scheduler, flask_app):
     )
 
     scheduler.add_job(
+        with_ctx(install_skills_to_claude),
+        trigger=IntervalTrigger(hours=2),
+        id="agent_skill_installer",
+        name="Agent Loop: Skill Installer (Claude Code)",
+        replace_existing=True,
+    )
+
+    scheduler.add_job(
+        with_ctx(test_installed_skills),
+        trigger=IntervalTrigger(hours=4, start_date="2026-01-01 02:00:00"),
+        id="agent_skill_tester",
+        name="Agent Loop: Skill Tester (Structural + Dry-Run)",
+        replace_existing=True,
+    )
+
+    scheduler.add_job(
         with_ctx(auto_adapt_skills),
         trigger=IntervalTrigger(hours=12, start_date="2026-01-01 03:00:00"),
         id="agent_skill_adaptation",
@@ -1753,4 +2277,4 @@ def register_consciousness_jobs(scheduler, flask_app):
         replace_existing=True,
     )
 
-    logger.info("[ConsciousnessJobs] Registered 16 consciousness jobs")
+    logger.info("[ConsciousnessJobs] Registered 18 consciousness jobs")

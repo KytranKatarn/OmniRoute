@@ -1115,8 +1115,10 @@ function loadInsights() {
   api("/api/insights/summary").then(function(data) {
     if (!data.success) return;
     countUp("insightsBridgeTotal", data.bridge_stats.total || 0);
-    countUp("insightsAvgTime", data.bridge_stats.avg_time_ms || 0);
-    countUp("insightsTokens", data.bridge_stats.total_tokens || 0);
+    var avgSec = Math.round((data.bridge_stats.avg_time_ms || 0) / 1000);
+    var avgEl = document.getElementById("insightsAvgTime");
+    if (avgEl) { avgEl.textContent = avgSec + "s"; }
+    countUp("insightsModels", data.bridge_stats.models_used || 0);
     countUp("insightsGrowth", data.knowledge_growth || 0);
     refreshIcons();
   }).catch(function(err) {
@@ -1657,12 +1659,167 @@ function loadLangGlossary() {
 
 /* ── GitHub Tab ────────────────────────────────────── */
 
+var _ghRepos = []; // cached for filtering
+var _ghFilter = 'all';
+var _ghView = 'list'; // 'list' or 'cards'
+
+function toggleRepoView() {
+  _ghView = _ghView === 'list' ? 'cards' : 'list';
+  var btn = document.getElementById('ghViewToggle');
+  if (btn) btn.textContent = _ghView === 'list' ? 'Cards' : 'List';
+  renderRepoView(_ghRepos);
+}
+
+function renderRepoView(repos) {
+  if (_ghView === 'list') renderRepoList(repos);
+  else renderRepoCards(repos);
+}
+
+function filterRepos(status) {
+  _ghFilter = status;
+  // Update active button
+  document.querySelectorAll('.gh-filter-btn').forEach(function(b) { b.classList.remove('active'); });
+  event.target.closest('.gh-filter-btn').classList.add('active');
+  renderRepoView(_ghRepos);
+}
+
+function renderRepoList(repos) {
+  var filtered = _ghFilter === 'all' ? repos : repos.filter(function(r) { return (r.review_status || 'pending') === _ghFilter; });
+
+  if (!filtered.length) {
+    setHtml("ghRepoGrid", '<div style="grid-column:1/-1; text-align:center; padding:40px 20px; color:rgba(255,255,255,0.3);"><div style="font-size:0.82rem;">No repositories match this filter</div></div>');
+    return;
+  }
+
+  var html = '<table class="gh-repo-table"><thead><tr>' +
+    '<th>Repository</th><th>Files</th><th>Type</th><th>Status</th><th>Tags</th><th>Actions</th>' +
+    '</tr></thead><tbody>';
+
+  filtered.forEach(function(r) {
+    var rs = r.review_status || 'pending';
+    var rsLabel = rs === 'under_review' ? 'REVIEW' : rs.toUpperCase();
+    var tags = (r.relevance_tags || []).map(function(t) { return '<span class="gh-review-tag">' + escHtml(t) + '</span>'; }).join(' ');
+    var safeName = escHtml(r.repo_name).replace(/'/g, "\\'");
+
+    html += '<tr data-repo-id="' + r.id + '">' +
+      '<td>' +
+        '<div class="gh-list-name">' + escHtml(r.repo_name) + '</div>' +
+        (r.review_notes ? '<div class="gh-list-notes" title="' + escHtml(r.review_notes).replace(/"/g, '&quot;') + '">' + escHtml(r.review_notes.substring(0, 80)) + (r.review_notes.length > 80 ? '...' : '') + '</div>' : '') +
+      '</td>' +
+      '<td class="gh-list-files">' + (r.indexed_files || 0) + '</td>' +
+      '<td class="gh-list-type">' + escHtml(r.repo_type || '') + '</td>' +
+      '<td><span class="gh-review-badge ' + rs + '">' + rsLabel + '</span></td>' +
+      '<td><div class="gh-review-tags" style="margin:0;">' + (tags || '-') + '</div></td>' +
+      '<td class="gh-list-actions">' +
+        (rs !== 'approved' ? '<button class="review-approve" onclick="updateRepoReview(' + r.id + ', \'approved\', \'' + safeName + '\')">&#10003;</button>' : '') +
+        (rs !== 'rejected' ? '<button class="review-reject" onclick="updateRepoReview(' + r.id + ', \'rejected\', \'' + safeName + '\')">&#10007;</button>' : '') +
+        '<a href="https://github.com/' + escHtml(r.repo_name) + '" target="_blank">Open</a>' +
+      '</td>' +
+    '</tr>';
+  });
+
+  html += '</tbody></table>';
+  setHtml("ghRepoGrid", html);
+}
+
+function updateRepoReview(repoId, status, repoName) {
+  if (status === 'rejected' && !confirm('Reject "' + repoName + '"? This marks it as not relevant.')) return;
+  var notes = prompt(status === 'approved' ? 'Approval reason for "' + repoName + '":' : 'Rejection reason for "' + repoName + '" (optional):') || '';
+  api("/api/github/repositories/" + repoId + "/review", {
+    method: "PATCH",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({review_status: status, review_notes: notes || undefined})
+  }).then(function(data) {
+    if (data.success) loadGitHub();
+  });
+}
+
+function toggleReviewNotes(el) {
+  el.closest('.gh-repo-card').querySelector('.gh-review-notes').classList.toggle('open');
+}
+
+function renderRepoCards(repos) {
+  var filtered = _ghFilter === 'all' ? repos : repos.filter(function(r) { return (r.review_status || 'pending') === _ghFilter; });
+
+  if (!filtered.length) {
+    setHtml("ghRepoGrid",
+      '<div style="grid-column:1/-1; text-align:center; padding:40px 20px; color:rgba(255,255,255,0.3);">' +
+      '<div style="font-size:1.5rem; margin-bottom:8px;">&#x1f50d;</div>' +
+      '<div style="font-size:0.82rem;">No repositories match this filter</div></div>');
+    return;
+  }
+
+  var html = '';
+  filtered.forEach(function(r) {
+    var coverageCls = 'coverage-low';
+    if (r.indexed && r.indexed_files > 0) coverageCls = 'coverage-mid';
+
+    var circumference = 2 * Math.PI * 18;
+    var dashoffset = circumference;
+    var descSnippet = r.description ? escHtml(r.description.substring(0, 120)) + (r.description.length > 120 ? '...' : '') : '';
+    var rs = r.review_status || 'pending';
+    var rsLabel = rs === 'under_review' ? 'REVIEW' : rs.toUpperCase();
+    var hasNotes = r.review_notes && r.review_notes.length > 0;
+    var tags = r.relevance_tags || [];
+
+    html += '<div class="gh-repo-card ' + coverageCls + '" data-repo-id="' + r.id + '" data-review="' + rs + '">' +
+      '<div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">' +
+        '<div class="gh-repo-card-name" style="flex:1; margin-bottom:0;" title="' + escHtml(r.repo_name) + '">' + escHtml(r.repo_name) + '</div>' +
+        '<span class="gh-review-badge ' + rs + '">' + rsLabel + '</span>' +
+      '</div>' +
+      (descSnippet ? '<div style="font-size:0.68rem; color:rgba(255,255,255,0.35); margin:0 0 6px; line-height:1.3; overflow:hidden; max-height:2.6em;">' + descSnippet + '</div>' : '') +
+      '<div class="gh-repo-card-row">' +
+        '<svg class="gh-progress-ring" viewBox="0 0 44 44">' +
+          '<circle class="gh-progress-ring-bg" cx="22" cy="22" r="18" />' +
+          '<circle class="gh-progress-ring-fill" cx="22" cy="22" r="18"' +
+            ' stroke="#22c55e" stroke-dasharray="' + circumference + '"' +
+            ' stroke-dashoffset="' + dashoffset + '"' +
+            ' transform="rotate(-90 22 22)" data-repo="' + r.id + '" />' +
+        '</svg>' +
+        '<div style="flex:1; padding-left:12px;">' +
+          '<div style="font-family:Orbitron,sans-serif; font-size:0.9rem; font-weight:700; color:' +
+            (r.indexed ? '#22c55e' : '#f59e0b') + ';">' + (r.indexed_files || 0) + ' <span style="font-size:0.65rem; color:rgba(255,255,255,0.4);">files</span></div>' +
+          '<div style="font-size:0.7rem; color:rgba(255,255,255,0.35);">' +
+            (r.indexed ? 'Indexed ' + formatAge(r.indexed_at) : 'Pending') + '</div>' +
+        '</div>' +
+      '</div>' +
+      (tags.length ? '<div class="gh-review-tags">' + tags.map(function(t) { return '<span class="gh-review-tag">' + escHtml(t) + '</span>'; }).join('') + '</div>' : '') +
+      '<div class="gh-repo-card-meta">' +
+        (r.repo_type ? '<span>' + escHtml(r.repo_type) + '</span>' : '') +
+        (r.status ? '<span>' + escHtml(r.status) + '</span>' : '') +
+        (hasNotes ? '<span style="cursor:pointer; color:var(--cat-accent);" onclick="event.stopPropagation(); toggleReviewNotes(this);">Notes &#9660;</span>' : '') +
+      '</div>' +
+      (hasNotes ? '<div class="gh-review-notes">' + escHtml(r.review_notes).replace(/\\n/g, '<br>') + '</div>' : '') +
+      '<div class="gh-repo-card-actions">' +
+        (rs !== 'approved' ? '<button class="review-approve" onclick="event.stopPropagation(); updateRepoReview(' + r.id + ', \'approved\', \'' + escHtml(r.repo_name).replace(/'/g, "\\'") + '\')">Approve</button>' : '') +
+        (rs !== 'rejected' ? '<button class="review-reject" onclick="event.stopPropagation(); updateRepoReview(' + r.id + ', \'rejected\', \'' + escHtml(r.repo_name).replace(/'/g, "\\'") + '\')">Reject</button>' : '') +
+        '<button onclick="event.stopPropagation(); reindexRepo(' + r.id + ')">Re-index</button>' +
+        '<button class="danger" onclick="event.stopPropagation(); deleteRepo(' + r.id + ', \'' + escHtml(r.repo_name).replace(/'/g, "\\'") + '\')">Delete</button>' +
+        '<a href="https://github.com/' + escHtml(r.repo_name) + '" target="_blank" onclick="event.stopPropagation();">Open</a>' +
+        (r.local_path ? '<button onclick="event.stopPropagation(); openRepoExplorer(' + r.id + ', \'' + escHtml(r.repo_name).replace(/'/g, "\\'") + '\')" style="background:rgba(139,92,246,0.2); border-color:rgba(139,92,246,0.4); color:#c4b5fd;">Explore</button>' : '') +
+      '</div>' +
+    '</div>';
+  });
+  setHtml("ghRepoGrid", html);
+  refreshIcons();
+}
+
 function loadGitHub() {
   renderGitHubOps();
   api("/api/github/repos").then(function(data) {
     if (!data.success) return;
     var repos = data.repos || [];
+    _ghRepos = repos;
     setHtml("ghRepoCount", repos.length);
+
+    // Update filter counts
+    var counts = {all: repos.length, approved: 0, under_review: 0, pending: 0, rejected: 0};
+    repos.forEach(function(r) { var s = r.review_status || 'pending'; if (counts[s] !== undefined) counts[s]++; });
+    setHtml("ghFilterAll", counts.all);
+    setHtml("ghFilterApproved", counts.approved);
+    setHtml("ghFilterReview", counts.under_review);
+    setHtml("ghFilterPending", counts.pending);
+    setHtml("ghFilterRejected", counts.rejected);
 
     if (!repos.length) {
       setHtml("ghRepoGrid",
@@ -1674,52 +1831,10 @@ function loadGitHub() {
       return;
     }
 
-    var html = '';
-    repos.forEach(function(r) {
-      var coverageCls = 'coverage-low';
-      if (r.indexed && r.indexed_files > 0) {
-        coverageCls = 'coverage-mid';
-      }
-
-      var circumference = 2 * Math.PI * 18;
-      var dashoffset = circumference; // 0% default, updated by embed stats
-
-      var descSnippet = r.description ? escHtml(r.description.substring(0, 120)) + (r.description.length > 120 ? '...' : '') : '';
-
-      html += '<div class="gh-repo-card ' + coverageCls + '" data-repo-id="' + r.id + '">' +
-        '<div class="gh-repo-card-name" title="' + escHtml(r.repo_name) + '">' + escHtml(r.repo_name) + '</div>' +
-        (descSnippet ? '<div style="font-size:0.68rem; color:rgba(255,255,255,0.35); margin:-4px 0 6px; line-height:1.3; overflow:hidden; max-height:2.6em;">' + descSnippet + '</div>' : '') +
-        '<div class="gh-repo-card-row">' +
-          '<svg class="gh-progress-ring" viewBox="0 0 44 44">' +
-            '<circle class="gh-progress-ring-bg" cx="22" cy="22" r="18" />' +
-            '<circle class="gh-progress-ring-fill" cx="22" cy="22" r="18"' +
-              ' stroke="#22c55e" stroke-dasharray="' + circumference + '"' +
-              ' stroke-dashoffset="' + dashoffset + '"' +
-              ' transform="rotate(-90 22 22)" data-repo="' + r.id + '" />' +
-          '</svg>' +
-          '<div style="flex:1; padding-left:12px;">' +
-            '<div style="font-family:Orbitron,sans-serif; font-size:0.9rem; font-weight:700; color:' +
-              (r.indexed ? '#22c55e' : '#f59e0b') + ';">' + (r.indexed_files || 0) + ' <span style="font-size:0.65rem; color:rgba(255,255,255,0.4);">files</span></div>' +
-            '<div style="font-size:0.7rem; color:rgba(255,255,255,0.35);">' +
-              (r.indexed ? 'Indexed ' + formatAge(r.indexed_at) : 'Pending') + '</div>' +
-          '</div>' +
-        '</div>' +
-        '<div class="gh-repo-card-meta">' +
-          (r.repo_type ? '<span>' + escHtml(r.repo_type) + '</span>' : '') +
-          (r.status ? '<span>' + escHtml(r.status) + '</span>' : '') +
-        '</div>' +
-        '<div class="gh-repo-card-actions">' +
-          '<button onclick="event.stopPropagation(); reindexRepo(' + r.id + ')">Re-index</button>' +
-          '<button class="danger" onclick="event.stopPropagation(); deleteRepo(' + r.id + ', \'' + escHtml(r.repo_name).replace(/'/g, "\\'") + '\')">Delete</button>' +
-          '<a href="https://github.com/' + escHtml(r.repo_name) + '" target="_blank" onclick="event.stopPropagation();">Open</a>' +
-          (r.local_path ? '<button onclick="event.stopPropagation(); openRepoExplorer(' + r.id + ', \'' + escHtml(r.repo_name).replace(/'/g, "\\'") + '\')" style="background:rgba(139,92,246,0.2); border-color:rgba(139,92,246,0.4); color:#c4b5fd;">Explore</button>' : '') +
-        '</div>' +
-      '</div>';
-    });
-    setHtml("ghRepoGrid", html);
-    refreshIcons();
+    renderRepoView(repos);
     loadGitHubEmbedStats();
     loadSkillPipeline();
+    loadSkillPipelineStats();
   }).catch(function(err) {
     console.error("loadGitHub error:", err);
     setHtml("ghRepoGrid", '<div class="cs-empty">Error loading repos</div>');
@@ -1736,6 +1851,24 @@ function loadGitHubEmbedStats() {
     }
   }).catch(function(err) {
     console.error("API error:", err);
+  });
+}
+
+function adaptSkill(skillId) {
+  if (!confirm('Adapt this skill for A.R.C.H.I.E.? This sends it to Bridge for rewriting.')) return;
+  api("/github/skills/" + skillId + "/adapt", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({})
+  }).then(function(data) {
+    if (data.success) {
+      alert("Skill adapted successfully! ID: " + (data.new_skill_id || 'created'));
+      loadSkillPipeline();
+    } else {
+      alert("Adaptation failed: " + (data.error || 'unknown error'));
+    }
+  }).catch(function(err) {
+    alert("Error: " + err);
   });
 }
 
@@ -1795,12 +1928,52 @@ function loadSkillPipeline() {
         '<div style="font-size:0.65rem; color:rgba(255,255,255,0.3); margin-bottom:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' + escHtml(s.repo_name || '') + '">' +
           escHtml(s.repo_name || '') + '</div>' +
         '<div>' + capHtml + '</div>' +
+        (s.status === 'registered' && s.quality_score >= 4 ?
+          '<div style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.06);">' +
+            '<button onclick="adaptSkill(' + s.id + ')" style="padding:3px 10px; border-radius:4px; font-size:0.65rem; ' +
+              'font-family:Antonio,sans-serif; letter-spacing:0.5px; text-transform:uppercase; cursor:pointer; ' +
+              'background:rgba(139,92,246,0.15); border:1px solid rgba(139,92,246,0.3); color:#c4b5fd; transition:all 0.15s;" ' +
+              'onmouseover="this.style.background=\'rgba(139,92,246,0.3)\'" onmouseout="this.style.background=\'rgba(139,92,246,0.15)\'">' +
+              'Adapt for A.R.C.H.I.E.</button>' +
+          '</div>' : '') +
+        (s.status === 'adapted' ?
+          '<div style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.06);">' +
+            '<span style="font-size:0.62rem; color:#8b5cf6; text-transform:uppercase; letter-spacing:0.5px;">&#10003; Adapted</span>' +
+          '</div>' : '') +
       '</div>';
     });
     setHtml("ghSkillCards", html);
   }).catch(function(err) {
     console.error("loadSkillPipeline error:", err);
   });
+}
+
+/* ── Pipeline Stats Bar (v2) ──────────────────────────────── */
+async function loadSkillPipelineStats() {
+  try {
+    var data = await api("/api/github/skills/pipeline-stats");
+    if (!data || !data.success) return;
+
+    var p = data.pipeline;
+    var statsHtml =
+      '<div class="cs-pipeline-stats" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;padding:12px;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.2);border-radius:8px;">' +
+        '<span style="color:#a78bfa">Discovered: <b>' + (p.discovered || 0) + '</b></span>' +
+        '<span style="color:#8b5cf6">Registered: <b>' + (p.registered || 0) + '</b></span>' +
+        '<span style="color:#22d3ee">Installed: <b>' + (p.installed || 0) + '</b></span>' +
+        '<span style="color:' + ((p.passed || 0) > 0 ? '#10b981' : '#6b7280') + '">Tested: <b>' + (p.passed || 0) + '</b> pass</span>' +
+        ((p.failed || 0) > 0 ? '<span style="color:#ef4444">Failed: <b>' + (p.failed || 0) + '</b></span>' : '') +
+        '<span style="color:#fbbf24">Adapted: <b>' + (p.adapted || 0) + '</b></span>' +
+      '</div>';
+
+    var repoList = document.getElementById("ghRepoGrid");
+    if (repoList) {
+      var existing = document.querySelector(".cs-pipeline-stats");
+      if (existing) existing.remove();
+      repoList.insertAdjacentHTML("beforebegin", statsHtml);
+    }
+  } catch (e) {
+    console.warn("[PipelineStats] Failed to load:", e);
+  }
 }
 
 /* ── Shared: Render station crew + cross-station assists ─── */

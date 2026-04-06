@@ -1059,7 +1059,8 @@ def register_github_repo_routes(bp, admin_required):
                 """
                 SELECT id, repo_name, repo_type, local_path, status,
                        indexed, indexed_files, indexed_at, updated_at,
-                       description, github_url, homepage_url
+                       description, github_url, homepage_url,
+                       review_status, review_notes, reviewed_at, relevance_tags
                 FROM github_repositories
                 ORDER BY repo_name
             """
@@ -1072,3 +1073,113 @@ def register_github_repo_routes(bp, admin_required):
                 cur.close()
             if conn:
                 conn.close()
+
+    # ==================================================================
+    # REPO REVIEW STATUS API
+    # ==================================================================
+
+    @bp.route("/api/github/repositories/<int:repo_id>/review", methods=["PATCH"])
+    @login_required
+    @admin_required
+    def update_repo_review(repo_id):
+        """Manually stamp a repo's review status (approved/rejected/under_review)."""
+        conn = None
+        cur = None
+        try:
+            data = request.get_json() or {}
+            review_status = data.get("review_status")
+            review_notes = data.get("review_notes")
+            relevance_tags = data.get("relevance_tags")
+
+            if not review_status:
+                return jsonify({"success": False, "error": "review_status required"}), 400
+
+            valid_statuses = ("approved", "pending", "rejected", "under_review")
+            if review_status not in valid_statuses:
+                return jsonify({"success": False, "error": f"Invalid status. Must be one of: {valid_statuses}"}), 400
+
+            conn = _get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            updates = ["review_status = %s", "reviewed_at = NOW()"]
+            params = [review_status]
+
+            if review_notes is not None:
+                updates.append("review_notes = %s")
+                params.append(review_notes[:2000])
+
+            if relevance_tags is not None:
+                updates.append("relevance_tags = %s")
+                params.append(relevance_tags if isinstance(relevance_tags, list) else [])
+
+            params.append(repo_id)
+            cur.execute(
+                f"UPDATE github_repositories SET {', '.join(updates)} WHERE id = %s RETURNING *",
+                params,
+            )
+            updated = cur.fetchone()
+            conn.commit()
+
+            if not updated:
+                return jsonify({"success": False, "error": "Repo not found"}), 404
+
+            return jsonify({"success": True, "repo": dict(updated)})
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
+
+    @bp.route("/api/github/skills/pipeline-stats")
+    @login_or_api_key
+    def api_github_skills_pipeline_stats():
+        """Return skill pipeline funnel stats for the GitHub tab."""
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor() as (conn, cur):
+                # Skill status counts
+                cur.execute(
+                    """SELECT status, COUNT(*) as count
+                       FROM github_skills
+                       GROUP BY status
+                       ORDER BY count DESC"""
+                )
+                status_counts = {r["status"]: r["count"] for r in cur.fetchall()}
+
+                # Installation counts
+                cur.execute(
+                    """SELECT
+                         COUNT(*) as installed,
+                         COUNT(*) FILTER (WHERE struct_valid IS NOT NULL) as tested,
+                         COUNT(*) FILTER (WHERE dry_run_passed = TRUE) as passed,
+                         COUNT(*) FILTER (WHERE dry_run_passed = FALSE) as failed,
+                         COUNT(*) FILTER (WHERE adapted = TRUE) as adapted
+                       FROM skill_installations
+                       WHERE target = 'claude_code'"""
+                )
+                inst = cur.fetchone()
+
+            return jsonify(
+                {
+                    "success": True,
+                    "pipeline": {
+                        "discovered": status_counts.get("discovered", 0),
+                        "analyzing": status_counts.get("analyzing", 0),
+                        "analyzed": status_counts.get("analyzed", 0),
+                        "registered": status_counts.get("registered", 0),
+                        "installed": inst["installed"],
+                        "tested": inst["tested"],
+                        "passed": inst["passed"],
+                        "failed": inst["failed"],
+                        "adapted": inst["adapted"],
+                    },
+                }
+            )
+        except Exception as e:
+            logger.error(f"[GitHub] Pipeline stats error: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500

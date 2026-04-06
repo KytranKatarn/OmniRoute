@@ -1245,7 +1245,9 @@ def register_github_repo_routes(bp, admin_required):
             max_installed_at = None
             for row in rows:
                 repo_slug = row["repo_name"].replace("/", "-").lower()
-                skill_slug = row["skill_name"].replace("/", "-").replace(" ", "-").lower().rstrip(".md")
+                skill_slug = row["skill_name"].replace("/", "-").replace(" ", "-").lower()
+                if skill_slug.endswith(".md"):
+                    skill_slug = skill_slug[:-3]
                 skills.append(
                     {
                         "skill_id": row["skill_id"],

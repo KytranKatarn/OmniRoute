@@ -1652,9 +1652,10 @@ def install_skills_to_claude():
 
                 # Build install path: .claude/skills/github/<owner-repo>/<skill-slug>.md
                 repo_slug = skill["repo_name"].replace("/", "-").lower()
-                skill_slug = skill["skill_name"].replace("/", "-").replace(" ", "-").lower().rstrip(".md")
-                if not skill_slug.endswith(".md"):
-                    skill_slug += ".md"
+                skill_slug = skill["skill_name"].replace("/", "-").replace(" ", "-").lower()
+                if skill_slug.endswith(".md"):
+                    skill_slug = skill_slug[:-3]
+                skill_slug += ".md"
 
                 repo_dir = os.path.join(base_dir, repo_slug)
                 os.makedirs(repo_dir, exist_ok=True)

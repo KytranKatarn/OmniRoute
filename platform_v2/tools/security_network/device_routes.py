@@ -422,3 +422,121 @@ def register_device_routes(bp, admin_required_decorator):
         except Exception as exc:
             logger.error("device_detail error for %s: %s", device_ip, exc)
             return jsonify({"success": False, "error": str(exc)}), 500
+
+    # ---------------------------------------------------------------------------
+    # Bandwidth history (for Chart.js graphs)
+    # ---------------------------------------------------------------------------
+
+    @bp.route("/api/devices/bandwidth-history/<device_ip>")
+    @login_required
+    @admin_required_decorator
+    def device_bandwidth_history(device_ip):
+        """Get hourly bandwidth history for a device over a configurable period."""
+        if not IP_PATTERN.match(device_ip):
+            return jsonify({"success": False, "error": "Invalid IP address"}), 400
+
+        period = request.args.get("period", "24h")
+        interval_map = {"24h": "24 hours", "7d": "7 days", "30d": "30 days"}
+        interval = interval_map.get(period, "24 hours")
+
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    f"""
+                    SELECT hour_bucket, bytes_in, bytes_out
+                    FROM network_traffic_stats
+                    WHERE device_ip = %s
+                      AND hour_bucket >= NOW() - INTERVAL '{interval}'
+                    ORDER BY hour_bucket
+                    """,
+                    (device_ip,),
+                )
+                rows = cur.fetchall()
+                history = [
+                    {
+                        "hour": row["hour_bucket"].isoformat(),
+                        "bytes_in": int(row["bytes_in"] or 0),
+                        "bytes_out": int(row["bytes_out"] or 0),
+                    }
+                    for row in rows
+                ]
+            return jsonify({"success": True, "history": history, "period": period, "device_ip": device_ip})
+        except Exception as exc:
+            logger.error("device_bandwidth_history error for %s: %s", device_ip, exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
+    @bp.route("/api/devices/bandwidth-history/by-user")
+    @login_required
+    @admin_required_decorator
+    def bandwidth_history_by_user():
+        """Get bandwidth history grouped by user for Chart.js graphs."""
+        period = request.args.get("period", "24h")
+        interval_map = {"24h": "24 hours", "7d": "7 days", "30d": "30 days"}
+        interval = interval_map.get(period, "24 hours")
+
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    f"""
+                    SELECT
+                        date_trunc('hour', nts.hour_bucket) AS hour,
+                        COALESCE(ndu.user_name, 'Unknown') AS user_name,
+                        SUM(nts.bytes_in) AS bytes_in,
+                        SUM(nts.bytes_out) AS bytes_out
+                    FROM network_traffic_stats nts
+                    LEFT JOIN network_device_users ndu ON ndu.mac_address = nts.device_mac
+                    WHERE nts.hour_bucket >= NOW() - INTERVAL '{interval}'
+                    GROUP BY hour, user_name
+                    ORDER BY hour
+                    """,
+                )
+                rows = cur.fetchall()
+                history = [
+                    {
+                        "hour": row["hour"].isoformat(),
+                        "user": row["user_name"],
+                        "bytes_in": int(row["bytes_in"] or 0),
+                        "bytes_out": int(row["bytes_out"] or 0),
+                    }
+                    for row in rows
+                ]
+            return jsonify({"success": True, "history": history, "period": period})
+        except Exception as exc:
+            logger.error("bandwidth_history_by_user error: %s", exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
+    # ---------------------------------------------------------------------------
+    # Traffic classification per device
+    # ---------------------------------------------------------------------------
+
+    @bp.route("/api/devices/traffic-breakdown/<device_ip>")
+    @login_required
+    @admin_required_decorator
+    def device_traffic_breakdown(device_ip):
+        """Get traffic breakdown by category for a device."""
+        if not IP_PATTERN.match(device_ip):
+            return jsonify({"success": False, "error": "Invalid IP address"}), 400
+
+        hours = request.args.get("hours", 24, type=int)
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT
+                        COALESCE(tc.category, 'other') AS category,
+                        SUM(ddh.query_count) AS queries
+                    FROM device_dns_history ddh
+                    LEFT JOIN traffic_categories tc
+                        ON tc.domain_pattern = SUBSTRING(ddh.domain FROM '([^.]+\\.[^.]+)$')
+                    WHERE ddh.device_ip = %s
+                      AND ddh.hour_bucket >= NOW() - INTERVAL '1 hour' * %s
+                    GROUP BY COALESCE(tc.category, 'other')
+                    ORDER BY queries DESC
+                    """,
+                    (device_ip, hours),
+                )
+                breakdown = [{"category": row["category"], "queries": int(row["queries"])} for row in cur.fetchall()]
+            return jsonify({"success": True, "breakdown": breakdown, "device_ip": device_ip})
+        except Exception as exc:
+            logger.error("device_traffic_breakdown error for %s: %s", device_ip, exc)
+            return jsonify({"success": False, "error": str(exc)}), 500

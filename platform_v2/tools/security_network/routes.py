@@ -1141,6 +1141,8 @@ def api_update_alert_config():
             config[alert_type]["enabled"] = bool(settings["enabled"])
         if "telegram" in settings:
             config[alert_type]["telegram"] = bool(settings["telegram"])
+        if "digest" in settings:
+            config[alert_type]["digest"] = bool(settings["digest"])
 
     try:
         with get_db_cursor(commit=True) as (conn, cur):

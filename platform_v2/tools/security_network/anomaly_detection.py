@@ -248,8 +248,14 @@ def detect_dns_tunneling():
                 base = ".".join(domain.rsplit(".", 2)[-2:]) if "." in domain else domain
                 if base in DNS_TUNNEL_WHITELIST:
                     continue
-                # Skip SRV/service records (_ldap, _kerberos, etc.)
-                if domain.startswith("_"):
+                # Skip SRV/service records anywhere in the name (_ldap, _kerberos, _tcp, etc.)
+                if "_" in domain.split(".")[0] or "._tcp." in domain or "._udp." in domain:
+                    continue
+                # Skip reverse DNS lookups (ip6.arpa, in-addr.arpa)
+                if domain.endswith(".arpa"):
+                    continue
+                # Skip S3/CDN bucket-style subdomains (contain hyphens + region pattern)
+                if ".s3" in domain and base in ("amazonaws.com",):
                     continue
                 findings.append(
                     {
@@ -313,9 +319,16 @@ def _format_bytes(b):
 def run_all_anomaly_checks():
     """Run all anomaly detectors and create security alerts for findings.
 
+    Uses **digest mode**: all individual findings are saved to the DB for
+    full dashboard visibility, but Telegram receives ONE batched summary
+    message per run instead of one message per finding.
+
+    Exfiltration findings are the exception — they always fire an immediate
+    Telegram alert because they may indicate active data theft.
+
     Returns dict with counts per check type.
     """
-    from .security_alerts import create_security_alert
+    from .security_alerts import create_security_alert, create_security_digest
 
     all_findings = {
         "bandwidth_spikes": [],
@@ -324,7 +337,10 @@ def run_all_anomaly_checks():
         "dns_tunneling": [],
     }
 
-    # 1. Bandwidth spikes
+    # Collect digest lines (batched into one Telegram message at the end)
+    digest_lines = []
+
+    # 1. Bandwidth spikes — dashboard + digest
     spikes = detect_bandwidth_spikes()
     for s in spikes:
         create_security_alert(
@@ -334,10 +350,12 @@ def run_all_anomaly_checks():
             f"Avg: {_format_bytes(s['average'])}, "
             f"Ratio: {s['ratio']}x (threshold: {BANDWIDTH_SPIKE_MULTIPLIER}x)",
             priority="high",
+            telegram=False,  # goes into digest instead
         )
+        digest_lines.append({"line": f"Bandwidth spike: {s['device_ip']} ({s['ratio']}x avg)"})
     all_findings["bandwidth_spikes"] = spikes
 
-    # 2. Data exfiltration
+    # 2. Data exfiltration — IMMEDIATE Telegram (active threat)
     exfil = detect_exfiltration()
     for e in exfil:
         create_security_alert(
@@ -351,7 +369,7 @@ def run_all_anomaly_checks():
         )
     all_findings["exfiltration"] = exfil
 
-    # 3. Odd-hours activity
+    # 3. Odd-hours activity — dashboard + digest
     odd = detect_odd_hours_activity()
     for o in odd:
         create_security_alert(
@@ -359,33 +377,54 @@ def run_all_anomaly_checks():
             f"Odd-hours DNS activity: {o['device_ip']}",
             f"{o['queries']} DNS queries between {ODD_HOURS_START}:00-{ODD_HOURS_END + 1}:00",
             priority="normal",
+            telegram=False,
         )
+        digest_lines.append({"line": f"Odd-hours DNS: {o['device_ip']} ({o['queries']} queries)"})
     all_findings["odd_hours"] = odd
 
-    # 4. DNS tunneling
+    # 4. DNS tunneling — dashboard + digest
     tunneling = detect_dns_tunneling()
     for t in tunneling:
         if t["type"] == "long_domain":
+            detail = f"Long domain ({t['domain_length']} chars): {t['domain'][:60]}"
             create_security_alert(
                 "intrusion",
                 f"DNS tunneling suspect: {t['device_ip']}",
-                f"Long domain ({t['domain_length']} chars): {t['domain'][:80]}...",
+                detail,
                 priority="high",
-                telegram=True,
+                telegram=False,
             )
+            digest_lines.append({"line": f"DNS tunnel (long): {t['device_ip']} — {t['domain'][:40]}…"})
         else:
-            create_security_alert(
-                "intrusion",
-                f"DNS tunneling suspect: {t['device_ip']}",
+            detail = (
                 f"Base domain: {t['base_domain']}, "
                 f"Queries: {t['total_queries']}, "
-                f"Unique subdomains: {t['unique_subdomains']}",
+                f"Unique subdomains: {t['unique_subdomains']}"
+            )
+            create_security_alert(
+                "intrusion",
+                f"DNS tunneling suspect: {t['device_ip']}",
+                detail,
                 priority="high",
-                telegram=True,
+                telegram=False,
+            )
+            digest_lines.append(
+                {"line": f"DNS tunnel: {t['device_ip']} → {t['base_domain']} " f"({t['unique_subdomains']} subdomains)"}
             )
     all_findings["dns_tunneling"] = tunneling
 
     total = sum(len(v) for v in all_findings.values())
+
+    # --- Send ONE digest to Telegram (if there are non-exfil findings) ---
+    if digest_lines:
+        create_security_digest(
+            "intrusion",
+            "Anomaly Digest",
+            digest_lines,
+            priority="high",
+            telegram=True,
+        )
+
     if total > 0:
         logger.warning(
             "[AnomalyDetection] %d findings: %d spikes, %d exfil, %d odd-hours, %d tunneling",

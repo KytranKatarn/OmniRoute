@@ -291,6 +291,45 @@ def register_report_routes(bp, admin_required_decorator):
             logger.exception("Route error: %s", e)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
+    # --- Weekly security report ---
+
+    @bp.route("/api/reports/weekly")
+    @login_required
+    @admin_required_decorator
+    def api_weekly_report():
+        """Get the latest weekly security report (or generate on demand)."""
+        try:
+            from .report_generator import generate_weekly_report
+
+            report = generate_weekly_report()
+            return jsonify({"success": True, "report": report})
+        except Exception as e:
+            logger.exception("Route error: %s", e)
+            return jsonify({"success": False, "error": "Internal server error"}), 500
+
+    @bp.route("/api/reports/weekly/send", methods=["POST"])
+    @login_required
+    @admin_required_decorator
+    def api_send_weekly_report():
+        """Generate and send weekly report to Telegram now."""
+        try:
+            from .report_generator import generate_weekly_report, format_report_telegram
+            from .security_alerts import create_security_alert
+
+            report = generate_weekly_report()
+            telegram_text = format_report_telegram(report)
+            notif_id = create_security_alert(
+                "scan_result",
+                "Weekly Security Report",
+                telegram_text,
+                priority="normal",
+                telegram=True,
+            )
+            return jsonify({"success": True, "notification_id": notif_id})
+        except Exception as e:
+            logger.exception("Route error: %s", e)
+            return jsonify({"success": False, "error": "Internal server error"}), 500
+
 
 def _gather_report_content(report_type, date_start=None, date_end=None):
     """Gather report content based on type by querying relevant DB data."""

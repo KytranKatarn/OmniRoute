@@ -28,6 +28,15 @@ from .device_registry_routes import register_device_registry_routes
 from .agent_automation_routes import register_agent_automation_routes
 from .analytics_routes import register_analytics_routes
 from .vigil_routes import register_vigil_routes
+from .topology_routes import register_topology_routes
+from .threat_intel_routes import register_threat_intel_routes
+from .fingerprint_routes import register_fingerprint_routes
+from .speed_test_routes import register_speed_test_routes
+from .parental_routes import register_parental_routes
+from .incident_routes import register_incident_routes
+from .honeypot_routes import register_honeypot_routes
+from .pcap_routes import register_pcap_routes
+from .sinkhole_routes import register_sinkhole_routes
 
 register_compliance_routes(security_network_bp, _admin_required)
 register_defense_routes(security_network_bp, _admin_required)
@@ -45,6 +54,15 @@ register_device_registry_routes(security_network_bp, _admin_required)
 register_agent_automation_routes(security_network_bp, _admin_required)
 register_analytics_routes(security_network_bp, _admin_required)
 register_vigil_routes(security_network_bp, _admin_required)
+register_topology_routes(security_network_bp, _admin_required)
+register_threat_intel_routes(security_network_bp, _admin_required)
+register_fingerprint_routes(security_network_bp, _admin_required)
+register_speed_test_routes(security_network_bp, _admin_required)
+register_parental_routes(security_network_bp, _admin_required)
+register_incident_routes(security_network_bp, _admin_required)
+register_honeypot_routes(security_network_bp, _admin_required)
+register_pcap_routes(security_network_bp, _admin_required)
+register_sinkhole_routes(security_network_bp, _admin_required)
 
 # Load rule packs on startup
 try:

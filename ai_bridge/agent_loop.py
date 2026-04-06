@@ -1121,66 +1121,10 @@ class AgentLoop:
         logger.info("Agent loop started with 72 jobs")
 
     def _update_stock_prices(self):
-        """Job #27: Refresh cached stock prices, check price alerts, and auto-scan watchlist every 5 minutes."""
-        try:
-            from database import get_db_cursor
-            from tools.stockbot.services.market_data_service import batch_update_prices
-            from tools.stockbot.services.portfolio_service import check_alerts
-
-            # Gather all tickers currently being watched or held
-            with get_db_cursor() as (conn, cur):
-                cur.execute(
-                    "SELECT DISTINCT ticker FROM stock_watchlist "
-                    "UNION SELECT DISTINCT ticker FROM stock_portfolio WHERE shares > 0"
-                )
-                rows = cur.fetchall()
-
-            tickers = [r[0] for r in rows]
-            if tickers:
-                updated = batch_update_prices(tickers)
-                triggered = check_alerts()
-                logger.debug(
-                    f"Stock price updater: refreshed {updated}/{len(tickers)} tickers, "
-                    f"triggered {triggered} alerts"
-                )
-
-            # Phase 2: Auto-scan watchlist for stale AI analyses (cap 5/cycle, 4h TTL)
-            try:
-                from tools.stockbot.services.stock_analysis_service import auto_scan_watchlist
-
-                scanned = auto_scan_watchlist()
-                if scanned:
-                    logger.info(f"Stock auto-scan: ran analysis on {scanned} watchlist ticker(s)")
-            except Exception as scan_err:
-                logger.error(f"auto_scan_watchlist error: {scan_err}")
-
-            # Phase 3: Evaluate automated trading strategies
-            try:
-                from tools.stockbot.services.strategy_service import evaluate_strategies
-
-                evaluated = evaluate_strategies()
-                if evaluated:
-                    logger.info(f"Stock strategy evaluator: processed {evaluated} active strategy/strategies")
-            except Exception as strat_err:
-                logger.error(f"evaluate_strategies error: {strat_err}")
-
-            # Phase 4: Sentiment scan for top 3 watchlist tickers
-            try:
-                from tools.stockbot.services.sentiment_service import analyze_sentiment
-
-                top_tickers = tickers[:3] if tickers else []
-                for t in top_tickers:
-                    try:
-                        analyze_sentiment(t)
-                    except Exception:
-                        pass
-                if top_tickers:
-                    logger.debug(f"Stock sentiment scan: updated {len(top_tickers)} ticker(s)")
-            except Exception as sent_err:
-                logger.error(f"sentiment_scan error: {sent_err}")
-
-        except Exception as e:
-            logger.error(f"_update_stock_prices error: {e}")
+        """Job #27: DISABLED — StockBot migrated to Kytran Market Watch (standalone).
+        Remove this stub and its scheduler registration once Market Watch has its own job system.
+        """
+        pass
 
     def _check_media_schedules(self):
         """Check agent media generation schedules and trigger if due."""

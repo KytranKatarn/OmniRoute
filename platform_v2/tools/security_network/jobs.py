@@ -77,11 +77,13 @@ def discover_network_devices():
     """Discover new network devices via AdGuard + ARP (every 5 min)."""
     try:
         from tools.security_network.device_registry_service import DeviceRegistryService
-        from tools.security_network.security_alerts import create_security_alert
+        from tools.security_network.security_alerts import create_security_alert, create_security_digest
 
         svc = DeviceRegistryService()
         new_devices = svc.discover_devices()
 
+        # Save each to DB (dashboard tracking) but skip individual Telegram
+        digest_lines = []
         for device in new_devices:
             ip = device.get("ip_address", "?")
             mac = device.get("mac_address", "?")
@@ -91,10 +93,19 @@ def discover_network_devices():
                 f"New device detected: {mfr}",
                 f"IP: {ip} | MAC: {mac} | Manufacturer: {mfr}",
                 priority="high",
+                telegram=False,  # batched into digest
+            )
+            digest_lines.append({"line": f"{mfr}: {ip} (MAC: {mac})"})
+
+        # ONE Telegram message for all new devices
+        if digest_lines:
+            create_security_digest(
+                "new_device",
+                "New Devices Discovered",
+                digest_lines,
+                priority="high",
                 telegram=True,
             )
-
-        if new_devices:
             logger.info(f"Network discovery: {len(new_devices)} new devices found")
     except Exception as e:
         logger.warning(f"Failed: {e}")
@@ -973,7 +984,7 @@ def track_device_presence():
     try:
         from database import get_db_cursor
         from tools.security_network.ntopng_service import NtopngService
-        from tools.security_network.security_alerts import create_security_alert
+        from tools.security_network.security_alerts import create_security_alert, create_security_digest
 
         ntopng = NtopngService()
         current_hosts = ntopng.get_local_hosts(ifid=1)
@@ -1001,6 +1012,7 @@ def track_device_presence():
             all_known_ips = set(last_state.keys())
 
             # --- Process currently visible devices ---
+            new_device_lines = []
             for ip, mac in current_map.items():
                 prev = last_state.get(ip)
                 if prev != "online":
@@ -1011,15 +1023,16 @@ def track_device_presence():
                     )
                     processed += 1
 
-                    # Alert on brand-new device
+                    # Track brand-new device for digest
                     if ip not in all_known_ips:
                         create_security_alert(
-                            "intrusion",
+                            "new_device",
                             f"New device detected: {ip}",
                             f"A device with IP {ip} (MAC: {mac or 'unknown'}) appeared on the network for the first time.",
                             priority="high",
-                            telegram=False,
+                            telegram=False,  # batched into digest below
                         )
+                        new_device_lines.append({"line": f"New device: {ip} (MAC: {mac or 'unknown'})"})
 
                 # --- UPSERT MAC-IP history ---
                 if mac:
@@ -1056,6 +1069,7 @@ def track_device_presence():
             for row in spoofs:
                 spoof_ip = row[0]
                 spoof_macs = row[1]
+                # ARP spoof = immediate Telegram (critical threat)
                 create_security_alert(
                     "intrusion",
                     f"ARP spoof detected on {spoof_ip}",
@@ -1065,6 +1079,16 @@ def track_device_presence():
                     telegram=True,
                 )
                 processed += 1
+
+            # --- Send ONE digest for new devices (instead of individual alerts) ---
+            if new_device_lines:
+                create_security_digest(
+                    "new_device",
+                    "Device Presence",
+                    new_device_lines,
+                    priority="normal",
+                    telegram=True,
+                )
 
         duration = int((time.time() - t0) * 1000)
         _log_cycle(
@@ -1274,6 +1298,174 @@ def generate_vigil_threat_report():
         _log_cycle("vigil_threat_report", 0, 1, dur, error_message=str(e))
 
 
+def generate_weekly_security_report():
+    """Generate and send weekly security report (Monday 8 AM)."""
+    t0 = time.time()
+    try:
+        from tools.security_network.report_generator import generate_weekly_report, format_report_telegram
+        from tools.security_network.security_alerts import create_security_alert
+
+        report = generate_weekly_report()
+        telegram_text = format_report_telegram(report)
+
+        create_security_alert(
+            "scan_result",
+            "Weekly Security Report",
+            telegram_text,
+            priority="normal",
+            telegram=True,
+        )
+
+        # Store in knowledge base
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO knowledge_base (title, content, knowledge_type, importance_score, category)
+                VALUES (%s, %s, 'vault_note', 0.80, 'security')
+                """,
+                (
+                    f"Weekly Security Report — {datetime.now().strftime('%Y-%m-%d')}",
+                    json.dumps(report, indent=2, default=str),
+                ),
+            )
+
+        dur = int((time.time() - t0) * 1000)
+        _log_cycle("weekly_security_report", 1, 0, dur)
+        logger.info("[weekly_security_report] generated in %dms", dur)
+
+    except Exception as e:
+        dur = int((time.time() - t0) * 1000)
+        logger.error("weekly_security_report failed: %s", e)
+        _log_cycle("weekly_security_report", 0, 1, dur, error_message=str(e))
+
+
+def sync_threat_intel():
+    """Sync threat intelligence feeds and check for hits (every 6h)."""
+    t0 = time.time()
+    try:
+        from tools.security_network.threat_intel_service import ThreatIntelService
+
+        svc = ThreatIntelService()
+        sync_result = svc.sync_feeds()
+        hits = svc.check_hits()
+
+        if hits:
+            from tools.security_network.security_alerts import create_security_digest
+
+            digest_lines = [
+                {
+                    "line": f"{h.get('domain', h.get('device_ip', '?'))} matched {h.get('feed_name', '?')} ({h.get('severity', '?')})"
+                }
+                for h in hits
+            ]
+            create_security_digest(
+                "intrusion",
+                "Threat Intel Hits",
+                digest_lines,
+                priority="high",
+                telegram=True,
+            )
+
+        dur = int((time.time() - t0) * 1000)
+        _log_cycle(
+            "sync_threat_intel",
+            sync_result.get("total_iocs", 0),
+            0,
+            dur,
+            details={"new_hits": len(hits), **sync_result},
+        )
+        logger.info(
+            "[sync_threat_intel] %d IOCs synced, %d hits (%dms)", sync_result.get("total_iocs", 0), len(hits), dur
+        )
+
+    except Exception as e:
+        dur = int((time.time() - t0) * 1000)
+        logger.error("sync_threat_intel failed: %s", e)
+        _log_cycle("sync_threat_intel", 0, 1, dur, error_message=str(e))
+
+
+def correlate_security_incidents():
+    """Group related alerts into incidents (every 30 min)."""
+    t0 = time.time()
+    try:
+        from tools.security_network.incident_service import IncidentService
+
+        svc = IncidentService()
+        created = svc.correlate_alerts()
+
+        dur = int((time.time() - t0) * 1000)
+        _log_cycle("correlate_incidents", created, 0, dur)
+        if created:
+            logger.info("[correlate_incidents] %d new incidents created (%dms)", created, dur)
+
+    except Exception as e:
+        dur = int((time.time() - t0) * 1000)
+        logger.error("correlate_incidents failed: %s", e)
+        _log_cycle("correlate_incidents", 0, 1, dur, error_message=str(e))
+
+
+def run_speed_test():
+    """Run periodic speed test (every 6h)."""
+    t0 = time.time()
+    try:
+        import subprocess as _sp
+
+        result = _sp.run(
+            ["speedtest-cli", "--json"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if result.returncode != 0:
+            logger.warning("[speed_test] speedtest-cli failed: %s", result.stderr[:200])
+            return
+
+        data = json.loads(result.stdout)
+        download = round(data.get("download", 0) / 1_000_000, 2)
+        upload = round(data.get("upload", 0) / 1_000_000, 2)
+        ping = round(data.get("ping", 0), 2)
+        server = data.get("server", {}).get("sponsor", "Unknown")
+
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "INSERT INTO speed_test_results (download_mbps, upload_mbps, ping_ms, server) VALUES (%s, %s, %s, %s)",
+                (download, upload, ping, server),
+            )
+
+        dur = int((time.time() - t0) * 1000)
+        _log_cycle("speed_test", 1, 0, dur, details={"download": download, "upload": upload, "ping": ping})
+        logger.info("[speed_test] %.1f↓ / %.1f↑ Mbps, %.1fms ping (%dms)", download, upload, ping, dur)
+
+    except FileNotFoundError:
+        logger.warning("[speed_test] speedtest-cli not installed")
+    except Exception as e:
+        dur = int((time.time() - t0) * 1000)
+        logger.error("speed_test failed: %s", e)
+        _log_cycle("speed_test", 0, 1, dur, error_message=str(e))
+
+
+def enforce_parental_schedules():
+    """Enforce parental control schedules via AdGuard (every 5 min)."""
+    t0 = time.time()
+    try:
+        from tools.security_network.parental_service import ParentalService
+
+        svc = ParentalService()
+        enforced = svc.enforce_schedules()
+
+        dur = int((time.time() - t0) * 1000)
+        _log_cycle("parental_enforce", enforced, 0, dur)
+
+    except Exception as e:
+        dur = int((time.time() - t0) * 1000)
+        logger.error("parental_enforce failed: %s", e)
+        _log_cycle("parental_enforce", 0, 1, dur, error_message=str(e))
+
+
 def register_security_jobs(scheduler, flask_app):
     """Register all security/network jobs with the APScheduler instance.
 
@@ -1435,4 +1627,49 @@ def register_security_jobs(scheduler, flask_app):
         replace_existing=True,
     )
 
-    logger.info("[SecurityJobs] Registered 16 security/network jobs")
+    # --- Weekly security report ---
+    scheduler.add_job(
+        with_ctx(generate_weekly_security_report),
+        trigger=CronTrigger(day_of_week="mon", hour=8, minute=0),
+        id="agent_weekly_security_report",
+        name="Agent Loop: Weekly Security Report",
+        replace_existing=True,
+    )
+
+    # --- Threat intelligence sync ---
+    scheduler.add_job(
+        with_ctx(sync_threat_intel),
+        trigger=IntervalTrigger(hours=6, start_date="2026-01-01 01:00:00"),
+        id="agent_threat_intel_sync",
+        name="Agent Loop: Threat Intel Sync",
+        replace_existing=True,
+    )
+
+    # --- Alert correlation / incidents ---
+    scheduler.add_job(
+        with_ctx(correlate_security_incidents),
+        trigger=IntervalTrigger(minutes=30),
+        id="agent_correlate_incidents",
+        name="Agent Loop: Alert Correlation",
+        replace_existing=True,
+    )
+
+    # --- Speed test ---
+    scheduler.add_job(
+        with_ctx(run_speed_test),
+        trigger=IntervalTrigger(hours=6, start_date="2026-01-01 00:30:00"),
+        id="agent_speed_test",
+        name="Agent Loop: Network Speed Test",
+        replace_existing=True,
+    )
+
+    # --- Parental controls enforcement ---
+    scheduler.add_job(
+        with_ctx(enforce_parental_schedules),
+        trigger=IntervalTrigger(minutes=5),
+        id="agent_parental_enforce",
+        name="Agent Loop: Parental Controls Enforcement",
+        replace_existing=True,
+    )
+
+    logger.info("[SecurityJobs] Registered 21 security/network jobs")

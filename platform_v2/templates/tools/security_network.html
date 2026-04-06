@@ -13,7 +13,9 @@
 {% block extra_js %}
 <script src="/static/js/security-network.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
 <script src="{{ url_for('static', filename='js/security-network-app.js') }}"></script>
+<script src="{{ url_for('static', filename='js/security-network-features.js') }}" defer></script>
 {% endblock %}
 
 {% block content %}
@@ -103,6 +105,18 @@
         <button class="tab-btn" data-tab="reports">
             <i data-lucide="file-text" style="width:16px;height:16px"></i>
             Reports
+        </button>
+        <button class="tab-btn" data-tab="topology">
+            <i data-lucide="network" style="width:16px;height:16px"></i>
+            Topology
+        </button>
+        <button class="tab-btn" data-tab="parental">
+            <i data-lucide="clock" style="width:16px;height:16px"></i>
+            Parental
+        </button>
+        <button class="tab-btn" data-tab="intel">
+            <i data-lucide="radar" style="width:16px;height:16px"></i>
+            Intel
         </button>
     </div>
 
@@ -649,6 +663,23 @@
                 </div>
             </div>
         </div>
+        <!-- DNS Sinkhole Analytics (below subtabs) -->
+        <div class="card" style="margin-top:16px">
+            <div class="card-header">
+                <span class="card-title">Sinkhole Analytics (Blocked Domains)</span>
+                <button class="btn btn-sm" onclick="loadSinkholeStats()">
+                    <i data-lucide="refresh-cw" style="width:12px;height:12px"></i>
+                </button>
+            </div>
+            <div style="display:flex;gap:16px;flex-wrap:wrap">
+                <div style="flex:1;min-width:300px">
+                    <canvas id="sinkhole-chart" style="max-height:250px"></canvas>
+                </div>
+                <div style="flex:1;min-width:300px" id="sinkhole-table">
+                    <div class="loading-state"><span class="spinner"></span> Loading...</div>
+                </div>
+            </div>
+        </div>
     </div>
 
 
@@ -693,6 +724,24 @@
             </div>
             <div id="devices-users-table" style="overflow-x:auto">
                 <div class="loading-state"><span class="spinner"></span> Loading...</div>
+            </div>
+        </div>
+
+        <!-- Traffic Classification by Device -->
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title">Traffic Classification (24h)</span>
+                <button class="btn btn-sm" onclick="loadTrafficClassification()">
+                    <i data-lucide="refresh-cw" style="width:12px;height:12px"></i>
+                </button>
+            </div>
+            <div style="display:flex;gap:16px;flex-wrap:wrap">
+                <div style="flex:1;min-width:280px">
+                    <canvas id="traffic-class-chart" style="max-height:280px"></canvas>
+                </div>
+                <div style="flex:2;min-width:300px" id="traffic-class-table">
+                    <div class="loading-state"><span class="spinner"></span> Loading...</div>
+                </div>
             </div>
         </div>
 
@@ -1580,6 +1629,167 @@
                         <div class="bm-footer-dot green"></div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== TAB: TOPOLOGY ==================== -->
+    <div id="tab-topology" class="tab-content">
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title">Network Topology</span>
+                <button class="btn btn-sm" onclick="loadTopology()">
+                    <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh
+                </button>
+            </div>
+            <div id="topology-stats" style="display:flex;gap:16px;padding:8px 16px;font-size:0.8rem;color:var(--archie-text-muted)">
+                <span>Devices: <strong id="topo-device-count">--</strong></span>
+                <span>Bandwidth: <strong id="topo-bandwidth">--</strong></span>
+                <span>Top Talker: <strong id="topo-top-talker">--</strong></span>
+            </div>
+            <div id="topology-graph" style="width:100%;height:600px;background:rgba(0,0,0,0.3);border-radius:8px;position:relative;overflow:hidden">
+                <svg id="topo-svg" width="100%" height="100%"></svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== TAB: PARENTAL ==================== -->
+    <div id="tab-parental" class="tab-content">
+        <!-- Schedule Management -->
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title">Parental Controls</span>
+                <button class="btn btn-sm btn-primary" onclick="showAddScheduleModal()">
+                    <i data-lucide="plus" style="width:12px;height:12px"></i> Add Schedule
+                </button>
+            </div>
+            <div id="parental-schedules">
+                <div class="loading-state"><span class="spinner"></span> Loading schedules...</div>
+            </div>
+        </div>
+
+        <!-- Traffic by User -->
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title">Usage by User (24h)</span>
+                <select id="traffic-period" onchange="loadTrafficByUser()" style="font-size:0.75rem;padding:2px 6px;border-radius:4px;background:#1a1a2e;color:#ccc;border:1px solid #333">
+                    <option value="24">24 Hours</option>
+                    <option value="168">7 Days</option>
+                    <option value="720">30 Days</option>
+                </select>
+            </div>
+            <div id="traffic-by-user" style="min-height:200px">
+                <div class="loading-state"><span class="spinner"></span> Loading...</div>
+            </div>
+        </div>
+
+        <!-- Brain Rot Leaderboard -->
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title">Screen Time Breakdown</span>
+            </div>
+            <div id="brain-rot-board" style="min-height:200px">
+                <div class="loading-state"><span class="spinner"></span> Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== TAB: INTEL ==================== -->
+    <div id="tab-intel" class="tab-content">
+        <!-- Threat Intel Summary -->
+        <div class="noc-hero-grid" style="margin-bottom:16px">
+            <div class="noc-hero-card" style="--noc-accent:#ef4444">
+                <div class="noc-hero-val" id="intel-ioc-count">--</div>
+                <div class="noc-hero-label">IOCs Loaded</div>
+            </div>
+            <div class="noc-hero-card" style="--noc-accent:#fbbf24">
+                <div class="noc-hero-val" id="intel-hit-count">--</div>
+                <div class="noc-hero-label">Hits Detected</div>
+            </div>
+            <div class="noc-hero-card" style="--noc-accent:#00e5ff">
+                <div class="noc-hero-val" id="intel-incident-count">--</div>
+                <div class="noc-hero-label">Open Incidents</div>
+            </div>
+            <div class="noc-hero-card" style="--noc-accent:#10b981">
+                <div class="noc-hero-val" id="intel-speed">--</div>
+                <div class="noc-hero-label">Last Speed Test</div>
+            </div>
+        </div>
+
+        <!-- Threat Intel Feeds -->
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title">Threat Intelligence Feeds</span>
+                <button class="btn btn-sm btn-primary" onclick="syncThreatIntel()">
+                    <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Sync Feeds
+                </button>
+            </div>
+            <div id="intel-feeds">
+                <div class="loading-state"><span class="spinner"></span> Loading...</div>
+            </div>
+        </div>
+
+        <!-- Recent Hits -->
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title">Threat Intel Hits</span>
+            </div>
+            <div id="intel-hits">
+                <div class="empty-state">No hits detected</div>
+            </div>
+        </div>
+
+        <!-- Incidents -->
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title">Security Incidents</span>
+                <button class="btn btn-sm" onclick="correlateIncidents()">
+                    <i data-lucide="git-merge" style="width:12px;height:12px"></i> Correlate
+                </button>
+            </div>
+            <div id="intel-incidents">
+                <div class="empty-state">No incidents</div>
+            </div>
+        </div>
+
+        <!-- Speed Test -->
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title">Network Speed History</span>
+                <button class="btn btn-sm btn-primary" onclick="runSpeedTest()">
+                    <i data-lucide="zap" style="width:12px;height:12px"></i> Run Test
+                </button>
+            </div>
+            <div style="height:250px;position:relative">
+                <canvas id="speed-chart"></canvas>
+            </div>
+            <div id="speed-test-status" style="font-size:0.75rem;color:var(--archie-text-muted);padding:8px 16px"></div>
+        </div>
+
+        <!-- Honeypot Events -->
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title">Honeypot Monitor</span>
+                <div style="display:flex;gap:6px">
+                    <button class="btn btn-sm btn-primary" onclick="startHoneypot()">Start</button>
+                    <button class="btn btn-sm" onclick="stopHoneypot()">Stop</button>
+                </div>
+            </div>
+            <div id="honeypot-events">
+                <div class="empty-state">Honeypot not running</div>
+            </div>
+        </div>
+
+        <!-- Weekly Report -->
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title">Weekly Report</span>
+                <button class="btn btn-sm btn-primary" onclick="sendWeeklyReport()">
+                    <i data-lucide="send" style="width:12px;height:12px"></i> Send Now
+                </button>
+            </div>
+            <div id="weekly-report-preview">
+                <div class="loading-state"><span class="spinner"></span> Loading...</div>
             </div>
         </div>
     </div>

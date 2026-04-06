@@ -1,4 +1,10 @@
-"""Security alert helper — creates system_notifications and optionally forwards to Telegram."""
+"""Security alert helper — creates system_notifications and optionally forwards to Telegram.
+
+Supports two delivery modes:
+  1. Immediate — one Telegram message per alert (default for critical/high)
+  2. Digest   — multiple findings batched into one Telegram summary message
+     Use ``create_security_digest()`` to send a single grouped notification.
+"""
 
 import logging
 from database import get_db_cursor
@@ -32,12 +38,13 @@ def _get_alert_config():
     Defaults to all enabled with Telegram for high/critical.
     """
     defaults = {
-        "intrusion": {"enabled": True, "telegram": True},
-        "block": {"enabled": True, "telegram": True},
-        "ssl_expiry": {"enabled": True, "telegram": True},
-        "dns_change": {"enabled": True, "telegram": False},
-        "motion": {"enabled": True, "telegram": True},
-        "scan_result": {"enabled": True, "telegram": False},
+        "intrusion": {"enabled": True, "telegram": True, "digest": True},
+        "block": {"enabled": True, "telegram": True, "digest": False},
+        "ssl_expiry": {"enabled": True, "telegram": True, "digest": False},
+        "dns_change": {"enabled": True, "telegram": False, "digest": True},
+        "motion": {"enabled": True, "telegram": True, "digest": False},
+        "scan_result": {"enabled": True, "telegram": False, "digest": True},
+        "new_device": {"enabled": True, "telegram": True, "digest": True},
     }
 
     try:
@@ -112,3 +119,40 @@ def create_security_alert(alert_type, title, message, priority="high", telegram=
     except Exception as e:
         logger.error(f"[SecurityAlerts] Failed to create alert: {e}")
         return None
+
+
+def create_security_digest(alert_type, title, findings, priority="high", telegram=True):
+    """Create ONE notification that summarises multiple findings.
+
+    Each finding in *findings* is a dict with at least ``"line"`` (str) —
+    a single human-readable summary line.  Optional keys: ``"device_ip"``,
+    ``"detail"`` (extra context shown only in the DB row, not Telegram).
+
+    The Telegram message looks like:
+        🔒 Anomaly Digest — 12 findings
+        • Bandwidth spike: 192.168.1.42 (8.3x)
+        • DNS tunneling suspect: 192.168.1.15
+        …
+
+    All individual findings are still stored in the ``message`` column for
+    full dashboard inspection.
+    """
+    if not findings:
+        return None
+
+    # Build a concise body (max 30 lines for Telegram readability)
+    lines = [f.get("line", str(f)) for f in findings]
+    summary_lines = lines[:30]
+    if len(lines) > 30:
+        summary_lines.append(f"… and {len(lines) - 30} more")
+
+    message = "\n".join(f"• {l}" for l in summary_lines)
+    full_title = f"{title} — {len(findings)} finding{'s' if len(findings) != 1 else ''}"
+
+    return create_security_alert(
+        alert_type=alert_type,
+        title=full_title,
+        message=message,
+        priority=priority,
+        telegram=telegram,
+    )

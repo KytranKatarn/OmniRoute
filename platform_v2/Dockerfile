@@ -11,6 +11,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     espeak-ng \
     tesseract-ocr \
+    tesseract-ocr-por \
+    tesseract-ocr-fra \
     iproute2 \
     ufw \
     auditd \

@@ -19,6 +19,7 @@ Jobs extracted:
   - agent_skill_adaptation (Job #58) — auto-adapt registered skills for A.R.C.H.I.E.
   - agent_skill_installer (Job #59) — install skills to Claude Code
   - agent_skill_tester (Job #60) — structural validation + dry-run testing
+  - agent_skill_fleet_push (Job #61) — push tested skills to fleet nodes
 """
 
 import json
@@ -1979,6 +1980,247 @@ def test_installed_skills():
         )
 
 
+def push_skills_to_fleet():
+    """Job #61: Push tested skills to online starship fleet nodes.
+
+    Finds skills not yet pushed to each online starship node,
+    POSTs to the node's inbound API. Tracks state in node_skill_pushes.
+    Processes up to 5 skills per node per cycle (every 6 hours).
+    """
+    start = time.time()
+    pushed_total = 0
+    errors_total = 0
+
+    try:
+        from database import get_db_cursor
+        import requests as _req
+
+        # Find online starship nodes (heartbeat within 10 minutes)
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT id, hostname, port, node_name, node_id
+                   FROM remote_nodes
+                   WHERE deployment_mode = 'starship'
+                     AND last_heartbeat > NOW() - INTERVAL '10 minutes'"""
+            )
+            nodes = cur.fetchall()
+
+        if not nodes:
+            logger.debug("[SkillPush] No online starship nodes")
+            _log_cycle(
+                "skill_fleet_push",
+                0,
+                0,
+                int((time.time() - start) * 1000),
+            )
+            return
+
+        # Get tested+passing skills
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT si.skill_id, gs.repo_name, gs.skill_name,
+                          COALESCE(si.adapted_content, si.normalized_content) AS content,
+                          gs.quality_score, si.adapted
+                   FROM skill_installations si
+                   JOIN github_skills gs ON gs.id = si.skill_id
+                   WHERE si.target = 'claude_code'
+                     AND si.dry_run_passed = TRUE"""
+            )
+            all_skills = cur.fetchall()
+
+        if not all_skills:
+            _log_cycle(
+                "skill_fleet_push",
+                0,
+                0,
+                int((time.time() - start) * 1000),
+            )
+            return
+
+        all_skill_ids = {s["skill_id"] for s in all_skills}
+        skill_map = {s["skill_id"]: s for s in all_skills}
+
+        for node in nodes:
+            node_db_id = node["id"]
+            hostname = node["hostname"]
+            inbound_port = 9091
+            node_name = node["node_name"]
+
+            # Find skills already pushed to this node
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT skill_id FROM node_skill_pushes
+                       WHERE node_id = %s""",
+                    (node_db_id,),
+                )
+                already_pushed = {r["skill_id"] for r in cur.fetchall()}
+
+            to_push = list(all_skill_ids - already_pushed)[:5]
+            if not to_push:
+                continue
+
+            logger.info(
+                "[SkillPush] Pushing %d skills to %s (%s)",
+                len(to_push),
+                node_name,
+                hostname,
+            )
+
+            pushed_this_node = 0
+            errors_this_node = 0
+
+            for skill_id in to_push:
+                skill = skill_map[skill_id]
+                repo_slug = skill["repo_name"].replace("/", "-").lower()
+                skill_slug = skill["skill_name"].replace("/", "-").replace(" ", "-").lower()
+                if skill_slug.endswith(".md"):
+                    skill_slug = skill_slug[:-3]
+
+                payload = {
+                    "skill_id": skill_id,
+                    "repo_slug": repo_slug,
+                    "slug": skill_slug,
+                    "content": skill["content"] or "",
+                    "quality_score": skill["quality_score"],
+                    "adapted": bool(skill["adapted"]),
+                }
+
+                try:
+                    resp = _req.post(
+                        f"http://{hostname}:{inbound_port}/api/skills/push",
+                        json=payload,
+                        timeout=15,
+                    )
+                    result = resp.json()
+
+                    if resp.status_code == 200 and result.get("success"):
+                        with get_db_cursor(commit=True) as (conn2, cur2):
+                            cur2.execute(
+                                """INSERT INTO node_skill_pushes
+                                   (node_id, skill_id, pushed_at, fail_count)
+                                   VALUES (%s, %s, NOW(), 0)
+                                   ON CONFLICT (node_id, skill_id)
+                                   DO UPDATE SET pushed_at = NOW(),
+                                                 fail_count = 0,
+                                                 last_error = NULL""",
+                                (node_db_id, skill_id),
+                            )
+                        pushed_this_node += 1
+                    else:
+                        error_msg = result.get("error", f"HTTP {resp.status_code}")
+                        _record_push_failure(node_db_id, skill_id, error_msg)
+                        errors_this_node += 1
+
+                except Exception as push_err:
+                    _record_push_failure(node_db_id, skill_id, str(push_err)[:200])
+                    errors_this_node += 1
+
+            pushed_total += pushed_this_node
+            errors_total += errors_this_node
+            logger.info(
+                "[SkillPush] %s: %d pushed, %d errors",
+                node_name,
+                pushed_this_node,
+                errors_this_node,
+            )
+
+        _check_push_failure_alerts()
+
+        _log_cycle(
+            "skill_fleet_push",
+            pushed_total,
+            errors_total,
+            int((time.time() - start) * 1000),
+            details={
+                "nodes": len(nodes),
+                "pushed": pushed_total,
+                "errors": errors_total,
+            },
+        )
+
+    except Exception as e:
+        logger.warning("[SkillPush] Job failed: %s", e)
+        _log_cycle(
+            "skill_fleet_push",
+            0,
+            1,
+            int((time.time() - start) * 1000),
+            error_message=str(e),
+        )
+
+
+def _record_push_failure(node_id: int, skill_id: int, error: str):
+    """Record a skill push failure, incrementing fail_count."""
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """INSERT INTO node_skill_pushes
+                   (node_id, skill_id, fail_count, last_error)
+                   VALUES (%s, %s, 1, %s)
+                   ON CONFLICT (node_id, skill_id)
+                   DO UPDATE SET fail_count = node_skill_pushes.fail_count + 1,
+                                 last_error = %s""",
+                (node_id, skill_id, error, error),
+            )
+    except Exception as e:
+        logger.warning("[SkillPush] Failed to record failure: %s", e)
+
+
+def _check_push_failure_alerts():
+    """Send Telegram alert if any skill has 3+ push failures."""
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT nsp.node_id, nsp.skill_id, nsp.fail_count,
+                          nsp.last_error, rn.node_name
+                   FROM node_skill_pushes nsp
+                   JOIN remote_nodes rn ON rn.id = nsp.node_id
+                   WHERE nsp.fail_count >= 3"""
+            )
+            failures = cur.fetchall()
+
+        if not failures:
+            return
+
+        bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+        if not bot_token:
+            return
+
+        import requests as _req
+        from db import get_db
+
+        text = "\u26a0\ufe0f *Skill Push Failures*\n\n" f"*{len(failures)}* skills stuck (3+ failures):\n"
+        for f in failures[:5]:
+            text += (
+                f"- Skill #{f['skill_id']} \u2192 {f['node_name']} "
+                f"({f['fail_count']}x): {(f['last_error'] or '')[:60]}\n"
+            )
+
+        tg_conn = get_db()
+        tg_cur = tg_conn.cursor()
+        tg_cur.execute(
+            "SELECT telegram_id FROM telegram_users " "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
+        )
+        for row in tg_cur.fetchall():
+            _req.post(
+                f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                json={
+                    "chat_id": row[0],
+                    "text": text,
+                    "parse_mode": "Markdown",
+                },
+                timeout=15,
+            )
+        tg_cur.close()
+        tg_conn.close()
+    except Exception as e:
+        logger.warning("[SkillPush] Telegram alert failed: %s", e)
+
+
 # ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
@@ -2278,6 +2520,14 @@ def register_consciousness_jobs(scheduler, flask_app):
     )
 
     scheduler.add_job(
+        with_ctx(push_skills_to_fleet),
+        trigger=IntervalTrigger(hours=6, start_date="2026-01-01 04:00:00"),
+        id="agent_skill_fleet_push",
+        name="Agent Loop: Skill Fleet Push (Cluster Distribution)",
+        replace_existing=True,
+    )
+
+    scheduler.add_job(
         with_ctx(auto_adapt_skills),
         trigger=IntervalTrigger(hours=12, start_date="2026-01-01 03:00:00"),
         id="agent_skill_adaptation",
@@ -2285,4 +2535,4 @@ def register_consciousness_jobs(scheduler, flask_app):
         replace_existing=True,
     )
 
-    logger.info("[ConsciousnessJobs] Registered 18 consciousness jobs")
+    logger.info("[ConsciousnessJobs] Registered 19 consciousness jobs")

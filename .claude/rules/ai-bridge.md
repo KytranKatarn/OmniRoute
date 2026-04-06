@@ -35,6 +35,12 @@ globs: ["ai_bridge/**"]
 - `bridge_dispatcher.py`: Input validation on `dispatch()` and `dispatch_json()`
 - Files reduced: 80→45 root Python files after relocating module-specific code
 
+## Dispatch API (MANDATORY)
+- `from bridge_dispatcher import dispatch` or `dispatch_json` — module-level functions ONLY
+- NEVER call `get_dispatcher().dispatch()` — the instance method is `request_work()`, not `dispatch()`
+- `dispatch()` returns `DispatchResult` (not `str`) — always check `.success` and use `.response`
+- `get_agent_cache()` keys skills by `skill_name` (not `skill_category`) — capability matching depends on this
+
 ## Key Gotchas
 - `num_ctx` inflates VRAM massively (phi3.5: 2GB disk but 5.47GB with 2048 ctx)
 - qwen3-coder-cpu needs 600s timeout (55GB, ~9min cold load)

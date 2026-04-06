@@ -15,6 +15,8 @@ Jobs extracted:
   - agent_improvement_detection (migrated from consciousness_scheduler)
   - agent_daily_self_reflection (migrated from consciousness_scheduler)
   - agent_weekly_memory_consolidation (migrated from consciousness_scheduler)
+  - agent_github_repo_analysis (Job #57) — repo-level relevance analysis
+  - agent_skill_adaptation (Job #58) — auto-adapt registered skills for A.R.C.H.I.E.
 """
 
 import json
@@ -703,7 +705,7 @@ def analyze_discovered_skills():
         from bridge_dispatcher import dispatch_json
         from services.agent_service import add_skill
 
-        # Fetch up to 10 unanalyzed skills
+        # Fetch up to 25 unanalyzed skills (increased from 10 to clear backlog faster)
         with get_db_cursor() as (conn, cur):
             cur.execute(
                 """SELECT gs.id, gs.repo_name, gs.skill_name, gs.file_path,
@@ -712,7 +714,7 @@ def analyze_discovered_skills():
                    LEFT JOIN knowledge_base kb ON kb.id = gs.kb_entry_id
                    WHERE gs.status = 'discovered'
                    ORDER BY gs.created_at ASC
-                   LIMIT 10"""
+                   LIMIT 25"""
             )
             skills = cur.fetchall()
 
@@ -726,7 +728,7 @@ def analyze_discovered_skills():
         for skill in skills:
             skill_id = skill["id"]
             content = skill.get("content") or skill.get("description") or ""
-            if not content or len(content.strip()) < 20:
+            if not content or len(content.strip()) < 50:
                 # Too little content to analyze — mark as analyzed with low score
                 with get_db_cursor(commit=True) as (conn2, cur2):
                     cur2.execute(
@@ -1041,6 +1043,426 @@ def weekly_memory_consolidation():
         _log_cycle("weekly_memory_consolidation", 0, 1, duration_ms, error_message=str(e))
 
 
+def analyze_repo_relevance():
+    """Job #57: AI-analyze GitHub repos for platform relevance.
+
+    Picks repos with review_status='pending' or 'under_review',
+    reads README + description, sends to Bridge for relevance analysis.
+    Auto-approves high-relevance repos, escalates uncertain ones to Telegram.
+    Processes up to 5 repos per run (every 6 hours).
+    """
+    start = time.time()
+    analyzed = 0
+    errors_count = 0
+
+    try:
+        from database import get_db_cursor
+        from bridge_dispatcher import dispatch_json
+
+        # Fetch repos needing review (skip recently reviewed)
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT id, repo_name, repo_type, description, indexed_files
+                   FROM github_repositories
+                   WHERE review_status IN ('pending', 'under_review')
+                     AND (reviewed_at IS NULL OR reviewed_at < NOW() - INTERVAL '7 days')
+                   ORDER BY indexed_files DESC
+                   LIMIT 5"""
+            )
+            repos = cur.fetchall()
+
+        if not repos:
+            logger.info("[RepoRelevance] No repos pending review")
+            _log_cycle("github_repo_analysis", 0, 0, int((time.time() - start) * 1000))
+            return
+
+        logger.info(f"[RepoRelevance] Analyzing {len(repos)} repos for relevance")
+
+        for repo in repos:
+            repo_id = repo["id"]
+            repo_name = repo["repo_name"]
+
+            # Fetch README from knowledge_base
+            readme_content = ""
+            try:
+                with get_db_cursor() as (conn2, cur2):
+                    cur2.execute(
+                        """SELECT content FROM knowledge_base
+                           WHERE knowledge_type = 'github_file'
+                             AND title ILIKE %s
+                             AND memory_metadata->>'repo' = %s
+                           LIMIT 1""",
+                        (f"%{repo_name}%README%", repo_name),
+                    )
+                    row = cur2.fetchone()
+                    if row:
+                        readme_content = row["content"][:2000]
+            except Exception as readme_err:
+                logger.debug(f"[RepoRelevance] No README for {repo_name}: {readme_err}")
+
+            description = repo.get("description") or ""
+            if not readme_content and not description:
+                # No content to analyze — skip for now
+                logger.debug(f"[RepoRelevance] No README or description for {repo_name}, skipping")
+                continue
+
+            # Build analysis prompt
+            prompt = f"""You are a technology analyst for A.R.C.H.I.E., an AI platform running these services:
+- AI agents (122 across 16 departments), Bridge dispatch, Ollama LLM inference
+- Media generation (ComfyUI), Plex/Jellyfin media stack
+- Security scanning (Nmap, Nuclei, ZAP, Nikto)
+- Business Suite (CRM, invoicing, automation planned)
+- Watch products (Civic, Legal, Market, Gov news aggregators)
+- Website Designer, Store Builder, Content Studio
+- Fleet node management (Starbase/Starship)
+- Monitoring (Nagios, cAdvisor, ntopng, AdGuard)
+- Agent Academy (training, benchmarks, skill development)
+- Automation resale roadmap (n8n-style workflows + AI agents)
+
+Analyze this GitHub repository and determine its relevance to our platform:
+Repo: {repo_name}
+Type: {repo.get("repo_type", "unknown")}
+Description: {description[:500]}
+README (first 2000 chars): {readme_content}
+Files indexed: {repo.get("indexed_files", 0)}
+
+Respond with ONLY valid JSON:
+{{
+  "relevance": "high" | "medium" | "low" | "none",
+  "confidence": 0.0-1.0,
+  "summary": "1-2 sentence description of what this repo does",
+  "platform_connections": ["list of specific platform features this could enhance"],
+  "relevance_tags": ["automation", "media-gen", "agent-framework", "security", "monitoring", "ui-patterns", "orchestration", "skills", "product-template", "embeddings", "benchmarking"],
+  "recommendation": "approve" | "review" | "reject",
+  "reasoning": "why this recommendation"
+}}"""
+
+            system_prompt = (
+                "You are a technology analyst for the A.R.C.H.I.E. platform. "
+                "Evaluate GitHub repositories for relevance to our AI platform, "
+                "business suite, and automation roadmap. "
+                "Be generous — consider indirect value like patterns, templates, "
+                "and learning opportunities. Respond with valid JSON only."
+            )
+
+            try:
+                result = dispatch_json(
+                    capability="code_analysis",
+                    prompt=prompt,
+                    module_id="repo_relevance_analyzer",
+                    system_prompt=system_prompt,
+                )
+
+                if result and isinstance(result, dict):
+                    relevance = result.get("relevance", "low")
+                    confidence = min(1.0, max(0.0, float(result.get("confidence", 0.5))))
+                    summary = result.get("summary", "")
+                    tags = result.get("relevance_tags", [])
+                    connections = result.get("platform_connections", [])
+                    reasoning = result.get("reasoning", "")
+                    recommendation = result.get("recommendation", "review")
+
+                    # Decision logic: auto-approve high relevance, escalate rest
+                    if relevance == "high" and confidence >= 0.7:
+                        new_status = "approved"
+                        notes = f"AI auto-approved: {summary}\nConnections: {', '.join(connections[:5])}\nReasoning: {reasoning}"
+                    else:
+                        new_status = "under_review"
+                        notes = f"AI analysis ({relevance}, {confidence:.0%} confident): {summary}\nConnections: {', '.join(connections[:5])}\nReasoning: {reasoning}"
+
+                    # Update repo
+                    with get_db_cursor(commit=True) as (conn3, cur3):
+                        cur3.execute(
+                            """UPDATE github_repositories
+                               SET review_status = %s,
+                                   review_notes = %s,
+                                   relevance_tags = %s,
+                                   reviewed_at = NOW()
+                               WHERE id = %s""",
+                            (
+                                new_status,
+                                notes[:2000],
+                                tags if tags else None,
+                                repo_id,
+                            ),
+                        )
+
+                    analyzed += 1
+                    logger.info(
+                        f"[RepoRelevance] {repo_name}: {relevance} relevance " f"({confidence:.0%}) → {new_status}"
+                    )
+
+                    # Telegram escalation for non-auto-approved repos
+                    if new_status == "under_review":
+                        try:
+                            bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+                            if bot_token:
+                                import requests as _req
+
+                                text = (
+                                    f"\U0001f50d *Repo Review Needed*\n\n"
+                                    f"*{repo_name}* ({repo.get('indexed_files', 0)} files)\n"
+                                    f"{summary}\n\n"
+                                    f"AI says: *{relevance}* relevance ({confidence:.0%} confident)\n"
+                                    f"Connections: {', '.join(connections[:3]) or 'none identified'}\n"
+                                    f"Reasoning: {reasoning[:200]}\n\n"
+                                    f"[Review in Consciousness](http://192.168.1.200:3000/tools/consciousness?tab=github)"
+                                )
+
+                                from db import get_db
+
+                                tg_conn = get_db()
+                                tg_cur = tg_conn.cursor()
+                                tg_cur.execute(
+                                    "SELECT telegram_id FROM telegram_users "
+                                    "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
+                                )
+                                for row in tg_cur.fetchall():
+                                    _req.post(
+                                        f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                                        json={
+                                            "chat_id": row[0],
+                                            "text": text,
+                                            "parse_mode": "Markdown",
+                                        },
+                                        timeout=15,
+                                    )
+                                tg_cur.close()
+                                tg_conn.close()
+                        except Exception as tg_err:
+                            logger.warning(f"[RepoRelevance] Telegram failed: {tg_err}")
+
+                else:
+                    errors_count += 1
+                    logger.warning(f"[RepoRelevance] Bridge returned nothing for {repo_name}")
+
+            except Exception as dispatch_err:
+                errors_count += 1
+                logger.warning(f"[RepoRelevance] Dispatch failed for {repo_name}: " f"{str(dispatch_err)[:80]}")
+
+        logger.info(f"[RepoRelevance] Done: {analyzed} analyzed, {errors_count} errors")
+        _log_cycle(
+            "github_repo_analysis",
+            analyzed,
+            errors_count,
+            int((time.time() - start) * 1000),
+            details={"repos_checked": len(repos), "analyzed": analyzed, "errors": errors_count},
+        )
+
+    except Exception as e:
+        logger.warning(f"[RepoRelevance] Job failed: {e}")
+        _log_cycle(
+            "github_repo_analysis",
+            0,
+            1,
+            int((time.time() - start) * 1000),
+            error_message=str(e),
+        )
+
+
+def auto_adapt_skills():
+    """Job #58: Auto-adapt registered skills for A.R.C.H.I.E. platform.
+
+    Takes high-quality registered skills (quality 4+) and rewrites them
+    for A.R.C.H.I.E.'s departments, agents, and patterns.
+    Processes up to 10 per run (every 10 minutes during backlog clearing).
+    """
+    start = time.time()
+    adapted = 0
+    errors_count = 0
+
+    try:
+        from database import get_db_cursor
+
+        # Fetch registered skills not yet adapted
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT gs.id, gs.repo_name, gs.skill_name, gs.description,
+                          gs.capabilities, gs.analysis, kb.content
+                   FROM github_skills gs
+                   LEFT JOIN knowledge_base kb ON kb.id = gs.kb_entry_id
+                   WHERE gs.status = 'registered'
+                     AND gs.quality_score >= 4
+                     AND gs.id NOT IN (SELECT adapted_from_id FROM github_skills WHERE adapted_from_id IS NOT NULL)
+                   ORDER BY gs.quality_score DESC, gs.created_at ASC
+                   LIMIT 10"""
+            )
+            skills = cur.fetchall()
+
+        if not skills:
+            logger.info("[SkillAdapt] No registered skills ready for adaptation")
+            _log_cycle("skill_adaptation", 0, 0, int((time.time() - start) * 1000))
+            return
+
+        logger.info(f"[SkillAdapt] Adapting {len(skills)} skills for A.R.C.H.I.E.")
+
+        for skill in skills:
+            skill_id = skill["id"]
+            content = skill.get("content") or skill.get("description") or ""
+            if not content or len(content.strip()) < 50:
+                continue
+
+            truncated = content[:4000]
+            analysis = skill.get("analysis") or {}
+            if isinstance(analysis, str):
+                try:
+                    analysis = json.loads(analysis)
+                except Exception:
+                    analysis = {}
+
+            prompt = f"""Adapt this external skill for the A.R.C.H.I.E. platform.
+
+Original skill from "{skill['repo_name']}":
+Name: {skill['skill_name']}
+Capabilities: {skill.get('capabilities', '[]')}
+
+Content:
+---
+{truncated}
+---
+
+A.R.C.H.I.E. context:
+- 16 departments (Engineering, Security, Research, Creative, etc.)
+- 122 AI agents with skills, departments, shift states
+- Bridge dispatcher for all LLM inference (dispatch_json / dispatch)
+- LCARS sci-fi UI with station terminals
+- Knowledge base with 24,000+ entries and embeddings
+- Agent Academy for training and benchmarks
+- Autonomy module with scheduled agent loop jobs
+
+Rewrite this skill to be A.R.C.H.I.E.-native:
+1. Replace external references with A.R.C.H.I.E. equivalents
+2. Map to relevant departments and agents
+3. Use Bridge dispatcher patterns instead of direct LLM calls
+4. Reference LCARS UI components where applicable
+5. Keep the core technique/pattern intact
+
+Respond with the adapted skill content as markdown. Start with a YAML frontmatter block:
+---
+name: <skill name>
+description: <one line>
+department: <target department>
+capabilities: [<list>]
+---
+<adapted skill content>"""
+
+            system_prompt = (
+                "You are a skill adaptation engine for A.R.C.H.I.E. "
+                "Rewrite external skills to use A.R.C.H.I.E.'s architecture. "
+                "Preserve the core technique but map all references to the platform."
+            )
+
+            try:
+                from bridge_dispatcher import dispatch
+
+                dispatch_result = dispatch(
+                    capability="code_analysis",
+                    prompt=prompt,
+                    module_id="skill_adapter",
+                    system_prompt=system_prompt,
+                )
+                result = dispatch_result.response if dispatch_result and dispatch_result.success else None
+
+                if result and isinstance(result, str) and len(result) > 100:
+                    # Create adapted skill record
+                    with get_db_cursor(commit=True) as (conn2, cur2):
+                        cur2.execute(
+                            """INSERT INTO github_skills
+                               (repo_name, skill_name, description, status,
+                                quality_score, adapted_from_id, created_at, updated_at)
+                               VALUES (%s, %s, %s, 'adapted', %s, %s, NOW(), NOW())
+                               RETURNING id""",
+                            (
+                                skill["repo_name"],
+                                "adapted/" + skill["skill_name"],
+                                f"Adapted from {skill['skill_name']} for A.R.C.H.I.E.",
+                                skill.get("quality_score", 4),
+                                skill_id,
+                            ),
+                        )
+                        new_id = cur2.fetchone()["id"]
+
+                        # Store adapted content in knowledge_base
+                        cur2.execute(
+                            """INSERT INTO knowledge_base
+                               (knowledge_type, title, content, category,
+                                importance_score, tags, created_at)
+                               VALUES ('vault_note', %s, %s, 'adapted_skill',
+                                       0.90, %s, NOW())
+                               RETURNING id""",
+                            (
+                                f"Adapted Skill: {skill['skill_name']} from {skill['repo_name']}",
+                                result[:10000],
+                                ["adapted_skill", "github", skill["repo_name"]],
+                            ),
+                        )
+                        kb_id = cur2.fetchone()["id"]
+
+                        # Link back
+                        cur2.execute(
+                            "UPDATE github_skills SET kb_entry_id = %s WHERE id = %s",
+                            (kb_id, new_id),
+                        )
+
+                    adapted += 1
+                    logger.info(
+                        f"[SkillAdapt] Adapted {skill['skill_name']} " f"from {skill['repo_name']} → skill #{new_id}"
+                    )
+                else:
+                    errors_count += 1
+                    logger.warning(f"[SkillAdapt] Bridge returned insufficient content for {skill['skill_name']}")
+
+            except Exception as dispatch_err:
+                errors_count += 1
+                logger.warning(f"[SkillAdapt] Dispatch failed: {str(dispatch_err)[:80]}")
+
+        # Telegram notification
+        if adapted > 0:
+            try:
+                bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+                if bot_token:
+                    import requests as _req
+
+                    text = (
+                        f"\U0001f9ec *Skill Adaptation Complete*\n\n"
+                        f"*{adapted}* skills adapted for A.R.C.H.I.E.\n"
+                        f"_{len(skills)} skills processed this cycle_\n\n"
+                        f"[View in Consciousness](http://192.168.1.200:3000/tools/consciousness?tab=github)"
+                    )
+
+                    from db import get_db
+
+                    tg_conn = get_db()
+                    tg_cur = tg_conn.cursor()
+                    tg_cur.execute(
+                        "SELECT telegram_id FROM telegram_users "
+                        "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
+                    )
+                    for row in tg_cur.fetchall():
+                        _req.post(
+                            f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                            json={"chat_id": row[0], "text": text, "parse_mode": "Markdown"},
+                            timeout=15,
+                        )
+                    tg_cur.close()
+                    tg_conn.close()
+            except Exception as tg_err:
+                logger.warning(f"[SkillAdapt] Telegram failed: {tg_err}")
+
+        logger.info(f"[SkillAdapt] Done: {adapted} adapted, {errors_count} errors")
+        _log_cycle(
+            "skill_adaptation",
+            adapted,
+            errors_count,
+            int((time.time() - start) * 1000),
+            details={"skills_checked": len(skills), "adapted": adapted, "errors": errors_count},
+        )
+
+    except Exception as e:
+        logger.warning(f"[SkillAdapt] Job failed: {e}")
+        _log_cycle("skill_adaptation", 0, 1, int((time.time() - start) * 1000), error_message=str(e))
+
+
 # ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
@@ -1315,4 +1737,20 @@ def register_consciousness_jobs(scheduler, flask_app):
         replace_existing=True,
     )
 
-    logger.info("[ConsciousnessJobs] Registered 14 consciousness jobs")
+    scheduler.add_job(
+        with_ctx(analyze_repo_relevance),
+        trigger=IntervalTrigger(hours=6, start_date="2026-01-01 02:00:00"),
+        id="agent_github_repo_analysis",
+        name="Agent Loop: GitHub Repo Relevance Analysis",
+        replace_existing=True,
+    )
+
+    scheduler.add_job(
+        with_ctx(auto_adapt_skills),
+        trigger=IntervalTrigger(hours=12, start_date="2026-01-01 03:00:00"),
+        id="agent_skill_adaptation",
+        name="Agent Loop: Skill Adaptation for A.R.C.H.I.E.",
+        replace_existing=True,
+    )
+
+    logger.info("[ConsciousnessJobs] Registered 16 consciousness jobs")

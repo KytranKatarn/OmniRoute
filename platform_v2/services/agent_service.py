@@ -1227,7 +1227,7 @@ def get_agent_cache() -> Dict:
                    a.model, a.status, a.shift_state,
                    a.is_department_ai,
                    COALESCE(json_agg(
-                       json_build_object('skill', s.skill_category, 'level', s.proficiency_level)
+                       json_build_object('skill', s.skill_name, 'level', s.proficiency_level)
                    ) FILTER (WHERE s.id IS NOT NULL), '[]') AS skills_list
             FROM agents a
             LEFT JOIN agent_skills s ON a.id = s.agent_id

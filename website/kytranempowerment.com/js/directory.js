@@ -143,8 +143,134 @@ var Directory = {
                 card.appendChild(emailEl);
             }
 
+            // Click to open profile modal
+            card.style.cursor = 'pointer';
+            card.addEventListener('click', function (e) {
+                if (e.target.tagName === 'A') return; // don't intercept email links
+                Directory.openProfile(agent);
+            });
+
             grid.appendChild(card);
         });
+    },
+
+    openProfile: function (agent) {
+        // Remove existing modal if any
+        var existing = document.getElementById('agentProfileModal');
+        if (existing) existing.remove();
+
+        var overlay = document.createElement('div');
+        overlay.id = 'agentProfileModal';
+        overlay.className = 'dir-modal';
+        overlay.addEventListener('click', function (e) {
+            if (e.target === overlay) overlay.remove();
+        });
+
+        var panel = document.createElement('div');
+        panel.className = 'dir-modal__panel';
+
+        // Close button
+        var closeBtn = document.createElement('button');
+        closeBtn.className = 'dir-modal__close';
+        closeBtn.textContent = '\u00D7';
+        closeBtn.addEventListener('click', function () { overlay.remove(); });
+        panel.appendChild(closeBtn);
+
+        // Avatar (large)
+        var avatarWrap = document.createElement('div');
+        avatarWrap.className = 'dir-modal__avatar';
+        var initial = (agent.full_name || agent.acronym || '?').charAt(0).toUpperCase();
+        if (agent.avatar_url) {
+            var img = document.createElement('img');
+            img.src = agent.avatar_url;
+            img.alt = agent.full_name || agent.acronym || 'Agent';
+            img.onerror = function () {
+                var ph = document.createElement('div');
+                ph.className = 'dir-modal__avatar-fallback';
+                ph.textContent = initial;
+                this.replaceWith(ph);
+            };
+            avatarWrap.appendChild(img);
+        } else {
+            var placeholder = document.createElement('div');
+            placeholder.className = 'dir-modal__avatar-fallback';
+            placeholder.textContent = initial;
+            avatarWrap.appendChild(placeholder);
+        }
+        panel.appendChild(avatarWrap);
+
+        // Name / Acronym
+        if (agent.acronym) {
+            var acr = document.createElement('h2');
+            acr.className = 'dir-modal__acronym';
+            acr.textContent = agent.acronym;
+            panel.appendChild(acr);
+            if (agent.acronym_expansion) {
+                var exp = document.createElement('p');
+                exp.className = 'dir-modal__expansion';
+                exp.textContent = agent.acronym_expansion;
+                panel.appendChild(exp);
+            }
+        } else {
+            var nameH = document.createElement('h2');
+            nameH.className = 'dir-modal__name';
+            nameH.textContent = agent.full_name || agent.display_name || 'Unknown';
+            panel.appendChild(nameH);
+        }
+
+        // Info rows
+        var fields = [
+            { label: 'Title', value: agent.title },
+            { label: 'Department', value: agent.department },
+            { label: 'Type', value: agent.agent_type },
+            { label: 'Status', value: agent.shift_state },
+            { label: 'Email', value: agent.email, isEmail: true },
+        ];
+
+        var infoGrid = document.createElement('div');
+        infoGrid.className = 'dir-modal__info';
+        fields.forEach(function (f) {
+            if (!f.value) return;
+            var row = document.createElement('div');
+            row.className = 'dir-modal__row';
+
+            var label = document.createElement('span');
+            label.className = 'dir-modal__label';
+            label.textContent = f.label;
+            row.appendChild(label);
+
+            var val = document.createElement('span');
+            val.className = 'dir-modal__value';
+            if (f.isEmail) {
+                var a = document.createElement('a');
+                a.href = 'mailto:' + f.value;
+                a.textContent = f.value;
+                a.style.color = 'var(--accent, #00e5ff)';
+                val.appendChild(a);
+            } else if (f.label === 'Status') {
+                var badge = document.createElement('span');
+                badge.className = 'dir-modal__status dir-modal__status--' + f.value;
+                badge.textContent = f.value.replace('_', ' ');
+                val.appendChild(badge);
+            } else {
+                val.textContent = f.value;
+            }
+            row.appendChild(val);
+            infoGrid.appendChild(row);
+        });
+        panel.appendChild(infoGrid);
+
+        overlay.appendChild(panel);
+        document.body.appendChild(overlay);
+
+        // Close on Escape
+        var escHandler = function (e) {
+            if (e.key === 'Escape') {
+                overlay.remove();
+                document.removeEventListener('keydown', escHandler);
+            }
+        };
+        document.addEventListener('keydown', escHandler);
     },
 
     renderFilters: function () {

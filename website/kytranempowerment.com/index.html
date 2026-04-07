@@ -533,9 +533,14 @@
     <script defer src="js/nav.js?v=20260404b"></script>
     <script defer src="js/transitions.js?v=20260404b"></script>
     <script defer src="js/hero.js?v=20260404b"></script>
-    <script defer src="js/hero-animations.js?v=20260405"></script>
+    <script defer src="js/hero-animations.js?v=20260407t1307"></script>
     <script defer src="js/i18n.js?v=20260404d"></script>
     <script defer src="js/app.js?v=20260404b"></script>
+
+    <!-- Reveal fallback: force-show sections if scroll animations haven't fired -->
+    <script>
+    setTimeout(function(){document.querySelectorAll('.reveal-section').forEach(function(s){if(!s.classList.contains('is-visible')){s.style.opacity='1';s.style.transform='none';s.classList.add('is-visible')}})},3000);
+    </script>
 
     <!-- FAQ Structured Data -->
     <script type="application/ld+json">

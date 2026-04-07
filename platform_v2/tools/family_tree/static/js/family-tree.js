@@ -157,8 +157,11 @@ const FamilyTree = {
       .attr('pointer-events', 'none')
       .text(d => this._initials(d.first_name, d.last_name));
 
-    node.append('title').text(d =>
-      [d.first_name, d.last_name].filter(Boolean).join(' ') + (d.birth_year ? ` (${d.birth_year})` : ''));
+    node.append('title').text(d => {
+      const name = [d.first_name, d.last_name].filter(Boolean).join(' ');
+      const year = d.birth_date ? String(d.birth_date).substring(0, 4) : '';
+      return name + (year ? ` (${year})` : '');
+    });
 
     simulation.on('tick', () => {
       link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
@@ -179,9 +182,10 @@ const FamilyTree = {
   },
 
   _shortName(first, last) {
-    const f = (first || '?').substring(0, 10);
-    const l = (last  || '').substring(0, 10);
-    return l ? `${f} ${l}` : f;
+    const f = (first || '?');
+    const l = (last  || '');
+    const full = l ? `${f} ${l}` : f;
+    return full.length > 24 ? full.substring(0, 22) + '...' : full;
   },
 
   _initials(first, last) {
@@ -232,11 +236,13 @@ const FamilyTree = {
 
   async savePerson() {
     const g = (id) => document.getElementById(id);
+    const birthYear = g('ft-field-birth-year')?.value?.trim() || '';
+    const deathYear = g('ft-field-death-year')?.value?.trim() || '';
     const formData = {
       first_name:  g('ft-field-first-name')?.value?.trim()  || '',
       last_name:   g('ft-field-last-name')?.value?.trim()   || '',
-      birth_year:  g('ft-field-birth-year')?.value?.trim()  || '',
-      death_year:  g('ft-field-death-year')?.value?.trim()  || '',
+      birth_date:  birthYear ? `${birthYear}-01-01` : '',
+      death_date:  deathYear ? `${deathYear}-01-01` : '',
       birth_place: g('ft-field-birth-place')?.value?.trim() || '',
       gender:      g('ft-field-gender')?.value              || '',
       source_type: g('ft-field-source-type')?.value         || 'user_confirmed',
@@ -508,6 +514,12 @@ const FamilyTree = {
   renderPersonForm(person) {
     const v   = (f) => this.escHtml(person ? (person[f] || '') : '');
     const sel = (f, val) => (person && person[f] === val) ? 'selected' : '';
+    // Extract year from date fields (birth_date may be "1890-01-01" or "1890")
+    const yearOf = (f) => {
+      if (!person || !person[f]) return '';
+      const s = String(person[f]);
+      return s.length >= 4 ? s.substring(0, 4) : s;
+    };
     const deleteBtn = person
       ? `<button class="ft-btn ft-btn-danger ft-btn-sm" onclick="FamilyTree.deletePerson('${person.id}')" style="margin-left:auto;">Delete</button>`
       : '';
@@ -525,11 +537,11 @@ const FamilyTree = {
       <div class="ft-form-row">
         <div class="ft-form-group">
           <label class="ft-label" for="ft-field-birth-year">Birth Year</label>
-          <input class="ft-input" id="ft-field-birth-year" type="text" value="${v('birth_year')}" placeholder="e.g. 1945">
+          <input class="ft-input" id="ft-field-birth-year" type="text" value="${yearOf('birth_date')}" placeholder="e.g. 1945">
         </div>
         <div class="ft-form-group">
           <label class="ft-label" for="ft-field-death-year">Death Year</label>
-          <input class="ft-input" id="ft-field-death-year" type="text" value="${v('death_year')}" placeholder="Leave blank if living">
+          <input class="ft-input" id="ft-field-death-year" type="text" value="${yearOf('death_date')}" placeholder="Leave blank if living">
         </div>
       </div>
       <div class="ft-form-group">

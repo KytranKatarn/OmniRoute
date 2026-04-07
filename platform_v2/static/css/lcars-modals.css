@@ -168,6 +168,8 @@
     display: flex; align-items: center; justify-content: center;
     transition: background 0.15s, color 0.15s, box-shadow 0.15s;
     flex-shrink: 0;
+    position: relative;
+    z-index: 2;
 }
 .bm-close:hover {
     background: rgba(var(--bm-accent-rgb),0.3);

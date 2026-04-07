@@ -21,6 +21,19 @@ from .services.tree_service import (
 )
 
 
+def _serialize_person(p):
+    """Convert date fields to ISO strings for JSON serialization."""
+    if p is None:
+        return p
+    import datetime
+
+    for key in ("birth_date", "death_date", "created_at"):
+        val = p.get(key)
+        if isinstance(val, (datetime.date, datetime.datetime)):
+            p[key] = val.isoformat()
+    return p
+
+
 # ---------------------------------------------------------------------------
 # Dashboard
 # ---------------------------------------------------------------------------
@@ -52,6 +65,8 @@ def status():
 @login_required
 def api_get_tree():
     tree = get_full_tree(current_user.id)
+    if tree and "persons" in tree:
+        tree["persons"] = [_serialize_person(p) for p in tree["persons"]]
     return jsonify(tree)
 
 
@@ -63,7 +78,7 @@ def api_get_tree():
 @family_tree_bp.route("/api/persons")
 @login_required
 def api_list_persons():
-    persons = list_persons(current_user.id)
+    persons = [_serialize_person(p) for p in list_persons(current_user.id)]
     return jsonify(persons)
 
 
@@ -93,7 +108,7 @@ def api_create_person():
     )
     if person is None:
         return jsonify({"error": "Failed to create person"}), 500
-    return jsonify(person), 201
+    return jsonify(_serialize_person(person)), 201
 
 
 @family_tree_bp.route("/api/persons/<int:person_id>")
@@ -102,6 +117,7 @@ def api_get_person(person_id):
     person = get_person(current_user.id, person_id)
     if person is None:
         return jsonify({"error": "Not found"}), 404
+    _serialize_person(person)
     person["sources"] = get_person_sources(person_id)
     return jsonify(person)
 
@@ -113,6 +129,7 @@ def api_update_person(person_id):
     person = update_person(current_user.id, person_id, **data)
     if person is None:
         return jsonify({"error": "Not found or no valid fields"}), 404
+    _serialize_person(person)
     return jsonify(person)
 
 

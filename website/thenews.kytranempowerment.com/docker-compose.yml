@@ -1,0 +1,14 @@
+services:
+  kytran-news:
+    build: .
+    container_name: kytran_news
+    ports:
+      - "8103:8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    mem_limit: 64m
+    cpus: 0.25
+    restart: unless-stopped

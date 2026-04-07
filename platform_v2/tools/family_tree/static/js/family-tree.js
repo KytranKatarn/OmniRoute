@@ -63,6 +63,7 @@ const FamilyTree = {
 
   async init() {
     await this.loadTree();
+    await this.loadDedupCandidates();
     if (typeof lucide !== 'undefined') lucide.createIcons();
   },
 
@@ -76,7 +77,7 @@ const FamilyTree = {
     if (panel)  panel.classList.remove('ft-hidden');
     if (tabBtn) tabBtn.classList.add('ft-tab-active');
     this.currentTab = tab;
-    if (tab === 'research')  this.loadResearch();
+    if (tab === 'research')  { this.loadResearch(); this.loadHints(); this.loadDnaProfile(); }
     if (tab === 'documents') this.loadDocuments();
     if (tab === 'photos')    this.loadPhotos();
     if (tab === 'timeline')  this.loadTimeline();
@@ -567,6 +568,22 @@ const FamilyTree = {
     }
   },
 
+  async generateStory(personId) {
+    this.toast('Generating biography\u2026');
+    const output = document.getElementById('ft-story-output');
+    if (output) output.textContent = 'Generating\u2026';
+    const result = await this.api('/persons/' + personId + '/story', { method: 'POST' });
+    if (result.success || result.story) {
+      const story = result.story || result.text || 'No story returned.';
+      if (output) output.textContent = story;
+      this.toast('Biography generated.');
+    } else {
+      const errMsg = result.error || 'Failed to generate biography.';
+      if (output) output.textContent = errMsg;
+      this.toast(errMsg, true);
+    }
+  },
+
   /* ── RELATIONSHIPS ── */
 
   async addRelationship(aId, bId, type) {
@@ -712,9 +729,12 @@ const FamilyTree = {
 
     const noPhotos = `<div class="ft-empty-state ft-empty-sm" style="grid-column:1/-1;"><p>No photos uploaded yet.</p></div>`;
     this.setHtml('ft-photo-gallery', photos.length ? photos.map(p => `
-      <div class="ft-photo-item" onclick="FamilyTree._previewPhoto('${this.escHtml(p.url || '')}')">
-        <img src="${this.escHtml(p.url || p.thumbnail_url || '')}" alt="${this.escHtml(p.filename || '')}" loading="lazy">
+      <div class="ft-photo-item">
+        <img src="${this.escHtml(p.url || p.thumbnail_url || '')}" alt="${this.escHtml(p.filename || '')}" loading="lazy" onclick="FamilyTree._previewPhoto('${this.escHtml(p.url || '')}')">
         <div class="ft-photo-caption">${this.escHtml(p.filename || '')}</div>
+        <div class="ft-card-actions" style="padding:4px 0;">
+          <button class="ft-btn ft-btn-sm" onclick="event.stopPropagation();FamilyTree.colorizePhoto('${this.escHtml(String(p.id))}')"><i data-lucide="palette"></i> Colorize</button>
+        </div>
       </div>`).join('') : noPhotos);
 
     const noClusters = `<div class="ft-empty-state ft-empty-sm"><p>Run face clustering to group photos by person.</p></div>`;
@@ -771,6 +791,17 @@ const FamilyTree = {
     const result = await this.api(`/photos/${docId}/restore`, { method: 'POST' });
     if (result.success || result.url) { this.toast('Photo restored.'); await this.loadPhotos(); }
     else { this.toast(result.error || 'Restore failed.', true); }
+  },
+
+  async colorizePhoto(docId) {
+    this.toast('Colorizing photo\u2026');
+    const result = await this.api('/photos/' + docId + '/colorize', { method: 'POST' });
+    if (result.success || result.url) {
+      this.toast('Photo colorized.');
+      await this.loadPhotos();
+    } else {
+      this.toast(result.error || 'Colorization failed.', true);
+    }
   },
 
   _previewPhoto(url) { if (url) window.open(url, '_blank'); },
@@ -866,6 +897,8 @@ const FamilyTree = {
         <label class="ft-label" for="ft-field-notes">Notes</label>
         <textarea class="ft-textarea" id="ft-field-notes" placeholder="Additional notes...">${v('notes')}</textarea>
       </div>
+      ${person && this.editingPersonId ? `<button class="btn-submit" style="width:100%;margin-top:8px;" onclick="FamilyTree.generateStory(${person.id})"><i data-lucide="book-open"></i> Generate AI Biography</button>
+      <div id="ft-story-output" class="ft-muted" style="margin-top:8px;white-space:pre-wrap;max-height:200px;overflow-y:auto;"></div>` : ''}
       <div class="bm-actions" style="margin:12px -24px -20px;padding:10px 24px;">
         ${deleteBtn}
         <span style="flex:1;"></span>
@@ -1125,6 +1158,260 @@ const FamilyTree = {
       }
     });
   },
+
+  /* ── DEDUP CANDIDATES ── */
+
+  async loadDedupCandidates() {
+    const result = await this.api('/dedup/candidates');
+    const candidates = result.candidates || result.pairs || [];
+    const container = document.getElementById('ft-dedup-section');
+    if (!container) {
+      const statsEl = document.getElementById('ft-tree-stats');
+      if (statsEl) {
+        const div = document.createElement('div');
+        div.id = 'ft-dedup-section';
+        statsEl.parentNode.insertBefore(div, statsEl.nextSibling);
+      }
+    }
+    const target = document.getElementById('ft-dedup-section');
+    if (target) {
+      target.innerHTML = this.renderDedupSection(candidates);
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+  },
+
+  renderDedupSection(candidates) {
+    if (!candidates || candidates.length === 0) return '';
+    const rows = candidates.map(c => {
+      const nameA = this.escHtml([c.person_a_first_name || c.a_first_name || '', c.person_a_last_name || c.a_last_name || ''].filter(Boolean).join(' ') || 'Person ' + (c.person_a_id || c.a_id || '?'));
+      const nameB = this.escHtml([c.person_b_first_name || c.b_first_name || '', c.person_b_last_name || c.b_last_name || ''].filter(Boolean).join(' ') || 'Person ' + (c.person_b_id || c.b_id || '?'));
+      const score = c.similarity !== undefined ? Math.round(c.similarity * 100) : (c.score !== undefined ? Math.round(c.score * 100) : '?');
+      const aId = c.person_a_id || c.a_id;
+      const bId = c.person_b_id || c.b_id;
+      return `<div class="ft-card" style="display:flex;align-items:center;gap:12px;padding:8px 12px;">
+        <span style="flex:1;font-size:0.85rem;">${nameA}</span>
+        <span class="ft-badge ft-badge-orange" style="font-size:0.75rem;">${score}% match</span>
+        <span style="flex:1;font-size:0.85rem;">${nameB}</span>
+        <button class="ft-btn ft-btn-sm ft-btn-primary" onclick="FamilyTree.mergePerson(${aId}, ${bId})"><i data-lucide="git-merge"></i> Merge</button>
+      </div>`;
+    }).join('');
+    return `<div style="margin-top:8px;">
+      <div style="font-size:0.82rem;color:#f97316;margin-bottom:6px;font-family:Orbitron,sans-serif;">
+        <i data-lucide="users" style="width:14px;height:14px;vertical-align:middle;"></i> Potential Duplicates (${candidates.length})
+      </div>
+      ${rows}
+    </div>`;
+  },
+
+  async mergePerson(keepId, mergeId) {
+    if (!confirm('Merge these two persons? The second person will be merged into the first. This cannot be undone.')) return;
+    this.toast('Merging persons\u2026');
+    const result = await this.api('/dedup/merge', {
+      method: 'POST',
+      body: { keep_id: keepId, merge_id: mergeId },
+    });
+    if (result.success) {
+      this.toast('Persons merged successfully.');
+      await this.loadTree();
+      await this.loadDedupCandidates();
+    } else {
+      this.toast(result.error || 'Merge failed.', true);
+    }
+  },
+
+  /* ── RECORD HINTS ── */
+
+  async loadHints() {
+    const data = await this.api('/hints');
+    const hints = data.hints || [];
+    const empty = '<div class="ft-empty-state ft-empty-sm"><i data-lucide="lightbulb" style="width:32px;height:32px;opacity:0.3;"></i><p>No record hints yet. Click "Search All Sources" to find matches.</p></div>';
+    this.setHtml('ft-hints-list', hints.length ? hints.map(h => this.renderHintCard(h)).join('') : empty);
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  },
+
+  async generateHints() {
+    this.toast('Searching all sources for record hints\u2026');
+    const result = await this.api('/hints/generate', { method: 'POST' });
+    if (result.success) {
+      this.toast('Hint search complete. ' + (result.hints_found || 0) + ' hints found.');
+      await this.loadHints();
+    } else {
+      this.toast(result.error || 'Hint generation failed.', true);
+    }
+  },
+
+  async acceptHint(id) {
+    const result = await this.api('/hints/' + id + '/accept', { method: 'POST' });
+    if (result.success) {
+      this.toast('Hint accepted and applied to tree.');
+      await this.loadHints();
+      await this.loadTree();
+    } else {
+      this.toast(result.error || 'Failed to accept hint.', true);
+    }
+  },
+
+  async dismissHint(id) {
+    const result = await this.api('/hints/' + id + '/dismiss', { method: 'POST' });
+    if (result.success) {
+      this.toast('Hint dismissed.');
+      await this.loadHints();
+    } else {
+      this.toast(result.error || 'Failed to dismiss hint.', true);
+    }
+  },
+
+  renderHintCard(hint) {
+    const src = this.escHtml(hint.source || 'Unknown');
+    const title = this.escHtml(hint.title || 'Record Hint');
+    const snippet = hint.snippet
+      ? this.escHtml(hint.snippet.length > 180 ? hint.snippet.substring(0, 177) + '\u2026' : hint.snippet)
+      : '';
+    const pct = Math.round((hint.confidence || 0) * 100);
+    const barColor = pct >= 80 ? '#10b981' : pct >= 50 ? '#f97316' : '#ef4444';
+    return '<div class="ft-card">' +
+      '<div class="ft-card-header">' +
+        '<span class="ft-card-title">' + title + '</span>' +
+        '<span class="ft-badge ft-badge-cyan" style="font-size:0.7rem;">' + src + '</span>' +
+      '</div>' +
+      (snippet ? '<div style="margin-top:6px;font-size:0.82rem;color:#94a3b8;">' + snippet + '</div>' : '') +
+      '<div style="display:flex;align-items:center;gap:8px;margin-top:8px;">' +
+        '<span style="font-size:0.75rem;color:#64748b;width:70px;">Confidence</span>' +
+        '<div style="flex:1;height:8px;background:rgba(100,116,139,0.2);border-radius:4px;overflow:hidden;">' +
+          '<div style="width:' + pct + '%;height:100%;background:' + barColor + ';border-radius:4px;"></div>' +
+        '</div>' +
+        '<span style="font-size:0.75rem;color:#e2e8f0;width:36px;text-align:right;">' + pct + '%</span>' +
+      '</div>' +
+      '<div class="ft-card-actions">' +
+        '<button class="ft-btn ft-btn-sm ft-btn-primary" onclick="FamilyTree.acceptHint(\'' + this.escHtml(String(hint.id)) + '\')"><i data-lucide="check"></i> Accept</button>' +
+        '<button class="ft-btn ft-btn-sm ft-btn-danger" onclick="FamilyTree.dismissHint(\'' + this.escHtml(String(hint.id)) + '\')"><i data-lucide="x"></i> Dismiss</button>' +
+      '</div>' +
+    '</div>';
+  },
+
+  /* ── DNA ANALYSIS ── */
+
+  async loadDnaProfile() {
+    const data = await this.api('/dna/profile');
+    if (data.profile) {
+      this._renderDnaProfile(data.profile);
+    } else {
+      this._renderDnaUploadForm();
+    }
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  },
+
+  _renderDnaUploadForm() {
+    this.setHtml('ft-dna-section',
+      '<div class="ft-card" style="border-left-color:#8b5cf6;">' +
+        '<div class="ft-card-header"><span class="ft-card-title">Upload DNA Data</span></div>' +
+        '<div style="margin-top:8px;">' +
+          '<div class="ft-form-group">' +
+            '<label class="ft-label" for="ft-dna-provider">Provider</label>' +
+            '<select class="ft-select" id="ft-dna-provider">' +
+              '<option value="23andme">23andMe</option>' +
+              '<option value="ancestrydna">AncestryDNA</option>' +
+            '</select>' +
+          '</div>' +
+          '<div class="ft-form-group">' +
+            '<label class="ft-label" for="ft-dna-file">DNA Data File</label>' +
+            '<input type="file" id="ft-dna-file" class="ft-input" accept=".txt,.csv,.zip">' +
+          '</div>' +
+          '<div style="display:flex;align-items:flex-start;gap:8px;margin:12px 0;">' +
+            '<input type="checkbox" id="ft-dna-consent" style="margin-top:3px;">' +
+            '<label for="ft-dna-consent" style="font-size:0.82rem;color:#94a3b8;cursor:pointer;">' +
+              'I confirm this is my own DNA data and consent to local processing' +
+            '</label>' +
+          '</div>' +
+          '<button class="ft-btn ft-btn-primary" id="ft-dna-upload-btn" disabled onclick="FamilyTree.uploadDna()">' +
+            '<i data-lucide="upload"></i> Upload DNA Data' +
+          '</button>' +
+        '</div>' +
+      '</div>');
+    const consent = document.getElementById('ft-dna-consent');
+    const btn = document.getElementById('ft-dna-upload-btn');
+    if (consent && btn) {
+      consent.addEventListener('change', () => { btn.disabled = !consent.checked; });
+    }
+  },
+
+  _renderDnaProfile(profile) {
+    const ethnicities = profile.ethnicity_breakdown || [];
+    let bars = '';
+    if (ethnicities.length) {
+      bars = ethnicities.map(e => {
+        const region = this.escHtml(e.region || 'Unknown');
+        const pct = parseFloat(e.percentage) || 0;
+        return '<div style="display:flex;align-items:center;gap:8px;margin:4px 0;">' +
+          '<span style="width:140px;font-size:0.8rem;">' + region + '</span>' +
+          '<div style="flex:1;height:16px;background:rgba(16,185,129,0.1);border-radius:4px;overflow:hidden;">' +
+            '<div style="width:' + pct + '%;height:100%;background:#10b981;border-radius:4px;"></div>' +
+          '</div>' +
+          '<span style="width:40px;text-align:right;font-size:0.8rem;">' + pct + '%</span>' +
+        '</div>';
+      }).join('');
+    } else {
+      bars = '<p class="ft-muted" style="font-size:0.82rem;">No ethnicity data available yet. Processing may take a moment.</p>';
+    }
+    this.setHtml('ft-dna-section',
+      '<div class="ft-card" style="border-left-color:#8b5cf6;">' +
+        '<div class="ft-card-header">' +
+          '<span class="ft-card-title">DNA Profile</span>' +
+          '<span class="ft-badge ft-badge-green">' + this.escHtml(profile.provider || 'Unknown') + '</span>' +
+        '</div>' +
+        '<div style="margin-top:12px;">' +
+          '<div style="font-size:0.82rem;color:#94a3b8;margin-bottom:8px;">Ethnicity Breakdown</div>' +
+          bars +
+        '</div>' +
+        (profile.haplogroup
+          ? '<div style="margin-top:12px;font-size:0.82rem;color:#94a3b8;">Haplogroup: <strong style="color:#e2e8f0;">' + this.escHtml(profile.haplogroup) + '</strong></div>'
+          : '') +
+        '<div class="ft-card-actions" style="margin-top:12px;">' +
+          '<button class="ft-btn ft-btn-sm ft-btn-danger" onclick="FamilyTree.deleteDnaProfile(\'' + this.escHtml(String(profile.id)) + '\')">' +
+            '<i data-lucide="trash-2"></i> Delete DNA Profile' +
+          '</button>' +
+        '</div>' +
+      '</div>');
+  },
+
+  async uploadDna() {
+    const fileInput = document.getElementById('ft-dna-file');
+    const provider = document.getElementById('ft-dna-provider');
+    const consent = document.getElementById('ft-dna-consent');
+    if (!consent || !consent.checked) {
+      this.toast('You must consent to local processing before uploading.', true);
+      return;
+    }
+    if (!fileInput || !fileInput.files[0]) {
+      this.toast('Please select a DNA data file.', true);
+      return;
+    }
+    this.toast('Uploading DNA data\u2026');
+    const fd = new FormData();
+    fd.append('file', fileInput.files[0]);
+    fd.append('provider', provider ? provider.value : '23andme');
+    fd.append('consent', 'true');
+    const result = await this.api('/dna/upload', { method: 'POST', body: fd });
+    if (result.success || result.profile) {
+      this.toast('DNA data uploaded successfully.');
+      await this.loadDnaProfile();
+    } else {
+      this.toast(result.error || 'DNA upload failed.', true);
+    }
+  },
+
+  async deleteDnaProfile(id) {
+    if (!confirm('Delete your DNA profile? This cannot be undone.')) return;
+    const result = await this.api('/dna/profile/' + id, { method: 'DELETE' });
+    if (result.success) {
+      this.toast('DNA profile deleted.');
+      await this.loadDnaProfile();
+    } else {
+      this.toast(result.error || 'Failed to delete DNA profile.', true);
+    }
+  },
+
+  /* ── TIMELINE EVENTS ── */
 
   renderTimelineEvent(event) {
     const dotColors = { birth:'#10b981', death:'#ef4444', marriage:'#8b5cf6', migration:'#f97316', census:'#00e5ff' };

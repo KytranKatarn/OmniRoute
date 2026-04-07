@@ -32,6 +32,25 @@ services:
           memory: 1G
           cpus: "2.0"
 
+  network_adguard:
+    image: adguard/adguardhome:v0.108.0-b.84
+    container_name: network_adguard
+    restart: unless-stopped
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "5354:80/tcp"
+      - "5355:443/tcp"
+      - "853:853/tcp"
+    volumes:
+      - /mnt/HomeLab/adguard/work:/opt/adguardhome/work
+      - /mnt/HomeLab/adguard/conf:/opt/adguardhome/conf
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+
 volumes:
   network_redis_data:
   network_ntopng_data:

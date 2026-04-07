@@ -5,34 +5,35 @@
 | Product | Port | Subdomain | Container | Location |
 |---------|------|-----------|-----------|----------|
 | ARCHIE Platform | 3000 | archie.kytranempowerment.com | archie_platform | Hub |
-| Market Watch | 8101 | market.kytranempowerment.com | kytran_market_api | Hub (DNS→VPS) |
-| Civic Watch | 8099 | civic.kytranempowerment.com | kytran_watch_api | Hub |
-| Legal Watch | 8100 | legal.kytranempowerment.com | kytran_legal_api | Hub |
-| Gov Watch | 8102 | gov.kytranempowerment.com | kytran_gov_watch | Hub |
+| Market Watch | 8101 | market.kytranempowerment.com | kytran_market_api | VPS |
+| Civic Watch | 8099 | civic.kytranempowerment.com | kytran_watch_api | VPS |
+| Legal Watch | 8100 | legal.kytranempowerment.com | kytran_legal_api | VPS |
+| Gov Watch | 8102 | gov.kytranempowerment.com | kytran_gov_watch | VPS |
+| The News | 8103 | thenews.kytranempowerment.com | kytran_news | VPS |
 | Business Suite | 8091 | business.kytranempowerment.com | kbs_app | Hub |
 | System Operations | 8085 | server.kytranempowerment.com | kytran-system-operations | Hub |
 | Stalwart Mail | 25/465/587/993 | mail.kytranempowerment.com | stalwart_mail | Hub |
 | CORS Proxy | 8098 | — | kytran_cors_proxy | Hub |
 | Headscale Mesh | 8095 | mesh.kytranempowerment.com | archie_headscale | Hub |
-| AdGuard DNS | 53/5354/5355 | adguard.kytranempowerment.com | network_adguard | Hub |
+| AdGuard DNS | 53/5354 | adguard.kytranempowerment.com | network_adguard | Hub |
 | Nagios Monitoring | 8082 | nagios.kytranempowerment.com | monitoring_nagios | Hub |
-| NPM Proxy | 80/443 | proxy.kytranempowerment.com | nginx-proxy-manager | Hub |
+| NPM Proxy | — | proxy.kytranempowerment.com | NOT DEPLOYED | Hub |
 
 ## VPS / Fleet
 
 | Node | IP | Mesh IP | Role | Containers |
 |------|-----|---------|------|------------|
 | Hub | 192.168.1.200 | 100.79.11.3 | Primary server | All above |
-| US Outpost | 76.13.107.109 | 100.64.0.1 | Fleet node | sync, node API, Caddy, KSO, SMTP relay |
+| US Outpost | 76.13.107.109 | 100.64.0.1 | Fleet node | Caddy, KSO, SMTP relay, Market/Civic/Legal/Gov Watch, The News |
 | Node .246 | 192.168.1.246 | — | Offline | RTX 3070, 32GB RAM, awaiting Docker |
 | Node .245 | 192.168.1.245 | — | Offline | RTX 3070, fresh machine |
 
 ## DNS (kytranempowerment.com)
 
 - Root (@) → Hostinger CDN (cdn.hstgr.net)
-- 27+ subdomains pointing to hub (142.169.21.199)
-- 3 subdomains pointing to VPS (76.13.107.109): market, outpost-us, relay
-- `news.kytranempowerment.com` is MISSING from DNS
+- 27+ subdomains pointing to hub (153.68.195.85) — NO reverse proxy on hub, most return 000 externally
+- 7 subdomains pointing to VPS (76.13.107.109): market, civic, legal, gov, thenews, outpost-us, relay — ALL LIVE
+- Hub public IP: 153.68.195.85 (was 142.169.21.199, updated 2026-04-07)
 - `creed-ai.org` → Hostinger shared hosting (separate domain)
 
 ## Consciousness Module Status

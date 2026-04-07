@@ -1,0 +1,423 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - img [ref=e306]
+    - generic [ref=e7]:
+      - generic [ref=e8]: System Alert
+      - generic [ref=e9]: Loading...
+    - button "Dismiss" [ref=e10] [cursor=pointer]:
+      - img [ref=e308]
+  - generic [ref=e311]:
+    - generic [ref=e312] [cursor=pointer]:
+      - generic [ref=e314]: JOBS
+      - generic [ref=e315]: 0 RUNNING
+    - generic [ref=e316] [cursor=pointer]:
+      - generic [ref=e318]: LOOPS
+      - generic [ref=e319]: 3 ACTIVE
+    - generic [ref=e320] [cursor=pointer]:
+      - generic [ref=e322]: ERRORS
+      - generic [ref=e323]: "4"
+    - generic [ref=e324]:
+      - button "🔊" [ref=e325] [cursor=pointer]
+      - button "SNOOZE 1H" [ref=e326] [cursor=pointer]
+  - navigation [ref=e14]:
+    - navigation "AI COMMAND navigation" [ref=e24]:
+      - generic [ref=e25]:
+        - link "Back to Dashboard" [ref=e26] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e27]
+        - generic [ref=e29]: A
+        - generic [ref=e30]: admin
+        - generic [ref=e31]: ADMIN
+      - generic [ref=e32]:
+        - generic [ref=e33]:
+          - img [ref=e327]
+          - text: AI COMMAND
+        - link "Starbase Command" [ref=e42] [cursor=pointer]:
+          - /url: /tools/starbase/
+          - img [ref=e335]
+        - link "Consciousness" [ref=e45] [cursor=pointer]:
+          - /url: /tools/consciousness/
+          - img [ref=e337]
+        - link "Autonomy" [ref=e54] [cursor=pointer]:
+          - /url: /tools/autonomy/
+          - img [ref=e345]
+        - link "A.R.C.H.I.E. Chat" [ref=e58] [cursor=pointer]:
+          - /url: /tools/archie-chat/
+          - img [ref=e348]
+      - generic [ref=e61]:
+        - button "Toggle Light/Dark Mode" [ref=e62] [cursor=pointer]:
+          - img [ref=e63]
+        - button "Language" [ref=e70] [cursor=pointer]:
+          - img [ref=e71]
+        - link "Notifications" [ref=e74] [cursor=pointer]:
+          - /url: /tools/my-profile
+          - img [ref=e75]
+        - link "Dev HQ" [ref=e78] [cursor=pointer]:
+          - /url: /dev-hq/
+          - img [ref=e79]
+  - generic [ref=e85]:
+    - generic [ref=e86]:
+      - generic [ref=e88]:
+        - img [ref=e350]
+        - generic [ref=e97]: CONSCIOUSNESS
+      - generic [ref=e99]:
+        - generic [ref=e100]:
+          - generic [ref=e102]: conhecimento
+          - generic [ref=e103]: 54,613
+        - generic [ref=e104]:
+          - generic [ref=e106]: Agências
+          - generic [ref=e107]: "123"
+        - generic [ref=e108]:
+          - generic [ref=e110]: Traduções
+          - generic [ref=e111]: "29338"
+    - navigation [ref=e112]:
+      - generic [ref=e113]:
+        - button "Dashboard" [ref=e114] [cursor=pointer]:
+          - img [ref=e358]
+          - generic [ref=e120]: Dashboard
+        - button "Conhecimento" [ref=e363] [cursor=pointer]:
+          - img [ref=e364]
+          - generic [ref=e124]: Conhecimento
+        - button "GitHub" [ref=e125] [cursor=pointer]:
+          - generic [ref=e127]: GitHub
+        - button "Idiomas" [ref=e366] [cursor=pointer]:
+          - img [ref=e367]
+          - generic [ref=e133]: Idiomas
+        - button "Code Health" [ref=e134] [cursor=pointer]:
+          - img [ref=e371]
+          - generic [ref=e137]: Code Health
+    - generic [ref=e139]:
+      - generic [ref=e140]:
+        - generic:
+          - generic: INITIALIZING NEURAL CORE
+          - text: INITIALIZING NEURAL CORE
+        - generic:
+          - img
+          - generic:
+            - generic: A.R.C.H.I.E.
+            - generic: focused
+          - generic "Conv" [ref=e373] [cursor=pointer]:
+            - generic [ref=e374]: 4.2K
+            - generic [ref=e375]: Conv
+          - generic "Code" [ref=e376] [cursor=pointer]:
+            - generic [ref=e377]: 19.3K
+            - generic [ref=e378]: Code
+          - generic "Vault" [ref=e379] [cursor=pointer]:
+            - generic [ref=e380]: "621"
+            - generic [ref=e381]: Vault
+          - generic "Repos" [ref=e382] [cursor=pointer]:
+            - generic [ref=e383]: "61"
+            - generic [ref=e384]: Repos
+          - generic "Learn" [ref=e385] [cursor=pointer]:
+            - generic [ref=e386]: "93"
+            - generic [ref=e387]: Learn
+          - generic "Sessions" [ref=e388] [cursor=pointer]:
+            - generic [ref=e389]: "208"
+            - generic [ref=e390]: Sessions
+          - generic "Languages" [ref=e391] [cursor=pointer]:
+            - generic [ref=e392]: 29.3K
+            - generic [ref=e393]: Languages
+          - generic "Decisions" [ref=e394] [cursor=pointer]:
+            - generic [ref=e395]: "388"
+            - generic [ref=e396]: Decisions
+        - generic:
+          - generic [ref=e144]: 54,613 Knowledge
+          - generic [ref=e145]: 19,190 GitHub Files
+          - generic [ref=e146]: 98% Embedded
+          - generic [ref=e147]: 123/123 Agents
+          - generic [ref=e148]: 162 Project Links
+      - generic [ref=e157]:
+        - generic [ref=e159]: SYSTEM HEALTH
+        - generic [ref=e164]:
+          - generic [ref=e165]:
+            - generic [ref=e166]: "1"
+            - generic [ref=e167]: Dev HQ
+          - generic [ref=e168]:
+            - generic [ref=e169]: "16"
+            - generic [ref=e170]: Bridge
+          - generic [ref=e171]:
+            - generic [ref=e172]: Online
+            - generic [ref=e173]: Ollama
+          - generic [ref=e174]:
+            - generic [ref=e175]: "61"
+            - generic [ref=e176]: GitHub
+          - generic [ref=e177]:
+            - generic [ref=e178]: "--"
+            - generic [ref=e179]: Health
+      - generic [ref=e190]:
+        - generic [ref=e192]: OPERATIONAL ANALYTICS · 7 DAYS
+        - generic [ref=e197]:
+          - generic [ref=e198]:
+            - generic [ref=e199]: "2291"
+            - generic [ref=e200]: Bridge Calls
+          - generic [ref=e201]:
+            - generic [ref=e202]: "53556"
+            - generic [ref=e203]: Avg Response
+          - generic [ref=e204]:
+            - generic [ref=e205]: "0"
+            - generic [ref=e206]: Total Tokens
+          - generic [ref=e207]:
+            - generic [ref=e208]: "4777"
+            - generic [ref=e209]: New Knowledge
+      - generic [ref=e221]:
+        - generic [ref=e223]: FLEET STATUS
+        - generic [ref=e229]:
+          - generic [ref=e230]:
+            - generic [ref=e231]: Atividade Recente
+            - generic [ref=e232]:
+              - generic [ref=e397]:
+                - img [ref=e398]
+                - generic [ref=e404]: "Bridge task #25274"
+                - generic [ref=e405]: 14m ago
+              - generic [ref=e406]:
+                - img [ref=e407]
+                - generic [ref=e413]: "Bridge task #25273"
+                - generic [ref=e414]: 46m ago
+              - generic [ref=e415]:
+                - img [ref=e416]
+                - generic [ref=e422]: "Bridge task #25272"
+                - generic [ref=e423]: 46m ago
+              - generic [ref=e424]:
+                - img [ref=e425]
+                - generic [ref=e431]: "Bridge task #25271"
+                - generic [ref=e432]: 46m ago
+              - generic [ref=e433]:
+                - img [ref=e434]
+                - generic [ref=e440]: "Bridge task #25270"
+                - generic [ref=e441]: 56m ago
+              - generic [ref=e442]:
+                - img [ref=e443]
+                - generic [ref=e445]: "Brainstorm: Dev HQ + Consciousness Module Integration"
+                - generic [ref=e446]: 7h ago
+              - generic [ref=e447]:
+                - img [ref=e448]
+                - generic [ref=e450]: Create Claude + ARCHIE admin platform accounts
+                - generic [ref=e451]: 7h ago
+              - generic [ref=e452]:
+                - img [ref=e453]
+                - generic [ref=e455]: DDNS health check false alarm fix
+                - generic [ref=e456]: 7h ago
+              - generic [ref=e457]:
+                - img [ref=e458]
+                - generic [ref=e460]: Website QA — Responsive testing + bug fixes
+                - generic [ref=e461]: 7h ago
+              - generic [ref=e462]:
+                - img [ref=e463]
+                - generic [ref=e465]: Agent Profile Overhaul — Phase 1 Complete
+                - generic [ref=e466]: 7h ago
+              - generic [ref=e467]:
+                - img [ref=e468]
+                - generic [ref=e470]: "sgoudelis/ground-station: frontend/src/i18n/locales/fr/target.json"
+                - generic [ref=e471]: 8h ago
+              - generic [ref=e472]:
+                - img [ref=e473]
+                - generic [ref=e475]: "sgoudelis/ground-station: frontend/src/i18n/locales/fr/hardware.json"
+                - generic [ref=e476]: 8h ago
+              - generic [ref=e477]:
+                - img [ref=e478]
+                - generic [ref=e480]: "sgoudelis/ground-station: frontend/src/i18n/locales/fr/common.json"
+                - generic [ref=e481]: 8h ago
+              - generic [ref=e482]:
+                - img [ref=e483]
+                - generic [ref=e485]: "sgoudelis/ground-station: frontend/src/i18n/locales/fr/filebrowser.json"
+                - generic [ref=e486]: 8h ago
+              - generic [ref=e487]:
+                - img [ref=e488]
+                - generic [ref=e490]: "sgoudelis/ground-station: frontend/src/i18n/locales/fr/satellites.json"
+                - generic [ref=e491]: 8h ago
+          - generic [ref=e234]:
+            - generic [ref=e235]: Fleet Wellness
+            - generic [ref=e236]:
+              - generic [ref=e237]:
+                - generic [ref=e239]: Emotional State
+                - generic [ref=e240]: "--"
+              - generic [ref=e241]:
+                - generic [ref=e242]: Energia
+                - generic [ref=e244]: 99%
+              - generic [ref=e245]:
+                - generic [ref=e246]: estresse
+                - generic [ref=e248]: 2%
+              - generic [ref=e249]:
+                - generic [ref=e250]: mood
+                - generic [ref=e252]: 50%
+              - generic [ref=e495]:
+                - generic [ref=e496]:
+                  - generic [ref=e497]: "56"
+                  - generic [ref=e498]: Active
+                - generic [ref=e499]:
+                  - generic [ref=e500]: "64"
+                  - generic [ref=e501]: Reserve
+                - generic [ref=e502]:
+                  - generic [ref=e503]: "3"
+                  - generic [ref=e504]: Off Duty
+                - generic [ref=e505]:
+                  - generic [ref=e506]: "7"
+                  - generic [ref=e507]: Tasks/1h
+                - generic [ref=e508]:
+                  - generic [ref=e509]: 0%
+                  - generic [ref=e510]: Success
+          - generic [ref=e253]:
+            - generic [ref=e254]: Dev HQ Activity
+            - generic [ref=e255]:
+              - generic [ref=e511]: Recent Projects
+              - generic [ref=e512]:
+                - img [ref=e513]
+                - generic [ref=e515]: Business Launch Readiness — Commercial Operations Checklist
+                - generic [ref=e516]: planning
+              - generic [ref=e517]:
+                - img [ref=e518]
+                - generic [ref=e520]: Website Consolidation — Merge Old + New kytranempowerment.com
+                - generic [ref=e521]: active
+              - generic [ref=e522]:
+                - img [ref=e523]
+                - generic [ref=e525]: Bridge Dispatcher — Station-to-Department Migration Bugs
+                - generic [ref=e526]: completed
+              - generic [ref=e527]:
+                - img [ref=e528]
+                - generic [ref=e530]: A.R.C.H.I.E. Code CLI — Platform Integration (Approach B→C)
+                - generic [ref=e531]: completed
+              - generic [ref=e532]:
+                - img [ref=e533]
+                - generic [ref=e535]: Department HQ Coordination — Dispatcher Migration Completion
+                - generic [ref=e536]: completed
+              - generic [ref=e537]: Recent Decisions
+              - generic [ref=e538]:
+                - img [ref=e539]
+                - generic [ref=e541]: Consciousness Dashboard as unified command center with auto-linking
+                - generic [ref=e542]: 33m ago
+              - generic [ref=e543]:
+                - img [ref=e544]
+                - generic [ref=e546]: Claude + ARCHIE Platform Admin Accounts
+                - generic [ref=e547]: 7h ago
+              - generic [ref=e548]:
+                - img [ref=e549]
+                - generic [ref=e551]: Agent Email Format — Directors use acronym@, Staff use firstname.lastname@
+                - generic [ref=e552]: 7h ago
+      - button "PIPELINE TEST" [ref=e259] [cursor=pointer]:
+        - generic [ref=e260]: PIPELINE TEST
+        - img [ref=e553]
+      - generic [ref=e263]: Last updated 11:03:08
+      - generic [ref=e270]:
+        - generic [ref=e272]: PROJECT-KNOWLEDGE MAP
+        - generic [ref=e273]:
+          - generic [ref=e556] [cursor=pointer]:
+            - generic [ref=e557]: Unified Product Auth — KytranAuth Across All Standalones
+            - generic [ref=e558]:
+              - generic [ref=e559]:
+                - img [ref=e560]
+                - generic [ref=e563]: 0%
+              - generic [ref=e564]: 0 docs
+              - generic [ref=e565]: 0 mistakes
+              - generic [ref=e566]: 0 snippets
+          - generic [ref=e568] [cursor=pointer]:
+            - generic [ref=e569]: Business Launch Readiness — Commercial Operations Checklist
+            - generic [ref=e570]:
+              - generic [ref=e571]:
+                - img [ref=e572]
+                - generic [ref=e575]: 20%
+              - generic [ref=e576]: 0 docs
+              - generic [ref=e577]: 0 mistakes
+              - generic [ref=e578]: 0 snippets
+          - generic [ref=e580] [cursor=pointer]:
+            - generic [ref=e581]: Website Consolidation — Merge Old + New kytranempowerment.com
+            - generic [ref=e582]:
+              - generic [ref=e583]:
+                - img [ref=e584]
+                - generic [ref=e587]: 20%
+              - generic [ref=e588]: 0 docs
+              - generic [ref=e589]: 0 mistakes
+              - generic [ref=e590]: 0 snippets
+          - generic [ref=e592] [cursor=pointer]:
+            - generic [ref=e593]: LCARS Navigation & Layout Standardization
+            - generic [ref=e594]:
+              - generic [ref=e595]:
+                - img [ref=e596]
+                - generic [ref=e599]: 40%
+              - generic [ref=e600]: 0 docs
+              - generic [ref=e601]: 1 mistakes
+              - generic [ref=e602]: 0 snippets
+          - generic [ref=e604] [cursor=pointer]:
+            - generic [ref=e605]: LCARS UI Consolidation — Full Platform Compliance
+            - generic [ref=e606]:
+              - generic [ref=e607]:
+                - img [ref=e608]
+                - generic [ref=e611]: 50%
+              - generic [ref=e612]: 7 docs
+              - generic [ref=e613]: 0 mistakes
+              - generic [ref=e614]: 0 snippets
+      - generic [ref=e282]:
+        - generic [ref=e284]: AGENT CONTRIBUTIONS
+        - generic [ref=e285]:
+          - generic [ref=e286]:
+            - button "All Time" [ref=e287] [cursor=pointer]
+            - button "7 Days" [ref=e288] [cursor=pointer]
+            - button "30 Days" [ref=e289] [cursor=pointer]
+          - paragraph [ref=e291]: Select a project from the map above to see agent contributions.
+      - generic [ref=e299]:
+        - generic [ref=e301]: KNOWLEDGE GAPS
+        - generic [ref=e302]:
+          - generic [ref=e615]:
+            - generic [ref=e616]:
+              - img [ref=e617]
+              - generic [ref=e620]: 0%
+            - generic [ref=e621]: Unified Product Auth — KytranAuth Across All Standalones
+            - generic [ref=e622]:
+              - generic [ref=e623]: AGENTS
+              - generic [ref=e624]: SNIPPETS
+              - generic [ref=e625]: DECISIONS
+              - generic [ref=e626]: MISTAKES
+              - generic [ref=e627]: DOCS
+            - generic [ref=e628]:
+              - button "+ Decision" [ref=e629] [cursor=pointer]
+              - button "+ Docs" [ref=e630] [cursor=pointer]
+          - generic [ref=e631]:
+            - generic [ref=e632]:
+              - img [ref=e633]
+              - generic [ref=e636]: 20%
+            - generic [ref=e637]: Business Launch Readiness — Commercial Operations Checklist
+            - generic [ref=e638]:
+              - generic [ref=e639]: AGENTS
+              - generic [ref=e640]: SNIPPETS
+              - generic [ref=e641]: MISTAKES
+              - generic [ref=e642]: DOCS
+            - generic [ref=e643]:
+              - button "+ Decision" [ref=e644] [cursor=pointer]
+              - button "+ Docs" [ref=e645] [cursor=pointer]
+          - generic [ref=e646]:
+            - generic [ref=e647]:
+              - img [ref=e648]
+              - generic [ref=e651]: 20%
+            - generic [ref=e652]: Website Consolidation — Merge Old + New kytranempowerment.com
+            - generic [ref=e653]:
+              - generic [ref=e654]: AGENTS
+              - generic [ref=e655]: SNIPPETS
+              - generic [ref=e656]: MISTAKES
+              - generic [ref=e657]: DOCS
+            - generic [ref=e658]:
+              - button "+ Decision" [ref=e659] [cursor=pointer]
+              - button "+ Docs" [ref=e660] [cursor=pointer]
+          - generic [ref=e661]:
+            - generic [ref=e662]:
+              - img [ref=e663]
+              - generic [ref=e666]: 40%
+            - generic [ref=e667]: LCARS Navigation & Layout Standardization
+            - generic [ref=e668]:
+              - generic [ref=e669]: AGENTS
+              - generic [ref=e670]: SNIPPETS
+              - generic [ref=e671]: DOCS
+            - generic [ref=e672]:
+              - button "+ Decision" [ref=e673] [cursor=pointer]
+              - button "+ Docs" [ref=e674] [cursor=pointer]
+          - generic [ref=e675]:
+            - generic [ref=e676]:
+              - img [ref=e677]
+              - generic [ref=e680]: 50%
+            - generic [ref=e681]: LCARS UI Consolidation — Full Platform Compliance
+            - generic [ref=e682]:
+              - generic [ref=e683]: AGENTS
+              - generic [ref=e684]: SNIPPETS
+              - generic [ref=e685]: MISTAKES
+            - generic [ref=e686]:
+              - button "+ Decision" [ref=e687] [cursor=pointer]
+              - button "+ Docs" [ref=e688] [cursor=pointer]
+  - button "💬" [ref=e305] [cursor=pointer]

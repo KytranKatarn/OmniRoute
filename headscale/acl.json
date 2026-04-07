@@ -1,0 +1,17 @@
+{
+  "acls": [
+    {
+      "action": "accept",
+      "src": ["*"],
+      "dst": ["*:*"]
+    }
+  ],
+  "ssh": [
+    {
+      "action": "accept",
+      "src": ["archie-fleet"],
+      "dst": ["archie-fleet"],
+      "users": ["autogroup:nonroot", "root"]
+    }
+  ]
+}

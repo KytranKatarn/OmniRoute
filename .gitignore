@@ -108,6 +108,13 @@ package-lock.json
 # Host command queue
 host_commands/
 
+# Website QA screenshots & large assets
+website/qa-screenshots/
+platform_v2/static/baselines/
+
+# Nested git repos (should be submodules)
+archie-code/
+
 # HTML mockup files in root
 /*.html
 .worktrees/

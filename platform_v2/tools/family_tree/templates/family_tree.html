@@ -3,9 +3,15 @@
 {% block module_name %}family_tree{% endblock %}
 
 {% set cat_accent = '#10b981' %}
-{% set cat_icon = 'git-branch' %}
+{% set cat_accent_rgb = '16,185,129' %}
+{% set cat_accent_light = '#059669' %}
+{% set cat_label = 'APPS' %}
+{% set cat_icon = 'tree-deciduous' %}
 {% set cat_modules = [
-    {'url': url_for('family_tree.index'), 'icon': 'git-branch', 'label': 'Family Tree'},
+    {'url': '/tools/doc', 'endpoint_prefix': 'doc', 'icon': 'stethoscope', 'label': 'DOC', 'title': 'DOC'},
+    {'url': '/tools/therapy', 'endpoint_prefix': 'therapy', 'icon': 'flower-2', 'label': 'Therapy', 'title': 'Therapy'},
+    {'url': '/tools/fitness', 'endpoint_prefix': 'fitness', 'icon': 'dumbbell', 'label': 'Fitness', 'title': 'Fitness'},
+    {'url': '/tools/family-tree', 'endpoint_prefix': 'family_tree', 'icon': 'tree-deciduous', 'label': 'Family Tree', 'title': 'Family Tree'},
 ] %}
 {% include 'includes/category_nav.html' %}
 

@@ -5,10 +5,10 @@
 # These are optional but recommended for full-stack mode.
 
 # HTTP client (optional — node_sync.py falls back to urllib)
-requests>=2.28.0
+requests>=2.33.1
 
 # PostgreSQL driver (required for full-stack mode with local DB)
 psycopg2-binary>=2.9.0
 
 # Flask web framework (required for node_api.py)
-Flask>=2.3.0
+Flask>=3.1.3

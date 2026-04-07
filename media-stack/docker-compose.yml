@@ -1,0 +1,143 @@
+services:
+  plex:
+    image: lscr.io/linuxserver/plex:1.43.0
+    container_name: media_plex
+    network_mode: host
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+      - VERSION=docker
+    volumes:
+      - /mnt/Plex/config/plex:/config
+      - /mnt/Plex/media/movies:/movies:ro
+      - /mnt/Plex/media/tv:/tv:ro
+      - /mnt/Plex/media/music:/music:ro
+      - /mnt/Plex/media/photos:/photos:ro
+    devices:
+      - /dev/dri:/dev/dri
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 4G
+    restart: unless-stopped
+
+  jellyfin:
+    image: jellyfin/jellyfin:10.11
+    container_name: media_jellyfin
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - /mnt/Plex/config/jellyfin:/config
+      - /mnt/Plex/config/jellyfin/cache:/cache
+      - /mnt/Plex/media/movies:/data/movies:ro
+      - /mnt/Plex/media/tv:/data/tv:ro
+      - /mnt/Plex/media/music:/data/music:ro
+    ports:
+      - "8096:8096"
+    devices:
+      - /dev/dri:/dev/dri
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 4G
+    restart: unless-stopped
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:4.0.17
+    container_name: media_sonarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - /mnt/Plex/config/sonarr:/config
+      - /mnt/Plex/media/tv:/tv
+      - /mnt/Plex/downloads:/downloads
+    ports:
+      - "8989:8989"
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+    restart: unless-stopped
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:6.1.1
+    container_name: media_radarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - /mnt/Plex/config/radarr:/config
+      - /mnt/Plex/media/movies:/movies
+      - /mnt/Plex/downloads:/downloads
+    ports:
+      - "7878:7878"
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+    restart: unless-stopped
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:2.3.5
+    container_name: media_prowlarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - /mnt/Plex/config/prowlarr:/config
+    ports:
+      - "9696:9696"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    restart: unless-stopped
+
+  overseerr:
+    image: lscr.io/linuxserver/overseerr:1.35.0
+    container_name: media_overseerr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - /mnt/Plex/config/overseerr:/config
+    ports:
+      - "5055:5055"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    restart: unless-stopped
+
+  sabnzbd:
+    image: lscr.io/linuxserver/sabnzbd:4.5.5
+    container_name: media_sabnzbd
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - /mnt/Plex/config/sabnzbd:/config
+      - /mnt/Plex/downloads:/downloads
+    ports:
+      - "8083:8080"
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+    restart: unless-stopped

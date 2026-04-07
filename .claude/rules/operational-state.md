@@ -18,6 +18,13 @@
 | AdGuard DNS | 53/5354 | adguard.kytranempowerment.com | network_adguard | Hub |
 | Nagios Monitoring | 8082 | nagios.kytranempowerment.com | monitoring_nagios | Hub |
 | NPM Proxy | — | proxy.kytranempowerment.com | NOT DEPLOYED | Hub |
+| Plex | 32400 (host) | — | media_plex | Hub |
+| Jellyfin | 8096 | — | media_jellyfin | Hub |
+| Sonarr | 8989 | — | media_sonarr | Hub |
+| Radarr | 7878 | — | media_radarr | Hub |
+| Prowlarr | 9696 | — | media_prowlarr | Hub |
+| Overseerr | 5055 | — | media_overseerr | Hub |
+| SABnzbd | 8083 | — | media_sabnzbd | Hub |
 
 ## VPS / Fleet
 

@@ -212,7 +212,7 @@ const FamilyTree = {
     this.editingPersonId = null;
     document.getElementById('ft-modal-title').textContent = 'Add Person';
     this.setHtml('ft-modal-body', this.renderPersonForm(null));
-    document.getElementById('ft-person-modal').classList.remove('ft-hidden');
+    document.getElementById('ft-person-modal').classList.add('active');
     if (typeof lucide !== 'undefined') lucide.createIcons();
   },
 
@@ -220,7 +220,7 @@ const FamilyTree = {
     this.editingPersonId = id;
     document.getElementById('ft-modal-title').textContent = 'Edit Person';
     this.setHtml('ft-modal-body', '<p class="ft-muted" style="padding:20px;text-align:center;">Loading...</p>');
-    document.getElementById('ft-person-modal').classList.remove('ft-hidden');
+    document.getElementById('ft-person-modal').classList.add('active');
     const data = await this.api(`/persons/${id}`);
     if (data.error) {
       this.setHtml('ft-modal-body', `<p class="ft-muted" style="padding:20px;text-align:center;">Error: ${this.escHtml(data.error)}</p>`);
@@ -290,7 +290,7 @@ const FamilyTree = {
     this.setHtml('ft-import-result', '');
     const inp = document.getElementById('ft-gedcom-file-input');
     if (inp) inp.value = '';
-    document.getElementById('ft-import-modal').classList.remove('ft-hidden');
+    document.getElementById('ft-import-modal').classList.add('active');
     if (typeof lucide !== 'undefined') lucide.createIcons();
   },
 
@@ -489,17 +489,17 @@ const FamilyTree = {
 
   openModal(title) {
     document.getElementById('ft-modal-title').textContent = title;
-    document.getElementById('ft-person-modal').classList.remove('ft-hidden');
+    document.getElementById('ft-person-modal').classList.add('active');
     if (typeof lucide !== 'undefined') lucide.createIcons();
   },
 
   closeModal() {
-    document.getElementById('ft-person-modal').classList.add('ft-hidden');
+    document.getElementById('ft-person-modal').classList.remove('active');
     this.editingPersonId = null;
   },
 
   closeImportModal() {
-    document.getElementById('ft-import-modal').classList.add('ft-hidden');
+    document.getElementById('ft-import-modal').classList.remove('active');
     this._gedcomFile = null;
   },
 

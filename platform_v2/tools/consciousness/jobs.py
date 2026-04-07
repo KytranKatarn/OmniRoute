@@ -1859,7 +1859,8 @@ def test_installed_skills():
                    FROM skill_installations si
                    JOIN github_skills gs ON gs.id = si.skill_id
                    WHERE si.target = 'claude_code'
-                     AND si.struct_valid IS NULL
+                     AND (si.struct_valid IS NULL
+                          OR (si.struct_valid = TRUE AND si.dry_run_passed IS NULL))
                    ORDER BY si.installed_at ASC
                    LIMIT 1"""
             )

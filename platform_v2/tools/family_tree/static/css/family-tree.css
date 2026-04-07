@@ -613,7 +613,7 @@
   stroke: rgba(249, 115, 22, 0.4);
 }
 
-/* ── Responsive ── */
+/* ── Responsive: 1024px (Tablet) ── */
 @media (max-width: 1024px) {
   .ft-split {
     flex-direction: column;
@@ -622,8 +622,23 @@
   .ft-photo-grid {
     grid-template-columns: repeat(3, 1fr);
   }
+
+  .ft-tree-canvas {
+    min-height: 400px;
+  }
+
+  /* Modal: constrain width on tablet */
+  .ft-container .bm-shell {
+    max-width: 90vw;
+  }
+
+  /* Timeline: tighter spacing */
+  .ft-timeline-event {
+    margin-bottom: 16px;
+  }
 }
 
+/* ── Responsive: 768px (Small Tablet) ── */
 @media (max-width: 768px) {
   .ft-container {
     padding: 16px;
@@ -649,16 +664,118 @@
   .ft-form-row {
     grid-template-columns: 1fr;
   }
+
+  /* Tree canvas: touch-friendly size */
+  .ft-tree-canvas {
+    min-height: 350px;
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+
+  /* D3 nodes: larger tap targets */
+  .ft-d3-node circle {
+    stroke-width: 3;
+  }
+
+  .ft-d3-node text {
+    font-size: 12px;
+  }
+
+  /* Modal: near full-width */
+  .ft-container .bm-shell {
+    max-width: 95vw;
+    margin: 16px auto;
+  }
+
+  .ft-container .bm-body {
+    max-height: 60vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Research queue / document list: horizontal scroll wrapper */
+  .ft-card-list {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Document cards: stack metadata below filename */
+  .ft-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  /* Timeline: compact */
+  .ft-timeline {
+    padding-left: 24px;
+  }
+
+  .ft-timeline::before {
+    left: 6px;
+  }
+
+  .ft-timeline-dot {
+    left: -22px;
+    width: 10px;
+    height: 10px;
+  }
+
+  .ft-timeline-event {
+    margin-bottom: 14px;
+  }
+
+  .ft-timeline-content {
+    padding: 8px 12px;
+  }
+
+  .ft-timeline-title {
+    font-size: 0.85rem;
+  }
+
+  .ft-timeline-desc {
+    font-size: 0.75rem;
+  }
+
+  /* Section headers: wrap on narrow */
+  .ft-section-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Tree controls: stack legend + actions */
+  .ft-tree-controls {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .ft-tree-legend {
+    gap: 10px;
+  }
 }
 
+/* ── Responsive: 480px (Phone) ── */
 @media (max-width: 480px) {
+  .ft-container {
+    padding: 12px;
+  }
+
   .ft-header {
     flex-direction: column;
     align-items: flex-start;
   }
 
+  .ft-title {
+    font-size: 1.2rem;
+  }
+
+  .ft-subtitle {
+    font-size: 0.72rem;
+  }
+
   .ft-header-actions {
     flex-direction: column;
+    width: 100%;
   }
 
   .ft-btn {
@@ -666,17 +783,179 @@
     justify-content: center;
   }
 
-  .ft-photo-grid {
-    grid-template-columns: 1fr;
-  }
-
+  /* Tabs: horizontal scroll, no wrap */
   .ft-tabs {
     overflow-x: auto;
     flex-wrap: nowrap;
     padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
   }
 
   .ft-tab {
     white-space: nowrap;
+    padding: 8px 10px;
+    font-size: 0.75rem;
+    flex-shrink: 0;
+  }
+
+  .ft-tab svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  /* Photo grid: single column */
+  .ft-photo-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .ft-photo-item {
+    aspect-ratio: 4 / 3;
+  }
+
+  /* Photo caption: always visible on mobile (no hover) */
+  .ft-photo-caption {
+    transform: translateY(0);
+  }
+
+  /* Tree canvas: compact with touch support */
+  .ft-tree-canvas {
+    min-height: 280px;
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+
+  .ft-d3-node circle {
+    stroke-width: 3.5;
+  }
+
+  .ft-d3-node text {
+    font-size: 10px;
+  }
+
+  /* Modal: full-width on phone */
+  .ft-container .bm-shell {
+    max-width: 100vw;
+    width: 100%;
+    margin: 8px;
+    border-radius: 8px;
+  }
+
+  .ft-container .bm-body {
+    max-height: 55vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Form rows: always single column */
+  .ft-form-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  /* Cards: tighter padding */
+  .ft-card {
+    padding: 10px 12px;
+  }
+
+  .ft-card-title {
+    font-size: 0.85rem;
+  }
+
+  .ft-card-meta {
+    font-size: 0.7rem;
+  }
+
+  .ft-card-actions {
+    margin-top: 8px;
+  }
+
+  .ft-card-actions .ft-btn-sm {
+    flex: 1;
+    justify-content: center;
+  }
+
+  /* Timeline: phone-compact */
+  .ft-timeline {
+    padding-left: 20px;
+  }
+
+  .ft-timeline::before {
+    left: 4px;
+    width: 1.5px;
+  }
+
+  .ft-timeline-dot {
+    left: -19px;
+    width: 8px;
+    height: 8px;
+    top: 6px;
+  }
+
+  .ft-timeline-date {
+    font-size: 0.68rem;
+  }
+
+  .ft-timeline-content {
+    padding: 8px 10px;
+  }
+
+  .ft-timeline-title {
+    font-size: 0.82rem;
+  }
+
+  .ft-timeline-desc {
+    font-size: 0.72rem;
+  }
+
+  /* Upload zones: compact */
+  .ft-upload-zone {
+    padding: 20px 14px;
+    min-height: 100px;
+  }
+
+  /* Toast: full-width bottom bar */
+  .ft-toast {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    max-width: none;
+  }
+
+  /* Tree stats: wrap tighter */
+  .ft-tree-stats {
+    gap: 8px;
+    font-size: 0.7rem;
+  }
+
+  /* Legend: smaller on phone */
+  .ft-legend-item {
+    font-size: 0.68rem;
+  }
+
+  .ft-legend-dot {
+    width: 8px;
+    height: 8px;
+  }
+
+  /* Split columns: no gap on phone */
+  .ft-split {
+    gap: 16px;
+  }
+
+  /* Empty states: compact */
+  .ft-empty-state {
+    padding: 32px 16px;
+    min-height: 200px;
+  }
+
+  .ft-empty-sm {
+    min-height: 80px;
+    padding: 16px;
+  }
+
+  /* Section headers */
+  .ft-section-header h3 {
+    font-size: 0.82rem;
   }
 }

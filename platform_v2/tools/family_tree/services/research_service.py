@@ -1,6 +1,7 @@
 """
 Research Service — external API clients for genealogy data sources.
-Supports FamilySearch, WikiTree, Chronicling America, NARA, and Europeana.
+Supports FamilySearch, WikiTree, Chronicling America, NARA, Europeana,
+DPLA, Internet Archive, and Library of Congress.
 """
 
 import logging
@@ -15,6 +16,9 @@ WIKITREE_BASE = "https://api.wikitree.com/api.php"
 CHRONICLING_AMERICA_BASE = "https://chroniclingamerica.loc.gov"
 NARA_BASE = "https://catalog.archives.gov/api/v2"
 EUROPEANA_BASE = "https://api.europeana.eu/record/v2"
+DPLA_BASE = "https://api.dp.la/v2"
+INTERNET_ARCHIVE_BASE = "https://archive.org/advancedsearch.php"
+LOC_BASE = "https://www.loc.gov"
 REQUEST_TIMEOUT = 15
 
 
@@ -307,6 +311,284 @@ def search_europeana(query, **kwargs):
         return []
 
 
+def generate_life_story(person_data, relationships, events):
+    """
+    Use Bridge dispatch to have H.E.R.I.T.A.G.E. generate a narrative biography
+    for a person based on their data, relationships, and life events.
+
+    Args:
+        person_data: Dict with keys like first_name, last_name, birth_date,
+                     birth_place, death_date, death_place, gender, notes.
+        relationships: List of dicts with relationship_type and connected person info.
+        events: List of dicts with event details (marriages, migrations, etc.).
+
+    Returns:
+        str: Generated narrative biography, or error string on failure.
+    """
+    try:
+        from bridge_dispatcher import dispatch
+
+        full_name = (
+            f"{person_data.get('first_name', '')} {person_data.get('last_name', '')}".strip() or "Unknown person"
+        )
+
+        # Build life details section
+        details = []
+        if person_data.get("birth_date"):
+            birth_line = f"Born: {person_data['birth_date']}"
+            if person_data.get("birth_place"):
+                birth_line += f" in {person_data['birth_place']}"
+            details.append(birth_line)
+        if person_data.get("death_date"):
+            death_line = f"Died: {person_data['death_date']}"
+            if person_data.get("death_place"):
+                death_line += f" in {person_data['death_place']}"
+            details.append(death_line)
+        if person_data.get("gender"):
+            details.append(f"Gender: {person_data['gender']}")
+
+        # Detect migration path
+        birth_place = person_data.get("birth_place", "")
+        death_place = person_data.get("death_place", "")
+        if birth_place and death_place and birth_place.lower() != death_place.lower():
+            details.append(f"Migration: from {birth_place} to {death_place}")
+
+        # Build relationships section
+        rel_lines = []
+        for rel in relationships:
+            rel_type = rel.get("relationship_type", "related")
+            other_name = rel.get("person_name", "unknown")
+            rel_lines.append(f"- {rel_type}: {other_name}")
+
+        # Build events section
+        event_lines = []
+        for evt in events:
+            evt_type = evt.get("event_type", "event")
+            evt_date = evt.get("date", "")
+            evt_place = evt.get("place", "")
+            evt_line = f"- {evt_type}"
+            if evt_date:
+                evt_line += f" ({evt_date})"
+            if evt_place:
+                evt_line += f" in {evt_place}"
+            event_lines.append(evt_line)
+
+        prompt_parts = [f"Write a narrative biography for {full_name}."]
+        if details:
+            prompt_parts.append("LIFE DETAILS:\n" + "\n".join(details))
+        if rel_lines:
+            prompt_parts.append("RELATIONSHIPS:\n" + "\n".join(rel_lines))
+        if event_lines:
+            prompt_parts.append("LIFE EVENTS:\n" + "\n".join(event_lines))
+        if person_data.get("notes"):
+            prompt_parts.append(f"ADDITIONAL NOTES:\n{person_data['notes']}")
+
+        prompt_parts.append(
+            "\nWrite 2-3 paragraphs suitable for a family history book. "
+            "Be warm and respectful. Where facts are sparse, acknowledge gaps "
+            "gracefully rather than inventing details."
+        )
+
+        prompt = "\n\n".join(prompt_parts)
+
+        system_prompt = (
+            "You are H.E.R.I.T.A.G.E., an AI genealogy storyteller specializing "
+            "in turning raw genealogical data into compelling, respectful narrative "
+            "biographies. You write in a warm, literary style suitable for family "
+            "history books. You never invent facts but you weave known details into "
+            "a vivid portrait of a person's life and times."
+        )
+
+        result = dispatch(
+            prompt=prompt,
+            capability="text_analysis",
+            agent_name="heritage",
+            system_prompt=system_prompt,
+            temperature=0.7,
+        )
+
+        if not result.success:
+            logger.error("Bridge dispatch failed for generate_life_story: %s", result.response)
+            return f"Story generation failed: {result.response}"
+
+        return result.response.strip()
+
+    except Exception as e:
+        logger.error("generate_life_story failed: %s", e)
+        return f"Error generating story: {e}"
+
+
+def search_dpla(query, **kwargs):
+    """Search Digital Public Library of America for historical records. Requires DPLA_API_KEY."""
+    api_key = os.getenv("DPLA_API_KEY")
+    if not api_key:
+        logger.warning("DPLA_API_KEY not set — skipping DPLA search")
+        return []
+
+    params = {
+        "q": query,
+        "api_key": api_key,
+        "page_size": kwargs.get("rows", 20),
+    }
+    if kwargs.get("date_from"):
+        params["sourceResource.date.after"] = kwargs["date_from"]
+    if kwargs.get("date_to"):
+        params["sourceResource.date.before"] = kwargs["date_to"]
+    if kwargs.get("state"):
+        params["sourceResource.spatial.state"] = kwargs["state"]
+
+    try:
+        resp = requests.get(
+            f"{DPLA_BASE}/items",
+            params=params,
+            timeout=REQUEST_TIMEOUT,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        results = []
+        for item in data.get("docs", []):
+            source_resource = item.get("sourceResource", {})
+
+            title_val = source_resource.get("title", [""])
+            title = title_val[0] if isinstance(title_val, list) else title_val
+
+            desc_val = source_resource.get("description", [""])
+            description = desc_val[0] if isinstance(desc_val, list) else desc_val
+
+            date_val = source_resource.get("date", [{}])
+            date_obj = date_val[0] if isinstance(date_val, list) else date_val
+            date = date_obj.get("displayDate", "") if isinstance(date_obj, dict) else str(date_obj)
+
+            item_url = item.get("isShownAt", "")
+
+            results.append(
+                {
+                    "source": "dpla",
+                    "external_id": item.get("id", ""),
+                    "title": title,
+                    "description": str(description)[:500],
+                    "date": date,
+                    "url": item_url,
+                    "score": float(item.get("score", 0.0)),
+                }
+            )
+        return results
+
+    except requests.RequestException as e:
+        logger.error("DPLA search failed: %s", e)
+        return []
+
+
+def search_internet_archive(query, **kwargs):
+    """Search Internet Archive for digitised historical records. No auth required."""
+    params = {
+        "q": query,
+        "fl[]": ["identifier", "title", "description", "date", "mediatype", "collection"],
+        "rows": kwargs.get("rows", 20),
+        "output": "json",
+    }
+    if kwargs.get("mediatype"):
+        params["q"] += f" AND mediatype:{kwargs['mediatype']}"
+    if kwargs.get("collection"):
+        params["q"] += f" AND collection:{kwargs['collection']}"
+
+    try:
+        resp = requests.get(
+            INTERNET_ARCHIVE_BASE,
+            params=params,
+            timeout=REQUEST_TIMEOUT,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        results = []
+        for doc in data.get("response", {}).get("docs", []):
+            identifier = doc.get("identifier", "")
+            description = doc.get("description", "")
+            if isinstance(description, list):
+                description = " ".join(description)
+
+            results.append(
+                {
+                    "source": "internet_archive",
+                    "external_id": identifier,
+                    "title": doc.get("title", ""),
+                    "description": str(description)[:500],
+                    "date": doc.get("date", ""),
+                    "mediatype": doc.get("mediatype", ""),
+                    "url": f"https://archive.org/details/{identifier}",
+                    "score": 0.0,
+                }
+            )
+        return results
+
+    except requests.RequestException as e:
+        logger.error("Internet Archive search failed: %s", e)
+        return []
+
+
+def search_library_of_congress(query, **kwargs):
+    """Search Library of Congress digital collections. No auth required."""
+    params = {
+        "q": query,
+        "fo": "json",
+        "c": kwargs.get("rows", 20),
+    }
+    if kwargs.get("date_from"):
+        params["dates"] = f"{kwargs['date_from']}/{kwargs.get('date_to', '')}"
+    if kwargs.get("subject"):
+        params["fa"] = f"subject:{kwargs['subject']}"
+
+    try:
+        resp = requests.get(
+            f"{LOC_BASE}/search/",
+            params=params,
+            timeout=REQUEST_TIMEOUT,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        results_list = data.get("results", [])
+
+        results = []
+        for item in results_list:
+            if not isinstance(item, dict):
+                continue
+
+            title = item.get("title", "")
+            description_val = item.get("description", item.get("notes", [""]))
+            if isinstance(description_val, list):
+                description = " ".join(str(d) for d in description_val[:3])
+            else:
+                description = str(description_val)
+
+            date_val = item.get("date", "")
+            if isinstance(date_val, list):
+                date = date_val[0] if date_val else ""
+            else:
+                date = str(date_val)
+
+            item_url = item.get("url", item.get("id", ""))
+
+            results.append(
+                {
+                    "source": "library_of_congress",
+                    "external_id": item.get("id", ""),
+                    "title": title,
+                    "description": str(description)[:500],
+                    "date": date,
+                    "url": item_url,
+                    "score": 0.0,
+                }
+            )
+        return results
+
+    except requests.RequestException as e:
+        logger.error("Library of Congress search failed: %s", e)
+        return []
+
+
 def analyze_research_results(results, person_context):
     """
     Use Bridge dispatch to have S.C.R.O.L.L. analyze and rank combined
@@ -393,11 +675,12 @@ def analyze_research_results(results, person_context):
 
 def search_all_sources(first_name, last_name, **kwargs):
     """
-    Search all 5 genealogy sources and return combined results sorted by score.
+    Search all 8 genealogy sources and return combined results sorted by score.
 
     Genealogy-specific sources (FamilySearch, WikiTree) receive first_name + last_name.
     Archive/newspaper sources receive the full name as a query string.
     Europeana auto-detects country from birth_place (portugal/france).
+    DPLA, Internet Archive, and Library of Congress receive the full name query.
     """
     full_name = f"{first_name} {last_name}".strip()
 
@@ -414,7 +697,12 @@ def search_all_sources(first_name, last_name, **kwargs):
     ca_results = search_chronicling_america(full_name, **kwargs)
     nara_results = search_nara(full_name, **kwargs)
     eu_results = search_europeana(full_name, **europeana_kwargs)
+    dpla_results = search_dpla(full_name, **kwargs)
+    ia_results = search_internet_archive(full_name, **kwargs)
+    loc_results = search_library_of_congress(full_name, **kwargs)
 
-    combined = fs_results + wt_results + ca_results + nara_results + eu_results
+    combined = (
+        fs_results + wt_results + ca_results + nara_results + eu_results + dpla_results + ia_results + loc_results
+    )
     combined.sort(key=lambda r: r.get("score", 0.0), reverse=True)
     return combined

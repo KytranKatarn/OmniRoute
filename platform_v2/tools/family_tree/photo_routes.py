@@ -206,6 +206,97 @@ def register_photo_routes(bp, admin_required):
         mimetype = mimetypes.types_map.get(f".{ext}", "image/png")
         return send_file(restored_path, mimetype=mimetype)
 
+    @bp.route("/api/photos/<int:doc_id>/colorize", methods=["POST"])
+    @login_required
+    def api_colorize_photo(doc_id):
+        """Colorize a black-and-white photo via ComfyUI img2img."""
+        # Look up the photo record
+        sql = """
+            SELECT id, file_path, file_type FROM family_documents
+            WHERE id = %(id)s AND user_id = %(user_id)s
+        """
+        with get_db_cursor() as (conn, cur):
+            cur.execute(sql, {"id": doc_id, "user_id": current_user.id})
+            row = cur.fetchone()
+
+        if row is None:
+            return jsonify({"error": "Photo not found"}), 404
+
+        file_path = row["file_path"]
+        if not file_path or not os.path.isfile(file_path):
+            return jsonify({"error": "Original file not found on disk"}), 404
+
+        # Optional params from request body
+        data = request.get_json(silent=True) or {}
+        checkpoint = data.get("checkpoint", "sd_xl_base_1.0.safetensors")
+        denoise = float(data.get("denoise", 0.45))
+
+        # Run colorization via ComfyUI
+        from .services.restore_service import colorize_photo
+
+        result = colorize_photo(
+            file_path=file_path,
+            doc_id=doc_id,
+            user_id=current_user.id,
+            checkpoint=checkpoint,
+            denoise=denoise,
+        )
+
+        if not result.success:
+            return jsonify({"status": "error", "doc_id": doc_id, "error": result.error}), 502
+
+        # Store the colorized path in the DB for later retrieval
+        update_sql = """
+            UPDATE family_documents
+            SET metadata = COALESCE(metadata, '{}'::jsonb)
+                || jsonb_build_object('colorized_path', %(colorized_path)s,
+                                      'colorize_duration_ms', %(duration_ms)s)
+            WHERE id = %(id)s AND user_id = %(user_id)s
+        """
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                update_sql,
+                {
+                    "colorized_path": result.restored_path,
+                    "duration_ms": result.metadata.get("duration_ms", 0),
+                    "id": doc_id,
+                    "user_id": current_user.id,
+                },
+            )
+
+        return jsonify(
+            {
+                "status": "completed",
+                "doc_id": doc_id,
+                "colorized_path": result.restored_path,
+                "metadata": result.metadata,
+            }
+        )
+
+    @bp.route("/api/photos/<int:doc_id>/colorized/serve")
+    @login_required
+    def api_serve_colorized_photo(doc_id):
+        """Serve the colorized version of a photo."""
+        sql = """
+            SELECT metadata FROM family_documents
+            WHERE id = %(id)s AND user_id = %(user_id)s
+        """
+        with get_db_cursor() as (conn, cur):
+            cur.execute(sql, {"id": doc_id, "user_id": current_user.id})
+            row = cur.fetchone()
+
+        if row is None:
+            return jsonify({"error": "Photo not found"}), 404
+
+        metadata = row.get("metadata") or {}
+        colorized_path = metadata.get("colorized_path")
+        if not colorized_path or not os.path.isfile(colorized_path):
+            return jsonify({"error": "No colorized version available"}), 404
+
+        ext = os.path.splitext(colorized_path)[1].lower().lstrip(".")
+        mimetype = mimetypes.types_map.get(f".{ext}", "image/png")
+        return send_file(colorized_path, mimetype=mimetype)
+
     @bp.route("/api/photos/<int:doc_id>/serve")
     @login_required
     def api_serve_photo(doc_id):

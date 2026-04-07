@@ -7,6 +7,7 @@ from flask_login import current_user, login_required
 
 from . import family_tree_bp
 from .services.gedcom_service import export_gedcom, import_gedcom
+from .services.research_service import generate_life_story
 from .services.tree_service import (
     add_relationship,
     create_person,
@@ -194,3 +195,88 @@ def api_gedcom_export():
         as_attachment=True,
         download_name="family_tree.ged",
     )
+
+
+# ---------------------------------------------------------------------------
+# AI Story Generation
+# ---------------------------------------------------------------------------
+
+
+@family_tree_bp.route("/api/persons/<int:person_id>/story", methods=["POST"])
+@login_required
+def api_generate_story(person_id):
+    """Generate a narrative biography for a person using AI (H.E.R.I.T.A.G.E.)."""
+    from database import get_db_cursor
+
+    user_id = current_user.id
+
+    # Fetch person with ownership check
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            "SELECT * FROM family_persons WHERE id = %s AND user_id = %s",
+            (person_id, user_id),
+        )
+        person = cur.fetchone()
+        if person is None:
+            return jsonify({"error": "Person not found"}), 404
+
+        # Convert to dict if needed (RealDictCursor returns dict already)
+        if not isinstance(person, dict):
+            columns = [desc[0] for desc in cur.description]
+            person = dict(zip(columns, person))
+
+        # Fetch relationships with connected person names
+        cur.execute(
+            """
+            SELECT r.relationship_type,
+                   CASE
+                       WHEN r.person_a_id = %s THEN r.person_b_id
+                       ELSE r.person_a_id
+                   END AS other_person_id,
+                   COALESCE(
+                       CASE
+                           WHEN r.person_a_id = %s THEN pb.first_name || ' ' || COALESCE(pb.last_name, '')
+                           ELSE pa.first_name || ' ' || COALESCE(pa.last_name, '')
+                       END, 'Unknown'
+                   ) AS person_name
+            FROM family_relationships r
+            LEFT JOIN family_persons pa ON pa.id = r.person_a_id
+            LEFT JOIN family_persons pb ON pb.id = r.person_b_id
+            WHERE (r.person_a_id = %s OR r.person_b_id = %s)
+            """,
+            (person_id, person_id, person_id, person_id),
+        )
+        relationships = [
+            {"relationship_type": row[0], "other_person_id": row[1], "person_name": row[2].strip()}
+            for row in cur.fetchall()
+        ]
+
+        # Fetch life events if the table exists
+        events = []
+        try:
+            cur.execute(
+                "SELECT event_type, date, place FROM family_events WHERE person_id = %s ORDER BY date",
+                (person_id,),
+            )
+            events = [
+                {"event_type": row[0], "date": str(row[1]) if row[1] else "", "place": row[2] or ""}
+                for row in cur.fetchall()
+            ]
+        except Exception:
+            # family_events table may not exist yet — not critical
+            conn.rollback()
+
+    # Build person context for the story generator
+    person_data = {
+        "first_name": person.get("first_name", ""),
+        "last_name": person.get("last_name", ""),
+        "birth_date": str(person.get("birth_date", "") or ""),
+        "birth_place": person.get("birth_place", ""),
+        "death_date": str(person.get("death_date", "") or ""),
+        "death_place": person.get("death_place", ""),
+        "gender": person.get("gender", ""),
+        "notes": person.get("notes", ""),
+    }
+
+    story = generate_life_story(person_data, relationships, events)
+    return jsonify({"story": story, "person_id": person_id})

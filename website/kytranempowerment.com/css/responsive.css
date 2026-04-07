@@ -70,11 +70,10 @@
         align-items: center;
     }
 
-    /* --- Card grid: single column, centered --- */
+    /* --- Card grid: 2 columns at tablet --- */
     .card-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, 1fr);
         gap: var(--space-md);
-        justify-items: center;
     }
 
     .card-grid .card {

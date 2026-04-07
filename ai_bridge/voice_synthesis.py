@@ -13,6 +13,12 @@ Phoneme-Based Caching Strategy:
 """
 
 import os
+
+# Apply XTTS compatibility patches BEFORE any TTS/torch imports
+# Fixes: torch.load weights_only default (torch>=2.6) + BeamSearchScorer removal (transformers>=4.45)
+from xtts_compat import apply_patches as _apply_xtts_patches
+_apply_xtts_patches()
+
 from db import _get_db_password
 import io
 import base64

@@ -1657,7 +1657,7 @@ def audit_dependencies():
     # Method 1: pip audit (if installed)
     try:
         result = subprocess.run(
-            ["pip", "audit", "--format", "json", "--desc"],
+            ["pip-audit", "--format", "json", "--desc"],
             capture_output=True,
             text=True,
             timeout=60,
@@ -1687,7 +1687,7 @@ def audit_dependencies():
     # Method 2: Parse requirements.txt for known pinned-but-outdated packages
     # (This catches packages even when pip-audit isn't installed)
     try:
-        req_path = "/mnt/archie_brain/platform_v2/requirements.txt"
+        req_path = os.environ.get("REQUIREMENTS_PATH", "/app/requirements.txt")
         if os.path.exists(req_path):
             with open(req_path) as f:
                 for line in f:

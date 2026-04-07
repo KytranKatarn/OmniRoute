@@ -67,13 +67,12 @@ apscheduler>=3.10.0
 # TTS library for A.R.C.H.I.E.'s voice synthesis
 # Note: First run downloads ~1.5GB XTTS v2 model
 TTS>=0.22.0
-# Pin torch to <2.6 for weights_only compatibility with TTS
-# SECURITY: torch>=2.6.0 fixes RCE via torch.load (CVE pending) — blocked by TTS compat
-torch>=2.0.0,<2.6.0
-torchaudio>=2.0.0,<2.6.0
-# Pin transformers for TTS compatibility (BeamSearchScorer removed in 4.45+)
-# SECURITY: transformers>=4.48.0 fixes deserialization + ReDoS — blocked by TTS compat
-transformers>=4.38.0,<4.45.0
+# torch/transformers unpinned — ai_bridge/xtts_compat.py patches TTS 0.22.0:
+#   - torch.load weights_only default fix (28 calls in TTS lack weights_only param)
+#   - BeamSearchScorer stub (removed in transformers 4.45+, used by XTTS streaming)
+torch>=2.6.0
+torchaudio>=2.6.0
+transformers>=4.48.0
 
 # Kokoro TTS (Phase 79: Dual-engine voice)
 kokoro>=0.9.4
@@ -85,6 +84,9 @@ google-auth>=2.23.0
 google-auth-httplib2>=0.1.1
 google-auth-oauthlib>=1.0.0
 pycryptodome>=3.19.0
+
+# Security auditing
+pip-audit>=2.7.0
 
 # Testing
 pytest==8.1.1

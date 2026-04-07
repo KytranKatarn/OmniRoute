@@ -195,64 +195,41 @@
 
 </div>
 
+<!-- LCARS Modal Macro -->
+{% from 'includes/lcars_modal.html' import lcars_modal %}
+
 <!-- PERSON EDIT MODAL -->
-<div class="bm-overlay" id="ft-person-modal" onclick="if(event.target===this)FamilyTree.closeModal()">
-  <div class="bm-shell" style="--bm-accent:#10b981;">
-    <div class="bm-frame"></div>
-    <div class="bm-content">
-      <div class="bm-header">
-        <span id="ft-modal-title">Add Person</span>
-        <button class="bm-close" onclick="FamilyTree.closeModal()">
-          <i data-lucide="x"></i>
-        </button>
-      </div>
-      <div class="bm-body" id="ft-modal-body">
-        <!-- Populated by JS -->
-      </div>
-      <div class="bm-footer">
-        <button class="ft-btn" onclick="FamilyTree.closeModal()">Cancel</button>
-        <button class="ft-btn ft-btn-primary" onclick="FamilyTree.savePerson()">
-          <i data-lucide="save"></i> Save
-        </button>
-      </div>
-    </div>
+{% call lcars_modal(id="ft-person-modal", title="Add Person", accent="#10b981", accent_rgb="16,185,129", onclose="FamilyTree.closeModal()") %}
+  <!-- Populated by JS -->
+  <div class="bm-actions">
+    <button class="btn-cancel" onclick="FamilyTree.closeModal()">Cancel</button>
+    <button class="btn-submit" onclick="FamilyTree.savePerson()">
+      <i data-lucide="save"></i> Save
+    </button>
   </div>
-</div>
+{% endcall %}
 
 <!-- GEDCOM IMPORT MODAL -->
-<div class="bm-overlay" id="ft-import-modal" onclick="if(event.target===this)FamilyTree.closeImportModal()">
-  <div class="bm-shell" style="--bm-accent:#10b981;">
-    <div class="bm-frame"></div>
-    <div class="bm-content">
-      <div class="bm-header">
-        <span>Import GEDCOM</span>
-        <button class="bm-close" onclick="FamilyTree.closeImportModal()">
-          <i data-lucide="x"></i>
-        </button>
-      </div>
-      <div class="bm-body">
-        <p class="ft-muted" style="margin-bottom:12px;">Upload a .ged or .gedcom file exported from another genealogy application.</p>
-        <div class="ft-upload-zone" id="ft-gedcom-upload-zone"
-             ondragover="event.preventDefault(); this.classList.add('ft-upload-zone-hover')"
-             ondragleave="this.classList.remove('ft-upload-zone-hover')"
-             ondrop="FamilyTree.handleGedcomDrop(event); this.classList.remove('ft-upload-zone-hover')">
-          <i data-lucide="file-code" style="width:32px;height:32px;opacity:0.5;"></i>
-          <p>Drop .ged file or <label for="ft-gedcom-file-input" class="ft-upload-link">browse</label></p>
-          <input type="file" id="ft-gedcom-file-input" accept=".ged,.gedcom"
-                 style="display:none" onchange="FamilyTree._gedcomFileSelected(this.files[0])">
-        </div>
-        <div id="ft-gedcom-selected" class="ft-muted" style="margin-top:8px;text-align:center;"></div>
-        <div id="ft-import-result" style="margin-top:12px;"></div>
-      </div>
-      <div class="bm-footer">
-        <button class="ft-btn" onclick="FamilyTree.closeImportModal()">Cancel</button>
-        <button class="ft-btn ft-btn-primary" onclick="FamilyTree.doImport()">
-          <i data-lucide="upload"></i> Import
-        </button>
-      </div>
-    </div>
+{% call lcars_modal(id="ft-import-modal", title="Import GEDCOM", accent="#10b981", accent_rgb="16,185,129", onclose="FamilyTree.closeImportModal()") %}
+  <p class="ft-muted" style="margin-bottom:12px;">Upload a .ged or .gedcom file exported from another genealogy application.</p>
+  <div class="ft-upload-zone" id="ft-gedcom-upload-zone"
+       ondragover="event.preventDefault(); this.classList.add('ft-upload-zone-hover')"
+       ondragleave="this.classList.remove('ft-upload-zone-hover')"
+       ondrop="FamilyTree.handleGedcomDrop(event); this.classList.remove('ft-upload-zone-hover')">
+    <i data-lucide="file-code" style="width:32px;height:32px;opacity:0.5;"></i>
+    <p>Drop .ged file or <label for="ft-gedcom-file-input" class="ft-upload-link">browse</label></p>
+    <input type="file" id="ft-gedcom-file-input" accept=".ged,.gedcom"
+           style="display:none" onchange="FamilyTree._gedcomFileSelected(this.files[0])">
   </div>
-</div>
+  <div id="ft-gedcom-selected" class="ft-muted" style="margin-top:8px;text-align:center;"></div>
+  <div id="ft-import-result" style="margin-top:12px;"></div>
+  <div class="bm-actions">
+    <button class="btn-cancel" onclick="FamilyTree.closeImportModal()">Cancel</button>
+    <button class="btn-submit" onclick="FamilyTree.doImport()">
+      <i data-lucide="upload"></i> Import
+    </button>
+  </div>
+{% endcall %}
 
 <script src="{{ url_for('family_tree.static', filename='js/family-tree.js') }}"></script>
 {% endblock %}

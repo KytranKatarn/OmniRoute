@@ -1,0 +1,50 @@
+{#
+  LCARS Tablet Modal — shared macro for all modules.
+  Usage:
+    {% from 'includes/lcars_modal.html' import lcars_modal %}
+    {% call lcars_modal(id="my-modal", title="MODAL TITLE", accent="#10b981", accent_rgb="16,185,129", onclose="closeMyModal()") %}
+      <p>Modal body content here</p>
+    {% endcall %}
+#}
+
+{% macro lcars_modal(id, title="", accent="#00e5ff", accent_rgb="0,229,255", onclose="", max_width="500px", footer=true) %}
+<div class="bm-overlay" id="{{ id }}" style="--bm-accent:{{ accent }};--bm-accent-rgb:{{ accent_rgb }};"{% if onclose %} onclick="if(event.target===this){{ onclose }}"{% endif %}>
+    <div class="bm-shell" style="max-width:{{ max_width }};">
+        <div class="bm-frame">
+            <div class="bm-frame-elbow-top"></div>
+            <div class="bm-frame-seg"></div>
+            <div class="bm-frame-seg dim"></div>
+            <div class="bm-frame-light on"></div>
+            <div class="bm-frame-light amber"></div>
+            <div class="bm-frame-seg cyan"></div>
+            <div class="bm-frame-fill"></div>
+            <div class="bm-frame-elbow-bottom"></div>
+        </div>
+        <div class="bm-content">
+            <div class="bm-header">
+                <span class="bm-header-title" id="{{ id }}-title">{{ title }}</span>
+                <div class="bm-header-strip">
+                    <span class="bm-header-pip w1"></span>
+                    <span class="bm-header-pip w2"></span>
+                    <span class="bm-header-pip w3"></span>
+                    {% if onclose %}
+                    <button class="bm-close" onclick="{{ onclose }}"><i data-lucide="x"></i></button>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="bm-body" id="{{ id }}-body">
+                {{ caller() }}
+            </div>
+            {% if footer %}
+            <div class="bm-footer">
+                <div class="bm-footer-strip">
+                    <span class="bm-footer-dot cyan"></span>
+                    <span class="bm-footer-dot gold"></span>
+                    <span class="bm-footer-dot green"></span>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endmacro %}

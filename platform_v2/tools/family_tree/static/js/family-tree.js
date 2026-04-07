@@ -210,23 +210,23 @@ const FamilyTree = {
 
   addPerson() {
     this.editingPersonId = null;
-    document.getElementById('ft-modal-title').textContent = 'Add Person';
-    this.setHtml('ft-modal-body', this.renderPersonForm(null));
+    document.getElementById('ft-person-modal-title').textContent = 'Add Person';
+    this.setHtml('ft-person-modal-body', this.renderPersonForm(null));
     document.getElementById('ft-person-modal').classList.add('active');
     if (typeof lucide !== 'undefined') lucide.createIcons();
   },
 
   async editPerson(id) {
     this.editingPersonId = id;
-    document.getElementById('ft-modal-title').textContent = 'Edit Person';
-    this.setHtml('ft-modal-body', '<p class="ft-muted" style="padding:20px;text-align:center;">Loading...</p>');
+    document.getElementById('ft-person-modal-title').textContent = 'Edit Person';
+    this.setHtml('ft-person-modal-body', '<p class="ft-muted" style="padding:20px;text-align:center;">Loading...</p>');
     document.getElementById('ft-person-modal').classList.add('active');
     const data = await this.api(`/persons/${id}`);
     if (data.error) {
-      this.setHtml('ft-modal-body', `<p class="ft-muted" style="padding:20px;text-align:center;">Error: ${this.escHtml(data.error)}</p>`);
+      this.setHtml('ft-person-modal-body', `<p class="ft-muted" style="padding:20px;text-align:center;">Error: ${this.escHtml(data.error)}</p>`);
       return;
     }
-    this.setHtml('ft-modal-body', this.renderPersonForm(data.person || data));
+    this.setHtml('ft-person-modal-body', this.renderPersonForm(data.person || data));
     if (typeof lucide !== 'undefined') lucide.createIcons();
   },
 
@@ -488,7 +488,7 @@ const FamilyTree = {
   /* ── MODALS ── */
 
   openModal(title) {
-    document.getElementById('ft-modal-title').textContent = title;
+    document.getElementById('ft-person-modal-title').textContent = title;
     document.getElementById('ft-person-modal').classList.add('active');
     if (typeof lucide !== 'undefined') lucide.createIcons();
   },

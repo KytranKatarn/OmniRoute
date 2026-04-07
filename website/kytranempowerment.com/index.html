@@ -16,7 +16,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kytran Empowerment — AI-Powered Business Platform</title>
-    <meta name="description" content="Kytran Empowerment — AI-powered business automation platform with 16 departments, 128 agents, and enterprise compliance built in.">
+    <meta name="description" content="Kytran Empowerment — AI-powered business automation platform with 16 departments, 129 agents, and enterprise compliance built in.">
     <meta name="theme-color" content="#0a0a1a">
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="icon" href="favicon.ico" sizes="32x32">
@@ -25,13 +25,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/base.css?v=20260407z">
-    <link rel="stylesheet" href="css/components.css?v=20260407z">
-    <link rel="stylesheet" href="css/pages/home.css?v=20260407z">
-    <link rel="stylesheet" href="css/pages/hero-animations.css?v=20260407z">
-    <link rel="stylesheet" href="css/responsive.css?v=20260407z">
-    <link rel="stylesheet" href="css/pages/intro.css?v=20260407z">
-    <link rel="stylesheet" href="css/reduced-motion.css?v=20260407z">
+    <link rel="stylesheet" href="css/base.css?v=20260407n">
+    <link rel="stylesheet" href="css/components.css?v=20260407n">
+    <link rel="stylesheet" href="css/pages/home.css?v=20260407n">
+    <link rel="stylesheet" href="css/pages/hero-animations.css?v=20260407n">
+    <link rel="stylesheet" href="css/responsive.css?v=20260407n">
+    <link rel="stylesheet" href="css/pages/intro.css?v=20260407n">
+    <link rel="stylesheet" href="css/reduced-motion.css?v=20260407n">
     <style>
         /* Testimonials */
         .testimonials-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; }
@@ -57,7 +57,7 @@
     </style>
     <link rel="canonical" href="https://kytranempowerment.com/">
     <meta property="og:title" content="Kytran Empowerment — AI-Powered Business Platform">
-    <meta property="og:description" content="Kytran Empowerment — AI-powered business automation platform with 16 departments, 128 agents, and enterprise compliance built in.">
+    <meta property="og:description" content="Kytran Empowerment — AI-powered business automation platform with 16 departments, 129 agents, and enterprise compliance built in.">
     <meta property="og:url" content="https://kytranempowerment.com/">
     <meta property="og:image" content="https://kytranempowerment.com/assets/og-default.png">
     <meta property="og:type" content="website">
@@ -76,13 +76,21 @@
       <div class="intro-scanline" id="introScanline"></div>
       <div class="intro-glow-ring" id="introGlowRing"></div>
     </div>
-    <script src="js/intro.js?v=20260407z"></script>
+    <script src="js/intro.js?v=20260407n"></script>
 
     <!-- Global background layers -->
     <div class="aurora"></div>
     <div class="dot-grid"></div>
     <div class="noise-overlay"></div>
     <div class="cursor-glow" id="cursorGlow"></div>
+
+
+
+
+
+
+
+
 
 
     <!-- Navigation -->
@@ -109,7 +117,8 @@
               <a href="legal-watch.html" class="nav__dropdown-item" data-i18n="nav.legal_watch">Legal Watch</a>
               <a href="gov-watch.html" class="nav__dropdown-item" data-i18n="nav.gov_watch">Gov Watch</a>
               <div class="nav__dropdown-divider"></div>
-              <a href="https://business.kytranempowerment.com" class="nav__dropdown-item" data-i18n="nav.business_suite">Business Suite</a>
+              <a href="business-suite.html" class="nav__dropdown-item" data-i18n="nav.business_suite">Business Suite</a>
+              <a href="system-operations.html" class="nav__dropdown-item" data-i18n="nav.sysops">System Operations</a>
             </div>
           </div>
 
@@ -120,7 +129,12 @@
             </button>
             <div class="nav__dropdown-menu">
               <a href="services.html" class="nav__dropdown-item" data-i18n="nav.all_services">All Services</a>
+              <div class="nav__dropdown-divider"></div>
+              <a href="website-services.html" class="nav__dropdown-item">Website Design &amp; Hosting</a>
+              <a href="security-services.html" class="nav__dropdown-item">Security Testing</a>
+              <a href="ai-services.html" class="nav__dropdown-item">AI Automation</a>
               <a href="compliance-services.html" class="nav__dropdown-item" data-i18n="nav.compliance_scanning">Compliance Scanning</a>
+              <div class="nav__dropdown-divider"></div>
               <a href="membership.html" class="nav__dropdown-item" data-i18n="nav.pricing">Membership &amp; Pricing</a>
             </div>
           </div>
@@ -146,7 +160,6 @@
               <a href="about.html" class="nav__dropdown-item" data-i18n="nav.about">About</a>
               <a href="vision.html" class="nav__dropdown-item" data-i18n="nav.vision">Vision</a>
               <a href="directory.html" class="nav__dropdown-item" data-i18n="nav.directory">Directory</a>
-              <a href="books.html" class="nav__dropdown-item" data-i18n="nav.books">Books</a>
               <a href="tips.html" class="nav__dropdown-item" data-i18n="nav.tips">Tips &amp; Tricks</a>
               <a href="links.html" class="nav__dropdown-item" data-i18n="nav.links">Programs &amp; Resources</a>
               <a href="submit-story.html" class="nav__dropdown-item" data-i18n="nav.submit_story">Submit Your Story</a>
@@ -166,88 +179,90 @@
             <span class="nav__menu-icon"></span>
           </button>
         </div>
-      </div>    </nav>
+      </div>
 
 
-      <div class="lang-overlay" hidden>
-        <div class="lang-overlay__panel">
-          <button class="lang-overlay__close" aria-label="Close language selector">&times;</button>
-          <h3 class="lang-overlay__title" data-i18n="lang.choose">Choose Language</h3>
-          <div class="lang-overlay__grid">
-            <button class="lang-overlay__btn" data-lang="en">English</button>
-            <button class="lang-overlay__btn" data-lang="fr">Fran&ccedil;ais (QC)</button>
-            <button class="lang-overlay__btn" data-lang="es">Espa&ntilde;ol</button>
-            <button class="lang-overlay__btn" data-lang="pt">Portugu&ecirc;s</button>
-            <button class="lang-overlay__btn" data-lang="de">Deutsch</button>
-            <button class="lang-overlay__btn" data-lang="zh">&#20013;&#25991;</button>
-            <button class="lang-overlay__btn" data-lang="ar" dir="rtl">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</button>
-            <button class="lang-overlay__btn" data-lang="he" dir="rtl">&#1506;&#1489;&#1512;&#1497;&#1514;</button>
+    </nav>
+
+    <div class="lang-overlay" hidden>
+      <div class="lang-overlay__panel">
+        <button class="lang-overlay__close" aria-label="Close language selector">&times;</button>
+        <h3 class="lang-overlay__title" data-i18n="lang.choose">Choose Language</h3>
+        <div class="lang-overlay__grid">
+          <button class="lang-overlay__btn" data-lang="en">English</button>
+          <button class="lang-overlay__btn" data-lang="fr">Fran&ccedil;ais (QC)</button>
+          <button class="lang-overlay__btn" data-lang="es">Espa&ntilde;ol</button>
+          <button class="lang-overlay__btn" data-lang="pt">Portugu&ecirc;s</button>
+          <button class="lang-overlay__btn" data-lang="de">Deutsch</button>
+          <button class="lang-overlay__btn" data-lang="zh">&#20013;&#25991;</button>
+          <button class="lang-overlay__btn" data-lang="ar" dir="rtl">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</button>
+          <button class="lang-overlay__btn" data-lang="he" dir="rtl">&#1506;&#1489;&#1512;&#1497;&#1514;</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav-mobile" id="navMobile" aria-hidden="true">
+      <div class="nav-mobile__inner">
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.products">Products</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="platform.html" data-i18n="nav.platform">Platform (A.R.C.H.I.E.)</a>
+            <a href="ai-directors.html" data-i18n="nav.ai_directors">AI Directors</a>
+            <a href="archie-code.html" data-i18n="nav.archie_code">ARCHIE Code CLI</a>
+            <a href="market-watch.html" data-i18n="nav.market_watch">Market Watch</a>
+            <a href="civic-watch.html" data-i18n="nav.civic_watch">Civic Watch</a>
+            <a href="legal-watch.html" data-i18n="nav.legal_watch">Legal Watch</a>
+            <a href="gov-watch.html" data-i18n="nav.gov_watch">Gov Watch</a>
+            <a href="business-suite.html" data-i18n="nav.business_suite">Business Suite</a>
+            <a href="system-operations.html" data-i18n="nav.sysops">System Operations</a>
           </div>
         </div>
-      </div>
-
-<div class="nav-mobile" id="navMobile" aria-hidden="true">
-  <div class="nav-mobile__inner">
-    <div class="nav-mobile__group">
-      <button class="nav-mobile__trigger" aria-expanded="false">
-        <span data-i18n="nav.products">Products</span>
-        <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-      </button>
-      <div class="nav-mobile__items">
-        <a href="platform.html" data-i18n="nav.platform">Platform (A.R.C.H.I.E.)</a>
-        <a href="ai-directors.html" data-i18n="nav.ai_directors">AI Directors</a>
-        <a href="archie-code.html" data-i18n="nav.archie_code">ARCHIE Code CLI</a>
-        <a href="market-watch.html" data-i18n="nav.market_watch">Market Watch</a>
-        <a href="civic-watch.html" data-i18n="nav.civic_watch">Civic Watch</a>
-        <a href="legal-watch.html" data-i18n="nav.legal_watch">Legal Watch</a>
-        <a href="gov-watch.html" data-i18n="nav.gov_watch">Gov Watch</a>
-        <a href="https://business.kytranempowerment.com" data-i18n="nav.business_suite">Business Suite</a>
-      </div>
-    </div>
-    <div class="nav-mobile__group">
-      <button class="nav-mobile__trigger" aria-expanded="false">
-        <span data-i18n="nav.services">Services</span>
-        <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-      </button>
-      <div class="nav-mobile__items">
-        <a href="services.html" data-i18n="nav.all_services">All Services</a>
-        <a href="compliance-services.html" data-i18n="nav.compliance_scanning">Compliance Scanning</a>
-        <a href="membership.html" data-i18n="nav.pricing">Membership &amp; Pricing</a>
-      </div>
-    </div>
-    <div class="nav-mobile__group">
-      <button class="nav-mobile__trigger" aria-expanded="false">
-        <span data-i18n="nav.trust">Trust</span>
-        <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-      </button>
-      <div class="nav-mobile__items">
-        <a href="compliance.html" data-i18n="nav.trust_center">Trust Center</a>
-        <a href="competitors.html" data-i18n="nav.competitors">Why A.R.C.H.I.E.</a>
-        <a href="creed.html" data-i18n="nav.creed">C.R.E.E.D.</a>
-      </div>
-    </div>
-    <div class="nav-mobile__group">
-      <button class="nav-mobile__trigger" aria-expanded="false">
-        <span data-i18n="nav.company">Company</span>
-        <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-      </button>
-      <div class="nav-mobile__items">
-        <a href="about.html" data-i18n="nav.about">About</a>
-        <a href="vision.html" data-i18n="nav.vision">Vision</a>
-        <a href="directory.html" data-i18n="nav.directory">Directory</a>
-        <a href="books.html" data-i18n="nav.books">Books</a>
-        <a href="tips.html" data-i18n="nav.tips">Tips &amp; Tricks</a>
-        <a href="links.html" data-i18n="nav.links">Programs &amp; Resources</a>
-        <a href="submit-story.html" data-i18n="nav.submit_story">Submit Your Story</a>
-      </div>
-    </div>
-    <a href="store.html" class="nav-mobile__direct" data-i18n="nav.store">Store</a>
-    <a href="contact.html" class="nav-mobile__direct" data-i18n="nav.contact">Contact</a>
-    <a href="membership.html" class="nav-mobile__cta" data-i18n="nav.get_started">Get Started</a>
-  </div>
-</div>
-</div></div></div></div>
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.services">Services</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="services.html" data-i18n="nav.all_services">All Services</a>
+            <a href="website-services.html">Website Design &amp; Hosting</a>
+            <a href="security-services.html">Security Testing</a>
+            <a href="ai-services.html">AI Automation</a>
+            <a href="compliance-services.html" data-i18n="nav.compliance_scanning">Compliance Scanning</a>
+            <a href="membership.html" data-i18n="nav.pricing">Membership &amp; Pricing</a>
+          </div>
         </div>
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.trust">Trust</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="compliance.html" data-i18n="nav.trust_center">Trust Center</a>
+            <a href="competitors.html" data-i18n="nav.competitors">Why A.R.C.H.I.E.</a>
+            <a href="creed.html" data-i18n="nav.creed">C.R.E.E.D.</a>
+          </div>
+        </div>
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.company">Company</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="about.html" data-i18n="nav.about">About</a>
+            <a href="vision.html" data-i18n="nav.vision">Vision</a>
+            <a href="directory.html" data-i18n="nav.directory">Directory</a>
+            <a href="tips.html" data-i18n="nav.tips">Tips &amp; Tricks</a>
+            <a href="links.html" data-i18n="nav.links">Programs &amp; Resources</a>
+            <a href="submit-story.html" data-i18n="nav.submit_story">Submit Your Story</a>
+          </div>
+        </div>
+        <a href="store.html" class="nav-mobile__direct" data-i18n="nav.store">Store</a>
+        <a href="contact.html" class="nav-mobile__direct" data-i18n="nav.contact">Contact</a>
+        <a href="membership.html" class="nav-mobile__cta" data-i18n="nav.get_started">Get Started</a>
+      </div>
     </div>
 
 
@@ -262,8 +277,8 @@
                 <p class="hero__tagline gradient-text" data-i18n="hero-tagline">AI-Powered Business Automation</p>
                 <div class="hero__stats">
                     <div class="hero__stat">
-                        <span class="hero__stat-number" data-count="128">0</span>
-                        <span class="hero__stat-label" data-i18n="stat-agents">AI Agents</span>
+                        <span class="hero__stat-number" data-count="129">0</span>
+                        <span class="hero__stat-label" data-i18n="stat-agents">Agents</span>
                     </div>
                     <div class="hero__stat">
                         <span class="hero__stat-number" data-count="16">0</span>
@@ -333,8 +348,8 @@
                     </div>
                     <div class="card">
                         <div class="card__icon" style="font-size:1.5rem;">&#x1F3DB;&#xFE0F;</div>
-                        <h3 class="card__title" data-i18n="feat.directors">16 AI Directors</h3>
-                        <p class="card__text" data-i18n="feat.directors_desc">Each department has a dedicated AI director managing specialized agents across 5 organizational floors.</p>
+                        <h3 class="card__title" data-i18n="feat.directors">16 Directors</h3>
+                        <p class="card__text" data-i18n="feat.directors_desc">Each department has a dedicated director managing specialized agents across 5 organizational floors.</p>
                     </div>
                     <div class="card">
                         <div class="card__icon" style="font-size:1.5rem;">&#x1F6E1;&#xFE0F;</div>
@@ -386,12 +401,12 @@
                         <h3 class="card__title" data-i18n="prod.gov">Gov Watch</h3>
                         <p class="card__text" data-i18n="prod.gov_desc">Government spending tracker, contract monitoring, and public accountability tools.</p>
                     </a>
-                    <a href="https://business.kytranempowerment.com" class="card" style="text-decoration:none;color:inherit;">
+                    <a href="business-suite.html" class="card" style="text-decoration:none;color:inherit;">
                         <div class="card__icon" style="font-size:1.5rem;color:#f0c040;">&#x1F4BC;</div>
                         <h3 class="card__title" data-i18n="prod.business">Business Suite</h3>
                         <p class="card__text" data-i18n="prod.business_desc">CRM, invoicing, procurement, and industry-specific modules for trades and government.</p>
                     </a>
-                    <a href="https://server.kytranempowerment.com" class="card" style="text-decoration:none;color:inherit;">
+                    <a href="system-operations.html" class="card" style="text-decoration:none;color:inherit;">
                         <div class="card__icon" style="font-size:1.5rem;color:#ef4444;">&#x1F5A5;&#xFE0F;</div>
                         <h3 class="card__title" data-i18n="prod.sysops">System Operations</h3>
                         <p class="card__text" data-i18n="prod.sysops_desc">Server monitoring, Docker management, compliance scanning, and firewall control.</p>
@@ -448,7 +463,7 @@
                 <h2 class="section__title gradient-text" data-split>What People Are Saying</h2>
                 <div class="testimonials-grid" data-stagger>
                     <div class="glass-panel testimonial-card">
-                        <p class="test-quote">A.R.C.H.I.E.'s orchestration engine handles what used to take our team hours. The 128-agent roster is no gimmick — each one is specialized and capable.</p>
+                        <p class="test-quote">A.R.C.H.I.E.'s orchestration engine handles what used to take our team hours. The 129-agent roster is no gimmick — each one is specialized and capable.</p>
                         <div class="test-author">Alex R.</div>
                         <div class="test-role">CTO, Tech Startup</div>
                     </div>
@@ -473,11 +488,11 @@
                 <div class="faq-list">
                     <details class="faq-item">
                         <summary class="faq-q">What is A.R.C.H.I.E.?</summary>
-                        <div class="faq-a"><p>A.R.C.H.I.E. (Autonomous Reasoning, Coordination &amp; Hierarchical Intelligence Engine) is the AI technology platform built by Kytran Empowerment. It powers 128 specialized agents organized across 16 departments, handling everything from data analysis to creative generation to security monitoring — all orchestrated through a unified dispatch system.</p></div>
+                        <div class="faq-a"><p>A.R.C.H.I.E. (Autonomous Reasoning, Coordination &amp; Hierarchical Intelligence Engine) is the AI technology platform built by Kytran Empowerment. It powers 129 specialized agents organized across 16 departments, handling everything from data analysis to creative generation to security monitoring — all orchestrated through a unified dispatch system.</p></div>
                     </details>
                     <details class="faq-item">
                         <summary class="faq-q">How does AI orchestration work?</summary>
-                        <div class="faq-a"><p>The Bridge dispatcher routes tasks through a 4-tier escalation chain: department lead, capability match, cross-department, connected service, then cloud fallback. Each of the 128 agents has specialized skills assigned to their department.</p></div>
+                        <div class="faq-a"><p>The Bridge dispatcher routes tasks through a 4-tier escalation chain: department lead, capability match, cross-department, connected service, then cloud fallback. Each of the 129 agents has specialized skills assigned to their department.</p></div>
                     </details>
                     <details class="faq-item">
                         <summary class="faq-q">Is A.R.C.H.I.E. self-hosted?</summary>
@@ -485,7 +500,7 @@
                     </details>
                     <details class="faq-item">
                         <summary class="faq-q">How many agents does Kytran Empowerment have?</summary>
-                        <div class="faq-a"><p>128 specialized agents across 16 departments at Kytran Empowerment including Analytics, Creative, Engineering, Communications, Research, Security, Logistics, Operations, and more. Each agent uses AI technology designed and built with A.R.C.H.I.E. to deliver specialized expertise.</p></div>
+                        <div class="faq-a"><p>129 agents across 16 departments at Kytran Empowerment including Analytics, Creative, Engineering, Communications, Research, Security, Logistics, Operations, and more. Each agent uses AI technology designed and built with A.R.C.H.I.E. to deliver specialized expertise.</p></div>
                     </details>
                     <details class="faq-item">
                         <summary class="faq-q">What about data privacy?</summary>
@@ -493,7 +508,7 @@
                     </details>
                     <details class="faq-item">
                         <summary class="faq-q">How is A.R.C.H.I.E. different from ChatGPT?</summary>
-                        <div class="faq-a"><p>ChatGPT is a single model chatbot. A.R.C.H.I.E. is the orchestration platform built by Kytran Empowerment, powering 128 specialized agents each with their own skills and station assignments. It's self-hosted, multi-GPU, and includes image generation, fleet management, SaaS tools, and enterprise governance.</p></div>
+                        <div class="faq-a"><p>ChatGPT is a single model chatbot. A.R.C.H.I.E. is the orchestration platform built by Kytran Empowerment, powering 129 specialized agents each with their own skills and station assignments. It's self-hosted, multi-GPU, and includes image generation, fleet management, SaaS tools, and enterprise governance.</p></div>
                     </details>
                 </div>
             </div>
@@ -507,8 +522,8 @@
                     <p class="mission-text" style="margin-top:0;" data-i18n="mission-text">Kytran Empowerment was founded to provide mental, financial, and emotional tools for men navigating personal struggles, divorce, or transformation. Every platform subscription, every consulting engagement — profits go directly toward men's mental health programs. We build AI that serves business AND community.</p>
                     <div style="display:flex;gap:2rem;justify-content:center;flex-wrap:wrap;margin-top:2rem;">
                         <div style="text-align:center;">
-                            <div style="font-family:'Orbitron',sans-serif;font-size:1.75rem;font-weight:700;color:#f0c040;" data-count="128">0</div>
-                            <div style="font-size:0.75rem;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px;" data-i18n="mission-stat-agents">AI Agents Working</div>
+                            <div style="font-family:'Orbitron',sans-serif;font-size:1.75rem;font-weight:700;color:#f0c040;" data-count="129">0</div>
+                            <div style="font-size:0.75rem;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px;" data-i18n="mission-stat-agents">Agents Working</div>
                         </div>
                         <div style="text-align:center;">
                             <div style="font-family:'Orbitron',sans-serif;font-size:1.75rem;font-weight:700;color:#f0c040;" data-count="16">0</div>
@@ -546,19 +561,19 @@
     </footer>
 
     <!-- Scripts -->
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js?v=20260407z"></script>
-    <script defer src="js/lib/gsap.min.js?v=20260407z"></script>
-    <script defer src="js/lib/ScrollTrigger.min.js?v=20260407z"></script>
-    <script defer src="js/lib/lenis.min.js?v=20260407z"></script>
-    <script defer src="js/lib/splitting.min.js?v=20260407z"></script>
-    <script defer src="js/lib/barba.min.js?v=20260407z"></script>
-    <script defer src="js/effects.js?v=20260407z"></script>
-    <script defer src="js/nav.js?v=20260407z"></script>
-    <script defer src="js/transitions.js?v=20260407z"></script>
-    <script defer src="js/hero.js?v=20260407z"></script>
-    <script defer src="js/hero-animations.js?v=20260407z"></script>
-    <script defer src="js/i18n.js?v=20260407z"></script>
-    <script defer src="js/app.js?v=20260407z"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js?v=20260407n"></script>
+    <script defer src="js/lib/gsap.min.js?v=20260407n"></script>
+    <script defer src="js/lib/ScrollTrigger.min.js?v=20260407n"></script>
+    <script defer src="js/lib/lenis.min.js?v=20260407n"></script>
+    <script defer src="js/lib/splitting.min.js?v=20260407n"></script>
+    <script defer src="js/lib/barba.min.js?v=20260407n"></script>
+    <script defer src="js/effects.js?v=20260407n"></script>
+    <script defer src="js/nav.js?v=20260407n"></script>
+    <script defer src="js/transitions.js?v=20260407n"></script>
+    <script defer src="js/hero.js?v=20260407n"></script>
+    <script defer src="js/hero-animations.js?v=20260407n"></script>
+    <script defer src="js/i18n.js?v=20260407n"></script>
+    <script defer src="js/app.js?v=20260407n"></script>
 
     <!-- Reveal fallback: force-show sections if scroll animations haven't fired -->
     <script>
@@ -576,7 +591,7 @@
                 "name": "What is A.R.C.H.I.E.?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "A.R.C.H.I.E. (Autonomous Reasoning, Coordination & Hierarchical Intelligence Engine) is the AI technology platform built by Kytran Empowerment. It powers 128 specialized agents organized across 16 departments, handling everything from data analysis to creative generation to security monitoring — all orchestrated through a unified dispatch system."
+                    "text": "A.R.C.H.I.E. (Autonomous Reasoning, Coordination & Hierarchical Intelligence Engine) is the AI technology platform built by Kytran Empowerment. It powers 129 specialized agents organized across 16 departments, handling everything from data analysis to creative generation to security monitoring — all orchestrated through a unified dispatch system."
                 }
             },
             {
@@ -584,7 +599,7 @@
                 "name": "How does AI orchestration work?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "The Bridge dispatcher routes tasks through a 4-tier escalation chain: department lead, capability match, cross-department, connected service, then cloud fallback. Each of the 128 agents has specialized skills assigned to their department."
+                    "text": "The Bridge dispatcher routes tasks through a 4-tier escalation chain: department lead, capability match, cross-department, connected service, then cloud fallback. Each of the 129 agents has specialized skills assigned to their department."
                 }
             },
             {
@@ -600,7 +615,7 @@
                 "name": "How many agents does Kytran Empowerment have?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "128 specialized agents across 16 departments at Kytran Empowerment including Analytics, Creative, Engineering, Communications, Research, Security, Logistics, Operations, and more. Each agent uses AI technology designed and built with A.R.C.H.I.E. to deliver specialized expertise."
+                    "text": "129 agents across 16 departments at Kytran Empowerment including Analytics, Creative, Engineering, Communications, Research, Security, Logistics, Operations, and more. Each agent uses AI technology designed and built with A.R.C.H.I.E. to deliver specialized expertise."
                 }
             },
             {
@@ -616,7 +631,7 @@
                 "name": "How is A.R.C.H.I.E. different from ChatGPT?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "ChatGPT is a single model chatbot. A.R.C.H.I.E. is the orchestration platform built by Kytran Empowerment, powering 128 specialized agents each with their own skills and station assignments. It's self-hosted, multi-GPU, and includes image generation, fleet management, SaaS tools, and enterprise governance."
+                    "text": "ChatGPT is a single model chatbot. A.R.C.H.I.E. is the orchestration platform built by Kytran Empowerment, powering 129 specialized agents each with their own skills and station assignments. It's self-hosted, multi-GPU, and includes image generation, fleet management, SaaS tools, and enterprise governance."
                 }
             }
         ]

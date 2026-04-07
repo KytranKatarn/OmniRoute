@@ -75,6 +75,7 @@
     border-radius: 16px;
     padding: 2rem 1.5rem;
     backdrop-filter: blur(12px);
+    text-align: center;
     transition: border-color 0.3s, transform 0.3s;
 }
 
@@ -92,7 +93,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 1rem;
+    margin: 0 auto 1rem;
     color: var(--watch-accent);
     font-size: 1.3rem;
 }

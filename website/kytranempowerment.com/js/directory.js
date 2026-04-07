@@ -1,7 +1,8 @@
 /* Directory — Agent roster with live status polling */
 var Directory = {
-    API_URL: 'https://api.kytranempowerment.com/api/directory',
-    LIVE_URL: 'https://api.kytranempowerment.com/api/directory/live-status',
+    API_URL: '/data/directory-fallback.json',
+    /* LIVE_URL disabled — endpoint does not exist
+    LIVE_URL: 'https://api.kytranempowerment.com/api/directory/live-status', */
     POLL_INTERVAL: 30000,
     agents: [],
     _pollTimer: null,
@@ -15,25 +16,25 @@ var Directory = {
             })
             .then(function (data) {
                 self.agents = data.agents || data;
+                self._fixAvatarPaths(self.agents);
                 self.renderFilters();
                 self.renderAgents(self.agents);
-                self.startLivePolling();
+                /* Live polling disabled — endpoint does not exist
+                self.startLivePolling(); */
                 self.bindEvents();
             })
             .catch(function () {
-                fetch('/data/directory-fallback.json')
-                    .then(function (r) { return r.json(); })
-                    .then(function (data) {
-                        self.agents = data.agents || data;
-                        self.renderFilters();
-                        self.renderAgents(self.agents);
-                        self.bindEvents();
-                        self.showOfflineNotice();
-                    })
-                    .catch(function () {
-                        self.showOfflineNotice();
-                    });
+                self.showOfflineNotice();
             });
+    },
+
+    /** Rewrite legacy /static/media/portraits/ paths to /assets/portraits/ */
+    _fixAvatarPaths: function (agents) {
+        agents.forEach(function (a) {
+            if (a.avatar_url && a.avatar_url.indexOf('/static/media/portraits/') !== -1) {
+                a.avatar_url = a.avatar_url.replace('/static/media/portraits/', '/assets/portraits/');
+            }
+        });
     },
 
     _clearChildren: function (el) {

@@ -25,10 +25,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/base.css?v=20260407z">
-    <link rel="stylesheet" href="css/components.css?v=20260407z">
-    <link rel="stylesheet" href="css/responsive.css?v=20260407z">
-    <link rel="stylesheet" href="css/reduced-motion.css?v=20260407z">
+    <link rel="stylesheet" href="css/base.css?v=20260407n">
+    <link rel="stylesheet" href="css/components.css?v=20260407n">
+    <link rel="stylesheet" href="css/responsive.css?v=20260407n">
+    <link rel="stylesheet" href="css/reduced-motion.css?v=20260407n">
     <link rel="canonical" href="https://kytranempowerment.com/services.html">
     <meta property="og:title" content="Services — Kytran Empowerment">
     <meta property="og:description" content="Kytran Empowerment services — AI automation, compliance scanning, business intelligence, and enterprise platform solutions for every industry.">
@@ -43,6 +43,14 @@
     <div class="dot-grid"></div>
     <div class="noise-overlay"></div>
     <div class="cursor-glow" id="cursorGlow"></div>
+
+
+
+
+
+
+
+
 
 
     <!-- Navigation -->
@@ -69,7 +77,8 @@
               <a href="legal-watch.html" class="nav__dropdown-item" data-i18n="nav.legal_watch">Legal Watch</a>
               <a href="gov-watch.html" class="nav__dropdown-item" data-i18n="nav.gov_watch">Gov Watch</a>
               <div class="nav__dropdown-divider"></div>
-              <a href="https://business.kytranempowerment.com" class="nav__dropdown-item" data-i18n="nav.business_suite">Business Suite</a>
+              <a href="business-suite.html" class="nav__dropdown-item" data-i18n="nav.business_suite">Business Suite</a>
+              <a href="system-operations.html" class="nav__dropdown-item" data-i18n="nav.sysops">System Operations</a>
             </div>
           </div>
 
@@ -80,7 +89,12 @@
             </button>
             <div class="nav__dropdown-menu">
               <a href="services.html" class="nav__dropdown-item" data-i18n="nav.all_services">All Services</a>
+              <div class="nav__dropdown-divider"></div>
+              <a href="website-services.html" class="nav__dropdown-item">Website Design &amp; Hosting</a>
+              <a href="security-services.html" class="nav__dropdown-item">Security Testing</a>
+              <a href="ai-services.html" class="nav__dropdown-item">AI Automation</a>
               <a href="compliance-services.html" class="nav__dropdown-item" data-i18n="nav.compliance_scanning">Compliance Scanning</a>
+              <div class="nav__dropdown-divider"></div>
               <a href="membership.html" class="nav__dropdown-item" data-i18n="nav.pricing">Membership &amp; Pricing</a>
             </div>
           </div>
@@ -106,7 +120,6 @@
               <a href="about.html" class="nav__dropdown-item" data-i18n="nav.about">About</a>
               <a href="vision.html" class="nav__dropdown-item" data-i18n="nav.vision">Vision</a>
               <a href="directory.html" class="nav__dropdown-item" data-i18n="nav.directory">Directory</a>
-              <a href="books.html" class="nav__dropdown-item" data-i18n="nav.books">Books</a>
               <a href="tips.html" class="nav__dropdown-item" data-i18n="nav.tips">Tips &amp; Tricks</a>
               <a href="links.html" class="nav__dropdown-item" data-i18n="nav.links">Programs &amp; Resources</a>
               <a href="submit-story.html" class="nav__dropdown-item" data-i18n="nav.submit_story">Submit Your Story</a>
@@ -126,88 +139,90 @@
             <span class="nav__menu-icon"></span>
           </button>
         </div>
-      </div>    </nav>
+      </div>
 
 
-      <div class="lang-overlay" hidden>
-        <div class="lang-overlay__panel">
-          <button class="lang-overlay__close" aria-label="Close language selector">&times;</button>
-          <h3 class="lang-overlay__title" data-i18n="lang.choose">Choose Language</h3>
-          <div class="lang-overlay__grid">
-            <button class="lang-overlay__btn" data-lang="en">English</button>
-            <button class="lang-overlay__btn" data-lang="fr">Fran&ccedil;ais (QC)</button>
-            <button class="lang-overlay__btn" data-lang="es">Espa&ntilde;ol</button>
-            <button class="lang-overlay__btn" data-lang="pt">Portugu&ecirc;s</button>
-            <button class="lang-overlay__btn" data-lang="de">Deutsch</button>
-            <button class="lang-overlay__btn" data-lang="zh">&#20013;&#25991;</button>
-            <button class="lang-overlay__btn" data-lang="ar" dir="rtl">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</button>
-            <button class="lang-overlay__btn" data-lang="he" dir="rtl">&#1506;&#1489;&#1512;&#1497;&#1514;</button>
+    </nav>
+
+    <div class="lang-overlay" hidden>
+      <div class="lang-overlay__panel">
+        <button class="lang-overlay__close" aria-label="Close language selector">&times;</button>
+        <h3 class="lang-overlay__title" data-i18n="lang.choose">Choose Language</h3>
+        <div class="lang-overlay__grid">
+          <button class="lang-overlay__btn" data-lang="en">English</button>
+          <button class="lang-overlay__btn" data-lang="fr">Fran&ccedil;ais (QC)</button>
+          <button class="lang-overlay__btn" data-lang="es">Espa&ntilde;ol</button>
+          <button class="lang-overlay__btn" data-lang="pt">Portugu&ecirc;s</button>
+          <button class="lang-overlay__btn" data-lang="de">Deutsch</button>
+          <button class="lang-overlay__btn" data-lang="zh">&#20013;&#25991;</button>
+          <button class="lang-overlay__btn" data-lang="ar" dir="rtl">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</button>
+          <button class="lang-overlay__btn" data-lang="he" dir="rtl">&#1506;&#1489;&#1512;&#1497;&#1514;</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav-mobile" id="navMobile" aria-hidden="true">
+      <div class="nav-mobile__inner">
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.products">Products</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="platform.html" data-i18n="nav.platform">Platform (A.R.C.H.I.E.)</a>
+            <a href="ai-directors.html" data-i18n="nav.ai_directors">AI Directors</a>
+            <a href="archie-code.html" data-i18n="nav.archie_code">ARCHIE Code CLI</a>
+            <a href="market-watch.html" data-i18n="nav.market_watch">Market Watch</a>
+            <a href="civic-watch.html" data-i18n="nav.civic_watch">Civic Watch</a>
+            <a href="legal-watch.html" data-i18n="nav.legal_watch">Legal Watch</a>
+            <a href="gov-watch.html" data-i18n="nav.gov_watch">Gov Watch</a>
+            <a href="business-suite.html" data-i18n="nav.business_suite">Business Suite</a>
+            <a href="system-operations.html" data-i18n="nav.sysops">System Operations</a>
           </div>
         </div>
-      </div>
-
-<div class="nav-mobile" id="navMobile" aria-hidden="true">
-  <div class="nav-mobile__inner">
-    <div class="nav-mobile__group">
-      <button class="nav-mobile__trigger" aria-expanded="false">
-        <span data-i18n="nav.products">Products</span>
-        <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-      </button>
-      <div class="nav-mobile__items">
-        <a href="platform.html" data-i18n="nav.platform">Platform (A.R.C.H.I.E.)</a>
-        <a href="ai-directors.html" data-i18n="nav.ai_directors">AI Directors</a>
-        <a href="archie-code.html" data-i18n="nav.archie_code">ARCHIE Code CLI</a>
-        <a href="market-watch.html" data-i18n="nav.market_watch">Market Watch</a>
-        <a href="civic-watch.html" data-i18n="nav.civic_watch">Civic Watch</a>
-        <a href="legal-watch.html" data-i18n="nav.legal_watch">Legal Watch</a>
-        <a href="gov-watch.html" data-i18n="nav.gov_watch">Gov Watch</a>
-        <a href="https://business.kytranempowerment.com" data-i18n="nav.business_suite">Business Suite</a>
-      </div>
-    </div>
-    <div class="nav-mobile__group">
-      <button class="nav-mobile__trigger" aria-expanded="false">
-        <span data-i18n="nav.services">Services</span>
-        <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-      </button>
-      <div class="nav-mobile__items">
-        <a href="services.html" data-i18n="nav.all_services">All Services</a>
-        <a href="compliance-services.html" data-i18n="nav.compliance_scanning">Compliance Scanning</a>
-        <a href="membership.html" data-i18n="nav.pricing">Membership &amp; Pricing</a>
-      </div>
-    </div>
-    <div class="nav-mobile__group">
-      <button class="nav-mobile__trigger" aria-expanded="false">
-        <span data-i18n="nav.trust">Trust</span>
-        <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-      </button>
-      <div class="nav-mobile__items">
-        <a href="compliance.html" data-i18n="nav.trust_center">Trust Center</a>
-        <a href="competitors.html" data-i18n="nav.competitors">Why A.R.C.H.I.E.</a>
-        <a href="creed.html" data-i18n="nav.creed">C.R.E.E.D.</a>
-      </div>
-    </div>
-    <div class="nav-mobile__group">
-      <button class="nav-mobile__trigger" aria-expanded="false">
-        <span data-i18n="nav.company">Company</span>
-        <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-      </button>
-      <div class="nav-mobile__items">
-        <a href="about.html" data-i18n="nav.about">About</a>
-        <a href="vision.html" data-i18n="nav.vision">Vision</a>
-        <a href="directory.html" data-i18n="nav.directory">Directory</a>
-        <a href="books.html" data-i18n="nav.books">Books</a>
-        <a href="tips.html" data-i18n="nav.tips">Tips &amp; Tricks</a>
-        <a href="links.html" data-i18n="nav.links">Programs &amp; Resources</a>
-        <a href="submit-story.html" data-i18n="nav.submit_story">Submit Your Story</a>
-      </div>
-    </div>
-    <a href="store.html" class="nav-mobile__direct" data-i18n="nav.store">Store</a>
-    <a href="contact.html" class="nav-mobile__direct" data-i18n="nav.contact">Contact</a>
-    <a href="membership.html" class="nav-mobile__cta" data-i18n="nav.get_started">Get Started</a>
-  </div>
-</div>
-</div></div></div></div>
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.services">Services</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="services.html" data-i18n="nav.all_services">All Services</a>
+            <a href="website-services.html">Website Design &amp; Hosting</a>
+            <a href="security-services.html">Security Testing</a>
+            <a href="ai-services.html">AI Automation</a>
+            <a href="compliance-services.html" data-i18n="nav.compliance_scanning">Compliance Scanning</a>
+            <a href="membership.html" data-i18n="nav.pricing">Membership &amp; Pricing</a>
+          </div>
         </div>
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.trust">Trust</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="compliance.html" data-i18n="nav.trust_center">Trust Center</a>
+            <a href="competitors.html" data-i18n="nav.competitors">Why A.R.C.H.I.E.</a>
+            <a href="creed.html" data-i18n="nav.creed">C.R.E.E.D.</a>
+          </div>
+        </div>
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.company">Company</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="about.html" data-i18n="nav.about">About</a>
+            <a href="vision.html" data-i18n="nav.vision">Vision</a>
+            <a href="directory.html" data-i18n="nav.directory">Directory</a>
+            <a href="tips.html" data-i18n="nav.tips">Tips &amp; Tricks</a>
+            <a href="links.html" data-i18n="nav.links">Programs &amp; Resources</a>
+            <a href="submit-story.html" data-i18n="nav.submit_story">Submit Your Story</a>
+          </div>
+        </div>
+        <a href="store.html" class="nav-mobile__direct" data-i18n="nav.store">Store</a>
+        <a href="contact.html" class="nav-mobile__direct" data-i18n="nav.contact">Contact</a>
+        <a href="membership.html" class="nav-mobile__cta" data-i18n="nav.get_started">Get Started</a>
+      </div>
     </div>
 
 
@@ -215,15 +230,15 @@
     <main data-barba="container" data-barba-namespace="services">
         <section class="hero">
             <div class="hero__content container">
-                <h1 class="hero__title gradient-text" data-i18n="services.hero_title">Everything We Build</h1>
-                <p class="hero__tagline" data-i18n="services.hero_subtitle">8 standalone products, 30+ platform modules, and enterprise AI automation — all under one roof.</p>
+                <h1 class="hero__title gradient-text" data-i18n="services.hero_title">Products &amp; Services</h1>
+                <p class="hero__tagline" data-i18n="services.hero_subtitle" style="max-width:700px;margin:1rem auto 0;">8 standalone products. 39 platform modules. Professional services from website design to security testing. One-time setups with no monthly fees. All powered by 129 agents who do the actual work.</p>
             </div>
         </section>
 
         <!-- ============================================================
              Section 1: Standalone Products (Hero Cards)
              ============================================================ -->
-        <section class="section">
+        <section class="section" id="standalone">
             <div class="container">
                 <h2 class="section__title gradient-text" data-split data-i18n="services.standalone_title">Standalone Products</h2>
                 <p class="svc-subtitle" data-i18n="services.standalone_desc">Full applications you can use independently — each powered by dedicated AI directors.</p>
@@ -233,7 +248,7 @@
                     <div class="glass-panel svc-hero-card">
                         <div class="svc-hero-card__accent" style="--svc-accent:#00e5ff;"></div>
                         <h3 class="svc-hero-card__name">A.R.C.H.I.E. Platform</h3>
-                        <p class="svc-hero-card__desc">Full AI business automation platform with 16 departments and 128 agents orchestrating every aspect of operations.</p>
+                        <p class="svc-hero-card__desc">Full AI business automation platform with 16 departments and 129 agents orchestrating every aspect of operations.</p>
                         <ul class="svc-hero-card__features">
                             <li>16 AI Director departments</li>
                             <li>128 specialized agents</li>
@@ -268,7 +283,7 @@
                             <li>Resellable AI agents</li>
                             <li>White-label ready</li>
                         </ul>
-                        <a href="https://business.kytranempowerment.com" class="btn btn--primary btn--sm magnetic" data-i18n="services.launch_app">Launch App &rarr;</a>
+                        <a href="contact.html" class="btn btn--primary btn--sm magnetic" data-i18n="services.request_access">Request Access &rarr;</a>
                     </div>
 
                     <!-- Market Watch -->
@@ -338,7 +353,7 @@
                             <li>One-click remediation</li>
                             <li>Server fleet management</li>
                         </ul>
-                        <a href="https://server.kytranempowerment.com" class="btn btn--primary btn--sm magnetic" data-i18n="services.launch_app">Launch App &rarr;</a>
+                        <a href="contact.html" class="btn btn--primary btn--sm magnetic" data-i18n="services.request_access">Request Access &rarr;</a>
                     </div>
                 </div>
             </div>
@@ -350,156 +365,134 @@
         <section class="section" style="background: radial-gradient(ellipse at 50% 30%, rgba(139,92,246,0.06), transparent 70%);">
             <div class="container">
                 <h2 class="section__title gradient-text" data-split data-i18n="services.modules_title">Platform Modules</h2>
-                <p class="svc-subtitle" data-i18n="services.modules_desc">30+ modules inside the A.R.C.H.I.E. Platform, organized by category.</p>
+                <p class="svc-subtitle" data-i18n="services.modules_desc">39 modules inside the A.R.C.H.I.E. Platform — each powered by specialized AI agents.</p>
 
-                <!-- SaaS Services -->
+                <!-- AI Command -->
                 <div class="svc-category">
-                    <h3 class="svc-category__header"><span class="svc-category__dot" style="background:#00e5ff;"></span> SaaS Services</h3>
+                    <h3 class="svc-category__header"><span class="svc-category__dot" style="background:#8b5cf6;"></span> AI Command &amp; Autonomy</h3>
                     <div class="svc-module-grid" data-stagger>
                         <div class="glass-panel svc-module-card">
-                            <h4 class="svc-module-card__name">CRM</h4>
-                            <p class="svc-module-card__desc">Customer management with AI insights, smart segmentation, and automated follow-ups.</p>
-                            <ul class="svc-module-card__features"><li>40+ routes</li><li>Pipeline management</li><li>Import/export</li></ul>
+                            <h4 class="svc-module-card__name">Department HQ</h4>
+                            <p class="svc-module-card__desc">Manage 129 agents across 16 departments. Led by <strong>A.R.C.H.I.E.</strong> from the Bridge.</p>
+                            <ul class="svc-module-card__features"><li>16 departments</li><li>Agent lifecycle</li><li>Skill management</li></ul>
                         </div>
                         <div class="glass-panel svc-module-card">
+                            <h4 class="svc-module-card__name">Agent Academy</h4>
+                            <p class="svc-module-card__desc">Train, benchmark, and A/B test agents. <strong>D.A.R.W.I.N.</strong> oversees research &amp; development.</p>
+                            <ul class="svc-module-card__features"><li>Benchmarks</li><li>A/B testing</li><li>Skill training</li></ul>
+                        </div>
+                        <div class="glass-panel svc-module-card">
+                            <h4 class="svc-module-card__name">Starbase Command</h4>
+                            <p class="svc-module-card__desc">Fleet node management and GPU-aware dispatch. <strong>B.A.S.E.</strong> runs operations.</p>
+                            <ul class="svc-module-card__features"><li>Fleet management</li><li>Agent dispatch</li><li>GPU routing</li></ul>
+                        </div>
+                        <div class="glass-panel svc-module-card">
+                            <h4 class="svc-module-card__name">Repair Bay</h4>
+                            <p class="svc-module-card__desc">Self-evolution pipeline — <strong>F.O.R.G.E.</strong> scans, proposes, and deploys fixes automatically.</p>
+                            <ul class="svc-module-card__features"><li>Auto-scanning</li><li>Sandbox testing</li><li>Self-healing</li></ul>
+                        </div>
+                        <div class="glass-panel svc-module-card">
+                            <h4 class="svc-module-card__name">Consciousness</h4>
+                            <p class="svc-module-card__desc">Knowledge analytics and AI processing. <strong>C.O.D.E.X.</strong> manages 25,000+ knowledge entries.</p>
+                            <ul class="svc-module-card__features"><li>25K+ entries</li><li>Embedding pipeline</li><li>Quality scoring</li></ul>
+                        </div>
+                        <div class="glass-panel svc-module-card">
+                            <h4 class="svc-module-card__name">Autonomy</h4>
+                            <p class="svc-module-card__desc">90 scheduled background jobs running 24/7. Monitoring, scanning, training — all autonomous.</p>
+                            <ul class="svc-module-card__features"><li>90 scheduled jobs</li><li>Approval tiers</li><li>Telegram alerts</li></ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Business Tools -->
+                <div class="svc-category">
+                    <h3 class="svc-category__header"><span class="svc-category__dot" style="background:#00e5ff;"></span> Business Tools</h3>
+                    <div class="svc-module-grid" data-stagger>
+                        <div class="glass-panel svc-module-card">
                             <h4 class="svc-module-card__name">Social Media</h4>
-                            <p class="svc-module-card__desc">Multi-platform publishing, analytics, and scheduling from one dashboard.</p>
+                            <p class="svc-module-card__desc">Multi-platform publishing and scheduling. <strong>S.I.G.N.A.L.</strong> handles marketing &amp; comms.</p>
                             <ul class="svc-module-card__features"><li>OAuth integration</li><li>Cross-platform posting</li><li>Analytics</li></ul>
                         </div>
                         <div class="glass-panel svc-module-card">
-                            <h4 class="svc-module-card__name">Website Designer</h4>
-                            <p class="svc-module-card__desc">Drag-and-drop builder with Monaco editor, live preview, and one-click deploy.</p>
-                            <ul class="svc-module-card__features"><li>Visual builder</li><li>Code editor</li><li>Hostinger deploy</li></ul>
-                        </div>
-                        <div class="glass-panel svc-module-card">
-                            <h4 class="svc-module-card__name">Store Builder</h4>
-                            <p class="svc-module-card__desc">E-commerce with Printful print-on-demand, product management, and order tracking.</p>
-                            <ul class="svc-module-card__features"><li>Printful integration</li><li>Product catalog</li><li>Order tracking</li></ul>
-                        </div>
-                        <div class="glass-panel svc-module-card">
-                            <h4 class="svc-module-card__name">Call Center</h4>
-                            <p class="svc-module-card__desc">VoIP-powered call routing with CRM integration and queue management.</p>
-                            <ul class="svc-module-card__features"><li>VoIP routing</li><li>Call logging</li><li>CRM sync</li></ul>
-                        </div>
-                        <div class="glass-panel svc-module-card">
-                            <h4 class="svc-module-card__name">Invoicing</h4>
-                            <p class="svc-module-card__desc">Professional invoicing with payment reminders and financial reporting.</p>
-                            <ul class="svc-module-card__features"><li>Auto reminders</li><li>Expense tracking</li><li>Reports</li></ul>
-                        </div>
-                        <div class="glass-panel svc-module-card">
-                            <h4 class="svc-module-card__name">Content Studio</h4>
-                            <p class="svc-module-card__desc">AI-assisted content creation for blogs, social, and marketing materials.</p>
-                            <ul class="svc-module-card__features"><li>AI writing</li><li>Brand voice</li><li>Multi-format</li></ul>
+                            <h4 class="svc-module-card__name">Email Manager</h4>
+                            <p class="svc-module-card__desc">Business email on your domain with Stalwart Mail integration. SPF, DKIM, DMARC configured.</p>
+                            <ul class="svc-module-card__features"><li>Custom domain email</li><li>Webmail access</li><li>Anti-spam</li></ul>
                         </div>
                         <div class="glass-panel svc-module-card">
                             <h4 class="svc-module-card__name">Google Work Suite</h4>
                             <p class="svc-module-card__desc">Gmail, Calendar, and Drive integration managed from within the platform.</p>
                             <ul class="svc-module-card__features"><li>Gmail sync</li><li>Calendar</li><li>Drive access</li></ul>
                         </div>
-                    </div>
-                </div>
-
-                <!-- AI Command -->
-                <div class="svc-category">
-                    <h3 class="svc-category__header"><span class="svc-category__dot" style="background:#8b5cf6;"></span> AI Command</h3>
-                    <div class="svc-module-grid" data-stagger>
                         <div class="glass-panel svc-module-card">
-                            <h4 class="svc-module-card__name">Starbase Command</h4>
-                            <p class="svc-module-card__desc">Fleet node management, agent dispatch, and cross-node orchestration.</p>
-                            <ul class="svc-module-card__features"><li>Fleet management</li><li>Agent dispatch</li><li>GPU routing</li></ul>
-                        </div>
-                        <div class="glass-panel svc-module-card">
-                            <h4 class="svc-module-card__name">Repair Bay</h4>
-                            <p class="svc-module-card__desc">Self-evolution pipeline — scan, propose, sandbox, and deploy fixes automatically.</p>
-                            <ul class="svc-module-card__features"><li>Auto-scanning</li><li>Sandbox testing</li><li>Self-healing</li></ul>
-                        </div>
-                        <div class="glass-panel svc-module-card">
-                            <h4 class="svc-module-card__name">Consciousness</h4>
-                            <p class="svc-module-card__desc">Knowledge analytics, AI processing, and embedding coverage across 22,000+ entries.</p>
-                            <ul class="svc-module-card__features"><li>22K+ knowledge entries</li><li>Embedding pipeline</li><li>Quality scoring</li></ul>
+                            <h4 class="svc-module-card__name">StockBot</h4>
+                            <p class="svc-module-card__desc">AI-powered stock analysis with 5 specialist agents. Now integrated into Market Watch.</p>
+                            <ul class="svc-module-card__features"><li>5 AI analysts</li><li>Portfolio tracking</li><li>Alerts</li></ul>
                         </div>
                     </div>
                 </div>
 
-                <!-- Admin Ops -->
+                <!-- Security & Admin -->
                 <div class="svc-category">
-                    <h3 class="svc-category__header"><span class="svc-category__dot" style="background:#ef4444;"></span> Admin Ops</h3>
+                    <h3 class="svc-category__header"><span class="svc-category__dot" style="background:#ef4444;"></span> Security &amp; Admin</h3>
                     <div class="svc-module-grid" data-stagger>
+                        <div class="glass-panel svc-module-card">
+                            <h4 class="svc-module-card__name">Security &amp; Network</h4>
+                            <p class="svc-module-card__desc">Pen testing, DNS audits, and network scanning. <strong>V.I.G.I.L.</strong> leads security &amp; compliance.</p>
+                            <ul class="svc-module-card__features"><li>Vulnerability scanning</li><li>DNS management</li><li>39 monitoring jobs</li></ul>
+                        </div>
                         <div class="glass-panel svc-module-card">
                             <h4 class="svc-module-card__name">Backup Manager</h4>
-                            <p class="svc-module-card__desc">Database and filesystem backups with external USB sync and automation hooks.</p>
+                            <p class="svc-module-card__desc">Scheduled database and filesystem backups with external storage sync.</p>
                             <ul class="svc-module-card__features"><li>Scheduled backups</li><li>USB sync</li><li>Pre/post hooks</li></ul>
                         </div>
                         <div class="glass-panel svc-module-card">
-                            <h4 class="svc-module-card__name">Security Network</h4>
-                            <p class="svc-module-card__desc">Device tracking, DNS management, network scanning, and security event monitoring.</p>
-                            <ul class="svc-module-card__features"><li>30+ routes</li><li>39 agent loop jobs</li><li>DNS management</li></ul>
-                        </div>
-                        <div class="glass-panel svc-module-card">
                             <h4 class="svc-module-card__name">Account Center</h4>
-                            <p class="svc-module-card__desc">User management, subscriptions, and role-based access control.</p>
+                            <p class="svc-module-card__desc">User management, subscriptions, and role-based access. Managed by <strong>K.I.N.</strong></p>
                             <ul class="svc-module-card__features"><li>User management</li><li>Subscriptions</li><li>RBAC</li></ul>
-                        </div>
-                        <div class="glass-panel svc-module-card">
-                            <h4 class="svc-module-card__name">System Operations</h4>
-                            <p class="svc-module-card__desc">Server monitoring, compliance scanning, and infrastructure health checks.</p>
-                            <ul class="svc-module-card__features"><li>Health monitoring</li><li>Compliance scans</li><li>Alerts</li></ul>
                         </div>
                     </div>
                 </div>
 
-                <!-- Media & Creative -->
+                <!-- Creative & Media -->
                 <div class="svc-category">
-                    <h3 class="svc-category__header"><span class="svc-category__dot" style="background:#f472b6;"></span> Media &amp; Creative</h3>
+                    <h3 class="svc-category__header"><span class="svc-category__dot" style="background:#f472b6;"></span> Creative &amp; Media</h3>
                     <div class="svc-module-grid" data-stagger>
                         <div class="glass-panel svc-module-card">
+                            <h4 class="svc-module-card__name">Media Studio</h4>
+                            <p class="svc-module-card__desc">AI image and audio generation. <strong>M.U.S.E.</strong> leads creative &amp; design with ComfyUI.</p>
+                            <ul class="svc-module-card__features"><li>Image generation</li><li>ComfyUI / SDXL</li><li>Audio tools</li></ul>
+                        </div>
+                        <div class="glass-panel svc-module-card">
                             <h4 class="svc-module-card__name">Media Hub</h4>
-                            <p class="svc-module-card__desc">Plex/Jellyfin integration, Sonarr, Radarr, and media request management.</p>
+                            <p class="svc-module-card__desc">Plex/Jellyfin integration with Sonarr, Radarr, and media request management.</p>
                             <ul class="svc-module-card__features"><li>Library browser</li><li>Smart search</li><li>Request system</li></ul>
                         </div>
                         <div class="glass-panel svc-module-card">
-                            <h4 class="svc-module-card__name">Media Studio</h4>
-                            <p class="svc-module-card__desc">GPU-aware AI image, video, and audio generation with ComfyUI integration.</p>
-                            <ul class="svc-module-card__features"><li>Image generation</li><li>ComfyUI</li><li>SDXL support</li></ul>
-                        </div>
-                        <div class="glass-panel svc-module-card">
                             <h4 class="svc-module-card__name">Game Studio</h4>
-                            <p class="svc-module-card__desc">Game design and development tools with AI-assisted asset creation.</p>
-                            <ul class="svc-module-card__features"><li>Game design tools</li><li>Asset creation</li><li>Prototyping</li></ul>
+                            <p class="svc-module-card__desc">Game design tools with AI-assisted asset creation and prototyping.</p>
+                            <ul class="svc-module-card__features"><li>Game design</li><li>Asset creation</li><li>Prototyping</li></ul>
                         </div>
                     </div>
                 </div>
 
-                <!-- Applications -->
+                <!-- Applications & Wellness -->
                 <div class="svc-category">
-                    <h3 class="svc-category__header"><span class="svc-category__dot" style="background:#fbbf24;"></span> Applications</h3>
+                    <h3 class="svc-category__header"><span class="svc-category__dot" style="background:#fbbf24;"></span> Applications &amp; Wellness</h3>
                     <div class="svc-module-grid" data-stagger>
                         <div class="glass-panel svc-module-card">
+                            <h4 class="svc-module-card__name">Family Tree</h4>
+                            <p class="svc-module-card__desc">AI-powered genealogy — 8 archives, DNA analysis, photo colorization, migration maps.</p>
+                            <ul class="svc-module-card__features"><li>8 public archives</li><li>DNA ethnicity</li><li>Photo restoration</li></ul>
+                        </div>
+                        <div class="glass-panel svc-module-card">
                             <h4 class="svc-module-card__name">Fitness</h4>
-                            <p class="svc-module-card__desc">Fitness tracking with AI-powered workout plans and progress analytics.</p>
+                            <p class="svc-module-card__desc">Workout plans and progress tracking. <strong>V.I.T.A.L.</strong> manages medical &amp; wellness.</p>
                             <ul class="svc-module-card__features"><li>Workout tracking</li><li>AI plans</li><li>Progress analytics</li></ul>
                         </div>
                         <div class="glass-panel svc-module-card">
                             <h4 class="svc-module-card__name">Therapy</h4>
-                            <p class="svc-module-card__desc">Guided therapy sessions with mood tracking and wellness insights.</p>
+                            <p class="svc-module-card__desc">Guided sessions with mood tracking and wellness insights.</p>
                             <ul class="svc-module-card__features"><li>Session tracking</li><li>Mood analytics</li><li>Wellness insights</li></ul>
-                        </div>
-                        <div class="glass-panel svc-module-card">
-                            <h4 class="svc-module-card__name">DOC</h4>
-                            <p class="svc-module-card__desc">Doctor and medical consultation management with appointment scheduling and health tracking.</p>
-                            <ul class="svc-module-card__features"><li>Appointment scheduling</li><li>Health records</li><li>Consultation tracking</li></ul>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Crypto -->
-                <div class="svc-category">
-                    <h3 class="svc-category__header"><span class="svc-category__dot" style="background:#a3e635;"></span> Crypto</h3>
-                    <div class="svc-module-grid" data-stagger>
-                        <div class="glass-panel svc-module-card">
-                            <h4 class="svc-module-card__name">Archie Pool</h4>
-                            <p class="svc-module-card__desc">Mining pool admin dashboard with real-time hashrate monitoring and worker management.</p>
-                            <ul class="svc-module-card__features"><li>Hashrate monitoring</li><li>Worker management</li><li>Pool statistics</li></ul>
                         </div>
                     </div>
                 </div>
@@ -507,7 +500,236 @@
         </section>
 
         <!-- ============================================================
-             Section 3: Pricing CTA
+             Section 3: Professional Services
+             ============================================================ -->
+        <section class="section" id="professional" style="background: radial-gradient(ellipse at 50% 30%, rgba(0,229,255,0.04), transparent 70%);">
+            <div class="container">
+                <h2 class="section__title gradient-text" data-split>Professional Services</h2>
+                <p class="svc-subtitle">Hands-on expertise to launch, grow, and automate your business.</p>
+
+                <div class="svc-hero-grid" data-stagger style="margin-top:2rem;">
+
+                    <div class="glass-panel svc-hero-card" style="--svc-accent:#00e5ff;">
+                        <div class="svc-hero-accent"></div>
+                        <h3 class="svc-hero-name">Website Design &amp; Development</h3>
+                        <p class="svc-hero-desc">Custom-built websites with the same sci-fi polish we use on our own products. Responsive, fast, SEO-ready — deployed and managed for you.</p>
+                        <ul class="svc-hero-features">
+                            <li>Custom design or template customization</li>
+                            <li>Mobile-first responsive builds</li>
+                            <li>Hosting setup &amp; domain configuration</li>
+                            <li>Ongoing maintenance plans available</li>
+                        </ul>
+                        <a href="contact.html" class="btn btn--outline btn--sm magnetic">Get a Quote &rarr;</a>
+                    </div>
+
+                    <div class="glass-panel svc-hero-card" style="--svc-accent:#8b5cf6;">
+                        <div class="svc-hero-accent"></div>
+                        <h3 class="svc-hero-name">SEO &amp; Digital Marketing</h3>
+                        <p class="svc-hero-desc">Data-driven search optimization powered by <strong>S.I.G.N.A.L.</strong> (Marketing &amp; Communications). We don't guess — we measure, test, and improve.</p>
+                        <ul class="svc-hero-features">
+                            <li>Technical SEO audits &amp; fixes</li>
+                            <li>Content strategy &amp; keyword research</li>
+                            <li>Google Analytics &amp; Search Console setup</li>
+                            <li>Monthly performance reporting</li>
+                        </ul>
+                        <a href="contact.html" class="btn btn--outline btn--sm magnetic">Get a Quote &rarr;</a>
+                    </div>
+
+                    <div class="glass-panel svc-hero-card" style="--svc-accent:#f472b6;">
+                        <div class="svc-hero-accent"></div>
+                        <h3 class="svc-hero-name">AI Teaching &amp; Workshops</h3>
+                        <p class="svc-hero-desc">Demystify AI for your team. We run practical workshops on prompt engineering, AI tool adoption, and building AI-powered workflows — no PhD required.</p>
+                        <ul class="svc-hero-features">
+                            <li>Intro to AI for business teams</li>
+                            <li>Prompt engineering masterclass</li>
+                            <li>AI tool selection &amp; adoption strategy</li>
+                            <li>Custom curriculum for your industry</li>
+                        </ul>
+                        <a href="contact.html" class="btn btn--outline btn--sm magnetic">Book a Workshop &rarr;</a>
+                    </div>
+
+                    <div class="glass-panel svc-hero-card" style="--svc-accent:#fbbf24;">
+                        <div class="svc-hero-accent"></div>
+                        <h3 class="svc-hero-name">Business Automation Consulting</h3>
+                        <p class="svc-hero-desc"><strong>B.A.S.E.</strong> (Operations) audits your workflows, identifies bottlenecks, and builds AI-powered automations that save hours every week. Real ROI, not buzzwords.</p>
+                        <ul class="svc-hero-features">
+                            <li>Workflow audit &amp; bottleneck analysis</li>
+                            <li>Custom automation design &amp; build</li>
+                            <li>CRM, invoicing &amp; operations integration</li>
+                            <li>Ongoing optimization &amp; support</li>
+                        </ul>
+                        <a href="contact.html" class="btn btn--outline btn--sm magnetic">Schedule a Consultation &rarr;</a>
+                    </div>
+
+                    <div class="glass-panel svc-hero-card" style="--svc-accent:#10b981;">
+                        <div class="svc-hero-accent"></div>
+                        <h3 class="svc-hero-name">Compliance &amp; Security Hardening</h3>
+                        <p class="svc-hero-desc"><strong>V.I.G.I.L.</strong> (Security &amp; Compliance) gets you audit-ready with automated scanning, infrastructure hardening, and live trust center deployment — backed by C.R.E.E.D.</p>
+                        <ul class="svc-hero-features">
+                            <li>STIG, HIPAA, SOC 2 &amp; CIS scanning</li>
+                            <li>Docker &amp; infrastructure hardening</li>
+                            <li>Live compliance badge deployment</li>
+                            <li>Remediation roadmap &amp; support</li>
+                        </ul>
+                        <a href="compliance-services.html" class="btn btn--outline btn--sm magnetic">Learn More &rarr;</a>
+                    </div>
+
+                    <div class="glass-panel svc-hero-card" style="--svc-accent:#22d3ee;">
+                        <div class="svc-hero-accent"></div>
+                        <h3 class="svc-hero-name">Custom AI Agent Development</h3>
+                        <p class="svc-hero-desc">Need an AI agent tailored to your business? <strong>D.A.R.W.I.N.</strong> (R&amp;D) designs, trains, and deploys custom acronym-named agents that integrate with your tools.</p>
+                        <ul class="svc-hero-features">
+                            <li>Custom agent design &amp; personality</li>
+                            <li>Integration with your CRM, ERP, or tools</li>
+                            <li>Fine-tuned on your business data</li>
+                            <li>Ethical governance via C.R.E.E.D.</li>
+                        </ul>
+                        <a href="contact.html" class="btn btn--outline btn--sm magnetic">Discuss Your Project &rarr;</a>
+                    </div>
+
+                </div>
+
+                <h2 class="section__title" style="margin-top:4rem;font-size:1.5rem;color:var(--color-primary);">One-Time &amp; Project-Based Services</h2>
+                <p class="svc-subtitle">No monthly fees. Pay once, get it done. We handle the setup so you don't have to.</p>
+
+                <div class="svc-hero-grid" data-stagger style="margin-top:2rem;">
+
+                    <div class="glass-panel svc-hero-card" style="--svc-accent:#00e5ff;">
+                        <div class="svc-hero-accent"></div>
+                        <h3 class="svc-hero-name">Website Hosting Setup</h3>
+                        <p class="svc-hero-desc">We'll host your website on our infrastructure. Domain setup, SSL, DNS configuration, and deployment — all handled for you. Up to 50 sites managed.</p>
+                        <ul class="svc-hero-features">
+                            <li>Domain registration &amp; DNS config</li>
+                            <li>SSL certificate setup</li>
+                            <li>One-click deployment pipeline</li>
+                            <li>Ongoing hosting included</li>
+                        </ul>
+                        <a href="contact.html" class="btn btn--outline btn--sm magnetic">Get a Quote &rarr;</a>
+                    </div>
+
+                    <div class="glass-panel svc-hero-card" style="--svc-accent:#8b5cf6;">
+                        <div class="svc-hero-accent"></div>
+                        <h3 class="svc-hero-name">Business Email Setup</h3>
+                        <p class="svc-hero-desc">Professional email on your domain. We create mailboxes, configure DNS records (SPF, DKIM, DMARC), and set up your email client — ready to send.</p>
+                        <ul class="svc-hero-features">
+                            <li>Custom domain email (you@yourbiz.com)</li>
+                            <li>SPF, DKIM &amp; DMARC configuration</li>
+                            <li>Webmail &amp; IMAP/SMTP access</li>
+                            <li>Anti-spam filtering included</li>
+                        </ul>
+                        <a href="contact.html" class="btn btn--outline btn--sm magnetic">Get a Quote &rarr;</a>
+                    </div>
+
+                    <div class="glass-panel svc-hero-card" style="--svc-accent:#f472b6;">
+                        <div class="svc-hero-accent"></div>
+                        <h3 class="svc-hero-name">VPS Provisioning</h3>
+                        <p class="svc-hero-desc">Need a server? We provision, harden, and configure a VPS for your application. Docker-ready, firewall set, monitoring installed.</p>
+                        <ul class="svc-hero-features">
+                            <li>VPS setup &amp; OS hardening</li>
+                            <li>Docker &amp; container deployment</li>
+                            <li>Firewall &amp; SSH key configuration</li>
+                            <li>Monitoring &amp; backup setup</li>
+                        </ul>
+                        <a href="contact.html" class="btn btn--outline btn--sm magnetic">Get a Quote &rarr;</a>
+                    </div>
+
+                    <div class="glass-panel svc-hero-card" style="--svc-accent:#fbbf24;">
+                        <div class="svc-hero-accent"></div>
+                        <h3 class="svc-hero-name">SEO Optimization</h3>
+                        <p class="svc-hero-desc">One-time SEO audit and optimization. We fix your metadata, page speed, schema markup, and sitemap — then hand you a report with ongoing recommendations.</p>
+                        <ul class="svc-hero-features">
+                            <li>Full technical SEO audit</li>
+                            <li>Meta tags, headings &amp; alt text</li>
+                            <li>Page speed optimization</li>
+                            <li>Schema markup &amp; sitemap</li>
+                        </ul>
+                        <a href="contact.html" class="btn btn--outline btn--sm magnetic">Get a Quote &rarr;</a>
+                    </div>
+
+                    <div class="glass-panel svc-hero-card" style="--svc-accent:#10b981;">
+                        <div class="svc-hero-accent"></div>
+                        <h3 class="svc-hero-name">Website Migration</h3>
+                        <p class="svc-hero-desc">Moving from WordPress, Wix, Squarespace, or another host? We migrate your content, preserve SEO, and set up your new home — zero downtime.</p>
+                        <ul class="svc-hero-features">
+                            <li>Content &amp; media transfer</li>
+                            <li>SEO redirect mapping (301s)</li>
+                            <li>DNS cutover with zero downtime</li>
+                            <li>Post-migration QA testing</li>
+                        </ul>
+                        <a href="contact.html" class="btn btn--outline btn--sm magnetic">Get a Quote &rarr;</a>
+                    </div>
+
+                    <div class="glass-panel svc-hero-card" style="--svc-accent:#22d3ee;">
+                        <div class="svc-hero-accent"></div>
+                        <h3 class="svc-hero-name">DNS &amp; Domain Management</h3>
+                        <p class="svc-hero-desc">Subdomain setup, DNS record management, domain forwarding, and nameserver configuration. We handle the complexity so your domains just work.</p>
+                        <ul class="svc-hero-features">
+                            <li>DNS record configuration</li>
+                            <li>Subdomain &amp; forwarding setup</li>
+                            <li>Nameserver migration</li>
+                            <li>WHOIS privacy protection</li>
+                        </ul>
+                        <a href="contact.html" class="btn btn--outline btn--sm magnetic">Get a Quote &rarr;</a>
+                    </div>
+
+                    <div class="glass-panel svc-hero-card" style="--svc-accent:#ef4444;">
+                        <div class="svc-hero-accent"></div>
+                        <h3 class="svc-hero-name">Security Audit</h3>
+                        <p class="svc-hero-desc"><strong>V.I.G.I.L.</strong> runs a full security assessment of your website or server — vulnerability scanning, configuration review, and a prioritized remediation report.</p>
+                        <ul class="svc-hero-features">
+                            <li>Vulnerability scanning</li>
+                            <li>Configuration review</li>
+                            <li>SSL &amp; header analysis</li>
+                            <li>Remediation report with priorities</li>
+                        </ul>
+                        <a href="contact.html" class="btn btn--outline btn--sm magnetic">Get a Quote &rarr;</a>
+                    </div>
+
+                    <div class="glass-panel svc-hero-card" style="--svc-accent:#a78bfa;">
+                        <div class="svc-hero-accent"></div>
+                        <h3 class="svc-hero-name">AI Workflow Setup</h3>
+                        <p class="svc-hero-desc"><strong>F.O.R.G.E.</strong> (Engineering) designs and deploys a custom AI automation for your business. Email auto-responders, document processing, data entry — one workflow, fully automated.</p>
+                        <ul class="svc-hero-features">
+                            <li>Workflow design &amp; mapping</li>
+                            <li>AI model selection &amp; config</li>
+                            <li>Integration with your tools</li>
+                            <li>Testing &amp; handoff documentation</li>
+                        </ul>
+                        <a href="contact.html" class="btn btn--outline btn--sm magnetic">Get a Quote &rarr;</a>
+                    </div>
+
+                    <div class="glass-panel svc-hero-card" style="--svc-accent:#ef4444;">
+                        <div class="svc-hero-accent"></div>
+                        <h3 class="svc-hero-name">Penetration Testing</h3>
+                        <p class="svc-hero-desc"><strong>V.I.G.I.L.</strong>'s security team runs automated and manual vulnerability testing using Nikto, Nuclei, and OWASP tools — finding what attackers would find first.</p>
+                        <ul class="svc-hero-features">
+                            <li>Web application vulnerability scan</li>
+                            <li>Network port &amp; service discovery</li>
+                            <li>OWASP Top 10 assessment</li>
+                            <li>Detailed report with fix priorities</li>
+                        </ul>
+                        <a href="contact.html" class="btn btn--outline btn--sm magnetic">Get a Quote &rarr;</a>
+                    </div>
+
+                    <div class="glass-panel svc-hero-card" style="--svc-accent:#f97316;">
+                        <div class="svc-hero-accent"></div>
+                        <h3 class="svc-hero-name">Network Security Assessment</h3>
+                        <p class="svc-hero-desc"><strong>V.I.G.I.L.</strong> performs full network reconnaissance — device discovery, open port analysis, DNS audit, and firewall rule review — delivered as an actionable report.</p>
+                        <ul class="svc-hero-features">
+                            <li>Network device discovery &amp; mapping</li>
+                            <li>DNS configuration audit</li>
+                            <li>Firewall rule review</li>
+                            <li>Remediation roadmap</li>
+                        </ul>
+                        <a href="contact.html" class="btn btn--outline btn--sm magnetic">Get a Quote &rarr;</a>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             Section 4: Pricing CTA
              ============================================================ -->
         <section class="section" id="pricing">
             <div class="container">
@@ -797,16 +1019,16 @@
         </div>
     </footer>
     <!-- Scripts -->
-    <script defer src="js/lib/gsap.min.js?v=20260407z"></script>
-    <script defer src="js/lib/ScrollTrigger.min.js?v=20260407z"></script>
-    <script defer src="js/lib/lenis.min.js?v=20260407z"></script>
-    <script defer src="js/lib/splitting.min.js?v=20260407z"></script>
-    <script defer src="js/lib/barba.min.js?v=20260407z"></script>
-    <script defer src="js/effects.js?v=20260407z"></script>
-    <script defer src="js/nav.js?v=20260407z"></script>
-    <script defer src="js/transitions.js?v=20260407z"></script>
-    <script defer src="js/i18n.js?v=20260407z"></script>
-    <script defer src="js/app.js?v=20260407z"></script>
+    <script defer src="js/lib/gsap.min.js?v=20260407n"></script>
+    <script defer src="js/lib/ScrollTrigger.min.js?v=20260407n"></script>
+    <script defer src="js/lib/lenis.min.js?v=20260407n"></script>
+    <script defer src="js/lib/splitting.min.js?v=20260407n"></script>
+    <script defer src="js/lib/barba.min.js?v=20260407n"></script>
+    <script defer src="js/effects.js?v=20260407n"></script>
+    <script defer src="js/nav.js?v=20260407n"></script>
+    <script defer src="js/transitions.js?v=20260407n"></script>
+    <script defer src="js/i18n.js?v=20260407n"></script>
+    <script defer src="js/app.js?v=20260407n"></script>
     <!-- Cookie Consent -->
     <div id="cookieConsent" class="cookie-consent" style="display:none;">
       <div class="cookie-consent__inner">

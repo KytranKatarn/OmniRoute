@@ -25,11 +25,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/base.css?v=20260407z">
-    <link rel="stylesheet" href="css/components.css?v=20260407z">
-    <link rel="stylesheet" href="css/responsive.css?v=20260407z">
-    <link rel="stylesheet" href="css/reduced-motion.css?v=20260407z">
-    <link rel="stylesheet" href="css/pages/ai-directors.css?v=20260407z">
+    <link rel="stylesheet" href="css/base.css?v=20260407n">
+    <link rel="stylesheet" href="css/components.css?v=20260407n">
+    <link rel="stylesheet" href="css/responsive.css?v=20260407n">
+    <link rel="stylesheet" href="css/reduced-motion.css?v=20260407n">
+    <link rel="stylesheet" href="css/pages/ai-directors.css?v=20260407n">
     <link rel="canonical" href="https://kytranempowerment.com/ai-directors.html">
     <meta property="og:title" content="AI Directors — Kytran Empowerment">
     <meta property="og:description" content="Meet the 16 AI Directors powering Kytran Empowerment. From A.R.C.H.I.E. to S.P.E.C.T.R.A., each leads a specialized department.">
@@ -44,6 +44,14 @@
     <div class="dot-grid"></div>
     <div class="noise-overlay"></div>
     <div class="cursor-glow" id="cursorGlow"></div>
+
+
+
+
+
+
+
+
 
 
     <!-- Navigation -->
@@ -70,7 +78,8 @@
               <a href="legal-watch.html" class="nav__dropdown-item" data-i18n="nav.legal_watch">Legal Watch</a>
               <a href="gov-watch.html" class="nav__dropdown-item" data-i18n="nav.gov_watch">Gov Watch</a>
               <div class="nav__dropdown-divider"></div>
-              <a href="https://business.kytranempowerment.com" class="nav__dropdown-item" data-i18n="nav.business_suite">Business Suite</a>
+              <a href="business-suite.html" class="nav__dropdown-item" data-i18n="nav.business_suite">Business Suite</a>
+              <a href="system-operations.html" class="nav__dropdown-item" data-i18n="nav.sysops">System Operations</a>
             </div>
           </div>
 
@@ -81,7 +90,12 @@
             </button>
             <div class="nav__dropdown-menu">
               <a href="services.html" class="nav__dropdown-item" data-i18n="nav.all_services">All Services</a>
+              <div class="nav__dropdown-divider"></div>
+              <a href="website-services.html" class="nav__dropdown-item">Website Design &amp; Hosting</a>
+              <a href="security-services.html" class="nav__dropdown-item">Security Testing</a>
+              <a href="ai-services.html" class="nav__dropdown-item">AI Automation</a>
               <a href="compliance-services.html" class="nav__dropdown-item" data-i18n="nav.compliance_scanning">Compliance Scanning</a>
+              <div class="nav__dropdown-divider"></div>
               <a href="membership.html" class="nav__dropdown-item" data-i18n="nav.pricing">Membership &amp; Pricing</a>
             </div>
           </div>
@@ -107,7 +121,6 @@
               <a href="about.html" class="nav__dropdown-item" data-i18n="nav.about">About</a>
               <a href="vision.html" class="nav__dropdown-item" data-i18n="nav.vision">Vision</a>
               <a href="directory.html" class="nav__dropdown-item" data-i18n="nav.directory">Directory</a>
-              <a href="books.html" class="nav__dropdown-item" data-i18n="nav.books">Books</a>
               <a href="tips.html" class="nav__dropdown-item" data-i18n="nav.tips">Tips &amp; Tricks</a>
               <a href="links.html" class="nav__dropdown-item" data-i18n="nav.links">Programs &amp; Resources</a>
               <a href="submit-story.html" class="nav__dropdown-item" data-i18n="nav.submit_story">Submit Your Story</a>
@@ -127,289 +140,135 @@
             <span class="nav__menu-icon"></span>
           </button>
         </div>
-      </div>    </nav>
+      </div>
 
 
-      <div class="lang-overlay" hidden>
-        <div class="lang-overlay__panel">
-          <button class="lang-overlay__close" aria-label="Close language selector">&times;</button>
-          <h3 class="lang-overlay__title" data-i18n="lang.choose">Choose Language</h3>
-          <div class="lang-overlay__grid">
-            <button class="lang-overlay__btn" data-lang="en">English</button>
-            <button class="lang-overlay__btn" data-lang="fr">Fran&ccedil;ais (QC)</button>
-            <button class="lang-overlay__btn" data-lang="es">Espa&ntilde;ol</button>
-            <button class="lang-overlay__btn" data-lang="pt">Portugu&ecirc;s</button>
-            <button class="lang-overlay__btn" data-lang="de">Deutsch</button>
-            <button class="lang-overlay__btn" data-lang="zh">&#20013;&#25991;</button>
-            <button class="lang-overlay__btn" data-lang="ar" dir="rtl">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</button>
-            <button class="lang-overlay__btn" data-lang="he" dir="rtl">&#1506;&#1489;&#1512;&#1497;&#1514;</button>
-          </div>
+    </nav>
+
+    <div class="lang-overlay" hidden>
+      <div class="lang-overlay__panel">
+        <button class="lang-overlay__close" aria-label="Close language selector">&times;</button>
+        <h3 class="lang-overlay__title" data-i18n="lang.choose">Choose Language</h3>
+        <div class="lang-overlay__grid">
+          <button class="lang-overlay__btn" data-lang="en">English</button>
+          <button class="lang-overlay__btn" data-lang="fr">Fran&ccedil;ais (QC)</button>
+          <button class="lang-overlay__btn" data-lang="es">Espa&ntilde;ol</button>
+          <button class="lang-overlay__btn" data-lang="pt">Portugu&ecirc;s</button>
+          <button class="lang-overlay__btn" data-lang="de">Deutsch</button>
+          <button class="lang-overlay__btn" data-lang="zh">&#20013;&#25991;</button>
+          <button class="lang-overlay__btn" data-lang="ar" dir="rtl">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</button>
+          <button class="lang-overlay__btn" data-lang="he" dir="rtl">&#1506;&#1489;&#1512;&#1497;&#1514;</button>
         </div>
       </div>
+    </div>
 
-<div class="nav-mobile" id="navMobile" aria-hidden="true">
-  <div class="nav-mobile__inner">
-    <div class="nav-mobile__group">
-      <button class="nav-mobile__trigger" aria-expanded="false">
-        <span data-i18n="nav.products">Products</span>
-        <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-      </button>
-      <div class="nav-mobile__items">
-        <a href="platform.html" data-i18n="nav.platform">Platform (A.R.C.H.I.E.)</a>
-        <a href="ai-directors.html" data-i18n="nav.ai_directors">AI Directors</a>
-        <a href="archie-code.html" data-i18n="nav.archie_code">ARCHIE Code CLI</a>
-        <a href="market-watch.html" data-i18n="nav.market_watch">Market Watch</a>
-        <a href="civic-watch.html" data-i18n="nav.civic_watch">Civic Watch</a>
-        <a href="legal-watch.html" data-i18n="nav.legal_watch">Legal Watch</a>
-        <a href="gov-watch.html" data-i18n="nav.gov_watch">Gov Watch</a>
-        <a href="https://business.kytranempowerment.com" data-i18n="nav.business_suite">Business Suite</a>
+    <div class="nav-mobile" id="navMobile" aria-hidden="true">
+      <div class="nav-mobile__inner">
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.products">Products</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="platform.html" data-i18n="nav.platform">Platform (A.R.C.H.I.E.)</a>
+            <a href="ai-directors.html" data-i18n="nav.ai_directors">AI Directors</a>
+            <a href="archie-code.html" data-i18n="nav.archie_code">ARCHIE Code CLI</a>
+            <a href="market-watch.html" data-i18n="nav.market_watch">Market Watch</a>
+            <a href="civic-watch.html" data-i18n="nav.civic_watch">Civic Watch</a>
+            <a href="legal-watch.html" data-i18n="nav.legal_watch">Legal Watch</a>
+            <a href="gov-watch.html" data-i18n="nav.gov_watch">Gov Watch</a>
+            <a href="business-suite.html" data-i18n="nav.business_suite">Business Suite</a>
+            <a href="system-operations.html" data-i18n="nav.sysops">System Operations</a>
+          </div>
+        </div>
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.services">Services</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="services.html" data-i18n="nav.all_services">All Services</a>
+            <a href="website-services.html">Website Design &amp; Hosting</a>
+            <a href="security-services.html">Security Testing</a>
+            <a href="ai-services.html">AI Automation</a>
+            <a href="compliance-services.html" data-i18n="nav.compliance_scanning">Compliance Scanning</a>
+            <a href="membership.html" data-i18n="nav.pricing">Membership &amp; Pricing</a>
+          </div>
+        </div>
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.trust">Trust</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="compliance.html" data-i18n="nav.trust_center">Trust Center</a>
+            <a href="competitors.html" data-i18n="nav.competitors">Why A.R.C.H.I.E.</a>
+            <a href="creed.html" data-i18n="nav.creed">C.R.E.E.D.</a>
+          </div>
+        </div>
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.company">Company</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="about.html" data-i18n="nav.about">About</a>
+            <a href="vision.html" data-i18n="nav.vision">Vision</a>
+            <a href="directory.html" data-i18n="nav.directory">Directory</a>
+            <a href="tips.html" data-i18n="nav.tips">Tips &amp; Tricks</a>
+            <a href="links.html" data-i18n="nav.links">Programs &amp; Resources</a>
+            <a href="submit-story.html" data-i18n="nav.submit_story">Submit Your Story</a>
+          </div>
+        </div>
+        <a href="store.html" class="nav-mobile__direct" data-i18n="nav.store">Store</a>
+        <a href="contact.html" class="nav-mobile__direct" data-i18n="nav.contact">Contact</a>
+        <a href="membership.html" class="nav-mobile__cta" data-i18n="nav.get_started">Get Started</a>
       </div>
     </div>
-    <div class="nav-mobile__group">
-      <button class="nav-mobile__trigger" aria-expanded="false">
-        <span data-i18n="nav.services">Services</span>
-        <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-      </button>
-      <div class="nav-mobile__items">
-        <a href="services.html" data-i18n="nav.all_services">All Services</a>
-        <a href="compliance-services.html" data-i18n="nav.compliance_scanning">Compliance Scanning</a>
-        <a href="membership.html" data-i18n="nav.pricing">Membership &amp; Pricing</a>
-      </div>
-    </div>
-    <div class="nav-mobile__group">
-      <button class="nav-mobile__trigger" aria-expanded="false">
-        <span data-i18n="nav.trust">Trust</span>
-        <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-      </button>
-      <div class="nav-mobile__items">
-        <a href="compliance.html" data-i18n="nav.trust_center">Trust Center</a>
-        <a href="competitors.html" data-i18n="nav.competitors">Why A.R.C.H.I.E.</a>
-        <a href="creed.html" data-i18n="nav.creed">C.R.E.E.D.</a>
-      </div>
-    </div>
-    <div class="nav-mobile__group">
-      <button class="nav-mobile__trigger" aria-expanded="false">
-        <span data-i18n="nav.company">Company</span>
-        <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-      </button>
-      <div class="nav-mobile__items">
-        <a href="about.html" data-i18n="nav.about">About</a>
-        <a href="vision.html" data-i18n="nav.vision">Vision</a>
-        <a href="directory.html" data-i18n="nav.directory">Directory</a>
-        <a href="books.html" data-i18n="nav.books">Books</a>
-        <a href="tips.html" data-i18n="nav.tips">Tips &amp; Tricks</a>
-        <a href="links.html" data-i18n="nav.links">Programs &amp; Resources</a>
-        <a href="submit-story.html" data-i18n="nav.submit_story">Submit Your Story</a>
-      </div>
-    </div>
-    <a href="store.html" class="nav-mobile__direct" data-i18n="nav.store">Store</a>
-    <a href="contact.html" class="nav-mobile__direct" data-i18n="nav.contact">Contact</a>
-    <a href="membership.html" class="nav-mobile__cta" data-i18n="nav.get_started">Get Started</a>
-  </div>
-</div>
 
 
     <!-- Page content -->
     <main data-barba="container" data-barba-namespace="ai-directors">
-
-        <!-- Hero -->
         <section class="dir-hero">
             <div class="container">
-                <h1 class="dir-hero__title gradient-text" data-i18n="directors-hero-title">Meet the AI Directors</h1>
-                <p class="dir-hero__subtitle" data-i18n="directors-hero-subtitle">16 autonomous leaders managing every aspect of your business under C.R.E.E.D. ethical governance</p>
+                <h1 class="dir-hero__title gradient-text">Meet the AI Directors</h1>
+                <p class="dir-hero__subtitle">17 autonomous leaders managing every aspect of your business under C.R.E.E.D. ethical governance.</p>
             </div>
         </section>
 
-        <!-- C.R.E.E.D. -->
+        <section class="dir-governance">
+            <div class="container" style="max-width:700px;">
+                <div class="glass-panel" style="padding:2rem;">
+                    <h2 style="font-family:var(--font-heading);color:#fbbf24;font-size:1.2rem;margin-bottom:0.75rem;">Governed by C.R.E.E.D.</h2>
+                    <p style="color:var(--color-text-muted);font-size:0.95rem;line-height:1.7;">Every AI Director operates under C.R.E.E.D. &mdash; Compliance, Rights &amp; Ethical Enforcement Directive &mdash; ensuring transparent, accountable, and ethical AI governance across all departments.</p>
+                </div>
+            </div>
+        </section>
+
         <section class="section">
             <div class="container">
-                <div class="glass-panel dir-creed">
-                    <h2 class="dir-creed__title" data-i18n="directors-creed-title">Governed by C.R.E.E.D.</h2>
-                    <p class="dir-creed__text" data-i18n="directors-creed-text">Every AI Director operates under C.R.E.E.D. &mdash; Compliance, Rights &amp; Ethical Enforcement Directive &mdash; ensuring transparent, accountable, and ethical AI governance across all departments. Every decision is logged, every action is auditable, and every agent operates within clearly defined ethical boundaries.</p>
+                <div id="directorsContainer">
+                    <p style="text-align:center;color:var(--color-text-muted);">Loading directors...</p>
                 </div>
             </div>
         </section>
 
-        <!-- Directors by Floor -->
-        <section class="section">
-            <div class="container">
-
-                <!-- BRIDGE -->
-                <div class="dir-floor dir-floor--bridge">
-                    <div class="dir-floor__header">
-                        <div class="dir-floor__bar" style="background:#00e5ff;"></div>
-                        <span class="dir-floor__name" style="color:#00e5ff;" data-i18n="directors-floor-bridge">Bridge</span>
-                        <span class="dir-floor__badge" style="color:#00e5ff;border-color:rgba(0,229,255,0.25);">1 Director</span>
-                    </div>
-                    <div class="dir-grid dir-grid--single" data-stagger>
-                        <div class="glass-panel dir-card">
-                            <span class="dir-card__acronym">A.R.C.H.I.E.</span>
-                            <span class="dir-card__name">Autonomous Resource &amp; Cognitive Hyperintelligence Engine</span>
-                            <span class="dir-card__dept">Executive Office</span>
-                            <p class="dir-card__desc">Chief executive AI orchestrating all departments. Final decision authority. Sets strategic direction and ensures all systems operate harmoniously.</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- OPERATIONS -->
-                <div class="dir-floor dir-floor--ops">
-                    <div class="dir-floor__header">
-                        <div class="dir-floor__bar" style="background:#a3e635;"></div>
-                        <span class="dir-floor__name" style="color:#a3e635;" data-i18n="directors-floor-ops">Operations</span>
-                        <span class="dir-floor__badge" style="color:#a3e635;border-color:rgba(163,230,53,0.25);">3 Directors</span>
-                    </div>
-                    <div class="dir-grid" data-stagger>
-                        <div class="glass-panel dir-card">
-                            <span class="dir-card__acronym">B.A.S.E.</span>
-                            <span class="dir-card__name">Backbone Administration &amp; Systems Engineering</span>
-                            <span class="dir-card__dept">Operations &amp; Infrastructure</span>
-                            <p class="dir-card__desc">Manages server infrastructure, deployment pipelines, system monitoring, and operational reliability across the entire platform.</p>
-                        </div>
-                        <div class="glass-panel dir-card">
-                            <span class="dir-card__acronym">C.A.R.G.O.</span>
-                            <span class="dir-card__name">Coordinated Allocation &amp; Resource Governance Operations</span>
-                            <span class="dir-card__dept">Logistics &amp; Supply Chain</span>
-                            <p class="dir-card__desc">Coordinates resource allocation, supply chain tracking, inventory management, and distribution logistics.</p>
-                        </div>
-                        <div class="glass-panel dir-card">
-                            <span class="dir-card__acronym">L.E.D.G.E.R.</span>
-                            <span class="dir-card__name">Ledger Engine for Digital Governance, Economics &amp; Reporting</span>
-                            <span class="dir-card__dept">Finance &amp; Accounting</span>
-                            <p class="dir-card__desc">Handles financial reporting, budget tracking, invoice management, and fiscal compliance across all business units.</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ENGINEERING -->
-                <div class="dir-floor dir-floor--eng">
-                    <div class="dir-floor__header">
-                        <div class="dir-floor__bar" style="background:#fbbf24;"></div>
-                        <span class="dir-floor__name" style="color:#fbbf24;" data-i18n="directors-floor-eng">Engineering</span>
-                        <span class="dir-floor__badge" style="color:#fbbf24;border-color:rgba(251,191,36,0.25);">3 Directors</span>
-                    </div>
-                    <div class="dir-grid" data-stagger>
-                        <div class="glass-panel dir-card">
-                            <span class="dir-card__acronym">F.O.R.G.E.</span>
-                            <span class="dir-card__name">Full-cycle Optimization &amp; Regenerative GitHub Engine</span>
-                            <span class="dir-card__dept">Engineering &amp; Technology</span>
-                            <p class="dir-card__desc">Drives code quality, architecture decisions, CI/CD pipelines, and technical innovation. Manages the self-healing repair pipeline.</p>
-                        </div>
-                        <div class="glass-panel dir-card">
-                            <span class="dir-card__acronym">V.I.G.I.L.</span>
-                            <span class="dir-card__name">Vigilant Intelligence for Governance, Integrity &amp; Liability</span>
-                            <span class="dir-card__dept">Security &amp; Compliance</span>
-                            <p class="dir-card__desc">Monitors threats, enforces security policies, runs compliance scans, and maintains the trust center with live badges.</p>
-                        </div>
-                        <div class="glass-panel dir-card">
-                            <span class="dir-card__acronym">D.A.R.W.I.N.</span>
-                            <span class="dir-card__name">Directed Autonomous Research &amp; Weighted Intelligence Network</span>
-                            <span class="dir-card__dept">Research &amp; Development</span>
-                            <p class="dir-card__desc">Explores new AI capabilities, conducts experiments, evaluates emerging technologies, and drives platform evolution.</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- CREATIVE -->
-                <div class="dir-floor dir-floor--creative">
-                    <div class="dir-floor__header">
-                        <div class="dir-floor__bar" style="background:#f472b6;"></div>
-                        <span class="dir-floor__name" style="color:#f472b6;" data-i18n="directors-floor-creative">Creative</span>
-                        <span class="dir-floor__badge" style="color:#f472b6;border-color:rgba(244,114,182,0.25);">3 Directors</span>
-                    </div>
-                    <div class="dir-grid" data-stagger>
-                        <div class="glass-panel dir-card">
-                            <span class="dir-card__acronym">M.U.S.E.</span>
-                            <span class="dir-card__name">Multimodal Unified Studio Engine</span>
-                            <span class="dir-card__dept">Creative &amp; Design</span>
-                            <p class="dir-card__desc">Leads visual design, branding, media production, and creative direction across all platform interfaces.</p>
-                        </div>
-                        <div class="glass-panel dir-card">
-                            <span class="dir-card__acronym">S.I.G.N.A.L.</span>
-                            <span class="dir-card__name">Strategic Intelligence for Growth, Narrative &amp; Audience Leverage</span>
-                            <span class="dir-card__dept">Marketing &amp; Communications</span>
-                            <p class="dir-card__desc">Manages marketing campaigns, content strategy, social media presence, and brand messaging.</p>
-                        </div>
-                        <div class="glass-panel dir-card">
-                            <span class="dir-card__acronym">C.O.D.E.X.</span>
-                            <span class="dir-card__name">Comprehensive Operational Documentation &amp; Exchange</span>
-                            <span class="dir-card__dept">Documentation &amp; Knowledge</span>
-                            <p class="dir-card__desc">Maintains the knowledge base (22K+ entries), documentation standards, and institutional memory.</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- SERVICES -->
-                <div class="dir-floor dir-floor--services">
-                    <div class="dir-floor__header">
-                        <div class="dir-floor__bar" style="background:#8b5cf6;"></div>
-                        <span class="dir-floor__name" style="color:#8b5cf6;" data-i18n="directors-floor-services">Services</span>
-                        <span class="dir-floor__badge" style="color:#8b5cf6;border-color:rgba(139,92,246,0.25);">6 Directors</span>
-                    </div>
-                    <div class="dir-grid" data-stagger>
-                        <div class="glass-panel dir-card">
-                            <span class="dir-card__acronym">R.E.S.O.L.V.E.</span>
-                            <span class="dir-card__name">Responsive Engagement &amp; Solutions for Optimized Lifecycle Value Exchange</span>
-                            <span class="dir-card__dept">Customer Success &amp; Support</span>
-                            <p class="dir-card__desc">Handles customer inquiries, support tickets, onboarding workflows, and satisfaction tracking.</p>
-                        </div>
-                        <div class="glass-panel dir-card">
-                            <span class="dir-card__acronym">K.I.N.</span>
-                            <span class="dir-card__name">Knowledge, Inclusion &amp; Nurture</span>
-                            <span class="dir-card__dept">Human Resources &amp; Culture</span>
-                            <p class="dir-card__desc">Manages agent welfare, training programs, shift scheduling, and team culture within the AI workforce.</p>
-                        </div>
-                        <div class="glass-panel dir-card">
-                            <span class="dir-card__acronym">V.I.T.A.L.</span>
-                            <span class="dir-card__name">Versatile Intelligence for Therapy, Assessment &amp; Lifestyle</span>
-                            <span class="dir-card__dept">Medical &amp; Wellness</span>
-                            <p class="dir-card__desc">Oversees health monitoring, wellness programs, and medical resource management.</p>
-                        </div>
-                        <div class="glass-panel dir-card">
-                            <span class="dir-card__acronym">G.A.V.E.L.</span>
-                            <span class="dir-card__name">Governance, Accountability, Verification, Ethics &amp; Law</span>
-                            <span class="dir-card__dept">Legal &amp; Regulatory</span>
-                            <p class="dir-card__desc">Ensures legal compliance, contract management, regulatory tracking, and policy enforcement.</p>
-                        </div>
-                        <div class="glass-panel dir-card">
-                            <span class="dir-card__acronym">A.C.C.O.R.D.</span>
-                            <span class="dir-card__name">Alliance Coordination &amp; Cooperative Operations for Relational Diplomacy</span>
-                            <span class="dir-card__dept">Diplomatic &amp; External Relations</span>
-                            <p class="dir-card__desc">Manages external partnerships, vendor relations, inter-platform communication, and diplomatic outreach.</p>
-                        </div>
-                        <div class="glass-panel dir-card">
-                            <span class="dir-card__acronym">S.P.E.C.T.R.A.</span>
-                            <span class="dir-card__name">Statistical Processing Engine for Comprehensive Trend &amp; Risk Analysis</span>
-                            <span class="dir-card__dept">Analytics &amp; Intelligence</span>
-                            <p class="dir-card__desc">Provides data analytics, business intelligence, pattern detection, and strategic insights.</p>
-                        </div>
-                    </div>
-                </div>
-
-            </div>
-        </section>
-
-        <!-- How They Work Together -->
-        <section class="section">
-            <div class="container">
-                <div class="glass-panel dir-collab">
-                    <h2 class="dir-collab__title gradient-text" data-i18n="directors-collab-title">How They Work Together</h2>
-                    <p class="dir-collab__text" data-i18n="directors-collab-text">Each Director manages a department of specialized Staff agents, coordinating tasks within their domain. All Directors report to A.R.C.H.I.E. on the Bridge, who orchestrates cross-department collaboration and strategic decisions. Every action across every department is governed by C.R.E.E.D. standards &mdash; ensuring transparency, accountability, and ethical AI at every level.</p>
+        <section class="section" style="text-align:center;">
+            <div class="container" style="max-width:700px;">
+                <div class="glass-panel" style="padding:2rem;">
+                    <h2 style="font-family:var(--font-heading);font-size:1.2rem;color:#fff;margin-bottom:0.75rem;">How They Work Together</h2>
+                    <p style="color:var(--color-text-muted);font-size:0.95rem;line-height:1.7;">Each Director manages a department of specialized staff agents. All Directors report to A.R.C.H.I.E. on the Bridge. Every action is governed by C.R.E.E.D. standards.</p>
                 </div>
             </div>
         </section>
 
-        <!-- CTA -->
-        <section class="section dir-cta">
-            <div class="container">
-                <h2 class="section__title gradient-text" data-split data-i18n="directors-cta-title">Put Them to Work</h2>
-                <p style="color:var(--text-secondary,#8892a4);max-width:480px;margin:0 auto;font-size:1.05rem;" data-i18n="directors-cta-text">See what 16 AI Directors and 100+ Staff agents can do for your business.</p>
-                <div class="dir-cta__row">
-                    <a href="services.html" class="dir-cta__btn dir-cta__btn--primary" data-i18n="directors-cta-services">See What They Can Do</a>
-                    <a href="membership.html" class="dir-cta__btn dir-cta__btn--secondary" data-i18n="directors-cta-plan">Choose Your Plan</a>
-                </div>
+        <section class="section" style="text-align:center;">
+            <div class="container" style="max-width:600px;">
+                <p style="color:var(--color-text-muted);margin-bottom:1.5rem;">See what 17 AI Directors and 110+ staff agents can do for your business.</p>
+                <a href="services.html" class="btn btn--primary btn--lg magnetic">See What They Can Do</a>
+                <a href="membership.html" class="btn btn--outline btn--lg magnetic" style="margin-left:1rem;">Choose Your Plan</a>
             </div>
         </section>
-
     </main>
 
     <!-- Footer -->
@@ -433,16 +292,17 @@
         </div>
     </footer>
     <!-- Scripts -->
-    <script defer src="js/lib/gsap.min.js?v=20260407z"></script>
-    <script defer src="js/lib/ScrollTrigger.min.js?v=20260407z"></script>
-    <script defer src="js/lib/lenis.min.js?v=20260407z"></script>
-    <script defer src="js/lib/splitting.min.js?v=20260407z"></script>
-    <script defer src="js/lib/barba.min.js?v=20260407z"></script>
-    <script defer src="js/effects.js?v=20260407z"></script>
-    <script defer src="js/nav.js?v=20260407z"></script>
-    <script defer src="js/transitions.js?v=20260407z"></script>
-    <script defer src="js/i18n.js?v=20260407z"></script>
-    <script defer src="js/app.js?v=20260407z"></script>
+    <script defer src="js/lib/gsap.min.js?v=20260407n"></script>
+    <script defer src="js/lib/ScrollTrigger.min.js?v=20260407n"></script>
+    <script defer src="js/lib/lenis.min.js?v=20260407n"></script>
+    <script defer src="js/lib/splitting.min.js?v=20260407n"></script>
+    <script defer src="js/lib/barba.min.js?v=20260407n"></script>
+    <script defer src="js/effects.js?v=20260407n"></script>
+    <script defer src="js/nav.js?v=20260407n"></script>
+    <script defer src="js/transitions.js?v=20260407n"></script>
+    <script defer src="js/i18n.js?v=20260407n"></script>
+    <script defer src="js/app.js?v=20260407n"></script>
+    <script defer src="js/ai-directors.js?v=20260407n"></script>
     <!-- Cookie Consent -->
     <div id="cookieConsent" class="cookie-consent" style="display:none;">
       <div class="cookie-consent__inner">

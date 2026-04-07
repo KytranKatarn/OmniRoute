@@ -18,11 +18,25 @@
 
 **After EVERY code change:**
 ```
-□ 1. COMMIT  — Stage and commit the change
-□ 2. DEPLOY  — docker compose restart archie_platform
-□ 3. TEST    — Browser test (Playwright or manual). Show output.
-□ 4. CLAIM   — Only NOW say "done" — with proof
+□ 1. BRANCH  — NEVER commit directly to main. Create a feature branch first.
+□ 2. COMMIT  — Stage and commit the change to the feature branch
+□ 3. DEPLOY  — docker compose restart archie_platform
+□ 4. TEST    — Browser test (Playwright or manual). Show output.
+□ 5. PR      — Push branch, create PR via `gh pr create`. Let user merge.
+□ 6. CLAIM   — Only NOW say "done" — with proof
 ```
+
+**Branch naming:**
+```
+feat/short-description    — new features
+fix/short-description     — bug fixes
+chore/short-description   — maintenance, docs, deps
+auto/short-description    — AI/automation-initiated changes
+```
+
+**Direct push to main is ONLY allowed for:**
+- Emergency hotfixes with explicit user approval
+- Trivial one-line fixes (typos, version bumps) with user approval
 
 **On failure:**
 ```

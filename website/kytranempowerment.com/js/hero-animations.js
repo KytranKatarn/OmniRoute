@@ -344,6 +344,17 @@ var HeroAnimations = (function () {
                 }
             });
         });
+
+        // Safety net: if ScrollTrigger hasn't revealed sections after 3s, force-show them
+        setTimeout(function () {
+            sections.forEach(function (section) {
+                if (!section.classList.contains('is-visible')) {
+                    section.style.opacity = '1';
+                    section.style.transform = 'none';
+                    section.classList.add('is-visible');
+                }
+            });
+        }, 3000);
     }
 
     /* ====================================================================

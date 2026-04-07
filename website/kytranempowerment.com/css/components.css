@@ -539,7 +539,7 @@
    -------------------------------------------------------------------------- */
 .card-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: var(--space-xl);
 }
 
@@ -548,6 +548,7 @@
     border: 1px solid var(--color-glass-border);
     border-radius: var(--border-radius);
     padding: var(--space-2xl);
+    text-align: center;
     transition: transform var(--speed-medium) var(--ease-out),
                 box-shadow var(--speed-medium) var(--ease-out),
                 border-color var(--speed-medium) ease;

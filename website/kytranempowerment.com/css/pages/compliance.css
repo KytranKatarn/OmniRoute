@@ -196,3 +196,177 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* ---- Live Compliance Scores Grid ---- */
+.tc-compliance-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.tc-compliance-card {
+    text-align: center;
+    padding: 2rem 1.5rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.tc-card-accent {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+}
+
+.tc-card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+}
+
+.tc-card-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.tc-card-status {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+}
+
+.tc-status-pass { color: #10b981; }
+
+.tc-card-score {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #00e5ff;
+    margin-bottom: 0.25rem;
+}
+
+.tc-card-score-label {
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.4);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 1rem;
+}
+
+.tc-card-detail {
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.5);
+    line-height: 1.5;
+}
+
+/* ---- Framework Mini Cards ---- */
+.tc-framework-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+}
+
+.tc-framework-mini {
+    text-align: center;
+    padding: 1.25rem 1rem;
+}
+
+.tc-fm-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.75rem;
+    margin-bottom: 0.5rem;
+    color: rgba(255,255,255,0.7);
+}
+
+.tc-fm-score {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #10b981;
+    margin-bottom: 0.25rem;
+}
+
+.tc-fm-detail {
+    font-size: 0.65rem;
+    color: rgba(255,255,255,0.4);
+}
+
+/* ---- Monitor Grid ---- */
+.tc-monitor-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+.tc-monitor-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+}
+
+.tc-monitor-check {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.tc-monitor-text {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.tc-monitor-sub {
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.4);
+}
+
+/* ---- Governance Card ---- */
+.tc-governance-card {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 2rem;
+    text-align: center;
+}
+
+.tc-governance-desc {
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.6);
+    line-height: 1.6;
+}
+
+/* ---- Contact Section ---- */
+.tc-contact-section {
+    text-align: center;
+}
+
+.tc-contact-email {
+    color: #00e5ff;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.9rem;
+}
+
+.tc-last-updated {
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.3);
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 768px) {
+    .tc-compliance-grid { grid-template-columns: 1fr; }
+    .tc-framework-grid { grid-template-columns: repeat(2, 1fr); }
+    .tc-monitor-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 480px) {
+    .tc-framework-grid { grid-template-columns: 1fr; }
+}

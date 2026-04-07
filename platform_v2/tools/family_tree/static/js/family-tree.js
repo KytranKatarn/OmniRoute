@@ -560,7 +560,12 @@ const FamilyTree = {
         <label class="ft-label" for="ft-field-notes">Notes</label>
         <textarea class="ft-textarea" id="ft-field-notes" placeholder="Additional notes...">${v('notes')}</textarea>
       </div>
-      <div style="display:flex;justify-content:flex-end;margin-top:4px;">${deleteBtn}</div>
+      <div class="bm-actions" style="margin:12px -24px -20px;padding:10px 24px;">
+        ${deleteBtn}
+        <span style="flex:1;"></span>
+        <button class="btn-cancel" onclick="FamilyTree.closeModal()">Cancel</button>
+        <button class="btn-submit" onclick="FamilyTree.savePerson()"><i data-lucide="save"></i> Save</button>
+      </div>
     </div>`;
   },
 

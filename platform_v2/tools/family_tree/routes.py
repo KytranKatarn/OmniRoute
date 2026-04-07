@@ -186,7 +186,20 @@ def api_gedcom_import():
 @family_tree_bp.route("/api/gedcom/export")
 @login_required
 def api_gedcom_export():
-    gedcom_text = export_gedcom(current_user.id)
+    from database import get_db_cursor
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            "SELECT * FROM family_persons WHERE user_id = %s ORDER BY id",
+            (current_user.id,),
+        )
+        persons = [dict(r) for r in cur.fetchall()]
+        cur.execute(
+            "SELECT * FROM family_relationships WHERE user_id = %s ORDER BY id",
+            (current_user.id,),
+        )
+        relationships = [dict(r) for r in cur.fetchall()]
+    gedcom_text = export_gedcom(current_user.id, persons, relationships)
     buf = io.BytesIO(gedcom_text.encode("utf-8"))
     buf.seek(0)
     return send_file(

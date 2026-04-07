@@ -199,14 +199,8 @@
 {% from 'includes/lcars_modal.html' import lcars_modal %}
 
 <!-- PERSON EDIT MODAL -->
-{% call lcars_modal(id="ft-person-modal", title="Add Person", accent="#10b981", accent_rgb="16,185,129", onclose="FamilyTree.closeModal()") %}
-  <!-- Populated by JS -->
-  <div class="bm-actions">
-    <button class="btn-cancel" onclick="FamilyTree.closeModal()">Cancel</button>
-    <button class="btn-submit" onclick="FamilyTree.savePerson()">
-      <i data-lucide="save"></i> Save
-    </button>
-  </div>
+{% call lcars_modal(id="ft-person-modal", title="Add Person", accent="#10b981", accent_rgb="16,185,129", onclose="FamilyTree.closeModal()", footer=false) %}
+  <!-- Populated by JS (includes bm-actions bar) -->
 {% endcall %}
 
 <!-- GEDCOM IMPORT MODAL -->

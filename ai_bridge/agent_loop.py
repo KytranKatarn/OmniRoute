@@ -475,6 +475,14 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        self.scheduler.add_job(
+            with_app_context(self._run_dependency_audit),
+            trigger=IntervalTrigger(hours=6, start_date="2026-01-01 03:30:00"),
+            id="dependency_audit",
+            name="Agent Loop: Dependency CVE Audit",
+            replace_existing=True,
+        )
+
         # Phase 5: Moved to services/agent_jobs.py
         # self.scheduler.add_job(
         #     with_app_context(self._recover_idle_welfare),
@@ -2928,6 +2936,56 @@ class AgentLoop:
 
         except Exception as e:
             logger.error(f"Proactive scan job failed: {e}")
+
+    def _run_dependency_audit(self):
+        """Dependency CVE audit — runs every 6h alongside proactive scan.
+
+        Checks pip packages for known vulnerabilities, stores findings
+        in Repair Bay's code_scans/code_issues tables, alerts on critical.
+        """
+        start = time.time()
+        try:
+            import sys
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from services.scan_service import (
+                audit_dependencies,
+                store_dependency_findings,
+            )
+
+            findings = audit_dependencies()
+            if not findings:
+                logger.debug("Dependency audit: no findings")
+                return
+
+            scan_id = store_dependency_findings(findings)
+
+            # Alert on critical/high
+            critical = [
+                f for f in findings if f["severity"] in ("critical", "high")
+            ]
+            if critical:
+                self._send_telegram(
+                    "\u26a0\ufe0f *Dependency Audit*\n\n"
+                    f"*{len(critical)}* critical/high CVEs found:\n"
+                    + "\n".join(
+                        f"- {f['package']}=={f['version']}: {f['vuln_id']}"
+                        for f in critical[:5]
+                    )
+                    + f"\n\n[View in Repair Bay]"
+                    f"(http://192.168.1.200:3000/tools/repair-bay)"
+                )
+
+            duration_ms = int((time.time() - start) * 1000)
+            logger.info(
+                "Dependency audit: %d findings (%d critical/high) in %dms",
+                len(findings),
+                len(critical),
+                duration_ms,
+            )
+
+        except Exception as e:
+            logger.error("Dependency audit failed: %s", e)
 
     # ------------------------------------------------------------------
     # HR Tracker (Project #91 — Phase 7)

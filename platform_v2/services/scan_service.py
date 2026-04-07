@@ -1643,3 +1643,153 @@ Return only valid JSON."""
         logger.error(f"Multi-agent review failed: {e}")
         review["status"] = "failed"
         review["error"] = str(e)
+
+
+def audit_dependencies():
+    """Run pip audit and return structured findings.
+
+    Returns list of dicts: [{package, version, vuln_id, severity, description, fix_version}]
+    """
+    import subprocess
+
+    findings = []
+
+    # Method 1: pip audit (if installed)
+    try:
+        result = subprocess.run(
+            ["pip", "audit", "--format", "json", "--desc"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if result.stdout:
+            import json as _json
+
+            data = _json.loads(result.stdout)
+            for vuln in data.get("vulnerabilities", []):
+                findings.append(
+                    {
+                        "package": vuln.get("name", "unknown"),
+                        "version": vuln.get("version", "unknown"),
+                        "vuln_id": vuln.get("vulnerability_id", vuln.get("id", "")),
+                        "severity": _map_pip_severity(vuln),
+                        "description": vuln.get("description", "")[:200],
+                        "fix_version": (
+                            vuln.get("fix_versions", ["unknown"])[0] if vuln.get("fix_versions") else "unknown"
+                        ),
+                    }
+                )
+    except FileNotFoundError:
+        logger.debug("pip-audit not installed, falling back to requirements parse")
+    except Exception as e:
+        logger.warning("pip audit failed: %s", e)
+
+    # Method 2: Parse requirements.txt for known pinned-but-outdated packages
+    # (This catches packages even when pip-audit isn't installed)
+    try:
+        req_path = "/mnt/archie_brain/platform_v2/requirements.txt"
+        if os.path.exists(req_path):
+            with open(req_path) as f:
+                for line in f:
+                    if "SECURITY:" in line:
+                        # Extract security comments we've documented
+                        findings.append(
+                            {
+                                "package": "requirements.txt",
+                                "version": "n/a",
+                                "vuln_id": "PIN_BLOCKED",
+                                "severity": "high",
+                                "description": line.strip().lstrip("# "),
+                                "fix_version": "blocked by compatibility pin",
+                            }
+                        )
+    except Exception as e:
+        logger.warning("Requirements parse failed: %s", e)
+
+    return findings
+
+
+def _map_pip_severity(vuln):
+    """Map pip-audit severity aliases to standard levels."""
+    aliases = vuln.get("aliases", [])
+    desc = vuln.get("description", "").lower()
+    if any("critical" in a.lower() for a in aliases):
+        return "critical"
+    if "remote code execution" in desc or "rce" in desc:
+        return "critical"
+    if "denial of service" in desc or "dos" in desc:
+        return "medium"
+    if "bypass" in desc or "injection" in desc:
+        return "high"
+    return "medium"
+
+
+def store_dependency_findings(findings):
+    """Store dependency audit findings as code_scans + code_issues.
+
+    Returns scan_id or None.
+    """
+    if not findings:
+        return None
+
+    try:
+        import psycopg2
+        from psycopg2.extras import RealDictCursor
+
+        conn = psycopg2.connect(
+            host=os.getenv("DB_HOST", "archie_database"),
+            port=os.getenv("DB_PORT", "5432"),
+            dbname=os.getenv("DB_NAME", "archie"),
+            user=os.getenv("DB_USER", "archie"),
+            password=_get_db_password(),
+        )
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        security_count = len([f for f in findings if f["severity"] in ("critical", "high")])
+
+        cur.execute(
+            """INSERT INTO code_scans
+               (file_path, scan_type, issues_found, security_issues,
+                quality_score, scan_result, scanned_by)
+               VALUES ('requirements.txt', 'dependency_audit', %s, %s,
+                       %s, %s, 'agent_loop')
+               RETURNING id""",
+            (
+                len(findings),
+                security_count,
+                max(0, 100 - len(findings) * 5),
+                json.dumps({"findings": findings}),
+            ),
+        )
+        scan_id = cur.fetchone()["id"]
+
+        for finding in findings:
+            cur.execute(
+                """INSERT INTO code_issues
+                   (scan_id, file_path, line_number, issue_type,
+                    severity, message, suggestion)
+                   VALUES (%s, 'requirements.txt', 0, 'cve', %s, %s, %s)""",
+                (
+                    scan_id,
+                    finding["severity"],
+                    f"{finding['package']}=={finding['version']}: " f"{finding['vuln_id']} — {finding['description']}",
+                    (
+                        f"Upgrade to {finding['fix_version']}"
+                        if finding["fix_version"] != "unknown"
+                        else "Check PyPI for patched version"
+                    ),
+                ),
+            )
+
+        conn.commit()
+        cur.close()
+        conn.close()
+        logger.info(
+            "Dependency audit: %d findings stored (scan #%d)",
+            len(findings),
+            scan_id,
+        )
+        return scan_id
+    except Exception as e:
+        logger.error("Failed to store dependency findings: %s", e)
+        return None

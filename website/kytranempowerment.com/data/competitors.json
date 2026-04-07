@@ -48,7 +48,7 @@
       { "id": "multi_gpu_fleet", "label": "Multi-GPU fleet orchestration (OTA)" },
       { "id": "image_gen_escalation", "label": "4-tier image gen escalation (GPU to cloud)" },
       { "id": "cloud_contractors", "label": "19 cloud contractor integrations" },
-      { "id": "ai_genealogy", "label": "AI-powered genealogy (OCR, face matching, 5 public record APIs)" }
+      { "id": "ai_genealogy", "label": "AI-powered genealogy (8 archives, DNA ethnicity, photo colorization, migration maps)" }
     ],
     "shared": [
       {
@@ -241,7 +241,7 @@
       "meta": ["Nvidia", "Enterprise OpenClaw", "Guardrails", "Alpha"],
       "description": "Nvidia's enterprise version of OpenClaw, announced at GTC March 2026. Adds AI guardrails, governance, and safety -- features that overlap with A.R.C.H.I.E.'s IAAE ethics system. Still alpha, but Nvidia backing makes it serious.",
       "vs_them": { "label": "Guardrails + enterprise (alpha)", "percent": 40 },
-      "vs_archie": { "label": "IAAE live, production-tested, 122 agents", "percent": 100 },
+      "vs_archie": { "label": "IAAE live, production-tested, 128 agents", "percent": 100 },
       "verdict": "The only one worth watching. Nvidia + governance is serious. But A.R.C.H.I.E.'s IAAE is already live and production-tested -- NemoClaw is still alpha."
     }
   ],

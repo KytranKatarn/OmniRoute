@@ -583,6 +583,88 @@
   border-left-color: #ef4444;
 }
 
+/* ── View Toggle ── */
+.ft-view-toggle {
+  display: flex;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--ft-border);
+  border-radius: 6px;
+  padding: 3px;
+}
+
+.ft-view-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--ft-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 0.03em;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.ft-view-btn:hover {
+  color: var(--ft-text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ft-view-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+.ft-view-btn-active {
+  background: var(--ft-accent-dim);
+  border-color: var(--ft-accent-border);
+  color: var(--ft-accent);
+}
+
+.ft-view-btn-active:hover {
+  background: var(--ft-accent-dim);
+  color: var(--ft-accent);
+}
+
+/* ── Fan Chart ── */
+.ft-fan-arc {
+  transition: fill-opacity 0.2s ease;
+}
+
+.ft-fan-arc:hover {
+  fill-opacity: 0.95;
+  filter: brightness(1.3);
+}
+
+.ft-fan-label {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+/* ── Pedigree Chart ── */
+.ft-pedigree-link {
+  stroke: rgba(255, 255, 255, 0.15);
+  stroke-width: 1.5;
+  transition: stroke 0.2s;
+}
+
+.ft-pedigree-node circle {
+  transition: stroke-width 0.2s;
+}
+
+.ft-pedigree-node:hover circle {
+  stroke-width: 4;
+  filter: brightness(1.2);
+}
+
+.ft-pedigree-node:hover ~ .ft-pedigree-link {
+  stroke: rgba(255, 255, 255, 0.3);
+}
+
 /* ── D3 Tree Node Styles (injected into SVG) ── */
 .ft-d3-node circle {
   stroke-width: 2.5;
@@ -613,8 +695,159 @@
   stroke: rgba(249, 115, 22, 0.4);
 }
 
+/* ── Migration Map ── */
+.ft-map-container {
+  width: 100%;
+  height: 500px;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 8px;
+  border: 1px solid var(--ft-border);
+  overflow: hidden;
+}
+
+.ft-map-slider-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  background: var(--ft-bg-card);
+  border-radius: 6px;
+  border: 1px solid var(--ft-border);
+  flex-wrap: wrap;
+}
+
+.ft-map-slider-label {
+  font-size: 0.78rem;
+  font-family: 'IBM Plex Mono', monospace;
+  color: var(--ft-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.ft-map-slider {
+  flex: 1;
+  min-width: 80px;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.ft-map-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ft-accent);
+  border: 2px solid rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.ft-map-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.ft-map-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ft-accent);
+  border: 2px solid rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+
+.ft-map-slider-val {
+  font-size: 0.82rem;
+  font-family: 'Orbitron', sans-serif;
+  color: var(--ft-accent);
+  min-width: 36px;
+  text-align: center;
+}
+
+.ft-map-slider-sep {
+  color: var(--ft-muted);
+  font-size: 0.85rem;
+}
+
+.ft-map-legend {
+  display: flex;
+  gap: 20px;
+  margin-top: 10px;
+  padding: 8px 0;
+  flex-wrap: wrap;
+}
+
+/* Leaflet theme overrides for dark mode */
+.ft-map-container .leaflet-popup-content-wrapper {
+  background: rgba(0, 0, 0, 0.85);
+  color: var(--ft-text);
+  border: 1px solid var(--ft-accent-border);
+  border-radius: 6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.82rem;
+}
+
+.ft-map-container .leaflet-popup-tip {
+  background: rgba(0, 0, 0, 0.85);
+  border: 1px solid var(--ft-accent-border);
+}
+
+.ft-map-container .leaflet-popup-close-button {
+  color: var(--ft-muted);
+}
+
+.ft-map-container .leaflet-popup-close-button:hover {
+  color: var(--ft-accent);
+}
+
+.ft-map-container .leaflet-control-zoom a {
+  background: rgba(0, 0, 0, 0.75);
+  color: var(--ft-accent);
+  border-color: var(--ft-accent-border);
+}
+
+.ft-map-container .leaflet-control-zoom a:hover {
+  background: rgba(0, 0, 0, 0.9);
+  color: var(--ft-text);
+}
+
+.ft-map-container .leaflet-control-attribution {
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--ft-muted);
+  font-size: 0.65rem;
+}
+
+.ft-map-container .leaflet-control-attribution a {
+  color: var(--ft-accent);
+}
+
+/* Map toggle button active state */
+#ft-map-toggle.ft-btn-active {
+  background: var(--ft-accent-dim);
+  border-color: var(--ft-accent);
+  color: var(--ft-accent);
+}
+
+/* Animated migration path dash */
+@keyframes ft-dash-flow {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+
 /* ── Responsive: 1024px (Tablet) ── */
 @media (max-width: 1024px) {
+  .ft-map-container {
+    height: 400px;
+  }
+
   .ft-split {
     flex-direction: column;
   }
@@ -640,6 +873,19 @@
 
 /* ── Responsive: 768px (Small Tablet) ── */
 @media (max-width: 768px) {
+  .ft-map-container {
+    height: 350px;
+  }
+
+  .ft-map-slider-bar {
+    gap: 6px;
+  }
+
+  .ft-map-slider-label {
+    width: 100%;
+    margin-bottom: 2px;
+  }
+
   .ft-container {
     padding: 16px;
   }
@@ -752,10 +998,41 @@
   .ft-tree-legend {
     gap: 10px;
   }
+
+  .ft-view-toggle {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .ft-view-btn {
+    flex: 1;
+    justify-content: center;
+    padding: 6px 8px;
+    font-size: 0.72rem;
+  }
 }
 
 /* ── Responsive: 480px (Phone) ── */
 @media (max-width: 480px) {
+  .ft-map-container {
+    height: 280px;
+  }
+
+  .ft-map-slider-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .ft-map-slider {
+    min-width: 100%;
+  }
+
+  .ft-map-legend {
+    gap: 12px;
+    font-size: 0.72rem;
+  }
+
   .ft-container {
     padding: 12px;
   }

@@ -30,9 +30,13 @@ from .photo_routes import register_photo_routes  # noqa: E402
 from .research_routes import register_research_routes  # noqa: E402
 from .timeline_routes import register_timeline_routes  # noqa: E402
 from .dedup_routes import register_dedup_routes  # noqa: E402
+from .hints_routes import register_hints_routes  # noqa: E402
+from .dna_routes import register_dna_routes  # noqa: E402
 
 register_research_routes(family_tree_bp, admin_required)
 register_document_routes(family_tree_bp, admin_required)
 register_photo_routes(family_tree_bp, admin_required)
 register_timeline_routes(family_tree_bp, admin_required)
 register_dedup_routes(family_tree_bp, admin_required)
+register_hints_routes(family_tree_bp, admin_required)
+register_dna_routes(family_tree_bp, admin_required)

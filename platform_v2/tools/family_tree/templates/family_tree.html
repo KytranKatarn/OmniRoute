@@ -71,6 +71,7 @@
         <span class="ft-legend-item ft-node-researching"><span class="ft-legend-dot"></span> Researching</span>
         <span class="ft-legend-item ft-node-unknown"><span class="ft-legend-dot"></span> Unknown</span>
       </div>
+      <div class="ft-view-toggle" id="ft-view-toggle"></div>
       <div class="ft-tree-actions">
         <button class="ft-btn ft-btn-sm" onclick="FamilyTree.resetZoom()">
           <i data-lucide="maximize-2"></i> Reset View
@@ -184,11 +185,32 @@
   <section id="ft-tab-timeline" class="ft-panel ft-hidden">
     <div class="ft-section-header">
       <h3><i data-lucide="clock"></i> Family Timeline</h3>
+      <div class="ft-tree-actions">
+        <button class="ft-btn ft-btn-sm" id="ft-map-toggle" onclick="FamilyTree.toggleMapView()">
+          <i data-lucide="map"></i> Migration Map
+        </button>
+      </div>
     </div>
     <div id="ft-timeline" class="ft-timeline">
       <div class="ft-empty-state ft-empty-sm">
         <i data-lucide="clock" style="width:32px;height:32px;opacity:0.3;"></i>
         <p>Timeline will appear when persons with dates are added.</p>
+      </div>
+    </div>
+    <div id="ft-map-view" class="ft-hidden">
+      <div class="ft-map-slider-bar">
+        <label class="ft-map-slider-label">Year Range:</label>
+        <input type="range" id="ft-map-year-min" class="ft-map-slider" min="1400" max="2026" value="1400">
+        <span id="ft-map-year-min-val" class="ft-map-slider-val">1400</span>
+        <span class="ft-map-slider-sep">&ndash;</span>
+        <input type="range" id="ft-map-year-max" class="ft-map-slider" min="1400" max="2026" value="2026">
+        <span id="ft-map-year-max-val" class="ft-map-slider-val">2026</span>
+      </div>
+      <div id="ft-map-container" class="ft-map-container"></div>
+      <div class="ft-map-legend">
+        <span class="ft-legend-item"><span class="ft-legend-dot" style="background:#10b981;"></span> Birth</span>
+        <span class="ft-legend-item"><span class="ft-legend-dot" style="background:#ef4444;"></span> Death</span>
+        <span class="ft-legend-item"><span class="ft-legend-dot" style="background:rgba(16,185,129,0.5);width:20px;height:3px;border-radius:2px;"></span> Migration Path</span>
       </div>
     </div>
   </section>

@@ -71,17 +71,11 @@ def register_timeline_routes(bp, admin_required):
     @bp.route("/api/timeline/migration")
     @login_required
     def api_migration_map():
-        sql = """
-            SELECT DISTINCT birth_place AS place, 'birth' AS place_type
-            FROM family_persons
-            WHERE user_id = %(user_id)s AND birth_place IS NOT NULL AND birth_place != ''
-            UNION
-            SELECT DISTINCT death_place AS place, 'death' AS place_type
-            FROM family_persons
-            WHERE user_id = %(user_id)s AND death_place IS NOT NULL AND death_place != ''
-            ORDER BY place
-        """
-        with get_db_cursor() as (conn, cur):
-            cur.execute(sql, {"user_id": current_user.id})
-            rows = [dict(r) for r in cur.fetchall()]
-        return jsonify(rows)
+        """Return geocoded migration data for the map view."""
+        from .services.map_service import get_migration_data
+
+        try:
+            data = get_migration_data(current_user.id)
+            return jsonify(data)
+        except Exception as e:
+            return jsonify({"error": str(e), "locations": [], "paths": []}), 500

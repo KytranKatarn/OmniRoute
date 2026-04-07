@@ -11,6 +11,8 @@ const FamilyTree = {
   _zoomBehavior: null,
   _svg: null,
   _toastTimer: null,
+  viewMode: 'force',
+  _fanRootId: null,
 
   /* ── CORE HELPERS ── */
 
@@ -91,6 +93,28 @@ const FamilyTree = {
     this._renderTreeStats();
   },
 
+  setViewMode(mode) {
+    this.viewMode = mode;
+    document.querySelectorAll('.ft-view-btn').forEach(b => b.classList.remove('ft-view-btn-active'));
+    const activeBtn = document.querySelector(`[data-view="${mode}"]`);
+    if (activeBtn) activeBtn.classList.add('ft-view-btn-active');
+    this.renderTree({ persons: this.persons, relationships: this.relationships });
+  },
+
+  _renderViewToggle() {
+    const container = document.getElementById('ft-view-toggle');
+    if (!container) return;
+    const modes = [
+      { key: 'force', label: 'Network', icon: 'git-branch' },
+      { key: 'fan', label: 'Fan Chart', icon: 'sun' },
+      { key: 'pedigree', label: 'Pedigree', icon: 'git-merge' },
+    ];
+    container.innerHTML = modes.map(m =>
+      `<button class="ft-view-btn${this.viewMode === m.key ? ' ft-view-btn-active' : ''}" data-view="${m.key}" onclick="FamilyTree.setViewMode('${m.key}')"><i data-lucide="${m.icon}"></i> ${m.label}</button>`
+    ).join('');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  },
+
   renderTree(data) {
     const canvas = document.getElementById('ft-tree-canvas');
     const svgEl  = document.getElementById('ft-tree-svg');
@@ -103,6 +127,21 @@ const FamilyTree = {
     if (empty) empty.style.display = 'none';
     if (svgEl) svgEl.style.display = 'block';
 
+    this._renderViewToggle();
+
+    if (this.viewMode === 'fan') {
+      this.renderFanChart(data);
+      return;
+    }
+    if (this.viewMode === 'pedigree') {
+      this.renderPedigreeChart(data);
+      return;
+    }
+    this._renderForceGraph(data);
+  },
+
+  _renderForceGraph(data) {
+    const canvas = document.getElementById('ft-tree-canvas');
     const width  = canvas.clientWidth  || 900;
     const height = canvas.clientHeight || 500;
 
@@ -176,6 +215,260 @@ const FamilyTree = {
     this._svg = svg;
   },
 
+  /* ── HIERARCHY BUILDER ── */
+
+  _buildHierarchy(rootId) {
+    const personMap = {};
+    this.persons.forEach(p => { personMap[p.id] = { ...p, children: [] }; });
+
+    const childOf = {};
+    this.relationships.forEach(r => {
+      const t = (r.relationship_type || '').toLowerCase();
+      if (t === 'parent' || t === 'parent_child') {
+        childOf[r.person_b_id] = r.person_a_id;
+      } else if (t === 'child') {
+        childOf[r.person_a_id] = r.person_b_id;
+      }
+    });
+
+    const parentChildMap = {};
+    this.relationships.forEach(r => {
+      const t = (r.relationship_type || '').toLowerCase();
+      if (t === 'parent' || t === 'parent_child') {
+        if (!parentChildMap[r.person_a_id]) parentChildMap[r.person_a_id] = [];
+        parentChildMap[r.person_a_id].push(r.person_b_id);
+      } else if (t === 'child') {
+        if (!parentChildMap[r.person_b_id]) parentChildMap[r.person_b_id] = [];
+        parentChildMap[r.person_b_id].push(r.person_a_id);
+      }
+    });
+
+    const adjMap = {};
+    this.relationships.forEach(r => {
+      if (!adjMap[r.person_a_id]) adjMap[r.person_a_id] = [];
+      if (!adjMap[r.person_b_id]) adjMap[r.person_b_id] = [];
+      adjMap[r.person_a_id].push(r.person_b_id);
+      adjMap[r.person_b_id].push(r.person_a_id);
+    });
+
+    const buildNode = (id, visited) => {
+      if (visited.has(id)) return null;
+      visited.add(id);
+      const p = personMap[id];
+      if (!p) return null;
+      const name = [p.first_name, p.last_name].filter(Boolean).join(' ') || '?';
+      const year = p.birth_date ? String(p.birth_date).substring(0, 4) : '';
+      const kids = (parentChildMap[id] || [])
+        .map(cid => buildNode(cid, visited))
+        .filter(Boolean);
+      const neighbors = (adjMap[id] || [])
+        .filter(nid => !visited.has(nid))
+        .map(nid => buildNode(nid, visited))
+        .filter(Boolean);
+      const allChildren = kids.concat(neighbors);
+      return { name, year, id: p.id, source_type: p.source_type, children: allChildren.length ? allChildren : undefined };
+    };
+
+    const root = buildNode(rootId, new Set());
+    if (!root) {
+      const first = this.persons[0];
+      if (!first) return { name: 'Empty', children: [] };
+      return buildNode(first.id, new Set()) || { name: 'Empty', children: [] };
+    }
+    return root;
+  },
+
+  /* ── FAN CHART ── */
+
+  renderFanChart(data) {
+    const canvas = document.getElementById('ft-tree-canvas');
+    const width  = canvas.clientWidth  || 900;
+    const height = canvas.clientHeight || 500;
+    const radius = Math.min(width, height) / 2 - 20;
+
+    d3.select('#ft-tree-svg').selectAll('*').remove();
+    const svg = d3.select('#ft-tree-svg').attr('viewBox', `0 0 ${width} ${height}`);
+    const g = svg.append('g').attr('transform', `translate(${width / 2},${height / 2})`);
+
+    const rootId = this._fanRootId || (data.persons[0] && data.persons[0].id);
+    if (!rootId) return;
+    const hierData = this._buildHierarchy(rootId);
+    const root = d3.hierarchy(hierData)
+      .sum(() => 1)
+      .sort((a, b) => b.value - a.value);
+
+    d3.partition().size([2 * Math.PI, radius])(root);
+
+    const arc = d3.arc()
+      .startAngle(d => d.x0)
+      .endAngle(d => d.x1)
+      .padAngle(d => Math.min((d.x1 - d.x0) / 2, 0.005))
+      .padRadius(radius / 2)
+      .innerRadius(d => d.y0)
+      .outerRadius(d => d.y1 - 1);
+
+    const self = this;
+
+    g.selectAll('path')
+      .data(root.descendants())
+      .enter().append('path')
+      .attr('class', 'ft-fan-arc')
+      .attr('d', arc)
+      .attr('fill', d => {
+        const st = d.data.source_type;
+        return self._nodeColor({ source_type: st });
+      })
+      .attr('fill-opacity', d => d.depth === 0 ? 0.9 : 0.6 + (0.1 * Math.min(d.depth, 3)))
+      .attr('stroke', 'rgba(0,0,0,0.4)')
+      .attr('stroke-width', 0.5)
+      .attr('cursor', 'pointer')
+      .on('click', (event, d) => {
+        if (d.data.id) {
+          self._fanRootId = d.data.id;
+          self.renderTree({ persons: self.persons, relationships: self.relationships });
+          self.toast('Recentered on ' + d.data.name);
+        }
+      })
+      .append('title')
+      .text(d => d.data.name + (d.data.year ? ` (${d.data.year})` : ''));
+
+    g.selectAll('text')
+      .data(root.descendants().filter(d => (d.x1 - d.x0) > 0.12))
+      .enter().append('text')
+      .attr('class', 'ft-fan-label')
+      .attr('transform', d => {
+        const angle = (d.x0 + d.x1) / 2;
+        const r = (d.y0 + d.y1) / 2;
+        const rotate = (angle * 180 / Math.PI - 90);
+        const flip = angle > Math.PI;
+        return `rotate(${rotate}) translate(${r},0) rotate(${flip ? 180 : 0})`;
+      })
+      .attr('dy', '0.35em')
+      .attr('text-anchor', 'middle')
+      .attr('fill', '#e2e8f0')
+      .attr('font-size', d => d.depth === 0 ? '11px' : '9px')
+      .attr('font-family', 'IBM Plex Mono, monospace')
+      .attr('pointer-events', 'none')
+      .text(d => {
+        const maxLen = Math.max(4, Math.floor((d.y1 - d.y0) / 7));
+        const n = d.data.name;
+        return n.length > maxLen ? n.substring(0, maxLen - 1) + '\u2026' : n;
+      });
+
+    /* Center label */
+    g.append('text')
+      .attr('text-anchor', 'middle')
+      .attr('dy', '-0.2em')
+      .attr('fill', 'var(--ft-accent)')
+      .attr('font-size', '12px')
+      .attr('font-family', 'Orbitron, sans-serif')
+      .attr('font-weight', 'bold')
+      .text(hierData.name);
+    g.append('text')
+      .attr('text-anchor', 'middle')
+      .attr('dy', '1.2em')
+      .attr('fill', 'var(--ft-muted)')
+      .attr('font-size', '9px')
+      .attr('font-family', 'IBM Plex Mono, monospace')
+      .text('click arc to recenter');
+
+    const zoom = d3.zoom().scaleExtent([0.3, 5])
+      .on('zoom', event => { g.attr('transform', `translate(${width / 2 + event.transform.x},${height / 2 + event.transform.y}) scale(${event.transform.k})`); });
+    svg.call(zoom);
+    this._zoomBehavior = zoom;
+    this._svg = svg;
+  },
+
+  /* ── PEDIGREE CHART ── */
+
+  renderPedigreeChart(data) {
+    const canvas = document.getElementById('ft-tree-canvas');
+    const width  = canvas.clientWidth  || 900;
+    const height = canvas.clientHeight || 500;
+    const margin = { top: 30, right: 120, bottom: 30, left: 120 };
+    const innerW = width - margin.left - margin.right;
+    const innerH = height - margin.top - margin.bottom;
+
+    d3.select('#ft-tree-svg').selectAll('*').remove();
+    const svg = d3.select('#ft-tree-svg').attr('viewBox', `0 0 ${width} ${height}`);
+    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+    const rootId = this._fanRootId || (data.persons[0] && data.persons[0].id);
+    if (!rootId) return;
+    const hierData = this._buildHierarchy(rootId);
+    const root = d3.hierarchy(hierData);
+
+    const treeLayout = d3.tree().size([innerH, innerW]);
+    treeLayout(root);
+
+    const self = this;
+
+    /* Links */
+    g.selectAll('.ft-pedigree-link')
+      .data(root.links())
+      .enter().append('path')
+      .attr('class', 'ft-pedigree-link')
+      .attr('d', d3.linkHorizontal().x(d => d.y).y(d => d.x))
+      .attr('fill', 'none');
+
+    /* Nodes */
+    const node = g.selectAll('.ft-pedigree-node')
+      .data(root.descendants())
+      .enter().append('g')
+      .attr('class', 'ft-pedigree-node')
+      .attr('transform', d => `translate(${d.y},${d.x})`)
+      .attr('cursor', 'pointer')
+      .on('click', (event, d) => {
+        if (d.data.id) self.editPerson(d.data.id);
+      });
+
+    node.append('circle')
+      .attr('r', 16)
+      .attr('fill', 'rgba(0,0,0,0.6)')
+      .attr('stroke', d => self._nodeColor({ source_type: d.data.source_type }))
+      .attr('stroke-width', 2.5);
+
+    node.append('text')
+      .attr('dy', '0.35em')
+      .attr('text-anchor', 'middle')
+      .attr('fill', d => self._nodeColor({ source_type: d.data.source_type }))
+      .attr('font-size', '10px')
+      .attr('font-weight', 'bold')
+      .attr('font-family', 'Orbitron, sans-serif')
+      .attr('pointer-events', 'none')
+      .text(d => {
+        const parts = d.data.name.split(' ');
+        return parts.map(p => (p[0] || '').toUpperCase()).join('').substring(0, 2);
+      });
+
+    node.append('text')
+      .attr('dy', -22)
+      .attr('text-anchor', 'middle')
+      .attr('fill', '#e2e8f0')
+      .attr('font-size', '10px')
+      .attr('font-family', 'IBM Plex Mono, monospace')
+      .attr('pointer-events', 'none')
+      .text(d => {
+        const n = d.data.name;
+        return n.length > 20 ? n.substring(0, 18) + '\u2026' : n;
+      });
+
+    node.append('text')
+      .attr('dy', 30)
+      .attr('text-anchor', 'middle')
+      .attr('fill', 'var(--ft-muted)')
+      .attr('font-size', '8px')
+      .attr('font-family', 'IBM Plex Mono, monospace')
+      .attr('pointer-events', 'none')
+      .text(d => d.data.year || '');
+
+    const zoom = d3.zoom().scaleExtent([0.2, 4])
+      .on('zoom', event => { g.attr('transform', event.transform); });
+    svg.call(zoom);
+    this._zoomBehavior = zoom;
+    this._svg = svg;
+  },
+
   _nodeColor(person) {
     const map = { user_confirmed: '#00e5ff', from_records: '#10b981', ai_researching: '#f97316' };
     return map[person.source_type] || '#ef4444';
@@ -202,6 +495,7 @@ const FamilyTree = {
       <span class="ft-tree-stat">From Records: <strong style="color:#10b981">${fromRecords}</strong></span>
       <span class="ft-tree-stat">Researching: <strong style="color:#f97316">${researching}</strong></span>
       <span class="ft-tree-stat">Relationships: <strong>${this.relationships.length}</strong></span>`);
+    this._renderViewToggle();
   },
 
   resetZoom() {
@@ -624,6 +918,212 @@ const FamilyTree = {
         ${doc.ocr_status !== 'done' ? `<button class="ft-btn ft-btn-sm" onclick="FamilyTree.triggerOcr('${doc.id}')">Run OCR</button>` : ''}
       </div>
     </div>`;
+  },
+
+  /* ── MIGRATION MAP ── */
+
+  _mapInstance: null,
+  _mapLoaded: false,
+  _mapData: null,
+  _mapMarkers: [],
+  _mapPaths: [],
+  _mapView: false,
+
+  toggleMapView() {
+    this._mapView = !this._mapView;
+    const timeline = document.getElementById('ft-timeline');
+    const mapView  = document.getElementById('ft-map-view');
+    const toggle   = document.getElementById('ft-map-toggle');
+    if (!timeline || !mapView) return;
+
+    if (this._mapView) {
+      timeline.classList.add('ft-hidden');
+      mapView.classList.remove('ft-hidden');
+      toggle.classList.add('ft-btn-active');
+      toggle.innerHTML = '<i data-lucide="list"></i> Timeline List';
+      this._ensureLeaflet().then(() => this.loadMap());
+    } else {
+      timeline.classList.remove('ft-hidden');
+      mapView.classList.add('ft-hidden');
+      toggle.classList.remove('ft-btn-active');
+      toggle.innerHTML = '<i data-lucide="map"></i> Migration Map';
+    }
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  },
+
+  _ensureLeaflet() {
+    if (this._mapLoaded) return Promise.resolve();
+    return new Promise((resolve) => {
+      // Load CSS
+      if (!document.querySelector('link[href*="leaflet"]')) {
+        const css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        document.head.appendChild(css);
+      }
+      // Load JS
+      if (window.L) { this._mapLoaded = true; resolve(); return; }
+      if (!document.querySelector('script[src*="leaflet"]')) {
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+        script.onload = () => { this._mapLoaded = true; resolve(); };
+        document.head.appendChild(script);
+      } else {
+        const check = setInterval(() => {
+          if (window.L) { clearInterval(check); this._mapLoaded = true; resolve(); }
+        }, 50);
+      }
+    });
+  },
+
+  async loadMap() {
+    const container = document.getElementById('ft-map-container');
+    if (!container || !window.L) return;
+
+    const data = await this.api('/timeline/migration');
+    this._mapData = data;
+
+    if (!this._mapInstance) {
+      this._mapInstance = L.map('ft-map-container', {
+        center: [38.7, -9.14],
+        zoom: 3,
+        zoomControl: true,
+        attributionControl: true,
+      });
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 19,
+      }).addTo(this._mapInstance);
+    }
+
+    const minSlider = document.getElementById('ft-map-year-min');
+    const maxSlider = document.getElementById('ft-map-year-max');
+    if (minSlider && maxSlider) {
+      minSlider.oninput = () => {
+        document.getElementById('ft-map-year-min-val').textContent = minSlider.value;
+        this._filterMapByYear();
+      };
+      maxSlider.oninput = () => {
+        document.getElementById('ft-map-year-max-val').textContent = maxSlider.value;
+        this._filterMapByYear();
+      };
+    }
+
+    this._renderMapData(data);
+    setTimeout(() => { this._mapInstance.invalidateSize(); }, 100);
+  },
+
+  _renderMapData(data) {
+    if (!this._mapInstance || !data) return;
+
+    this._mapMarkers.forEach(m => this._mapInstance.removeLayer(m));
+    this._mapPaths.forEach(p => {
+      if (p._ftAnimFrame) cancelAnimationFrame(p._ftAnimFrame);
+      this._mapInstance.removeLayer(p);
+    });
+    this._mapMarkers = [];
+    this._mapPaths = [];
+
+    const bounds = [];
+
+    (data.locations || []).forEach(loc => {
+      const color = loc.event === 'birth' ? '#10b981' : '#ef4444';
+      const icon = L.divIcon({
+        className: 'ft-map-marker',
+        html: '<div style="width:12px;height:12px;border-radius:50%;background:' + color +
+              ';border:2px solid rgba(0,0,0,0.5);box-shadow:0 0 8px ' + color + '40;"></div>',
+        iconSize: [12, 12],
+        iconAnchor: [6, 6],
+      });
+
+      const yearStr = loc.year ? ' (' + loc.year + ')' : '';
+      const marker = L.marker([loc.lat, loc.lng], { icon })
+        .bindPopup('<strong style="color:' + color + ';">' + this.escHtml(loc.name) + '</strong><br>' +
+          this.escHtml(loc.event === 'birth' ? 'Born' : 'Died') + ': ' + this.escHtml(loc.place) + yearStr);
+      marker._ftYear = loc.year;
+      marker._ftEvent = loc.event;
+      marker.addTo(this._mapInstance);
+      this._mapMarkers.push(marker);
+      bounds.push([loc.lat, loc.lng]);
+    });
+
+    (data.paths || []).forEach(path => {
+      const latlngs = [[path.from.lat, path.from.lng], [path.to.lat, path.to.lng]];
+
+      const glow = L.polyline(latlngs, {
+        color: '#10b981', weight: 4, opacity: 0.15,
+      });
+      glow._ftYearFrom = path.year_from;
+      glow._ftYearTo = path.year_to;
+      glow.addTo(this._mapInstance);
+      this._mapPaths.push(glow);
+
+      const line = L.polyline(latlngs, {
+        color: '#10b981', weight: 2, opacity: 0.7, dashArray: '8, 12',
+      });
+      line._ftYearFrom = path.year_from;
+      line._ftYearTo = path.year_to;
+
+      const yearStr = (path.year_from || '?') + ' \u2192 ' + (path.year_to || '?');
+      line.bindPopup(
+        '<strong style="color:#10b981;">' + this.escHtml(path.name) + '</strong><br>' +
+        this.escHtml(path.from_place || '') + ' \u2192 ' + this.escHtml(path.to_place || '') + '<br>' +
+        '<span style="color:#94a3b8;">' + yearStr + '</span>'
+      );
+      line.addTo(this._mapInstance);
+      this._mapPaths.push(line);
+
+      this._animateDash(line);
+    });
+
+    if (bounds.length > 0) {
+      this._mapInstance.fitBounds(bounds, { padding: [40, 40], maxZoom: 6 });
+    }
+  },
+
+  _animateDash(polyline) {
+    let offset = 0;
+    const el = polyline.getElement && polyline.getElement();
+    if (!el) {
+      setTimeout(() => this._animateDash(polyline), 200);
+      return;
+    }
+    const animate = () => {
+      offset -= 0.5;
+      el.style.strokeDashoffset = offset;
+      polyline._ftAnimFrame = requestAnimationFrame(animate);
+    };
+    animate();
+  },
+
+  _filterMapByYear() {
+    const minYear = parseInt(document.getElementById('ft-map-year-min')?.value) || 1400;
+    const maxYear = parseInt(document.getElementById('ft-map-year-max')?.value) || 2026;
+
+    this._mapMarkers.forEach(m => {
+      const y = m._ftYear;
+      const visible = !y || (y >= minYear && y <= maxYear);
+      if (visible) {
+        if (!this._mapInstance.hasLayer(m)) m.addTo(this._mapInstance);
+      } else {
+        this._mapInstance.removeLayer(m);
+      }
+    });
+
+    this._mapPaths.forEach(p => {
+      const yf = p._ftYearFrom;
+      const yt = p._ftYearTo;
+      const visible = (!yf && !yt) ||
+        (yf && yf >= minYear && yf <= maxYear) ||
+        (yt && yt >= minYear && yt <= maxYear) ||
+        (yf && yt && yf <= maxYear && yt >= minYear);
+      if (visible) {
+        if (!this._mapInstance.hasLayer(p)) p.addTo(this._mapInstance);
+      } else {
+        this._mapInstance.removeLayer(p);
+      }
+    });
   },
 
   renderTimelineEvent(event) {

@@ -825,28 +825,32 @@ function loadVpnDetect() {
         if (!d.success) { el.innerHTML = '<div style="color:#ef4444">Scan failed</div>'; return; }
 
         if (!d.total_vpn_flows) {
-            el.innerHTML = '<div style="color:#10b981;padding:8px 0">&#x2705; No VPN traffic detected — all devices using normal connections</div>';
+            el.innerHTML = '<div style="color:#10b981;padding:8px 0">&#x2705; No VPN/tunnel traffic detected — ' +
+                (d.total_active_flows || 0) + ' active flows scanned</div>';
             return;
         }
 
-        var html = '<div style="color:#fbbf24;margin-bottom:8px">&#x26a0;&#xfe0f; <strong>' + d.total_vpn_flows + ' VPN flow(s) detected</strong></div>';
+        var html = '<div style="color:#fbbf24;margin-bottom:12px">&#x26a0;&#xfe0f; <strong>' + d.total_vpn_flows +
+            ' VPN/tunnel flow(s) detected</strong> out of ' + (d.total_active_flows || '?') + ' active flows</div>';
 
         if (d.suspicious_devices && d.suspicious_devices.length) {
-            html += '<table class="data-table"><thead><tr><th>Device</th><th>IP</th><th>Protocol</th><th>Flows</th><th>Bytes</th></tr></thead><tbody>';
+            html += '<table class="data-table"><thead><tr><th>Device</th><th>IP</th><th>Protocol</th><th>Flows</th><th>Data</th></tr></thead><tbody>';
             d.suspicious_devices.forEach(function(dev) {
-                html += '<tr><td>' + (dev.label || dev.ip) + '</td><td>' + dev.ip + '</td><td>' +
-                    dev.protocols.join(', ') + '</td><td>' + dev.flow_count + '</td><td>' +
-                    formatBytes(dev.total_bytes) + '</td></tr>';
+                html += '<tr><td><strong>' + (dev.label || dev.ip) + '</strong></td><td style="font-family:monospace">' + dev.ip + '</td><td>' +
+                    dev.protocols.map(function(p) { return '<span style="color:#fbbf24">' + p + '</span>'; }).join(', ') +
+                    '</td><td>' + dev.flow_count + '</td><td>' + formatBytes(dev.total_bytes) + '</td></tr>';
             });
             html += '</tbody></table>';
         }
 
         if (d.vpn_flows && d.vpn_flows.length) {
-            html += '<details style="margin-top:8px"><summary style="cursor:pointer;color:var(--archie-text-muted)">Show all flows (' + d.vpn_flows.length + ')</summary>';
-            html += '<table class="data-table" style="margin-top:4px"><thead><tr><th>Client</th><th>Server</th><th>Port</th><th>Protocol</th><th>Bytes</th></tr></thead><tbody>';
+            html += '<details style="margin-top:8px"><summary style="cursor:pointer;color:var(--archie-text-muted)">Flow details (' + d.vpn_flows.length + ')</summary>';
+            html += '<table class="data-table" style="margin-top:4px"><thead><tr><th>Client</th><th>Server</th><th>L7 Proto</th><th>Port</th><th>Data</th><th>Duration</th></tr></thead><tbody>';
             d.vpn_flows.forEach(function(f) {
-                html += '<tr><td>' + f.client + '</td><td>' + f.server + '</td><td>' + f.port + '</td><td>' +
-                    f.protocol + '</td><td>' + formatBytes(f.bytes) + '</td></tr>';
+                var dur = f.duration ? Math.round(f.duration / 60) + 'm' : '--';
+                html += '<tr><td>' + (f.client_name || f.client) + '</td><td>' + (f.server_name || f.server) +
+                    '</td><td style="color:#fbbf24">' + f.l7 + '</td><td>' + f.port +
+                    '</td><td>' + formatBytes(f.bytes) + '</td><td>' + dur + '</td></tr>';
             });
             html += '</tbody></table></details>';
         }

@@ -591,18 +591,45 @@ def register_noc_routes(bp, admin_required_decorator):
                 timeout=5,
             )
             if fr.status_code == 200:
-                flows = fr.json().get("rsp", [])
+                raw = fr.json()
+                flows = raw.get("rsp", [])
                 if isinstance(flows, dict):
-                    flows = flows.get("data", [])
+                    flows = flows.get("data", flows.get("records", []))
+                if not isinstance(flows, list):
+                    flows = []
+
+                # L7 protocols that indicate VPN/tunnel usage
+                VPN_L7 = {
+                    "OpenVPN",
+                    "WireGuard",
+                    "IPSec",
+                    "PPTP",
+                    "L2TP",
+                    "Tor",
+                    "SOCKS",
+                    "SoftEther",
+                    "Tailscale",
+                }
+                # Also match partial L7 strings (ntopng uses TLS.Tailscale etc)
+                VPN_L7_PARTIAL = ["Tailscale", "NordVPN", "ExpressVPN", "Surfshark", "ProtonVPN", "Mullvad"]
 
                 seen_devices = {}
                 for flow in flows:
-                    srv_port = flow.get("srv.port", 0)
-                    cli_port = flow.get("cli.port", 0)
+                    srv = flow.get("server", {})
+                    cli = flow.get("client", {})
+                    proto = flow.get("protocol", {})
+                    srv_port = srv.get("port", 0)
+                    cli_port = cli.get("port", 0)
+                    l7 = proto.get("l7", "")
                     vpn_port = None
                     vpn_proto = None
 
-                    if srv_port in VPN_PORTS:
+                    # Check L7 protocol first (most reliable)
+                    l7_match = l7 in VPN_L7 or any(v in l7 for v in VPN_L7_PARTIAL)
+                    if l7_match:
+                        vpn_port = srv_port or cli_port
+                        vpn_proto = l7
+                    elif srv_port in VPN_PORTS:
                         vpn_port = srv_port
                         vpn_proto = VPN_PORTS[srv_port]
                     elif cli_port in VPN_PORTS:
@@ -610,15 +637,19 @@ def register_noc_routes(bp, admin_required_decorator):
                         vpn_proto = VPN_PORTS[cli_port]
 
                     if vpn_port:
-                        cli_ip = flow.get("cli.ip", "?")
-                        srv_ip = flow.get("srv.ip", "?")
+                        cli_ip = cli.get("ip", "?")
+                        srv_ip = srv.get("ip", "?")
                         local_ip = cli_ip if cli_ip.startswith("192.168.") else srv_ip
                         result["vpn_flows"].append(
                             {
                                 "client": cli_ip,
+                                "client_name": cli.get("name", cli_ip),
                                 "server": srv_ip,
+                                "server_name": srv.get("name", srv_ip),
                                 "port": vpn_port,
                                 "protocol": vpn_proto,
+                                "l7": l7,
+                                "l4": proto.get("l4", ""),
                                 "bytes": flow.get("bytes", 0),
                                 "duration": flow.get("duration", 0),
                             }
@@ -660,6 +691,14 @@ def register_noc_routes(bp, admin_required_decorator):
 
                 result["total_vpn_flows"] = len(result["vpn_flows"])
                 result["suspicious_devices"].sort(key=lambda x: x["total_bytes"], reverse=True)
+
+                # L7 protocol summary for network visibility
+                l7_summary = {}
+                for flow in flows:
+                    p = flow.get("protocol", {}).get("l7", "Unknown")
+                    l7_summary[p] = l7_summary.get(p, 0) + 1
+                result["l7_protocols"] = sorted(l7_summary.items(), key=lambda x: x[1], reverse=True)
+                result["total_active_flows"] = len(flows)
 
         except Exception as exc:
             logger.error("vpn_detect error: %s", exc)

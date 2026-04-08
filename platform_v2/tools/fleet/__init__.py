@@ -16,7 +16,6 @@ from rbac import require_permission, Permission
 
 from .routes import fleet_bp
 from .node_routes import register_node_routes
-from .starship_node_routes import register_starship_node_routes
 from .mesh_routes import register_mesh_routes
 from .health_routes import register_health_routes
 from .crew_routes import register_crew_routes
@@ -28,11 +27,8 @@ from .ota_routes import register_ota_routes
 
 admin_required = require_permission(Permission.ADMIN_ACCESS)
 
-# Node provisioning, registration, heartbeat: dual auth (read=login, write=admin)
+# Node management: dual auth (read=login, write=admin)
 register_node_routes(fleet_bp, login_required, admin_required)
-
-# Node diagnostics, setup, commands: user-facing (login_required)
-register_starship_node_routes(fleet_bp, login_required)
 
 # Mesh networking, cluster ops: admin only
 register_mesh_routes(fleet_bp, admin_required)

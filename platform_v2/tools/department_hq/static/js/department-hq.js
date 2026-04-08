@@ -102,6 +102,8 @@ function switchTab(tab) {
         'social':       loadSocialFeed,
         'devices':      loadDevices,
         'dispatch':     loadDispatch,
+        'fleet':        loadFleet,
+        'contractors':  loadContractors,
     };
     if (!loaded[tab] && loaders[tab]) {
         loaders[tab]();
@@ -1718,6 +1720,247 @@ async function loadDispatchRepairPipeline() {
         html += '</div>';
         setHtml(el, html);
     } catch(e) { setHtml(el, '<div class="dhq-empty">Pipeline unavailable</div>'); }
+}
+
+// ───────────────────────────────────────────────────────────────
+// Fleet Tab
+// ───────────────────────────────────────────────────────────────
+
+var _dhqFleetMap = null;
+
+async function fleetApi(path) {
+    const res = await fetch('/tools/fleet' + path);
+    if (!res.ok) throw new Error('Fleet API ' + path + ' returned ' + res.status);
+    return res.json();
+}
+
+function loadFleet() {
+    loaded['fleet'] = true;
+    setTimeout(function() {
+        var mapEl = document.getElementById('dhqFleetMap');
+        if (!mapEl || _dhqFleetMap) return;
+        _dhqFleetMap = L.map('dhqFleetMap', {
+            center: [35, -40], zoom: 3, minZoom: 2,
+            scrollWheelZoom: true, zoomControl: true, attributionControl: false
+        });
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            subdomains: 'abcd', maxZoom: 19
+        }).addTo(_dhqFleetMap);
+        _loadFleetMapData();
+        _loadFleetNodes();
+        _loadFleetHealth();
+    }, 200);
+}
+
+async function _loadFleetMapData() {
+    try {
+        var data = await fleetApi('/api/fleet-map');
+        if (!data || data.error) return;
+        if (data.hub && data.hub.lat && data.hub.lon) {
+            var hubIcon = L.divIcon({
+                className: '', iconSize: [16, 16], iconAnchor: [8, 8],
+                html: '<div style="background:#00e5ff;width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 8px #00e5ff;"></div>'
+            });
+            L.marker([data.hub.lat, data.hub.lon], {icon: hubIcon})
+                .addTo(_dhqFleetMap)
+                .bindPopup('<b>A.R.M.A.D.A. HUB</b><br>' + esc(data.hub.city || 'Home Base'));
+            _dhqFleetMap.setView([data.hub.lat, data.hub.lon], 5);
+        }
+        (data.nodes || []).forEach(function(n) {
+            if (!n.lat || !n.lon) return;
+            var c = n.status === 'online' ? '#a3e635' : '#6b7280';
+            var ni = L.divIcon({
+                className: '', iconSize: [14, 14], iconAnchor: [7, 7],
+                html: '<div style="background:' + c + ';width:10px;height:10px;border-radius:50%;border:2px solid #fff;"></div>'
+            });
+            L.marker([n.lat, n.lon], {icon: ni}).addTo(_dhqFleetMap)
+                .bindPopup('<b>' + esc(n.name) + '</b><br>' + esc(n.gpu || 'No GPU'));
+        });
+        var countEl = document.getElementById('fleetNodeCount');
+        if (countEl) {
+            var online = (data.nodes || []).filter(function(n) { return n.status === 'online'; }).length;
+            countEl.textContent = '(' + online + '/' + (data.nodes || []).length + ' online)';
+        }
+    } catch (e) { console.error('Fleet map load:', e); }
+}
+
+async function _loadFleetNodes() {
+    try {
+        var data = await fleetApi('/api/fleet-map');
+        var el = document.getElementById('fleetNodesContent');
+        if (!el || !data) return;
+        var nodes = data.nodes || [];
+        if (nodes.length === 0) { el.textContent = 'No fleet nodes registered'; return; }
+        el.textContent = '';
+        var grid = document.createElement('div');
+        grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;';
+        nodes.forEach(function(n) {
+            var card = document.createElement('div');
+            card.style.cssText = 'background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:12px;';
+            var sc = n.status === 'online' ? '#10b981' : '#6b7280';
+            var title = document.createElement('div');
+            title.style.cssText = 'font-weight:600;margin-bottom:4px;';
+            var dot = document.createElement('span');
+            dot.style.cssText = 'display:inline-block;width:8px;height:8px;border-radius:50%;background:' + sc + ';margin-right:6px;';
+            title.appendChild(dot);
+            title.appendChild(document.createTextNode(n.name));
+            card.appendChild(title);
+            var info = document.createElement('div');
+            info.style.cssText = 'font-size:0.75rem;color:rgba(255,255,255,0.5);';
+            info.textContent = n.hostname + ' \u2022 ' + (n.deployment_mode || '?') + (n.gpu ? '\n' + n.gpu : '') + '\nRAM: ' + (n.ram || '?') + 'GB \u2022 Agents: ' + (n.agents || []).length;
+            info.style.whiteSpace = 'pre-line';
+            card.appendChild(info);
+            grid.appendChild(card);
+        });
+        el.appendChild(grid);
+    } catch (e) { console.error('Fleet nodes load:', e); }
+}
+
+async function _loadFleetHealth() {
+    try {
+        var data = await fleetApi('/api/health-status');
+        var el = document.getElementById('fleetHealthContent');
+        if (!el) return;
+        var hosts = data.hosts || [];
+        if (hosts.length === 0) { el.textContent = 'No health data available'; return; }
+        el.textContent = '';
+        hosts.forEach(function(h) {
+            var row = document.createElement('div');
+            row.style.cssText = 'padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.8rem;';
+            var c = h.status === 'UP' ? '#10b981' : '#ef4444';
+            var status = document.createElement('span');
+            status.style.color = c;
+            status.textContent = (h.status || '?') + ' ';
+            row.appendChild(status);
+            var name = document.createElement('strong');
+            name.textContent = h.name || h.host || 'unknown';
+            row.appendChild(name);
+            if (h.uptime) row.appendChild(document.createTextNode(' \u2014 uptime: ' + h.uptime));
+            el.appendChild(row);
+        });
+    } catch (e) { console.error('Fleet health load:', e); }
+}
+
+// ───────────────────────────────────────────────────────────────
+// Contractors Tab
+// ───────────────────────────────────────────────────────────────
+
+async function loadContractors() {
+    loaded['contractors'] = true;
+    try {
+        var data = await api('/api/contractors/providers');
+        var el = document.getElementById('contractorProvidersContent');
+        if (!el) return;
+        var providers = (data && data.providers) || [];
+        var countEl = document.getElementById('contractorCount');
+        if (countEl) countEl.textContent = '(' + providers.length + ')';
+        if (providers.length === 0) { el.textContent = 'No external contractors configured'; return; }
+        el.textContent = '';
+        var grid = document.createElement('div');
+        grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;';
+        providers.forEach(function(p) {
+            var active = p.is_active;
+            var card = document.createElement('div');
+            card.style.cssText = 'background:rgba(255,255,255,0.03);border:1px solid ' + (active ? 'rgba(16,185,129,0.3)' : 'rgba(107,114,128,0.3)') + ';border-radius:8px;padding:12px;';
+            // Header
+            var hdr = document.createElement('div');
+            hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;';
+            var nameDiv = document.createElement('div');
+            nameDiv.style.fontWeight = '600';
+            var dot = document.createElement('span');
+            dot.style.cssText = 'display:inline-block;width:8px;height:8px;border-radius:50%;background:' + (active ? '#10b981' : '#6b7280') + ';margin-right:6px;';
+            nameDiv.appendChild(dot);
+            nameDiv.appendChild(document.createTextNode(p.display_name || p.provider));
+            hdr.appendChild(nameDiv);
+            var tier = document.createElement('span');
+            tier.style.cssText = 'font-size:0.65rem;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.06);';
+            tier.textContent = p.account_tier || 'free';
+            hdr.appendChild(tier);
+            card.appendChild(hdr);
+            // Stats
+            var stats = p.stats_24h || {};
+            var sg = document.createElement('div');
+            sg.style.cssText = 'font-size:0.75rem;color:rgba(255,255,255,0.5);display:grid;grid-template-columns:1fr 1fr;gap:4px;';
+            sg.textContent = '';
+            ['24h: ' + (stats.requests || 0) + ' req', 'Cost: $' + (stats.cost || 0).toFixed(4), 'Latency: ' + (stats.avg_latency_ms || 0).toFixed(0) + 'ms', 'Success: ' + (stats.success_rate || 100).toFixed(0) + '%'].forEach(function(t) {
+                var cell = document.createElement('div');
+                cell.textContent = t;
+                sg.appendChild(cell);
+            });
+            card.appendChild(sg);
+            // Budget bar
+            if (p.monthly_budget_usd > 0) {
+                var pct = Math.min(p.budget_pct || 0, 100);
+                var bc = pct > 80 ? '#ef4444' : pct > 50 ? '#f59e0b' : '#10b981';
+                var bar = document.createElement('div');
+                bar.style.cssText = 'margin-top:8px;background:rgba(255,255,255,0.06);border-radius:4px;height:6px;overflow:hidden;';
+                var fill = document.createElement('div');
+                fill.style.cssText = 'width:' + pct + '%;height:100%;background:' + bc + ';border-radius:4px;';
+                bar.appendChild(fill);
+                card.appendChild(bar);
+                var budgetTxt = document.createElement('div');
+                budgetTxt.style.cssText = 'font-size:0.65rem;color:rgba(255,255,255,0.4);margin-top:2px;';
+                budgetTxt.textContent = '$' + (p.current_month_cost_usd || 0).toFixed(2) + ' / $' + p.monthly_budget_usd.toFixed(2);
+                card.appendChild(budgetTxt);
+            }
+            // Models
+            if (p.models && p.models.length > 0) {
+                var mods = document.createElement('div');
+                mods.style.cssText = 'margin-top:8px;font-size:0.7rem;';
+                p.models.forEach(function(m) {
+                    var mc = m.enabled ? '#a3e635' : '#6b7280';
+                    var tag = document.createElement('span');
+                    tag.style.cssText = 'display:inline-block;margin:2px 4px 2px 0;padding:1px 6px;border-radius:3px;background:rgba(255,255,255,0.04);border:1px solid ' + mc + '40;color:' + mc + ';';
+                    tag.textContent = m.name;
+                    mods.appendChild(tag);
+                });
+                card.appendChild(mods);
+            }
+            grid.appendChild(card);
+        });
+        el.appendChild(grid);
+    } catch (e) { console.error('Contractors load:', e); }
+
+    // Definitions table
+    try {
+        var data = await api('/api/contractors/definitions');
+        var el = document.getElementById('contractorDefinitionsContent');
+        if (!el || !data || !data.success) return;
+        var defs = data.providers || [];
+        if (defs.length === 0) { el.textContent = 'No contractor definitions'; return; }
+        el.textContent = '';
+        var tbl = document.createElement('table');
+        tbl.style.cssText = 'width:100%;font-size:0.75rem;border-collapse:collapse;';
+        var thead = document.createElement('tr');
+        thead.style.cssText = 'color:rgba(255,255,255,0.5);border-bottom:1px solid rgba(255,255,255,0.1);';
+        ['Provider', 'Base URL', 'Tier', 'Active'].forEach(function(h) {
+            var th = document.createElement('th');
+            th.style.cssText = 'text-align:left;padding:6px;';
+            th.textContent = h;
+            thead.appendChild(th);
+        });
+        tbl.appendChild(thead);
+        defs.forEach(function(d) {
+            var tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+            var cells = [
+                d.display_name || d.provider_key,
+                d.base_url || '',
+                String(d.tier_position || '?'),
+                d.is_active ? 'YES' : 'NO'
+            ];
+            cells.forEach(function(val, i) {
+                var td = document.createElement('td');
+                td.style.padding = '6px';
+                if (i === 0) td.style.fontWeight = '600';
+                if (i === 3) { td.style.color = val === 'YES' ? '#10b981' : '#6b7280'; td.style.textAlign = 'center'; }
+                td.textContent = val;
+                tr.appendChild(td);
+            });
+            tbl.appendChild(tr);
+        });
+        el.appendChild(tbl);
+    } catch (e) { console.error('Contractor defs load:', e); }
 }
 
 // ───────────────────────────────────────────────────────────────

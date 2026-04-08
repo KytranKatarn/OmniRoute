@@ -269,6 +269,36 @@ function loadNocOverview() {
         snSetText('noc-threats', formatNum(stats.threats_blocked_24h || 0));
         snSetText('noc-traffic', formatBytes(stats.traffic_bytes || 0));
         snSetText('noc-banned', formatNum(stats.currently_banned || 0));
+        snSetText('noc-active-devices', formatNum(stats.active_devices || 0));
+
+        /* DNS protection indicator */
+        var shieldEl = document.getElementById('noc-dns-shield');
+        if (shieldEl) {
+            var dot = document.createElement('span');
+            dot.textContent = stats.dns_protection_on ? '\u25CF ON' : '\u25CF OFF';
+            dot.style.color = stats.dns_protection_on ? '#22c55e' : '#ef4444';
+            shieldEl.textContent = '';
+            shieldEl.appendChild(dot);
+        }
+
+        /* last scan */
+        var scan = d.last_scan;
+        if (scan) {
+            var scanTime = scan.time ? new Date(scan.time) : null;
+            var scanAgo = scanTime ? _timeAgo(scanTime) : '';
+            snSetText('noc-last-scan', scan.module + ' \u2014 ' + scan.status);
+            var scanCard = document.getElementById('noc-last-scan-card');
+            if (scanCard) {
+                var lbl = scanCard.querySelector('.noc-hero-label');
+                if (lbl) lbl.textContent = 'Last Scan' + (scanAgo ? ' (' + scanAgo + ')' : '');
+            }
+        }
+
+        /* top bandwidth consumers */
+        _renderTopConsumers(d.top_consumers || []);
+
+        /* traffic sparkline */
+        _renderSparkline(d.traffic_sparkline || []);
 
         /* service badges in header */
         var svc = d.services || {};
@@ -379,6 +409,101 @@ function _renderNocActivity(alerts) {
 
         feed.appendChild(item);
     });
+}
+
+function _timeAgo(date) {
+    var seconds = Math.floor((new Date() - date) / 1000);
+    if (seconds < 60) return 'just now';
+    var minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return minutes + 'm ago';
+    var hours = Math.floor(minutes / 60);
+    if (hours < 24) return hours + 'h ago';
+    var days = Math.floor(hours / 24);
+    return days + 'd ago';
+}
+
+function _renderTopConsumers(consumers) {
+    var el = document.getElementById('noc-top-consumers');
+    if (!el) return;
+    el.textContent = '';
+    if (!consumers.length) {
+        snShowEmpty(el, 'No traffic data yet');
+        return;
+    }
+    var maxBytes = consumers[0].bytes || 1;
+    consumers.forEach(function(c) {
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px';
+
+        var label = document.createElement('span');
+        label.style.cssText = 'min-width:100px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--archie-text)';
+        label.textContent = c.label || c.ip;
+        label.title = c.ip;
+        row.appendChild(label);
+
+        var barOuter = document.createElement('div');
+        barOuter.style.cssText = 'flex:1;height:6px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden';
+        var barInner = document.createElement('div');
+        var pct = Math.max(2, (c.bytes / maxBytes) * 100);
+        barInner.style.cssText = 'height:100%;border-radius:3px;background:linear-gradient(90deg,#00e5ff,#8b5cf6);width:' + pct + '%';
+        barOuter.appendChild(barInner);
+        row.appendChild(barOuter);
+
+        var val = document.createElement('span');
+        val.style.cssText = 'min-width:60px;text-align:right;color:var(--archie-text-muted);font-family:"IBM Plex Mono",monospace;font-size:0.75rem';
+        val.textContent = formatBytes(c.bytes || 0);
+        row.appendChild(val);
+
+        el.appendChild(row);
+    });
+}
+
+function _renderSparkline(data) {
+    var svg = document.getElementById('noc-sparkline');
+    if (!svg || !data.length) return;
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+    var w = svg.clientWidth || 300;
+    var h = svg.clientHeight || 80;
+    var max = Math.max.apply(null, data.map(function(d) { return d.bytes; })) || 1;
+    var step = w / Math.max(data.length - 1, 1);
+
+    var points = data.map(function(d, i) {
+        var x = i * step;
+        var y = h - (d.bytes / max) * (h - 4) - 2;
+        return x.toFixed(1) + ',' + y.toFixed(1);
+    });
+
+    // Gradient definition
+    var ns = 'http://www.w3.org/2000/svg';
+    var defs = document.createElementNS(ns, 'defs');
+    var grad = document.createElementNS(ns, 'linearGradient');
+    grad.setAttribute('id', 'spark-grad');
+    grad.setAttribute('x1', '0'); grad.setAttribute('y1', '0');
+    grad.setAttribute('x2', '0'); grad.setAttribute('y2', '1');
+    var s1 = document.createElementNS(ns, 'stop');
+    s1.setAttribute('offset', '0%'); s1.setAttribute('stop-color', '#00e5ff'); s1.setAttribute('stop-opacity', '0.3');
+    var s2 = document.createElementNS(ns, 'stop');
+    s2.setAttribute('offset', '100%'); s2.setAttribute('stop-color', '#00e5ff'); s2.setAttribute('stop-opacity', '0.02');
+    grad.appendChild(s1); grad.appendChild(s2);
+    defs.appendChild(grad);
+    svg.appendChild(defs);
+
+    // Fill area
+    var area = document.createElementNS(ns, 'polygon');
+    var areaPoints = '0,' + h + ' ' + points.join(' ') + ' ' + ((data.length - 1) * step).toFixed(1) + ',' + h;
+    area.setAttribute('points', areaPoints);
+    area.setAttribute('fill', 'url(#spark-grad)');
+    svg.appendChild(area);
+
+    // Line
+    var line = document.createElementNS(ns, 'polyline');
+    line.setAttribute('points', points.join(' '));
+    line.setAttribute('fill', 'none');
+    line.setAttribute('stroke', '#00e5ff');
+    line.setAttribute('stroke-width', '2');
+    line.setAttribute('stroke-linejoin', 'round');
+    svg.appendChild(line);
 }
 
 /* ═══════════════════════════════════════════════════

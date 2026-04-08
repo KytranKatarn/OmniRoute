@@ -30,7 +30,12 @@ def register_noc_routes(bp, admin_required_decorator):
             "traffic_bytes": 0,
             "currently_banned": 0,
             "network_status": "unknown",
+            "active_devices": 0,
+            "dns_protection_on": False,
         }
+        top_consumers = []
+        last_scan = None
+        traffic_sparkline = []
         recent_alerts = []
 
         try:
@@ -57,6 +62,14 @@ def register_noc_routes(bp, admin_required_decorator):
                         hero_stats["threats_blocked_24h"] = stats.get("num_blocked_filtering", 0)
                     else:
                         services["adguard"] = {"status": "offline"}
+                    # DNS protection status
+                    sr = requests.get(
+                        f"http://{ag_host}:{ag_port}/control/status",
+                        auth=(ag_user, ag_pass),
+                        timeout=3,
+                    )
+                    if sr.status_code == 200:
+                        hero_stats["dns_protection_on"] = sr.json().get("protection_enabled", False)
                 except Exception:
                     services["adguard"] = {"status": "error"}
 
@@ -117,6 +130,7 @@ def register_noc_routes(bp, admin_required_decorator):
                         services["ntopng"] = {"status": "online"}
                         if nt_bytes:
                             hero_stats["traffic_bytes"] = int(nt_bytes)
+                        hero_stats["active_devices"] = rsp.get("num_devices", 0) or rsp.get("num_hosts", 0)
                     else:
                         services["ntopng"] = {"status": "offline"}
                 except Exception as nt_exc:
@@ -131,9 +145,72 @@ def register_noc_routes(bp, admin_required_decorator):
                         "WHERE hour_bucket >= NOW() - INTERVAL '24 hours'"
                     )
                     row = cur.fetchone()
-                    cached_bytes = int(row[0]) if row and row[0] else 0
+                    cached_bytes = int(list(row.values())[0]) if row else 0
                     if cached_bytes:
                         hero_stats["traffic_bytes"] = cached_bytes
+                except Exception:
+                    pass
+
+                # Top bandwidth consumers (24h)
+                try:
+                    cur.execute(
+                        """SELECT nts.device_ip,
+                                  COALESCE(ndu.user_name, ndu.device_label, nts.device_ip) as label,
+                                  SUM(nts.bytes_in + nts.bytes_out) as total
+                           FROM network_traffic_stats nts
+                           LEFT JOIN network_device_users ndu ON ndu.mac_address = nts.device_mac
+                           WHERE nts.hour_bucket >= NOW() - INTERVAL '24 hours'
+                           GROUP BY nts.device_ip, label
+                           ORDER BY total DESC LIMIT 5"""
+                    )
+                    for row in cur.fetchall():
+                        r = dict(row)
+                        top_consumers.append(
+                            {
+                                "ip": r.get("device_ip", ""),
+                                "label": r.get("label", r.get("device_ip", "Unknown")),
+                                "bytes": int(r.get("total", 0)),
+                            }
+                        )
+                except Exception:
+                    pass
+
+                # Traffic sparkline (24h hourly buckets)
+                try:
+                    cur.execute(
+                        """SELECT date_trunc('hour', hour_bucket) as hour,
+                                  SUM(bytes_in + bytes_out) as total
+                           FROM network_traffic_stats
+                           WHERE hour_bucket >= NOW() - INTERVAL '24 hours'
+                           GROUP BY hour ORDER BY hour"""
+                    )
+                    for row in cur.fetchall():
+                        r = dict(row)
+                        traffic_sparkline.append(
+                            {
+                                "hour": r["hour"].strftime("%H:%M") if r.get("hour") else "",
+                                "bytes": int(r.get("total", 0)),
+                            }
+                        )
+                except Exception:
+                    pass
+
+                # Last scan result
+                try:
+                    cur.execute(
+                        """SELECT module_name, target, status, started_at
+                           FROM security_recon_scans
+                           ORDER BY started_at DESC LIMIT 1"""
+                    )
+                    scan_row = cur.fetchone()
+                    if scan_row:
+                        sr = dict(scan_row)
+                        last_scan = {
+                            "module": sr.get("module_name", ""),
+                            "target": sr.get("target", ""),
+                            "status": sr.get("status", ""),
+                            "time": sr["started_at"].isoformat() if sr.get("started_at") else "",
+                        }
                 except Exception:
                     pass
 
@@ -319,6 +396,9 @@ def register_noc_routes(bp, admin_required_decorator):
                 "services": services,
                 "hero_stats": hero_stats,
                 "recent_activity": recent_alerts,
+                "top_consumers": top_consumers,
+                "traffic_sparkline": traffic_sparkline,
+                "last_scan": last_scan,
             }
         )
 

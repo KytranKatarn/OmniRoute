@@ -139,11 +139,11 @@
             </div>
         </div>
 
-        <!-- NOC Hero Stats (4 cards) -->
-        <div class="noc-hero-grid">
+        <!-- NOC Hero Stats (6 cards) -->
+        <div class="noc-hero-grid" style="grid-template-columns:repeat(3,1fr)">
             <div class="noc-hero-card" style="--noc-accent:#ef4444">
                 <div class="noc-hero-val" id="noc-dns-queries">--</div>
-                <div class="noc-hero-label">DNS Queries (24h)</div>
+                <div class="noc-hero-label">DNS Queries (24h) <span id="noc-dns-shield" style="font-size:0.7rem"></span></div>
             </div>
             <div class="noc-hero-card" style="--noc-accent:#fbbf24">
                 <div class="noc-hero-val" id="noc-threats">--</div>
@@ -153,9 +153,37 @@
                 <div class="noc-hero-val" id="noc-traffic">--</div>
                 <div class="noc-hero-label">Network Traffic</div>
             </div>
+            <div class="noc-hero-card" style="--noc-accent:#10b981">
+                <div class="noc-hero-val" id="noc-active-devices">--</div>
+                <div class="noc-hero-label">Active Devices</div>
+            </div>
             <div class="noc-hero-card" style="--noc-accent:#ef4444">
                 <div class="noc-hero-val" id="noc-banned">--</div>
                 <div class="noc-hero-label">Currently Banned</div>
+            </div>
+            <div class="noc-hero-card" style="--noc-accent:#8b5cf6" id="noc-last-scan-card">
+                <div class="noc-hero-val" id="noc-last-scan" style="font-size:0.9rem">--</div>
+                <div class="noc-hero-label">Last Scan</div>
+            </div>
+        </div>
+
+        <!-- Traffic Sparkline + Top Consumers -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Traffic (24h)</span>
+                </div>
+                <div style="height:80px;padding:8px 0" id="noc-sparkline-container">
+                    <svg id="noc-sparkline" width="100%" height="100%" preserveAspectRatio="none"></svg>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Top Bandwidth Consumers</span>
+                </div>
+                <div id="noc-top-consumers" style="font-size:0.8rem">
+                    <div class="loading-state"><span class="spinner"></span> Loading...</div>
+                </div>
             </div>
         </div>
 

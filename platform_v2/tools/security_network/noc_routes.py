@@ -161,12 +161,13 @@ def register_noc_routes(bp, admin_required_decorator):
                         "healthy" if ratio >= 0.8 else ("degraded" if ratio >= 0.5 else "critical")
                     )
 
-                # Recent alerts
+                # Recent activity — multi-source feed
                 try:
+                    # Network alerts (deduplicated — skip repeated health_monitor noise)
                     cur.execute(
-                        """SELECT id, alert_type, severity, title, source, created_at
+                        """SELECT DISTINCT ON (title) title, severity, source, created_at
                            FROM network_alerts
-                           ORDER BY created_at DESC LIMIT 10"""
+                           ORDER BY title, created_at DESC"""
                     )
                     for row in cur.fetchall():
                         a = dict(row)
@@ -174,12 +175,89 @@ def register_noc_routes(bp, admin_required_decorator):
                         recent_alerts.append(
                             {
                                 "type": a.get("severity", "info"),
-                                "text": a.get("title") or a.get("alert_type", "Alert"),
+                                "text": a.get("title") or "Alert",
                                 "time": ts.isoformat() if ts else "",
                                 "source": a.get("source", ""),
                             }
                         )
-                except Exception:
+
+                    # Security notifications
+                    cur.execute(
+                        """SELECT type, title, message, created_at FROM system_notifications
+                           WHERE source = 'security_network' AND is_archived = FALSE
+                           ORDER BY created_at DESC LIMIT 5"""
+                    )
+                    for row in cur.fetchall():
+                        r = dict(row)
+                        ts = r.get("created_at")
+                        recent_alerts.append(
+                            {
+                                "type": r.get("type", "info"),
+                                "text": r.get("title") or r.get("message", "Notification"),
+                                "time": ts.isoformat() if ts else "",
+                                "source": "notification",
+                            }
+                        )
+
+                    # Recent scans
+                    cur.execute(
+                        """SELECT module_name, target, status, started_at
+                           FROM security_recon_scans
+                           ORDER BY started_at DESC LIMIT 3"""
+                    )
+                    for row in cur.fetchall():
+                        r = dict(row)
+                        ts = r.get("started_at")
+                        recent_alerts.append(
+                            {
+                                "type": "info",
+                                "text": f"{r['module_name']} scan on {r['target']} — {r['status']}",
+                                "time": ts.isoformat() if ts else "",
+                                "source": "scanner",
+                            }
+                        )
+
+                    # IP blocks
+                    cur.execute(
+                        """SELECT ip_address, access_type, reason, created_at
+                           FROM security_ip_access
+                           ORDER BY created_at DESC LIMIT 3"""
+                    )
+                    for row in cur.fetchall():
+                        r = dict(row)
+                        ts = r.get("created_at")
+                        recent_alerts.append(
+                            {
+                                "type": "warning" if r["access_type"] == "block" else "info",
+                                "text": f"IP {r['access_type']}: {r['ip_address']} — {r.get('reason') or 'manual'}",
+                                "time": ts.isoformat() if ts else "",
+                                "source": "ip_access",
+                            }
+                        )
+
+                    # DNS changes
+                    cur.execute(
+                        """SELECT action, domain, created_at FROM security_dns_changes
+                           ORDER BY created_at DESC LIMIT 3"""
+                    )
+                    for row in cur.fetchall():
+                        r = dict(row)
+                        ts = r.get("created_at")
+                        recent_alerts.append(
+                            {
+                                "type": "info",
+                                "text": f"DNS {r['action']}: {r.get('domain', '')}",
+                                "time": ts.isoformat() if ts else "",
+                                "source": "dns",
+                            }
+                        )
+
+                    # Sort by time, take most recent 10
+                    recent_alerts.sort(key=lambda x: x.get("time", ""), reverse=True)
+                    recent_alerts = recent_alerts[:10]
+
+                except Exception as e:
+                    logger.debug("Activity feed error: %s", e)
                     pass
 
         except Exception as exc:

@@ -34,6 +34,23 @@
     "floor_color": "#fbbf24"
   },
   {
+    "id": 150,
+    "name": "ARMADA",
+    "display_name": "A.R.M.A.D.A.",
+    "full_name": "A.R.M.A.D.A.",
+    "department": "Operations & Infrastructure",
+    "title": "Fleet & Infrastructure Director",
+    "agent_type": "director",
+    "shift_state": "active",
+    "avatar_url": "/assets/portraits/armada.png",
+    "email": "armada@kytranempowerment.com",
+    "acronym": "A.R.M.A.D.A.",
+    "acronym_expansion": "Autonomous Resource Mesh & Distributed Architecture",
+    "description": "Manages the distributed fleet of compute nodes, external contractors, mesh networking, OTA deployments, and infrastructure health. Coordinates node provisioning, model distribution, and cross-node workload balancing.",
+    "floor": "OPERATIONS",
+    "floor_color": "#fbbf24"
+  },
+  {
     "id": 143,
     "name": "CARGO",
     "display_name": "C.A.R.G.O.",

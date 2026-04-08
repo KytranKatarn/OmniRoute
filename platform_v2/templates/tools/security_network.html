@@ -589,6 +589,42 @@
                     </tbody>
                 </table>
             </div>
+
+            <!-- Managed Servers -->
+            <h3 style="margin:20px 0 10px;color:#fff">Managed Servers</h3>
+            <div style="overflow-x:auto">
+                <table class="data-table" id="domains-servers-table">
+                    <thead>
+                        <tr>
+                            <th>Server</th>
+                            <th>Public IP</th>
+                            <th>Mesh IP</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Subdomains</th>
+                        </tr>
+                    </thead>
+                    <tbody id="domains-servers-body">
+                        <tr><td colspan="6" class="loading-state"><span class="spinner"></span> Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- IP Change History -->
+            <h3 style="margin:20px 0 10px;color:#fff">Public IP History</h3>
+            <div style="overflow-x:auto">
+                <table class="data-table" id="domains-ip-history-table">
+                    <thead>
+                        <tr>
+                            <th>IP Address</th>
+                            <th>Detected</th>
+                        </tr>
+                    </thead>
+                    <tbody id="domains-ip-history-body">
+                        <tr><td colspan="2" class="loading-state"><span class="spinner"></span> Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <!-- Subtab: DNS Records -->

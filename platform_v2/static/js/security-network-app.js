@@ -1858,6 +1858,97 @@ async function loadDomainsOverview() {
             tbody.appendChild(tr);
         });
 
+        // Managed Servers
+        const servers = Array.isArray(d.servers) ? d.servers : [];
+        const serverBody = document.getElementById('domains-servers-body');
+        if (serverBody) {
+            serverBody.textContent = '';
+            if (!servers.length) {
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.colSpan = 6; td.style.textAlign = 'center'; td.style.color = 'var(--text-dim)';
+                td.textContent = 'No servers registered';
+                tr.appendChild(td); serverBody.appendChild(tr);
+            } else {
+                // Count subdomains per IP for each server
+                servers.forEach(function(srv) {
+                    const tr = document.createElement('tr');
+                    const ip = srv.public_ip || srv.hostname || '--';
+                    const meshIp = srv.vpn_ip || '--';
+
+                    // Count how many subdomains point to this server's IP
+                    const srvSubdomains = keys.filter(function(k) {
+                        return subdomains[k].dnsIP === ip || subdomains[k].dnsIP === srv.hostname;
+                    });
+
+                    const tdName = document.createElement('td');
+                    const strong = document.createElement('strong');
+                    strong.textContent = srv.node_name || 'Unknown';
+                    strong.style.color = srv.status === 'online' ? '#10b981' : '#ef4444';
+                    tdName.appendChild(strong);
+                    if (srv.description) { const desc = document.createElement('div'); desc.style.cssText = 'font-size:0.7rem;color:var(--text-dim)'; desc.textContent = srv.description; tdName.appendChild(desc); }
+                    tr.appendChild(tdName);
+
+                    const tdPub = document.createElement('td');
+                    tdPub.style.fontFamily = '"IBM Plex Mono",monospace';
+                    tdPub.textContent = ip;
+                    tr.appendChild(tdPub);
+
+                    const tdMesh = document.createElement('td');
+                    tdMesh.style.fontFamily = '"IBM Plex Mono",monospace';
+                    tdMesh.textContent = meshIp;
+                    tr.appendChild(tdMesh);
+
+                    const tdRole = document.createElement('td');
+                    tdRole.textContent = srv.gpu_available ? 'GPU Node' : 'Compute';
+                    tr.appendChild(tdRole);
+
+                    const tdStatus = document.createElement('td');
+                    const statusSpan = document.createElement('span');
+                    statusSpan.style.color = srv.status === 'online' ? '#10b981' : '#ef4444';
+                    statusSpan.textContent = '\u25CF ' + (srv.status || 'unknown').toUpperCase();
+                    tdStatus.appendChild(statusSpan);
+                    tr.appendChild(tdStatus);
+
+                    const tdSubs = document.createElement('td');
+                    tdSubs.textContent = srvSubdomains.length ? srvSubdomains.join(', ') : '--';
+                    tdSubs.style.cssText = 'font-size:0.75rem;max-width:200px;overflow:hidden;text-overflow:ellipsis';
+                    tr.appendChild(tdSubs);
+
+                    serverBody.appendChild(tr);
+                });
+            }
+        }
+
+        // IP Change History
+        const ipHistory = Array.isArray(d.ip_history) ? d.ip_history : [];
+        const ipBody = document.getElementById('domains-ip-history-body');
+        if (ipBody) {
+            ipBody.textContent = '';
+            if (!ipHistory.length) {
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.colSpan = 2; td.style.textAlign = 'center'; td.style.color = 'var(--text-dim)';
+                td.textContent = 'No IP changes recorded';
+                tr.appendChild(td); ipBody.appendChild(tr);
+            } else {
+                ipHistory.forEach(function(entry) {
+                    const tr = document.createElement('tr');
+                    const tdIp = document.createElement('td');
+                    tdIp.style.fontFamily = '"IBM Plex Mono",monospace';
+                    tdIp.textContent = entry.ip || '--';
+                    if (entry.ip === (d.public_ip || '')) { tdIp.style.color = '#10b981'; tdIp.textContent += ' (current)'; }
+                    tr.appendChild(tdIp);
+
+                    const tdDate = document.createElement('td');
+                    tdDate.textContent = entry.detected_at ? new Date(entry.detected_at).toLocaleString() : '--';
+                    tr.appendChild(tdDate);
+
+                    ipBody.appendChild(tr);
+                });
+            }
+        }
+
         lucide.createIcons();
     } catch (e) {
         showToast('error', 'Failed to load domains overview: ' + e.message);

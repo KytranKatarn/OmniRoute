@@ -186,6 +186,33 @@ def register_domain_npm_routes(bp, admin_required_decorator):
             except Exception as e:
                 logger.debug("Failed to get NPM certificates for domain overview: %s", e)
 
+        # Get managed servers (hub + remote nodes)
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT node_name, hostname, public_ip, vpn_ip, status,
+                              gpu_available, description
+                       FROM remote_nodes ORDER BY id"""
+                )
+                result["servers"] = [dict(r) for r in cur.fetchall()]
+
+                # IP change history
+                cur.execute(
+                    """SELECT ip_address, detected_at
+                       FROM org_ip_history ORDER BY detected_at DESC LIMIT 10"""
+                )
+                result["ip_history"] = [
+                    {
+                        "ip": r["ip_address"],
+                        "detected_at": r["detected_at"].isoformat() if r["detected_at"] else None,
+                    }
+                    for r in cur.fetchall()
+                ]
+        except Exception as e:
+            logger.debug("Failed to get servers/IP history: %s", e)
+
         return jsonify({"success": True, **result})
 
     @bp.route("/api/domains/quick-setup", methods=["POST"])

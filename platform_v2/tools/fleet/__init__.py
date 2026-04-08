@@ -30,8 +30,8 @@ admin_required = require_permission(Permission.ADMIN_ACCESS)
 # Node management: dual auth (read=login, write=admin)
 register_node_routes(fleet_bp, login_required, admin_required)
 
-# Mesh networking, cluster ops: admin only
-register_mesh_routes(fleet_bp, admin_required)
+# Mesh networking, cluster ops: any logged-in user can view
+register_mesh_routes(fleet_bp, login_required)
 
 # Health monitoring (Nagios + heartbeat): any logged-in user
 register_health_routes(fleet_bp, login_required)
@@ -39,17 +39,17 @@ register_health_routes(fleet_bp, login_required)
 # Node crew management (assign/remove agents on nodes): user-facing
 register_crew_routes(fleet_bp, login_required)
 
-# Cloud providers, fleet map, budgets: admin only
-register_fleet_routes(fleet_bp, admin_required)
+# Cloud providers, fleet map, budgets: any logged-in user can view
+register_fleet_routes(fleet_bp, login_required)
 
-# ComfyUI routing, provider management: admin only
-register_provider_routes(fleet_bp, admin_required)
+# ComfyUI routing, provider management: any logged-in user can view
+register_provider_routes(fleet_bp, login_required)
 
-# Bridge dispatch tracking, job status: admin only
-register_dispatch_routes(fleet_bp, admin_required)
+# Bridge dispatch tracking, job status: any logged-in user
+register_dispatch_routes(fleet_bp, login_required)
 
-# Mission profiles, SSE streaming: admin only
-register_mission_routes(fleet_bp, admin_required)
+# Mission profiles, SSE streaming: any logged-in user
+register_mission_routes(fleet_bp, login_required)
 
 # OTA push, sync, upgrades: admin only
 register_ota_routes(fleet_bp, admin_required)

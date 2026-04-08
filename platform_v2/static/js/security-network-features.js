@@ -868,7 +868,7 @@ function investigateDomain(domain) {
     _setFooterButtonsState(true);
     if (result) {
         result.style.cssText = 'background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.3);border-radius:8px;padding:16px;min-height:60px;color:#8b5cf6;font-size:0.8rem;line-height:1.5;font-style:italic';
-        result.textContent = 'AI is researching this domain... This may take 15-30 seconds.';
+        result.textContent = 'AI is researching this domain... This may take up to 4-5 minutes.';
     }
 
     fetch(SN_API + '/dns/domain-investigate', {

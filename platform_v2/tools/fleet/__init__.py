@@ -17,7 +17,8 @@ from rbac import require_permission, Permission
 from .routes import fleet_bp, register_dashboard_routes
 from .node_routes import register_node_routes
 from .mesh_routes import register_mesh_routes
-from .health_routes import register_health_routes
+
+# health_routes merged into mesh_routes (duplicate endpoints removed)
 from .crew_routes import register_crew_routes
 from .fleet_routes import register_fleet_routes
 from .dispatch_routes import register_dispatch_routes
@@ -34,9 +35,6 @@ register_node_routes(fleet_bp, login_required, admin_required)
 
 # Mesh networking, cluster ops: any logged-in user can view
 register_mesh_routes(fleet_bp, login_required)
-
-# Health monitoring (Nagios + heartbeat): any logged-in user
-register_health_routes(fleet_bp, login_required)
 
 # Node crew management (assign/remove agents on nodes): user-facing
 register_crew_routes(fleet_bp, login_required)

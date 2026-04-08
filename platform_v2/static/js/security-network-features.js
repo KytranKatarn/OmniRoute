@@ -495,7 +495,14 @@ function sendWeeklyReport() {
    ═══════════════════════════════════════════════════════════════════ */
 function loadSinkholeStats() {
     var sel = document.getElementById('dns-period-select');
+    // Restore saved period on first load
+    if (sel && !sel._restored) {
+        var saved = localStorage.getItem('sn_dns_period');
+        if (saved && sel.querySelector('option[value="' + saved + '"]')) sel.value = saved;
+        sel._restored = true;
+    }
     var hours = sel ? sel.value : '24';
+    if (sel) localStorage.setItem('sn_dns_period', hours);
     fetch(SN_API + '/dns/sinkhole-stats?hours=' + hours).then(r=>r.json()).then(d => {
         if (!d.success) return;
         // Pie chart by category

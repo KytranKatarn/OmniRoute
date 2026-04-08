@@ -528,7 +528,15 @@ function _renderSparkline(data) {
 function loadTraffic() {
     /* Real bandwidth data from ntopng + DB */
     var sel = document.getElementById('traffic-period-select');
+    // Restore saved period on first load
+    if (sel && !sel._restored) {
+        var saved = localStorage.getItem('sn_traffic_period');
+        if (saved && sel.querySelector('option[value="' + saved + '"]')) sel.value = saved;
+        sel._restored = true;
+    }
     var period = sel ? sel.value : '24h';
+    // Save selection
+    if (sel) localStorage.setItem('sn_traffic_period', period);
     var periodLabels = {'24h': '24h', '7d': '7 Days', '30d': '30 Days', '90d': '90 Days', 'all': 'All Time'};
     var lbl = periodLabels[period] || period;
 

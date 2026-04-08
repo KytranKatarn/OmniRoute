@@ -39,7 +39,7 @@ let _sinkholeChart = null, _speedChart = null, _trafficClassChart = null;
    ═══════════════════════════════════════════════════════════════════ */
 function loadTopology() {
     // Stats
-    fetch(SN_API + '/api/topology/stats').then(r=>r.json()).then(d => {
+    fetch(SN_API + '/topology/stats').then(r=>r.json()).then(d => {
         if (!d.success) return;
         const s = d.stats || d;
         document.getElementById('topo-device-count').textContent = s.total_devices || s.device_count || '--';
@@ -48,7 +48,7 @@ function loadTopology() {
     }).catch(()=>{});
 
     // Graph
-    fetch(SN_API + '/api/topology/graph').then(r=>r.json()).then(d => {
+    fetch(SN_API + '/topology/graph').then(r=>r.json()).then(d => {
         if (!d.success) return;
         renderTopologyGraph(d.nodes || [], d.links || []);
     }).catch(e => console.error('Topology load error:', e));
@@ -109,7 +109,7 @@ function renderTopologyGraph(nodes, links) {
 function loadParentalSchedules() {
     const el = document.getElementById('parental-schedules');
     el.innerHTML = '<div class="loading-state"><span class="spinner"></span> Loading...</div>';
-    fetch(SN_API + '/api/parental/schedules').then(r=>r.json()).then(d => {
+    fetch(SN_API + '/parental/schedules').then(r=>r.json()).then(d => {
         if (!d.success || !d.schedules || d.schedules.length === 0) {
             el.innerHTML = '<div class="empty-state">No parental schedules configured. Click "Add Schedule" to create one.</div>';
             return;
@@ -195,7 +195,7 @@ function saveSchedule() {
         },
         blocked_categories: cats
     };
-    fetch(SN_API + '/api/parental/schedules', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})
+    fetch(SN_API + '/parental/schedules', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})
         .then(r=>r.json()).then(d => {
             document.getElementById('modal-overlay').style.display = 'none';
             if (d.success) loadParentalSchedules();
@@ -205,7 +205,7 @@ function saveSchedule() {
 
 function deleteSchedule(id) {
     if (!confirm('Delete this schedule?')) return;
-    fetch(SN_API + '/api/parental/schedules/' + id, {method:'DELETE'}).then(r=>r.json()).then(() => loadParentalSchedules());
+    fetch(SN_API + '/parental/schedules/' + id, {method:'DELETE'}).then(r=>r.json()).then(() => loadParentalSchedules());
 }
 
 /* ─── Traffic by User ─── */
@@ -213,7 +213,7 @@ function loadTrafficByUser() {
     const el = document.getElementById('traffic-by-user');
     const hours = document.getElementById('traffic-period')?.value || 24;
     el.innerHTML = '<div class="loading-state"><span class="spinner"></span> Loading...</div>';
-    fetch(SN_API + '/api/traffic/classification/by-user?hours=' + hours).then(r=>r.json()).then(d => {
+    fetch(SN_API + '/traffic/classification/by-user?hours=' + hours).then(r=>r.json()).then(d => {
         if (!d.success || !d.data || d.data.length === 0) { el.innerHTML = '<div class="empty-state">No traffic data</div>'; return; }
         let html = '<table class="data-table"><thead><tr><th>User</th>';
         const cats = [...new Set(d.data.map(r=>r.category))].sort();
@@ -240,7 +240,7 @@ function loadTrafficByUser() {
 function loadBrainRotBoard() {
     const el = document.getElementById('brain-rot-board');
     el.innerHTML = '<div class="loading-state"><span class="spinner"></span> Loading...</div>';
-    fetch(SN_API + '/api/traffic/classification/by-user?hours=24').then(r=>r.json()).then(d => {
+    fetch(SN_API + '/traffic/classification/by-user?hours=24').then(r=>r.json()).then(d => {
         if (!d.success || !d.data || d.data.length === 0) { el.innerHTML = '<div class="empty-state">No data</div>'; return; }
         const rotCats = ['social','streaming','gaming','shopping'];
         const users = {};
@@ -288,7 +288,7 @@ function loadIntelTab() {
 }
 
 function loadThreatFeeds() {
-    fetch(SN_API + '/api/threat-intel/status').then(r=>r.json()).then(d => {
+    fetch(SN_API + '/threat-intel/status').then(r=>r.json()).then(d => {
         if (!d.success) return;
         const el = document.getElementById('intel-feeds');
         const feeds = d.feeds || d.status || {};
@@ -317,13 +317,13 @@ function loadThreatFeeds() {
 function syncThreatIntel() {
     const el = document.getElementById('intel-feeds');
     el.innerHTML = '<div class="loading-state"><span class="spinner"></span> Syncing feeds...</div>';
-    fetch(SN_API + '/api/threat-intel/sync', {method:'POST'}).then(r=>r.json()).then(d => {
+    fetch(SN_API + '/threat-intel/sync', {method:'POST'}).then(r=>r.json()).then(d => {
         loadThreatFeeds(); loadThreatHits();
     }).catch(() => { el.innerHTML = '<div class="empty-state">Sync failed</div>'; });
 }
 
 function loadThreatHits() {
-    fetch(SN_API + '/api/threat-intel/hits?limit=20').then(r=>r.json()).then(d => {
+    fetch(SN_API + '/threat-intel/hits?limit=20').then(r=>r.json()).then(d => {
         const el = document.getElementById('intel-hits');
         const hits = d.hits || [];
         document.getElementById('intel-hit-count').textContent = hits.length;
@@ -341,7 +341,7 @@ function loadThreatHits() {
    4. INCIDENTS
    ═══════════════════════════════════════════════════════════════════ */
 function loadIncidents() {
-    fetch(SN_API + '/api/incidents?status=open').then(r=>r.json()).then(d => {
+    fetch(SN_API + '/incidents?status=open').then(r=>r.json()).then(d => {
         const el = document.getElementById('intel-incidents');
         const incidents = d.incidents || [];
         document.getElementById('intel-incident-count').textContent = incidents.length;
@@ -359,11 +359,11 @@ function loadIncidents() {
 }
 
 function correlateIncidents() {
-    fetch(SN_API + '/api/incidents/correlate', {method:'POST'}).then(r=>r.json()).then(() => loadIncidents());
+    fetch(SN_API + '/incidents/correlate', {method:'POST'}).then(r=>r.json()).then(() => loadIncidents());
 }
 
 function resolveIncident(id) {
-    fetch(SN_API + '/api/incidents/' + id + '/resolve', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({notes:'Resolved from dashboard'})})
+    fetch(SN_API + '/incidents/' + id + '/resolve', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({notes:'Resolved from dashboard'})})
         .then(r=>r.json()).then(() => loadIncidents());
 }
 
@@ -371,7 +371,7 @@ function resolveIncident(id) {
    5. SPEED TEST
    ═══════════════════════════════════════════════════════════════════ */
 function loadSpeedHistory() {
-    fetch(SN_API + '/api/speed-test/history?limit=20').then(r=>r.json()).then(d => {
+    fetch(SN_API + '/speed-test/history?limit=20').then(r=>r.json()).then(d => {
         const results = d.results || d.history || [];
         if (results.length > 0) {
             const latest = results[0];
@@ -408,7 +408,7 @@ function runSpeedTest() {
     const el = document.getElementById('speed-test-status');
     el.textContent = 'Running speed test... (this takes ~30 seconds)';
     el.style.color = '#fbbf24';
-    fetch(SN_API + '/api/speed-test/run', {method:'POST'}).then(r=>r.json()).then(d => {
+    fetch(SN_API + '/speed-test/run', {method:'POST'}).then(r=>r.json()).then(d => {
         if (d.success && d.result) {
             el.textContent = `Done! ${d.result.download_mbps}↓ / ${d.result.upload_mbps}↑ Mbps, ${d.result.ping_ms}ms ping`;
             el.style.color = '#22c55e';
@@ -424,18 +424,18 @@ function runSpeedTest() {
    6. HONEYPOT
    ═══════════════════════════════════════════════════════════════════ */
 function loadHoneypotEvents() {
-    fetch(SN_API + '/api/honeypot/config').then(r=>r.json()).then(d => {
+    fetch(SN_API + '/honeypot/config').then(r=>r.json()).then(d => {
         const running = d.config?.running || d.running || false;
         const el = document.getElementById('honeypot-events');
         if (!running) {
-            fetch(SN_API + '/api/honeypot/events?limit=20').then(r=>r.json()).then(d2 => {
+            fetch(SN_API + '/honeypot/events?limit=20').then(r=>r.json()).then(d2 => {
                 const events = d2.events || [];
                 if (!events.length) { el.innerHTML = '<div class="empty-state">Honeypot not running. Click "Start" to begin monitoring.</div>'; return; }
                 renderHoneypotTable(events, el);
             });
             return;
         }
-        fetch(SN_API + '/api/honeypot/events?limit=20').then(r=>r.json()).then(d2 => {
+        fetch(SN_API + '/honeypot/events?limit=20').then(r=>r.json()).then(d2 => {
             const events = d2.events || [];
             if (!events.length) { el.innerHTML = '<div class="empty-state" style="color:#22c55e">Honeypot active — no events yet</div>'; return; }
             renderHoneypotTable(events, el);
@@ -452,15 +452,15 @@ function renderHoneypotTable(events, el) {
     el.innerHTML = html;
 }
 
-function startHoneypot() { fetch(SN_API + '/api/honeypot/start', {method:'POST'}).then(()=>loadHoneypotEvents()); }
-function stopHoneypot() { fetch(SN_API + '/api/honeypot/stop', {method:'POST'}).then(()=>loadHoneypotEvents()); }
+function startHoneypot() { fetch(SN_API + '/honeypot/start', {method:'POST'}).then(()=>loadHoneypotEvents()); }
+function stopHoneypot() { fetch(SN_API + '/honeypot/stop', {method:'POST'}).then(()=>loadHoneypotEvents()); }
 
 /* ═══════════════════════════════════════════════════════════════════
    7. WEEKLY REPORT
    ═══════════════════════════════════════════════════════════════════ */
 function loadWeeklyReport() {
     const el = document.getElementById('weekly-report-preview');
-    fetch(SN_API + '/api/reports/weekly').then(r=>r.json()).then(d => {
+    fetch(SN_API + '/reports/weekly').then(r=>r.json()).then(d => {
         if (!d.success || !d.report) { el.innerHTML = '<div class="empty-state">No report data</div>'; return; }
         const s = d.report.sections || {};
         let html = '<div style="padding:12px;font-size:0.82rem">';
@@ -484,7 +484,7 @@ function loadWeeklyReport() {
 }
 
 function sendWeeklyReport() {
-    fetch(SN_API + '/api/reports/weekly/send', {method:'POST'}).then(r=>r.json()).then(d => {
+    fetch(SN_API + '/reports/weekly/send', {method:'POST'}).then(r=>r.json()).then(d => {
         alert(d.success ? 'Weekly report sent to Telegram!' : 'Failed: ' + (d.error||'Unknown'));
     });
 }
@@ -493,7 +493,7 @@ function sendWeeklyReport() {
    8. SINKHOLE ANALYTICS (DNS tab)
    ═══════════════════════════════════════════════════════════════════ */
 function loadSinkholeStats() {
-    fetch(SN_API + '/api/dns/sinkhole-stats?hours=24').then(r=>r.json()).then(d => {
+    fetch(SN_API + '/dns/sinkhole-stats?hours=24').then(r=>r.json()).then(d => {
         if (!d.success) return;
         // Pie chart by category
         const cats = d.categories || d.category_breakdown || [];
@@ -505,7 +505,7 @@ function loadSinkholeStats() {
                 data: {
                     labels: cats.map(c => c.category),
                     datasets: [{
-                        data: cats.map(c => c.count || c.queries),
+                        data: cats.map(c => c.block_count || c.count || c.queries),
                         backgroundColor: cats.map(c => CAT_COLORS[c.category] || '#555')
                     }]
                 },
@@ -520,7 +520,7 @@ function loadSinkholeStats() {
         const el = document.getElementById('sinkhole-table');
         if (domains.length) {
             let html = '<table class="data-table"><thead><tr><th>Domain</th><th>Blocked</th></tr></thead><tbody>';
-            domains.slice(0,15).forEach(dd => { html += `<tr><td>${dd.domain}</td><td>${fmtNum(dd.count||dd.queries)}</td></tr>`; });
+            domains.slice(0,15).forEach(dd => { html += `<tr><td>${dd.domain}</td><td>${fmtNum(dd.block_count||dd.count||dd.queries)}</td></tr>`; });
             html += '</tbody></table>';
             el.innerHTML = html;
         } else {
@@ -533,12 +533,12 @@ function loadSinkholeStats() {
    9. TRAFFIC CLASSIFICATION (Devices tab)
    ═══════════════════════════════════════════════════════════════════ */
 function loadTrafficClassification() {
-    fetch(SN_API + '/api/traffic/classification?hours=24').then(r=>r.json()).then(d => {
+    fetch(SN_API + '/traffic/classification?hours=24').then(r=>r.json()).then(d => {
         if (!d.success) return;
-        const data = d.data || d.classification || [];
+        const data = d.per_device || d.data || d.classification || [];
         // Aggregate chart
         const agg = {};
-        data.forEach(r => { agg[r.category] = (agg[r.category]||0) + parseInt(r.queries||0); });
+        data.forEach(r => { agg[r.category] = (agg[r.category]||0) + parseInt(r.query_count||r.queries||0); });
         const ctx = document.getElementById('traffic-class-chart');
         if (ctx && Object.keys(agg).length) {
             if (_trafficClassChart) _trafficClassChart.destroy();
@@ -560,8 +560,8 @@ function loadTrafficClassification() {
         data.forEach(r => {
             const key = r.device_ip || 'unknown';
             if (!devices[key]) devices[key] = {total:0};
-            devices[key][r.category] = (devices[key][r.category]||0) + parseInt(r.queries||0);
-            devices[key].total += parseInt(r.queries||0);
+            devices[key][r.category] = (devices[key][r.category]||0) + parseInt(r.query_count||r.queries||0);
+            devices[key].total += parseInt(r.query_count||r.queries||0);
         });
         const el = document.getElementById('traffic-class-table');
         const sortedDevs = Object.entries(devices).sort((a,b)=>b[1].total-a[1].total).slice(0,15);

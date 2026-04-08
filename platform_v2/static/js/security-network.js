@@ -190,10 +190,12 @@ function switchSecurityTab(tabName) {
             break;
         case 'dns':
             if (!dnsTabLoaded) { dnsTabLoaded = true; loadDNSOverview(); loadUserRules(); }
+            if (typeof loadSinkholeStats === 'function') setTimeout(loadSinkholeStats, 300);
             break;
         case 'devices':
             loadDevices();
             loadNetworkMonitor();
+            if (typeof loadTrafficClassification === 'function') setTimeout(loadTrafficClassification, 300);
             break;
         case 'defense':
             loadDefense();
@@ -210,6 +212,17 @@ function switchSecurityTab(tabName) {
         case 'reports':
             loadReports();
             loadReportsList();
+            break;
+        case 'topology':
+            if (typeof loadTopology === 'function') loadTopology();
+            break;
+        case 'parental':
+            if (typeof loadParentalSchedules === 'function') loadParentalSchedules();
+            if (typeof loadTrafficByUser === 'function') loadTrafficByUser();
+            if (typeof loadBrainRotBoard === 'function') loadBrainRotBoard();
+            break;
+        case 'intel':
+            if (typeof loadIntelTab === 'function') loadIntelTab();
             break;
     }
 

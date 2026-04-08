@@ -27,11 +27,11 @@ def register_sinkhole_routes(bp, admin_required_decorator):
                 # Top 50 blocked domains by count
                 cur.execute(
                     """
-                    SELECT domain, COUNT(*) as block_count,
+                    SELECT domain, SUM(query_count) as block_count,
                            COUNT(DISTINCT device_ip) as unique_devices
                     FROM device_dns_history
                     WHERE blocked = true
-                      AND queried_at > NOW() - INTERVAL '%s hours'
+                      AND hour_bucket > NOW() - INTERVAL '%s hours'
                     GROUP BY domain
                     ORDER BY block_count DESC
                     LIMIT 50
@@ -44,12 +44,12 @@ def register_sinkhole_routes(bp, admin_required_decorator):
                 cur.execute(
                     """
                     SELECT COALESCE(tc.category, 'uncategorized') AS category,
-                           COUNT(*) AS block_count
+                           SUM(ddh.query_count) AS block_count
                     FROM device_dns_history ddh
                     LEFT JOIN traffic_categories tc
                         ON tc.domain_pattern = SUBSTRING(ddh.domain FROM '([^.]+\\.[^.]+)$')
                     WHERE ddh.blocked = true
-                      AND ddh.queried_at > NOW() - INTERVAL '%s hours'
+                      AND ddh.hour_bucket > NOW() - INTERVAL '%s hours'
                     GROUP BY tc.category
                     ORDER BY block_count DESC
                     """,
@@ -59,6 +59,7 @@ def register_sinkhole_routes(bp, admin_required_decorator):
 
             return jsonify(
                 {
+                    "success": True,
                     "status": "ok",
                     "hours": hours,
                     "top_blocked": top_blocked,
@@ -92,7 +93,7 @@ def register_sinkhole_routes(bp, admin_required_decorator):
                     SELECT DISTINCT device_ip
                     FROM device_dns_history
                     WHERE (domain LIKE '%%cae.com' OR domain LIKE '%%cae.ca')
-                      AND queried_at > NOW() - INTERVAL '%s hours'
+                      AND hour_bucket > NOW() - INTERVAL '%s hours'
                     """,
                     (hours,),
                 )
@@ -118,9 +119,9 @@ def register_sinkhole_routes(bp, admin_required_decorator):
                       AND ddh.domain NOT LIKE '%%cae.com'
                       AND ddh.domain NOT LIKE '%%cae.ca'
                       AND ddh.domain NOT LIKE '%%internal%%'
-                      AND ddh.queried_at > NOW() - INTERVAL '%s hours'
-                      AND EXTRACT(DOW FROM ddh.queried_at) BETWEEN 1 AND 5
-                      AND EXTRACT(HOUR FROM ddh.queried_at) BETWEEN 9 AND 16
+                      AND ddh.hour_bucket > NOW() - INTERVAL '%s hours'
+                      AND EXTRACT(DOW FROM ddh.hour_bucket) BETWEEN 1 AND 5
+                      AND EXTRACT(HOUR FROM ddh.hour_bucket) BETWEEN 9 AND 16
                     GROUP BY ddh.device_ip
                     HAVING COUNT(*) > 5
                     ORDER BY non_vpn_queries DESC
@@ -168,11 +169,11 @@ def register_sinkhole_routes(bp, admin_required_decorator):
                     """
                     SELECT ddh.device_ip,
                            COALESCE(tc.category, 'uncategorized') AS category,
-                           COUNT(*) AS query_count
+                           SUM(ddh.query_count) AS query_count
                     FROM device_dns_history ddh
                     LEFT JOIN traffic_categories tc
                         ON tc.domain_pattern = SUBSTRING(ddh.domain FROM '([^.]+\\.[^.]+)$')
-                    WHERE ddh.queried_at > NOW() - INTERVAL '%s hours'
+                    WHERE ddh.hour_bucket > NOW() - INTERVAL '%s hours'
                     GROUP BY ddh.device_ip, tc.category
                     ORDER BY query_count DESC
                     """,
@@ -184,12 +185,12 @@ def register_sinkhole_routes(bp, admin_required_decorator):
                 cur.execute(
                     """
                     SELECT COALESCE(tc.category, 'uncategorized') AS category,
-                           COUNT(*) AS query_count,
+                           SUM(ddh.query_count) AS query_count,
                            COUNT(DISTINCT ddh.device_ip) AS unique_devices
                     FROM device_dns_history ddh
                     LEFT JOIN traffic_categories tc
                         ON tc.domain_pattern = SUBSTRING(ddh.domain FROM '([^.]+\\.[^.]+)$')
-                    WHERE ddh.queried_at > NOW() - INTERVAL '%s hours'
+                    WHERE ddh.hour_bucket > NOW() - INTERVAL '%s hours'
                     GROUP BY tc.category
                     ORDER BY query_count DESC
                     """,
@@ -199,6 +200,7 @@ def register_sinkhole_routes(bp, admin_required_decorator):
 
             return jsonify(
                 {
+                    "success": True,
                     "status": "ok",
                     "hours": hours,
                     "per_device": per_device,
@@ -222,14 +224,14 @@ def register_sinkhole_routes(bp, admin_required_decorator):
                     """
                     SELECT COALESCE(ndu.user_name, 'unknown') AS user_name,
                            COALESCE(tc.category, 'uncategorized') AS category,
-                           COUNT(*) AS query_count,
+                           SUM(ddh.query_count) AS query_count,
                            COUNT(DISTINCT ddh.device_ip) AS unique_devices
                     FROM device_dns_history ddh
                     LEFT JOIN traffic_categories tc
                         ON tc.domain_pattern = SUBSTRING(ddh.domain FROM '([^.]+\\.[^.]+)$')
                     LEFT JOIN network_device_users ndu
                         ON ndu.device_ip = ddh.device_ip
-                    WHERE ddh.queried_at > NOW() - INTERVAL '%s hours'
+                    WHERE ddh.hour_bucket > NOW() - INTERVAL '%s hours'
                     GROUP BY ndu.user_name, tc.category
                     ORDER BY query_count DESC
                     """,
@@ -239,6 +241,7 @@ def register_sinkhole_routes(bp, admin_required_decorator):
 
             return jsonify(
                 {
+                    "success": True,
                     "status": "ok",
                     "hours": hours,
                     "by_user": by_user,

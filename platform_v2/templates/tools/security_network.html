@@ -264,23 +264,23 @@
         <div class="traffic-hero-grid">
             <div class="traffic-hero-card">
                 <div class="traffic-hero-val" id="traffic-bytes-in">--</div>
-                <div class="traffic-hero-label">DNS Queries</div>
+                <div class="traffic-hero-label">Downloaded (24h)</div>
             </div>
             <div class="traffic-hero-card">
                 <div class="traffic-hero-val" id="traffic-bytes-out">--</div>
-                <div class="traffic-hero-label">Blocked</div>
+                <div class="traffic-hero-label">Uploaded (24h)</div>
             </div>
             <div class="traffic-hero-card">
-                <div class="traffic-hero-val" id="traffic-pkts">--</div>
-                <div class="traffic-hero-label">Active Clients</div>
+                <div class="traffic-hero-val" id="traffic-flows">--</div>
+                <div class="traffic-hero-label">Active Flows</div>
             </div>
             <div class="traffic-hero-card">
-                <div class="traffic-hero-val" id="traffic-iface">--</div>
-                <div class="traffic-hero-label">Log Entries</div>
+                <div class="traffic-hero-val" id="traffic-devices">--</div>
+                <div class="traffic-hero-label">Active Devices</div>
             </div>
         </div>
 
-        <!-- Bandwidth Bar -->
+        <!-- Bandwidth In/Out Bar -->
         <div class="card" style="margin-bottom:16px">
             <div class="card-header">
                 <span class="card-title">Bandwidth Distribution</span>
@@ -293,23 +293,43 @@
             </div>
         </div>
 
-        <!-- Per-Client Activity + Service Detection -->
-        <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px">
+        <!-- Traffic History Chart -->
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title">Traffic History (24h)</span>
+            </div>
+            <div style="height:120px;padding:8px 12px" id="traffic-history-container">
+                <svg id="traffic-history-chart" width="100%" height="100%" preserveAspectRatio="none"></svg>
+            </div>
+        </div>
+
+        <!-- Per-Device Bandwidth + DNS Activity -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
             <div class="card">
                 <div class="card-header">
-                    <span class="card-title">Client Activity (DNS)</span>
+                    <span class="card-title">Bandwidth Per Device (24h)</span>
                 </div>
-                <div id="traffic-hosts-table" style="overflow-x:auto">
-                    <div class="loading-state"><span class="spinner"></span> Loading activity...</div>
+                <div id="traffic-per-device" style="overflow-x:auto;font-size:0.8rem">
+                    <div class="loading-state"><span class="spinner"></span> Loading...</div>
                 </div>
             </div>
             <div class="card">
                 <div class="card-header">
-                    <span class="card-title">Services Detected</span>
+                    <span class="card-title">DNS Activity Per Client</span>
                 </div>
-                <div id="traffic-protocols">
-                    <div class="loading-state"><span class="spinner"></span> Loading services...</div>
+                <div id="traffic-hosts-table" style="overflow-x:auto;font-size:0.8rem">
+                    <div class="loading-state"><span class="spinner"></span> Loading...</div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Services Detected -->
+        <div class="card" style="margin-top:16px">
+            <div class="card-header">
+                <span class="card-title">Services Detected</span>
+            </div>
+            <div id="traffic-protocols">
+                <div class="loading-state"><span class="spinner"></span> Loading services...</div>
             </div>
         </div>
     </div>

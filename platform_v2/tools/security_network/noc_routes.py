@@ -424,3 +424,108 @@ def register_noc_routes(bp, admin_required_decorator):
         except Exception as exc:
             logger.error("noc_top_consumers error: %s", exc)
             return jsonify({"success": False, "error": str(exc)}), 500
+
+    @bp.route("/api/noc/traffic-tab")
+    @login_required
+    @admin_required_decorator
+    def noc_traffic_tab():
+        """Aggregated bandwidth data for the Traffic tab."""
+        import os
+
+        result = {
+            "bytes_in": 0,
+            "bytes_out": 0,
+            "active_flows": 0,
+            "active_devices": 0,
+            "per_device": [],
+            "hourly": [],
+        }
+
+        try:
+            # Live stats from ntopng
+            try:
+                import requests as _req
+
+                nt_host = os.getenv("NTOPNG_HOST", "192.168.1.200")
+                nt_port = os.getenv("NTOPNG_PORT", "3001")
+                nt_user = os.getenv("NTOPNG_USER", "admin")
+                nt_pass = os.getenv("NTOPNG_ADMIN_PASSWORD", os.getenv("NTOPNG_PASS", "admin"))
+                ns = _req.Session()
+                ns.post(
+                    f"http://{nt_host}:{nt_port}/authorize.html",
+                    data={"user": nt_user, "password": nt_pass},
+                    allow_redirects=True,
+                    timeout=3,
+                )
+                dr = ns.get(
+                    f"http://{nt_host}:{nt_port}/lua/rest/v2/get/interface/data.lua",
+                    params={"ifid": 0},
+                    timeout=3,
+                )
+                if dr.status_code == 200:
+                    rsp = dr.json().get("rsp", {})
+                    result["active_flows"] = rsp.get("num_flows", 0)
+                    result["active_devices"] = rsp.get("num_devices", 0) or rsp.get("num_hosts", 0)
+            except Exception:
+                pass
+
+            # DB-cached per-device bandwidth + hourly history
+            with get_db_cursor() as (conn, cur):
+                # Per-device bandwidth (24h)
+                cur.execute(
+                    """SELECT nts.device_ip, nts.device_mac,
+                              COALESCE(ndu.user_name, ndu.device_label, nts.device_ip) as label,
+                              SUM(nts.bytes_in) as bytes_in,
+                              SUM(nts.bytes_out) as bytes_out,
+                              SUM(nts.bytes_in + nts.bytes_out) as total
+                       FROM network_traffic_stats nts
+                       LEFT JOIN network_device_users ndu ON ndu.mac_address = nts.device_mac
+                       WHERE nts.hour_bucket >= NOW() - INTERVAL '24 hours'
+                       GROUP BY nts.device_ip, nts.device_mac, label
+                       ORDER BY total DESC LIMIT 20"""
+                )
+                total_in = 0
+                total_out = 0
+                for row in cur.fetchall():
+                    r = dict(row)
+                    bi = int(r.get("bytes_in") or 0)
+                    bo = int(r.get("bytes_out") or 0)
+                    total_in += bi
+                    total_out += bo
+                    result["per_device"].append(
+                        {
+                            "ip": r.get("device_ip", ""),
+                            "mac": r.get("device_mac", ""),
+                            "label": r.get("label", r.get("device_ip", "Unknown")),
+                            "bytes_in": bi,
+                            "bytes_out": bo,
+                            "total": int(r.get("total") or 0),
+                        }
+                    )
+                result["bytes_in"] = total_in
+                result["bytes_out"] = total_out
+
+                # Hourly traffic history (24h)
+                cur.execute(
+                    """SELECT date_trunc('hour', hour_bucket) as hour,
+                              SUM(bytes_in) as bytes_in,
+                              SUM(bytes_out) as bytes_out
+                       FROM network_traffic_stats
+                       WHERE hour_bucket >= NOW() - INTERVAL '24 hours'
+                       GROUP BY hour ORDER BY hour"""
+                )
+                for row in cur.fetchall():
+                    r = dict(row)
+                    result["hourly"].append(
+                        {
+                            "hour": r["hour"].strftime("%H:%M") if r.get("hour") else "",
+                            "bytes_in": int(r.get("bytes_in") or 0),
+                            "bytes_out": int(r.get("bytes_out") or 0),
+                        }
+                    )
+
+        except Exception as exc:
+            logger.error("noc_traffic_tab error: %s", exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
+        return jsonify({"success": True, **result})

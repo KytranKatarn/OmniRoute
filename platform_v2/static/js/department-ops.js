@@ -372,7 +372,7 @@
             var link = document.createElement("a");
             link.href = "/tools/fleet";
             link.style.color = "var(--stn-accent,#8b5cf6)";
-            link.textContent = "Fleet Command";
+            link.textContent = "A.R.M.A.D.A.";
             msg.appendChild(link);
             msg.appendChild(document.createTextNode(" for live progress"));
             fallbackEl.appendChild(msg);

@@ -433,14 +433,14 @@ MODULES: List[ModuleDefinition] = [
     # ============================================
     # AI COMMAND (3 modules)
     # ============================================
-    # consciousness, team_management, fleet
+    # consciousness, team_management, fleet (A.R.M.A.D.A.)
     # NOTE: blueprint (Mission Control) removed from grid 2026-02-04
     # Blueprint Flask routes still registered manually in app.py for Dev HQ API access
-    # NOTE: Starbase Command merged into Fleet (2026-04-08)
+    # NOTE: Starbase + Starship merged into A.R.M.A.D.A. (2026-04-08)
     ModuleDefinition(
         id="fleet",
-        name="Fleet Command",
-        description="Fleet infrastructure & node management<br>Nodes • Mesh • Providers • OTA • Missions",
+        name="A.R.M.A.D.A.",
+        description="Autonomous Resource Mesh & Distributed Architecture<br>Nodes • Mesh • Contractors • OTA • Missions",
         icon="rocket",
         category=ModuleCategory.AI_COMMAND,
         route="/tools/fleet",
@@ -452,6 +452,7 @@ MODULES: List[ModuleDefinition] = [
         priority=2,
         tags=[
             "fleet",
+            "armada",
             "nodes",
             "mesh",
             "monitoring",

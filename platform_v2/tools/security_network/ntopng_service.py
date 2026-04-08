@@ -37,12 +37,11 @@ class NtopngService:
             resp = self.session.post(
                 f"{self.base_url}/authorize.html",
                 data={"user": self.user, "password": self.password},
-                allow_redirects=False,
+                allow_redirects=True,
                 timeout=TIMEOUT,
             )
-            # 302 redirect to / means success; redirect to /lua/login.lua means failure
-            location = resp.headers.get("Location", "")
-            if "login" in location or "wrong" in location:
+            # Auth fails if we land on login or wrong-credentials page
+            if "login" in resp.url or "wrong" in resp.url:
                 logger.error("ntopng auth failed — wrong credentials")
                 return
             self._authenticated = True

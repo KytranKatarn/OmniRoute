@@ -1890,7 +1890,7 @@ async function loadContractors() {
         });
     } catch (e) {
         console.error('loadContractors error:', e);
-        var grid = document.getElementById('contractors-grid');
+        var grid = document.getElementById('contractorProvidersContent');
         if (grid) grid.textContent = 'Failed to load contractors';
     }
 
@@ -1941,7 +1941,7 @@ function renderContractors(providers, routingMode, creedData) {
     creedData = creedData || { creed_total_24h: 0, creed_blocked_24h: 0 };
     var creedBlocked = creedData.creed_blocked_24h || 0;
     var cloudProviders = providers.filter(function(p) { return p.is_cloud_proxy; }).map(function(p) { return p.provider; });
-    var grid = document.getElementById('contractors-grid');
+    var grid = document.getElementById('contractorProvidersContent');
     var summaryEl = document.getElementById('contractors-summary');
     if (!grid) return;
 

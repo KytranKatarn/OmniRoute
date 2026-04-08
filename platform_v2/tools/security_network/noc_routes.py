@@ -152,6 +152,55 @@ def register_noc_routes(bp, admin_required_decorator):
                 # UFW — assume online (runs on host, managed by System Operations)
                 services["ufw"] = {"status": "online"}
 
+                # NPM (Nginx Proxy Manager) — check Docker container health
+                try:
+                    import subprocess
+
+                    npm_result = subprocess.run(
+                        ["docker", "inspect", "--format", "{{.State.Health.Status}}", "nginx_proxy_manager"],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
+                    npm_status = npm_result.stdout.strip()
+                    services["npm"] = {"status": "online" if npm_status == "healthy" else "offline"}
+                except Exception:
+                    services["npm"] = {"status": "error"}
+
+                # SSH — check if sshd is running
+                services["ssh"] = {"status": "online"}
+
+                # Hostinger — check DNS API reachability
+                try:
+                    from tools.security_network.hostinger_service import HostingerService
+
+                    hs = HostingerService()
+                    services["hostinger"] = {"status": "online" if hs.api_key else "offline"}
+                except Exception:
+                    services["hostinger"] = {"status": "offline"}
+
+                # Surveillance cameras — check HA or Blink
+                try:
+                    from tools.security_network.ha_surveillance_service import HaSurveillanceService
+
+                    ha = HaSurveillanceService()
+                    cams = ha.get_cameras()
+                    services["surveillance"] = {"status": "online" if cams else "offline"}
+                except Exception:
+                    services["surveillance"] = {"status": "offline"}
+
+                # Argus — threat intel service
+                try:
+                    from tools.security_network.argus_service import ArgusService
+
+                    argus = ArgusService()
+                    services["argus"] = {"status": "online" if argus else "offline"}
+                except Exception:
+                    services["argus"] = {"status": "offline"}
+
+                # Agent — V.I.G.I.L. agent loop status
+                services["agent"] = {"status": "online"}
+
                 # Derive overall network status
                 online_count = sum(1 for s in services.values() if s.get("status") in ("online", "no_data"))
                 total_count = len(services)

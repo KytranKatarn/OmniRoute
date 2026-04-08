@@ -4,6 +4,17 @@
     font-family: var(--archie-font-body);
 }
 
+/* Security Operations command buttons — horizontal grid */
+.cs-ops-commands {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.cs-ops-commands .stn-ops-cmd-btn,
+.cs-ops-commands button {
+    flex: 0 0 auto;
+}
+
 /* Hide orphaned subtab-content that lives outside tab panels */
 .lcars-content > .subtab-content {
     display: none !important;

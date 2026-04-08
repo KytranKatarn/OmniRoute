@@ -5,425 +5,71 @@
 {% block module_name %}autonomy{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;600;700&family=Orbitron:wght@400;600;700&display=swap">
 <style>
-/* ═══════════════════════════════════════════════════════════════════════════
-   Autonomy Dashboard — Module-specific styles
-   Accent: Amber #FFAA00 (Admin Ops category)
-   ═══════════════════════════════════════════════════════════════════════════ */
-:root { --au-accent: #FFAA00; --au-accent-rgb: 255,170,0; --au-cyan: #00FFFF; --au-green: #00ff41; --au-red: #ff4136; --au-bg: #010409; --au-card: #0d1117; --au-border: #21262d; --au-text: #c9d1d9; --au-muted: #8b949e; --au-purple: #a29bfe; }
-body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); background: var(--au-bg); color: var(--au-text); }
-
-/* ── Layout ── */
-.au-container { min-height: 100vh; background: var(--au-bg); padding: 0; }
+:root { --au-accent: #FFAA00; --au-accent-rgb: 255,170,0; --au-cyan: #00FFFF; --au-green: #00ff41; --au-red: #ff4136; --au-bg: #010409; --au-card: #0d1117; --au-border: #21262d; --au-text: #c9d1d9; --au-muted: #8b949e; }
+.au-container { min-height: 100vh; background: var(--au-bg); }
 .au-body { max-width: 1400px; margin: 0 auto; padding: 1rem 2rem 2rem; }
-
-/* ── Status Badge ── */
-.status-badge { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.4rem 1rem; border-radius: 2px 14px 14px 2px; font-family: 'Antonio', sans-serif; font-size: 0.85rem; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
-.status-badge.running { background: rgba(0,255,65,0.08); color: var(--au-green); border: 1px solid rgba(0,255,65,0.3); border-left: 3px solid var(--au-green); }
-.status-badge.stopped { background: rgba(255,65,54,0.08); color: var(--au-red); border: 1px solid rgba(255,65,54,0.3); border-left: 3px solid var(--au-red); }
-.status-badge .dot { width: 8px; height: 8px; border-radius: 50%; }
-.status-badge.running .dot { background: var(--au-green); animation: lcars-pulse 2s infinite; }
-.status-badge.stopped .dot { background: var(--au-red); }
-@keyframes lcars-pulse { 0%,100% { opacity: 0.5; box-shadow: 0 0 4px currentColor; } 50% { opacity: 1; box-shadow: 0 0 12px currentColor; } }
-
-/* ── LCARS Metric Cards ── */
-.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
-.au-card { background: var(--au-card); border: 1px solid rgba(var(--au-accent-rgb), 0.12); border-radius: 2px 12px 12px 2px; padding: 1.25rem 1.25rem 1.25rem 1.5rem; position: relative; transition: border-color 0.2s, box-shadow 0.2s; }
-.au-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: linear-gradient(180deg, var(--card-accent, var(--au-accent)), transparent 90%); border-radius: 2px 0 0 2px; }
-.au-card:hover { border-color: rgba(var(--au-accent-rgb), 0.25); box-shadow: 0 0 20px rgba(var(--au-accent-rgb), 0.06); }
-.au-card-title { font-family: 'Antonio', sans-serif; font-size: 0.8rem; font-weight: 600; color: var(--au-accent); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 0.75rem; }
-.au-card-value { font-family: 'Orbitron', sans-serif; font-size: 1.8rem; font-weight: 700; color: var(--au-text); }
-.au-card-label { font-size: 0.7rem; color: var(--au-muted); margin-top: 0.25rem; }
-.au-card[data-accent="green"] { --card-accent: var(--au-green); }
-.au-card[data-accent="green"] .au-card-title { color: var(--au-green); }
-.au-card[data-accent="red"] { --card-accent: var(--au-red); }
-.au-card[data-accent="red"] .au-card-title { color: var(--au-red); }
-.au-card[data-accent="amber"] { --card-accent: var(--au-accent); }
-
-/* ── Section Headers ── */
-.au-section-title { font-family: 'Antonio', sans-serif; font-size: 0.9rem; font-weight: 600; color: var(--au-accent); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 1rem; padding-left: 12px; border-left: 3px solid var(--au-accent); }
-
-/* ── LCARS Buttons ── */
-.btn { padding: 0.5rem 1.25rem; border: 1px solid var(--au-border); background: rgba(255,255,255,0.04); color: var(--au-text); font-family: 'Antonio', sans-serif; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; border-radius: 2px 10px 10px 2px; font-size: 0.8rem; transition: all 0.2s; }
-.btn:hover { border-color: var(--au-muted); background: rgba(255,255,255,0.08); }
-.btn-primary { border-color: rgba(0,255,255,0.3); color: var(--au-cyan); border-left: 3px solid var(--au-cyan); background: rgba(0,255,255,0.05); }
-.btn-primary:hover { background: rgba(0,255,255,0.12); box-shadow: 0 0 10px rgba(0,255,255,0.15); }
-.btn-success { border-color: rgba(0,255,65,0.3); color: var(--au-green); border-left: 3px solid var(--au-green); background: rgba(0,255,65,0.05); }
-.btn-success:hover { background: rgba(0,255,65,0.12); box-shadow: 0 0 10px rgba(0,255,65,0.15); }
-.btn-danger { border-color: rgba(255,65,54,0.3); color: var(--au-red); border-left: 3px solid var(--au-red); background: rgba(255,65,54,0.05); }
-.btn-danger:hover { background: rgba(255,65,54,0.12); box-shadow: 0 0 10px rgba(255,65,54,0.15); }
-.btn-warning { border-color: rgba(var(--au-accent-rgb),0.3); color: var(--au-accent); border-left: 3px solid var(--au-accent); background: rgba(var(--au-accent-rgb),0.05); }
-.btn-warning:hover { background: rgba(var(--au-accent-rgb),0.12); box-shadow: 0 0 10px rgba(var(--au-accent-rgb),0.15); }
-.btn-sm { padding: 0.35rem 0.9rem; font-size: 0.72rem; }
-.btn-group { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-
-/* ── Data Tables ── */
-.data-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
-.data-table th { text-align: left; padding: 0.65rem 0.75rem; color: var(--au-accent); font-family: 'Antonio', sans-serif; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; font-size: 0.72rem; border-bottom: 2px solid rgba(var(--au-accent-rgb), 0.2); }
-.data-table td { padding: 0.65rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.03); }
-.data-table tr:hover { background: rgba(var(--au-accent-rgb), 0.03); }
-.data-table tbody tr { transition: background 0.15s; }
-
-/* ── Status Pills ── */
-.pill { display: inline-block; padding: 0.2rem 0.65rem; border-radius: 2px 8px 8px 2px; font-size: 0.65rem; font-weight: 600; font-family: 'Antonio', sans-serif; letter-spacing: 0.5px; text-transform: uppercase; }
-.pill-success { background: rgba(0,255,65,0.1); color: var(--au-green); border-left: 2px solid var(--au-green); }
-.pill-pending { background: rgba(var(--au-accent-rgb),0.1); color: var(--au-accent); border-left: 2px solid var(--au-accent); }
-.pill-error { background: rgba(255,65,54,0.1); color: var(--au-red); border-left: 2px solid var(--au-red); }
-.pill-expired { background: rgba(139,148,158,0.1); color: var(--au-muted); border-left: 2px solid var(--au-muted); }
-.pill-info { background: rgba(0,255,255,0.1); color: var(--au-cyan); border-left: 2px solid var(--au-cyan); }
-
-/* ── Approval Details ── */
-.approval-detail { background: var(--au-card); border: 1px solid var(--au-border); border-radius: 2px 12px 12px 2px; padding: 1.25rem 1.25rem 1.25rem 1.5rem; margin-bottom: 1rem; position: relative; }
-.approval-detail::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: linear-gradient(180deg, var(--au-accent), transparent 80%); border-radius: 2px 0 0 2px; }
-.approval-detail .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem; }
-.approval-detail .action-type { font-family: 'Antonio', sans-serif; color: var(--au-accent); font-weight: 600; font-size: 1rem; letter-spacing: 1px; text-transform: uppercase; }
-.approval-detail .reason { color: var(--au-text); font-size: 0.82rem; margin-bottom: 0.75rem; }
-.approval-detail .meta { color: var(--au-muted); font-size: 0.72rem; }
-.approval-detail .data-preview { background: #161b22; border-radius: 2px 6px 6px 2px; border-left: 2px solid rgba(var(--au-accent-rgb), 0.2); padding: 0.75rem; font-size: 0.72rem; color: var(--au-muted); margin: 0.75rem 0; overflow-x: auto; max-height: 150px; overflow-y: auto; }
-
-/* ── Empty State ── */
-.empty-state { text-align: center; padding: 3rem; color: var(--au-muted); font-family: 'Antonio', sans-serif; font-size: 0.9rem; letter-spacing: 1px; }
-.empty-state .icon { font-size: 2rem; margin-bottom: 0.75rem; opacity: 0.4; }
-
-/* ── Tab Content Visibility ── */
-.tab-content { display: none; }
-.tab-content.active { display: block; }
-
-/* ── Collapsible Section Headers ── */
-.au-section-header { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; margin-bottom: 0.75rem; background: rgba(var(--au-accent-rgb), 0.04); border: 1px solid rgba(var(--au-accent-rgb), 0.12); border-left: 3px solid var(--au-accent); border-radius: 2px 10px 10px 2px; cursor: pointer; user-select: none; transition: background 0.2s; }
-.au-section-header:hover { background: rgba(var(--au-accent-rgb), 0.08); }
-.au-section-header .section-label { font-family: 'Antonio', sans-serif; font-size: 0.85rem; font-weight: 600; color: var(--au-accent); letter-spacing: 1.5px; text-transform: uppercase; flex: 1; }
-.au-section-header .section-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 20px; padding: 0 6px; border-radius: 10px; background: rgba(var(--au-accent-rgb), 0.15); color: var(--au-accent); font-family: 'Orbitron', sans-serif; font-size: 0.65rem; font-weight: 600; }
-.au-section-header .section-chevron { color: var(--au-muted); font-size: 0.7rem; transition: transform 0.2s; }
-.au-section-header.collapsed .section-chevron { transform: rotate(-90deg); }
-.au-section-body { margin-bottom: 1.5rem; overflow: hidden; transition: max-height 0.3s ease; }
-.au-section-body.collapsed { max-height: 0 !important; margin-bottom: 0; }
-
-/* ── Bridge Job Cards ── */
-.au-job-card { background: var(--au-card); border: 1px solid var(--au-border); border-radius: 2px 10px 10px 2px; padding: 1rem 1rem 1rem 1.25rem; margin-bottom: 0.5rem; position: relative; display: flex; align-items: center; gap: 1rem; }
-.au-job-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: linear-gradient(180deg, var(--au-cyan), transparent 80%); border-radius: 2px 0 0 2px; }
-.au-job-card .job-desc { flex: 1; min-width: 0; }
-.au-job-card .job-desc h4 { font-family: 'Antonio', sans-serif; font-size: 0.82rem; font-weight: 600; color: var(--au-text); letter-spacing: 0.5px; text-transform: uppercase; margin: 0 0 0.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.au-job-card .job-desc .job-meta { font-size: 0.68rem; color: var(--au-muted); }
-.au-job-card .job-progress { flex: 0 0 120px; }
-.au-job-card .progress-bar { height: 6px; background: #21262d; border-radius: 3px; overflow: hidden; margin-bottom: 0.2rem; }
-.au-job-card .progress-fill { height: 100%; background: linear-gradient(90deg, var(--au-cyan), var(--au-green)); border-radius: 3px; transition: width 0.3s; }
-.au-job-card .progress-label { font-size: 0.6rem; color: var(--au-muted); text-align: right; font-family: 'Orbitron', sans-serif; }
-
-/* ── Loop Toggle Switch ── */
-.au-loop-toggle { display: flex; align-items: center; justify-content: space-between; background: var(--au-card); border: 1px solid var(--au-border); border-radius: 2px 10px 10px 2px; padding: 0.75rem 1rem 0.75rem 1.25rem; margin-bottom: 0.5rem; position: relative; }
-.au-loop-toggle::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: linear-gradient(180deg, var(--au-purple), transparent 80%); border-radius: 2px 0 0 2px; }
-.au-loop-toggle .loop-label { font-family: 'Antonio', sans-serif; font-size: 0.82rem; font-weight: 600; color: var(--au-text); letter-spacing: 0.5px; text-transform: uppercase; }
-.au-loop-toggle .toggle-switch { width: 42px; height: 22px; border-radius: 11px; background: #21262d; border: 1px solid #30363d; cursor: pointer; position: relative; transition: all 0.3s; flex-shrink: 0; }
-.au-loop-toggle .toggle-switch.on { background: rgba(0,255,65,0.15); border-color: var(--au-green); box-shadow: 0 0 8px rgba(0,255,65,0.2); }
-.au-loop-toggle .toggle-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--au-muted); transition: all 0.3s; }
-.au-loop-toggle .toggle-switch.on::after { left: 22px; background: var(--au-green); box-shadow: 0 0 6px var(--au-green); }
-.au-loop-toggle .loop-status { font-family: 'Antonio', sans-serif; font-size: 0.72rem; font-weight: 600; letter-spacing: 1.5px; padding: 0.15rem 0.6rem; border-radius: 2px 8px 8px 2px; margin-right: 0.5rem; }
-.au-loop-toggle .loop-status.on { color: var(--au-green); background: rgba(0,255,65,0.08); border: 1px solid rgba(0,255,65,0.25); }
-.au-loop-toggle .loop-status.off { color: var(--au-muted); background: rgba(139,148,158,0.08); border: 1px solid rgba(139,148,158,0.2); }
-
-/* ── Health Grid ── */
-.au-health-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
-.au-health-card { background: var(--au-card); border: 1px solid var(--au-border); border-radius: 2px 10px 10px 2px; padding: 1rem 1rem 1rem 1.25rem; position: relative; display: flex; align-items: center; gap: 0.75rem; }
-.au-health-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: 2px 0 0 2px; }
-.au-health-card[data-health="green"]::before { background: var(--au-green); }
-.au-health-card[data-health="amber"]::before { background: var(--au-accent); }
-.au-health-card[data-health="red"]::before { background: var(--au-red); }
-.au-health-card .health-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.au-health-card .health-dot.green { background: var(--au-green); box-shadow: 0 0 6px var(--au-green); }
-.au-health-card .health-dot.amber { background: var(--au-accent); box-shadow: 0 0 6px var(--au-accent); }
-.au-health-card .health-dot.red { background: var(--au-red); box-shadow: 0 0 6px var(--au-red); }
-.au-health-card .health-info { flex: 1; min-width: 0; }
-.au-health-card .health-name { font-family: 'Antonio', sans-serif; font-size: 0.82rem; font-weight: 600; color: var(--au-text); letter-spacing: 0.5px; text-transform: uppercase; }
-.au-health-card .health-stats { font-size: 0.68rem; color: var(--au-muted); margin-top: 0.15rem; }
-.au-health-card .health-last-run { font-size: 0.65rem; color: var(--au-muted); }
-
-/* ── Source Badges (History) ── */
-.au-source-badge { display: inline-flex; align-items: center; gap: 0.35rem; font-family: 'Antonio', sans-serif; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; }
-.au-source-badge .source-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-.au-source-badge.bridge .source-dot { background: var(--au-cyan); }
-.au-source-badge.bridge { color: var(--au-cyan); }
-.au-source-badge.agent_loop .source-dot { background: var(--au-purple); }
-.au-source-badge.agent_loop { color: var(--au-purple); }
-
-/* ── Component Status Row ── */
-.au-component-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem 0.75rem 1.25rem; background: var(--au-card); border: 1px solid var(--au-border); border-radius: 2px 10px 10px 2px; margin-bottom: 0.5rem; position: relative; }
-.au-component-row::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: 2px 0 0 2px; }
-.au-component-row[data-status="ok"]::before { background: var(--au-green); }
-.au-component-row[data-status="error"]::before { background: var(--au-red); }
-.au-component-row[data-status="warn"]::before { background: var(--au-accent); }
-.au-component-row .comp-name { font-family: 'Antonio', sans-serif; font-size: 0.82rem; font-weight: 600; color: var(--au-text); letter-spacing: 0.5px; text-transform: uppercase; flex: 1; }
-.au-component-row .comp-detail { font-size: 0.68rem; color: var(--au-muted); }
-
-/* ── Bulk Action Bar ── */
-.bulk-action-bar { display: flex; gap: 0.5rem; align-items: center; padding: 0.5rem 0.75rem; margin-bottom: 0.75rem; background: rgba(var(--au-accent-rgb), 0.05); border: 1px solid rgba(var(--au-accent-rgb), 0.15); border-radius: 2px 10px 10px 2px; }
-.bulk-action-bar .bulk-label { font-family: 'Antonio', sans-serif; font-size: 0.75rem; color: var(--au-accent); letter-spacing: 1px; text-transform: uppercase; margin-right: auto; }
-
-/* ── Job Grid (agent loop jobs in active tab) ── */
-.job-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.75rem; margin-bottom: 2rem; }
-.job-card { background: var(--au-card); border: 1px solid var(--au-border); border-radius: 2px 10px 10px 2px; padding: 1rem 1rem 1rem 1.25rem; display: flex; justify-content: space-between; align-items: center; position: relative; transition: border-color 0.2s; }
-.job-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: linear-gradient(180deg, var(--job-color, var(--au-accent)), transparent 80%); border-radius: 2px 0 0 2px; }
-.job-card:hover { border-color: rgba(var(--au-accent-rgb), 0.2); }
-.job-info h3 { font-family: 'Antonio', sans-serif; font-size: 0.85rem; font-weight: 600; color: var(--au-text); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 0.2rem; }
-.job-info .meta { font-size: 0.7rem; color: var(--au-muted); }
-
-/* ── Ops Jobs Table (Agent Loop Jobs via JobService) ── */
-.ops-jobs-wrap { max-height: 70vh; overflow-y: auto; }
-.ops-jobs-wrap::-webkit-scrollbar { width: 6px; }
-.ops-jobs-wrap::-webkit-scrollbar-thumb { background: rgba(255,170,0,0.2); border-radius: 3px; }
-.ops-dept-group { margin-bottom: 1rem; }
-.ops-dept-hdr { display:flex;align-items:center;gap:8px;padding:6px 10px;cursor:pointer;border-radius:2px 8px 8px 2px;background:rgba(255,255,255,0.03);border-left:3px solid var(--dept-color,var(--au-accent));margin-bottom:4px;user-select:none; }
-.ops-dept-hdr:hover { background:rgba(255,255,255,0.06); }
-.ops-dept-hdr .dept-dot { width:8px;height:8px;border-radius:50%;background:var(--dept-color);flex-shrink:0; }
-.ops-dept-hdr .dept-name { font-family:'Antonio',sans-serif;font-size:0.8rem;font-weight:600;color:var(--dept-color);letter-spacing:1px;text-transform:uppercase;flex:1; }
-.ops-dept-hdr .dept-count { font-size:0.65rem;color:rgba(255,255,255,0.4); }
-.ops-dept-hdr .dept-chev { font-size:0.6rem;color:rgba(255,255,255,0.3);transition:transform 0.2s; }
-.ops-dept-hdr.collapsed .dept-chev { transform:rotate(-90deg); }
-.ops-dept-body { overflow:hidden; }
-.ops-dept-body.collapsed { display:none; }
-.ops-job-row { display:grid;grid-template-columns:28px 1fr 100px 80px 1fr auto;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.03);font-size:0.75rem;transition:background 0.15s; }
-.ops-job-row:hover { background:rgba(255,170,0,0.03); }
-.ops-job-dot { width:10px;height:10px;border-radius:50%;justify-self:center; }
-.ops-job-dot.enabled { background:var(--au-green);box-shadow:0 0 6px var(--au-green); }
-.ops-job-dot.disabled { background:var(--au-muted);opacity:0.4; }
-.ops-job-name { font-family:'Antonio',sans-serif;font-weight:600;color:var(--au-text);letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
-.ops-job-interval { font-family:'Orbitron',sans-serif;font-size:0.65rem;color:var(--au-cyan);transition:color 0.2s,text-decoration 0.2s; }
-.ops-job-interval:hover { color:#fff;text-decoration:underline;text-decoration-color:var(--au-cyan); }
-.ops-job-lastrun { font-size:0.68rem;color:var(--au-muted); }
-.ops-job-status { font-size:0.68rem; }
-.ops-job-actions { display:flex;gap:4px;justify-content:flex-end; }
-.ops-job-actions .btn-xs { padding:0.2rem 0.55rem;font-size:0.62rem;border-radius:2px 6px 6px 2px;cursor:pointer;border:1px solid;background:transparent;font-family:'Antonio',sans-serif;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;transition:all 0.2s;white-space:nowrap; }
-.ops-job-actions .btn-toggle-on { color:var(--au-green);border-color:rgba(0,255,65,0.3); }
-.ops-job-actions .btn-toggle-on:hover { background:rgba(0,255,65,0.1); }
-.ops-job-actions .btn-toggle-off { color:var(--au-red);border-color:rgba(255,65,54,0.3); }
-.ops-job-actions .btn-toggle-off:hover { background:rgba(255,65,54,0.1); }
-.ops-job-actions .btn-run { color:var(--au-cyan);border-color:rgba(0,255,255,0.3); }
-.ops-job-actions .btn-run:hover { background:rgba(0,255,255,0.1); }
-.ops-job-actions .btn-xs:disabled { opacity:0.3;cursor:not-allowed; }
-.ops-jobs-header { display:grid;grid-template-columns:28px 1fr 100px 80px 1fr auto;gap:8px;padding:4px 10px;font-family:'Antonio',sans-serif;font-size:0.68rem;font-weight:600;color:var(--au-accent);letter-spacing:1px;text-transform:uppercase;border-bottom:2px solid rgba(255,170,0,0.2);margin-bottom:2px; }
-
-/* ── LCARS Confirm Modal ── */
-.au-modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10000; align-items: center; justify-content: center; }
-.au-modal-overlay.active { display: flex; }
-.au-modal { background: var(--au-bg, #0a0e1a); border: 1px solid var(--au-accent); border-radius: 2px 12px 12px 2px; width: 90%; max-width: 480px; position: relative; overflow: hidden; }
-.au-modal::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--au-accent); border-radius: 2px 0 0 2px; }
-.au-modal-header { display: flex; align-items: center; gap: 12px; padding: 18px 24px 14px; border-bottom: 1px solid var(--au-border); }
-.au-modal-header h3 { font-family: 'Antonio', sans-serif; font-size: 1.1rem; font-weight: 600; color: var(--au-accent); letter-spacing: 2px; text-transform: uppercase; margin: 0; flex: 1; }
-.au-modal-close { background: none; border: none; color: var(--au-muted); font-size: 1.3rem; cursor: pointer; padding: 0; line-height: 1; transition: color 0.2s; }
-.au-modal-close:hover { color: var(--au-red); }
-.au-modal-body { padding: 20px 24px; font-size: 0.85rem; color: var(--au-text); line-height: 1.6; }
-.au-modal-body .modal-count { font-family: 'Antonio', sans-serif; font-size: 1.6rem; color: var(--au-accent); display: block; margin-bottom: 6px; }
-.au-modal-actions { display: flex; gap: 10px; justify-content: flex-end; padding: 14px 24px 18px; border-top: 1px solid var(--au-border); }
-.au-modal-actions .btn { min-width: 100px; }
-
-/* ── Responsive ── */
-@media (max-width: 768px) {
-    .au-body { padding: 0.75rem 1rem 1.5rem; }
-    .job-grid { grid-template-columns: 1fr; }
-    .au-health-grid { grid-template-columns: 1fr; }
-    .au-job-card { flex-direction: column; align-items: flex-start; }
-}
-@media (max-width: 500px) {
-    .card-grid { grid-template-columns: 1fr; }
-}
-
-/* ── Light Mode ── */
-[data-theme="light"] .au-container, [data-theme="light"] body { background: #f0f2f5; color: #1a1a2e; }
-[data-theme="light"] .au-card, [data-theme="light"] .job-card, [data-theme="light"] .au-job-card, [data-theme="light"] .au-loop-toggle, [data-theme="light"] .au-health-card, [data-theme="light"] .au-component-row, [data-theme="light"] .approval-detail { background: #fff; border-color: #e0e0e0; }
-[data-theme="light"] .au-card-value, [data-theme="light"] .job-info h3, [data-theme="light"] .au-job-card .job-desc h4 { color: #1a1a2e; }
-[data-theme="light"] .data-table td { border-bottom-color: #f0f0f0; }
-[data-theme="light"] .data-table th { border-bottom-color: rgba(var(--au-accent-rgb), 0.3); }
-[data-theme="light"] .data-table tr:hover { background: rgba(var(--au-accent-rgb), 0.04); }
-[data-theme="light"] .approval-detail .data-preview { background: #f8f9fa; }
-[data-theme="light"] .au-section-header { background: rgba(var(--au-accent-rgb), 0.06); }
-[data-theme="light"] .au-modal { background: #fff; border-color: #e0e0e0; }
-[data-theme="light"] .au-modal-header { border-bottom-color: #e0e0e0; }
-[data-theme="light"] .au-modal-actions { border-top-color: #e0e0e0; }
-[data-theme="light"] .au-modal-body { color: #1a1a2e; }
+.au-section { background: var(--au-card); border: 1px solid var(--au-border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+.au-section-title { font-family: 'Orbitron', sans-serif; font-size: 0.75rem; color: var(--au-accent); letter-spacing: 2px; margin-bottom: 0.75rem; border-bottom: 1px solid var(--au-border); padding-bottom: 0.5rem; }
+.au-banner { background: linear-gradient(135deg, rgba(0,229,255,0.08), rgba(139,92,246,0.08)); border: 1px solid rgba(0,229,255,0.2); border-radius: 8px; padding: 1rem 1.5rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+.au-banner-text { color: var(--au-text); font-size: 0.85rem; }
+.au-banner-link { background: #00e5ff; color: #000; padding: 8px 20px; border-radius: 6px; text-decoration: none; font-family: 'Orbitron', sans-serif; font-size: 0.75rem; font-weight: 600; letter-spacing: 1px; }
+.au-banner-link:hover { background: #00b8d4; }
+.au-config-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.au-config-table th { color: var(--au-muted); font-weight: 600; text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--au-border); font-size: 0.7rem; letter-spacing: 1px; }
+.au-config-table td { padding: 0.5rem 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.04); color: var(--au-text); }
+.au-config-table td input { background: rgba(255,255,255,0.05); border: 1px solid var(--au-border); color: var(--au-text); padding: 4px 8px; border-radius: 4px; font-family: monospace; font-size: 0.8rem; width: 200px; }
+.au-config-table td button { background: var(--au-accent); color: #000; border: none; padding: 4px 12px; border-radius: 4px; font-size: 0.7rem; cursor: pointer; font-weight: 600; }
+.au-component { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.au-comp-name { color: var(--au-text); font-size: 0.8rem; }
+.au-comp-status { font-size: 0.75rem; font-weight: 600; padding: 2px 10px; border-radius: 4px; }
+.au-comp-ok { background: rgba(0,255,65,0.1); color: var(--au-green); }
+.au-comp-err { background: rgba(255,65,54,0.1); color: var(--au-red); }
+.au-sched-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+.au-sched-table th { color: var(--au-muted); font-weight: 600; text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--au-border); font-size: 0.65rem; letter-spacing: 1px; }
+.au-sched-table td { padding: 0.4rem 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.04); color: var(--au-text); }
+@media (max-width: 768px) { .au-body { padding: 0.5rem 1rem; } .au-banner { flex-direction: column; gap: 0.5rem; } }
 </style>
 {% endblock %}
 
 {% block content %}
-{% from 'theme_macros.html' import page_header, stat_card, tab_nav, panel, data_table, card_grid, filter_bar, modal with context %}
-{% set cat_accent = '#00ffff' %}
-{% set cat_accent_rgb = '0,255,255' %}
-{% set cat_accent_light = '#00cccc' %}
-{% set cat_label = 'AI COMMAND' %}
-{% set cat_icon = 'brain' %}
-{% set cat_modules = [
-    {'url': url_for('starbase.starbase_dashboard'), 'endpoint_prefix': 'starbase', 'icon': 'monitor', 'label': 'Starbase', 'title': 'Starbase Command'},
-    {'url': url_for('consciousness.index'), 'endpoint_prefix': 'consciousness', 'icon': 'brain', 'label': 'Mind', 'title': 'Consciousness'},
-    {'url': url_for('autonomy.index'), 'endpoint_prefix': 'autonomy', 'icon': 'bot', 'label': 'Autonomy', 'title': 'Autonomy'},
-    {'url': url_for('archie_chat.index'), 'endpoint_prefix': 'archie_chat', 'icon': 'message-circle', 'label': 'Chat', 'title': 'A.R.C.H.I.E. Chat'}
-] %}
 {% include 'includes/category_nav.html' %}
 
 <div class="au-container">
     <div class="au-body">
-        {{ page_header('AUTONOMY', subtitle='Agent Loop — Proactive Queue Processing & Autonomous Operations', icon='bot') }}
+        <h1 style="font-family:'Orbitron',sans-serif;font-size:1.4rem;color:var(--au-accent);margin:0 0 0.5rem;letter-spacing:2px">AUTONOMY</h1>
+        <p style="color:var(--au-muted);font-size:0.8rem;margin:0 0 1.5rem">Agent Loop Configuration &amp; System Diagnostics</p>
 
-        <div style="display: flex; gap: 1rem; align-items: center; margin: -16px 0 20px 0;">
-            <div id="loopStatus" class="status-badge stopped">
-                <span class="dot"></span>
-                <span class="label" data-i18n="autonomy.stopped">Stopped</span>
+        <!-- Banner: Dispatch moved to Dept HQ -->
+        <div class="au-banner">
+            <div class="au-banner-text">
+                Dispatch monitoring, active jobs, approvals, loop controls, and history have moved to <strong>Department HQ</strong>.
             </div>
-            <button id="toggleBtn" class="btn btn-primary" onclick="toggleLoop()" data-i18n="autonomy.start_loop">Start Loop</button>
+            <a href="/tools/department-hq/?tab=dispatch" class="au-banner-link">OPEN DISPATCH HUB</a>
         </div>
 
-        {{ tab_nav(tabs=[
-            {'id': 'approvals', 'label': 'Approvals', 'badge_id': 'approvalBadge'},
-            {'id': 'active', 'label': 'Active Jobs', 'badge_id': 'activeJobsBadge'},
-            {'id': 'health', 'label': 'Health'},
-            {'id': 'history', 'label': 'History'}
-        ], onswitch='switchTab') }}
-
-        <!-- ═══════════════════════════════════════════════════════════════
-             Tab 1: Approvals (default active)
-             ═══════════════════════════════════════════════════════════════ -->
-        <div id="tab-approvals" class="tab-content active">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
-                <div class="btn-group">
-                    <button class="btn btn-sm btn-warning" onclick="loadApprovals('pending')" data-i18n="autonomy.pending">Pending</button>
-                    <button class="btn btn-sm btn-success" onclick="loadApprovals('approved')" data-i18n="autonomy.approved">Approved</button>
-                    <button class="btn btn-sm btn-danger" onclick="loadApprovals('rejected')" data-i18n="autonomy.rejected">Rejected</button>
-                    <button class="btn btn-sm" onclick="loadApprovals('all')" data-i18n="autonomy.all">All</button>
-                </div>
-            </div>
-            <div id="bulkActions" class="bulk-action-bar" style="display:none;">
-                <span class="bulk-label"><span id="bulkCount">0</span> pending items</span>
-                <button class="btn btn-sm btn-success" onclick="bulkApprove('approve')">Bulk Approve All</button>
-                <button class="btn btn-sm btn-danger" onclick="bulkApprove('reject')">Bulk Reject All</button>
-            </div>
-            <!-- LCARS Bulk Confirm Modal -->
-            <div id="auBulkModal" class="au-modal-overlay" onclick="if(event.target===this)closeBulkModal()">
-                <div class="au-modal">
-                    <div class="au-modal-header">
-                        <h3 id="auBulkModalTitle">Confirm Action</h3>
-                        <button class="au-modal-close" onclick="closeBulkModal()">&times;</button>
-                    </div>
-                    <div class="au-modal-body">
-                        <span class="modal-count" id="auBulkModalCount">0</span>
-                        <span id="auBulkModalMsg">pending items will be processed.</span>
-                    </div>
-                    <div class="au-modal-actions">
-                        <button class="btn btn-sm" onclick="closeBulkModal()">Cancel</button>
-                        <button class="btn btn-sm" id="auBulkModalConfirm">Confirm</button>
-                    </div>
-                </div>
-            </div>
-
-            <div id="approvalsList">
-                <div class="empty-state"><div class="icon">&#x2713;</div><span data-i18n="autonomy.no_pending_approvals">No pending approvals</span></div>
-            </div>
+        <!-- System Components -->
+        <div class="au-section">
+            <div class="au-section-title">SYSTEM COMPONENTS</div>
+            <div id="componentsList">Loading components...</div>
         </div>
 
-        <!-- ═══════════════════════════════════════════════════════════════
-             Tab 2: Active Jobs
-             ═══════════════════════════════════════════════════════════════ -->
-        <div id="tab-active" class="tab-content">
-            <!-- Bridge Jobs -->
-            <div class="au-section-header" onclick="toggleSection('bridgeJobs')">
-                <span class="section-label">Bridge Jobs</span>
-                <span class="section-badge" id="bridgeJobsBadge">0</span>
-                <span class="section-chevron">&#9660;</span>
-            </div>
-            <div class="au-section-body" id="bridgeJobs-body">
-                <div id="bridgeJobsList">
-                    <div class="empty-state">Loading bridge jobs...</div>
-                </div>
-            </div>
-
-            <!-- Server Loops -->
-            <div class="au-section-header" onclick="toggleSection('serverLoops')">
-                <span class="section-label">Server Loops</span>
-                <span class="section-badge" id="serverLoopsBadge">0</span>
-                <span class="section-chevron">&#9660;</span>
-            </div>
-            <div class="au-section-body" id="serverLoops-body">
-                <div id="serverLoopsList">
-                    <div class="empty-state">Loading server loops...</div>
-                </div>
-            </div>
-
-            <!-- Agent Loop Jobs -->
-            <div class="au-section-header" onclick="toggleSection('agentLoopJobs')">
-                <span class="section-label">Agent Loop Jobs</span>
-                <span class="section-badge" id="agentLoopJobsBadge">0</span>
-                <span class="section-chevron">&#9660;</span>
-            </div>
-            <div class="au-section-body" id="agentLoopJobs-body">
-                <div id="agentLoopJobsList">
-                    <div class="empty-state">Loading agent loop jobs...</div>
-                </div>
-            </div>
-
-            <!-- Scheduler Jobs -->
-            <div class="au-section-header" onclick="toggleSection('schedulerJobs')">
-                <span class="section-label">Scheduler Jobs</span>
-                <span class="section-badge" id="schedulerJobsBadge">0</span>
-                <span class="section-chevron">&#9660;</span>
-            </div>
-            <div class="au-section-body" id="schedulerJobs-body">
-                <div id="schedulerJobsList">
-                    <div class="empty-state">Loading scheduler jobs...</div>
-                </div>
-            </div>
+        <!-- Scheduler Jobs -->
+        <div class="au-section">
+            <div class="au-section-title">SCHEDULER JOBS <span id="schedCount" style="color:var(--au-muted);font-family:monospace;font-size:0.7rem"></span></div>
+            <div id="schedulerList">Loading scheduler jobs...</div>
         </div>
 
-        <!-- ═══════════════════════════════════════════════════════════════
-             Tab 3: Health
-             ═══════════════════════════════════════════════════════════════ -->
-        <div id="tab-health" class="tab-content">
-            <div class="au-section-title">Agent Loop Health (24h)</div>
-            <div class="au-health-grid" id="loopHealthGrid">
-                <div class="empty-state">Loading health data...</div>
-            </div>
-
-            <div class="au-section-title">Bridge Job Health (24h)</div>
-            <div class="au-health-grid" id="bridgeHealthGrid">
-                <div class="empty-state">Loading bridge health...</div>
-            </div>
-
-            <div class="au-section-title">System Components</div>
-            <div id="componentsList">
-                <div class="empty-state">Loading components...</div>
-            </div>
+        <!-- Configuration -->
+        <div class="au-section">
+            <div class="au-section-title">CONFIGURATION</div>
+            <div id="configList">Loading configuration...</div>
         </div>
 
-        <!-- ═══════════════════════════════════════════════════════════════
-             Tab 4: History
-             ═══════════════════════════════════════════════════════════════ -->
-        <div id="tab-history" class="tab-content">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
-                <div class="btn-group">
-                    <select id="historySystemFilter" onchange="loadHistory()" style="padding:0.35rem 0.75rem;background:var(--au-card);color:var(--au-text);border:1px solid var(--au-border);border-radius:2px 8px 8px 2px;font-family:'Antonio',sans-serif;font-size:0.75rem;letter-spacing:0.5px;text-transform:uppercase;cursor:pointer;">
-                        <option value="all">All Systems</option>
-                        <option value="bridge">Bridge Jobs</option>
-                        <option value="agent_loop">Agent Loop</option>
-                    </select>
-                </div>
-                <div class="btn-group" id="historyTimeButtons">
-                    <button class="btn btn-sm" onclick="setHistoryHours(6)">6h</button>
-                    <button class="btn btn-sm btn-primary" onclick="setHistoryHours(24)">24h</button>
-                    <button class="btn btn-sm" onclick="setHistoryHours(168)">7d</button>
-                </div>
-            </div>
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Source</th>
-                        <th>Name</th>
-                        <th>Status</th>
-                        <th>Processed</th>
-                        <th>Duration</th>
-                        <th>Time</th>
-                    </tr>
-                </thead>
-                <tbody id="historyLogs">
-                    <tr><td colspan="6" style="text-align:center;color:var(--au-muted);">Select a filter to load history</td></tr>
-                </tbody>
-            </table>
+        <!-- Repair Pipeline -->
+        <div class="au-section">
+            <div class="au-section-title">REPAIR PIPELINE STATUS</div>
+            <div id="repairStatus">Loading pipeline status...</div>
         </div>
     </div>
 </div>
@@ -431,1097 +77,118 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
 
 {% block extra_js %}
 <script>
-    var BASE = '/tools/autonomy/api';
-    var currentApprovalFilter = 'pending';
-    var currentHistoryHours = 24;
-    var activeJobsInterval = null;
-    var healthInterval = null;
-    var pendingApprovalIds = [];
-
-    /* Job metadata - human labels + color accents for all 17 jobs */
-    /* ── Full job registry — 58 jobs organized by department ── */
-    var DEPT_COLORS = {
-        'Executive Office':            '#00e5ff',
-        'Operations & Infrastructure': '#a3e635',
-        'Engineering & Technology':    '#fbbf24',
-        'Security & Compliance':       '#ef4444',
-        'Analytics & Intelligence':    '#8b5cf6',
-        'Research & Development':      '#10b981',
-        'Marketing & Communications':  '#22d3ee',
-        'Human Resources & Culture':   '#f472b6',
-        'Creative & Design':           '#f97316',
-        'Services':                    '#818cf8'
-    };
-    var DEPT_ORDER = Object.keys(DEPT_COLORS);
-
-    var JOB_META = {
-        /* Executive Office */
-        'agent_fleet_health':           {label:'Fleet Health',          dept:'Executive Office'},
-        'agent_mesh_health':            {label:'Mesh Health',           dept:'Executive Office'},
-        'agent_model_state_save':       {label:'Model State Save',     dept:'Executive Office'},
-        'agent_standalone_health':      {label:'Standalone Health',     dept:'Executive Office'},
-        /* Operations & Infrastructure */
-        'agent_stale_job_reaper':       {label:'Stale Job Reaper',     dept:'Operations & Infrastructure'},
-        'agent_stuck_job_watchdog':     {label:'Stuck Job Watchdog',   dept:'Operations & Infrastructure'},
-        'agent_scheduled_tasks':        {label:'Scheduled Tasks',      dept:'Operations & Infrastructure'},
-        'agent_reminders':              {label:'Reminders',            dept:'Operations & Infrastructure'},
-        'agent_notification_cleanup':   {label:'Notification Cleanup', dept:'Operations & Infrastructure'},
-        /* Engineering & Technology */
-        'agent_code_metrics':           {label:'Code Metrics Scan',    dept:'Engineering & Technology'},
-        'agent_pattern_compliance':     {label:'Pattern Compliance',   dept:'Engineering & Technology'},
-        'agent_code_health_scan':       {label:'Code Health Scan',     dept:'Engineering & Technology'},
-        'agent_code_health_digest':     {label:'Code Health Digest',   dept:'Engineering & Technology'},
-        'agent_automated_module_audit': {label:'Module Audit',         dept:'Engineering & Technology'},
-        'agent_auto_execute_proposals': {label:'Auto-Execute Proposals',dept:'Engineering & Technology'},
-        'agent_uncommitted_check':      {label:'Uncommitted Check',    dept:'Engineering & Technology'},
-        'agent_proactive_scan':         {label:'Proactive Scan',       dept:'Engineering & Technology'},
-        'agent_auto_remediation':       {label:'Auto Remediation',     dept:'Engineering & Technology'},
-        /* Security & Compliance */
-        'agent_ssh_monitor':            {label:'SSH Monitor',          dept:'Security & Compliance'},
-        'agent_security_audit':         {label:'Security Audit',       dept:'Security & Compliance'},
-        'agent_ssl_expiry_check':       {label:'SSL Expiry Check',     dept:'Security & Compliance'},
-        'agent_auto_block':             {label:'Auto Block',           dept:'Security & Compliance'},
-        'agent_compliance_scan':        {label:'Compliance Scan',      dept:'Security & Compliance'},
-        'agent_camera_anomaly':         {label:'Camera Anomaly',       dept:'Security & Compliance'},
-        'agent_network_discovery':      {label:'Network Discovery',    dept:'Security & Compliance'},
-        'agent_query_spike_detect':     {label:'Query Spike Detect',   dept:'Security & Compliance'},
-        'agent_daily_dns_report':       {label:'DNS Report',           dept:'Security & Compliance'},
-        /* Analytics & Intelligence */
-        'agent_consciousness_analysis': {label:'Knowledge Analysis',   dept:'Analytics & Intelligence'},
-        'agent_consciousness_embedding':{label:'Embedding Batch',      dept:'Analytics & Intelligence'},
-        'agent_performance_rankings':   {label:'Performance Rankings', dept:'Analytics & Intelligence'},
-        'agent_anomaly_detection':      {label:'Anomaly Detection',    dept:'Analytics & Intelligence'},
-        'agent_competitor_scan':        {label:'Competitor Scan',      dept:'Analytics & Intelligence'},
-        /* Research & Development */
-        'agent_skill_sync':             {label:'Skill Sync',           dept:'Research & Development'},
-        'agent_github_auto_pull':       {label:'GitHub Auto-Pull',     dept:'Research & Development'},
-        'agent_skill_analyzer':         {label:'Skill Analyzer',       dept:'Research & Development'},
-        /* Marketing & Communications */
-        'agent_email_queue':            {label:'Email Queue',          dept:'Marketing & Communications'},
-        'agent_email_inbox':            {label:'Email Inbox',          dept:'Marketing & Communications'},
-        'agent_email_analyze':          {label:'Email Analysis',       dept:'Marketing & Communications'},
-        'agent_email_processing':       {label:'Email Processing',     dept:'Marketing & Communications'},
-        'agent_email_telegram_notify':  {label:'Email→Telegram',       dept:'Marketing & Communications'},
-        'agent_telegram_notify':        {label:'Telegram Notify',      dept:'Marketing & Communications'},
-        /* Human Resources & Culture */
-        'agent_hr_tracker':             {label:'HR Tracker',           dept:'Human Resources & Culture'},
-        'agent_training_tick':          {label:'Training Tick',        dept:'Human Resources & Culture'},
-        'agent_training':               {label:'Training',             dept:'Human Resources & Culture'},
-        'agent_welfare_recovery':       {label:'Welfare Recovery',     dept:'Human Resources & Culture'},
-        'agent_idle_volunteering':      {label:'Idle Volunteering',    dept:'Human Resources & Culture'},
-        'agent_ethics_monitoring':      {label:'Ethics Monitor',       dept:'Human Resources & Culture'},
-        /* Creative & Design */
-        'agent_media_generation':       {label:'Media Generation',     dept:'Creative & Design'},
-        /* Services */
-        'agent_approvals':              {label:'Approval Queue',       dept:'Services'},
-        'agent_browser_tasks':          {label:'Browser Tasks',        dept:'Services'},
-        'agent_briefings':              {label:'Briefings',            dept:'Services'},
-        'agent_reports':                {label:'Reports',              dept:'Services'},
-        'agent_calendar_drive':         {label:'Calendar & Drive',     dept:'Services'},
-        'agent_mission_schedule':       {label:'Mission Schedule',     dept:'Services'}
-    };
-    /* Add color from department */
-    Object.keys(JOB_META).forEach(function(k) {
-        JOB_META[k].color = DEPT_COLORS[JOB_META[k].dept] || '#FFAA00';
-    });
-
-    var LOG_TO_ID = {};
-    Object.keys(JOB_META).forEach(function(id) {
-        LOG_TO_ID[id.replace('agent_', '')] = id;
-    });
-
-    function getJobLabel(name) {
-        return (JOB_META[name] || {}).label || (JOB_META[LOG_TO_ID[name]] || {}).label || name;
-    }
-    function getJobDept(name) {
-        return (JOB_META[name] || {}).dept || (JOB_META[LOG_TO_ID[name]] || {}).dept || 'Other';
-    }
-    function getJobColor(name) {
-        return (JOB_META[name] || {}).color || (JOB_META[LOG_TO_ID[name]] || {}).color || '#FFAA00';
-    }
-
-    function escapeHtml(text) {
-        var div = document.createElement('div');
-        div.textContent = text || '';
-        return div.innerHTML;
-    }
-
-    function statusPill(status) {
-        var map = {
-            'success':'pill-success','sent':'pill-success','executed':'pill-success','approved':'pill-success','completed':'pill-success',
-            'pending':'pill-pending','processing':'pill-pending','running':'pill-pending',
-            'error':'pill-error','failed':'pill-error','rejected':'pill-error',
-            'expired':'pill-expired','skipped':'pill-expired',
-            'partial':'pill-info'
-        };
-        var cls = map[status] || 'pill-info';
-        var el = document.createElement('span');
-        el.className = 'pill ' + cls;
-        el.textContent = status;
-        return el;
-    }
-
-    function appendPill(parent, status) {
-        /* Safe: statusPill creates element with textContent only */
-        parent.appendChild(statusPill(status));
-    }
-
-    function timeAgo(ts) {
-        if (!ts) return 'Never';
-        return ArchieTime.age(ts);
-    }
-
-    /* ── Tab switching with hash routing ── */
-    var VALID_TABS = ['approvals', 'active', 'health', 'history'];
-
-    function switchTab(tab) {
-        if (VALID_TABS.indexOf(tab) === -1) tab = 'approvals';
-
-        document.querySelectorAll('.tab-content').forEach(function(el) { el.classList.remove('active'); });
-        document.querySelectorAll('[data-tab]').forEach(function(el) { el.classList.remove('active'); });
-
-        var tabEl = document.getElementById('tab-' + tab);
-        var navEl = document.querySelector('[data-tab="' + tab + '"]');
-        if (tabEl) tabEl.classList.add('active');
-        if (navEl) navEl.classList.add('active');
-
-        window.location.hash = tab;
-
-        /* Stop old intervals */
-        if (activeJobsInterval) { clearInterval(activeJobsInterval); activeJobsInterval = null; }
-        if (healthInterval) { clearInterval(healthInterval); healthInterval = null; }
-
-        /* Load tab data */
-        if (tab === 'approvals') loadApprovals('pending');
-        if (tab === 'active') { loadActiveJobs(); activeJobsInterval = setInterval(loadActiveJobs, 10000); }
-        if (tab === 'health') { loadHealth(); healthInterval = setInterval(loadHealth, 30000); }
-        if (tab === 'history') loadHistory();
-    }
-
-    /* ── Collapsible sections ── */
-    function toggleSection(id) {
-        var header = document.querySelector('[onclick="toggleSection(\'' + id + '\')"]');
-        var body = document.getElementById(id + '-body');
-        if (!header || !body) return;
-        header.classList.toggle('collapsed');
-        body.classList.toggle('collapsed');
-    }
-
-    /* ══════════════════════════════════════════════════════════════════════
-       Loop Status (header badge)
-       ══════════════════════════════════════════════════════════════════════ */
-    async function loadLoopStatus() {
-        try {
-            var resp = await fetch(BASE + '/status');
-            var data = await resp.json();
-            if (!data.success) return;
-
-            var badge = document.getElementById('loopStatus');
-            var btn = document.getElementById('toggleBtn');
-            if (data.loop.running) {
-                badge.className = 'status-badge running';
-                badge.querySelector('.label').textContent = 'Running';
-                btn.textContent = 'Stop Loop';
-                btn.className = 'btn btn-danger';
-            } else {
-                badge.className = 'status-badge stopped';
-                badge.querySelector('.label').textContent = 'Stopped';
-                btn.textContent = 'Start Loop';
-                btn.className = 'btn btn-primary';
-            }
-
-            var approvalBadge = document.getElementById('approvalBadge');
-            if (data.pending_approvals > 0) {
-                approvalBadge.textContent = data.pending_approvals;
-                approvalBadge.style.display = 'inline';
-            } else {
-                approvalBadge.style.display = 'none';
-            }
-        } catch (e) {
-            console.error('Failed to load loop status:', e);
-        }
-    }
-
-    async function toggleLoop() {
-        try {
-            var resp = await fetch(BASE + '/loop/toggle', {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({action: 'toggle'})
-            });
-            await resp.json();
-            loadLoopStatus();
-        } catch (e) { console.error('Toggle failed:', e); }
-    }
-
-    /* ══════════════════════════════════════════════════════════════════════
-       Tab 1: Approvals
-       ══════════════════════════════════════════════════════════════════════ */
-    async function loadApprovals(status) {
-        currentApprovalFilter = status || 'pending';
-        try {
-            var resp = await fetch(BASE + '/approvals?status=' + currentApprovalFilter);
-            var data = await resp.json();
-            if (!data.success) return;
-            var list = document.getElementById('approvalsList');
-            var items = data.items || [];
-            pendingApprovalIds = [];
-            list.textContent = '';
-
-            /* Bulk action bar */
-            var bulkBar = document.getElementById('bulkActions');
-            if (currentApprovalFilter === 'pending' && items.length > 1) {
-                items.forEach(function(item) { pendingApprovalIds.push(item.id); });
-                document.getElementById('bulkCount').textContent = items.length;
-                bulkBar.style.display = 'flex';
-            } else {
-                bulkBar.style.display = 'none';
-            }
-
-            if (items.length === 0) {
-                var empty = document.createElement('div');
-                empty.className = 'empty-state';
-                var icon = document.createElement('div');
-                icon.className = 'icon';
-                icon.textContent = '\u2713';
-                empty.appendChild(icon);
-                var msg = document.createTextNode('No ' + currentApprovalFilter + ' items');
-                empty.appendChild(msg);
-                list.appendChild(empty);
-                return;
-            }
-
-            items.forEach(function(item) {
-                var detail = document.createElement('div');
-                detail.className = 'approval-detail';
-
-                var header = document.createElement('div');
-                header.className = 'header';
-                var left = document.createElement('div');
-                var at = document.createElement('div');
-                at.className = 'action-type';
-                at.textContent = item.action_type;
-                left.appendChild(at);
-                var metaDiv = document.createElement('div');
-                metaDiv.className = 'meta';
-                metaDiv.textContent = 'Tier ' + item.tier + ' \u2022 Priority ' + item.priority + ' \u2022 From: ' + (item.requested_by || 'system');
-                left.appendChild(metaDiv);
-                header.appendChild(left);
-
-                var pillEl = document.createElement('span');
-                appendPill(pillEl, item.status);
-                header.appendChild(pillEl);
-                detail.appendChild(header);
-
-                var reason = document.createElement('div');
-                reason.className = 'reason';
-                reason.textContent = item.reason || 'No reason provided';
-                detail.appendChild(reason);
-
-                var preview = document.createElement('div');
-                preview.className = 'data-preview';
-                var pre = document.createElement('pre');
-                pre.textContent = JSON.stringify(item.action_data, null, 2);
-                preview.appendChild(pre);
-                detail.appendChild(preview);
-
-                var footer = document.createElement('div');
-                footer.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-top:0.75rem;';
-                var footerMeta = document.createElement('div');
-                footerMeta.className = 'meta';
-                footerMeta.textContent = 'Created: ' + ArchieTime.format(item.created_at, 'short') +
-                    ' \u2022 Expires: ' + (item.expires_at ? ArchieTime.format(item.expires_at, 'short') : 'N/A');
-                footer.appendChild(footerMeta);
-
-                if (item.status === 'pending') {
-                    var btnGroup = document.createElement('div');
-                    btnGroup.className = 'btn-group';
-                    var approveBtn = document.createElement('button');
-                    approveBtn.className = 'btn btn-sm btn-success';
-                    approveBtn.textContent = 'Approve';
-                    approveBtn.addEventListener('click', function() { approveItem(item.id); });
-                    btnGroup.appendChild(approveBtn);
-                    var rejectBtn = document.createElement('button');
-                    rejectBtn.className = 'btn btn-sm btn-danger';
-                    rejectBtn.textContent = 'Reject';
-                    rejectBtn.addEventListener('click', function() { rejectItem(item.id); });
-                    btnGroup.appendChild(rejectBtn);
-                    footer.appendChild(btnGroup);
-                }
-                detail.appendChild(footer);
-                list.appendChild(detail);
-            });
-        } catch (e) { console.error('Failed to load approvals:', e); }
-    }
-
-    async function approveItem(id) {
-        try {
-            await fetch(BASE + '/approvals/' + id + '/approve', {method: 'POST', headers: {'Content-Type': 'application/json'}});
-            loadApprovals('pending');
-            loadLoopStatus();
-        } catch (e) { console.error('Approve failed:', e); }
-    }
-
-    async function rejectItem(id) {
-        var reason = prompt('Reason for rejection (optional):');
-        try {
-            await fetch(BASE + '/approvals/' + id + '/reject', {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({reason: reason || ''})
-            });
-            loadApprovals('pending');
-            loadLoopStatus();
-        } catch (e) { console.error('Reject failed:', e); }
-    }
-
-    function closeBulkModal() {
-        document.getElementById('auBulkModal').classList.remove('active');
-    }
-
-    function bulkApprove(action) {
-        if (pendingApprovalIds.length === 0) return;
-        var count = pendingApprovalIds.length;
-        var isApprove = action === 'approve';
-
-        document.getElementById('auBulkModalTitle').textContent = isApprove ? 'BULK APPROVE' : 'BULK REJECT';
-        document.getElementById('auBulkModalCount').textContent = count;
-        document.getElementById('auBulkModalMsg').textContent = isApprove
-            ? 'pending items will be approved.'
-            : 'pending items will be rejected.';
-
-        var confirmBtn = document.getElementById('auBulkModalConfirm');
-        confirmBtn.textContent = isApprove ? 'Approve All' : 'Reject All';
-        confirmBtn.className = 'btn btn-sm ' + (isApprove ? 'btn-success' : 'btn-danger');
-        confirmBtn.onclick = async function() {
-            closeBulkModal();
-            try {
-                var resp = await fetch(BASE + '/approvals/bulk', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({action: action, ids: pendingApprovalIds})
-                });
-                var data = await resp.json();
-                if (data.success) {
-                    loadApprovals('pending');
-                    loadLoopStatus();
-                }
-            } catch (e) { console.error('Bulk action failed:', e); }
-        };
-
-        document.getElementById('auBulkModal').classList.add('active');
-    }
-
-    /* ══════════════════════════════════════════════════════════════════════
-       Tab 2: Active Jobs
-       ══════════════════════════════════════════════════════════════════════ */
-    async function loadActiveJobs() {
-        try {
-            var resp = await fetch(BASE + '/ops-active-jobs');
-            var data = await resp.json();
-            if (data.error) return;
-
-            /* --- Bridge Jobs --- */
-            var bridgeJobs = data.bridge_jobs || [];
-            var bridgeList = document.getElementById('bridgeJobsList');
-            document.getElementById('bridgeJobsBadge').textContent = bridgeJobs.length;
-            bridgeList.textContent = '';
-
-            if (bridgeJobs.length === 0) {
-                var empty = document.createElement('div');
-                empty.className = 'empty-state';
-                empty.textContent = 'No active bridge jobs';
-                bridgeList.appendChild(empty);
-            } else {
-                bridgeJobs.forEach(function(job) {
-                    var card = document.createElement('div');
-                    card.className = 'au-job-card';
-
-                    var desc = document.createElement('div');
-                    desc.className = 'job-desc';
-                    var h4 = document.createElement('h4');
-                    h4.textContent = job.description || job.job_type || 'Unnamed Job';
-                    desc.appendChild(h4);
-                    var meta = document.createElement('div');
-                    meta.className = 'job-meta';
-                    meta.textContent = (job.agent_name || 'Unassigned') + ' \u2022 ' + timeAgo(job.created_at);
-                    desc.appendChild(meta);
-                    card.appendChild(desc);
-
-                    var progressDiv = document.createElement('div');
-                    progressDiv.className = 'job-progress';
-                    var bar = document.createElement('div');
-                    bar.className = 'progress-bar';
-                    var fill = document.createElement('div');
-                    fill.className = 'progress-fill';
-                    var total = job.total_steps || 1;
-                    var completed = job.completed_steps || 0;
-                    var pct = Math.min(100, Math.round((completed / total) * 100));
-                    fill.style.width = pct + '%';
-                    bar.appendChild(fill);
-                    progressDiv.appendChild(bar);
-                    var label = document.createElement('div');
-                    label.className = 'progress-label';
-                    label.textContent = completed + '/' + total + ' (' + pct + '%)';
-                    progressDiv.appendChild(label);
-                    card.appendChild(progressDiv);
-
-                    var pillEl = document.createElement('div');
-                    appendPill(pillEl, job.status);
-                    card.appendChild(pillEl);
-
-                    bridgeList.appendChild(card);
-                });
-            }
-
-            /* --- Server Loops --- */
-            var serverLoops = data.server_loops || {};
-            var loopOps = ['analysis', 'embedding', 'translate'];
-            var loopList = document.getElementById('serverLoopsList');
-            var activeLoopCount = 0;
-            loopList.textContent = '';
-
-            loopOps.forEach(function(op) {
-                var enabled = !!serverLoops[op];
-                if (enabled) activeLoopCount++;
-
-                var row = document.createElement('div');
-                row.className = 'au-loop-toggle';
-
-                var lbl = document.createElement('div');
-                lbl.className = 'loop-label';
-                lbl.textContent = op.charAt(0).toUpperCase() + op.slice(1);
-                row.appendChild(lbl);
-
-                var status = document.createElement('span');
-                status.className = 'loop-status ' + (enabled ? 'on' : 'off');
-                status.textContent = enabled ? 'ON' : 'OFF';
-                row.appendChild(status);
-
-                var toggle = document.createElement('div');
-                toggle.className = 'toggle-switch' + (enabled ? ' on' : '');
-                toggle.title = enabled ? 'Disable ' + op : 'Enable ' + op;
-                toggle.addEventListener('click', (function(o, en) {
-                    return function() { toggleServerLoop(o, !en); };
-                })(op, enabled));
-                row.appendChild(toggle);
-                loopList.appendChild(row);
-            });
-            document.getElementById('serverLoopsBadge').textContent = activeLoopCount;
-
-            /* --- Agent Loop Jobs (from JobService API) --- */
-            loadOpsJobs();
-
-            /* --- Scheduler Jobs --- */
-            var schedulerJobs = data.scheduler_jobs || [];
-            var schedulerList = document.getElementById('schedulerJobsList');
-            document.getElementById('schedulerJobsBadge').textContent = schedulerJobs.length;
-            schedulerList.textContent = '';
-
-            if (schedulerJobs.length === 0) {
-                var emptySch = document.createElement('div');
-                emptySch.className = 'empty-state';
-                emptySch.textContent = 'No scheduler jobs';
-                schedulerList.appendChild(emptySch);
-            } else {
-                var tbl = document.createElement('table');
-                tbl.className = 'data-table';
-                var thead = document.createElement('thead');
-                var hRow = document.createElement('tr');
-                ['Name', 'Next Run'].forEach(function(h) {
-                    var th = document.createElement('th');
-                    th.textContent = h;
-                    hRow.appendChild(th);
-                });
-                thead.appendChild(hRow);
-                tbl.appendChild(thead);
-
-                var tbody = document.createElement('tbody');
-                schedulerJobs.forEach(function(job) {
-                    var tr = document.createElement('tr');
-                    var tdName = document.createElement('td');
-                    tdName.textContent = job.name || job.id;
-                    tr.appendChild(tdName);
-                    var tdNext = document.createElement('td');
-                    tdNext.textContent = job.next_run ? ArchieTime.format(job.next_run, 'short') : 'N/A';
-                    tr.appendChild(tdNext);
-                    tbody.appendChild(tr);
-                });
-                tbl.appendChild(tbody);
-                schedulerList.appendChild(tbl);
-            }
-
-            /* Update active jobs badge */
-            var totalActive = bridgeJobs.filter(function(j) { return j.status === 'running' || j.status === 'pending'; }).length;
-            var ajBadge = document.getElementById('activeJobsBadge');
-            if (totalActive > 0) {
-                ajBadge.textContent = totalActive;
-                ajBadge.style.display = 'inline';
-            } else {
-                ajBadge.style.display = 'none';
-            }
-
-        } catch (e) { console.error('Failed to load active jobs:', e); }
-    }
-
-    async function toggleServerLoop(op, enabled) {
-        try {
-            await fetch('/tools/autonomy/api/ops-server-loop/toggle', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({op: op, enabled: enabled})
-            });
-            loadActiveJobs();
-        } catch (e) { console.error('Toggle server loop failed:', e); }
-    }
-
-    /* ══════════════════════════════════════════════════════════════════════
-       Agent Loop Jobs — powered by JobService /api/ops-jobs
-       ══════════════════════════════════════════════════════════════════════ */
-    function fmtInterval(hours) {
-        if (!hours && hours !== 0) return '\u2014';
-        if (hours < 1) return Math.round(hours * 60) + 'm';
-        if (hours % 24 === 0) return (hours / 24) + 'd';
-        if (Number.isInteger(hours)) return hours + 'h';
-        return hours.toFixed(1) + 'h';
-    }
-
-    function makeEmptyDiv(msg) {
-        var d = document.createElement('div');
-        d.className = 'empty-state';
-        d.textContent = msg;
-        return d;
-    }
-
-    async function loadOpsJobs() {
-        var container = document.getElementById('agentLoopJobsList');
-        try {
-            var resp = await fetch(BASE + '/ops-jobs');
-            var data = await resp.json();
-            if (data.error) {
-                container.textContent = '';
-                container.appendChild(makeEmptyDiv(data.error));
-                document.getElementById('agentLoopJobsBadge').textContent = '!';
-                return;
-            }
-            var jobs = data.jobs || [];
-            document.getElementById('agentLoopJobsBadge').textContent = jobs.length;
-            container.textContent = '';
-
-            if (jobs.length === 0) {
-                container.appendChild(makeEmptyDiv('No registered jobs'));
-                return;
-            }
-
-            /* Group by department */
-            var byDept = {};
-            jobs.forEach(function(j) {
-                var dept = j.department || 'Other';
-                if (!byDept[dept]) byDept[dept] = [];
-                byDept[dept].push(j);
-            });
-
-            /* Wrap for scroll */
-            var wrap = document.createElement('div');
-            wrap.className = 'ops-jobs-wrap';
-
-            /* Column header */
-            var hdr = document.createElement('div');
-            hdr.className = 'ops-jobs-header';
-            ['', 'Name', 'Interval', 'Status', 'Last Run', 'Actions'].forEach(function(h) {
-                var s = document.createElement('span');
-                s.textContent = h;
-                hdr.appendChild(s);
-            });
-            wrap.appendChild(hdr);
-
-            /* Sort departments by DEPT_ORDER, then alphabetically for unknown */
-            var deptKeys = Object.keys(byDept).sort(function(a, b) {
-                var ia = DEPT_ORDER.indexOf(a), ib = DEPT_ORDER.indexOf(b);
-                if (ia === -1) ia = 999;
-                if (ib === -1) ib = 999;
-                return ia - ib || a.localeCompare(b);
-            });
-
-            deptKeys.forEach(function(dept) {
-                var deptJobs = byDept[dept];
-                var deptColor = DEPT_COLORS[dept] || '#FFAA00';
-                var enabledCount = deptJobs.filter(function(j) { return j.enabled; }).length;
-
-                var group = document.createElement('div');
-                group.className = 'ops-dept-group';
-
-                /* Department header */
-                var dh = document.createElement('div');
-                dh.className = 'ops-dept-hdr';
-                dh.style.setProperty('--dept-color', deptColor);
-                dh.onclick = function() {
-                    this.classList.toggle('collapsed');
-                    this.nextElementSibling.classList.toggle('collapsed');
-                };
-
-                var dot = document.createElement('span');
-                dot.className = 'dept-dot';
-                dh.appendChild(dot);
-
-                var nm = document.createElement('span');
-                nm.className = 'dept-name';
-                nm.textContent = dept;
-                dh.appendChild(nm);
-
-                var cnt = document.createElement('span');
-                cnt.className = 'dept-count';
-                cnt.textContent = enabledCount + '/' + deptJobs.length + ' active';
-                dh.appendChild(cnt);
-
-                var chev = document.createElement('span');
-                chev.className = 'dept-chev';
-                chev.textContent = '\u25BC';
-                dh.appendChild(chev);
-
-                group.appendChild(dh);
-
-                /* Job rows */
-                var body = document.createElement('div');
-                body.className = 'ops-dept-body';
-
-                deptJobs.forEach(function(job) {
-                    var row = document.createElement('div');
-                    row.className = 'ops-job-row';
-                    row.setAttribute('data-job', job.name);
-
-                    /* Status dot */
-                    var jdot = document.createElement('div');
-                    jdot.className = 'ops-job-dot ' + (job.enabled ? 'enabled' : 'disabled');
-                    jdot.title = job.enabled ? 'Enabled' : 'Disabled';
-                    row.appendChild(jdot);
-
-                    /* Name */
-                    var jname = document.createElement('div');
-                    jname.className = 'ops-job-name';
-                    var meta = JOB_META[job.name] || {};
-                    jname.textContent = meta.label || job.name.replace(/^agent_/, '').replace(/_/g, ' ');
-                    jname.title = job.name;
-                    row.appendChild(jname);
-
-                    /* Interval (clickable to reschedule) */
-                    var jint = document.createElement('div');
-                    jint.className = 'ops-job-interval';
-                    jint.textContent = fmtInterval(job.interval_hours);
-                    jint.style.cursor = 'pointer';
-                    jint.title = 'Click to change interval';
-                    jint.addEventListener('click', (function(name, hours) {
-                        return function(e) {
-                            e.stopPropagation();
-                            rescheduleJob(name, hours);
-                        };
-                    })(job.name, job.interval_hours));
-                    row.appendChild(jint);
-
-                    /* Last status */
-                    var jstat = document.createElement('div');
-                    jstat.className = 'ops-job-status';
-                    if (job.last_status) {
-                        appendPill(jstat, job.last_status);
-                    } else {
-                        jstat.textContent = '\u2014';
-                        jstat.style.color = 'var(--au-muted)';
-                    }
-                    row.appendChild(jstat);
-
-                    /* Last run */
-                    var jlr = document.createElement('div');
-                    jlr.className = 'ops-job-lastrun';
-                    jlr.textContent = job.last_run ? timeAgo(job.last_run) : 'Never';
-                    if (job.last_run) jlr.title = job.last_run;
-                    row.appendChild(jlr);
-
-                    /* Actions */
-                    var acts = document.createElement('div');
-                    acts.className = 'ops-job-actions';
-
-                    var toggleBtn = document.createElement('button');
-                    toggleBtn.className = 'btn-xs ' + (job.enabled ? 'btn-toggle-off' : 'btn-toggle-on');
-                    toggleBtn.textContent = job.enabled ? 'Disable' : 'Enable';
-                    toggleBtn.addEventListener('click', (function(name, enabled) {
-                        return function(e) {
-                            e.stopPropagation();
-                            toggleOpsJob(name, enabled);
-                        };
-                    })(job.name, job.enabled));
-                    acts.appendChild(toggleBtn);
-
-                    var runBtn = document.createElement('button');
-                    runBtn.className = 'btn-xs btn-run';
-                    runBtn.textContent = 'Run';
-                    runBtn.disabled = !job.enabled;
-                    runBtn.addEventListener('click', (function(name) {
-                        return function(e) {
-                            e.stopPropagation();
-                            runOpsJob(name);
-                        };
-                    })(job.name));
-                    acts.appendChild(runBtn);
-
-                    row.appendChild(acts);
-                    body.appendChild(row);
-                });
-
-                group.appendChild(body);
-                wrap.appendChild(group);
-            });
-
-            container.appendChild(wrap);
-        } catch (e) {
-            console.error('Failed to load ops jobs:', e);
-            container.textContent = '';
-            container.appendChild(makeEmptyDiv('Failed to load jobs'));
-        }
-    }
-
-    async function toggleOpsJob(name, currentlyEnabled) {
-        var action = currentlyEnabled ? 'disable' : 'enable';
-        try {
-            var resp = await fetch(BASE + '/ops-jobs/' + encodeURIComponent(name) + '/' + action, {
-                method: 'POST', headers: {'Content-Type': 'application/json'}
-            });
-            var data = await resp.json();
-            if (data.error) { console.error('Toggle failed:', data.error); return; }
-            loadOpsJobs();
-        } catch (e) { console.error('Toggle ops job failed:', e); }
-    }
-
-    async function runOpsJob(name) {
-        /* Find the button and show feedback */
-        var row = document.querySelector('[data-job="' + name + '"]');
-        if (row) {
-            var runBtn = row.querySelector('.btn-run');
-            if (runBtn) { runBtn.textContent = '...'; runBtn.disabled = true; }
-        }
-        try {
-            var resp = await fetch(BASE + '/ops-jobs/' + encodeURIComponent(name) + '/run', {
-                method: 'POST', headers: {'Content-Type': 'application/json'}
-            });
-            var data = await resp.json();
-            if (data.error) { console.error('Run failed:', data.error); }
-            /* Refresh after a short delay to allow the job to complete */
-            setTimeout(loadOpsJobs, 1500);
-        } catch (e) { console.error('Run ops job failed:', e); }
-    }
-
-    async function rescheduleJob(name, currentHours) {
-        var label = currentHours ? fmtInterval(currentHours) : 'unknown';
-        var input = prompt('Reschedule "' + name + '"\nCurrent interval: ' + label + '\n\nEnter new interval in hours:', currentHours || '');
-        if (input === null || input.trim() === '') return;
-        var hours = parseFloat(input);
-        if (isNaN(hours) || hours <= 0) {
-            alert('Invalid interval. Must be a positive number.');
-            return;
-        }
-        try {
-            var resp = await fetch(BASE + '/ops-jobs/' + encodeURIComponent(name) + '/reschedule', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({interval_hours: hours})
-            });
-            var data = await resp.json();
-            if (data.error) { alert('Reschedule failed: ' + data.error); return; }
-            loadOpsJobs();
-        } catch (e) { console.error('Reschedule failed:', e); alert('Reschedule failed: ' + e.message); }
-    }
-
-    /* ══════════════════════════════════════════════════════════════════════
-       Tab 3: Health
-       ══════════════════════════════════════════════════════════════════════ */
-    function healthStatus(lastRun, errCount) {
-        /* Determine green/amber/red based on staleness and error ratio */
-        if (!lastRun) return 'red';
-        var ageMs = Date.now() - new Date(lastRun).getTime();
-        var ageHours = ageMs / (1000 * 60 * 60);
-        if (errCount > 5 || ageHours > 12) return 'red';
-        if (errCount > 0 || ageHours > 4) return 'amber';
-        return 'green';
-    }
-
-    function buildHealthCard(name, lastRun, okCount, errCount) {
-        var status = healthStatus(lastRun, errCount);
-        var card = document.createElement('div');
-        card.className = 'au-health-card';
-        card.setAttribute('data-health', status);
-
-        var dot = document.createElement('div');
-        dot.className = 'health-dot ' + status;
-        card.appendChild(dot);
-
-        var info = document.createElement('div');
-        info.className = 'health-info';
-
-        var nameEl = document.createElement('div');
-        nameEl.className = 'health-name';
-        nameEl.textContent = name;
-        info.appendChild(nameEl);
-
-        var stats = document.createElement('div');
-        stats.className = 'health-stats';
-        stats.textContent = okCount + ' ok / ' + errCount + ' err';
-        info.appendChild(stats);
-
-        var lastRunEl = document.createElement('div');
-        lastRunEl.className = 'health-last-run';
-        lastRunEl.textContent = 'Last: ' + timeAgo(lastRun);
-        info.appendChild(lastRunEl);
-
-        card.appendChild(info);
-        return card;
-    }
-
-    async function loadHealth() {
-        try {
-            var resp = await fetch(BASE + '/ops-health');
-            var data = await resp.json();
-            if (data.error) return;
-            var deptAgents = data.dept_agents || {};
-
-            /* Loop health grid */
-            var loopGrid = document.getElementById('loopHealthGrid');
-            var loopHealth = data.loop_health || [];
-            loopGrid.textContent = '';
-
-            if (loopHealth.length === 0) {
-                var empty = document.createElement('div');
-                empty.className = 'empty-state';
-                empty.textContent = 'No agent loop data in last 24h';
-                loopGrid.appendChild(empty);
-            } else {
-                /* Group health data by department */
-                var healthByDept = {};
-                loopHealth.forEach(function(h) {
-                    var dept = getJobDept('agent_' + h.job_name) !== 'Other'
-                        ? getJobDept('agent_' + h.job_name)
-                        : getJobDept(h.job_name);
-                    if (!healthByDept[dept]) healthByDept[dept] = {jobs: [], ok: 0, err: 0};
-                    healthByDept[dept].jobs.push(h);
-                    healthByDept[dept].ok += (h.ok_24h || 0);
-                    healthByDept[dept].err += (h.err_24h || 0);
-                });
-                var hDeptKeys = DEPT_ORDER.filter(function(d) { return healthByDept[d]; });
-                if (healthByDept['Other']) hDeptKeys.push('Other');
-
-                hDeptKeys.forEach(function(dept) {
-                    var deptData = healthByDept[dept];
-                    var deptColor = DEPT_COLORS[dept] || '#FFAA00';
-                    var worstStatus = deptData.err > 5 ? 'red' : deptData.err > 0 ? 'amber' : 'green';
-
-                    /* Department header row */
-                    var deptRow = document.createElement('div');
-                    deptRow.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 10px;margin:8px 0 4px;border-radius:6px;background:rgba(255,255,255,0.02);border-left:3px solid ' + deptColor + ';cursor:pointer;';
-                    deptRow.onclick = function() {
-                        var cards = this.nextElementSibling;
-                        cards.style.display = cards.style.display === 'none' ? '' : 'none';
-                    };
-
-                    var statusDot = document.createElement('span');
-                    var dotColors = {green:'#22c55e',amber:'#f59e0b',red:'#ef4444'};
-                    statusDot.style.cssText = 'width:8px;height:8px;border-radius:50%;background:' + dotColors[worstStatus] + ';';
-                    deptRow.appendChild(statusDot);
-
-                    var dLabel = document.createElement('span');
-                    dLabel.style.cssText = 'font-size:0.8rem;font-weight:600;color:' + deptColor + ';flex:1;';
-                    dLabel.textContent = dept;
-                    deptRow.appendChild(dLabel);
-
-                    var dStats = document.createElement('span');
-                    dStats.style.cssText = 'font-size:0.65rem;color:rgba(255,255,255,0.4);';
-                    var agentInfo = deptAgents[dept] || {};
-                    var agentStr = agentInfo.active ? ' \u00b7 ' + agentInfo.active + '/' + agentInfo.total + ' agents' : '';
-                    dStats.textContent = deptData.jobs.length + ' jobs \u00b7 ' + deptData.ok + ' ok \u00b7 ' + deptData.err + ' err' + agentStr;
-                    deptRow.appendChild(dStats);
-
-                    loopGrid.appendChild(deptRow);
-
-                    var cardsDiv = document.createElement('div');
-                    cardsDiv.className = 'health-grid';
-                    cardsDiv.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;margin-bottom:4px;';
-                    deptData.jobs.forEach(function(h) {
-                        cardsDiv.appendChild(buildHealthCard(
-                            getJobLabel(h.job_name),
-                            h.last_run,
-                            h.ok_24h,
-                            h.err_24h
-                        ));
-                    });
-                    loopGrid.appendChild(cardsDiv);
-                });
-            }
-
-            /* Bridge health grid */
-            var bridgeGrid = document.getElementById('bridgeHealthGrid');
-            var bridgeHealth = data.bridge_health || [];
-            bridgeGrid.textContent = '';
-
-            if (bridgeHealth.length === 0) {
-                var emptyB = document.createElement('div');
-                emptyB.className = 'empty-state';
-                emptyB.textContent = 'No bridge job data in last 24h';
-                bridgeGrid.appendChild(emptyB);
-            } else {
-                bridgeHealth.forEach(function(h) {
-                    bridgeGrid.appendChild(buildHealthCard(
-                        h.job_type,
-                        h.last_completed,
-                        h.ok_24h,
-                        h.err_24h
-                    ));
-                });
-            }
-
-            /* System components */
-            var compList = document.getElementById('componentsList');
-            var components = data.components || {};
-            compList.textContent = '';
-
-            /* Ollama */
-            var ollamaStatus = (components.ollama || {}).status || 'error';
-            var ollamaRow = document.createElement('div');
-            ollamaRow.className = 'au-component-row';
-            ollamaRow.setAttribute('data-status', ollamaStatus === 'ok' ? 'ok' : 'error');
-            var ollamaName = document.createElement('div');
-            ollamaName.className = 'comp-name';
-            ollamaName.textContent = 'Ollama';
-            ollamaRow.appendChild(ollamaName);
-            var ollamaDetail = document.createElement('div');
-            ollamaDetail.className = 'comp-detail';
-            if (ollamaStatus === 'ok') {
-                ollamaDetail.textContent = 'Connected (HTTP ' + ((components.ollama || {}).http_code || 200) + ')';
-            } else {
-                ollamaDetail.textContent = 'Error: ' + ((components.ollama || {}).error || 'unreachable');
-            }
-            ollamaRow.appendChild(ollamaDetail);
-            var ollamaDot = document.createElement('div');
-            ollamaDot.className = 'health-dot ' + (ollamaStatus === 'ok' ? 'green' : 'red');
-            ollamaRow.appendChild(ollamaDot);
-            compList.appendChild(ollamaRow);
-
-            /* Telegram */
-            var tg = components.telegram || {};
-            var tgStatus = tg.token_configured ? 'ok' : 'warn';
-            var tgRow = document.createElement('div');
-            tgRow.className = 'au-component-row';
-            tgRow.setAttribute('data-status', tgStatus);
-            var tgName = document.createElement('div');
-            tgName.className = 'comp-name';
-            tgName.textContent = 'Telegram';
-            tgRow.appendChild(tgName);
-            var tgDetail = document.createElement('div');
-            tgDetail.className = 'comp-detail';
-            if (tg.token_configured) {
-                tgDetail.textContent = 'Configured (' + tg.authorized_users + ' authorized user' + (tg.authorized_users !== 1 ? 's' : '') + ')';
-            } else {
-                tgDetail.textContent = 'Token not configured';
-            }
-            tgRow.appendChild(tgDetail);
-            var tgDot = document.createElement('div');
-            tgDot.className = 'health-dot ' + (tg.token_configured ? 'green' : 'amber');
-            tgRow.appendChild(tgDot);
-            compList.appendChild(tgRow);
-
-        } catch (e) { console.error('Failed to load health:', e); }
-    }
-
-    /* ══════════════════════════════════════════════════════════════════════
-       Tab 4: History
-       ══════════════════════════════════════════════════════════════════════ */
-    function setHistoryHours(hours) {
-        currentHistoryHours = hours;
-        /* Highlight active button */
-        var btns = document.getElementById('historyTimeButtons').querySelectorAll('.btn');
-        btns.forEach(function(b) { b.className = 'btn btn-sm'; });
-        if (hours === 6) btns[0].classList.add('btn-primary');
-        else if (hours === 24) btns[1].classList.add('btn-primary');
-        else if (hours === 168) btns[2].classList.add('btn-primary');
-        loadHistory();
-    }
-
-    async function loadHistory() {
-        var system = document.getElementById('historySystemFilter').value;
-        try {
-            var url = BASE + '/ops-history?hours=' + currentHistoryHours + '&system=' + system;
-            var resp = await fetch(url);
-            var data = await resp.json();
-
-            var tbody = document.getElementById('historyLogs');
-            var rows = data.rows || [];
-            tbody.textContent = '';
-
-            if (rows.length === 0) {
-                var tr = document.createElement('tr');
-                var td = document.createElement('td');
-                td.setAttribute('colspan', '6');
-                td.style.textAlign = 'center';
-                td.style.color = 'var(--au-muted)';
-                td.textContent = 'No history for this period';
-                tr.appendChild(td);
-                tbody.appendChild(tr);
-                return;
-            }
-
-            rows.forEach(function(row) {
-                var tr = document.createElement('tr');
-
-                /* Source badge */
-                var tdSource = document.createElement('td');
-                var sourceBadge = document.createElement('span');
-                sourceBadge.className = 'au-source-badge ' + (row.system || 'agent_loop');
-                var sourceDot = document.createElement('span');
-                sourceDot.className = 'source-dot';
-                sourceBadge.appendChild(sourceDot);
-                var sourceText = document.createTextNode(row.system === 'bridge' ? 'Bridge' : 'Agent Loop');
-                sourceBadge.appendChild(sourceText);
-                tdSource.appendChild(sourceBadge);
-                tr.appendChild(tdSource);
-
-                /* Name */
-                var tdName = document.createElement('td');
-                tdName.textContent = row.system === 'bridge' ? (row.name || '') : getJobLabel(row.name);
-                tr.appendChild(tdName);
-
-                /* Status */
-                var tdStatus = document.createElement('td');
-                appendPill(tdStatus, row.status);
-                tr.appendChild(tdStatus);
-
-                /* Processed */
-                var tdProc = document.createElement('td');
-                tdProc.textContent = row.items_processed != null ? String(row.items_processed) : '-';
-                tdProc.style.color = '#00ff41';
-                tr.appendChild(tdProc);
-
-                /* Duration */
-                var tdDur = document.createElement('td');
-                tdDur.textContent = row.duration_ms != null ? row.duration_ms + 'ms' : '-';
-                tr.appendChild(tdDur);
-
-                /* Time */
-                var tdTime = document.createElement('td');
-                tdTime.textContent = row.timestamp ? ArchieTime.format(row.timestamp, 'short') : '-';
-                tr.appendChild(tdTime);
-
-                tbody.appendChild(tr);
-            });
-        } catch (e) { console.error('Failed to load history:', e); }
-    }
-
-    /* ══════════════════════════════════════════════════════════════════════
-       Init
-       ══════════════════════════════════════════════════════════════════════ */
-    loadLoopStatus();
-    setInterval(loadLoopStatus, 15000);
-
-    /* Hash routing */
-    var hashTab = (window.location.hash || '').replace('#', '');
-    if (VALID_TABS.indexOf(hashTab) !== -1) {
-        switchTab(hashTab);
-    } else {
-        /* Default: approvals tab is already active in HTML, just load data */
-        loadApprovals('pending');
-    }
+var BASE = '/tools/autonomy/api';
+
+function auEsc(s) { if (s == null) return ''; var d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
+function auFmtTime(iso) { if (!iso) return '\u2014'; try { return new Date(iso).toLocaleString(undefined, {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); } catch(e) { return iso; } }
+function auSetHtml(el, html) { el.innerHTML = html; }
+
+// ── System Components ──
+async function loadComponents() {
+    var el = document.getElementById('componentsList');
+    try {
+        var r = await fetch(BASE + '/ops-health');
+        var d = await r.json();
+        // Build component list from health data
+        var html = '';
+        var pairs = [
+            ['Ollama', d.ollama_status],
+            ['Telegram Bot', d.telegram_status],
+            ['Agent Loop', d.loop_running],
+            ['Scheduler', d.scheduler_running]
+        ];
+        pairs.forEach(function(p) {
+            if (p[1] === undefined) return;
+            var cls = p[1] ? 'au-comp-ok' : 'au-comp-err';
+            var label = p[1] ? 'OK' : 'ERROR';
+            html += '<div class="au-component"><span class="au-comp-name">' + auEsc(p[0]) + '</span><span class="au-comp-status ' + cls + '">' + label + '</span></div>';
+        });
+        // Dept agent counts
+        var depts = d.dept_agents || [];
+        depts.forEach(function(da) {
+            html += '<div class="au-component"><span class="au-comp-name">' + auEsc(da.department) + '</span><span class="au-comp-status au-comp-ok">' + auEsc(da.count) + ' agents</span></div>';
+        });
+        auSetHtml(el, html || '<div style="color:var(--au-muted)">No component data</div>');
+    } catch(e) { el.textContent = 'Error: ' + e.message; }
+}
+
+// ── Scheduler Jobs ──
+async function loadScheduler() {
+    var el = document.getElementById('schedulerList');
+    var countEl = document.getElementById('schedCount');
+    try {
+        var r = await fetch(BASE + '/ops-active-jobs');
+        var d = await r.json();
+        var jobs = d.scheduler_jobs || [];
+        if (countEl) countEl.textContent = '(' + jobs.length + ')';
+        if (!jobs.length) { el.textContent = 'No scheduler jobs'; return; }
+        var html = '<table class="au-sched-table"><thead><tr><th>JOB ID</th><th>NAME</th><th>NEXT RUN</th><th>TRIGGER</th></tr></thead><tbody>';
+        jobs.forEach(function(j) {
+            html += '<tr><td>' + auEsc(j.id || j.job_id) + '</td><td>' + auEsc(j.name) + '</td><td>' + auFmtTime(j.next_run_time || j.next_run) + '</td><td style="color:var(--au-muted)">' + auEsc(j.trigger || '') + '</td></tr>';
+        });
+        html += '</tbody></table>';
+        auSetHtml(el, html);
+    } catch(e) { el.textContent = 'Error: ' + e.message; }
+}
+
+// ── Configuration ──
+async function loadConfig() {
+    var el = document.getElementById('configList');
+    try {
+        var r = await fetch(BASE + '/config');
+        var d = await r.json();
+        var configs = d.configs || d.config || [];
+        var entries = Array.isArray(configs) ? configs : Object.entries(configs).map(function(e) { return {key: e[0], value: e[1]}; });
+        if (!entries.length) { el.textContent = 'No configuration entries'; return; }
+        var html = '<table class="au-config-table"><thead><tr><th>KEY</th><th>VALUE</th><th></th></tr></thead><tbody>';
+        entries.forEach(function(c) {
+            var key = c.key || c.config_key || '';
+            var val = c.value || c.config_value || '';
+            if (typeof val === 'object') val = JSON.stringify(val);
+            html += '<tr><td style="font-family:monospace;color:var(--au-accent)">' + auEsc(key) + '</td>'
+                + '<td><input id="cfg-' + auEsc(key) + '" value="' + auEsc(val) + '"></td>'
+                + '<td><button onclick="saveConfig(\'' + auEsc(key) + '\')">Save</button></td></tr>';
+        });
+        html += '</tbody></table>';
+        auSetHtml(el, html);
+    } catch(e) { el.textContent = 'Error: ' + e.message; }
+}
+
+async function saveConfig(key) {
+    var input = document.getElementById('cfg-' + key);
+    if (!input) return;
+    try {
+        var r = await fetch(BASE + '/config/' + encodeURIComponent(key), {
+            method: 'PUT', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({value: input.value})
+        });
+        var d = await r.json();
+        if (d.success) { input.style.borderColor = 'var(--au-green)'; setTimeout(function() { input.style.borderColor = ''; }, 2000); }
+    } catch(e) { /* silent */ }
+}
+
+// ── Repair Pipeline ──
+async function loadRepairPipeline() {
+    var el = document.getElementById('repairStatus');
+    try {
+        var r = await fetch(BASE + '/repair-pipeline-status');
+        var d = await r.json();
+        var html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0.75rem">';
+        [{label:'Open Proposals',val:d.open_proposals||0},{label:'Active Sessions',val:d.active_sessions||0},{label:'CREED Events',val:d.creed_events||0},{label:'Audit Findings',val:d.audit_findings||0}].forEach(function(item) {
+            html += '<div style="background:rgba(255,255,255,0.03);border:1px solid var(--au-border);border-radius:6px;padding:0.6rem;text-align:center">'
+                + '<div style="font-family:Orbitron,sans-serif;font-size:1.2rem;color:var(--au-accent)">' + item.val + '</div>'
+                + '<div style="font-size:0.65rem;color:var(--au-muted);letter-spacing:1px">' + item.label + '</div></div>';
+        });
+        html += '</div>';
+        auSetHtml(el, html);
+    } catch(e) { el.textContent = 'Repair pipeline unavailable'; }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadComponents();
+    loadScheduler();
+    loadConfig();
+    loadRepairPipeline();
+});
 </script>
 {% endblock %}

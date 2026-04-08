@@ -1804,5 +1804,19 @@
     "email": null,
     "acronym": null,
     "acronym_expansion": null
+  },
+  {
+    "id": 336,
+    "name": "ethos",
+    "display_name": "E.T.H.O.S.",
+    "full_name": "E.T.H.O.S.",
+    "department": "Legal & Regulatory",
+    "title": "C.R.E.E.D. Institute Web & Compliance Manager",
+    "agent_type": "staff",
+    "shift_state": "active",
+    "avatar_url": "/assets/portraits/ethos.png",
+    "email": null,
+    "acronym": "E.T.H.O.S.",
+    "acronym_expansion": "Ethical Transparency & Harmonization Oversight System"
   }
 ]

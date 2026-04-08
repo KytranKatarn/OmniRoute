@@ -5315,7 +5315,7 @@ class BridgeDispatcher:
 
             # Auto-detect project if not explicitly provided
             if project_id is None:
-                project_id = _detect_project_id(f"{capability} {prompt}")
+                project_id = _detect_project_id(f"{cap_key} {description}")
 
             cur.execute(
                 """

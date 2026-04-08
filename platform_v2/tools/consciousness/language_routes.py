@@ -27,8 +27,29 @@ from ai_bridge.translation_service import (
     BATCH_SIZE,
 )
 from module_registry import get_all_modules, ModuleCategory
+import json as _json
 
 logger = logging.getLogger(__name__)
+
+# External sites/products with data-i18n attributes to scan
+# Each entry: (source_label, directory_path, bundle_output_path_or_None)
+EXTERNAL_SCAN_SOURCES = [
+    (
+        "website_kytranempowerment",
+        "/mnt/archie_brain/website/kytranempowerment.com",
+        "/mnt/archie_brain/website/kytranempowerment.com/data/translations.json",
+    ),
+    (
+        "website_kso",
+        "/mnt/archie_brain/kytran-server-manager",
+        None,  # KSO doesn't have a static bundle yet
+    ),
+    (
+        "website_creed",
+        "/mnt/archie_brain/website/creed-ai.org",
+        "/mnt/archie_brain/website/creed-ai.org/data/translations.json",
+    ),
+]
 
 
 def _get_db():
@@ -112,6 +133,49 @@ def _scan_all_sources():
                     logger.warning(f"Scan: could not read {rel_path}: {read_err}")
 
     by_source["template"] = sum(1 for v in keys.values() if v["source"] == "template")
+
+    # -- Source 1b: External Sites (websites, standalone products) --
+    for ext_label, ext_dir, _bundle_path in EXTERNAL_SCAN_SOURCES:
+        if not os.path.isdir(ext_dir):
+            logger.warning(f"Scan: external dir not found: {ext_dir}")
+            continue
+        ext_count = 0
+        for root, _dirs, files in os.walk(ext_dir):
+            # Skip hidden dirs, node_modules, __pycache__
+            if any(skip in root for skip in ("/.git", "/node_modules", "/__pycache__")):
+                continue
+            for fname in files:
+                if not fname.endswith(".html") or fname.startswith("_"):
+                    continue
+                filepath = os.path.join(root, fname)
+                rel_path = os.path.relpath(filepath, ext_dir)
+                try:
+                    with open(filepath, "r", encoding="utf-8") as fh:
+                        content = fh.read()
+                    text_map = {}
+                    for m in i18n_text_pattern.finditer(content):
+                        text_map[m.group(1)] = m.group(2).strip()
+                    for i, pat in enumerate(i18n_attr_extractors):
+                        for m in pat.finditer(content):
+                            if i % 2 == 0:
+                                text_map[m.group(1)] = m.group(2).strip()
+                            else:
+                                text_map[m.group(2)] = m.group(1).strip()
+                    for match in i18n_key_pattern.finditer(content):
+                        key = match.group(1)
+                        if "{{" in key or "}}" in key:
+                            continue
+                        if key not in keys:
+                            keys[key] = {
+                                "source": ext_label,
+                                "file": f"{ext_label}:{rel_path}",
+                                "english": text_map.get(key, ""),
+                            }
+                            ext_count += 1
+                except Exception as read_err:
+                    logger.warning(f"Scan: external {ext_label}/{rel_path}: {read_err}")
+        by_source[ext_label] = ext_count
+        logger.info(f"Scan: {ext_label} contributed {ext_count} new keys")
 
     # -- Source 2: Module Registry --
     try:
@@ -216,6 +280,9 @@ def _seed_keys(keys_dict):
             "js": "js_manifest",
             "template": "template",
         }
+        # Add external source labels to context map
+        for ext_label, _, _ in EXTERNAL_SCAN_SOURCES:
+            context_map[ext_label] = ext_label
 
         for key, info in keys_dict.items():
             english = info.get("english", "")
@@ -1625,6 +1692,108 @@ def register_language_routes(bp, admin_required):
             logger.error(f"Translation memory delete error: {e}")
             return jsonify({"success": False, "error": str(e)}), 500
 
+        finally:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
+
+    @bp.route("/api/translations/export-bundle", methods=["POST"])
+    @login_required
+    @require_permission(Permission.ADMIN_ACCESS)
+    def translation_export_bundle():
+        """Export translations from DB to a static translations.json bundle for an external site.
+
+        Request JSON: {"source": "website_kytranempowerment"} (matches EXTERNAL_SCAN_SOURCES label)
+        """
+        conn = None
+        cur = None
+        try:
+            data = request.get_json(force=True) or {}
+            source_label = data.get("source", "")
+
+            target = None
+            for label, _dir, bundle_path in EXTERNAL_SCAN_SOURCES:
+                if label == source_label:
+                    target = (label, _dir, bundle_path)
+                    break
+
+            if not target:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": f"Unknown source: {source_label}",
+                            "available": [s[0] for s in EXTERNAL_SCAN_SOURCES],
+                        }
+                    ),
+                    400,
+                )
+
+            label, site_dir, bundle_path = target
+            if not bundle_path:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": f"No bundle path configured for {label}",
+                        }
+                    ),
+                    400,
+                )
+
+            conn = _get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Collect all data-i18n keys from the site HTML
+            source_keys = set()
+            i18n_pat = re.compile(r'data-i18n(?:-\w+)?="([^"]+)"')
+            for root, _dirs, files in os.walk(site_dir):
+                if any(skip in root for skip in ("/.git", "/node_modules", "/__pycache__")):
+                    continue
+                for fname in files:
+                    if not fname.endswith(".html") or fname.startswith("_"):
+                        continue
+                    try:
+                        with open(os.path.join(root, fname), "r", encoding="utf-8") as fh:
+                            for m in i18n_pat.finditer(fh.read()):
+                                source_keys.add(m.group(1))
+                    except Exception:
+                        pass
+
+            if not source_keys:
+                return jsonify({"success": False, "error": "No keys found"}), 404
+
+            # Build bundle from DB
+            bundle = {}
+            for lang_code in SUPPORTED_LANGUAGES:
+                cur.execute(
+                    """SELECT key, text FROM translations
+                       WHERE language = %s AND key = ANY(%s)
+                       AND text IS NOT NULL AND text != ''""",
+                    (lang_code, list(source_keys)),
+                )
+                bundle[lang_code] = {r["key"]: r["text"] for r in cur.fetchall()}
+
+            os.makedirs(os.path.dirname(bundle_path), exist_ok=True)
+            with open(bundle_path, "w", encoding="utf-8") as f:
+                _json.dump(bundle, f, indent=2, ensure_ascii=False)
+
+            stats = {lang: len(keys) for lang, keys in bundle.items()}
+            logger.info(f"Exported bundle for {label}: {len(source_keys)} keys -> {bundle_path}")
+
+            return jsonify(
+                {
+                    "success": True,
+                    "source": label,
+                    "bundle_path": bundle_path,
+                    "total_keys": len(source_keys),
+                    "by_language": stats,
+                }
+            )
+        except Exception as e:
+            logger.error(f"Translation export error: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
         finally:
             if cur:
                 cur.close()

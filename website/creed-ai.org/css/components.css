@@ -418,3 +418,87 @@
 .footer__initiative a:hover {
     color: var(--color-primary);
 }
+
+/* --------------------------------------------------------------------------
+   Language Toggle
+   -------------------------------------------------------------------------- */
+.nav__lang {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: #c9a44c;
+    border: 1px solid rgba(201, 164, 76, 0.4);
+    padding: 4px 10px;
+    border-radius: 4px;
+    background: none;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+    margin-left: var(--space-sm);
+}
+.nav__lang:hover {
+    background: rgba(201, 164, 76, 0.15);
+}
+
+/* --------------------------------------------------------------------------
+   Language Overlay
+   -------------------------------------------------------------------------- */
+.lang-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(10, 10, 26, 0.9);
+    backdrop-filter: blur(8px);
+    align-items: center;
+    justify-content: center;
+}
+.lang-overlay.active {
+    display: flex;
+}
+.lang-overlay__panel {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(201, 164, 76, 0.3);
+    border-radius: 16px;
+    padding: 2rem;
+    max-width: 400px;
+    width: 90%;
+    position: relative;
+}
+.lang-overlay__close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    color: #c9a44c;
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+.lang-overlay__title {
+    font-family: var(--font-heading);
+    color: #c9a44c;
+    font-size: var(--text-md);
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+.lang-overlay__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+.lang-overlay__btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(201, 164, 76, 0.2);
+    color: rgba(255, 255, 255, 0.85);
+    padding: 0.75rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    transition: all 0.2s;
+}
+.lang-overlay__btn:hover,
+.lang-overlay__btn.active {
+    background: rgba(201, 164, 76, 0.15);
+    border-color: #c9a44c;
+    color: #c9a44c;
+}

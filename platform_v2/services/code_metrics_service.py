@@ -97,11 +97,6 @@ INFRASTRUCTURE_SERVICES = [
 # Website products tracked in Code Health (static sites deployed to Hostinger)
 WEBSITE_PRODUCTS = [
     {
-        "name": "kytranempowerment.com (current)",
-        "path": "/mnt/archie_brain/repos/website/kytranempowerment-site",
-        "module_key": "website_kytranempowerment_current",
-    },
-    {
         "name": "kytranempowerment.com",
         "path": "/mnt/archie_brain/website/kytranempowerment.com",
         "module_key": "website_kytranempowerment",

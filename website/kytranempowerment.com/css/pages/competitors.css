@@ -81,6 +81,7 @@
 .comp-hero__stat-num--cyan { color: var(--color-primary); }
 .comp-hero__stat-num--purple { color: var(--color-secondary); }
 .comp-hero__stat-num--amber { color: #f59e0b; }
+.comp-hero__stat-num--green { color: #00ff65; }
 
 .comp-hero__stat-label {
     font-size: var(--text-sm);
@@ -138,6 +139,97 @@
     max-width: 700px;
     margin-left: auto;
     margin-right: auto;
+}
+
+/* --------------------------------------------------------------------------
+   Market Context Grid
+   -------------------------------------------------------------------------- */
+.comp-market-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.5rem;
+}
+
+.comp-market-card {
+    background: var(--color-glass-bg);
+    border: 1px solid var(--color-glass-border);
+    border-radius: var(--border-radius);
+    padding: 1.75rem;
+    text-align: center;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+    transition: transform var(--speed-medium) var(--ease-out),
+                border-color var(--speed-medium);
+}
+
+.comp-market-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(0, 229, 255, 0.25);
+}
+
+.comp-market-card__num {
+    font-family: var(--font-heading);
+    font-size: clamp(1.4rem, 2.5vw, 1.8rem);
+    font-weight: 800;
+    color: var(--color-primary);
+    margin-bottom: 8px;
+}
+
+.comp-market-card__num--green {
+    color: #00ff65;
+}
+
+.comp-market-card__arrow {
+    opacity: 0.4;
+    font-size: 0.9em;
+}
+
+.comp-market-card__label {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    line-height: 1.6;
+}
+
+/* --------------------------------------------------------------------------
+   Agent Welfare Banner
+   -------------------------------------------------------------------------- */
+.comp-welfare-banner {
+    background: rgba(245, 158, 11, 0.04);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    border-radius: var(--border-radius);
+    padding: 2rem;
+    text-align: center;
+    margin-bottom: 2.5rem;
+}
+
+.comp-welfare-banner__label {
+    font-family: var(--font-heading);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #f59e0b;
+    margin-bottom: 0.75rem;
+}
+
+.comp-welfare-banner__desc {
+    font-size: 1rem;
+    color: var(--color-text-muted);
+    max-width: 680px;
+    margin: 0 auto;
+    line-height: 1.8;
+}
+
+/* --------------------------------------------------------------------------
+   CTA Footer Note
+   -------------------------------------------------------------------------- */
+.comp-cta__footer-note {
+    font-family: var(--font-mono, 'IBM Plex Mono', monospace);
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.3);
+    margin-top: 2rem;
+    letter-spacing: 0.5px;
 }
 
 /* --------------------------------------------------------------------------
@@ -871,6 +963,10 @@
    Responsive
    -------------------------------------------------------------------------- */
 @media (max-width: 768px) {
+    .comp-market-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
     .comp-trend-grid {
         grid-template-columns: 1fr;
     }
@@ -898,6 +994,12 @@
     .comp-calculator__result {
         flex-direction: column;
         gap: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .comp-market-grid {
+        grid-template-columns: 1fr;
     }
 }
 

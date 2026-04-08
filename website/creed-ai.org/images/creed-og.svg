@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <rect width="1200" height="630" fill="#0a0a1a"/>
+  <rect x="0" y="0" width="1200" height="4" fill="#c9a44c"/>
+  <rect x="0" y="626" width="1200" height="4" fill="#c9a44c"/>
+  <text x="600" y="240" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="900" font-size="72" fill="#c9a44c" letter-spacing="8">C.R.E.E.D.</text>
+  <text x="600" y="310" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="400" font-size="28" fill="rgba(255,255,255,0.7)" letter-spacing="6">INSTITUTE</text>
+  <text x="600" y="400" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="300" font-size="22" fill="rgba(255,255,255,0.5)">Compliance, Rights &amp; Ethical Enforcement Directive</text>
+  <text x="600" y="460" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="300" font-size="18" fill="rgba(201,164,76,0.6)">Enforceable AI Ethics &#x2022; Montreal, Canada</text>
+  <line x1="450" y1="340" x2="750" y2="340" stroke="rgba(201,164,76,0.3)" stroke-width="1"/>
+</svg>

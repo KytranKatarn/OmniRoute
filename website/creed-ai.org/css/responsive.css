@@ -33,19 +33,62 @@
         display: none;
     }
 
+    /* When menu is open, expand nav to full screen overlay */
+    .nav.nav--menu-open {
+        height: 100vh;
+        height: 100dvh;
+        z-index: 9999;
+        background: rgba(5, 5, 15, 0.98);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        overflow: visible;
+    }
+
+    .nav.nav--menu-open .nav__inner {
+        height: auto;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
     .nav__links--open {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
         position: fixed;
-        inset: 0;
-        background: rgba(5, 5, 15, 0.97);
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        height: 100dvh;
+        background: rgba(5, 5, 15, 0.98);
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
-        z-index: 999;
-        gap: 2rem;
+        z-index: 99999;
+        gap: 1.5rem;
         padding: 2rem;
+        overflow-y: auto;
+    }
+
+    .nav__links--open .nav__link {
+        font-size: 1.25rem;
+        text-align: center;
+    }
+
+    .nav__links--open .nav__link--cta {
+        margin-top: 0.5rem;
+    }
+
+    /* Keep hamburger button above the open overlay */
+    .nav__menu-btn {
+        position: relative;
+        z-index: 100000;
+    }
+
+    /* Keep lang toggle above overlay too */
+    .nav__lang {
+        position: relative;
+        z-index: 100000;
     }
 
     .nav__menu-btn {
@@ -123,9 +166,13 @@
         grid-template-columns: 1fr;
     }
 
-    /* --- Research/Principles cards: single column --- */
+    /* --- Research/Principles cards: single column, stack grid --- */
     .glass-panel {
         padding: 1.5rem;
+    }
+
+    .glass-panel[style*="grid-template-columns: 80px"] {
+        grid-template-columns: 1fr !important;
     }
 
     /* --- Section title --- */
@@ -266,6 +313,49 @@
     .nav__logo-text {
         font-size: 0.9rem;
         letter-spacing: 0.1em;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Mobile Global: center text + fix inline grid overflow
+   -------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+    /* Center all section headings and body text */
+    section, .container {
+        text-align: center;
+    }
+
+    /* Force inline grid layouts to single column on mobile */
+    [style*="grid-template-columns: repeat"],
+    [style*="grid-template-columns: 1fr 1fr"],
+    [style*="display: grid"] {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Force inline flex rows to wrap/stack */
+    [style*="display: flex"][style*="gap"] {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    /* Center card content */
+    .card, .glass-panel, [style*="border-radius: 12px"] {
+        text-align: center;
+    }
+
+    /* Prevent any horizontal overflow */
+    body, html {
+        overflow-x: hidden;
+    }
+
+    section [style*="max-width"] {
+        max-width: 100% !important;
+    }
+
+    /* Fix stat cards centering */
+    [style*="font-size: var(--text-3xl)"],
+    [style*="font-size: var(--text-2xl)"] {
+        text-align: center;
     }
 }
 

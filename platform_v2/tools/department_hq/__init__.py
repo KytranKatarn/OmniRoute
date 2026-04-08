@@ -30,6 +30,7 @@ from .skill_routes import register_skill_routes  # noqa: E402
 from .auth_routes import register_auth_routes  # noqa: E402
 from .knowledge_routes import register_knowledge_routes  # noqa: E402
 from .model_routes import register_model_routes  # noqa: E402
+from .dispatch_routes import register_dispatch_routes  # noqa: E402
 
 # Register all route groups on the blueprint
 register_routes(department_hq_bp)
@@ -42,3 +43,4 @@ register_skill_routes(department_hq_bp, admin_required)
 register_auth_routes(department_hq_bp, admin_required)
 register_knowledge_routes(department_hq_bp, admin_required)
 register_model_routes(department_hq_bp, admin_required)
+register_dispatch_routes(department_hq_bp, admin_required)

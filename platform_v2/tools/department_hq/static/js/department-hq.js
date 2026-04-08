@@ -101,6 +101,7 @@ function switchTab(tab) {
         'creed':        loadCreed,
         'social':       loadSocialFeed,
         'devices':      loadDevices,
+        'dispatch':     loadDispatch,
     };
     if (!loaded[tab] && loaders[tab]) {
         loaders[tab]();
@@ -1369,6 +1370,146 @@ async function revokeDevice(deviceId) {
     } catch (err) {
         alert('Error revoking device: ' + err.message);
     }
+}
+
+// ───────────────────────────────────────────────────────────────
+// Dispatch & Orchestration
+// ───────────────────────────────────────────────────────────────
+
+async function loadDispatch() {
+    loaded['dispatch'] = true;
+    try {
+        var data = await api('/api/dispatch/overview');
+        renderOllamaHud(data.ollama || {});
+        renderActiveJobs(data.active_jobs || []);
+        renderWorkloadGrid(data.workload_grid || []);
+        renderDispatchMetrics(data.dispatch_metrics || {});
+        renderLoopJobs(data.loop_jobs || []);
+    } catch (err) {
+        var msg = '<div class="dhq-empty">Error loading dispatch data: ' + esc(err.message) + '</div>';
+        ['dispatchJobsContent','dispatchWorkloadContent',
+         'dispatchMetricsContent','dispatchLoopContent'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) setHtml(el, msg);
+        });
+    }
+}
+
+function renderOllamaHud(o) {
+    var el = function(id, val) { var e = document.getElementById(id); if (e) e.textContent = val; };
+    el('podModelsLoaded', o.loaded_models ? o.loaded_models.length : '--');
+    el('podRamUsed', o.total_ram_used_gb != null ? o.total_ram_used_gb.toFixed(1) + ' GB' : '--');
+    el('podSlots', o.parallel_slots != null ? o.parallel_slots : '--');
+    el('podAvailable', o.available_count != null ? o.available_count : '--');
+}
+
+function renderActiveJobs(jobs) {
+    var el = document.getElementById('dispatchJobsContent');
+    var countEl = document.getElementById('dispatchJobCount');
+    var running = jobs.filter(function(j) { return j.status === 'running' || j.status === 'pending'; });
+    if (countEl) countEl.textContent = '(' + running.length + ' active)';
+    if (!jobs.length) {
+        setHtml(el, '<div class="dhq-empty">No active bridge jobs</div>');
+        return;
+    }
+    var html = '';
+    jobs.forEach(function(j) {
+        var pct = j.progress_pct || 0;
+        var statusCls = 'dhq-status-' + (j.status || 'pending');
+        html += '<div class="dhq-job-row">'
+            + '<div><span class="dhq-status-badge ' + statusCls + '">' + esc(j.status) + '</span> '
+            + esc(j.description || j.job_type) + '</div>'
+            + '<div style="color:var(--dhq-accent)">' + esc(j.agent_name || 'unassigned') + '</div>'
+            + '<div class="dhq-progress-row"><div class="dhq-progress-wrap">'
+            + '<div class="dhq-progress-fill" style="width:' + pct + '%"></div></div>'
+            + '<span style="font-size:0.7rem;color:var(--dhq-text-dim)">' + pct + '%</span></div>'
+            + '<div style="color:var(--dhq-text-dim);font-size:0.7rem">' + esc(j.station_code || '') + '</div>'
+            + '</div>';
+    });
+    setHtml(el, html);
+}
+
+function renderWorkloadGrid(rows) {
+    var el = document.getElementById('dispatchWorkloadContent');
+    if (!rows.length) {
+        setHtml(el, '<div class="dhq-empty">No workload data</div>');
+        return;
+    }
+    var html = '<div class="dhq-workload-grid">';
+    rows.forEach(function(r) {
+        var color = floorColor(r.floor);
+        var busy = r.active + r.deployed;
+        var idle = r.barracked;
+        html += '<div class="dhq-workload-card" style="border-left-color:' + color + '">'
+            + '<div class="dhq-workload-dept" style="color:' + color + '">' + esc(r.department) + '</div>'
+            + '<div class="dhq-workload-counts">'
+            + '<span style="color:#10B981">' + busy + ' busy</span>'
+            + '<span>' + idle + ' idle</span>'
+            + (r.cooldown ? '<span style="color:#FFAA00">' + r.cooldown + ' cooldown</span>' : '')
+            + '<span style="color:var(--dhq-text-dim)">' + r.total + ' total</span>'
+            + '</div></div>';
+    });
+    html += '</div>';
+    setHtml(el, html);
+}
+
+function renderDispatchMetrics(m) {
+    var el = document.getElementById('dispatchMetricsContent');
+    var total = m.total_24h || 0;
+    var success = m.success_24h || 0;
+    var failed = m.failed_24h || 0;
+    var avg = m.avg_duration_ms ? (m.avg_duration_ms / 1000).toFixed(1) + 's' : '--';
+    var rate = total > 0 ? Math.round(success / total * 100) : 0;
+    var rateClass = rate >= 95 ? 'good' : rate >= 80 ? 'warn' : 'bad';
+    var html = '<div class="dhq-metrics-row">'
+        + _metricCell('TOTAL 24H', total, '')
+        + _metricCell('SUCCESS', success, 'good')
+        + _metricCell('FAILED', failed, failed > 0 ? 'bad' : '')
+        + _metricCell('AVG RESPONSE', avg, '')
+        + _metricCell('SUCCESS RATE', rate + '%', rateClass)
+        + '</div>';
+    setHtml(el, html);
+}
+
+function _metricCell(label, val, cls) {
+    return '<div class="dhq-metric-cell"><div class="dhq-metric-label">' + label + '</div>'
+        + '<div class="dhq-metric-val ' + cls + '">' + val + '</div></div>';
+}
+
+function renderLoopJobs(jobs) {
+    var el = document.getElementById('dispatchLoopContent');
+    var countEl = document.getElementById('dispatchLoopCount');
+    if (countEl) countEl.textContent = '(' + jobs.length + ' jobs)';
+    if (!jobs.length) {
+        setHtml(el, '<div class="dhq-empty">No loop jobs found</div>');
+        return;
+    }
+    // Sort: errors first, then by department
+    jobs.sort(function(a, b) {
+        if (a.err_24h > 0 && b.err_24h === 0) return -1;
+        if (b.err_24h > 0 && a.err_24h === 0) return 1;
+        return (a.department || '').localeCompare(b.department || '') || (a.name || '').localeCompare(b.name || '');
+    });
+    var html = '<table class="dhq-loop-table"><thead><tr>'
+        + '<th>JOB</th><th>DEPARTMENT</th><th>STATUS</th>'
+        + '<th>NEXT RUN</th><th>OK</th><th>ERR</th>'
+        + '</tr></thead><tbody>';
+    jobs.forEach(function(j) {
+        var statusCls = !j.enabled ? 'dhq-loop-off'
+            : j.err_24h > 0 ? 'dhq-loop-err' : 'dhq-loop-ok';
+        var statusLabel = !j.enabled ? 'DISABLED'
+            : j.err_24h > 0 ? 'ERRORS' : 'OK';
+        html += '<tr>'
+            + '<td>' + esc(j.name) + '</td>'
+            + '<td>' + esc(j.department || '\u2014') + '</td>'
+            + '<td class="' + statusCls + '">' + statusLabel + '</td>'
+            + '<td style="color:var(--dhq-text-dim)">' + fmtTime(j.next_run) + '</td>'
+            + '<td class="dhq-loop-ok">' + (j.ok_24h || 0) + '</td>'
+            + '<td class="' + (j.err_24h > 0 ? 'dhq-loop-err' : '') + '">' + (j.err_24h || 0) + '</td>'
+            + '</tr>';
+    });
+    html += '</tbody></table>';
+    setHtml(el, html);
 }
 
 // ───────────────────────────────────────────────────────────────

@@ -31,6 +31,7 @@
       <button class="dhq-tab" data-tab="creed" onclick="switchTab('creed')">C.R.E.E.D.</button>
       <button class="dhq-tab" data-tab="social" onclick="switchTab('social')">Social</button>
       <button class="dhq-tab" data-tab="devices" onclick="switchTab('devices')">Devices</button>
+      <button class="dhq-tab" data-tab="dispatch" onclick="switchTab('dispatch')">Dispatch</button>
     </div>
   </div>
 
@@ -120,6 +121,40 @@
         <span class="dhq-roster-count" id="deviceCount"></span>
       </div>
       <div id="devicesContent" class="dhq-loading">Loading devices...</div>
+    </div>
+
+    <!-- DISPATCH & ORCHESTRATION -->
+    <div class="dhq-panel" id="panel-dispatch">
+      <!-- Ollama Engine HUD -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">OLLAMA ENGINE</div>
+        <div class="dhq-dispatch-pods">
+          <div class="dhq-pod"><div class="dhq-pod-label">MODELS LOADED</div><div class="dhq-pod-val" id="podModelsLoaded">--</div></div>
+          <div class="dhq-pod"><div class="dhq-pod-label">RAM USED</div><div class="dhq-pod-val" id="podRamUsed">--</div></div>
+          <div class="dhq-pod"><div class="dhq-pod-label">PARALLEL SLOTS</div><div class="dhq-pod-val" id="podSlots">--</div></div>
+          <div class="dhq-pod"><div class="dhq-pod-label">AVAILABLE MODELS</div><div class="dhq-pod-val" id="podAvailable">--</div></div>
+        </div>
+      </div>
+      <!-- Active Bridge Jobs -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">ACTIVE BRIDGE JOBS <span id="dispatchJobCount" style="color:var(--dhq-text-dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem"></span></div>
+        <div id="dispatchJobsContent" class="dhq-loading">Loading jobs...</div>
+      </div>
+      <!-- Agent Workload -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">AGENT WORKLOAD BY DEPARTMENT</div>
+        <div id="dispatchWorkloadContent" class="dhq-loading">Loading workload...</div>
+      </div>
+      <!-- Dispatch Metrics -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">DISPATCH METRICS (24H)</div>
+        <div id="dispatchMetricsContent" class="dhq-loading">Loading metrics...</div>
+      </div>
+      <!-- Loop Jobs -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">AUTONOMY LOOP JOBS <span id="dispatchLoopCount" style="color:var(--dhq-text-dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem"></span></div>
+        <div id="dispatchLoopContent" class="dhq-loading">Loading loop jobs...</div>
+      </div>
     </div>
 
   </div>

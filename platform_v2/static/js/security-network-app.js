@@ -133,6 +133,72 @@ function updateDnsToggleUI(enabled) {
     }
 }
 
+function openQuickScanModal(module, title, fieldLabel, placeholder) {
+    var existing = document.getElementById('quick-scan-modal');
+    if (existing) existing.remove();
+
+    var html =
+      '<div class="bm-overlay active" id="quick-scan-modal" style="--bm-accent:#fbbf24;--bm-accent-rgb:251,191,36">' +
+        '<div class="bm-shell" style="max-width:420px">' +
+          '<div class="bm-frame">' +
+            '<div class="bm-frame-elbow-top"></div><div class="bm-frame-seg"></div>' +
+            '<div class="bm-frame-seg dim"></div><div class="bm-frame-light on"></div>' +
+            '<div class="bm-frame-light amber"></div><div class="bm-frame-seg purple"></div>' +
+            '<div class="bm-frame-fill"></div><div class="bm-frame-elbow-bottom"></div>' +
+          '</div>' +
+          '<div class="bm-content">' +
+            '<div class="bm-header">' +
+              '<span class="bm-header-title">' + title + '</span>' +
+              '<div class="bm-header-strip">' +
+                '<div class="bm-header-pip w1"></div><div class="bm-header-pip w2"></div>' +
+                '<div class="bm-header-pip w3"></div>' +
+                '<button class="bm-close" onclick="document.getElementById(\'quick-scan-modal\').remove()">&times;</button>' +
+              '</div>' +
+            '</div>' +
+            '<div class="bm-body" style="padding:16px">' +
+              '<label style="display:block;font-size:0.75rem;color:var(--archie-text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">' + fieldLabel + '</label>' +
+              '<input type="text" id="quick-scan-target" placeholder="' + placeholder + '" style="width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:var(--archie-text);padding:10px 12px;border-radius:4px;font-family:\'IBM Plex Mono\',monospace;font-size:0.9rem">' +
+              '<div id="quick-scan-error" style="display:none;color:#ef4444;font-size:0.8rem;margin-top:6px"></div>' +
+            '</div>' +
+            '<div class="bm-footer" style="padding:12px 16px;display:flex;gap:8px;justify-content:flex-end">' +
+              '<button class="btn" onclick="document.getElementById(\'quick-scan-modal\').remove()" style="opacity:0.7">Cancel</button>' +
+              '<button class="btn-submit" id="quick-scan-submit" style="background:rgba(251,191,36,0.2);border-color:rgba(251,191,36,0.5);color:#fbbf24">Run ' + title + '</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    document.body.insertAdjacentHTML('beforeend', html);
+    var modal = document.getElementById('quick-scan-modal');
+    modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
+    setTimeout(function() { document.getElementById('quick-scan-target').focus(); }, 100);
+
+    document.getElementById('quick-scan-submit').addEventListener('click', function() {
+        var target = document.getElementById('quick-scan-target').value.trim();
+        if (!target) {
+            var err = document.getElementById('quick-scan-error');
+            err.textContent = 'Please enter a target.';
+            err.style.display = 'block';
+            return;
+        }
+        modal.remove();
+        showToast('info', 'Starting ' + title + ' on ' + target + '...');
+        fetch(API + '/recon/scan', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({target: target, module: module})
+        }).then(function(r) { return r.json(); })
+          .then(function(d) {
+              if (d.success) {
+                  showToast('success', title + ' started — check Scanners tab for results');
+                  switchSecurityTab('scanners');
+              } else {
+                  showToast('error', d.error || 'Scan failed');
+              }
+          }).catch(function(e) { showToast('error', e.message); });
+    });
+}
+
 function quickToggleProtection() {
     var newState = !_dnsProtectionOn;
     fetch(API + '/dns/adguard/protection', {
@@ -2284,10 +2350,10 @@ function _getSecOps() {
             commandsElId: 'secOpsCommands',
             statusElId: 'secOpsOnline',
             commands: [
-                { label: 'NMAP SCAN', cls: 'amber', fn: "switchToTab('recon')", id: 'secCmdNmap' },
-                { label: 'SSL CHECK', cls: 'green', fn: "switchToTab('scanning')", id: 'secCmdSsl' },
-                { label: 'DEVICE AUDIT', cls: 'cyan', fn: "loadDeviceClients()", id: 'secCmdDevices' },
-                { label: 'DNS REPORT', cls: 'purple', fn: "switchToTab('dns')", id: 'secCmdDns' }
+                { label: 'NMAP SCAN', cls: 'amber', fn: "openQuickScanModal('nmap_scan','NMAP SCAN','Target IP/Host','192.168.1.0/24')", id: 'secCmdNmap' },
+                { label: 'SSL CHECK', cls: 'green', fn: "openQuickScanModal('testssl_scan','SSL CHECK','Domain','archie.kytranempowerment.com')", id: 'secCmdSsl' },
+                { label: 'DEVICE AUDIT', cls: 'cyan', fn: "switchSecurityTab('devices')", id: 'secCmdDevices' },
+                { label: 'DNS REPORT', cls: 'purple', fn: "switchSecurityTab('dns')", id: 'secCmdDns' }
             ],
             onCapacityChange: function(atCap) {
                 ['secCmdNmap','secCmdSsl','secCmdDevices','secCmdDns'].forEach(function(id) {

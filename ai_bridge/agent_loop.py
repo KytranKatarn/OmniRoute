@@ -483,6 +483,14 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        self.scheduler.add_job(
+            with_app_context(self._check_ddns),
+            trigger=IntervalTrigger(minutes=15),
+            id="ddns_ip_monitor",
+            name="Agent Loop: DDNS Public IP Monitor",
+            replace_existing=True,
+        )
+
         # Phase 5: Moved to services/agent_jobs.py
         # self.scheduler.add_job(
         #     with_app_context(self._recover_idle_welfare),
@@ -2986,6 +2994,43 @@ class AgentLoop:
 
         except Exception as e:
             logger.error("Dependency audit failed: %s", e)
+
+    # ------------------------------------------------------------------
+    # DDNS Public IP Monitor
+    # ------------------------------------------------------------------
+
+    def _check_ddns(self):
+        """Check public IP every 15 min. On change, log + update Hostinger DNS."""
+        try:
+            import sys
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from tools.saas_manager.ip_monitor import check_and_update_ip
+
+            result = check_and_update_ip()
+
+            if result.get("changed"):
+                old = result.get("old_ip", "unknown")
+                new = result.get("current_ip", "unknown")
+                updated = result.get("updated_domains", [])
+                msg = (
+                    f"\U0001f310 *Public IP Changed*\n\n"
+                    f"`{old}` \u2192 `{new}`\n"
+                )
+                if updated:
+                    msg += f"\nUpdated DNS: {', '.join(updated)}"
+                else:
+                    msg += "\n\u26a0\ufe0f DNS auto-update failed — check Hostinger manually"
+
+                self._send_telegram(msg)
+                logger.warning("DDNS: Public IP changed %s -> %s", old, new)
+            else:
+                logger.debug(
+                    "DDNS: IP unchanged (%s)", result.get("current_ip")
+                )
+
+        except Exception as e:
+            logger.error("DDNS check failed: %s", e)
 
     # ------------------------------------------------------------------
     # HR Tracker (Project #91 — Phase 7)

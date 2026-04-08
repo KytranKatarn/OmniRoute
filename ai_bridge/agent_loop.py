@@ -4688,6 +4688,20 @@ class AgentLoop:
             except Exception as e:
                 issues.append(f"AdGuard check failed: {e}")
 
+            # Check NPM (Nginx Proxy Manager) — critical for all HTTPS subdomains + OAuth
+            try:
+                result = subprocess.run(
+                    ["docker", "inspect", "--format", "{{.State.Health.Status}}", "nginx_proxy_manager"],
+                    capture_output=True, text=True, timeout=10
+                )
+                npm_status = result.stdout.strip()
+                if npm_status != "healthy":
+                    issues.append(f"NPM is {npm_status or 'not running'} — all HTTPS subdomains affected")
+                    if npm_status in ("unhealthy", ""):
+                        subprocess.run(["docker", "restart", "nginx_proxy_manager"], capture_output=True, timeout=30)
+            except Exception as e:
+                issues.append(f"NPM check failed: {e}")
+
             if issues:
                 self._create_network_alert(
                     "service_down", "high", "health_monitor",

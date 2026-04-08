@@ -434,12 +434,14 @@ def register_noc_routes(bp, admin_required_decorator):
 
         from flask import request as _req_flask
 
-        # Period support: 24h, 7d, 30d
+        # Period support: 24h, 7d, 30d, 90d, all
         period = _req_flask.args.get("period", "24h")
         period_map = {
             "24h": ("24 hours", "hour"),
             "7d": ("7 days", "day"),
             "30d": ("30 days", "day"),
+            "90d": ("90 days", "day"),
+            "all": (None, "day"),
         }
         if period not in period_map:
             period = "24h"
@@ -484,6 +486,7 @@ def register_noc_routes(bp, admin_required_decorator):
                 pass
 
             # DB-cached per-device bandwidth + history
+            time_clause = f"WHERE nts.hour_bucket >= NOW() - INTERVAL '{interval_str}'" if interval_str else "WHERE 1=1"
             with get_db_cursor() as (conn, cur):
                 # Per-device bandwidth for selected period
                 cur.execute(
@@ -494,7 +497,7 @@ def register_noc_routes(bp, admin_required_decorator):
                               SUM(nts.bytes_in + nts.bytes_out) as total
                        FROM network_traffic_stats nts
                        LEFT JOIN network_device_users ndu ON ndu.mac_address = nts.device_mac
-                       WHERE nts.hour_bucket >= NOW() - INTERVAL '{interval_str}'
+                       {time_clause}
                        GROUP BY nts.device_ip, nts.device_mac, label
                        ORDER BY total DESC LIMIT 20"""
                 )
@@ -524,12 +527,13 @@ def register_noc_routes(bp, admin_required_decorator):
                     time_fmt = "%H:%M"
                 else:
                     time_fmt = "%b %d"
+                hist_where = f"WHERE hour_bucket >= NOW() - INTERVAL '{interval_str}'" if interval_str else "WHERE 1=1"
                 cur.execute(
                     f"""SELECT date_trunc('{bucket_size}', hour_bucket) as bucket,
                               SUM(bytes_in) as bytes_in,
                               SUM(bytes_out) as bytes_out
                        FROM network_traffic_stats
-                       WHERE hour_bucket >= NOW() - INTERVAL '{interval_str}'
+                       {hist_where}
                        GROUP BY bucket ORDER BY bucket"""
                 )
                 for row in cur.fetchall():
@@ -705,3 +709,74 @@ def register_noc_routes(bp, admin_required_decorator):
             return jsonify({"success": False, "error": str(exc)}), 500
 
         return jsonify({"success": True, **result})
+
+    @bp.route("/api/noc/l7-protocols")
+    @login_required
+    @admin_required_decorator
+    def noc_l7_protocols():
+        """L7 protocol breakdown from ntopng — real app detection."""
+        import os
+
+        import requests as _req
+
+        protocols = []
+        try:
+            nt_host = os.getenv("NTOPNG_HOST", "192.168.1.200")
+            nt_port = os.getenv("NTOPNG_PORT", "3001")
+            nt_user = os.getenv("NTOPNG_USER", "admin")
+            nt_pass = os.getenv("NTOPNG_ADMIN_PASSWORD", os.getenv("NTOPNG_PASS", "admin"))
+            ns = _req.Session()
+            ns.post(
+                f"http://{nt_host}:{nt_port}/authorize.html",
+                data={"user": nt_user, "password": nt_pass},
+                allow_redirects=True,
+                timeout=3,
+            )
+            # Try L7 stats endpoint
+            sr = ns.get(
+                f"http://{nt_host}:{nt_port}/lua/rest/v2/get/interface/l7/stats.lua",
+                params={"ifid": 0},
+                timeout=5,
+            )
+            if sr.status_code == 200:
+                rsp = sr.json().get("rsp", {})
+                if isinstance(rsp, dict):
+                    for name, data in rsp.items():
+                        b = data if isinstance(data, int) else data.get("bytes", 0)
+                        if b > 0:
+                            protocols.append({"name": name, "bytes": b})
+                elif isinstance(rsp, list):
+                    for item in rsp:
+                        protocols.append(
+                            {
+                                "name": item.get("proto", item.get("label", "?")),
+                                "bytes": item.get("bytes", 0),
+                            }
+                        )
+
+            # Fallback: aggregate from active flows
+            if not protocols:
+                fr = ns.get(
+                    f"http://{nt_host}:{nt_port}/lua/rest/v2/get/flow/active.lua",
+                    params={"ifid": 0, "currentPage": 1, "perPage": 500},
+                    timeout=5,
+                )
+                if fr.status_code == 200:
+                    flows = fr.json().get("rsp", {})
+                    if isinstance(flows, dict):
+                        flows = flows.get("data", [])
+                    agg = {}
+                    for flow in flows:
+                        l7 = flow.get("protocol", {}).get("l7", "Unknown")
+                        b = flow.get("bytes", 0)
+                        agg[l7] = agg.get(l7, 0) + b
+                    for name, b in agg.items():
+                        protocols.append({"name": name, "bytes": b})
+
+            protocols.sort(key=lambda x: x["bytes"], reverse=True)
+
+        except Exception as exc:
+            logger.error("l7_protocols error: %s", exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
+        return jsonify({"success": True, "protocols": protocols})

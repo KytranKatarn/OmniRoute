@@ -186,11 +186,13 @@ function switchSecurityTab(tabName) {
             break;
         case 'traffic':
             loadTraffic();
+            if (typeof loadVpnDetect === 'function') setTimeout(loadVpnDetect, 1000);
             _trafficPollTimer = setInterval(loadTraffic, 10000);
             break;
         case 'dns':
             if (!dnsTabLoaded) { dnsTabLoaded = true; loadDNSOverview(); loadUserRules(); }
             if (typeof loadSinkholeStats === 'function') setTimeout(loadSinkholeStats, 300);
+            if (typeof loadDnsTrend === 'function') setTimeout(loadDnsTrend, 500);
             break;
         case 'devices':
             loadDevices();
@@ -527,7 +529,7 @@ function loadTraffic() {
     /* Real bandwidth data from ntopng + DB */
     var sel = document.getElementById('traffic-period-select');
     var period = sel ? sel.value : '24h';
-    var periodLabels = {'24h': '24h', '7d': '7 Days', '30d': '30 Days'};
+    var periodLabels = {'24h': '24h', '7d': '7 Days', '30d': '30 Days', '90d': '90 Days', 'all': 'All Time'};
     var lbl = periodLabels[period] || period;
 
     // Update all period labels in the UI
@@ -563,14 +565,20 @@ function loadTraffic() {
         console.warn('Traffic tab bandwidth error:', e);
     });
 
-    /* DNS activity (secondary — still useful) */
+    /* DNS activity (secondary) */
     snApi('/traffic/activity?limit=5000').then(function(d) {
         if (!d.success) return;
-        var clients = d.clients || [];
-        _renderClientActivity(clients);
-        _renderServiceBreakdown(clients);
+        _renderClientActivity(d.clients || []);
     }).catch(function(e) {
         snShowEmpty(document.getElementById('traffic-hosts-table'), 'No DNS activity data');
+    });
+
+    /* L7 Protocol breakdown from ntopng (replaces DNS-based service detection) */
+    snApi('/noc/l7-protocols').then(function(d) {
+        if (!d.success) return;
+        _renderL7Protocols(d.protocols || []);
+    }).catch(function(e) {
+        snShowEmpty(document.getElementById('traffic-protocols'), 'No protocol data');
     });
 }
 
@@ -585,8 +593,18 @@ function _renderPerDeviceBandwidth(devices) {
         var row = document.createElement('div');
         row.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:8px';
 
+        // Bandwidth thresholds: >100GB red, >10GB orange, >1GB yellow
+        var total = dev.total || 0;
+        var isHeavy = total > 1073741824; // 1 GB
+        var isVeryHeavy = total > 10737418240; // 10 GB
+        var isExtreme = total > 107374182400; // 100 GB
+        if (isExtreme) row.style.cssText += ';border-left:3px solid #ef4444;padding-left:4px';
+        else if (isVeryHeavy) row.style.cssText += ';border-left:3px solid #f97316;padding-left:4px';
+        else if (isHeavy) row.style.cssText += ';border-left:3px solid #fbbf24;padding-left:4px';
+
         var label = document.createElement('span');
-        label.style.cssText = 'min-width:90px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--archie-text);font-size:0.78rem';
+        label.style.cssText = 'min-width:90px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:0.78rem';
+        label.style.color = isExtreme ? '#ef4444' : isVeryHeavy ? '#f97316' : isHeavy ? '#fbbf24' : 'var(--archie-text)';
         label.textContent = dev.label || dev.ip;
         label.title = dev.ip + (dev.mac ? ' (' + dev.mac + ')' : '');
         row.appendChild(label);
@@ -681,6 +699,41 @@ function _renderTrafficHistory(hourly) {
     legend2.setAttribute('fill', '#8b5cf6'); legend2.setAttribute('font-size', '10');
     legend2.textContent = '\u25CF Upload';
     svg.appendChild(legend2);
+}
+
+function _renderL7Protocols(protocols) {
+    var el = document.getElementById('traffic-protocols');
+    if (!el) return;
+    el.textContent = '';
+    if (!protocols.length) { snShowEmpty(el, 'No protocol data'); return; }
+
+    var maxBytes = protocols[0].bytes || 1;
+    var colors = ['#00e5ff','#8b5cf6','#10b981','#f472b6','#fbbf24','#ef4444','#22d3ee','#a3e635','#f97316','#818cf8'];
+    var top = protocols.slice(0, 15);
+    top.forEach(function(p, i) {
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:6px';
+
+        var name = document.createElement('span');
+        name.style.cssText = 'min-width:100px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:' + colors[i % colors.length] + ';font-size:0.78rem;font-family:"IBM Plex Mono",monospace';
+        name.textContent = p.name;
+        row.appendChild(name);
+
+        var barOuter = document.createElement('div');
+        barOuter.style.cssText = 'flex:1;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden';
+        var bar = document.createElement('div');
+        var pct = (p.bytes / maxBytes) * 100;
+        bar.style.cssText = 'height:100%;border-radius:3px;background:' + colors[i % colors.length] + ';width:' + pct.toFixed(1) + '%';
+        barOuter.appendChild(bar);
+        row.appendChild(barOuter);
+
+        var val = document.createElement('span');
+        val.style.cssText = 'min-width:55px;text-align:right;color:var(--archie-text-muted);font-family:"IBM Plex Mono",monospace;font-size:0.72rem';
+        val.textContent = formatBytes(p.bytes);
+        row.appendChild(val);
+
+        el.appendChild(row);
+    });
 }
 
 function _renderClientActivity(clients) {

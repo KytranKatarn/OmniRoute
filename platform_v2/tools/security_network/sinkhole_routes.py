@@ -21,39 +21,43 @@ def register_sinkhole_routes(bp, admin_required_decorator):
     def dns_sinkhole_stats():
         """Top blocked domains from device_dns_history with category breakdown."""
         try:
-            hours = min(int(request.args.get("hours", 24)), 168)  # max 7 days
+            hours = int(request.args.get("hours", 24))
+            # 0 = all time, otherwise cap at 8760 (1 year)
+            if hours > 0:
+                hours = min(hours, 8760)
+            time_filter = "AND hour_bucket > NOW() - INTERVAL '%s hours'" % hours if hours > 0 else ""
 
             with get_db_cursor() as (conn, cur):
                 # Top 50 blocked domains by count
                 cur.execute(
-                    """
+                    f"""
                     SELECT domain, SUM(query_count) as block_count,
                            COUNT(DISTINCT device_ip) as unique_devices
                     FROM device_dns_history
                     WHERE blocked = true
-                      AND hour_bucket > NOW() - INTERVAL '%s hours'
+                      {time_filter}
+                      AND domain LIKE '%%.%%'
                     GROUP BY domain
                     ORDER BY block_count DESC
                     LIMIT 50
-                    """,
-                    (hours,),
+                    """
                 )
                 top_blocked = [dict(row) for row in cur.fetchall()]
 
                 # Category breakdown: join blocked domains against traffic_categories
                 cur.execute(
-                    """
+                    f"""
                     SELECT COALESCE(tc.category, 'uncategorized') AS category,
                            SUM(ddh.query_count) AS block_count
                     FROM device_dns_history ddh
                     LEFT JOIN traffic_categories tc
                         ON tc.domain_pattern = SUBSTRING(ddh.domain FROM '([^.]+\\.[^.]+)$')
                     WHERE ddh.blocked = true
-                      AND ddh.hour_bucket > NOW() - INTERVAL '%s hours'
+                      {time_filter.replace('hour_bucket', 'ddh.hour_bucket')}
+                      AND ddh.domain LIKE '%%.%%'
                     GROUP BY tc.category
                     ORDER BY block_count DESC
-                    """,
-                    (hours,),
+                    """
                 )
                 categories = [dict(row) for row in cur.fetchall()]
 
@@ -70,6 +74,49 @@ def register_sinkhole_routes(bp, admin_required_decorator):
         except Exception as e:
             logger.error("[Sinkhole] Stats failed: %s", e)
             return jsonify({"status": "error", "message": str(e)}), 500
+
+    @bp.route("/api/dns/query-trend", methods=["GET"])
+    @login_required
+    @admin_required_decorator
+    def dns_query_trend():
+        """Hourly/daily DNS query counts for trend chart."""
+        try:
+            hours = int(request.args.get("hours", 24))
+            if hours > 0:
+                hours = min(hours, 8760)
+
+            # Use day buckets for >48h, hour for shorter
+            bucket = "day" if hours > 48 or hours == 0 else "hour"
+            fmt = "%b %d" if bucket == "day" else "%H:%M"
+
+            time_filter = f"WHERE hour_bucket > NOW() - INTERVAL '{hours} hours'" if hours > 0 else "WHERE 1=1"
+
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    f"""
+                    SELECT date_trunc('{bucket}', hour_bucket) as bucket,
+                           SUM(query_count) as total,
+                           SUM(CASE WHEN blocked THEN query_count ELSE 0 END) as blocked
+                    FROM device_dns_history
+                    {time_filter}
+                    GROUP BY 1 ORDER BY 1
+                    """
+                )
+                points = []
+                for row in cur.fetchall():
+                    r = dict(row)
+                    points.append(
+                        {
+                            "label": r["bucket"].strftime(fmt) if r.get("bucket") else "",
+                            "total": int(r.get("total") or 0),
+                            "blocked": int(r.get("blocked") or 0),
+                        }
+                    )
+
+            return jsonify({"success": True, "points": points, "bucket": bucket})
+        except Exception as e:
+            logger.error("[DNS Trend] Failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
 
     @bp.route("/api/dns/vpn-leak-check", methods=["GET"])
     @login_required

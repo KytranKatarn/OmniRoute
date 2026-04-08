@@ -494,7 +494,9 @@ function sendWeeklyReport() {
    8. SINKHOLE ANALYTICS (DNS tab)
    ═══════════════════════════════════════════════════════════════════ */
 function loadSinkholeStats() {
-    fetch(SN_API + '/dns/sinkhole-stats?hours=24').then(r=>r.json()).then(d => {
+    var sel = document.getElementById('dns-period-select');
+    var hours = sel ? sel.value : '24';
+    fetch(SN_API + '/dns/sinkhole-stats?hours=' + hours).then(r=>r.json()).then(d => {
         if (!d.success) return;
         // Pie chart by category
         const cats = d.categories || d.category_breakdown || [];
@@ -528,6 +530,60 @@ function loadSinkholeStats() {
             el.innerHTML = '<div class="empty-state">No blocked domains</div>';
         }
     }).catch(() => {});
+}
+
+function loadDnsTrend() {
+    var sel = document.getElementById('dns-period-select');
+    var hours = sel ? sel.value : '24';
+    fetch(SN_API + '/dns/query-trend?hours=' + hours).then(r=>r.json()).then(d => {
+        if (!d.success || !d.points || !d.points.length) return;
+        _renderDnsTrendChart(d.points);
+    }).catch(() => {});
+}
+
+function _renderDnsTrendChart(points) {
+    var svg = document.getElementById('dns-trend-chart');
+    if (!svg || !points.length) return;
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+    var w = svg.clientWidth || 400;
+    var h = svg.clientHeight || 120;
+    var ns = 'http://www.w3.org/2000/svg';
+    var max = 1;
+    points.forEach(function(p) { if (p.total > max) max = p.total; });
+    var step = w / Math.max(points.length - 1, 1);
+
+    // Gradient defs
+    var defs = document.createElementNS(ns, 'defs');
+    [['dns-total', '#00e5ff'], ['dns-blocked', '#ef4444']].forEach(function(pair) {
+        var grad = document.createElementNS(ns, 'linearGradient');
+        grad.setAttribute('id', pair[0]); grad.setAttribute('x1','0'); grad.setAttribute('y1','0');
+        grad.setAttribute('x2','0'); grad.setAttribute('y2','1');
+        var s1 = document.createElementNS(ns, 'stop');
+        s1.setAttribute('offset','0%'); s1.setAttribute('stop-color', pair[1]); s1.setAttribute('stop-opacity','0.35');
+        var s2 = document.createElementNS(ns, 'stop');
+        s2.setAttribute('offset','100%'); s2.setAttribute('stop-color', pair[1]); s2.setAttribute('stop-opacity','0.03');
+        grad.appendChild(s1); grad.appendChild(s2); defs.appendChild(grad);
+    });
+    svg.appendChild(defs);
+
+    // Draw both lines
+    [['total', '#00e5ff', 'dns-total'], ['blocked', '#ef4444', 'dns-blocked']].forEach(function(cfg) {
+        var key = cfg[0], color = cfg[1], gradId = cfg[2];
+        var pts = points.map(function(p, i) { return [i * step, h - (p[key] / max) * (h - 4)]; });
+        // Area
+        var area = document.createElementNS(ns, 'polygon');
+        var areaStr = pts.map(function(p) { return p[0]+','+p[1]; }).join(' ');
+        areaStr += ' ' + ((points.length-1)*step) + ',' + h + ' 0,' + h;
+        area.setAttribute('points', areaStr); area.setAttribute('fill', 'url(#'+gradId+')');
+        svg.appendChild(area);
+        // Line
+        var line = document.createElementNS(ns, 'polyline');
+        line.setAttribute('points', pts.map(function(p){return p[0]+','+p[1];}).join(' '));
+        line.setAttribute('fill','none'); line.setAttribute('stroke', color);
+        line.setAttribute('stroke-width','1.5'); line.setAttribute('stroke-linejoin','round');
+        svg.appendChild(line);
+    });
 }
 
 /* ═══════════════════════════════════════════════════════════════════

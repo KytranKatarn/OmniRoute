@@ -1723,125 +1723,577 @@ async function loadDispatchRepairPipeline() {
 }
 
 // ───────────────────────────────────────────────────────────────
-// Fleet Tab
-// ───────────────────────────────────────────────────────────────
-
-var _dhqFleetMap = null;
-
-async function fleetApi(path) {
-    const res = await fetch('/tools/fleet' + path);
-    if (!res.ok) throw new Error('Fleet API ' + path + ' returned ' + res.status);
-    return res.json();
-}
-
 function loadFleet() {
-    loaded['fleet'] = true;
+    loaded["fleet"] = true;
     setTimeout(function() {
-        var mapEl = document.getElementById('dhqFleetMap');
-        if (!mapEl || _dhqFleetMap) return;
-        _dhqFleetMap = L.map('dhqFleetMap', {
-            center: [35, -40], zoom: 3, minZoom: 2,
-            scrollWheelZoom: true, zoomControl: true, attributionControl: false
-        });
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            subdomains: 'abcd', maxZoom: 19
-        }).addTo(_dhqFleetMap);
-        _loadFleetMapData();
-        _loadFleetNodes();
-        _loadFleetHealth();
+        initFleetMap();
+        loadFleetData();
+        loadFleetUsage();
+        loadCloudProviders();
+        loadProviderManagement();
+        startFleetRefresh();
     }, 200);
 }
 
-async function _loadFleetMapData() {
-    try {
-        var data = await fleetApi('/api/fleet-map');
-        if (!data || data.error) return;
-        if (data.hub && data.hub.lat && data.hub.lon) {
-            var hubIcon = L.divIcon({
-                className: '', iconSize: [16, 16], iconAnchor: [8, 8],
-                html: '<div style="background:#00e5ff;width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 8px #00e5ff;"></div>'
-            });
-            L.marker([data.hub.lat, data.hub.lon], {icon: hubIcon})
-                .addTo(_dhqFleetMap)
-                .bindPopup('<b>A.R.M.A.D.A. HUB</b><br>' + esc(data.hub.city || 'Home Base'));
-            _dhqFleetMap.setView([data.hub.lat, data.hub.lon], 5);
-        }
-        (data.nodes || []).forEach(function(n) {
-            if (!n.lat || !n.lon) return;
-            var c = n.status === 'online' ? '#a3e635' : '#6b7280';
-            var ni = L.divIcon({
-                className: '', iconSize: [14, 14], iconAnchor: [7, 7],
-                html: '<div style="background:' + c + ';width:10px;height:10px;border-radius:50%;border:2px solid #fff;"></div>'
-            });
-            L.marker([n.lat, n.lon], {icon: ni}).addTo(_dhqFleetMap)
-                .bindPopup('<b>' + esc(n.name) + '</b><br>' + esc(n.gpu || 'No GPU'));
-        });
-        var countEl = document.getElementById('fleetNodeCount');
-        if (countEl) {
-            var online = (data.nodes || []).filter(function(n) { return n.status === 'online'; }).length;
-            countEl.textContent = '(' + online + '/' + (data.nodes || []).length + ' online)';
-        }
-    } catch (e) { console.error('Fleet map load:', e); }
+/* ============================================================
+   FLEET MAP — Phase 4 Agent Lifecycle Coordination
+   ============================================================ */
+
+var fleetMap = null;
+var fleetMarkers = [];
+var _fleetRefreshInterval = null;
+
+function startFleetRefresh() {
+    if (_fleetRefreshInterval) return;
+    _fleetRefreshInterval = setInterval(function() {
+        loadFleetData();
+        loadFleetUsage();
+        loadCloudProviders();
+        loadProviderManagement();
+    }, 30000);
 }
 
-async function _loadFleetNodes() {
+function stopFleetRefresh() {
+    if (_fleetRefreshInterval) {
+        clearInterval(_fleetRefreshInterval);
+        _fleetRefreshInterval = null;
+    }
+}
+
+function initFleetMap() {
+    if (fleetMap) return;
+    var el = document.getElementById('fleetMap');
+    if (!el) return;
+
+    fleetMap = L.map('fleetMap', {
+        center: [35, -40],
+        zoom: 3,
+        minZoom: 2,
+        maxZoom: 12,
+        zoomControl: true,
+        attributionControl: false,
+    });
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '',
+    }).addTo(fleetMap);
+
+    loadFleetData();
+    loadCloudProviders();
+}
+
+function loadFleetData() {
+    fetch('/tools/fleet/api/fleet-map')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.error) { console.error('Fleet map error:', data.error); return; }
+        renderFleetPins(data);
+        updateFleetStats(data);
+    })
+    .catch(function(e) {
+        console.error('Fleet map load failed:', e);
+    });
+}
+
+var PROVIDER_STYLES = {
+    'openai':      { color: '#10a37f', bg: 'rgba(16,163,127,0.3)', label: 'AI' },
+    'anthropic':   { color: '#d4a27f', bg: 'rgba(212,162,127,0.3)', label: 'An' },
+    'google':      { color: '#4285f4', bg: 'rgba(66,133,244,0.3)', label: 'G' },
+    'gemini':      { color: '#4285f4', bg: 'rgba(66,133,244,0.3)', label: 'Ge' },
+    'mistral':     { color: '#ff7000', bg: 'rgba(255,112,0,0.3)', label: 'Mi' },
+    'cohere':      { color: '#39594d', bg: 'rgba(57,89,77,0.3)', label: 'Co' },
+    'grok':        { color: '#1da1f2', bg: 'rgba(29,161,242,0.3)', label: 'X' },
+    'together':    { color: '#6366f1', bg: 'rgba(99,102,241,0.3)', label: 'To' },
+    'huggingface': { color: '#ff9d00', bg: 'rgba(255,157,0,0.3)', label: '\u{1F917}' },
+    'cloudflare':  { color: '#f38020', bg: 'rgba(243,128,32,0.3)', label: 'CF' },
+    'ollama':      { color: '#ffffff', bg: 'rgba(255,255,255,0.2)', label: '\u{1F999}' },
+    'groq':        { color: '#f55036', bg: 'rgba(245,80,54,0.3)', label: 'Gq' },
+    'deepseek':    { color: '#4d6bfe', bg: 'rgba(77,107,254,0.3)', label: 'DS' },
+    'cerebras':    { color: '#00d4aa', bg: 'rgba(0,212,170,0.3)', label: 'Ce' },
+};
+
+function renderFleetPins(data) {
+    fleetMarkers.forEach(function(m) { fleetMap.removeLayer(m); });
+    fleetMarkers = [];
+
+    if (data.hub) {
+        var hub = data.hub;
+        var marker = L.marker([hub.lat, hub.lon], {
+            icon: L.divIcon({
+                className: 'fleet-marker-hub',
+                html: '<i data-lucide="radio-tower" style="width:16px;height:16px;"></i>',
+                iconSize: [32, 32],
+                iconAnchor: [16, 16],
+            }),
+        }).addTo(fleetMap);
+        marker.bindPopup(buildFleetPopup('A.R.M.A.D.A. HUB', [
+            ['Location', hub.city || 'Home Base'],
+            ['Status', '<span style="color:#10b981;">ONLINE</span>'],
+        ]), { className: 'fleet-popup' });
+        fleetMarkers.push(marker);
+    }
+
+    (data.nodes || []).forEach(function(node) {
+        if (!node.lat || !node.lon) return;
+        var isOnline = node.status === 'online';
+        var marker = L.marker([node.lat, node.lon], {
+            icon: L.divIcon({
+                className: 'fleet-marker-node ' + (isOnline ? '' : 'offline'),
+                html: '<i data-lucide="ship" style="width:14px;height:14px;"></i>',
+                iconSize: [24, 24],
+                iconAnchor: [12, 12],
+            }),
+        }).addTo(fleetMap);
+        marker.bindPopup(buildFleetPopup(node.node_name || node.hostname, [
+            ['Type', node.deployment_mode || 'starship'],
+            ['Status', isOnline ? '<span style="color:#10b981;">ONLINE</span>' : '<span style="color:#ef4444;">OFFLINE</span>'],
+            ['GPU', node.gpu_model || 'None'],
+            ['VRAM', node.gpu_vram_gb ? node.gpu_vram_gb + ' GB' : '--'],
+            ['RAM', node.ram_gb ? node.ram_gb + ' GB' : '--'],
+        ]), { className: 'fleet-popup' });
+        marker.on('click', function() { showNodeDetail(node); });
+        fleetMarkers.push(marker);
+    });
+
+    (data.providers || []).forEach(function(prov) {
+        if (!prov.lat || !prov.lon) return;
+        var key = (prov.provider_key || '').toLowerCase();
+        var style = PROVIDER_STYLES[key] || { color: '#f97316', bg: 'rgba(249,115,22,0.3)', label: (prov.provider_key || '?').charAt(0).toUpperCase() };
+        var marker = L.marker([prov.lat, prov.lon], {
+            icon: L.divIcon({
+                className: 'fleet-marker-provider-custom ' + (prov.is_active ? '' : 'inactive'),
+                html: '<span style="background:' + style.bg + ';border-color:' + style.color + ';color:' + style.color + '">' + style.label + '</span>',
+                iconSize: [28, 28],
+                iconAnchor: [14, 14],
+            }),
+        }).addTo(fleetMap);
+
+        var budgetStr = prov.monthly_budget_usd
+            ? '$' + (prov.current_month_cost_usd||0).toFixed(2) + ' / $' + prov.monthly_budget_usd.toFixed(2)
+            : 'No budget set';
+
+        marker.bindPopup(buildFleetPopup(prov.provider_key.toUpperCase(), [
+            ['City', prov.city || '--'],
+            ['Tier', prov.tier_position || '--'],
+            ['Budget', budgetStr],
+            ['Status', prov.is_active ? '<span style="color:#10b981;">ACTIVE</span>' : '<span style="color:#6b7280;">INACTIVE</span>'],
+        ]), { className: 'fleet-popup' });
+        fleetMarkers.push(marker);
+    });
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function buildFleetPopup(title, rows) {
+    var html = '<div class="fleet-popup-title">' + title + '</div>';
+    rows.forEach(function(row) {
+        html += '<div class="fleet-popup-row"><span class="fleet-popup-label">' + row[0] + '</span><span class="fleet-popup-value">' + row[1] + '</span></div>';
+    });
+    return html;
+}
+
+function updateFleetStats(data) {
+    var nodeCount = (data.nodes || []).filter(function(n) { return n.status === 'online'; }).length;
+    var provCount = (data.providers || []).filter(function(p) { return p.is_active; }).length;
+    var nodeEl = document.getElementById('fleetStatNodes');
+    var provEl = document.getElementById('fleetStatProviders');
+    if (nodeEl) nodeEl.textContent = nodeCount + ' node' + (nodeCount !== 1 ? 's' : '') + ' online';
+    if (provEl) provEl.textContent = provCount + ' provider' + (provCount !== 1 ? 's' : '') + ' active';
+}
+
+async function loadCloudProviders() {
     try {
-        var data = await fleetApi('/api/fleet-map');
-        var el = document.getElementById('fleetNodesContent');
-        if (!el || !data) return;
-        var nodes = data.nodes || [];
-        if (nodes.length === 0) { el.textContent = 'No fleet nodes registered'; return; }
-        el.textContent = '';
-        var grid = document.createElement('div');
-        grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;';
-        nodes.forEach(function(n) {
+        const resp = await fetch('/tools/fleet/api/cloud-providers');
+        const data = await resp.json();
+        if (data.error) { console.error('Cloud providers error:', data.error); return; }
+
+        const grid = document.getElementById('fleetProvidersGrid');
+        if (!grid) return;
+
+        const providers = data.providers || [];
+        const countEl = document.getElementById('fleetProviderCount');
+        if (countEl) countEl.textContent = providers.length;
+
+        if (providers.length === 0) {
+            grid.textContent = '';
+            var emptyMsg = document.createElement('div');
+            emptyMsg.style.cssText = 'text-align:center;color:#6b7280;padding:24px;';
+            emptyMsg.textContent = 'No cloud providers configured';
+            grid.appendChild(emptyMsg);
+            return;
+        }
+
+        grid.textContent = '';
+        providers.forEach(function(p) {
+            var statusColor = p.status === 'active' ? '#10b981' : '#6b7280';
+            var budgetPct = p.monthly_budget > 0
+                ? Math.min(((p.monthly_usage || 0) / p.monthly_budget) * 100, 100).toFixed(0)
+                : 0;
+            var budgetColor = budgetPct > 80 ? '#ef4444' : budgetPct > 50 ? '#f59e0b' : '#10b981';
+
             var card = document.createElement('div');
-            card.style.cssText = 'background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:12px;';
-            var sc = n.status === 'online' ? '#10b981' : '#6b7280';
-            var title = document.createElement('div');
-            title.style.cssText = 'font-weight:600;margin-bottom:4px;';
-            var dot = document.createElement('span');
-            dot.style.cssText = 'display:inline-block;width:8px;height:8px;border-radius:50%;background:' + sc + ';margin-right:6px;';
-            title.appendChild(dot);
-            title.appendChild(document.createTextNode(n.name));
-            card.appendChild(title);
-            var info = document.createElement('div');
-            info.style.cssText = 'font-size:0.75rem;color:rgba(255,255,255,0.5);';
-            info.textContent = n.hostname + ' \u2022 ' + (n.deployment_mode || '?') + (n.gpu ? '\n' + n.gpu : '') + '\nRAM: ' + (n.ram || '?') + 'GB \u2022 Agents: ' + (n.agents || []).length;
-            info.style.whiteSpace = 'pre-line';
-            card.appendChild(info);
+            card.className = 'fleet-provider-card';
+
+            // Header
+            var header = document.createElement('div');
+            header.className = 'fleet-provider-card-header';
+            var nameSpan = document.createElement('span');
+            nameSpan.className = 'fleet-provider-name';
+            nameSpan.textContent = p.name;
+            var statusSpan = document.createElement('span');
+            statusSpan.className = 'fleet-provider-status';
+            statusSpan.style.color = statusColor;
+            statusSpan.textContent = (p.status || 'unknown').toUpperCase();
+            header.appendChild(nameSpan);
+            header.appendChild(statusSpan);
+            card.appendChild(header);
+
+            // Body rows
+            var body = document.createElement('div');
+            body.className = 'fleet-provider-card-body';
+            [['Type', p.provider_type || 'cloud'], ['Tier', p.tier || 'free'],
+             ['City', p.headquarters_city || '--'],
+             ['Budget', '$' + (p.monthly_usage || 0).toFixed(2) + ' / $' + (p.monthly_budget || 0).toFixed(2)]
+            ].forEach(function(pair) {
+                var row = document.createElement('div');
+                row.className = 'fleet-provider-row';
+                var lbl = document.createElement('span');
+                lbl.textContent = pair[0];
+                var val = document.createElement('span');
+                val.textContent = pair[1];
+                row.appendChild(lbl);
+                row.appendChild(val);
+                body.appendChild(row);
+            });
+
+            // Budget bar
+            if (p.monthly_budget > 0) {
+                var barWrap = document.createElement('div');
+                barWrap.className = 'fleet-provider-budget-bar';
+                var barFill = document.createElement('div');
+                barFill.style.cssText = 'width:' + budgetPct + '%;background:' + budgetColor + ';height:100%;border-radius:2px;';
+                barWrap.appendChild(barFill);
+                body.appendChild(barWrap);
+            }
+
+            // Capability tags
+            var caps = document.createElement('div');
+            caps.className = 'fleet-provider-caps';
+            (p.capabilities || []).forEach(function(c) {
+                var tag = document.createElement('span');
+                tag.className = 'fleet-cap-tag';
+                tag.textContent = c;
+                caps.appendChild(tag);
+            });
+            body.appendChild(caps);
+            card.appendChild(body);
+
+            // Actions
+            var actions = document.createElement('div');
+            actions.className = 'fleet-provider-card-actions';
+            var toggleBtn = document.createElement('button');
+            toggleBtn.className = 'fleet-btn-sm';
+            toggleBtn.textContent = p.status === 'active' ? 'Disable' : 'Enable';
+            toggleBtn.addEventListener('click', function() { toggleCloudProvider(p.id); });
+            actions.appendChild(toggleBtn);
+            card.appendChild(actions);
+
             grid.appendChild(card);
         });
-        el.appendChild(grid);
-    } catch (e) { console.error('Fleet nodes load:', e); }
+    } catch(e) {
+        console.error('loadCloudProviders failed:', e);
+    }
 }
 
-async function _loadFleetHealth() {
+async function toggleCloudProvider(providerId) {
     try {
-        var data = await fleetApi('/api/health-status');
-        var el = document.getElementById('fleetHealthContent');
-        if (!el) return;
-        var hosts = data.hosts || [];
-        if (hosts.length === 0) { el.textContent = 'No health data available'; return; }
-        el.textContent = '';
-        hosts.forEach(function(h) {
-            var row = document.createElement('div');
-            row.style.cssText = 'padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.8rem;';
-            var c = h.status === 'UP' ? '#10b981' : '#ef4444';
-            var status = document.createElement('span');
-            status.style.color = c;
-            status.textContent = (h.status || '?') + ' ';
-            row.appendChild(status);
-            var name = document.createElement('strong');
-            name.textContent = h.name || h.host || 'unknown';
-            row.appendChild(name);
-            if (h.uptime) row.appendChild(document.createTextNode(' \u2014 uptime: ' + h.uptime));
-            el.appendChild(row);
-        });
-    } catch (e) { console.error('Fleet health load:', e); }
+        const resp = await fetch('/tools/fleet/api/cloud-providers/' + providerId + '/toggle', { method: 'POST' });
+        const data = await resp.json();
+        if (data.success) {
+            loadCloudProviders();
+            loadFleetData();
+        }
+    } catch(e) {
+        console.error('Toggle cloud provider failed:', e);
+    }
 }
 
-// ───────────────────────────────────────────────────────────────
+function showNodeDetail(node) {
+    var panel = document.getElementById('fleetDetailPanel');
+    var titleEl = document.getElementById('fleetDetailTitle');
+    var body = document.getElementById('fleetDetailBody');
+    if (!panel || !titleEl || !body) return;
+
+    titleEl.textContent = node.node_name || node.name || node.hostname;
+
+    // Build detail content using DOM methods (trusted server data)
+    body.textContent = '';
+    var sections = [
+        { title: 'Hardware', rows: [
+            ['GPU', node.gpu_model || node.gpu || 'None'],
+            ['VRAM', node.gpu_vram_gb ? node.gpu_vram_gb + ' GB' : '--'],
+            ['RAM', (node.ram_gb || node.ram) ? (node.ram_gb || node.ram) + ' GB' : '--'],
+            ['Region', node.region || '--']
+        ]},
+        { title: 'Network', rows: [
+            ['Hostname', node.hostname || '--'],
+            ['Mesh IP', node.mesh_ip || '--'],
+            ['Mode', node.deployment_mode || '--']
+        ]},
+        { title: 'Status', rows: [
+            ['Status', node.status || '--'],
+            ['Last Heartbeat', node.last_heartbeat || '--']
+        ]}
+    ];
+    sections.forEach(function(sec) {
+        var h = document.createElement('div');
+        h.className = 'detail-section-title';
+        h.textContent = sec.title;
+        body.appendChild(h);
+        sec.rows.forEach(function(r) {
+            var row = document.createElement('div');
+            row.className = 'detail-row';
+            var lbl = document.createElement('span');
+            lbl.className = 'detail-label';
+            lbl.textContent = r[0];
+            var val = document.createElement('span');
+            val.className = 'detail-value';
+            val.textContent = r[1];
+            row.appendChild(lbl);
+            row.appendChild(val);
+            body.appendChild(row);
+        });
+    });
+
+    // Deployed Agents section with Department HQ cross-links
+    var agents = node.agents || [];
+    var agentHeader = document.createElement('div');
+    agentHeader.className = 'detail-section-title';
+    agentHeader.textContent = 'Deployed Agents (' + agents.length + ')';
+    body.appendChild(agentHeader);
+
+    if (agents.length === 0) {
+        var noAgents = document.createElement('div');
+        noAgents.className = 'detail-row';
+        noAgents.style.opacity = '0.5';
+        noAgents.textContent = 'No agents deployed';
+        body.appendChild(noAgents);
+    } else {
+        agents.forEach(function(agent) {
+            var row = document.createElement('div');
+            row.className = 'detail-row';
+            var link = document.createElement('a');
+            link.href = '/tools/department-hq#agent-' + (agent.hub_agent_id || '');
+            link.style.cssText = 'color:#8b5cf6;text-decoration:none;font-weight:500;cursor:pointer;';
+            link.textContent = agent.display_name || 'Unknown';
+            link.title = 'View in Department HQ';
+            link.addEventListener('mouseenter', function() { link.style.textDecoration = 'underline'; });
+            link.addEventListener('mouseleave', function() { link.style.textDecoration = 'none'; });
+            row.appendChild(link);
+            if (agent.department) {
+                var dept = document.createElement('span');
+                dept.className = 'detail-value';
+                dept.style.cssText = 'font-size:0.7rem;opacity:0.6;margin-left:8px;';
+                dept.textContent = agent.department;
+                row.appendChild(dept);
+            }
+            body.appendChild(row);
+        });
+
+        // "View all in Department HQ" link
+        var viewAll = document.createElement('a');
+        viewAll.href = '/tools/department-hq#agents';
+        viewAll.style.cssText = 'display:block;margin-top:8px;color:#8b5cf6;text-decoration:none;font-size:0.75rem;text-align:center;opacity:0.8;';
+        viewAll.textContent = 'View all in Department HQ \u2192';
+        viewAll.addEventListener('mouseenter', function() { viewAll.style.opacity = '1'; });
+        viewAll.addEventListener('mouseleave', function() { viewAll.style.opacity = '0.8'; });
+        body.appendChild(viewAll);
+    }
+
+    panel.style.display = 'block';
+}
+
+function closeFleetDetail() {
+    var panel = document.getElementById('fleetDetailPanel');
+    if (panel) panel.style.display = 'none';
+}
+
+// Auto-init fleet map when tab becomes active
+(function() {
+    var _origSwitch = typeof switchBridgeTab === 'function' ? switchBridgeTab : null;
+    if (_origSwitch) {
+        switchBridgeTab = function(tab) {
+            _origSwitch(tab);
+            if (tab === 'fleet-map') {
+                setTimeout(function() {
+                    initFleetMap();
+                    if (fleetMap) fleetMap.invalidateSize();
+                    loadFleetUsage();
+                    loadCloudProviders();
+                    loadProviderManagement();
+                    startFleetRefresh();
+                }, 100);
+            } else {
+                stopFleetRefresh();
+            }
+        };
+    }
+})();
+
+/* Fleet Usage Dashboard */
+async function loadFleetUsage() {
+    try {
+        const [usageResp, mapResp] = await Promise.all([
+            fetch('/tools/fleet/api/fleet-usage'),
+            fetch('/tools/fleet/api/fleet-map'),
+        ]);
+        const usage = await usageResp.json();
+        const map = await mapResp.json();
+
+        // Summary cards
+        const costEl = document.getElementById('fleetUsageCost');
+        const provEl = document.getElementById('fleetUsageProviders');
+        const callEl = document.getElementById('fleetUsageCalls');
+        if (costEl) costEl.textContent = '$' + (usage.total_cost || 0).toFixed(2);
+        if (provEl) provEl.textContent = (map.providers || []).filter(p => p.is_active).length;
+        if (callEl) callEl.textContent = (usage.total_calls || 0).toLocaleString();
+
+        // Provider budget table
+        const tbody = document.getElementById('fleetBudgetTableBody');
+        if (!tbody) return;
+
+        const providers = map.providers || [];
+        if (providers.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#6b7280;">No providers configured</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = providers
+            .sort((a, b) => (b.current_month_cost_usd || 0) - (a.current_month_cost_usd || 0))
+            .map(p => {
+                const budget = p.monthly_budget_usd || 0;
+                const spent = p.current_month_cost_usd || 0;
+                const pct = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0;
+                const barColor = pct > 90 ? '#ef4444' : pct > 70 ? '#fbbf24' : '#10b981';
+                const pKey = (p.provider_key || '').toLowerCase();
+                const pStyle = PROVIDER_STYLES[pKey] || { color: '#f97316', bg: 'rgba(249,115,22,0.3)', label: (p.provider_key || '?').charAt(0).toUpperCase() };
+
+                return `<tr>
+                    <td><div class="fleet-provider-name">
+                        <div class="fleet-provider-icon" style="background:${pStyle.bg};border-color:${pStyle.color};color:${pStyle.color}">${pStyle.label}</div>
+                        ${p.provider_key || '--'}
+                    </div></td>
+                    <td>${p.tier_position || '--'}</td>
+                    <td>${budget > 0 ? '$' + budget.toFixed(2) : '--'}</td>
+                    <td>${spent > 0 ? '$' + spent.toFixed(2) : '$0.00'}</td>
+                    <td>
+                        <div class="fleet-budget-bar">
+                            <div class="fleet-budget-bar-fill" style="width:${pct}%;background:${barColor}"></div>
+                        </div>
+                        ${pct > 0 ? pct.toFixed(0) + '%' : '--'}
+                    </td>
+                    <td><span class="fleet-status-dot ${p.is_active ? 'active' : 'inactive'}"></span></td>
+                </tr>`;
+            }).join('');
+
+        // Cloud providers budget rows (Phase 4)
+        try {
+            const cloudResp = await fetch('/tools/fleet/api/cloud-providers');
+            const cloudData = await cloudResp.json();
+            (cloudData.providers || []).forEach(function(p) {
+                var budgetPct = p.monthly_budget > 0
+                    ? ((p.monthly_usage || 0) / p.monthly_budget * 100).toFixed(0)
+                    : '--';
+                var statusColor = p.status === 'active' ? '#10b981' : '#6b7280';
+                var row = document.createElement('tr');
+                var cells = [p.name, p.tier || 'free',
+                    '$' + (p.monthly_budget || 0).toFixed(2),
+                    '$' + (p.monthly_usage || 0).toFixed(2),
+                    budgetPct + (budgetPct !== '--' ? '%' : ''),
+                    (p.status || '--').toUpperCase()];
+                cells.forEach(function(text, i) {
+                    var td = document.createElement('td');
+                    td.textContent = text;
+                    if (i === 5) td.style.color = statusColor;
+                    row.appendChild(td);
+                });
+                tbody.appendChild(row);
+            });
+        } catch(e) {
+            console.error('Cloud providers budget table error:', e);
+        }
+    } catch (e) {
+        console.error('Fleet usage load failed:', e);
+    }
+}
+
+/* Cloud Provider Management Panel */
+async function loadProviderManagement() {
+    try {
+        const resp = await fetch('/tools/fleet/api/providers');
+        const data = await resp.json();
+        const providers = data.providers || [];
+
+        var countEl = document.getElementById('fleetProviderCount');
+        if (countEl) countEl.textContent = providers.filter(function(p) { return p.is_active; }).length + ' active';
+
+        var grid = document.getElementById('fleetProvidersGrid');
+        if (!grid) return;
+
+        if (providers.length === 0) {
+            grid.innerHTML = '<div style="text-align:center;color:#6b7280;padding:24px;">No providers configured</div>';
+            return;
+        }
+
+        grid.innerHTML = providers
+            .sort(function(a, b) { return (a.tier_position || 99) - (b.tier_position || 99); })
+            .map(function(p) {
+                var key = (p.provider_key || '').toLowerCase();
+                var style = PROVIDER_STYLES[key] || { color: '#f97316', bg: 'rgba(249,115,22,0.3)', label: key.charAt(0).toUpperCase() };
+                var budget = p.monthly_budget_usd || 0;
+                var spent = p.current_month_cost_usd || 0;
+                var pct = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0;
+                var barColor = pct > 90 ? '#ef4444' : pct > 70 ? '#fbbf24' : '#10b981';
+                var caps = (p.capabilities || []).slice(0, 4);
+
+                return '<div class="fleet-prov-card ' + (p.is_active ? '' : 'inactive') + '">' +
+                    '<div class="fleet-prov-header">' +
+                        '<span class="fleet-prov-icon" style="background:' + style.bg + ';border-color:' + style.color + ';color:' + style.color + '">' + style.label + '</span>' +
+                        '<span class="fleet-prov-name">' + (p.provider_key || '--') + '</span>' +
+                        '<button class="fleet-prov-toggle ' + (p.is_active ? 'active' : '') + '" onclick="toggleProvider(\'' + p.provider_key + '\')">' +
+                            (p.is_active ? 'ON' : 'OFF') +
+                        '</button>' +
+                    '</div>' +
+                    '<div class="fleet-prov-details">' +
+                        '<div class="fleet-prov-row"><span>Tier</span><span>' + (p.tier_position || '--') + '</span></div>' +
+                        '<div class="fleet-prov-row"><span>Model</span><span>' + (p.default_model || '--') + '</span></div>' +
+                        '<div class="fleet-prov-row"><span>Budget</span><span>$' + budget.toFixed(2) + '</span></div>' +
+                        '<div class="fleet-prov-row">' +
+                            '<span>Spent</span>' +
+                            '<span>$' + spent.toFixed(2) + ' (' + pct.toFixed(0) + '%)</span>' +
+                        '</div>' +
+                        '<div class="fleet-prov-bar"><div class="fleet-prov-bar-fill" style="width:' + pct + '%;background:' + barColor + '"></div></div>' +
+                    '</div>' +
+                    '<div class="fleet-prov-caps">' + caps.map(function(c) { return '<span class="fleet-cap-tag">' + c + '</span>'; }).join('') + '</div>' +
+                '</div>';
+            }).join('');
+    } catch (e) {
+        console.error('Provider management load failed:', e);
+    }
+}
+
+async function toggleProvider(key) {
+    try {
+        await fetch('/tools/fleet/api/providers/' + key + '/toggle', { method: 'POST' });
+        loadProviderManagement();
+        loadFleetData();
+        loadFleetUsage();
+        loadCloudProviders();
+    } catch (e) {
+        console.error('Toggle provider failed:', e);
+    }
+}
+
 var escapeHtml = typeof esc === "function" ? esc : function(s) { var d = document.createElement("div"); d.textContent = String(s == null ? "" : s); return d.innerHTML; };
 function showToast(msg, type) { console.log("[" + (type||"info") + "] " + msg); }
 // CONTRACTORS (External Providers) — Crew Sub-Tab

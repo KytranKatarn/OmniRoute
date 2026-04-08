@@ -44,7 +44,8 @@ function loadTopology() {
         const s = d.stats || d;
         document.getElementById('topo-device-count').textContent = s.total_devices || s.device_count || '--';
         document.getElementById('topo-bandwidth').textContent = fmtBytes(s.total_bandwidth || s.total_bytes || 0);
-        document.getElementById('topo-top-talker').textContent = s.top_talker || '--';
+        var tt = s.top_talker;
+        document.getElementById('topo-top-talker').textContent = (tt && typeof tt === 'object') ? (tt.label || tt.name || tt.ip || JSON.stringify(tt)) : (tt || '--');
     }).catch(()=>{});
 
     // Graph

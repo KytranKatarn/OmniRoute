@@ -26,7 +26,7 @@ from psycopg2.extras import Json, RealDictCursor
 from rbac import require_permission, Permission
 from database import get_db_cursor
 
-from .helpers import (
+from .fleet_helpers import (
     OLLAMA_LOCAL_URL,
     DEFAULT_NODE_PORT,
     LEGACY_STATION_DEPARTMENT,
@@ -1318,7 +1318,7 @@ def register_fleet_routes(bp, auth_decorator):
 
     @bp.route("/api/external-providers", methods=["GET"])
     @login_required
-    def get_external_providers():
+    def fleet_get_external_providers():
         """List external AI providers with 24h stats, model breakdowns, and tier positions.
         All provider metadata now comes from the contractor_providers table (dynamic)."""
         try:
@@ -1583,7 +1583,7 @@ def register_fleet_routes(bp, auth_decorator):
     @bp.route("/api/external-providers", methods=["POST"])
     @login_required
     @require_permission(Permission.ADMIN_ACCESS)
-    def upsert_external_provider():
+    def fleet_upsert_external_provider():
         """Add or update an external AI provider API key. Validates against contractor_providers table."""
         data = request.get_json() or {}
         provider = data.get("provider", "").strip().lower()
@@ -1657,7 +1657,7 @@ def register_fleet_routes(bp, auth_decorator):
     @bp.route("/api/external-providers/<provider>/toggle", methods=["POST"])
     @login_required
     @require_permission(Permission.ADMIN_ACCESS)
-    def toggle_external_provider(provider):
+    def fleet_toggle_external_provider(provider):
         """Enable/disable an external provider."""
         try:
             with get_db_cursor(cursor_factory=None) as (conn, cur):
@@ -1674,7 +1674,7 @@ def register_fleet_routes(bp, auth_decorator):
         methods=["PUT"],
     )
     @login_required
-    def toggle_provider_model(provider, model_name):
+    def fleet_toggle_provider_model(provider, model_name):
         """Enable/disable a specific model under a provider for routing."""
         data = request.get_json() or {}
         enabled = data.get("enabled")
@@ -1719,7 +1719,7 @@ def register_fleet_routes(bp, auth_decorator):
 
     @bp.route("/api/contractor-providers", methods=["GET"])
     @login_required
-    def list_contractor_providers():
+    def fleet_list_contractor_providers():
         """List all contractor provider definitions (for UI dropdowns and admin)."""
         try:
             with get_db_cursor(commit=False) as (conn, cur):
@@ -1746,7 +1746,7 @@ def register_fleet_routes(bp, auth_decorator):
     @bp.route("/api/contractor-providers", methods=["POST"])
     @login_required
     @require_permission(Permission.ADMIN_ACCESS)
-    def upsert_contractor_provider():
+    def fleet_upsert_contractor_provider():
         """Create or update a contractor provider definition."""
         data = request.get_json() or {}
         provider_key = data.get("provider_key", "").strip().lower()

@@ -1783,7 +1783,7 @@ function initFleetMap() {
 }
 
 function loadFleetData() {
-    fetch('/tools/fleet/api/fleet-map')
+    fetch('/tools/department-hq/api/fleet-map')
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.error) { console.error('Fleet map error:', data.error); return; }
@@ -1903,7 +1903,7 @@ function updateFleetStats(data) {
 
 async function loadCloudProviders() {
     try {
-        const resp = await fetch('/tools/fleet/api/cloud-providers');
+        const resp = await fetch('/tools/department-hq/api/cloud-providers');
         const data = await resp.json();
         if (data.error) { console.error('Cloud providers error:', data.error); return; }
 
@@ -2007,7 +2007,7 @@ async function loadCloudProviders() {
 
 async function toggleCloudProvider(providerId) {
     try {
-        const resp = await fetch('/tools/fleet/api/cloud-providers/' + providerId + '/toggle', { method: 'POST' });
+        const resp = await fetch('/tools/department-hq/api/cloud-providers/' + providerId + '/toggle', { method: 'POST' });
         const data = await resp.json();
         if (data.success) {
             loadCloudProviders();
@@ -2144,8 +2144,8 @@ function closeFleetDetail() {
 async function loadFleetUsage() {
     try {
         const [usageResp, mapResp] = await Promise.all([
-            fetch('/tools/fleet/api/fleet-usage'),
-            fetch('/tools/fleet/api/fleet-map'),
+            fetch('/tools/department-hq/api/fleet-usage'),
+            fetch('/tools/department-hq/api/fleet-map'),
         ]);
         const usage = await usageResp.json();
         const map = await mapResp.json();
@@ -2198,7 +2198,7 @@ async function loadFleetUsage() {
 
         // Cloud providers budget rows (Phase 4)
         try {
-            const cloudResp = await fetch('/tools/fleet/api/cloud-providers');
+            const cloudResp = await fetch('/tools/department-hq/api/cloud-providers');
             const cloudData = await cloudResp.json();
             (cloudData.providers || []).forEach(function(p) {
                 var budgetPct = p.monthly_budget > 0
@@ -2230,7 +2230,7 @@ async function loadFleetUsage() {
 /* Cloud Provider Management Panel */
 async function loadProviderManagement() {
     try {
-        const resp = await fetch('/tools/fleet/api/providers');
+        const resp = await fetch('/tools/department-hq/api/providers');
         const data = await resp.json();
         const providers = data.providers || [];
 
@@ -2284,7 +2284,7 @@ async function loadProviderManagement() {
 
 async function toggleProvider(key) {
     try {
-        await fetch('/tools/fleet/api/providers/' + key + '/toggle', { method: 'POST' });
+        await fetch('/tools/department-hq/api/providers/' + key + '/toggle', { method: 'POST' });
         loadProviderManagement();
         loadFleetData();
         loadFleetUsage();
@@ -2302,8 +2302,8 @@ function showToast(msg, type) { console.log("[" + (type||"info") + "] " + msg); 
 async function loadContractors() {
     try {
         var [provResp, modeResp] = await Promise.all([
-            fetch('/tools/fleet/api/external-providers'),
-            fetch('/tools/fleet/api/routing-mode')
+            fetch('/tools/department-hq/api/external-providers'),
+            fetch('/tools/department-hq/api/routing-mode')
         ]);
         if (!provResp.ok) throw new Error('Failed to load providers');
         var data = await provResp.json();
@@ -2512,7 +2512,7 @@ function renderContractors(providers, routingMode, creedData) {
 }
 
 function toggleProvider(provider) {
-    fetch('/tools/fleet/api/external-providers/' + encodeURIComponent(provider) + '/toggle', {
+    fetch('/tools/department-hq/api/external-providers/' + encodeURIComponent(provider) + '/toggle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
@@ -2528,7 +2528,7 @@ function toggleProvider(provider) {
 }
 
 function toggleContractorModel(provider, model, enabled) {
-    fetch('/tools/fleet/api/external-providers/' + encodeURIComponent(provider) + '/models/' + encodeURIComponent(model) + '/toggle', {
+    fetch('/tools/department-hq/api/external-providers/' + encodeURIComponent(provider) + '/models/' + encodeURIComponent(model) + '/toggle', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: enabled })
@@ -2550,8 +2550,8 @@ function openAddProviderModal(editProviderName) {
 
     // Fetch both contractor-providers definitions AND current key data in parallel
     Promise.all([
-        fetch('/tools/fleet/api/contractor-providers').then(function(r) { return r.json(); }),
-        fetch('/tools/fleet/api/external-providers').then(function(r) { return r.json(); })
+        fetch('/tools/department-hq/api/contractor-providers').then(function(r) { return r.json(); }),
+        fetch('/tools/department-hq/api/external-providers').then(function(r) { return r.json(); })
     ]).then(function(results) {
         var cpData = results[0];
         var epData = results[1];
@@ -2766,7 +2766,7 @@ function saveProvider() {
         payload.api_key = keyEl.value;
     }
 
-    fetch('/tools/fleet/api/external-providers', {
+    fetch('/tools/department-hq/api/external-providers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

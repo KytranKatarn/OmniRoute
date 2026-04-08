@@ -12,7 +12,7 @@ from flask import jsonify, request
 from flask_login import current_user
 
 from database import get_db_cursor, check_fleet_model_unique
-from .helpers import _get_node_for_user_by_int_id
+from .fleet_helpers import _get_node_for_user_by_int_id
 
 # Legacy station colors for backward-compatible rendering (bridge_stations deprecated)
 _LEGACY_STATION_COLORS = {
@@ -36,7 +36,7 @@ def register_crew_routes(bp, auth_decorator):
 
     @bp.route("/api/nodes/<int:node_id>/crew-manifest")
     @auth_decorator
-    def api_node_crew_manifest(node_id):
+    def fleet_api_node_crew_manifest(node_id):
         """Return node agents in Bridge manifest-compatible format for rich card rendering."""
         # Try to get real dispatcher manifest for enrichment
         manifest_lookup = {}
@@ -143,7 +143,7 @@ def register_crew_routes(bp, auth_decorator):
 
     @bp.route("/api/nodes/<int:node_id>/agents/<int:agent_id>/profile")
     @auth_decorator
-    def api_node_agent_profile(node_id, agent_id):
+    def fleet_api_node_agent_profile(node_id, agent_id):
         """Get full agent profile — proxies to hub agent via hub_agent_id."""
         try:
             with get_db_cursor() as (conn, cur):

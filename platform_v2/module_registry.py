@@ -436,34 +436,9 @@ MODULES: List[ModuleDefinition] = [
     # consciousness, team_management, fleet (A.R.M.A.D.A.)
     # NOTE: blueprint (Mission Control) removed from grid 2026-02-04
     # Blueprint Flask routes still registered manually in app.py for Dev HQ API access
-    # NOTE: Starbase + Starship merged into A.R.M.A.D.A. (2026-04-08)
-    # A.R.M.A.D.A. — API-only backend for fleet/contractor data
-    # UI lives in Department HQ (Fleet + Contractors tabs)
-    # Blueprint MUST stay enabled — Dept HQ calls /tools/fleet/api/* endpoints
-    # coming_soon=True hides from dashboard grid but keeps blueprint registered
-    ModuleDefinition(
-        id="fleet",
-        name="A.R.M.A.D.A.",
-        description="Fleet API backend<br>UI → Department HQ Fleet tab",
-        icon="rocket",
-        category=ModuleCategory.AI_COMMAND,
-        route="/tools/fleet",
-        blueprint_import="tools.fleet.routes:fleet_bp",
-        required_permissions=[],
-        minimum_role="USER",
-        enabled=True,
-        coming_soon=True,
-        health_check=lambda: default_health_check("fleet"),
-        priority=2,
-        tags=[
-            "fleet",
-            "armada",
-            "nodes",
-            "mesh",
-            "ota",
-            "providers",
-        ],
-    ),
+    # NOTE: Starbase + Starship → A.R.M.A.D.A. → fully merged into Department HQ (2026-04-08)
+    # Fleet/node/mesh/OTA routes now registered on department_hq_bp
+    # Old /tools/fleet/* URLs redirect via app.py compat redirects
     ModuleDefinition(
         id="team_management",
         name="Team Management",

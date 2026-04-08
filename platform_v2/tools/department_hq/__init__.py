@@ -1,16 +1,23 @@
 """
-Department HQ Module - Organizational Management & Performance Tracking
+Department HQ Module — THE Command Center
+==========================================
+11 tabs: Overview, Org Chart, Roster, Work Tracking, Performance,
+C.R.E.E.D., Social, Devices, Dispatch, Fleet, Contractors
 
-6 tabs: Overview, Org Chart, Roster, Work Tracking, Performance, C.R.E.E.D.
 Manages 16 departments across 5 floors with AI Directors and staff agents.
+Fleet/node/mesh/OTA management migrated from A.R.M.A.D.A. (2026-04-08).
 
 Routes split per ADR-045:
 - routes.py — Overview + Org Chart (dashboard, floor summary, org tree)
 - roster_routes.py — Agent CRUD, assignments, shift management
 - work_routes.py — Work sessions, job tracking, performance, C.R.E.E.D.
+- crew_routes.py — Hub crew manifest + agent personality
+- contractor_routes.py — External AI provider management
+- fleet_*_routes.py — Fleet/node/mesh/OTA/provider/mission (from A.R.M.A.D.A.)
 """
 
 from flask import Blueprint
+from flask_login import login_required
 
 department_hq_bp = Blueprint(
     "department_hq",
@@ -34,6 +41,16 @@ from .dispatch_routes import register_dispatch_routes  # noqa: E402
 from .crew_routes import register_crew_routes  # noqa: E402
 from .contractor_routes import register_contractor_routes  # noqa: E402
 
+# Fleet routes (migrated from A.R.M.A.D.A.)
+from .fleet_dashboard_routes import register_dashboard_routes as register_fleet_dashboard  # noqa: E402
+from .fleet_node_routes import register_node_routes as register_fleet_nodes  # noqa: E402
+from .fleet_mesh_routes import register_mesh_routes as register_fleet_mesh  # noqa: E402
+from .fleet_crew_routes import register_crew_routes as register_fleet_crew  # noqa: E402
+from .fleet_provider_routes import register_fleet_routes as register_fleet_providers  # noqa: E402
+from .fleet_dispatch_routes import register_dispatch_routes as register_fleet_dispatch  # noqa: E402
+from .fleet_mission_routes import register_mission_routes as register_fleet_missions  # noqa: E402
+from .fleet_ota_routes import register_ota_routes as register_fleet_ota  # noqa: E402
+
 # Register all route groups on the blueprint
 register_routes(department_hq_bp)
 register_roster_routes(department_hq_bp, admin_required)
@@ -48,3 +65,13 @@ register_model_routes(department_hq_bp, admin_required)
 register_dispatch_routes(department_hq_bp, admin_required)
 register_crew_routes(department_hq_bp, admin_required)
 register_contractor_routes(department_hq_bp, admin_required)
+
+# Fleet routes — all under /tools/department-hq/api/fleet/*
+register_fleet_dashboard(department_hq_bp, login_required)
+register_fleet_nodes(department_hq_bp, login_required, admin_required)
+register_fleet_mesh(department_hq_bp, login_required)
+register_fleet_crew(department_hq_bp, login_required)
+register_fleet_providers(department_hq_bp, login_required)
+register_fleet_dispatch(department_hq_bp, login_required)
+register_fleet_missions(department_hq_bp, login_required)
+register_fleet_ota(department_hq_bp, admin_required)

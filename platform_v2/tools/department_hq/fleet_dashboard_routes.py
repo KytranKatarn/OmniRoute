@@ -25,7 +25,7 @@ from psycopg2.extras import RealDictCursor
 from database import get_db_cursor, check_fleet_model_unique
 import requests
 
-from .helpers import (
+from .fleet_helpers import (
     OLLAMA_LOCAL_URL,
     OLLAMA_LOCAL_HOST,
     OLLAMA_DEFAULT_PORT,

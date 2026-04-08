@@ -4,7 +4,7 @@ import os
 from flask import jsonify, request
 from flask_login import current_user
 from database import get_db_cursor
-from .helpers import _get_node_for_user_by_int_id, LATEST_NODE_VERSION
+from .fleet_helpers import _get_node_for_user_by_int_id, LATEST_NODE_VERSION
 
 logger = logging.getLogger(__name__)
 

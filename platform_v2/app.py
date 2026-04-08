@@ -305,24 +305,29 @@ except ImportError as e:
 # ============================================================================
 
 
+# ============================================================================
+# LEGACY COMPAT REDIRECTS — Starbase/Starship/Fleet/Bridge → Department HQ
+# All fleet APIs now live under /tools/department-hq/api/*
+# ============================================================================
+
+
 @app.route("/tools/bridge/<path:subpath>", methods=["GET", "POST", "PUT", "DELETE"])
 def bridge_compat_redirect(subpath):
-    """Redirect old /tools/bridge/ URLs to /tools/fleet/ for node clients."""
+    """Redirect old /tools/bridge/ URLs to Department HQ."""
     from flask import redirect, request as req
 
-    new_url = f"/tools/fleet/{subpath}"
+    new_url = f"/tools/department-hq/{subpath}"
     if req.query_string:
         new_url += f"?{req.query_string.decode()}"
-    # 307 preserves method and body (unlike 301/302 which change POST→GET)
     return redirect(new_url, code=307)
 
 
 @app.route("/tools/starbase/<path:subpath>", methods=["GET", "POST", "PUT", "DELETE"])
 def starbase_compat_redirect(subpath):
-    """Redirect old /tools/starbase/ URLs to /tools/fleet/ after module merge."""
+    """Redirect old /tools/starbase/ URLs to Department HQ."""
     from flask import redirect, request as req
 
-    new_url = f"/tools/fleet/{subpath}"
+    new_url = f"/tools/department-hq/{subpath}"
     if req.query_string:
         new_url += f"?{req.query_string.decode()}"
     return redirect(new_url, code=307)
@@ -330,10 +335,21 @@ def starbase_compat_redirect(subpath):
 
 @app.route("/tools/starship/<path:subpath>", methods=["GET", "POST", "PUT", "DELETE"])
 def starship_compat_redirect(subpath):
-    """Redirect old /tools/starship/ URLs to /tools/fleet/ after module merge."""
+    """Redirect old /tools/starship/ URLs to Department HQ."""
     from flask import redirect, request as req
 
-    new_url = f"/tools/fleet/{subpath}"
+    new_url = f"/tools/department-hq/{subpath}"
+    if req.query_string:
+        new_url += f"?{req.query_string.decode()}"
+    return redirect(new_url, code=307)
+
+
+@app.route("/tools/fleet/<path:subpath>", methods=["GET", "POST", "PUT", "DELETE"])
+def fleet_compat_redirect(subpath):
+    """Redirect old /tools/fleet/ URLs to Department HQ."""
+    from flask import redirect, request as req
+
+    new_url = f"/tools/department-hq/{subpath}"
     if req.query_string:
         new_url += f"?{req.query_string.decode()}"
     return redirect(new_url, code=307)

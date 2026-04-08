@@ -19,9 +19,9 @@ import requests
 
 import ipaddress
 
-from .helpers import DEFAULT_NODE_PORT, DEFAULT_CLIENT_VERSION, LATEST_CLIENT_VERSION
+from .fleet_helpers import DEFAULT_NODE_PORT, DEFAULT_CLIENT_VERSION, LATEST_CLIENT_VERSION
 
-from .helpers import (
+from .fleet_helpers import (
     _get_node_for_user,
     _get_node_for_user_by_int_id,
     _get_user_nodes,
@@ -2819,7 +2819,7 @@ def register_node_routes(bp, login_required, admin_required):
 
     @bp.route("/api/model-catalog")
     @login_required
-    def api_model_catalog():
+    def fleet_api_model_catalog():
         """Return the curated model catalog for browsing and selection."""
         category = request.args.get("category")
         with get_db_cursor() as (conn, cur):

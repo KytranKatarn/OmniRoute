@@ -11,7 +11,7 @@ from psycopg2.extras import RealDictCursor
 from rbac import require_permission, Permission
 from database import get_db_cursor
 
-from .helpers import get_starship_node_for_user
+from .fleet_helpers import get_starship_node_for_user
 
 logger = logging.getLogger(__name__)
 

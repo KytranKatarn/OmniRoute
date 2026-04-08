@@ -816,11 +816,27 @@ function _renderDomainIntel(body, d) {
     aiBtn.addEventListener('click', function() { investigateDomain(d.domain); });
     aiHeader.appendChild(aiLabel); aiHeader.appendChild(aiBtn);
     aiSection.appendChild(aiHeader);
-    // Predetermined report box — always visible
+    // Predetermined report box — always visible, show DB-persisted report if available
     var aiResult = document.createElement('div');
     aiResult.id = 'domain-investigate-result';
-    aiResult.style.cssText = 'background:rgba(139,92,246,0.06);border:1px dashed rgba(139,92,246,0.25);border-radius:8px;padding:16px;min-height:60px;color:#777;font-size:0.8rem;line-height:1.5;font-style:italic';
-    aiResult.textContent = 'No report available. Click "Investigate" to request an AI security analysis of this domain.';
+    if (d.last_report) {
+        aiResult.style.cssText = 'background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.3);border-left:3px solid #8b5cf6;border-radius:8px;padding:16px;min-height:60px;color:#ccc;font-size:0.8rem;line-height:1.6;white-space:pre-wrap;font-style:normal';
+        aiResult.textContent = d.last_report;
+        var ageTag = document.createElement('div');
+        ageTag.style.cssText = 'color:#666;font-size:0.65rem;margin-top:8px;font-style:italic';
+        var ageText = 'Unknown age';
+        if (d.report_age) {
+            var ageMs = Date.now() - new Date(d.report_age).getTime();
+            var ageMin = Math.round(ageMs / 60000);
+            ageText = ageMin < 60 ? ageMin + ' min ago' : Math.round(ageMin / 60) + 'h ago';
+        }
+        ageTag.textContent = 'Investigated by ' + (d.report_by || 'AI Bridge') + ' — ' + ageText + ' — click Re-investigate for fresh analysis';
+        aiResult.appendChild(ageTag);
+        aiBtn.textContent = 'Re-investigate';
+    } else {
+        aiResult.style.cssText = 'background:rgba(139,92,246,0.06);border:1px dashed rgba(139,92,246,0.25);border-radius:8px;padding:16px;min-height:60px;color:#777;font-size:0.8rem;line-height:1.5;font-style:italic';
+        aiResult.textContent = 'No report available. Click "Investigate" to request an AI security analysis of this domain.';
+    }
     aiSection.appendChild(aiResult);
     body.appendChild(aiSection);
 

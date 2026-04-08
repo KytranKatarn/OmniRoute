@@ -94,6 +94,8 @@ def register_sinkhole_routes(bp, admin_required_decorator):
             "category": "uncategorized",
             "adguard_status": None,
             "hourly": [],
+            "last_report": None,
+            "report_age": None,
         }
 
         try:
@@ -192,6 +194,25 @@ def register_sinkhole_routes(bp, admin_required_decorator):
             except Exception:
                 pass
 
+            # Check for cached AI report in database
+            try:
+                with get_db_cursor() as (conn2, cur2):
+                    cur2.execute(
+                        """SELECT report, risk_level, investigated_by,
+                                  created_at, updated_at
+                           FROM domain_intel_reports WHERE domain = %s""",
+                        (domain,),
+                    )
+                    rpt = cur2.fetchone()
+                    if rpt:
+                        rpt = dict(rpt)
+                        result["last_report"] = rpt.get("report")
+                        result["report_risk"] = rpt.get("risk_level", "unknown")
+                        result["report_by"] = rpt.get("investigated_by", "AI Bridge")
+                        result["report_age"] = rpt["updated_at"].isoformat() if rpt.get("updated_at") else None
+            except Exception:
+                pass
+
         except Exception as e:
             logger.error("[Domain Intel] Failed: %s", e)
             return jsonify({"success": False, "error": str(e)}), 500
@@ -222,6 +243,25 @@ def register_sinkhole_routes(bp, admin_required_decorator):
 
             result = dispatch("general", prompt, module_id="security_network")
             if result and result.success:
+                # Persist report to database
+                try:
+                    with get_db_cursor(commit=True) as (conn2, cur2):
+                        cur2.execute(
+                            """INSERT INTO domain_intel_reports (domain, report, investigated_by, updated_at)
+                               VALUES (%s, %s, %s, NOW())
+                               ON CONFLICT (domain) DO UPDATE
+                               SET report = EXCLUDED.report,
+                                   investigated_by = EXCLUDED.investigated_by,
+                                   updated_at = NOW()""",
+                            (
+                                domain,
+                                result.response,
+                                getattr(result, "agent_name", "AI Bridge"),
+                            ),
+                        )
+                except Exception as db_err:
+                    logger.warning("[Domain Investigate] DB save failed: %s", db_err)
+
                 return jsonify({"success": True, "domain": domain, "report": result.response})
             return jsonify(
                 {

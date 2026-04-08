@@ -486,20 +486,34 @@ def register_noc_routes(bp, admin_required_decorator):
                 pass
 
             # DB-cached per-device bandwidth + history
-            time_clause = f"WHERE nts.hour_bucket >= NOW() - INTERVAL '{interval_str}'" if interval_str else "WHERE 1=1"
+            # Bytes in DB are CUMULATIVE from ntopng — compute deltas
+            # between consecutive hours. Resets (current < prev) = new counter.
+            time_clause = f"WHERE hour_bucket >= NOW() - INTERVAL '{interval_str}'" if interval_str else "WHERE 1=1"
             with get_db_cursor() as (conn, cur):
-                # Per-device bandwidth for selected period
+                # Per-device bandwidth using delta calculation
                 cur.execute(
-                    f"""SELECT nts.device_ip, nts.device_mac,
-                              COALESCE(ndu.user_name, ndu.device_label, nts.device_ip) as label,
-                              SUM(nts.bytes_in) as bytes_in,
-                              SUM(nts.bytes_out) as bytes_out,
-                              SUM(nts.bytes_in + nts.bytes_out) as total
-                       FROM network_traffic_stats nts
-                       LEFT JOIN network_device_users ndu ON ndu.mac_address = nts.device_mac
-                       {time_clause}
-                       GROUP BY nts.device_ip, nts.device_mac, label
-                       ORDER BY total DESC LIMIT 20"""
+                    f"""WITH deltas AS (
+                        SELECT device_ip, device_mac, hour_bucket,
+                               bytes_in - COALESCE(
+                                   LAG(bytes_in) OVER (PARTITION BY device_ip ORDER BY hour_bucket),
+                                   0
+                               ) AS delta_in,
+                               bytes_out - COALESCE(
+                                   LAG(bytes_out) OVER (PARTITION BY device_ip ORDER BY hour_bucket),
+                                   0
+                               ) AS delta_out
+                        FROM network_traffic_stats
+                    )
+                    SELECT d.device_ip, d.device_mac,
+                           COALESCE(ndu.user_name, ndu.device_label, d.device_ip) as label,
+                           SUM(GREATEST(d.delta_in, 0)) as bytes_in,
+                           SUM(GREATEST(d.delta_out, 0)) as bytes_out,
+                           SUM(GREATEST(d.delta_in, 0) + GREATEST(d.delta_out, 0)) as total
+                    FROM deltas d
+                    LEFT JOIN network_device_users ndu ON ndu.mac_address = d.device_mac
+                    {time_clause.replace('hour_bucket', 'd.hour_bucket')}
+                    GROUP BY d.device_ip, d.device_mac, label
+                    ORDER BY total DESC LIMIT 20"""
                 )
                 total_in = 0
                 total_out = 0
@@ -522,19 +536,31 @@ def register_noc_routes(bp, admin_required_decorator):
                 result["bytes_in"] = total_in
                 result["bytes_out"] = total_out
 
-                # Traffic history bucketed by hour or day
+                # Traffic history bucketed by hour or day (also delta-based)
                 if bucket_size == "hour":
                     time_fmt = "%H:%M"
                 else:
                     time_fmt = "%b %d"
                 hist_where = f"WHERE hour_bucket >= NOW() - INTERVAL '{interval_str}'" if interval_str else "WHERE 1=1"
                 cur.execute(
-                    f"""SELECT date_trunc('{bucket_size}', hour_bucket) as bucket,
-                              SUM(bytes_in) as bytes_in,
-                              SUM(bytes_out) as bytes_out
-                       FROM network_traffic_stats
-                       {hist_where}
-                       GROUP BY bucket ORDER BY bucket"""
+                    f"""WITH deltas AS (
+                        SELECT device_ip, hour_bucket,
+                               bytes_in - COALESCE(
+                                   LAG(bytes_in) OVER (PARTITION BY device_ip ORDER BY hour_bucket),
+                                   0
+                               ) AS delta_in,
+                               bytes_out - COALESCE(
+                                   LAG(bytes_out) OVER (PARTITION BY device_ip ORDER BY hour_bucket),
+                                   0
+                               ) AS delta_out
+                        FROM network_traffic_stats
+                    )
+                    SELECT date_trunc('{bucket_size}', hour_bucket) as bucket,
+                           SUM(GREATEST(delta_in, 0)) as bytes_in,
+                           SUM(GREATEST(delta_out, 0)) as bytes_out
+                    FROM deltas
+                    {hist_where}
+                    GROUP BY bucket ORDER BY bucket"""
                 )
                 for row in cur.fetchall():
                     r = dict(row)

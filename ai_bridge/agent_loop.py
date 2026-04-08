@@ -3183,16 +3183,27 @@ class AgentLoop:
             THRESHOLD_BYTES = 10 * 1024 * 1024 * 1024  # 10 GB
 
             with get_db_cursor() as (conn, cur):
+                # Use delta calculation — bytes are cumulative from ntopng
                 cur.execute(
-                    """SELECT nts.device_ip,
-                              COALESCE(ndu.user_name, ndu.device_label, nts.device_ip) as label,
-                              SUM(nts.bytes_in + nts.bytes_out) as total
-                       FROM network_traffic_stats nts
-                       LEFT JOIN network_device_users ndu ON ndu.mac_address = nts.device_mac
-                       WHERE nts.hour_bucket >= NOW() - INTERVAL '24 hours'
-                       GROUP BY nts.device_ip, label
-                       HAVING SUM(nts.bytes_in + nts.bytes_out) > %s
-                       ORDER BY total DESC""",
+                    """WITH deltas AS (
+                        SELECT device_ip, device_mac, hour_bucket,
+                               bytes_in - COALESCE(
+                                   LAG(bytes_in) OVER (PARTITION BY device_ip ORDER BY hour_bucket), 0
+                               ) AS delta_in,
+                               bytes_out - COALESCE(
+                                   LAG(bytes_out) OVER (PARTITION BY device_ip ORDER BY hour_bucket), 0
+                               ) AS delta_out
+                        FROM network_traffic_stats
+                    )
+                    SELECT d.device_ip,
+                           COALESCE(ndu.user_name, ndu.device_label, d.device_ip) as label,
+                           SUM(GREATEST(d.delta_in, 0) + GREATEST(d.delta_out, 0)) as total
+                    FROM deltas d
+                    LEFT JOIN network_device_users ndu ON ndu.mac_address = d.device_mac
+                    WHERE d.hour_bucket >= NOW() - INTERVAL '24 hours'
+                    GROUP BY d.device_ip, label
+                    HAVING SUM(GREATEST(d.delta_in, 0) + GREATEST(d.delta_out, 0)) > %s
+                    ORDER BY total DESC""",
                     (THRESHOLD_BYTES,),
                 )
                 heavy = [dict(r) for r in cur.fetchall()]

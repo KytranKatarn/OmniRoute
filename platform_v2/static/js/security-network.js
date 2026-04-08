@@ -815,6 +815,48 @@ function _renderProtocolBreakdown(protocols) {
     });
 }
 
+/* VPN Detection */
+function loadVpnDetect() {
+    var el = document.getElementById('vpn-detect-results');
+    if (!el) return;
+    el.innerHTML = '<div class="loading-state"><span class="spinner"></span> Scanning flows...</div>';
+
+    snApi('/noc/vpn-detect').then(function(d) {
+        if (!d.success) { el.innerHTML = '<div style="color:#ef4444">Scan failed</div>'; return; }
+
+        if (!d.total_vpn_flows) {
+            el.innerHTML = '<div style="color:#10b981;padding:8px 0">&#x2705; No VPN traffic detected — all devices using normal connections</div>';
+            return;
+        }
+
+        var html = '<div style="color:#fbbf24;margin-bottom:8px">&#x26a0;&#xfe0f; <strong>' + d.total_vpn_flows + ' VPN flow(s) detected</strong></div>';
+
+        if (d.suspicious_devices && d.suspicious_devices.length) {
+            html += '<table class="data-table"><thead><tr><th>Device</th><th>IP</th><th>Protocol</th><th>Flows</th><th>Bytes</th></tr></thead><tbody>';
+            d.suspicious_devices.forEach(function(dev) {
+                html += '<tr><td>' + (dev.label || dev.ip) + '</td><td>' + dev.ip + '</td><td>' +
+                    dev.protocols.join(', ') + '</td><td>' + dev.flow_count + '</td><td>' +
+                    formatBytes(dev.total_bytes) + '</td></tr>';
+            });
+            html += '</tbody></table>';
+        }
+
+        if (d.vpn_flows && d.vpn_flows.length) {
+            html += '<details style="margin-top:8px"><summary style="cursor:pointer;color:var(--archie-text-muted)">Show all flows (' + d.vpn_flows.length + ')</summary>';
+            html += '<table class="data-table" style="margin-top:4px"><thead><tr><th>Client</th><th>Server</th><th>Port</th><th>Protocol</th><th>Bytes</th></tr></thead><tbody>';
+            d.vpn_flows.forEach(function(f) {
+                html += '<tr><td>' + f.client + '</td><td>' + f.server + '</td><td>' + f.port + '</td><td>' +
+                    f.protocol + '</td><td>' + formatBytes(f.bytes) + '</td></tr>';
+            });
+            html += '</tbody></table></details>';
+        }
+
+        el.innerHTML = html;
+    }).catch(function(e) {
+        el.innerHTML = '<div style="color:#ef4444">Error: ' + e + '</div>';
+    });
+}
+
 /* ═══════════════════════════════════════════════════
    TAB 4: DEVICES
 ═══════════════════════════════════════════════════ */

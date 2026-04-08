@@ -547,3 +547,122 @@ def register_noc_routes(bp, admin_required_decorator):
             return jsonify({"success": False, "error": str(exc)}), 500
 
         return jsonify({"success": True, **result})
+
+    @bp.route("/api/noc/vpn-detect")
+    @login_required
+    @admin_required_decorator
+    def noc_vpn_detect():
+        """Detect VPN usage by checking active flows on known VPN ports via ntopng."""
+        import os
+
+        import requests as _req
+
+        VPN_PORTS = {
+            1194: "OpenVPN",
+            500: "IPSec/IKEv2",
+            4500: "IPSec NAT-T",
+            51820: "WireGuard",
+            1723: "PPTP",
+        }
+
+        result = {
+            "vpn_flows": [],
+            "suspicious_devices": [],
+            "total_vpn_flows": 0,
+        }
+
+        try:
+            nt_host = os.getenv("NTOPNG_HOST", "192.168.1.200")
+            nt_port = os.getenv("NTOPNG_PORT", "3001")
+            nt_user = os.getenv("NTOPNG_USER", "admin")
+            nt_pass = os.getenv("NTOPNG_ADMIN_PASSWORD", os.getenv("NTOPNG_PASS", "admin"))
+            ns = _req.Session()
+            ns.post(
+                f"http://{nt_host}:{nt_port}/authorize.html",
+                data={"user": nt_user, "password": nt_pass},
+                allow_redirects=True,
+                timeout=3,
+            )
+
+            # Get active flows
+            fr = ns.get(
+                f"http://{nt_host}:{nt_port}/lua/rest/v2/get/flow/active.lua",
+                params={"ifid": 0, "currentPage": 1, "perPage": 500},
+                timeout=5,
+            )
+            if fr.status_code == 200:
+                flows = fr.json().get("rsp", [])
+                if isinstance(flows, dict):
+                    flows = flows.get("data", [])
+
+                seen_devices = {}
+                for flow in flows:
+                    srv_port = flow.get("srv.port", 0)
+                    cli_port = flow.get("cli.port", 0)
+                    vpn_port = None
+                    vpn_proto = None
+
+                    if srv_port in VPN_PORTS:
+                        vpn_port = srv_port
+                        vpn_proto = VPN_PORTS[srv_port]
+                    elif cli_port in VPN_PORTS:
+                        vpn_port = cli_port
+                        vpn_proto = VPN_PORTS[cli_port]
+
+                    if vpn_port:
+                        cli_ip = flow.get("cli.ip", "?")
+                        srv_ip = flow.get("srv.ip", "?")
+                        local_ip = cli_ip if cli_ip.startswith("192.168.") else srv_ip
+                        result["vpn_flows"].append(
+                            {
+                                "client": cli_ip,
+                                "server": srv_ip,
+                                "port": vpn_port,
+                                "protocol": vpn_proto,
+                                "bytes": flow.get("bytes", 0),
+                                "duration": flow.get("duration", 0),
+                            }
+                        )
+                        if local_ip.startswith("192.168."):
+                            if local_ip not in seen_devices:
+                                seen_devices[local_ip] = {
+                                    "protocols": set(),
+                                    "total_bytes": 0,
+                                    "flow_count": 0,
+                                }
+                            seen_devices[local_ip]["protocols"].add(vpn_proto)
+                            seen_devices[local_ip]["total_bytes"] += flow.get("bytes", 0)
+                            seen_devices[local_ip]["flow_count"] += 1
+
+                # Resolve device labels
+                with get_db_cursor() as (conn, cur):
+                    for ip, info in seen_devices.items():
+                        cur.execute(
+                            """SELECT COALESCE(ndu.user_name, ndu.device_label)
+                                      as label
+                               FROM network_traffic_stats nts
+                               LEFT JOIN network_device_users ndu
+                                   ON ndu.mac_address = nts.device_mac
+                               WHERE nts.device_ip = %s LIMIT 1""",
+                            (ip,),
+                        )
+                        row = cur.fetchone()
+                        label = dict(row).get("label", ip) if row else ip
+                        result["suspicious_devices"].append(
+                            {
+                                "ip": ip,
+                                "label": label or ip,
+                                "protocols": list(info["protocols"]),
+                                "total_bytes": info["total_bytes"],
+                                "flow_count": info["flow_count"],
+                            }
+                        )
+
+                result["total_vpn_flows"] = len(result["vpn_flows"])
+                result["suspicious_devices"].sort(key=lambda x: x["total_bytes"], reverse=True)
+
+        except Exception as exc:
+            logger.error("vpn_detect error: %s", exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
+        return jsonify({"success": True, **result})

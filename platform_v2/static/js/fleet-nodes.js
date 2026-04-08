@@ -117,7 +117,7 @@ function browserNodeConnect() {
         if (statusEl) statusEl.textContent = 'Ollama found (' + modelCount + ' models). Registering...';
 
         // Step 2: Register with hub
-        return fetch('/tools/starbase/api/nodes/register', {
+        return fetch('/tools/fleet/api/nodes/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -166,7 +166,7 @@ function _browserNodeHeartbeat() {
     ]).then(function(results) {
         var tags = results[0];
         var ps = results[1];
-        return fetch('/tools/starbase/api/nodes/' + _browserNode.nodeId + '/heartbeat', {
+        return fetch('/tools/fleet/api/nodes/' + _browserNode.nodeId + '/heartbeat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Node-API-Key': _browserNode.apiKey || '' },
             body: JSON.stringify({
@@ -246,7 +246,7 @@ function _formatUptime(secs) {
 
 async function loadHeroStats() {
     try {
-        var resp = await fetch('/tools/starship/api/starbase-stats');
+        var resp = await fetch('/tools/fleet/api/starbase-stats');
         var data = await resp.json();
         var el = function(id) { return document.getElementById(id); };
         var ok = data.success;
@@ -279,7 +279,7 @@ function loadDockedFleetStats() {
     });
 
     // Fetch node stats via the fleet endpoint
-    fetch('/tools/starship/api/fleet-agents')
+    fetch('/tools/fleet/api/fleet-agents')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data || !data.success) return;
@@ -322,7 +322,7 @@ function loadDockedFleetStats() {
 // ── Health Tab — Nagios + heartbeat unified view ──
 async function loadHealthStatus() {
     try {
-        var resp = await fetch('/tools/starship/api/health-status');
+        var resp = await fetch('/tools/fleet/api/health-status');
         var data = await resp.json();
         if (!data.success) return;
 
@@ -427,7 +427,7 @@ function onOpsNodeSelect(nodeId) {
     }
     content.style.display = '';
     // Look up the DB id for this node from the fleet
-    fetch('/tools/starship/api/nodes/' + nodeId + '/status')
+    fetch('/tools/fleet/api/nodes/' + nodeId + '/status')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.success && data.node) {
@@ -442,8 +442,8 @@ function onOpsNodeSelect(nodeId) {
 function opsOtaPush(type) {
     if (!_opsSelectedNodeDbId) { scToast('Select a node first', 'error'); return; }
     var endpoint = type === 'update'
-        ? '/tools/starship/api/nodes/' + _opsSelectedNodeDbId + '/push-update'
-        : '/tools/starship/api/nodes/' + _opsSelectedNodeDbId + '/push-config';
+        ? '/tools/fleet/api/nodes/' + _opsSelectedNodeDbId + '/push-update'
+        : '/tools/fleet/api/nodes/' + _opsSelectedNodeDbId + '/push-config';
     var body = type === 'config' ? JSON.stringify({type: 'agent_config'}) : '{}';
     function doOtaPush() {
         fetch(endpoint, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: body })
@@ -475,7 +475,7 @@ function opsPullModel() {
     var sel = document.getElementById('ops-pull-model-select');
     var model = sel.value;
     if (!model) { scToast('Select a model', 'error'); return; }
-    fetch('/tools/starship/api/nodes/' + _opsSelectedNodeDbId + '/pull-model', {
+    fetch('/tools/fleet/api/nodes/' + _opsSelectedNodeDbId + '/pull-model', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({model_name: model})
@@ -489,7 +489,7 @@ function opsPullModel() {
 // ── Operations Tab: Sync Status + Log ──
 function opsLoadSyncStatus() {
     if (!_opsSelectedNodeDbId) return;
-    fetch('/tools/starship/api/nodes/' + _opsSelectedNodeDbId + '/sync-status')
+    fetch('/tools/fleet/api/nodes/' + _opsSelectedNodeDbId + '/sync-status')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) return;
@@ -510,7 +510,7 @@ function opsLoadSyncStatus() {
 
 function opsLoadSyncLog() {
     if (!_opsSelectedNodeDbId) return;
-    fetch('/tools/starship/api/nodes/' + _opsSelectedNodeDbId + '/sync-log')
+    fetch('/tools/fleet/api/nodes/' + _opsSelectedNodeDbId + '/sync-log')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) return;
@@ -548,7 +548,7 @@ var _opsModelCatalogLoaded = false;
 function loadOpsModelCatalog() {
     if (_opsModelCatalogLoaded) return;
     _opsModelCatalogLoaded = true;
-    fetch('/tools/starship/api/model-catalog')
+    fetch('/tools/fleet/api/model-catalog')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) return;
@@ -570,8 +570,8 @@ function loadOpsModelCatalog() {
 function modalOtaPush(type) {
     if (!selectedNodeDbId) { scToast('No node selected', 'error'); return; }
     var endpoint = type === 'update'
-        ? '/tools/starship/api/nodes/' + selectedNodeDbId + '/push-update'
-        : '/tools/starship/api/nodes/' + selectedNodeDbId + '/push-config';
+        ? '/tools/fleet/api/nodes/' + selectedNodeDbId + '/push-update'
+        : '/tools/fleet/api/nodes/' + selectedNodeDbId + '/push-config';
     var body = type === 'config' ? JSON.stringify({type: 'agent_config'}) : '{}';
     function doIt() {
         fetch(endpoint, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: body })
@@ -602,7 +602,7 @@ function modalPullModel() {
     var sel = document.getElementById('modal-pull-model-select');
     var model = sel.value;
     if (!model) { scToast('Select a model', 'error'); return; }
-    fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/pull-model', {
+    fetch('/tools/fleet/api/nodes/' + selectedNodeDbId + '/pull-model', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({model_name: model})
@@ -615,7 +615,7 @@ function modalPullModel() {
 
 function modalLoadSyncStatus() {
     if (!selectedNodeDbId) return;
-    fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/sync-status')
+    fetch('/tools/fleet/api/nodes/' + selectedNodeDbId + '/sync-status')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) return;
@@ -636,7 +636,7 @@ function modalLoadSyncStatus() {
 
 function modalLoadSyncLog() {
     if (!selectedNodeDbId) return;
-    fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/sync-log')
+    fetch('/tools/fleet/api/nodes/' + selectedNodeDbId + '/sync-log')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) return;
@@ -673,7 +673,7 @@ var _modalModelCatalogLoaded = false;
 function loadModalModelCatalog() {
     if (_modalModelCatalogLoaded) return;
     _modalModelCatalogLoaded = true;
-    fetch('/tools/starship/api/model-catalog')
+    fetch('/tools/fleet/api/model-catalog')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) return;
@@ -719,7 +719,7 @@ function openConnectNodeModal() {
     loadPendingNodes();
 
     // Auto-generate registration token for instant approval
-    fetch('/tools/starbase/api/fleet/token/generate', {
+    fetch('/tools/fleet/api/fleet/token/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'starship', expires_hours: 24 })
@@ -744,7 +744,7 @@ function openConnectNodeModal() {
 
 function loadApprovedNodesForDownload() {
     // Load approved nodes so user can download ZIP for any of them
-    fetch('/tools/starship/api/nodes')
+    fetch('/tools/fleet/api/nodes')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var nodes = (data.nodes || []).filter(function(n) {
@@ -754,7 +754,7 @@ function loadApprovedNodesForDownload() {
             if (!zipBtn || nodes.length === 0) return;
             // Use the most recent node for the download link
             var latest = nodes[0];
-            zipBtn.href = '/tools/starship/api/nodes/' + encodeURIComponent(latest.node_id) + '/download-zip';
+            zipBtn.href = '/tools/fleet/api/nodes/' + encodeURIComponent(latest.node_id) + '/download-zip';
             zipBtn.style.opacity = '1';
             zipBtn.style.pointerEvents = 'auto';
             zipBtn.textContent = 'Download Node ZIP (' + (latest.node_name || latest.node_id) + ')';
@@ -797,7 +797,7 @@ function loadPendingNodes() {
     // Clear existing
     while (container.firstChild) container.removeChild(container.firstChild);
 
-    fetch('/tools/starship/api/nodes')
+    fetch('/tools/fleet/api/nodes')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var nodes = (data.nodes || []).filter(function(n) { return n.approval_status === 'pending'; });
@@ -852,7 +852,7 @@ function loadPendingNodes() {
 }
 
 function approveNodeFromModal(nodeId, cardEl) {
-    fetch('/tools/starbase/api/nodes/' + nodeId + '/approve', { method: 'POST' })
+    fetch('/tools/fleet/api/nodes/' + nodeId + '/approve', { method: 'POST' })
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.success || data.status === 'approved') {
@@ -872,7 +872,7 @@ function denyNodeFromModal(nodeId, cardEl) {
         confirmColor: '#ef4444'
     }).then(function(ok) {
         if (!ok) return;
-        fetch('/tools/starbase/api/nodes/' + nodeId + '/deny', { method: 'POST' })
+        fetch('/tools/fleet/api/nodes/' + nodeId + '/deny', { method: 'POST' })
             .then(function(r) { return r.json(); })
             .then(function() {
                 cardEl.remove();
@@ -888,8 +888,8 @@ function showResyncModal() {
     var winCmd = document.getElementById('resync-cmd-win');
     var linuxCmd = document.getElementById('resync-cmd-linux');
     // Keep the copy buttons, set text before them
-    var winText = 'iwr -useb ' + serverUrl + '/tools/starship/api/nodes/update.ps1 | iex';
-    var linuxText = 'curl -sL ' + serverUrl + '/tools/starship/api/nodes/heartbeat.sh -o /opt/archie-node/heartbeat.sh && chmod +x /opt/archie-node/heartbeat.sh && systemctl restart archie-node';
+    var winText = 'iwr -useb ' + serverUrl + '/tools/fleet/api/nodes/update.ps1 | iex';
+    var linuxText = 'curl -sL ' + serverUrl + '/tools/fleet/api/nodes/heartbeat.sh -o /opt/archie-node/heartbeat.sh && chmod +x /opt/archie-node/heartbeat.sh && systemctl restart archie-node';
     // Clear and rebuild
     var winCopy = winCmd.querySelector('.sc-copy-btn');
     var linuxCopy = linuxCmd.querySelector('.sc-copy-btn');
@@ -909,7 +909,7 @@ async function resyncNode() {
     var btn = document.getElementById('d-resync-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'RESYNCING...'; }
     try {
-        var resp = await fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/resync', {
+        var resp = await fetch('/tools/fleet/api/nodes/' + selectedNodeDbId + '/resync', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'}
         });
@@ -939,7 +939,7 @@ async function opsResyncNode() {
     var btn = document.getElementById('ops-resync-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'RESYNCING...'; }
     try {
-        var resp = await fetch('/tools/starship/api/nodes/' + _opsSelectedNodeDbId + '/resync', {
+        var resp = await fetch('/tools/fleet/api/nodes/' + _opsSelectedNodeDbId + '/resync', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'}
         });
@@ -970,7 +970,7 @@ async function upgradeNodeV3() {
     var btn = document.getElementById('d-upgrade-v3-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'UPGRADING...'; }
     try {
-        var resp = await fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/upgrade-v3', {
+        var resp = await fetch('/tools/fleet/api/nodes/' + selectedNodeDbId + '/upgrade-v3', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'}
         });
@@ -1004,7 +1004,7 @@ async function opsUpgradeNodeV3() {
     var btn = document.getElementById('ops-upgrade-v3-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'UPGRADING...'; }
     try {
-        var resp = await fetch('/tools/starship/api/nodes/' + _opsSelectedNodeDbId + '/upgrade-v3', {
+        var resp = await fetch('/tools/fleet/api/nodes/' + _opsSelectedNodeDbId + '/upgrade-v3', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'}
         });
@@ -1055,7 +1055,7 @@ async function createNode() {
     btn.textContent = 'CREATING...';
 
     try {
-        var resp = await fetch('/tools/starship/api/request-node', {
+        var resp = await fetch('/tools/fleet/api/request-node', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({node_name: name || undefined})
@@ -1149,7 +1149,7 @@ function pollNodeConnection(nodeId, statusEl) {
     if (nodeConnectionPoller) clearInterval(nodeConnectionPoller);
     nodeConnectionPoller = setInterval(async function() {
         try {
-            var resp = await fetch('/tools/starship/api/nodes/' + encodeURIComponent(nodeId) + '/status');
+            var resp = await fetch('/tools/fleet/api/nodes/' + encodeURIComponent(nodeId) + '/status');
             var data = await resp.json();
             if (data.status === 'online') {
                 clearInterval(nodeConnectionPoller);
@@ -1228,7 +1228,7 @@ async function selectNode(nodeId) {
     }
 
     try {
-        var resp = await fetch('/tools/starship/api/nodes/' + encodeURIComponent(nodeId) + '/status');
+        var resp = await fetch('/tools/fleet/api/nodes/' + encodeURIComponent(nodeId) + '/status');
         var data = await resp.json();
         if (!data.success) {
             scToast(data.error || 'Failed to load node', 'error');
@@ -1316,7 +1316,7 @@ function renderDetail(data) {
                     confirmColor: '#fbbf24'
                 }).then(function(ok) {
                     if (!ok) return;
-                    fetch('/tools/starship/api/nodes/' + encodeURIComponent(selectedNodeId) + '/request-update', {method:'POST',headers:{'Content-Type':'application/json'}})
+                    fetch('/tools/fleet/api/nodes/' + encodeURIComponent(selectedNodeId) + '/request-update', {method:'POST',headers:{'Content-Type':'application/json'}})
                     .then(function(r){return r.json()})
                     .then(function(d){
                         if (d.success) {
@@ -1417,7 +1417,7 @@ async function loadNodeStations(nodeDbId) {
 
     // Get this node's crew to find which stations it has
     try {
-        var resp = await fetch('/tools/starship/api/nodes/' + nodeDbId + '/crew-manifest');
+        var resp = await fetch('/tools/fleet/api/nodes/' + nodeDbId + '/crew-manifest');
         var data = await resp.json();
         if (!data.success) { grid.innerHTML = '<span class="sc-label">Failed to load</span>'; return; }  // nosemgrep
 
@@ -1471,7 +1471,7 @@ async function loadNodeStations(nodeDbId) {
                 jobsElId: termId + '-jobs',
                 commandsElId: termId + '-commands',
                 statusElId: termId + '-status',
-                dataUrl: '/tools/starship/api/nodes/' + nodeDbId + '/stations',
+                dataUrl: '/tools/fleet/api/nodes/' + nodeDbId + '/stations',
                 commands: []
             };
             if (isShipCommand) {
@@ -1492,7 +1492,7 @@ async function loadNodeStations(nodeDbId) {
 function _refreshNodeStations(nodeDbId) {
     var ops = _nodeDepartmentOps[nodeDbId];
     if (!ops) return;
-    fetch('/tools/starbase/api/bridge/jobs?status=running')
+    fetch('/tools/fleet/api/bridge/jobs?status=running')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var allJobs = (data.success && data.jobs) ? data.jobs : [];
@@ -1509,7 +1509,7 @@ function _refreshNodeStations(nodeDbId) {
 
 async function renderNodeManifest(nodeDbId) {
     try {
-        var resp = await fetch('/tools/starship/api/nodes/' + nodeDbId + '/crew-manifest');
+        var resp = await fetch('/tools/fleet/api/nodes/' + nodeDbId + '/crew-manifest');
         var data = await resp.json();
         if (!data.success) return;
 
@@ -1607,7 +1607,7 @@ function escHtml(str) {
 // ── Recommendations ──
 async function loadRecommendations(nodeDbId) {
     try {
-        var resp = await fetch('/tools/starship/api/nodes/' + nodeDbId + '/recommendations');
+        var resp = await fetch('/tools/fleet/api/nodes/' + nodeDbId + '/recommendations');
         var data = await resp.json();
         if (data.success) {
             renderRecommendations(data);
@@ -1677,7 +1677,7 @@ async function pushAgentConfig() {
     if (!selectedNodeDbId) return;
     var indicator = document.getElementById('sync-indicator') || document.getElementById('ops-sync-indicator');
     try {
-        var resp = await fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/push-config', {
+        var resp = await fetch('/tools/fleet/api/nodes/' + selectedNodeDbId + '/push-config', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({type: 'agent_config'})
@@ -1711,7 +1711,7 @@ async function pushCodeUpdate() {
     });
     if (!ok) return;
     try {
-        var resp = await fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/push-update', {
+        var resp = await fetch('/tools/fleet/api/nodes/' + selectedNodeDbId + '/push-update', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'}
         });
@@ -1729,7 +1729,7 @@ async function pushCodeUpdate() {
 
 async function loadSyncLog(nodeDbId) {
     try {
-        var resp = await fetch('/tools/starship/api/nodes/' + nodeDbId + '/sync-log');
+        var resp = await fetch('/tools/fleet/api/nodes/' + nodeDbId + '/sync-log');
         var data = await resp.json();
         if (data.success) {
             renderSyncLog(data.logs || []);
@@ -1799,7 +1799,7 @@ function loadDiagnostics() {
     content.style.display = 'none';
     if (btn) btn.disabled = true;
 
-    fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/diagnostics')
+    fetch('/tools/fleet/api/nodes/' + selectedNodeDbId + '/diagnostics')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             loading.style.display = 'none';
@@ -1903,7 +1903,7 @@ async function saveNodeSettings() {
     var mode = document.getElementById('settings-mode').value;
     var priority = parseInt(document.getElementById('settings-priority').value) || 0;
     try {
-        var resp = await fetch('/tools/starship/api/nodes/' + encodeURIComponent(selectedNodeId) + '/settings', {
+        var resp = await fetch('/tools/fleet/api/nodes/' + encodeURIComponent(selectedNodeId) + '/settings', {
             method: 'PUT',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({node_name: name, deployment_mode: mode, bridge_priority: priority})
@@ -1926,7 +1926,7 @@ async function saveNodeSettings() {
 // Auto-refresh fleet data every 30s
 async function refreshFleet() {
     try {
-        var resp = await fetch('/tools/starship/api/nodes');
+        var resp = await fetch('/tools/fleet/api/nodes');
         var data = await resp.json();
         if (!data.success) return;
         data.nodes.forEach(function(n) {
@@ -1948,7 +1948,7 @@ function pullModelToNode(modelName, btn) {
     if (!selectedNodeDbId) return;
     btn.disabled = true;
     btn.textContent = 'PULLING...';
-    fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/pull-model', {
+    fetch('/tools/fleet/api/nodes/' + selectedNodeDbId + '/pull-model', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({model_name: modelName})
@@ -1986,7 +1986,7 @@ function openAgentProfileFromBridge(hubAgentId) {
     body.innerHTML = '<span class="sc-label">Loading profile...</span>';  // nosemgrep
     title.textContent = 'AGENT PROFILE';
 
-    fetch('/tools/starbase/api/agents/' + parseInt(hubAgentId) + '/profile')
+    fetch('/tools/fleet/api/agents/' + parseInt(hubAgentId) + '/profile')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) {
@@ -2007,7 +2007,7 @@ function openHubAgentProfile(hubAgentId) {
 // Node crew tab — looks up hub_agent_id first, then calls Bridge
 function openNodeAgentProfile(nodeAgentId) {
     // Fetch hub_agent_id from the node agent, then open Bridge profile
-    fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/agents/' + nodeAgentId + '/profile')
+    fetch('/tools/fleet/api/nodes/' + selectedNodeDbId + '/agents/' + nodeAgentId + '/profile')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.success && data.agent && data.agent.hub_agent_id) {
@@ -2034,7 +2034,7 @@ function _renderNodeAgentProfile_REMOVED() { /* see agent-profile.js */ }
 // ── Populate Pull Model Dropdown (OTA tab) ──
 async function populatePullModelDropdown() {
     try {
-        var resp = await fetch('/tools/starship/api/model-catalog');
+        var resp = await fetch('/tools/fleet/api/model-catalog');
         var data = await resp.json();
         if (!data.success) return;
         var sel = document.getElementById('pull-model-select');
@@ -2057,7 +2057,7 @@ var _starbaseData = null;
 
 async function loadStarbaseStats() {
     try {
-        var resp = await fetch('/tools/starbase/api/bridge/crew/manifest');
+        var resp = await fetch('/tools/fleet/api/bridge/crew/manifest');
         var data = await resp.json();
         if (!data.success) return;
         _starbaseData = data;
@@ -2088,7 +2088,7 @@ function _populateStarbaseDetail(crew, activeJobs, cap) {
     _setLive(el('sbd-models'), cap.models_loaded || '--', !!cap.models_loaded);
 
     // Station count — fetch live from Bridge
-    fetch('/tools/starbase/api/stations').then(function(r) { return r.json(); }).then(function(sdata) {
+    fetch('/tools/fleet/api/stations').then(function(r) { return r.json(); }).then(function(sdata) {
         if (sdata.success) {
             var active = (sdata.stations || []).filter(function(s) { return s.assigned_agents && s.assigned_agents.length > 0; }).length;
             var total = (sdata.stations || []).length;
@@ -2248,7 +2248,7 @@ function loadStarbaseStations() {
 }
 
 function _refreshStarbaseStations() {
-    fetch('/tools/starbase/api/bridge/jobs?status=running')
+    fetch('/tools/fleet/api/bridge/jobs?status=running')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var allJobs = (data.success && data.jobs) ? data.jobs : [];
@@ -2267,7 +2267,7 @@ function _refreshStarbaseStations() {
 function executeStationCommand(cmdId) {
     var prompt = window.prompt('Enter task details (or leave blank for default):');
     if (prompt === null) return;
-    fetch('/tools/starship/api/station-commands/execute', {
+    fetch('/tools/fleet/api/station-commands/execute', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({command_id: parseInt(cmdId), prompt: prompt}),
@@ -2500,7 +2500,7 @@ function showDisconnectModal(nodeId, nodeName) {
     confirmBtn.onclick = function() {
         confirmBtn.disabled = true;
         confirmBtn.textContent = 'Disconnecting...';
-        fetch('/tools/starship/api/nodes/' + encodeURIComponent(_disconnectNodeId) + '/disconnect', {
+        fetch('/tools/fleet/api/nodes/' + encodeURIComponent(_disconnectNodeId) + '/disconnect', {
             method: 'DELETE',
             headers: {'Content-Type': 'application/json'}
         })
@@ -2578,18 +2578,18 @@ function toggleSetupPanel() {
     var linuxEl = document.getElementById('setup-oneliner-linux');
     if (winEl) {
         var winText = winEl.querySelector('.setup-cmd-text');
-        if (winText) winText.textContent = 'powershell -ExecutionPolicy Bypass -Command "iwr -useb \'' + hubUrl + '/tools/starship/api/nodes/new-setup-script?os=windows\' -OutFile archie-setup.ps1; .\\archie-setup.ps1"';
+        if (winText) winText.textContent = 'powershell -ExecutionPolicy Bypass -Command "iwr -useb \'' + hubUrl + '/tools/fleet/api/nodes/new-setup-script?os=windows\' -OutFile archie-setup.ps1; .\\archie-setup.ps1"';
     }
     if (linuxEl) {
         var linuxText = linuxEl.querySelector('.setup-cmd-text');
-        if (linuxText) linuxText.textContent = 'curl -fsSL "' + hubUrl + '/tools/starship/api/nodes/new-setup-script?os=linux" -o archie-setup.sh && sudo bash archie-setup.sh';
+        if (linuxText) linuxText.textContent = 'curl -fsSL "' + hubUrl + '/tools/fleet/api/nodes/new-setup-script?os=linux" -o archie-setup.sh && sudo bash archie-setup.sh';
     }
 })();
 
 // Download a new node setup script (registers a new node first)
 function downloadNewNodeScript(os) {
     var hubUrl = window.location.origin;
-    var url = hubUrl + '/tools/starship/api/nodes/new-setup-script?os=' + encodeURIComponent(os);
+    var url = hubUrl + '/tools/fleet/api/nodes/new-setup-script?os=' + encodeURIComponent(os);
     // Trigger download via hidden link
     var a = document.createElement('a');
     a.href = url;
@@ -2604,7 +2604,7 @@ function downloadNewNodeScript(os) {
 function downloadExistingNodeScript(os) {
     if (!selectedNodeId) { scToast('No node selected', 'error'); return; }
     var hubUrl = window.location.origin;
-    var url = hubUrl + '/tools/starship/api/nodes/' + encodeURIComponent(selectedNodeId) + '/setup-script?os=' + encodeURIComponent(os);
+    var url = hubUrl + '/tools/fleet/api/nodes/' + encodeURIComponent(selectedNodeId) + '/setup-script?os=' + encodeURIComponent(os);
     var a = document.createElement('a');
     a.href = url;
     a.download = '';
@@ -2636,7 +2636,7 @@ function showNodeHealth(nodeId) {
     loadMsg.textContent = 'Loading health data...';
     panel.appendChild(loadMsg);
 
-    fetch('/tools/starship/api/nodes/' + encodeURIComponent(nodeId) + '/health')
+    fetch('/tools/fleet/api/nodes/' + encodeURIComponent(nodeId) + '/health')
     .then(function(r) { return r.json(); })
     .then(function(data) {
         panel.textContent = '';

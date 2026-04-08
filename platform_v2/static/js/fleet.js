@@ -718,8 +718,7 @@ function switchBridgeTab(tabName) {
     history.replaceState(null, '', '#' + tabName);
     // Trigger data load for the tab if needed
     if (tabName === 'overview') loadOverviewData();
-    // DEPRECATED: Stations tab replaced by Fleet Map in Phase 4
-    // if (tabName === 'stations') { loadStations(); triggerWarpIntro(); }
+    if (tabName === 'fleet-map') { if (typeof initFleetMap === 'function') { initFleetMap(); loadFleetUsage(); loadCloudProviders(); loadProviderManagement(); startFleetRefresh(); } }
     if (tabName === 'crew') { startCrewRefresh(); } else { stopCrewRefresh(); }
     if (tabName === 'network') { loadNodes(); loadModelAvailability(); loadMeshLoans(); loadMeshLearning(); loadMeshAvailableAgents(); }
     // Re-render Lucide icons for any new content
@@ -729,12 +728,12 @@ function switchBridgeTab(tabName) {
 // Restore tab from URL hash on page load
 (function() {
     var hash = window.location.hash.replace('#', '');
-    var validTabs = ['stations', 'overview', 'crew', 'network'];
+    var validTabs = ['fleet-map', 'overview', 'crew', 'network'];
     if (hash && validTabs.indexOf(hash) !== -1) {
         setTimeout(function() { switchBridgeTab(hash); }, 100);
     } else {
-        // Default: load stations tab data (warp-in animation)
-        setTimeout(function() { switchBridgeTab('stations'); }, 100);
+        // Default: fleet map tab
+        setTimeout(function() { switchBridgeTab('fleet-map'); }, 100);
     }
 })();
 

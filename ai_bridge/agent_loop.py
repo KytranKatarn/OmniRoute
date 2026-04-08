@@ -1087,6 +1087,22 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        self.scheduler.add_job(
+            with_app_context(self._vigilil_vpn_scan),
+            trigger=IntervalTrigger(minutes=5),
+            id="vigilil_vpn_scan",
+            name="V.I.G.I.L.: VPN Usage Monitor",
+            replace_existing=True,
+        )
+
+        self.scheduler.add_job(
+            with_app_context(self._vigilil_bandwidth_alerts),
+            trigger=IntervalTrigger(minutes=30),
+            id="vigilil_bandwidth_alerts",
+            name="V.I.G.I.L.: Bandwidth Threshold Monitor",
+            replace_existing=True,
+        )
+
         # Phase 5: Module-owned job registrations
         try:
             from tools.consciousness.jobs import register_consciousness_jobs
@@ -3023,6 +3039,13 @@ class AgentLoop:
                     msg += "\n\u26a0\ufe0f DNS auto-update failed — check Hostinger manually"
 
                 self._send_telegram(msg)
+                self._create_network_alert(
+                    "ip_changed",
+                    "high",
+                    "ddns_monitor",
+                    f"Public IP changed: {old} → {new}",
+                    {"old_ip": old, "new_ip": new, "updated_domains": updated},
+                )
                 logger.warning("DDNS: Public IP changed %s -> %s", old, new)
             else:
                 logger.debug(
@@ -3031,6 +3054,174 @@ class AgentLoop:
 
         except Exception as e:
             logger.error("DDNS check failed: %s", e)
+
+    # ------------------------------------------------------------------
+    # V.I.G.I.L.: VPN Usage Monitor
+    # ------------------------------------------------------------------
+
+    def _vigilil_vpn_scan(self):
+        """Scan ntopng flows for VPN/tunnel traffic every 5 min."""
+        try:
+            import os
+            import sys
+
+            import requests as _req
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from database import get_db_cursor
+
+            nt_host = os.getenv("NTOPNG_HOST", "192.168.1.200")
+            nt_port = os.getenv("NTOPNG_PORT", "3001")
+            nt_user = os.getenv("NTOPNG_USER", "admin")
+            nt_pass = os.getenv(
+                "NTOPNG_ADMIN_PASSWORD", os.getenv("NTOPNG_PASS", "admin")
+            )
+
+            VPN_L7 = {
+                "OpenVPN", "WireGuard", "IPSec", "PPTP", "L2TP",
+                "Tor", "SOCKS", "SoftEther", "Tailscale",
+            }
+            VPN_L7_PARTIAL = [
+                "Tailscale", "NordVPN", "ExpressVPN",
+                "Surfshark", "ProtonVPN", "Mullvad",
+            ]
+
+            ns = _req.Session()
+            ns.post(
+                f"http://{nt_host}:{nt_port}/authorize.html",
+                data={"user": nt_user, "password": nt_pass},
+                allow_redirects=True,
+                timeout=3,
+            )
+            fr = ns.get(
+                f"http://{nt_host}:{nt_port}/lua/rest/v2/get/flow/active.lua",
+                params={"ifid": 0, "currentPage": 1, "perPage": 500},
+                timeout=5,
+            )
+            if fr.status_code != 200:
+                return
+
+            raw = fr.json()
+            flows = raw.get("rsp", {})
+            if isinstance(flows, dict):
+                flows = flows.get("data", [])
+            if not isinstance(flows, list):
+                return
+
+            vpn_devices = {}
+            for flow in flows:
+                proto = flow.get("protocol", {})
+                l7 = proto.get("l7", "")
+                is_vpn = l7 in VPN_L7 or any(v in l7 for v in VPN_L7_PARTIAL)
+                if not is_vpn:
+                    srv_port = flow.get("server", {}).get("port", 0)
+                    cli_port = flow.get("client", {}).get("port", 0)
+                    VPN_PORTS = {1194, 500, 4500, 51820, 1723}
+                    is_vpn = srv_port in VPN_PORTS or cli_port in VPN_PORTS
+
+                if is_vpn:
+                    cli_ip = flow.get("client", {}).get("ip", "?")
+                    if cli_ip.startswith("192.168."):
+                        if cli_ip not in vpn_devices:
+                            vpn_devices[cli_ip] = {"protocols": set(), "bytes": 0}
+                        vpn_devices[cli_ip]["protocols"].add(l7)
+                        vpn_devices[cli_ip]["bytes"] += flow.get("bytes", 0)
+
+            # Alert on NEW VPN devices (not already alerted in last hour)
+            for ip, info in vpn_devices.items():
+                protos = ", ".join(info["protocols"])
+                # Resolve label
+                label = ip
+                try:
+                    with get_db_cursor() as (conn, cur):
+                        cur.execute(
+                            """SELECT COALESCE(ndu.user_name, ndu.device_label) as label
+                               FROM network_traffic_stats nts
+                               LEFT JOIN network_device_users ndu ON ndu.mac_address = nts.device_mac
+                               WHERE nts.device_ip = %s LIMIT 1""",
+                            (ip,),
+                        )
+                        row = cur.fetchone()
+                        if row and row["label"]:
+                            label = row["label"]
+
+                        # Dedup: skip if alerted in last hour
+                        cur.execute(
+                            """SELECT id FROM network_alerts
+                               WHERE alert_type = 'vpn_detected' AND source = 'vpn_monitor'
+                               AND details->>'ip' = %s AND created_at > NOW() - INTERVAL '1 hour'""",
+                            (ip,),
+                        )
+                        if cur.fetchone():
+                            continue
+                except Exception:
+                    pass
+
+                self._create_network_alert(
+                    "vpn_detected",
+                    "medium",
+                    "vpn_monitor",
+                    f"VPN traffic detected: {label} ({ip}) using {protos}",
+                    {"ip": ip, "label": label, "protocols": list(info["protocols"]), "bytes": info["bytes"]},
+                )
+
+        except Exception as e:
+            logger.error("V.I.G.I.L. VPN scan failed: %s", e)
+
+    # ------------------------------------------------------------------
+    # V.I.G.I.L.: Bandwidth Threshold Monitor
+    # ------------------------------------------------------------------
+
+    def _vigilil_bandwidth_alerts(self):
+        """Check per-device bandwidth and alert on heavy consumers (>10GB/24h)."""
+        try:
+            import sys
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from database import get_db_cursor
+
+            THRESHOLD_BYTES = 10 * 1024 * 1024 * 1024  # 10 GB
+
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT nts.device_ip,
+                              COALESCE(ndu.user_name, ndu.device_label, nts.device_ip) as label,
+                              SUM(nts.bytes_in + nts.bytes_out) as total
+                       FROM network_traffic_stats nts
+                       LEFT JOIN network_device_users ndu ON ndu.mac_address = nts.device_mac
+                       WHERE nts.hour_bucket >= NOW() - INTERVAL '24 hours'
+                       GROUP BY nts.device_ip, label
+                       HAVING SUM(nts.bytes_in + nts.bytes_out) > %s
+                       ORDER BY total DESC""",
+                    (THRESHOLD_BYTES,),
+                )
+                heavy = [dict(r) for r in cur.fetchall()]
+
+                for dev in heavy:
+                    ip = dev["device_ip"]
+                    total_gb = round(dev["total"] / (1024 ** 3), 1)
+                    label = dev["label"] or ip
+
+                    # Dedup: skip if alerted in last 6 hours
+                    cur.execute(
+                        """SELECT id FROM network_alerts
+                           WHERE alert_type = 'bandwidth_exceeded' AND source = 'bandwidth_monitor'
+                           AND details->>'ip' = %s AND created_at > NOW() - INTERVAL '6 hours'""",
+                        (ip,),
+                    )
+                    if cur.fetchone():
+                        continue
+
+                    self._create_network_alert(
+                        "bandwidth_exceeded",
+                        "medium",
+                        "bandwidth_monitor",
+                        f"High bandwidth: {label} used {total_gb} GB in 24h",
+                        {"ip": ip, "label": label, "total_bytes": dev["total"], "total_gb": total_gb},
+                    )
+
+        except Exception as e:
+            logger.error("V.I.G.I.L. bandwidth alerts failed: %s", e)
 
     # ------------------------------------------------------------------
     # HR Tracker (Project #91 — Phase 7)

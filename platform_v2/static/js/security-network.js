@@ -637,68 +637,123 @@ function _renderTrafficHistory(hourly) {
     if (!svg || !hourly.length) return;
     while (svg.firstChild) svg.removeChild(svg.firstChild);
 
-    var w = svg.clientWidth || 400;
-    var h = svg.clientHeight || 120;
+    var w = svg.clientWidth || 500;
+    var h = svg.clientHeight || 200;
     var ns = 'http://www.w3.org/2000/svg';
+    var pad = {top: 24, right: 10, bottom: 28, left: 55};
+    var cw = w - pad.left - pad.right;
+    var ch = h - pad.top - pad.bottom;
+
     var max = 1;
-    hourly.forEach(function(d) { var t = d.bytes_in + d.bytes_out; if (t > max) max = t; });
-    var step = w / Math.max(hourly.length - 1, 1);
+    hourly.forEach(function(d) {
+        if (d.bytes_in > max) max = d.bytes_in;
+        if (d.bytes_out > max) max = d.bytes_out;
+    });
+    max *= 1.15; // headroom
+    var step = cw / Math.max(hourly.length - 1, 1);
 
     // Gradient defs
     var defs = document.createElementNS(ns, 'defs');
-    ['in', 'out'].forEach(function(type) {
+    [['traf-in', '#00e5ff'], ['traf-out', '#8b5cf6']].forEach(function(pair) {
         var grad = document.createElementNS(ns, 'linearGradient');
-        grad.setAttribute('id', 'traf-' + type);
+        grad.setAttribute('id', pair[0]);
         grad.setAttribute('x1', '0'); grad.setAttribute('y1', '0');
         grad.setAttribute('x2', '0'); grad.setAttribute('y2', '1');
         var s1 = document.createElementNS(ns, 'stop');
-        s1.setAttribute('offset', '0%');
-        s1.setAttribute('stop-color', type === 'in' ? '#00e5ff' : '#8b5cf6');
-        s1.setAttribute('stop-opacity', '0.35');
+        s1.setAttribute('offset', '0%'); s1.setAttribute('stop-color', pair[1]); s1.setAttribute('stop-opacity', '0.4');
         var s2 = document.createElementNS(ns, 'stop');
-        s2.setAttribute('offset', '100%');
-        s2.setAttribute('stop-color', type === 'in' ? '#00e5ff' : '#8b5cf6');
-        s2.setAttribute('stop-opacity', '0.03');
-        grad.appendChild(s1); grad.appendChild(s2);
-        defs.appendChild(grad);
+        s2.setAttribute('offset', '100%'); s2.setAttribute('stop-color', pair[1]); s2.setAttribute('stop-opacity', '0.02');
+        grad.appendChild(s1); grad.appendChild(s2); defs.appendChild(grad);
     });
     svg.appendChild(defs);
 
-    // Draw areas + lines for both in and out
+    // Horizontal grid lines + Y-axis labels
+    var gridLines = 4;
+    for (var gi = 0; gi <= gridLines; gi++) {
+        var gy = pad.top + ch - (gi / gridLines) * ch;
+        var gLine = document.createElementNS(ns, 'line');
+        gLine.setAttribute('x1', pad.left); gLine.setAttribute('y1', gy.toFixed(1));
+        gLine.setAttribute('x2', w - pad.right); gLine.setAttribute('y2', gy.toFixed(1));
+        gLine.setAttribute('stroke', 'rgba(255,255,255,0.06)'); gLine.setAttribute('stroke-width', '1');
+        svg.appendChild(gLine);
+        var yLabel = document.createElementNS(ns, 'text');
+        yLabel.setAttribute('x', pad.left - 6); yLabel.setAttribute('y', (gy + 3).toFixed(1));
+        yLabel.setAttribute('fill', '#666'); yLabel.setAttribute('font-size', '9');
+        yLabel.setAttribute('text-anchor', 'end'); yLabel.setAttribute('font-family', '"IBM Plex Mono",monospace');
+        yLabel.textContent = formatBytes((gi / gridLines) * max);
+        svg.appendChild(yLabel);
+    }
+
+    // X-axis labels (show ~6 evenly spaced)
+    var xLabelCount = Math.min(hourly.length, 6);
+    var xLabelStep = Math.max(1, Math.floor((hourly.length - 1) / (xLabelCount - 1)));
+    for (var xi = 0; xi < hourly.length; xi += xLabelStep) {
+        var xx = pad.left + xi * step;
+        var xLabel = document.createElementNS(ns, 'text');
+        xLabel.setAttribute('x', xx.toFixed(1)); xLabel.setAttribute('y', (h - 6).toFixed(1));
+        xLabel.setAttribute('fill', '#666'); xLabel.setAttribute('font-size', '9');
+        xLabel.setAttribute('text-anchor', 'middle'); xLabel.setAttribute('font-family', '"IBM Plex Mono",monospace');
+        xLabel.textContent = hourly[xi].hour;
+        svg.appendChild(xLabel);
+        // Vertical grid
+        var vLine = document.createElementNS(ns, 'line');
+        vLine.setAttribute('x1', xx.toFixed(1)); vLine.setAttribute('y1', pad.top.toFixed(1));
+        vLine.setAttribute('x2', xx.toFixed(1)); vLine.setAttribute('y2', (h - pad.bottom).toFixed(1));
+        vLine.setAttribute('stroke', 'rgba(255,255,255,0.03)'); vLine.setAttribute('stroke-width', '1');
+        svg.appendChild(vLine);
+    }
+
+    // Draw areas + smooth lines for both in and out
     ['bytes_in', 'bytes_out'].forEach(function(key, idx) {
         var color = idx === 0 ? '#00e5ff' : '#8b5cf6';
         var gradId = idx === 0 ? 'traf-in' : 'traf-out';
-        var points = hourly.map(function(d, i) {
-            var x = i * step;
-            var y = h - (d[key] / max) * (h - 6) - 3;
-            return x.toFixed(1) + ',' + y.toFixed(1);
+        var pts = hourly.map(function(d, i) {
+            var x = pad.left + i * step;
+            var y = pad.top + ch - (d[key] / max) * ch;
+            return [x, y];
         });
 
+        // Area fill
+        var areaStr = pts.map(function(p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ');
+        areaStr = (pad.left).toFixed(1) + ',' + (pad.top + ch).toFixed(1) + ' ' + areaStr + ' ' + pts[pts.length-1][0].toFixed(1) + ',' + (pad.top + ch).toFixed(1);
         var area = document.createElementNS(ns, 'polygon');
-        area.setAttribute('points', '0,' + h + ' ' + points.join(' ') + ' ' + ((hourly.length - 1) * step).toFixed(1) + ',' + h);
+        area.setAttribute('points', areaStr);
         area.setAttribute('fill', 'url(#' + gradId + ')');
         svg.appendChild(area);
 
+        // Line
+        var lineStr = pts.map(function(p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ');
         var line = document.createElementNS(ns, 'polyline');
-        line.setAttribute('points', points.join(' '));
+        line.setAttribute('points', lineStr);
         line.setAttribute('fill', 'none');
         line.setAttribute('stroke', color);
-        line.setAttribute('stroke-width', '2');
+        line.setAttribute('stroke-width', '2.5');
         line.setAttribute('stroke-linejoin', 'round');
+        line.setAttribute('stroke-linecap', 'round');
         svg.appendChild(line);
+
+        // Data point dots (if few enough)
+        if (pts.length <= 30) {
+            pts.forEach(function(p) {
+                var dot = document.createElementNS(ns, 'circle');
+                dot.setAttribute('cx', p[0].toFixed(1)); dot.setAttribute('cy', p[1].toFixed(1));
+                dot.setAttribute('r', '3'); dot.setAttribute('fill', color);
+                dot.setAttribute('opacity', '0.7');
+                svg.appendChild(dot);
+            });
+        }
     });
 
-    // Legend
-    var legend = document.createElementNS(ns, 'text');
-    legend.setAttribute('x', '4'); legend.setAttribute('y', '12');
-    legend.setAttribute('fill', '#00e5ff'); legend.setAttribute('font-size', '10');
-    legend.textContent = '\u25CF Download';
-    svg.appendChild(legend);
-    var legend2 = document.createElementNS(ns, 'text');
-    legend2.setAttribute('x', '90'); legend2.setAttribute('y', '12');
-    legend2.setAttribute('fill', '#8b5cf6'); legend2.setAttribute('font-size', '10');
-    legend2.textContent = '\u25CF Upload';
-    svg.appendChild(legend2);
+    // Legend (top right)
+    var lx = w - pad.right - 140;
+    [['Download', '#00e5ff'], ['Upload', '#8b5cf6']].forEach(function(pair, i) {
+        var lt = document.createElementNS(ns, 'text');
+        lt.setAttribute('x', (lx + i * 80).toFixed(0)); lt.setAttribute('y', '14');
+        lt.setAttribute('fill', pair[1]); lt.setAttribute('font-size', '10');
+        lt.setAttribute('font-family', '"IBM Plex Mono",monospace');
+        lt.textContent = '\u25CF ' + pair[0];
+        svg.appendChild(lt);
+    });
 }
 
 function _renderL7Protocols(protocols) {

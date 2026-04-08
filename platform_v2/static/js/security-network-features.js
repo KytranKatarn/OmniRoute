@@ -546,12 +546,17 @@ function _renderDnsTrendChart(points) {
     if (!svg || !points.length) return;
     while (svg.firstChild) svg.removeChild(svg.firstChild);
 
-    var w = svg.clientWidth || 400;
-    var h = svg.clientHeight || 120;
+    var w = svg.clientWidth || 500;
+    var h = svg.clientHeight || 180;
     var ns = 'http://www.w3.org/2000/svg';
+    var pad = {top: 8, right: 10, bottom: 24, left: 45};
+    var cw = w - pad.left - pad.right;
+    var ch = h - pad.top - pad.bottom;
+
     var max = 1;
     points.forEach(function(p) { if (p.total > max) max = p.total; });
-    var step = w / Math.max(points.length - 1, 1);
+    max *= 1.15;
+    var step = cw / Math.max(points.length - 1, 1);
 
     // Gradient defs
     var defs = document.createElementNS(ns, 'defs');
@@ -560,29 +565,69 @@ function _renderDnsTrendChart(points) {
         grad.setAttribute('id', pair[0]); grad.setAttribute('x1','0'); grad.setAttribute('y1','0');
         grad.setAttribute('x2','0'); grad.setAttribute('y2','1');
         var s1 = document.createElementNS(ns, 'stop');
-        s1.setAttribute('offset','0%'); s1.setAttribute('stop-color', pair[1]); s1.setAttribute('stop-opacity','0.35');
+        s1.setAttribute('offset','0%'); s1.setAttribute('stop-color', pair[1]); s1.setAttribute('stop-opacity','0.4');
         var s2 = document.createElementNS(ns, 'stop');
-        s2.setAttribute('offset','100%'); s2.setAttribute('stop-color', pair[1]); s2.setAttribute('stop-opacity','0.03');
+        s2.setAttribute('offset','100%'); s2.setAttribute('stop-color', pair[1]); s2.setAttribute('stop-opacity','0.02');
         grad.appendChild(s1); grad.appendChild(s2); defs.appendChild(grad);
     });
     svg.appendChild(defs);
 
-    // Draw both lines
+    // Grid lines + Y-axis
+    var fmtNum = function(n) { return n >= 1000 ? (n/1000).toFixed(1)+'K' : n.toString(); };
+    for (var gi = 0; gi <= 4; gi++) {
+        var gy = pad.top + ch - (gi / 4) * ch;
+        var gLine = document.createElementNS(ns, 'line');
+        gLine.setAttribute('x1', pad.left); gLine.setAttribute('y1', gy.toFixed(1));
+        gLine.setAttribute('x2', w - pad.right); gLine.setAttribute('y2', gy.toFixed(1));
+        gLine.setAttribute('stroke', 'rgba(255,255,255,0.06)'); gLine.setAttribute('stroke-width', '1');
+        svg.appendChild(gLine);
+        var yLabel = document.createElementNS(ns, 'text');
+        yLabel.setAttribute('x', pad.left - 4); yLabel.setAttribute('y', (gy + 3).toFixed(1));
+        yLabel.setAttribute('fill', '#666'); yLabel.setAttribute('font-size', '9');
+        yLabel.setAttribute('text-anchor', 'end'); yLabel.setAttribute('font-family', '"IBM Plex Mono",monospace');
+        yLabel.textContent = fmtNum(Math.round((gi / 4) * max));
+        svg.appendChild(yLabel);
+    }
+
+    // X-axis labels
+    var xCount = Math.min(points.length, 6);
+    var xStep = Math.max(1, Math.floor((points.length - 1) / (xCount - 1)));
+    for (var xi = 0; xi < points.length; xi += xStep) {
+        var xx = pad.left + xi * step;
+        var xLabel = document.createElementNS(ns, 'text');
+        xLabel.setAttribute('x', xx.toFixed(1)); xLabel.setAttribute('y', (h - 4).toFixed(1));
+        xLabel.setAttribute('fill', '#666'); xLabel.setAttribute('font-size', '9');
+        xLabel.setAttribute('text-anchor', 'middle'); xLabel.setAttribute('font-family', '"IBM Plex Mono",monospace');
+        xLabel.textContent = points[xi].label;
+        svg.appendChild(xLabel);
+    }
+
+    // Draw both series
     [['total', '#00e5ff', 'dns-total'], ['blocked', '#ef4444', 'dns-blocked']].forEach(function(cfg) {
         var key = cfg[0], color = cfg[1], gradId = cfg[2];
-        var pts = points.map(function(p, i) { return [i * step, h - (p[key] / max) * (h - 4)]; });
+        var pts = points.map(function(p, i) {
+            return [pad.left + i * step, pad.top + ch - (p[key] / max) * ch];
+        });
         // Area
+        var areaStr = (pad.left).toFixed(1)+','+(pad.top+ch).toFixed(1)+' '+pts.map(function(p){return p[0].toFixed(1)+','+p[1].toFixed(1);}).join(' ')+' '+pts[pts.length-1][0].toFixed(1)+','+(pad.top+ch).toFixed(1);
         var area = document.createElementNS(ns, 'polygon');
-        var areaStr = pts.map(function(p) { return p[0]+','+p[1]; }).join(' ');
-        areaStr += ' ' + ((points.length-1)*step) + ',' + h + ' 0,' + h;
         area.setAttribute('points', areaStr); area.setAttribute('fill', 'url(#'+gradId+')');
         svg.appendChild(area);
         // Line
         var line = document.createElementNS(ns, 'polyline');
-        line.setAttribute('points', pts.map(function(p){return p[0]+','+p[1];}).join(' '));
+        line.setAttribute('points', pts.map(function(p){return p[0].toFixed(1)+','+p[1].toFixed(1);}).join(' '));
         line.setAttribute('fill','none'); line.setAttribute('stroke', color);
-        line.setAttribute('stroke-width','1.5'); line.setAttribute('stroke-linejoin','round');
+        line.setAttribute('stroke-width','2.5'); line.setAttribute('stroke-linejoin','round'); line.setAttribute('stroke-linecap','round');
         svg.appendChild(line);
+        // Dots if few points
+        if (pts.length <= 30) {
+            pts.forEach(function(p) {
+                var dot = document.createElementNS(ns, 'circle');
+                dot.setAttribute('cx', p[0].toFixed(1)); dot.setAttribute('cy', p[1].toFixed(1));
+                dot.setAttribute('r', '3'); dot.setAttribute('fill', color); dot.setAttribute('opacity', '0.7');
+                svg.appendChild(dot);
+            });
+        }
     });
 }
 

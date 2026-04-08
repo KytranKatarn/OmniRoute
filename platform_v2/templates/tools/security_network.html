@@ -189,16 +189,16 @@
                     <span class="card-title"><span data-i18n="security_network.compliance_summary">Compliance Summary</span></span>
                     <button class="btn btn-sm" onclick="switchSecurityTab('compliance')">View Full</button>
                 </div>
-                <div style="display:flex;align-items:center;gap:16px;padding:12px 0">
-                    <div id="compliance-dash-score" style="font-size:2.4rem;font-weight:700;font-family:'Orbitron',monospace;color:var(--archie-text-dim)">--</div>
-                    <div>
-                        <div style="font-size:1.4rem;font-weight:700;font-family:'Orbitron',monospace" id="compliance-dash-grade">--</div>
-                        <div style="font-size:0.72rem;color:var(--archie-text-muted);margin-top:2px" id="compliance-dash-time">Never</div>
+                <div style="display:flex;align-items:center;gap:12px;padding:12px 0;overflow:hidden;min-width:0">
+                    <div id="compliance-dash-score" style="font-size:2rem;font-weight:700;font-family:'Orbitron',monospace;color:var(--archie-text-dim);white-space:nowrap">--</div>
+                    <div style="min-width:0">
+                        <div style="font-size:1.2rem;font-weight:700;font-family:'Orbitron',monospace" id="compliance-dash-grade">--</div>
+                        <div style="font-size:0.7rem;color:var(--archie-text-muted);margin-top:2px;white-space:nowrap" id="compliance-dash-time">Never</div>
                     </div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:1">
-                        <div style="font-size:0.75rem;color:var(--archie-text-muted)">Ubuntu <span id="compliance-dash-ubuntu" style="font-size:1.1rem;font-weight:600;font-family:'Orbitron',monospace">--</span></div>
-                        <div style="font-size:0.75rem;color:var(--archie-text-muted)">Docker <span id="compliance-dash-docker" style="font-size:1.1rem;font-weight:600;font-family:'Orbitron',monospace">--</span></div>
-                        <div style="font-size:0.75rem;color:var(--archie-text-muted)">Network <span id="compliance-dash-network" style="font-size:1.1rem;font-weight:600;font-family:'Orbitron',monospace">--</span></div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 8px;flex:1;min-width:0">
+                        <div style="font-size:0.72rem;color:var(--archie-text-muted);white-space:nowrap">Ubuntu <span id="compliance-dash-ubuntu" style="font-size:1rem;font-weight:600;font-family:'Orbitron',monospace">--</span></div>
+                        <div style="font-size:0.72rem;color:var(--archie-text-muted);white-space:nowrap">Docker <span id="compliance-dash-docker" style="font-size:1rem;font-weight:600;font-family:'Orbitron',monospace">--</span></div>
+                        <div style="font-size:0.72rem;color:var(--archie-text-muted);white-space:nowrap">Network <span id="compliance-dash-network" style="font-size:1rem;font-weight:600;font-family:'Orbitron',monospace">--</span></div>
                     </div>
                 </div>
             </div>
@@ -206,7 +206,7 @@
                 <div class="card-header">
                     <span class="card-title"><span data-i18n="security_network.quick_actions">Quick Actions</span></span>
                 </div>
-                <div style="display:flex;flex-direction:column;gap:10px">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
                     <button class="btn" id="dash-dns-toggle" onclick="quickToggleProtection()">
                         <i data-lucide="shield" style="width:14px;height:14px"></i>
                         <span id="dash-dns-toggle-text">DNS Protection</span>

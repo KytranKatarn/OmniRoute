@@ -4679,8 +4679,12 @@ class AgentLoop:
 
             # Check AdGuard
             try:
+                ag_user = os.getenv("ADGUARD_USER", "kytran")
+                ag_pass = os.getenv("ADGUARD_PASS", "")
                 result = subprocess.run(
-                    ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "http://network_adguard:80/control/status"],
+                    ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}",
+                     "-u", f"{ag_user}:{ag_pass}",
+                     "http://network_adguard:80/control/status"],
                     capture_output=True, text=True, timeout=5
                 )
                 if result.stdout.strip() != "200":

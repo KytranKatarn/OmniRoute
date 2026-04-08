@@ -92,7 +92,7 @@ def register_noc_routes(bp, admin_required_decorator):
                     nt_session.post(
                         f"http://{nt_host}:{nt_port}/authorize.html",
                         data={"user": nt_user, "password": nt_pass, "referer": "/"},
-                        allow_redirects=False,
+                        allow_redirects=True,
                         timeout=3,
                     )
                     # Discover first available interface id
@@ -168,11 +168,17 @@ def register_noc_routes(bp, admin_required_decorator):
                            FROM network_alerts
                            ORDER BY created_at DESC LIMIT 10"""
                     )
-                    cols = [d[0] for d in cur.description]
-                    recent_alerts = [dict(zip(cols, row)) for row in cur.fetchall()]
-                    for a in recent_alerts:
-                        if a.get("created_at"):
-                            a["created_at"] = a["created_at"].isoformat()
+                    for row in cur.fetchall():
+                        a = dict(row)
+                        ts = a.get("created_at")
+                        recent_alerts.append(
+                            {
+                                "type": a.get("severity", "info"),
+                                "text": a.get("title") or a.get("alert_type", "Alert"),
+                                "time": ts.isoformat() if ts else "",
+                                "source": a.get("source", ""),
+                            }
+                        )
                 except Exception:
                     pass
 
@@ -185,7 +191,7 @@ def register_noc_routes(bp, admin_required_decorator):
                 "success": True,
                 "services": services,
                 "hero_stats": hero_stats,
-                "recent_alerts": recent_alerts,
+                "recent_activity": recent_alerts,
             }
         )
 

@@ -4951,7 +4951,11 @@ class AgentLoop:
             logger.error(f"V.I.G.I.L. network health check failed: {e}")
 
     def _vigilil_traffic_aggregator(self):
-        """Pull traffic data from ntopng and DNS stats from AdGuard into DB."""
+        """Pull traffic data from ntopng and DNS stats from AdGuard into DB.
+
+        Uses UPSERT to prevent duplicates — takes the MAX of bytes seen
+        for each device per hour bucket (ntopng reports cumulative bytes).
+        """
         try:
             from tools.security_network.ntopng_service import NtopngService
             from database import get_db_cursor
@@ -4964,23 +4968,40 @@ class AgentLoop:
                 return
 
             hour_bucket = datetime.now().replace(minute=0, second=0, microsecond=0)
+            count = 0
 
             with get_db_cursor(commit=True) as (conn, cur):
                 for host in hosts:
-                    if isinstance(host, dict):
-                        cur.execute(
-                            """INSERT INTO network_traffic_stats (device_mac, device_ip, bytes_in, bytes_out, protocol, hour_bucket)
-                               VALUES (%s, %s, %s, %s, %s, %s)""",
-                            (
-                                host.get("mac", ""),
-                                host.get("ip", ""),
-                                host.get("bytes.rcvd", 0),
-                                host.get("bytes.sent", 0),
-                                host.get("l7proto", "unknown"),
-                                hour_bucket,
-                            ),
-                        )
-            logger.info(f"V.I.G.I.L.: Aggregated traffic for {len(hosts)} hosts")
+                    if not isinstance(host, dict):
+                        continue
+                    mac = host.get("mac", "")
+                    ip = host.get("ip", "")
+                    if not ip or ip.startswith("ff") or ip.startswith("239."):
+                        continue  # skip multicast
+                    bytes_in = host.get("bytes.rcvd", 0)
+                    bytes_out = host.get("bytes.sent", 0)
+                    if bytes_in == 0 and bytes_out == 0:
+                        continue
+                    cur.execute(
+                        """INSERT INTO network_traffic_stats
+                               (device_mac, device_ip, bytes_in, bytes_out, protocol, hour_bucket)
+                           VALUES (%s, %s, %s, %s, %s, %s)
+                           ON CONFLICT (device_ip, hour_bucket)
+                           DO UPDATE SET
+                               bytes_in = GREATEST(network_traffic_stats.bytes_in, EXCLUDED.bytes_in),
+                               bytes_out = GREATEST(network_traffic_stats.bytes_out, EXCLUDED.bytes_out),
+                               device_mac = COALESCE(NULLIF(EXCLUDED.device_mac, ''), network_traffic_stats.device_mac)""",
+                        (
+                            mac,
+                            ip,
+                            bytes_in,
+                            bytes_out,
+                            host.get("l7proto", "unknown"),
+                            hour_bucket,
+                        ),
+                    )
+                    count += 1
+            logger.info(f"V.I.G.I.L.: Aggregated traffic for {count} hosts")
         except Exception as e:
             logger.error(f"V.I.G.I.L. traffic aggregator failed: {e}")
 

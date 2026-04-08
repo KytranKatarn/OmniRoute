@@ -530,7 +530,7 @@ function loadSinkholeStats() {
         const el = document.getElementById('sinkhole-table');
         if (domains.length) {
             let html = '<table class="data-table"><thead><tr><th>Domain</th><th>Blocked</th></tr></thead><tbody>';
-            domains.slice(0,15).forEach(dd => { html += `<tr><td>${dd.domain}</td><td>${fmtNum(dd.block_count||dd.count||dd.queries)}</td></tr>`; });
+            domains.slice(0,15).forEach(dd => { html += `<tr><td><a href="#" onclick="openDomainIntel('${dd.domain}');return false" style="color:#00e5ff;text-decoration:none;cursor:pointer">${dd.domain}</a></td><td>${fmtNum(dd.block_count||dd.count||dd.queries)}</td></tr>`; });
             html += '</tbody></table>';
             el.innerHTML = html;
         } else {
@@ -683,6 +683,251 @@ function loadTrafficClassification() {
         html += '</tbody></table>';
         el.innerHTML = html;
     }).catch(() => {});
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   DOMAIN INTELLIGENCE MODAL
+   ═══════════════════════════════════════════════════════════════════ */
+// Global state for domain intel modal
+var _domainIntelAbort = null;
+var _domainIntelLoading = false;
+
+function openDomainIntel(domain) {
+    // Cancel any in-flight investigation request
+    if (_domainIntelAbort) { try { _domainIntelAbort.abort(); } catch(e){} }
+    _domainIntelAbort = null;
+
+    var existing = document.getElementById('domain-intel-overlay');
+    if (existing) existing.remove();
+
+    // Sanitize domain for display
+    var safeDomain = domain.replace(/[<>&"']/g, '');
+
+    var html =
+      '<div class="bm-overlay active" id="domain-intel-overlay" style="--bm-accent:#00e5ff;--bm-accent-rgb:0,229,255">' +
+        '<div class="bm-shell" style="max-width:640px">' +
+          '<div class="bm-frame">' +
+            '<div class="bm-frame-elbow-top"></div><div class="bm-frame-seg"></div>' +
+            '<div class="bm-frame-seg dim"></div><div class="bm-frame-light on"></div>' +
+            '<div class="bm-frame-light amber"></div><div class="bm-frame-seg purple"></div>' +
+            '<div class="bm-frame-fill"></div><div class="bm-frame-elbow-bottom"></div>' +
+          '</div>' +
+          '<div class="bm-content">' +
+            '<div class="bm-header">' +
+              '<span class="bm-header-title">DOMAIN INTELLIGENCE</span>' +
+              '<div class="bm-header-strip">' +
+                '<div class="bm-header-pip w1"></div><div class="bm-header-pip w2"></div>' +
+                '<div class="bm-header-pip w3"></div>' +
+                '<button class="bm-close" onclick="document.getElementById(\'domain-intel-overlay\').remove()">&times;</button>' +
+              '</div>' +
+            '</div>' +
+            '<div style="text-align:center;padding:12px 16px 4px;border-bottom:1px solid rgba(0,229,255,0.15)">' +
+              '<div style="color:#fff;font-family:\'IBM Plex Mono\',monospace;font-size:1.2rem;font-weight:600">' + safeDomain + '</div>' +
+            '</div>' +
+            '<div class="bm-body" id="domain-intel-body" style="padding:16px;max-height:60vh;overflow-y:auto">' +
+              '<div style="text-align:center;padding:30px;color:#666">Loading intelligence...</div>' +
+            '</div>' +
+            '<div class="bm-footer" id="domain-intel-footer" style="padding:12px 16px;display:flex;gap:8px;justify-content:flex-end">' +
+              '<button class="btn" onclick="document.getElementById(\'domain-intel-overlay\').remove()" style="opacity:0.7">Close</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    document.body.insertAdjacentHTML('beforeend', html);
+    var modal = document.getElementById('domain-intel-overlay');
+    modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
+
+    var body = document.getElementById('domain-intel-body');
+    fetch(SN_API + '/dns/domain-intel?domain=' + encodeURIComponent(domain))
+        .then(function(r) { return r.json(); })
+        .then(function(d) { if (!d.success) { body.textContent = 'Failed to load'; return; } _renderDomainIntel(body, d); })
+        .catch(function(e) { body.textContent = 'Error: ' + e; });
+}
+
+function _renderDomainIntel(body, d) {
+    body.textContent = '';
+    var ag = d.adguard_status || {};
+    var reason = ag.reason || '';
+    var statusColor = '#10b981', statusText = 'Allowed';
+    if (reason === 'FilteredBlackList' || reason === 'FilteredBlockedService') { statusColor = '#ef4444'; statusText = 'Blocked'; }
+    else if (reason === 'Rewrite') { statusColor = '#00e5ff'; statusText = 'Rewritten'; }
+
+    // Stats grid
+    var grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px';
+    [{val: fmtNum(d.total_queries||0), label: 'TOTAL QUERIES', color: '#00e5ff'},
+     {val: fmtNum(d.blocked_queries||0), label: 'BLOCKED', color: '#ef4444'},
+     {val: statusText, label: 'STATUS', color: statusColor}].forEach(function(s) {
+        var card = document.createElement('div');
+        card.style.cssText = 'background:rgba(255,255,255,0.04);padding:10px;border-radius:8px;text-align:center';
+        var val = document.createElement('div');
+        val.style.cssText = 'color:' + s.color + ';font-size:1.1rem;font-weight:700;font-family:Orbitron,sans-serif';
+        val.textContent = s.val;
+        var lbl = document.createElement('div');
+        lbl.style.cssText = 'color:#888;font-size:0.7rem';
+        lbl.textContent = s.label;
+        card.appendChild(val); card.appendChild(lbl); grid.appendChild(card);
+    });
+    body.appendChild(grid);
+
+    // Category + dates
+    var meta = document.createElement('div');
+    meta.style.cssText = 'display:flex;gap:16px;margin-bottom:16px;font-size:0.8rem;flex-wrap:wrap';
+    var catSpan = document.createElement('span');
+    catSpan.style.color = '#fbbf24';
+    catSpan.textContent = 'Category: ' + (d.category || 'uncategorized');
+    meta.appendChild(catSpan);
+    if (d.first_seen) { var fs = document.createElement('span'); fs.style.color = '#888'; fs.textContent = 'First: ' + new Date(d.first_seen).toLocaleDateString(); meta.appendChild(fs); }
+    if (d.last_seen) { var ls = document.createElement('span'); ls.style.color = '#888'; ls.textContent = 'Last: ' + new Date(d.last_seen).toLocaleDateString(); meta.appendChild(ls); }
+    body.appendChild(meta);
+
+    // Devices table
+    if (d.devices && d.devices.length) {
+        var devTitle = document.createElement('div');
+        devTitle.style.cssText = 'color:#00e5ff;font-size:0.75rem;font-weight:600;margin-bottom:6px';
+        devTitle.textContent = 'DEVICES QUERYING THIS DOMAIN';
+        body.appendChild(devTitle);
+        var table = document.createElement('table');
+        table.className = 'data-table';
+        table.style.fontSize = '0.78rem';
+        table.style.marginBottom = '16px';
+        var thead = document.createElement('thead');
+        thead.appendChild(_tr(['Device','IP','Queries'], true));
+        table.appendChild(thead);
+        var tbody = document.createElement('tbody');
+        d.devices.forEach(function(dev) { tbody.appendChild(_tr([dev.label||dev.ip, dev.ip, fmtNum(dev.queries)])); });
+        table.appendChild(tbody);
+        body.appendChild(table);
+    }
+
+    // AI Report section — always visible with predetermined area
+    var aiSection = document.createElement('div');
+    aiSection.style.cssText = 'border-top:1px solid rgba(139,92,246,0.3);padding-top:12px;margin-top:12px';
+    var aiHeader = document.createElement('div');
+    aiHeader.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:10px';
+    var aiLabel = document.createElement('span');
+    aiLabel.style.cssText = 'color:#8b5cf6;font-size:0.75rem;font-weight:700;letter-spacing:1px';
+    aiLabel.textContent = 'AI SECURITY REPORT';
+    var aiBtn = document.createElement('button');
+    aiBtn.id = 'domain-investigate-btn';
+    aiBtn.style.cssText = 'background:#8b5cf6;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.78rem;font-family:"IBM Plex Mono",monospace';
+    aiBtn.textContent = 'Investigate';
+    aiBtn.addEventListener('click', function() { investigateDomain(d.domain); });
+    aiHeader.appendChild(aiLabel); aiHeader.appendChild(aiBtn);
+    aiSection.appendChild(aiHeader);
+    // Predetermined report box — always visible
+    var aiResult = document.createElement('div');
+    aiResult.id = 'domain-investigate-result';
+    aiResult.style.cssText = 'background:rgba(139,92,246,0.06);border:1px dashed rgba(139,92,246,0.25);border-radius:8px;padding:16px;min-height:60px;color:#777;font-size:0.8rem;line-height:1.5;font-style:italic';
+    aiResult.textContent = 'No report available. Click "Investigate" to request an AI security analysis of this domain.';
+    aiSection.appendChild(aiResult);
+    body.appendChild(aiSection);
+
+    // Quick actions — put in LCARS footer
+    var footer = document.getElementById('domain-intel-footer');
+    if (footer) {
+        var closeBtn = footer.querySelector('.btn');
+        [{label:'Block',color:'#ef4444',action:'block'},{label:'Unblock',color:'#10b981',action:'unblock'},{label:'Rewrite to Local',color:'#00e5ff',tcolor:'#000',action:'rewrite'}].forEach(function(a) {
+            var btn = document.createElement('button');
+            btn.style.cssText = 'background:'+a.color+';color:'+(a.tcolor||'#fff')+';border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:0.75rem';
+            btn.textContent = a.label;
+            btn.addEventListener('click', function() { dnsQuickAction(a.action, d.domain); });
+            footer.insertBefore(btn, closeBtn);
+        });
+    }
+}
+
+function _tr(cells, isHeader) {
+    var tr = document.createElement('tr');
+    cells.forEach(function(c) { var td = document.createElement(isHeader ? 'th' : 'td'); td.textContent = c; tr.appendChild(td); });
+    return tr;
+}
+
+function _setFooterButtonsState(disabled) {
+    var footer = document.getElementById('domain-intel-footer');
+    if (!footer) return;
+    footer.querySelectorAll('button').forEach(function(b) {
+        if (b.textContent !== 'Close') b.disabled = disabled;
+        if (disabled) b.style.opacity = '0.5';
+        else b.style.opacity = '1';
+    });
+}
+
+function investigateDomain(domain) {
+    if (_domainIntelLoading) return; // Prevent double-click
+    _domainIntelLoading = true;
+
+    // Cancel any previous in-flight request
+    if (_domainIntelAbort) { try { _domainIntelAbort.abort(); } catch(e){} }
+    _domainIntelAbort = new AbortController();
+
+    var btn = document.getElementById('domain-investigate-btn');
+    var result = document.getElementById('domain-investigate-result');
+    if (btn) { btn.disabled = true; btn.textContent = 'Analyzing...'; }
+    _setFooterButtonsState(true);
+    if (result) {
+        result.style.cssText = 'background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.3);border-radius:8px;padding:16px;min-height:60px;color:#8b5cf6;font-size:0.8rem;line-height:1.5;font-style:italic';
+        result.textContent = 'AI is researching this domain... This may take 15-30 seconds.';
+    }
+
+    fetch(SN_API + '/dns/domain-investigate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({domain: domain}),
+        signal: _domainIntelAbort.signal
+    }).then(function(r) { return r.json(); }).then(function(d) {
+        _domainIntelLoading = false;
+        _domainIntelAbort = null;
+        if (btn) { btn.disabled = false; btn.textContent = 'Re-investigate'; }
+        _setFooterButtonsState(false);
+        if (d.success && d.report) {
+            result.style.cssText = 'background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.3);border-left:3px solid #8b5cf6;border-radius:8px;padding:16px;min-height:60px;color:#ccc;font-size:0.8rem;line-height:1.6;white-space:pre-wrap;font-style:normal';
+            result.textContent = d.report;
+        } else {
+            result.style.cssText = 'background:rgba(249,115,22,0.06);border:1px dashed rgba(249,115,22,0.3);border-radius:8px;padding:16px;min-height:60px;color:#f97316;font-size:0.8rem;line-height:1.5;font-style:italic';
+            result.textContent = 'AI unavailable: ' + (d.error || 'try again later');
+        }
+    }).catch(function(e) {
+        _domainIntelLoading = false;
+        _domainIntelAbort = null;
+        if (e.name === 'AbortError') return; // Cancelled by new modal open — ignore
+        if (btn) { btn.disabled = false; btn.textContent = 'Investigate'; }
+        _setFooterButtonsState(false);
+        result.style.cssText = 'background:rgba(239,68,68,0.06);border:1px dashed rgba(239,68,68,0.3);border-radius:8px;padding:16px;min-height:60px;color:#ef4444;font-size:0.8rem;line-height:1.5;font-style:italic';
+        result.textContent = 'Error: ' + e;
+    });
+}
+
+var _quickActionBusy = false;
+function dnsQuickAction(action, domain) {
+    if (_quickActionBusy) return;
+    _quickActionBusy = true;
+    _setFooterButtonsState(true);
+
+    var endpoint = action === 'block' ? '/dns/adguard/block' :
+                   action === 'unblock' ? '/dns/adguard/unblock' :
+                   '/dns/adguard/rewrites';
+    var payload = action === 'rewrite' ?
+        {domain: domain, answer: '192.168.1.200'} : {domain: domain};
+
+    fetch(SN_API + endpoint, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    }).then(function(r) { return r.json(); }).then(function(d) {
+        _quickActionBusy = false;
+        if (d.success) {
+            if (typeof showToast === 'function') showToast('success', domain + ' ' + action + 'ed');
+            openDomainIntel(domain); // Refresh modal with updated status
+        } else {
+            _setFooterButtonsState(false);
+            if (typeof showToast === 'function') showToast('error', d.error || 'Failed');
+        }
+    }).catch(function() {
+        _quickActionBusy = false;
+        _setFooterButtonsState(false);
+    });
 }
 
 /* ═══════════════════════════════════════════════════════════════════

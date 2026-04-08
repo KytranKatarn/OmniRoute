@@ -75,6 +75,166 @@ def register_sinkhole_routes(bp, admin_required_decorator):
             logger.error("[Sinkhole] Stats failed: %s", e)
             return jsonify({"status": "error", "message": str(e)}), 500
 
+    @bp.route("/api/dns/domain-intel", methods=["GET"])
+    @login_required
+    @admin_required_decorator
+    def dns_domain_intel():
+        """Instant intelligence for a domain — history, devices, category, status."""
+        domain = request.args.get("domain", "").strip().lower()
+        if not domain:
+            return jsonify({"success": False, "error": "domain required"}), 400
+
+        result = {
+            "domain": domain,
+            "total_queries": 0,
+            "blocked_queries": 0,
+            "first_seen": None,
+            "last_seen": None,
+            "devices": [],
+            "category": "uncategorized",
+            "adguard_status": None,
+            "hourly": [],
+        }
+
+        try:
+            with get_db_cursor() as (conn, cur):
+                # Aggregate stats
+                cur.execute(
+                    """SELECT SUM(query_count) as total,
+                              SUM(CASE WHEN blocked THEN query_count ELSE 0 END) as blocked,
+                              MIN(hour_bucket) as first_seen,
+                              MAX(hour_bucket) as last_seen
+                       FROM device_dns_history WHERE domain = %s""",
+                    (domain,),
+                )
+                row = cur.fetchone()
+                if row:
+                    r = dict(row)
+                    result["total_queries"] = int(r.get("total") or 0)
+                    result["blocked_queries"] = int(r.get("blocked") or 0)
+                    result["first_seen"] = r["first_seen"].isoformat() if r.get("first_seen") else None
+                    result["last_seen"] = r["last_seen"].isoformat() if r.get("last_seen") else None
+
+                # Per-device breakdown
+                cur.execute(
+                    """SELECT ddh.device_ip,
+                              COALESCE(ndu.user_name, ndu.device_label, ddh.device_ip) as label,
+                              SUM(ddh.query_count) as queries,
+                              MAX(ddh.hour_bucket) as last_seen
+                       FROM device_dns_history ddh
+                       LEFT JOIN network_device_users ndu
+                           ON ndu.mac_address = (
+                               SELECT device_mac FROM network_traffic_stats
+                               WHERE device_ip = ddh.device_ip LIMIT 1
+                           )
+                       WHERE ddh.domain = %s
+                       GROUP BY ddh.device_ip, label
+                       ORDER BY queries DESC LIMIT 10""",
+                    (domain,),
+                )
+                for row in cur.fetchall():
+                    r = dict(row)
+                    result["devices"].append(
+                        {
+                            "ip": r.get("device_ip", ""),
+                            "label": r.get("label", r.get("device_ip", "")),
+                            "queries": int(r.get("queries") or 0),
+                            "last_seen": (r["last_seen"].isoformat() if r.get("last_seen") else None),
+                        }
+                    )
+
+                # Category from traffic_categories
+                base_domain = ".".join(domain.rsplit(".", 2)[-2:])
+                cur.execute(
+                    "SELECT category FROM traffic_categories WHERE domain_pattern = %s",
+                    (base_domain,),
+                )
+                cat_row = cur.fetchone()
+                if cat_row:
+                    result["category"] = cat_row["category"]
+
+                # Recent hourly trend for this domain
+                cur.execute(
+                    """SELECT hour_bucket, query_count, blocked
+                       FROM device_dns_history
+                       WHERE domain = %s AND hour_bucket >= NOW() - INTERVAL '48 hours'
+                       ORDER BY hour_bucket DESC LIMIT 48""",
+                    (domain,),
+                )
+                for row in cur.fetchall():
+                    r = dict(row)
+                    result["hourly"].append(
+                        {
+                            "hour": r["hour_bucket"].isoformat() if r.get("hour_bucket") else "",
+                            "count": int(r.get("query_count") or 0),
+                            "blocked": bool(r.get("blocked")),
+                        }
+                    )
+
+            # Check AdGuard status
+            try:
+                import os
+
+                import requests as _req
+
+                ag_host = os.getenv("ADGUARD_HOST", "network_adguard")
+                ag_port = os.getenv("ADGUARD_PORT", "80")
+                ag_user = os.getenv("ADGUARD_USER", "kytran")
+                ag_pass = os.getenv("ADGUARD_PASS", "")
+                r = _req.get(
+                    f"http://{ag_host}:{ag_port}/control/filtering/check_host",
+                    params={"name": domain},
+                    auth=(ag_user, ag_pass),
+                    timeout=3,
+                )
+                if r.status_code == 200:
+                    result["adguard_status"] = r.json()
+            except Exception:
+                pass
+
+        except Exception as e:
+            logger.error("[Domain Intel] Failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+        return jsonify({"success": True, **result})
+
+    @bp.route("/api/dns/domain-investigate", methods=["POST"])
+    @login_required
+    @admin_required_decorator
+    def dns_domain_investigate():
+        """Use AI Bridge to investigate a domain — returns analysis report."""
+        data = request.get_json() or {}
+        domain = data.get("domain", "").strip().lower()
+        if not domain:
+            return jsonify({"success": False, "error": "domain required"}), 400
+
+        try:
+            from bridge_dispatcher import dispatch
+
+            prompt = (
+                f"Investigate the domain '{domain}'. Provide a brief security analysis:\n"
+                f"1. What is this domain? (company, service, or threat)\n"
+                f"2. Is it safe, suspicious, or malicious?\n"
+                f"3. What category? (ads/tracking, social, streaming, work, malware, etc.)\n"
+                f"4. Should it be blocked or allowed on a home network?\n"
+                f"Keep the response under 150 words, be direct."
+            )
+
+            result = dispatch("general", prompt, module_id="security_network")
+            if result and result.success:
+                return jsonify({"success": True, "domain": domain, "report": result.response})
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "AI analysis unavailable",
+                    "domain": domain,
+                }
+            )
+
+        except Exception as e:
+            logger.error("[Domain Investigate] Failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
     @bp.route("/api/dns/query-trend", methods=["GET"])
     @login_required
     @admin_required_decorator

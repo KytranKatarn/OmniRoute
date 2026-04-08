@@ -68,7 +68,7 @@ def fleet_dashboard():
     deployment_mode = os.getenv("DEPLOYMENT_MODE", "hub")
     if deployment_mode == "business_node":
         return render_template(
-            "starbase_hub.html",
+            "fleet_hub.html",
             deployment_mode=deployment_mode,
             node_id=os.getenv("NODE_ID", ""),
             hub_url=os.getenv("HUB_URL", ""),
@@ -89,7 +89,7 @@ def fleet_dashboard():
         except Exception as e:
             logger.warning("Failed to pre-fetch status bar data: %s", e)
         return render_template(
-            "tools/fleet.html",
+            "fleet.html",
             deployment_mode=deployment_mode,
             initial_agent_count=agent_count,
             initial_interactions_24h=interactions_24h,

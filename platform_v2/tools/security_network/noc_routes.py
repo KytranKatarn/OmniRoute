@@ -432,6 +432,19 @@ def register_noc_routes(bp, admin_required_decorator):
         """Aggregated bandwidth data for the Traffic tab."""
         import os
 
+        from flask import request as _req_flask
+
+        # Period support: 24h, 7d, 30d
+        period = _req_flask.args.get("period", "24h")
+        period_map = {
+            "24h": ("24 hours", "hour"),
+            "7d": ("7 days", "day"),
+            "30d": ("30 days", "day"),
+        }
+        if period not in period_map:
+            period = "24h"
+        interval_str, bucket_size = period_map[period]
+
         result = {
             "bytes_in": 0,
             "bytes_out": 0,
@@ -439,6 +452,7 @@ def register_noc_routes(bp, admin_required_decorator):
             "active_devices": 0,
             "per_device": [],
             "hourly": [],
+            "period": period,
         }
 
         try:
@@ -469,18 +483,18 @@ def register_noc_routes(bp, admin_required_decorator):
             except Exception:
                 pass
 
-            # DB-cached per-device bandwidth + hourly history
+            # DB-cached per-device bandwidth + history
             with get_db_cursor() as (conn, cur):
-                # Per-device bandwidth (24h)
+                # Per-device bandwidth for selected period
                 cur.execute(
-                    """SELECT nts.device_ip, nts.device_mac,
+                    f"""SELECT nts.device_ip, nts.device_mac,
                               COALESCE(ndu.user_name, ndu.device_label, nts.device_ip) as label,
                               SUM(nts.bytes_in) as bytes_in,
                               SUM(nts.bytes_out) as bytes_out,
                               SUM(nts.bytes_in + nts.bytes_out) as total
                        FROM network_traffic_stats nts
                        LEFT JOIN network_device_users ndu ON ndu.mac_address = nts.device_mac
-                       WHERE nts.hour_bucket >= NOW() - INTERVAL '24 hours'
+                       WHERE nts.hour_bucket >= NOW() - INTERVAL '{interval_str}'
                        GROUP BY nts.device_ip, nts.device_mac, label
                        ORDER BY total DESC LIMIT 20"""
                 )
@@ -505,20 +519,24 @@ def register_noc_routes(bp, admin_required_decorator):
                 result["bytes_in"] = total_in
                 result["bytes_out"] = total_out
 
-                # Hourly traffic history (24h)
+                # Traffic history bucketed by hour or day
+                if bucket_size == "hour":
+                    time_fmt = "%H:%M"
+                else:
+                    time_fmt = "%b %d"
                 cur.execute(
-                    """SELECT date_trunc('hour', hour_bucket) as hour,
+                    f"""SELECT date_trunc('{bucket_size}', hour_bucket) as bucket,
                               SUM(bytes_in) as bytes_in,
                               SUM(bytes_out) as bytes_out
                        FROM network_traffic_stats
-                       WHERE hour_bucket >= NOW() - INTERVAL '24 hours'
-                       GROUP BY hour ORDER BY hour"""
+                       WHERE hour_bucket >= NOW() - INTERVAL '{interval_str}'
+                       GROUP BY bucket ORDER BY bucket"""
                 )
                 for row in cur.fetchall():
                     r = dict(row)
                     result["hourly"].append(
                         {
-                            "hour": r["hour"].strftime("%H:%M") if r.get("hour") else "",
+                            "hour": r["bucket"].strftime(time_fmt) if r.get("bucket") else "",
                             "bytes_in": int(r.get("bytes_in") or 0),
                             "bytes_out": int(r.get("bytes_out") or 0),
                         }

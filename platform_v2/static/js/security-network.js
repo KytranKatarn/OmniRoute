@@ -512,7 +512,18 @@ function _renderSparkline(data) {
 
 function loadTraffic() {
     /* Real bandwidth data from ntopng + DB */
-    snApi('/noc/traffic-tab').then(function(d) {
+    var sel = document.getElementById('traffic-period-select');
+    var period = sel ? sel.value : '24h';
+    var periodLabels = {'24h': '24h', '7d': '7 Days', '30d': '30 Days'};
+    var lbl = periodLabels[period] || period;
+
+    // Update all period labels in the UI
+    ['traffic-period-label-dl','traffic-period-label-up','traffic-period-label-hist','traffic-period-label-dev'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = lbl;
+    });
+
+    snApi('/noc/traffic-tab?period=' + period).then(function(d) {
         if (!d.success) return;
 
         /* Hero stats — actual bytes */

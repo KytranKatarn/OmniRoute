@@ -264,11 +264,11 @@
         <div class="traffic-hero-grid">
             <div class="traffic-hero-card">
                 <div class="traffic-hero-val" id="traffic-bytes-in">--</div>
-                <div class="traffic-hero-label">Downloaded (24h)</div>
+                <div class="traffic-hero-label">Downloaded (<span id="traffic-period-label-dl">24h</span>)</div>
             </div>
             <div class="traffic-hero-card">
                 <div class="traffic-hero-val" id="traffic-bytes-out">--</div>
-                <div class="traffic-hero-label">Uploaded (24h)</div>
+                <div class="traffic-hero-label">Uploaded (<span id="traffic-period-label-up">24h</span>)</div>
             </div>
             <div class="traffic-hero-card">
                 <div class="traffic-hero-val" id="traffic-flows">--</div>
@@ -284,9 +284,16 @@
         <div class="card" style="margin-bottom:16px">
             <div class="card-header">
                 <span class="card-title">Bandwidth Distribution</span>
-                <button class="btn btn-sm" onclick="loadTraffic()">
-                    <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh
-                </button>
+                <div style="display:flex;align-items:center;gap:8px">
+                    <select id="traffic-period-select" onchange="loadTraffic()" style="font-size:0.75rem;padding:2px 8px;border-radius:4px;background:#1a1a2e;color:#ccc;border:1px solid #333;cursor:pointer">
+                        <option value="24h">Last 24 Hours</option>
+                        <option value="7d">Last 7 Days</option>
+                        <option value="30d">Last 30 Days</option>
+                    </select>
+                    <button class="btn btn-sm" onclick="loadTraffic()">
+                        <i data-lucide="refresh-cw" style="width:12px;height:12px"></i>
+                    </button>
+                </div>
             </div>
             <div id="traffic-bw-bar" style="padding:4px 0">
                 <div class="loading-state"><span class="spinner"></span> Loading...</div>
@@ -296,7 +303,7 @@
         <!-- Traffic History Chart -->
         <div class="card" style="margin-bottom:16px">
             <div class="card-header">
-                <span class="card-title">Traffic History (24h)</span>
+                <span class="card-title">Traffic History (<span id="traffic-period-label-hist">24h</span>)</span>
             </div>
             <div style="height:120px;padding:8px 12px" id="traffic-history-container">
                 <svg id="traffic-history-chart" width="100%" height="100%" preserveAspectRatio="none"></svg>
@@ -307,7 +314,7 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
             <div class="card">
                 <div class="card-header">
-                    <span class="card-title">Bandwidth Per Device (24h)</span>
+                    <span class="card-title">Bandwidth Per Device (<span id="traffic-period-label-dev">24h</span>)</span>
                 </div>
                 <div id="traffic-per-device" style="overflow-x:auto;font-size:0.8rem">
                     <div class="loading-state"><span class="spinner"></span> Loading...</div>

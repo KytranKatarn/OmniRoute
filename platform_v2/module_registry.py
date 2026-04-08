@@ -433,30 +433,31 @@ MODULES: List[ModuleDefinition] = [
     # ============================================
     # AI COMMAND (3 modules)
     # ============================================
-    # consciousness, team_management, starbase
+    # consciousness, team_management, fleet
     # NOTE: blueprint (Mission Control) removed from grid 2026-02-04
     # Blueprint Flask routes still registered manually in app.py for Dev HQ API access
+    # NOTE: Starbase Command merged into Fleet (2026-04-08)
     ModuleDefinition(
-        id="starbase",
-        name="Starbase Command",
-        description="Central AI command center<br>Stations • LLM • IDE • Training",
-        icon="monitor",
+        id="fleet",
+        name="Fleet Command",
+        description="Fleet infrastructure & node management<br>Nodes • Mesh • Providers • OTA • Missions",
+        icon="rocket",
         category=ModuleCategory.AI_COMMAND,
-        route="/tools/starbase",
-        blueprint_import="tools.starbase.routes:starbase_bp",
-        required_permissions=["admin:access"],
-        minimum_role="ADMIN",
+        route="/tools/fleet",
+        blueprint_import="tools.fleet.routes:fleet_bp",
+        required_permissions=[],
+        minimum_role="USER",
         enabled=True,
-        health_check=lambda: default_health_check("starbase"),
+        health_check=lambda: default_health_check("fleet"),
         priority=2,
         tags=[
-            "starbase",
-            "llm",
+            "fleet",
+            "nodes",
+            "mesh",
             "monitoring",
             "command",
-            "stations",
-            "ide",
-            "training",
+            "ota",
+            "providers",
             "ai-command",
         ],
     ),
@@ -913,29 +914,23 @@ MODULES: List[ModuleDefinition] = [
     #     priority=12,
     #     tags=["ai", "mobile", "apps", "ios", "android"],
     # ),
-    # Starship Command — Node Management (SaaS feature for all users)
-    ModuleDefinition(
-        id="starship",
-        name="Starship Command",
-        description="Fleet node management<br>Your starships • Hardware • Models • Privacy controls",
-        icon="rocket",
-        category=ModuleCategory.SAAS_SERVICES,
-        route="/tools/starship",
-        blueprint_import="tools.starship.routes:starship_bp",
-        required_permissions=[],
-        minimum_role="USER",
-        enabled=True,
-        health_check=lambda: default_health_check("starship"),
-        priority=14,
-        tags=[
-            "starship",
-            "fleet",
-            "nodes",
-            "compute",
-            "network",
-            "privacy",
-        ],
-    ),
+    # Starship Command — MERGED into Fleet Command (2026-04-08)
+    # Old URLs redirect via app.py starship_compat_redirect
+    # ModuleDefinition(
+    #     id="starship",
+    #     name="Starship Command",
+    #     description="[Merged] → Fleet Command",
+    #     icon="rocket",
+    #     category=ModuleCategory.SAAS_SERVICES,
+    #     route="/tools/starship",
+    #     blueprint_import="tools.starship.routes:starship_bp",
+    #     required_permissions=[],
+    #     minimum_role="USER",
+    #     enabled=False,
+    #     health_check=lambda: default_health_check("starship"),
+    #     priority=14,
+    #     tags=["starship", "fleet", "nodes"],
+    # ),
     ModuleDefinition(
         id="google_work_suite",
         name="Google Work Suite",

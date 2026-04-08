@@ -712,7 +712,7 @@
     }
 
     async function loadFleetBar() {
-        var data = await apiFetch('/tools/starbase/api/agents');
+        var data = await apiFetch('/tools/fleet/api/agents');
         var bar = document.getElementById('mc-fleet-bar');
         if (!bar || !data) return;
         clearEl('mc-fleet-bar');
@@ -730,7 +730,7 @@
     }
 
     async function loadMCMetrics() {
-        var m = await apiFetch('/tools/starbase/api/dispatch/fleet-metrics');
+        var m = await apiFetch('/tools/fleet/api/dispatch/fleet-metrics');
         var wrap = document.getElementById('mc-metrics');
         if (!wrap || !m) return;
         clearEl('mc-metrics');
@@ -758,7 +758,7 @@
     }
 
     async function loadMCFeed() {
-        var events = await apiFetch('/tools/starbase/api/dispatch/activity-history');
+        var events = await apiFetch('/tools/fleet/api/dispatch/activity-history');
         var feed = document.getElementById('mc-feed');
         if (!feed) return;
         clearEl('mc-feed');
@@ -808,7 +808,7 @@
         if (_sseSource) return;
         if (typeof EventSource === 'undefined') return;
         try {
-            _sseSource = new EventSource('/tools/starbase/api/dispatch/stream');
+            _sseSource = new EventSource('/tools/fleet/api/dispatch/stream');
             _sseSource.addEventListener('task_start', handleSSE);
             _sseSource.addEventListener('task_complete', handleSSE);
             _sseSource.addEventListener('task_error', handleSSE);
@@ -874,8 +874,8 @@
         drawer.appendChild(loadingMsg);
 
         var results = await Promise.all([
-            apiFetch('/tools/starbase/api/agents/' + agentId + '/executions?limit=10'),
-            apiFetch('/tools/starbase/api/agents/' + agentId + '/emotional-state'),
+            apiFetch('/tools/fleet/api/agents/' + agentId + '/executions?limit=10'),
+            apiFetch('/tools/fleet/api/agents/' + agentId + '/emotional-state'),
         ]);
         var execs = results[0];
         var emo = results[1];
@@ -1013,7 +1013,7 @@
     var _maPage = 1;
 
     async function loadMultiAgent() {
-        var data = await apiFetch('/tools/starbase/api/dispatch/multi-agent-sessions?page=' + _maPage + '&per_page=20');
+        var data = await apiFetch('/tools/fleet/api/dispatch/multi-agent-sessions?page=' + _maPage + '&per_page=20');
         var list = document.getElementById('ma-session-list');
         if (!list) return;
         clearEl('ma-session-list');
@@ -1067,7 +1067,7 @@
         loadMsg.setAttribute('data-i18n', 'team_management.loading');
         detail.appendChild(loadMsg);
 
-        var data = await apiFetch('/tools/starbase/api/dispatch/multi-agent-sessions/' + sessionId);
+        var data = await apiFetch('/tools/fleet/api/dispatch/multi-agent-sessions/' + sessionId);
         detail.textContent = '';
         if (!data || !data.session) {
             var errMsg = el('div', 'ma-empty');

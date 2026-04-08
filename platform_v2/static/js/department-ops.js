@@ -65,7 +65,7 @@
     var agentsEl = document.getElementById(this.agentsElId);
     if (!agentsEl) return;
 
-    var stationsUrl = this.dataUrl || "/tools/starbase/api/stations";
+    var stationsUrl = this.dataUrl || "/tools/fleet/api/stations";
     fetch(stationsUrl).then(function(resp) {
       var ct = resp.headers.get("content-type") || "";
       if (ct.indexOf("application/json") === -1) return Promise.reject("not json");
@@ -307,7 +307,7 @@
 
   DepartmentOps.prototype.checkJobs = function() {
     var self = this;
-    return fetch("/tools/starbase/api/bridge/jobs?status=running").then(function(resp) {
+    return fetch("/tools/fleet/api/bridge/jobs?status=running").then(function(resp) {
       var ct = resp.headers.get("content-type") || "";
       if (ct.indexOf("application/json") === -1) return Promise.reject("not json");
       return resp.json();
@@ -330,7 +330,7 @@
     var retries = 0;
     var maxRetries = 3;
     var poll = setInterval(function() {
-      fetch("/tools/starbase/api/bridge/jobs/" + jobId).then(function(resp) {
+      fetch("/tools/fleet/api/bridge/jobs/" + jobId).then(function(resp) {
         var ct = resp.headers.get("content-type") || "";
         if (ct.indexOf("application/json") === -1) return Promise.reject("not json");
         return resp.json();
@@ -370,9 +370,9 @@
             msg.appendChild(icon);
             msg.appendChild(document.createTextNode(" Job #" + jobId + " running \u2014 check "));
             var link = document.createElement("a");
-            link.href = "/tools/starbase";
+            link.href = "/tools/fleet";
             link.style.color = "var(--stn-accent,#8b5cf6)";
-            link.textContent = "Starbase Command";
+            link.textContent = "Fleet Command";
             msg.appendChild(link);
             msg.appendChild(document.createTextNode(" for live progress"));
             fallbackEl.appendChild(msg);
@@ -568,7 +568,7 @@
    *   DepartmentOps.fetchActions("repair_bay").then(function(actions) { ... });
    */
   DepartmentOps.fetchActions = function(moduleSource) {
-    return fetch("/tools/starbase/api/station-actions?module_source=" + encodeURIComponent(moduleSource))
+    return fetch("/tools/fleet/api/station-actions?module_source=" + encodeURIComponent(moduleSource))
       .then(function(r) { return r.json(); })
       .then(function(data) {
         return (data.success && data.actions) ? data.actions : [];

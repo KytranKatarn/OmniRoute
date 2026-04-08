@@ -14,9 +14,8 @@
 {% set cat_label = 'AI COMMAND' %}
 {% set cat_icon = 'brain' %}
 {% set cat_modules = [
-    {'url': url_for('starbase.starbase_dashboard'), 'endpoint_prefix': 'starbase', 'icon': 'monitor', 'label': 'Starbase', 'title': 'Starbase Command'},
+    {'url': url_for('fleet.fleet_dashboard'), 'endpoint_prefix': 'fleet', 'icon': 'rocket', 'label': 'Fleet', 'title': 'Fleet Command'},
     {'url': url_for('consciousness.index'), 'endpoint_prefix': 'consciousness', 'icon': 'brain', 'label': 'Mind', 'title': 'Consciousness'},
-    {'url': url_for('autonomy.index'), 'endpoint_prefix': 'autonomy', 'icon': 'bot', 'label': 'Autonomy', 'title': 'Autonomy'},
     {'url': url_for('archie_chat.index'), 'endpoint_prefix': 'archie_chat', 'icon': 'message-circle', 'label': 'Chat', 'title': 'A.R.C.H.I.E. Chat'}
 ] %}
 {% include 'includes/category_nav.html' %}
@@ -1013,7 +1012,7 @@ function _startFastPolling() {
         checkStationJobs();
         // Check if our scan job completed
         if (_scanJobId) {
-            fetch('/tools/starbase/api/bridge/jobs/' + _scanJobId).then(function(r) {
+            fetch('/tools/fleet/api/bridge/jobs/' + _scanJobId).then(function(r) {
                 return r.json();
             }).then(function(data) {
                 if (!data.success) return;

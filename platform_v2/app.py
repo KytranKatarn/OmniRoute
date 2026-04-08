@@ -307,13 +307,35 @@ except ImportError as e:
 
 @app.route("/tools/bridge/<path:subpath>", methods=["GET", "POST", "PUT", "DELETE"])
 def bridge_compat_redirect(subpath):
-    """Redirect old /tools/bridge/ URLs to /tools/starbase/ for node clients."""
+    """Redirect old /tools/bridge/ URLs to /tools/fleet/ for node clients."""
     from flask import redirect, request as req
 
-    new_url = f"/tools/starbase/{subpath}"
+    new_url = f"/tools/fleet/{subpath}"
     if req.query_string:
         new_url += f"?{req.query_string.decode()}"
     # 307 preserves method and body (unlike 301/302 which change POST→GET)
+    return redirect(new_url, code=307)
+
+
+@app.route("/tools/starbase/<path:subpath>", methods=["GET", "POST", "PUT", "DELETE"])
+def starbase_compat_redirect(subpath):
+    """Redirect old /tools/starbase/ URLs to /tools/fleet/ after module merge."""
+    from flask import redirect, request as req
+
+    new_url = f"/tools/fleet/{subpath}"
+    if req.query_string:
+        new_url += f"?{req.query_string.decode()}"
+    return redirect(new_url, code=307)
+
+
+@app.route("/tools/starship/<path:subpath>", methods=["GET", "POST", "PUT", "DELETE"])
+def starship_compat_redirect(subpath):
+    """Redirect old /tools/starship/ URLs to /tools/fleet/ after module merge."""
+    from flask import redirect, request as req
+
+    new_url = f"/tools/fleet/{subpath}"
+    if req.query_string:
+        new_url += f"?{req.query_string.decode()}"
     return redirect(new_url, code=307)
 
 

@@ -1842,41 +1842,17 @@ async function _loadFleetHealth() {
 }
 
 // ───────────────────────────────────────────────────────────────
-// Contractors Tab — Helpers
-// ───────────────────────────────────────────────────────────────
-
-var escapeHtml = esc; // alias for fleet.js compat
-
-function _el(tag, cls, style) {
-    var e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (style) e.style.cssText = style;
-    return e;
-}
-
-function showToast(msg, type) {
-    var t = document.createElement('div');
-    t.style.cssText = 'position:fixed;bottom:24px;right:24px;padding:10px 20px;border-radius:6px;color:#fff;font-size:0.85rem;z-index:10000;opacity:0;transition:opacity 0.3s;';
-    t.style.background = type === 'error' ? '#ef4444' : type === 'warning' ? '#f59e0b' : '#10b981';
-    t.textContent = msg;
-    document.body.appendChild(t);
-    requestAnimationFrame(function() { t.style.opacity = '1'; });
-    setTimeout(function() { t.style.opacity = '0'; setTimeout(function() { t.remove(); }, 300); }, 3000);
-}
-
-// ───────────────────────────────────────────────────────────────
-// Contractors Tab — Full Provider Management
-// ───────────────────────────────────────────────────────────────
+var escapeHtml = typeof esc === "function" ? esc : function(s) { var d = document.createElement("div"); d.textContent = String(s == null ? "" : s); return d.innerHTML; };
+function showToast(msg, type) { console.log("[" + (type||"info") + "] " + msg); }
+// CONTRACTORS (External Providers) — Crew Sub-Tab
+// ============================================================================
 
 async function loadContractors() {
-    loaded['contractors'] = true;
     try {
-        var results = await Promise.all([
+        var [provResp, modeResp] = await Promise.all([
             fetch('/tools/fleet/api/external-providers'),
             fetch('/tools/fleet/api/routing-mode')
         ]);
-        var provResp = results[0];
-        var modeResp = results[1];
         if (!provResp.ok) throw new Error('Failed to load providers');
         var data = await provResp.json();
         var routingMode = 'full';
@@ -1890,62 +1866,22 @@ async function loadContractors() {
         });
     } catch (e) {
         console.error('loadContractors error:', e);
-        var grid = document.getElementById('contractorProvidersContent');
-        if (grid) grid.textContent = 'Failed to load contractors';
+        var grid = document.getElementById('contractors-grid');
+        if (grid) grid.innerHTML = '<span class="briefing-muted">Failed to load contractors</span>';
     }
-
-    // Definitions table
-    try {
-        var data = await api('/api/contractors/definitions');
-        var defEl = document.getElementById('contractorDefinitionsContent');
-        if (!defEl || !data || !data.success) return;
-        var defs = data.providers || [];
-        if (defs.length === 0) { defEl.textContent = 'No contractor definitions'; return; }
-        defEl.textContent = '';
-        var tbl = document.createElement('table');
-        tbl.style.cssText = 'width:100%;font-size:0.75rem;border-collapse:collapse;';
-        var thead = document.createElement('tr');
-        thead.style.cssText = 'color:rgba(255,255,255,0.5);border-bottom:1px solid rgba(255,255,255,0.1);';
-        ['Provider', 'Base URL', 'Tier', 'Active'].forEach(function(h) {
-            var th = document.createElement('th');
-            th.style.cssText = 'text-align:left;padding:6px;';
-            th.textContent = h;
-            thead.appendChild(th);
-        });
-        tbl.appendChild(thead);
-        defs.forEach(function(d) {
-            var tr = document.createElement('tr');
-            tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
-            var cells = [
-                d.display_name || d.provider_key,
-                d.base_url || '',
-                String(d.tier_position || '?'),
-                d.is_active ? 'YES' : 'NO'
-            ];
-            cells.forEach(function(val, i) {
-                var td = document.createElement('td');
-                td.style.padding = '6px';
-                if (i === 0) td.style.fontWeight = '600';
-                if (i === 3) { td.style.color = val === 'YES' ? '#10b981' : '#6b7280'; td.style.textAlign = 'center'; }
-                td.textContent = val;
-                tr.appendChild(td);
-            });
-            tbl.appendChild(tr);
-        });
-        defEl.appendChild(tbl);
-    } catch (e) { console.error('Contractor defs load:', e); }
 }
 
 function renderContractors(providers, routingMode, creedData) {
     routingMode = routingMode || 'full';
     creedData = creedData || { creed_total_24h: 0, creed_blocked_24h: 0 };
     var creedBlocked = creedData.creed_blocked_24h || 0;
+    // Dynamic cloud provider check — use is_cloud_proxy from API data
     var cloudProviders = providers.filter(function(p) { return p.is_cloud_proxy; }).map(function(p) { return p.provider; });
-    var grid = document.getElementById('contractorProvidersContent');
+    var grid = document.getElementById('contractors-grid');
     var summaryEl = document.getElementById('contractors-summary');
     if (!grid) return;
 
-    // Compute summary
+    // Compute summary — use actual API field names
     var activeCount = 0;
     var totalCount = providers.length;
     var totalSpent = 0;
@@ -1958,23 +1894,17 @@ function renderContractors(providers, routingMode, creedData) {
     if (summaryEl) {
         summaryEl.textContent = activeCount + '/' + totalCount + ' active \u2014 $' + totalSpent.toFixed(2) + ' / $' + totalBudget.toFixed(0);
     }
-    // Also update the count badge
-    var countEl = document.getElementById('contractorCount');
-    if (countEl) countEl.textContent = '(' + totalCount + ')';
 
     if (providers.length === 0) {
-        grid.textContent = '';
-        var emptyMsg = document.createElement('span');
-        emptyMsg.className = 'briefing-muted';
-        emptyMsg.textContent = 'No external providers configured. Click "+ Add Provider" to get started.';
-        grid.appendChild(emptyMsg);
+        grid.innerHTML = '<span class="briefing-muted">No external providers configured. Click "+ Add Provider" to get started.</span>';
         return;
     }
 
-    grid.textContent = '';
+    var html = '';
     providers.forEach(function(p) {
-        var providerName = p.display_name || (p.name || p.provider || '').replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
-        var providerKey = p.provider || p.name || '';
+        var providerName = escapeHtml(p.display_name || (p.name || p.provider || '').replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }));
+        var providerKey = escapeHtml(p.provider || p.name || '');
+        // Get first tier position from tier_positions map
         var tierPositions = p.tier_positions || {};
         var tierPosVals = Object.values(tierPositions);
         var tierPos = tierPosVals.length > 0 ? Math.min.apply(null, tierPosVals) : '--';
@@ -1991,6 +1921,7 @@ function renderContractors(providers, routingMode, creedData) {
         var budgetFillClass = budgetPct > 100 ? 'over' : (budgetPct > 75 ? 'warning' : '');
         var isBlocked = (routingMode === 'local_only') ||
                         (routingMode === 'local_cloud' && cloudProviders.indexOf(p.provider) === -1);
+        var blockedStyle = isBlocked ? 'position:relative;opacity:0.4;pointer-events:none;' : '';
 
         // Compute session/weekly totals for collapsed summary
         var pSess = 0, pSessLim = 0, pWkly = 0, pWklyLim = 0;
@@ -2005,153 +1936,62 @@ function renderContractors(providers, routingMode, creedData) {
         var wPct = pWklyLim > 0 ? Math.min(100, Math.round(pWkly / pWklyLim * 100)) + '%' : '\u221e';
         var headerSummary = (pSess > 0 || pWkly > 0 || pSessLim > 0 || pWklyLim > 0) ? 's=' + sPct + ' / w=' + wPct : '';
 
-        // --- Build contractor firm card via DOM ---
-        var firm = _el('div', 'contractor-firm');
-        if (isBlocked) {
-            firm.style.cssText = 'position:relative;opacity:0.4;pointer-events:none;';
-        }
+        html += '<div class="contractor-firm"' + (blockedStyle ? ' style="' + blockedStyle + '"' : '') + '>';
+        html += '<div class="contractor-firm-header" onclick="this.parentElement.classList.toggle(\'expanded\')">';
+        html += '<i data-lucide="chevron-right" class="chevron-icon"></i>';
+        html += '<span class="contractor-firm-name">' + providerName + '</span>';
+        if (headerSummary) html += '<span class="contractor-header-summary">' + headerSummary + '</span>';
+        html += '<span class="contractor-tier-badge">Tier ' + escapeHtml(String(tierPos)) + '</span>';
+        html += '<span style="font-size:0.6rem;padding:1px 6px;border-radius:3px;border:1px solid ' + tierColor + ';color:' + tierColor + ';text-transform:uppercase;letter-spacing:0.5px;">' + escapeHtml(tierLabel) + '</span>';
+        html += '<span class="contractor-status-badge ' + statusClass + '">' + statusText + '</span>';
+        html += '<div class="budget-bar"><div class="budget-fill ' + budgetFillClass + '" style="width:' + budgetPct.toFixed(0) + '%"></div></div>';
+        html += '<div class="contractor-firm-actions">';
+        html += '<button class="contractor-btn-edit" onclick="event.stopPropagation();editProvider(\'' + providerKey + '\')">Edit</button>';
+        html += '<button class="contractor-btn-toggle" onclick="event.stopPropagation();toggleProvider(\'' + providerKey + '\')">' + (isEnabled ? 'Disable' : 'Enable') + '</button>';
+        html += '</div>';
+        html += '</div>'; // header
 
-        // Header row (clickable to expand)
-        var firmHeader = _el('div', 'contractor-firm-header');
-        firmHeader.addEventListener('click', function() { firm.classList.toggle('expanded'); });
-
-        var chevron = _el('i');
-        chevron.setAttribute('data-lucide', 'chevron-right');
-        chevron.className = 'chevron-icon';
-        firmHeader.appendChild(chevron);
-
-        var nameSpan = _el('span', 'contractor-firm-name');
-        nameSpan.textContent = providerName;
-        firmHeader.appendChild(nameSpan);
-
-        if (headerSummary) {
-            var summarySpan = _el('span', 'contractor-header-summary');
-            summarySpan.textContent = headerSummary;
-            firmHeader.appendChild(summarySpan);
-        }
-
-        var tierBadge = _el('span', 'contractor-tier-badge');
-        tierBadge.textContent = 'Tier ' + String(tierPos);
-        firmHeader.appendChild(tierBadge);
-
-        var tierLabelSpan = _el('span', '', 'font-size:0.6rem;padding:1px 6px;border-radius:3px;border:1px solid ' + tierColor + ';color:' + tierColor + ';text-transform:uppercase;letter-spacing:0.5px;');
-        tierLabelSpan.textContent = tierLabel;
-        firmHeader.appendChild(tierLabelSpan);
-
-        var statusBadge = _el('span', 'contractor-status-badge ' + statusClass);
-        statusBadge.textContent = statusText;
-        firmHeader.appendChild(statusBadge);
-
-        var budgetBar = _el('div', 'budget-bar');
-        var budgetFill = _el('div', 'budget-fill ' + budgetFillClass);
-        budgetFill.style.width = budgetPct.toFixed(0) + '%';
-        budgetBar.appendChild(budgetFill);
-        firmHeader.appendChild(budgetBar);
-
-        var firmActions = _el('div', 'contractor-firm-actions');
-        var editBtn = _el('button', 'contractor-btn-edit');
-        editBtn.textContent = 'Edit';
-        (function(pk) {
-            editBtn.addEventListener('click', function(e) { e.stopPropagation(); editProvider(pk); });
-        })(providerKey);
-        firmActions.appendChild(editBtn);
-
-        var toggleBtn = _el('button', 'contractor-btn-toggle');
-        toggleBtn.textContent = isEnabled ? 'Disable' : 'Enable';
-        (function(pk) {
-            toggleBtn.addEventListener('click', function(e) { e.stopPropagation(); toggleProvider(pk); });
-        })(providerKey);
-        firmActions.appendChild(toggleBtn);
-
-        firmHeader.appendChild(firmActions);
-        firm.appendChild(firmHeader);
-
-        // Body (models list)
-        var firmBody = _el('div', 'contractor-firm-body');
-
+        // Models body
+        html += '<div class="contractor-firm-body">';
         // Auth & budget info row
-        var authRow = _el('div', '', 'display:flex;flex-wrap:wrap;gap:12px;padding:6px 8px;margin-bottom:8px;background:rgba(255,255,255,0.03);border-radius:4px;font-size:0.72rem;color:var(--archie-text-tertiary);');
-        var authLabels = [
-            { label: 'Auth', value: p.auth_method || 'API key', color: 'var(--archie-cyan)' },
-            { label: 'Key', value: p.key_hint || 'Not set', color: p.key_hint ? 'var(--archie-text-secondary)' : '#ff6b6b' },
-            { label: 'Budget', value: '$' + monthlyBudget.toFixed(2) + '/mo', color: 'var(--archie-text-secondary)' },
-            { label: 'Spent', value: '$' + currentCost.toFixed(2), color: 'var(--archie-text-secondary)' }
-        ];
-        authLabels.forEach(function(item) {
-            var span = document.createElement('span');
-            var valSpan = document.createElement('span');
-            valSpan.style.color = item.color;
-            valSpan.textContent = item.value;
-            span.textContent = item.label + ': ';
-            span.appendChild(valSpan);
-            authRow.appendChild(span);
-        });
-        firmBody.appendChild(authRow);
-
+        var authMethod = escapeHtml(p.auth_method || 'API key');
+        var keyHint = p.key_hint ? escapeHtml(p.key_hint) : 'Not set';
+        html += '<div style="display:flex;flex-wrap:wrap;gap:12px;padding:6px 8px;margin-bottom:8px;background:rgba(255,255,255,0.03);border-radius:4px;font-size:0.72rem;color:var(--archie-text-tertiary);">';
+        html += '<span>Auth: <span style="color:var(--archie-cyan);">' + authMethod + '</span></span>';
+        html += '<span>Key: <span style="color:' + (p.key_hint ? 'var(--archie-text-secondary)' : '#ff6b6b') + ';">' + keyHint + '</span></span>';
+        html += '<span>Budget: <span style="color:var(--archie-text-secondary);">$' + monthlyBudget.toFixed(2) + '/mo</span></span>';
+        html += '<span>Spent: <span style="color:var(--archie-text-secondary);">$' + currentCost.toFixed(2) + '</span></span>';
+        html += '</div>';
         var models = p.models || [];
         if (models.length === 0) {
-            var noModels = _el('span', 'briefing-muted', 'font-size:0.7rem;');
-            noModels.textContent = 'No models registered for this provider';
-            firmBody.appendChild(noModels);
+            html += '<span class="briefing-muted" style="font-size:0.7rem;">No models registered for this provider</span>';
         } else {
-            var modelsGrid = _el('div', 'contractor-models-grid');
+            html += '<div class="contractor-models-grid">';
             models.forEach(function(m) {
                 var modelEnabled = m.enabled !== false;
-                var modelCard = _el('div', 'contractor-model-card' + (modelEnabled ? '' : ' disabled'));
+                html += '<div class="contractor-model-card' + (modelEnabled ? '' : ' disabled') + '">';
                 var mStats = m.stats_24h || {};
                 var mTierPos = m.tier_position != null ? m.tier_position : tierPos;
-
-                var modelName = _el('div', 'contractor-model-name');
-                modelName.textContent = m.name || m.model_name || '';
-                modelCard.appendChild(modelName);
-
-                var modelMeta = _el('div', 'contractor-model-meta');
-                var metaSpan = document.createElement('span');
-                metaSpan.textContent = 'Contract Worker \u00b7 Tier ' + String(mTierPos);
-                modelMeta.appendChild(metaSpan);
-                modelCard.appendChild(modelMeta);
-
-                // 24h stats
-                var statsDiv = _el('div', 'model-stats');
-                var statItems = [
-                    { label: 'Tasks/24h', val: (mStats.requests != null ? String(mStats.requests) : '0') },
-                    { label: 'Success', val: (mStats.success_rate != null && mStats.requests > 0 ? parseFloat(mStats.success_rate).toFixed(0) + '%' : '--') },
-                    { label: 'Avg latency', val: (mStats.avg_latency_ms != null && mStats.requests > 0 ? (parseFloat(mStats.avg_latency_ms) / 1000).toFixed(1) + 's' : '--') },
-                    { label: 'Cost/24h', val: '$' + (mStats.cost != null ? parseFloat(mStats.cost).toFixed(3) : '0.000') }
-                ];
-                statItems.forEach(function(si) {
-                    var row = document.createElement('div');
-                    row.textContent = si.label + ': ';
-                    var valSpan = _el('span', 'stat-val');
-                    valSpan.textContent = si.val;
-                    row.appendChild(valSpan);
-                    statsDiv.appendChild(row);
-                });
-                modelCard.appendChild(statsDiv);
-
-                // All-time stats
+                html += '<div class="contractor-model-name">' + escapeHtml(m.name || m.model_name || '') + '</div>';
+                html += '<div class="contractor-model-meta">';
+                html += '<span>Contract Worker \u00b7 Tier ' + escapeHtml(String(mTierPos)) + '</span>';
+                html += '</div>';
                 var mAlltime = m.stats_alltime || null;
+                html += '<div class="model-stats">';
+                html += '<div>Tasks/24h: <span class="stat-val">' + (mStats.requests != null ? mStats.requests : '0') + '</span></div>';
+                html += '<div>Success: <span class="stat-val">' + (mStats.success_rate != null && mStats.requests > 0 ? parseFloat(mStats.success_rate).toFixed(0) + '%' : '--') + '</span></div>';
+                html += '<div>Avg latency: <span class="stat-val">' + (mStats.avg_latency_ms != null && mStats.requests > 0 ? (parseFloat(mStats.avg_latency_ms) / 1000).toFixed(1) + 's' : '--') + '</span></div>';
+                html += '<div>Cost/24h: <span class="stat-val">$' + (mStats.cost != null ? parseFloat(mStats.cost).toFixed(3) : '0.000') + '</span></div>';
+                html += '</div>';
                 if (mAlltime) {
-                    var lastUsedStr = mAlltime.last_used && typeof ArchieTime !== 'undefined' ? ArchieTime.date(mAlltime.last_used) : (mAlltime.last_used || '--');
-                    var allDiv = _el('div', 'model-stats', 'margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.06);');
-                    var allItems = [
-                        { label: 'Total', val: mAlltime.requests + ' tasks' },
-                        { label: 'Success', val: parseFloat(mAlltime.success_rate).toFixed(0) + '%' },
-                        { label: 'Last used', val: lastUsedStr },
-                        { label: 'Total cost', val: '$' + parseFloat(mAlltime.cost).toFixed(3) }
-                    ];
-                    allItems.forEach(function(ai) {
-                        var row = document.createElement('div');
-                        row.textContent = ai.label + ': ';
-                        var valSpan = _el('span', 'stat-val');
-                        valSpan.textContent = ai.val;
-                        row.appendChild(valSpan);
-                        allDiv.appendChild(row);
-                    });
-                    modelCard.appendChild(allDiv);
+                    var lastUsedStr = mAlltime.last_used ? ArchieTime.date(mAlltime.last_used) : '--';
+                    html += '<div class="model-stats" style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.06);">';
+                    html += '<div>Total: <span class="stat-val">' + mAlltime.requests + ' tasks</span></div>';
+                    html += '<div>Success: <span class="stat-val">' + parseFloat(mAlltime.success_rate).toFixed(0) + '%</span></div>';
+                    html += '<div>Last used: <span class="stat-val">' + lastUsedStr + '</span></div>';
+                    html += '<div>Total cost: <span class="stat-val">$' + parseFloat(mAlltime.cost).toFixed(3) + '</span></div>';
+                    html += '</div>';
                 }
-
-                // Usage windows (session/weekly bars)
                 var mWindows = m.usage_windows || null;
                 if (mWindows) {
                     var sess = mWindows.session_2h != null ? mWindows.session_2h : 0;
@@ -2159,116 +1999,63 @@ function renderContractors(providers, routingMode, creedData) {
                     var wkly = mWindows.weekly_7d != null ? mWindows.weekly_7d : 0;
                     var wklyLimit = mWindows.weekly_limit || null;
                     var sessPct = sessLimit ? Math.min(sess / sessLimit * 100, 100) : 0;
+                    var sessPct = sessLimit ? Math.min(sess / sessLimit * 100, 100) : 0;
                     var wklyPct = wklyLimit ? Math.min(wkly / wklyLimit * 100, 100) : 0;
                     var barColor = function(pct) { return pct > 80 ? '#ff4444' : pct > 50 ? '#ffaa00' : '#22cc88'; };
                     var sessStr = sessLimit ? sess + ' / ' + sessLimit : sess + ' req';
                     var wklyStr = wklyLimit ? wkly + ' / ' + wklyLimit : wkly + ' req';
-
-                    var windowsDiv = _el('div', '', 'margin-top:4px;padding:5px 6px;border-top:1px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;gap:5px;font-size:0.65rem;');
-
+                    var sessPctStr = sessLimit ? Math.round(sessPct) + '%' : '';
+                    var wklyPctStr = wklyLimit ? Math.round(wklyPct) + '%' : '';
+                    html += '<div style="margin-top:4px;padding:5px 6px;border-top:1px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;gap:5px;font-size:0.65rem;">';
                     // Session bar
-                    var sessRow = _el('div', '', 'display:flex;align-items:center;gap:6px;');
-                    var sessLabel = _el('span', '', 'color:rgba(255,255,255,0.5);min-width:58px;display:flex;align-items:center;gap:3px;');
-                    var sessIcon = _el('i', '', 'width:10px;height:10px;');
-                    sessIcon.setAttribute('data-lucide', 'clock');
-                    sessLabel.appendChild(sessIcon);
-                    sessLabel.appendChild(document.createTextNode(' Session'));
-                    sessRow.appendChild(sessLabel);
+                    html += '<div style="display:flex;align-items:center;gap:6px;">';
+                    html += '<span style="color:rgba(255,255,255,0.5);min-width:58px;display:flex;align-items:center;gap:3px;"><i data-lucide="clock" style="width:10px;height:10px;"></i> Session</span>';
                     if (sessLimit) {
-                        var sessPctSpan = _el('span', '', 'color:' + barColor(sessPct) + ';min-width:28px;font-weight:600;font-size:0.6rem;');
-                        sessPctSpan.textContent = Math.round(sessPct) + '%';
-                        sessRow.appendChild(sessPctSpan);
-                        var sessBarWrap = _el('div', '', 'flex:1;height:10px;background:rgba(255,255,255,0.06);border-radius:5px;overflow:hidden;position:relative;');
-                        var sessBarFill = _el('div', '', 'height:100%;width:' + sessPct.toFixed(1) + '%;background:' + barColor(sessPct) + ';border-radius:5px;transition:width 0.4s ease;');
-                        sessBarWrap.appendChild(sessBarFill);
-                        sessRow.appendChild(sessBarWrap);
+                        html += '<span style="color:' + barColor(sessPct) + ';min-width:28px;font-weight:600;font-size:0.6rem;">' + sessPctStr + '</span>';
+                        html += '<div style="flex:1;height:10px;background:rgba(255,255,255,0.06);border-radius:5px;overflow:hidden;position:relative;">';
+                        html += '<div style="height:100%;width:' + sessPct.toFixed(1) + '%;background:' + barColor(sessPct) + ';border-radius:5px;transition:width 0.4s ease;"></div>';
+                        html += '</div>';
                     } else {
-                        var unlimitedSpan = _el('span', '', 'color:var(--archie-cyan);font-size:0.6rem;flex:1;');
-                        unlimitedSpan.textContent = 'Unlimited';
-                        sessRow.appendChild(unlimitedSpan);
+                        html += '<span style="color:var(--archie-cyan);font-size:0.6rem;flex:1;">Unlimited</span>';
                     }
-                    var sessValSpan = _el('span', '', 'color:rgba(255,255,255,0.45);min-width:62px;text-align:right;font-size:0.6rem;');
-                    sessValSpan.textContent = sessStr;
-                    sessRow.appendChild(sessValSpan);
-                    windowsDiv.appendChild(sessRow);
-
+                    html += '<span style="color:rgba(255,255,255,0.45);min-width:62px;text-align:right;font-size:0.6rem;">' + sessStr + '</span>';
+                    html += '</div>';
                     // Weekly bar
-                    var wklyRow = _el('div', '', 'display:flex;align-items:center;gap:6px;');
-                    var wklyLabel = _el('span', '', 'color:rgba(255,255,255,0.5);min-width:58px;display:flex;align-items:center;gap:3px;');
-                    var wklyIcon = _el('i', '', 'width:10px;height:10px;');
-                    wklyIcon.setAttribute('data-lucide', 'calendar');
-                    wklyLabel.appendChild(wklyIcon);
-                    wklyLabel.appendChild(document.createTextNode(' Weekly'));
-                    wklyRow.appendChild(wklyLabel);
+                    html += '<div style="display:flex;align-items:center;gap:6px;">';
+                    html += '<span style="color:rgba(255,255,255,0.5);min-width:58px;display:flex;align-items:center;gap:3px;"><i data-lucide="calendar" style="width:10px;height:10px;"></i> Weekly</span>';
                     if (wklyLimit) {
-                        var wklyPctSpan = _el('span', '', 'color:' + barColor(wklyPct) + ';min-width:28px;font-weight:600;font-size:0.6rem;');
-                        wklyPctSpan.textContent = Math.round(wklyPct) + '%';
-                        wklyRow.appendChild(wklyPctSpan);
-                        var wklyBarWrap = _el('div', '', 'flex:1;height:10px;background:rgba(255,255,255,0.06);border-radius:5px;overflow:hidden;position:relative;');
-                        var wklyBarFill = _el('div', '', 'height:100%;width:' + wklyPct.toFixed(1) + '%;background:' + barColor(wklyPct) + ';border-radius:5px;transition:width 0.4s ease;');
-                        wklyBarWrap.appendChild(wklyBarFill);
-                        wklyRow.appendChild(wklyBarWrap);
+                        html += '<span style="color:' + barColor(wklyPct) + ';min-width:28px;font-weight:600;font-size:0.6rem;">' + wklyPctStr + '</span>';
+                        html += '<div style="flex:1;height:10px;background:rgba(255,255,255,0.06);border-radius:5px;overflow:hidden;position:relative;">';
+                        html += '<div style="height:100%;width:' + wklyPct.toFixed(1) + '%;background:' + barColor(wklyPct) + ';border-radius:5px;transition:width 0.4s ease;"></div>';
+                        html += '</div>';
                     } else {
-                        var unlimitedSpan2 = _el('span', '', 'color:var(--archie-cyan);font-size:0.6rem;flex:1;');
-                        unlimitedSpan2.textContent = 'Unlimited';
-                        wklyRow.appendChild(unlimitedSpan2);
+                        html += '<span style="color:var(--archie-cyan);font-size:0.6rem;flex:1;">Unlimited</span>';
                     }
-                    var wklyValSpan = _el('span', '', 'color:rgba(255,255,255,0.45);min-width:62px;text-align:right;font-size:0.6rem;');
-                    wklyValSpan.textContent = wklyStr;
-                    wklyRow.appendChild(wklyValSpan);
-                    windowsDiv.appendChild(wklyRow);
-
-                    modelCard.appendChild(windowsDiv);
+                    html += '<span style="color:rgba(255,255,255,0.45);min-width:62px;text-align:right;font-size:0.6rem;">' + wklyStr + '</span>';
+                    html += '</div>';
+                    html += '</div>';
                 }
-
-                // CREED badge + model toggle row
-                var bottomRow = _el('div', '', 'display:flex;align-items:center;justify-content:space-between;');
-                var creedBadge = _el('span', 'contractor-creed-badge');
+                html += '<div style="display:flex;align-items:center;justify-content:space-between;">';
                 if (creedBlocked > 0) {
-                    creedBadge.style.cssText = 'color:#ffaa00;border-color:#ffaa00;';
-                    var shieldAlert = _el('i', '', 'width:10px;height:10px;');
-                    shieldAlert.setAttribute('data-lucide', 'shield-alert');
-                    creedBadge.appendChild(shieldAlert);
-                    creedBadge.appendChild(document.createTextNode(' C.R.E.E.D.: ' + creedBlocked + ' blocked'));
+                    html += '<span class="contractor-creed-badge" style="color:#ffaa00;border-color:#ffaa00;"><i data-lucide="shield-alert" style="width:10px;height:10px;"></i> C.R.E.E.D.: ' + escapeHtml(String(creedBlocked)) + ' blocked</span>';
                 } else {
-                    var shieldCheck = _el('i', '', 'width:10px;height:10px;');
-                    shieldCheck.setAttribute('data-lucide', 'shield-check');
-                    creedBadge.appendChild(shieldCheck);
-                    creedBadge.appendChild(document.createTextNode(' C.R.E.E.D. Compliant'));
+                    html += '<span class="contractor-creed-badge"><i data-lucide="shield-check" style="width:10px;height:10px;"></i> C.R.E.E.D. Compliant</span>';
                 }
-                bottomRow.appendChild(creedBadge);
-
-                var toggleLabel = _el('label', 'contractor-model-toggle');
-                var toggleCheck = document.createElement('input');
-                toggleCheck.type = 'checkbox';
-                if (modelEnabled) toggleCheck.checked = true;
-                (function(pk, mn) {
-                    toggleCheck.addEventListener('change', function() {
-                        toggleContractorModel(pk, mn, this.checked);
-                    });
-                })(providerKey, m.name || m.model_name || '');
-                toggleLabel.appendChild(toggleCheck);
-                toggleLabel.appendChild(document.createTextNode(' Enabled'));
-                bottomRow.appendChild(toggleLabel);
-
-                modelCard.appendChild(bottomRow);
-                modelsGrid.appendChild(modelCard);
+                html += '<label class="contractor-model-toggle"><input type="checkbox" ' + (modelEnabled ? 'checked' : '') + ' onchange="toggleContractorModel(\'' + providerKey + '\',\'' + escapeHtml(m.name || m.model_name || '') + '\',this.checked)"> Enabled</label>';
+                html += '</div>';
+                html += '</div>'; // model card
             });
-            firmBody.appendChild(modelsGrid);
+            html += '</div>'; // models grid
         }
-        firm.appendChild(firmBody);
-
-        // Blocked overlay
+        html += '</div>'; // firm body
         if (isBlocked) {
             var blockedText = routingMode === 'local_only' ? 'Routing: Local Only' : 'Routing: Local + Cloud Only';
-            var blockedOverlay = _el('div', '', 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.7);color:#ffaa00;padding:4px 12px;border-radius:4px;font-size:0.7rem;z-index:1;pointer-events:auto;');
-            blockedOverlay.textContent = blockedText;
-            firm.appendChild(blockedOverlay);
+            html += '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.7);color:#ffaa00;padding:4px 12px;border-radius:4px;font-size:0.7rem;z-index:1;pointer-events:auto;">' + blockedText + '</div>';
         }
-
-        grid.appendChild(firm);
+        html += '</div>'; // firm
     });
 
+    grid.innerHTML = html;
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
@@ -2283,7 +2070,7 @@ function toggleProvider(provider) {
         showToast(data.message || 'Provider toggled', 'success');
         loadContractors();
     })
-    .catch(function() {
+    .catch(function(e) {
         showToast('Failed to toggle provider', 'error');
     });
 }
@@ -2299,13 +2086,9 @@ function toggleContractorModel(provider, model, enabled) {
         showToast(data.message || 'Model toggled', 'success');
         loadContractors();
     })
-    .catch(function() {
+    .catch(function(e) {
         showToast('Failed to toggle model', 'error');
     });
-}
-
-function editProvider(providerName) {
-    openAddProviderModal(providerName);
 }
 
 function openAddProviderModal(editProviderName) {
@@ -2342,45 +2125,53 @@ function openAddProviderModal(editProviderName) {
             { value: 'max', label: 'Max' }
         ];
 
-        // --- Build LCARS tablet modal ---
-        var overlay = _el('div', 'bm-overlay active bm-provider-modal', '--bm-accent:#a855f7;--bm-accent-rgb:168,85,247;');
-        overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+        // Helper to create elements
+        function el(tag, cls, style) {
+            var e = document.createElement(tag);
+            if (cls) e.className = cls;
+            if (style) e.style.cssText = style;
+            return e;
+        }
 
-        var shell = _el('div', 'bm-shell', 'max-width:400px;');
+        // --- Build LCARS tablet modal ---
+        var overlay = el('div', 'bm-overlay active bm-provider-modal', '--bm-accent:#a855f7;--bm-accent-rgb:168,85,247;');
+        overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+
+        var shell = el('div', 'bm-shell', 'max-width:400px;');
 
         // Left frame sidebar
-        var frame = _el('div', 'bm-frame');
-        frame.appendChild(_el('div', 'bm-frame-elbow-top'));
-        frame.appendChild(_el('div', 'bm-frame-seg'));
-        frame.appendChild(_el('div', 'bm-frame-seg dim'));
-        frame.appendChild(_el('div', 'bm-frame-light on'));
-        frame.appendChild(_el('div', 'bm-frame-light amber'));
-        frame.appendChild(_el('div', 'bm-frame-seg purple'));
-        frame.appendChild(_el('div', 'bm-frame-fill'));
-        frame.appendChild(_el('div', 'bm-frame-elbow-bottom'));
+        var frame = el('div', 'bm-frame');
+        frame.appendChild(el('div', 'bm-frame-elbow-top'));
+        frame.appendChild(el('div', 'bm-frame-seg'));
+        frame.appendChild(el('div', 'bm-frame-seg dim'));
+        frame.appendChild(el('div', 'bm-frame-light on'));
+        frame.appendChild(el('div', 'bm-frame-light amber'));
+        frame.appendChild(el('div', 'bm-frame-seg purple'));
+        frame.appendChild(el('div', 'bm-frame-fill'));
+        frame.appendChild(el('div', 'bm-frame-elbow-bottom'));
         shell.appendChild(frame);
 
         // Right content column
-        var content = _el('div', 'bm-content');
+        var content = el('div', 'bm-content');
 
         // Header
-        var header = _el('div', 'bm-header');
-        var title = _el('span', 'bm-header-title');
+        var header = el('div', 'bm-header');
+        var title = el('span', 'bm-header-title');
         title.textContent = (editProviderName ? 'EDIT' : 'ADD') + ' PROVIDER';
         header.appendChild(title);
-        var strip = _el('div', 'bm-header-strip');
-        strip.appendChild(_el('span', 'bm-header-pip w1'));
-        strip.appendChild(_el('span', 'bm-header-pip w2'));
-        strip.appendChild(_el('span', 'bm-header-pip w3'));
-        var closeBtn = _el('button', 'bm-close');
+        var strip = el('div', 'bm-header-strip');
+        strip.appendChild(el('span', 'bm-header-pip w1'));
+        strip.appendChild(el('span', 'bm-header-pip w2'));
+        strip.appendChild(el('span', 'bm-header-pip w3'));
+        var closeBtn = el('button', 'bm-close');
         closeBtn.textContent = '\u00D7';
-        closeBtn.addEventListener('click', function() { overlay.remove(); });
+        closeBtn.onclick = function() { overlay.remove(); };
         strip.appendChild(closeBtn);
         header.appendChild(strip);
         content.appendChild(header);
 
         // Body
-        var body = _el('div', 'bm-body');
+        var body = el('div', 'bm-body');
 
         // Provider select
         var lbl1 = document.createElement('label');
@@ -2453,23 +2244,23 @@ function openAddProviderModal(editProviderName) {
         content.appendChild(body);
 
         // Actions bar
-        var actions = _el('div', 'bm-actions');
-        var cancelBtn2 = _el('button', 'btn-cancel');
+        var actions = el('div', 'bm-actions');
+        var cancelBtn2 = el('button', 'btn-cancel');
         cancelBtn2.textContent = 'Cancel';
-        cancelBtn2.addEventListener('click', function() { overlay.remove(); });
-        var saveBtn = _el('button', 'btn-submit');
+        cancelBtn2.onclick = function() { overlay.remove(); };
+        var saveBtn = el('button', 'btn-submit');
         saveBtn.textContent = 'Save';
-        saveBtn.addEventListener('click', function() { saveProvider(); });
+        saveBtn.onclick = function() { saveProvider(); };
         actions.appendChild(cancelBtn2);
         actions.appendChild(saveBtn);
         content.appendChild(actions);
 
         // Footer decorative strip
-        var footer = _el('div', 'bm-footer');
-        var footerStrip = _el('div', 'bm-footer-strip');
-        footerStrip.appendChild(_el('span', 'bm-footer-dot purple'));
-        footerStrip.appendChild(_el('span', 'bm-footer-dot gold'));
-        footerStrip.appendChild(_el('span', 'bm-footer-dot cyan'));
+        var footer = el('div', 'bm-footer');
+        var footerStrip = el('div', 'bm-footer-strip');
+        footerStrip.appendChild(el('span', 'bm-footer-dot purple'));
+        footerStrip.appendChild(el('span', 'bm-footer-dot gold'));
+        footerStrip.appendChild(el('span', 'bm-footer-dot cyan'));
         footer.appendChild(footerStrip);
         content.appendChild(footer);
 
@@ -2497,6 +2288,10 @@ function openAddProviderModal(editProviderName) {
 
         if (typeof lucide !== 'undefined') lucide.createIcons();
     });
+}
+
+function editProvider(providerName) {
+    openAddProviderModal(providerName);
 }
 
 function saveProvider() {
@@ -2531,12 +2326,10 @@ function saveProvider() {
         if (overlay) overlay.remove();
         loadContractors();
     })
-    .catch(function() {
+    .catch(function(e) {
         showToast('Failed to save provider', 'error');
     });
 }
-
-// ───────────────────────────────────────────────────────────────
 // Init
 // ───────────────────────────────────────────────────────────────
 

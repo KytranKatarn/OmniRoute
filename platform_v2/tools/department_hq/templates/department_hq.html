@@ -4,6 +4,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('department_hq.static', filename='css/department-hq.css') }}">
+<link rel="stylesheet" href="/static/css/fleet.css">
 {% endblock %}
 
 {% block content %}
@@ -232,15 +233,10 @@
     <!-- CONTRACTORS TAB — External AI Providers                       -->
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <div class="dhq-panel" id="panel-contractors">
-      <div class="dhq-dispatch-section">
-        <div class="dhq-section-title">EXTERNAL CONTRACTORS <span id="contractorCount" style="color:var(--dhq-text-dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem"></span></div>
-        <div id="contractorProvidersContent" class="dhq-loading">Loading providers...</div>
-      </div>
-
-      <div class="dhq-dispatch-section">
-        <div class="dhq-section-title">CONTRACTOR DEFINITIONS</div>
-        <div id="contractorDefinitionsContent" class="dhq-loading">Loading definitions...</div>
-      </div>
+      <div id="contractors-summary"></div>
+      <div id="contractors-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px;padding:8px 0;"></div>
+      <div id="contractorProvidersContent"></div>
+      <div id="contractorDefinitionsContent"></div>
     </div>
 
   </div>

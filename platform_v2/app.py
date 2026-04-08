@@ -3314,6 +3314,34 @@ if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
         except Exception as e:
             logger.error("[Startup] JobService failed to initialize: %s", e)
 
+        # Phase 4b: Wire up LOOP_SERVICE for dispatch monitoring
+        try:
+            from services import loop_service as _loop_svc
+
+            class _LoopServiceWrapper:
+                """Thin wrapper to give loop_service module an object interface."""
+
+                def get_all_states(self):
+                    loops = _loop_svc.get_server_loops()
+                    result = {}
+                    for op in _loop_svc.VALID_LOOP_OPS:
+                        result[op] = {
+                            "enabled": loops.get(op, False),
+                            "name": op.title(),
+                        }
+                    return result
+
+                def toggle(self, loop_name):
+                    current = _loop_svc.get_server_loops()
+                    new_state = not current.get(loop_name, False)
+                    _loop_svc.set_server_loop(loop_name, new_state)
+                    return new_state
+
+            app.config["LOOP_SERVICE"] = _LoopServiceWrapper()
+            logger.info("[Startup] LOOP_SERVICE initialized (analysis, embedding, translate)")
+        except Exception as e:
+            logger.error("[Startup] LOOP_SERVICE failed: %s", e)
+
         # Phase 5: Bridge agent_loop jobs into job_service
         try:
             from services.agent_loop_bridge import bridge_agent_loop_to_job_service

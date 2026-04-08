@@ -224,6 +224,7 @@ def automated_module_audit(flask_app):
         # Unload non-essential models to free VRAM/RAM for repair agents
         try:
             import urllib.request as _urllib
+            from bridge_dispatcher import dispatch
 
             essential_models = {"arctic-embed-cpu:latest", "qwen2.5-coder:7b", "qwen2.5:1.5b"}
             ps_resp = _urllib.urlopen("http://192.168.1.200:11434/api/ps", timeout=10)
@@ -232,14 +233,16 @@ def automated_module_audit(flask_app):
             for m in loaded:
                 if m["name"] not in essential_models:
                     try:
-                        unload_data = json.dumps({"model": m["name"], "keep_alive": 0}).encode()
-                        unload_req = _urllib.Request(
-                            "http://192.168.1.200:11434/api/generate",
-                            data=unload_data,
-                            headers={"Content-Type": "application/json"},
+                        result = dispatch(
+                            capability="chat",
+                            prompt="unload",
+                            model=m["name"],
+                            module_id="dev_hq",
+                            keep_alive=0,
+                            timeout=30,
                         )
-                        _urllib.urlopen(unload_req, timeout=30).read()
-                        unloaded += 1
+                        if result and result.success:
+                            unloaded += 1
                     except Exception:
                         pass
             if unloaded:

@@ -40,8 +40,8 @@ logger = logging.getLogger(__name__)
 # River - Wellness Therapist agent ID
 THERAPY_AGENT_ID = 37
 
-# Fallback Ollama endpoint (if bridge unavailable)
-OLLAMA_URL = "http://localhost:11434"
+# Bridge dispatcher for fallback LLM calls
+from bridge_dispatcher import dispatch as bridge_dispatch
 
 # Crisis detection keywords
 CRISIS_KEYWORDS = [
@@ -120,28 +120,18 @@ def index():
 @therapy_bp.route("/api/status")
 def status():
     """API endpoint for module health check"""
-    import requests as req
-
-    # Check Ollama connection (fallback)
-    ollama_healthy = False
-    try:
-        response = req.get(f"{OLLAMA_URL}/api/tags", timeout=5)
-        ollama_healthy = response.status_code == 200
-    except Exception:
-        pass
-
     return jsonify(
         {
             "module": "therapy",
             "status": "active",
             "healthy": True,
             "bridge_available": BRIDGE_AVAILABLE,
-            "ollama_connected": ollama_healthy,
-            "agent": ("River - Wellness Therapist" if BRIDGE_AVAILABLE else "Direct Ollama"),
+            "dispatcher_available": _dispatcher is not None,
+            "agent": ("River - Wellness Therapist" if BRIDGE_AVAILABLE else "Bridge Dispatcher"),
             "message": (
                 "SERENE Mental Health AI is ready via A.R.C.H.I.E. Bridge"
                 if BRIDGE_AVAILABLE
-                else "SERENE Mental Health AI is ready (fallback mode)"
+                else "SERENE Mental Health AI is ready (bridge dispatch fallback)"
             ),
         }
     )
@@ -213,37 +203,30 @@ def chat():
             else:
                 logger.warning("archie_bridge returned error, falling back to direct Ollama")
 
-        # Fallback: Direct Ollama call
-        import requests as req
-
-        _default_model = _dispatcher.get_model_for_capability("conversation") if _dispatcher else ""
-        model = data.get("model") or _default_model
-        response = req.post(
-            f"{OLLAMA_URL}/api/generate",
-            json={
-                "model": model,
-                "prompt": f"{THERAPY_SYSTEM_PROMPT}\n\nUser: {message}\n\nSERENE:",
-                "stream": False,
-                "options": {"temperature": 0.8, "num_predict": 1200},
-            },
+        # Fallback: Bridge dispatcher
+        model = data.get("model") or ""
+        result = bridge_dispatch(
+            capability="chat",
+            prompt=f"{THERAPY_SYSTEM_PROMPT}\n\nUser: {message}\n\nSERENE:",
+            model=model,
+            module_id="therapy",
             timeout=90,
         )
 
-        if response.status_code == 200:
-            result = response.json()
-            ai_response = result.get("response", "").strip()
+        if result and result.success:
+            ai_response = (result.response or "").strip()
             return jsonify(
                 {
                     "success": True,
                     "response": ai_response,
-                    "model": model,
-                    "agent": "Direct Ollama (fallback)",
-                    "source": "ollama_direct",
+                    "model": "bridge_dispatch",
+                    "agent": "Bridge Dispatcher (fallback)",
+                    "source": "bridge_dispatch",
                     "is_crisis": False,
                 }
             )
         else:
-            logger.error(f"Ollama error: {response.status_code}")
+            logger.error("Bridge dispatch failed for therapy chat fallback")
             return (
                 jsonify({"success": False, "error": "AI service temporarily unavailable"}),
                 503,

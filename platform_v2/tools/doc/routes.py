@@ -40,8 +40,8 @@ logger = logging.getLogger(__name__)
 # Dr. Amara - Medical Advisor agent ID
 MEDICAL_AGENT_ID = 36
 
-# Fallback Ollama endpoint (if bridge unavailable)
-OLLAMA_URL = "http://localhost:11434"
+# Bridge dispatcher for fallback LLM calls
+from bridge_dispatcher import dispatch as bridge_dispatch
 
 # System prompt for medical AI
 MEDICAL_SYSTEM_PROMPT = """You are DOC, a helpful medical AI assistant. You provide general health information and guidance.
@@ -75,28 +75,18 @@ def index():
 @doc_bp.route("/api/status")
 def status():
     """API endpoint for module health check"""
-    import requests as req
-
-    # Check Ollama connection (fallback)
-    ollama_healthy = False
-    try:
-        response = req.get(f"{OLLAMA_URL}/api/tags", timeout=5)
-        ollama_healthy = response.status_code == 200
-    except Exception:
-        pass
-
     return jsonify(
         {
             "module": "doc",
             "status": "active",
             "healthy": True,
             "bridge_available": BRIDGE_AVAILABLE,
-            "ollama_connected": ollama_healthy,
-            "agent": ("Dr. Amara - Medical Advisor" if BRIDGE_AVAILABLE else "Direct Ollama"),
+            "dispatcher_available": _dispatcher is not None,
+            "agent": ("Dr. Amara - Medical Advisor" if BRIDGE_AVAILABLE else "Bridge Dispatcher"),
             "message": (
                 "DOC Medical AI is operational via A.R.C.H.I.E. Bridge"
                 if BRIDGE_AVAILABLE
-                else "DOC Medical AI is operational (fallback mode)"
+                else "DOC Medical AI is operational (bridge dispatch fallback)"
             ),
         }
     )
@@ -161,25 +151,18 @@ def chat():
                 logger.warning(f"archie_bridge returned error, falling back to direct Ollama")
                 # Fall through to direct Ollama call
 
-        # Fallback: Direct Ollama call
-        import requests as req
-
-        _default_model = _dispatcher.get_model_for_capability("conversation") if _dispatcher else ""
-        model = data.get("model") or _default_model
-        response = req.post(
-            f"{OLLAMA_URL}/api/generate",
-            json={
-                "model": model,
-                "prompt": f"{MEDICAL_SYSTEM_PROMPT}\n\nUser: {message}\n\nDOC:",
-                "stream": False,
-                "options": {"temperature": 0.7, "num_predict": 1000},
-            },
+        # Fallback: Bridge dispatcher
+        model = data.get("model") or ""
+        result = bridge_dispatch(
+            capability="chat",
+            prompt=f"{MEDICAL_SYSTEM_PROMPT}\n\nUser: {message}\n\nDOC:",
+            model=model,
+            module_id="doc",
             timeout=60,
         )
 
-        if response.status_code == 200:
-            result = response.json()
-            ai_response = result.get("response", "").strip()
+        if result and result.success:
+            ai_response = (result.response or "").strip()
 
             # Add disclaimer if not present
             if "consult" not in ai_response.lower() and "healthcare" not in ai_response.lower():
@@ -189,13 +172,13 @@ def chat():
                 {
                     "success": True,
                     "response": ai_response,
-                    "model": model,
-                    "agent": "Direct Ollama (fallback)",
-                    "source": "ollama_direct",
+                    "model": "bridge_dispatch",
+                    "agent": "Bridge Dispatcher (fallback)",
+                    "source": "bridge_dispatch",
                 }
             )
         else:
-            logger.error(f"Ollama error: {response.status_code}")
+            logger.error("Bridge dispatch failed for DOC chat fallback")
             return (
                 jsonify({"success": False, "error": "AI service temporarily unavailable"}),
                 503,
@@ -271,42 +254,21 @@ Remember to emphasize consulting a healthcare professional."""
                     }
                 )
 
-        # Fallback: Direct Ollama call
-        import requests as req
-
-        _default_model = _dispatcher.get_model_for_capability("conversation") if _dispatcher else ""
-        _fallback_model = _default_model or (
-            _dispatcher.get_model_for_capability("conversation") if _dispatcher else "dolphin3-8k:latest"
-        )
-        response = req.post(
-            f"{OLLAMA_URL}/api/generate",
-            json={
-                "model": _fallback_model,
-                "prompt": f"{MEDICAL_SYSTEM_PROMPT}\n\n{prompt}\n\nDOC:",
-                "stream": False,
-                "options": {"temperature": 0.5, "num_predict": 1500},
-            },
+        # Fallback: Bridge dispatcher
+        result = bridge_dispatch(
+            capability="chat",
+            prompt=f"{MEDICAL_SYSTEM_PROMPT}\n\n{prompt}\n\nDOC:",
+            module_id="doc",
             timeout=90,
         )
 
-        if response.status_code == 200:
-            result = response.json()
-            if _dispatcher:
-                try:
-                    _dispatcher.log_external_call(
-                        capability="conversation",
-                        module_id="doc",
-                        model_used=_fallback_model,
-                        success=True,
-                    )
-                except Exception:
-                    pass
+        if result and result.success:
             return jsonify(
                 {
                     "success": True,
-                    "analysis": result.get("response", "").strip(),
-                    "agent": "Direct Ollama (fallback)",
-                    "source": "ollama_direct",
+                    "analysis": (result.response or "").strip(),
+                    "agent": "Bridge Dispatcher (fallback)",
+                    "source": "bridge_dispatch",
                 }
             )
         else:

@@ -1620,29 +1620,30 @@ def api_clear_bridge_cache():
 @login_required
 @admin_hub_only
 def api_restart_warmup():
-    """Trigger Ollama model warmup.
+    """Trigger model warmup via Bridge dispatcher.
 
-    NOTE: Intentional direct Ollama call (ADR-013 exception).
-    Warmup sends dummy prompts to pre-load models into GPU RAM.
-    Not routed through Bridge because there's no real inference work —
-    no agent assignment, governance, or cost tracking needed.
+    Sends minimal prompts through the dispatcher to pre-load models into RAM.
+    Routed through Bridge per ADR-013 — dispatcher handles model loading.
     """
-    ollama_host = os.getenv("OLLAMA_HOST", "host.docker.internal:11434")
-    if not ollama_host.startswith("http"):
-        ollama_host = "http://" + ollama_host
+    from bridge_dispatcher import dispatch
+
     models = ["dolphin3-8k:latest", "arctic-embed-cpu:latest", "qwen25-classify:latest"]
     results = []
     for model in models:
         try:
-            payload = json_module.dumps({"model": model, "prompt": "warmup", "stream": False}).encode()
-            req = urllib.request.Request(
-                f"{ollama_host}/api/generate",
-                data=payload,
-                headers={"Content-Type": "application/json", "User-Agent": "archie-devhq/1.0"},
-                method="POST",
+            result = dispatch(
+                capability="chat",
+                prompt="warmup",
+                model=model,
+                module_id="dev_hq",
+                timeout=30,
             )
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                results.append({"model": model, "status": "ok" if resp.status == 200 else "error"})
+            status = "ok" if result and result.success else "error"
+            error_msg = None if status == "ok" else (result.response if result else "no response")
+            entry = {"model": model, "status": status}
+            if error_msg:
+                entry["error"] = error_msg
+            results.append(entry)
         except Exception as e:
             results.append({"model": model, "status": "error", "error": str(e)})
     return jsonify(

@@ -1397,6 +1397,10 @@ async function loadDispatch() {
     loadServerLoops();
     loadDispatchApprovals();
     loadDispatchHistory();
+    loadDispatchComponents();
+    loadDispatchScheduler();
+    loadDispatchConfig();
+    loadDispatchRepairPipeline();
 }
 
 function renderOllamaHud(o) {
@@ -1630,6 +1634,90 @@ async function loadDispatchHistory() {
         html += '</tbody></table>';
         setHtml(el, html);
     } catch (e) { setHtml(el, '<div class="dhq-empty">Error: ' + esc(e.message) + '</div>'); }
+}
+
+// ── System Components ──
+
+async function loadDispatchComponents() {
+    var el = document.getElementById('dispatchComponentsContent');
+    try {
+        var data = await api('/api/dispatch/components');
+        var comps = data.components || [];
+        if (!comps.length) { setHtml(el, '<div class="dhq-empty">No components</div>'); return; }
+        var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:0.5rem">';
+        comps.forEach(function(c) {
+            var color = c.ok ? '#10B981' : '#ef4444';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0.6rem;background:var(--dhq-surface-2);border:1px solid var(--dhq-border);border-radius:4px">'
+                + '<span style="font-size:0.78rem">' + esc(c.name) + '</span>'
+                + '<span style="font-size:0.7rem;font-weight:600;color:' + color + '">' + esc(c.detail || (c.ok ? 'OK' : 'ERROR')) + '</span>'
+                + '</div>';
+        });
+        html += '</div>';
+        setHtml(el, html);
+    } catch(e) { setHtml(el, '<div class="dhq-empty">Error: ' + esc(e.message) + '</div>'); }
+}
+
+// ── Scheduler Jobs ──
+
+async function loadDispatchScheduler() {
+    var el = document.getElementById('dispatchSchedContent');
+    var countEl = document.getElementById('dispatchSchedCount');
+    try {
+        var data = await api('/api/dispatch/scheduler');
+        var jobs = data.jobs || [];
+        if (countEl) countEl.textContent = '(' + jobs.length + ')';
+        if (!jobs.length) { setHtml(el, '<div class="dhq-empty">No scheduler jobs</div>'); return; }
+        var html = '<table class="dhq-loop-table"><thead><tr><th>JOB ID</th><th>NAME</th><th>NEXT RUN</th><th>TRIGGER</th></tr></thead><tbody>';
+        jobs.forEach(function(j) {
+            html += '<tr><td style="color:var(--dhq-accent)">' + esc(j.id) + '</td><td>' + esc(j.name) + '</td><td style="color:var(--dhq-text-dim)">' + fmtTime(j.next_run) + '</td><td style="color:var(--dhq-text-dim);font-size:0.7rem">' + esc(j.trigger) + '</td></tr>';
+        });
+        html += '</tbody></table>';
+        setHtml(el, html);
+    } catch(e) { setHtml(el, '<div class="dhq-empty">Error: ' + esc(e.message) + '</div>'); }
+}
+
+// ── Configuration ──
+
+async function loadDispatchConfig() {
+    var el = document.getElementById('dispatchConfigContent');
+    try {
+        var data = await api('/api/dispatch/config');
+        var entries = data.config || [];
+        if (!entries.length) { setHtml(el, '<div class="dhq-empty">No config entries</div>'); return; }
+        var html = '<table class="dhq-loop-table"><thead><tr><th>KEY</th><th>VALUE</th><th></th></tr></thead><tbody>';
+        entries.forEach(function(c) {
+            html += '<tr><td style="color:var(--dhq-accent);font-family:monospace">' + esc(c.key) + '</td>'
+                + '<td><input id="dhq-cfg-' + esc(c.key) + '" value="' + esc(c.value) + '" style="background:var(--dhq-surface-2);border:1px solid var(--dhq-border);color:var(--dhq-text);padding:3px 8px;border-radius:4px;font-family:monospace;font-size:0.78rem;width:180px"></td>'
+                + '<td><button onclick="saveDispatchConfig(\'' + esc(c.key) + '\')" style="background:var(--dhq-accent);color:#000;border:none;padding:3px 10px;border-radius:4px;font-size:0.65rem;cursor:pointer;font-weight:600">Save</button></td></tr>';
+        });
+        html += '</tbody></table>';
+        setHtml(el, html);
+    } catch(e) { setHtml(el, '<div class="dhq-empty">Error: ' + esc(e.message) + '</div>'); }
+}
+
+async function saveDispatchConfig(key) {
+    var input = document.getElementById('dhq-cfg-' + key);
+    if (!input) return;
+    try {
+        await apiPost('/api/dispatch/config/' + encodeURIComponent(key), {value: input.value});
+        input.style.borderColor = '#10B981';
+        setTimeout(function() { input.style.borderColor = ''; }, 2000);
+    } catch(e) { input.style.borderColor = '#ef4444'; }
+}
+
+// ── Repair Pipeline ──
+
+async function loadDispatchRepairPipeline() {
+    var el = document.getElementById('dispatchRepairContent');
+    try {
+        var data = await api('/api/dispatch/repair-pipeline');
+        var html = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.75rem">';
+        [{l:'OPEN PROPOSALS',v:data.open_proposals||0},{l:'ACTIVE SESSIONS',v:data.active_sessions||0},{l:'CREED EVENTS 24H',v:data.creed_events||0},{l:'AUDIT FINDINGS 24H',v:data.audit_findings||0}].forEach(function(item) {
+            html += '<div class="dhq-metric-cell"><div class="dhq-metric-label">' + item.l + '</div><div class="dhq-metric-val">' + item.v + '</div></div>';
+        });
+        html += '</div>';
+        setHtml(el, html);
+    } catch(e) { setHtml(el, '<div class="dhq-empty">Pipeline unavailable</div>'); }
 }
 
 // ───────────────────────────────────────────────────────────────

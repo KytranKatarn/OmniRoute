@@ -172,7 +172,7 @@
                 'severity-high',
                 'APPROVALS',
                 String(approvals) + ' PENDING',
-                '/tools/autonomy#approvals'
+                '/tools/department-hq/?tab=dispatch'
             ));
         }
 
@@ -181,7 +181,7 @@
             'ok',
             'JOBS',
             String(jobs) + ' RUNNING',
-            '/tools/autonomy#active'
+            '/tools/department-hq/?tab=dispatch'
         ));
 
         // Loops active
@@ -189,7 +189,7 @@
             'ok',
             'LOOPS',
             String(loops) + ' ACTIVE',
-            '/tools/autonomy#active'
+            '/tools/department-hq/?tab=dispatch'
         ));
 
         // Errors
@@ -198,7 +198,7 @@
                 'severity-low',
                 'ERRORS',
                 String(errors),
-                '/tools/autonomy#active'
+                '/tools/department-hq/?tab=dispatch'
             ));
         }
 

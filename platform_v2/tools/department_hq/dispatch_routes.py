@@ -414,3 +414,194 @@ def register_dispatch_routes(bp, admin_required_decorator):
         except Exception as e:
             logger.error("[Dispatch] History failed: %s", e)
             return jsonify({"success": False, "error": str(e)}), 500
+
+    # ── System Components ──
+
+    @bp.route("/api/dispatch/components", methods=["GET"])
+    @login_required
+    @admin_required_decorator
+    def dispatch_components():
+        """System health: Ollama, Telegram, scheduler, per-dept agent counts."""
+        components = []
+        # Ollama
+        try:
+            r = _req.get(f"{OLLAMA_URL}/api/tags", timeout=3)
+            components.append({"name": "Ollama", "ok": r.status_code == 200, "detail": "Connected"})
+        except Exception:
+            components.append({"name": "Ollama", "ok": False, "detail": "Unreachable"})
+
+        # Scheduler
+        try:
+            sched = current_app.config.get("CONSCIOUSNESS_SCHEDULER")
+            components.append(
+                {
+                    "name": "Scheduler",
+                    "ok": bool(sched and sched.running),
+                    "detail": f"{len(sched.get_jobs())} jobs" if sched and sched.running else "Stopped",
+                }
+            )
+        except Exception:
+            components.append({"name": "Scheduler", "ok": False, "detail": "Error"})
+
+        # Agent Loop
+        try:
+            agent_loop = current_app.config.get("AGENT_LOOP")
+            components.append(
+                {
+                    "name": "Agent Loop",
+                    "ok": bool(agent_loop and getattr(agent_loop, "running", False)),
+                    "detail": "Running" if agent_loop and getattr(agent_loop, "running", False) else "Stopped",
+                }
+            )
+        except Exception:
+            components.append({"name": "Agent Loop", "ok": False, "detail": "Error"})
+
+        # Telegram
+        try:
+            has_token = bool(os.getenv("TELEGRAM_BOT_TOKEN"))
+            components.append(
+                {
+                    "name": "Telegram Bot",
+                    "ok": has_token,
+                    "detail": "Token set" if has_token else "No token",
+                }
+            )
+        except Exception:
+            components.append({"name": "Telegram Bot", "ok": False, "detail": "Error"})
+
+        # Per-department agent counts
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT department, COUNT(*) AS cnt
+                       FROM agents
+                       WHERE status = 'active' AND department IS NOT NULL
+                       GROUP BY department ORDER BY department"""
+                )
+                for row in cur.fetchall():
+                    components.append(
+                        {
+                            "name": row["department"],
+                            "ok": True,
+                            "detail": f"{row['cnt']} agents",
+                        }
+                    )
+        except Exception:
+            pass
+
+        return jsonify({"success": True, "components": components})
+
+    # ── Scheduler Jobs ──
+
+    @bp.route("/api/dispatch/scheduler", methods=["GET"])
+    @login_required
+    @admin_required_decorator
+    def dispatch_scheduler():
+        """APScheduler job list with next_run times."""
+        jobs = []
+        try:
+            sched = current_app.config.get("CONSCIOUSNESS_SCHEDULER")
+            if sched and sched.running:
+                for sj in sched.get_jobs():
+                    nrt = sj.next_run_time
+                    jobs.append(
+                        {
+                            "id": sj.id,
+                            "name": sj.name or sj.id,
+                            "next_run": nrt.isoformat() if nrt else None,
+                            "trigger": str(sj.trigger) if sj.trigger else "",
+                        }
+                    )
+        except Exception as e:
+            logger.warning("[Dispatch] Scheduler list failed: %s", e)
+
+        return jsonify({"success": True, "jobs": jobs})
+
+    # ── Configuration ──
+
+    @bp.route("/api/dispatch/config", methods=["GET"])
+    @login_required
+    @admin_required_decorator
+    def dispatch_config():
+        """Autonomy configuration key/value pairs."""
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute("SELECT config_key, config_value FROM autonomy_config ORDER BY config_key")
+                entries = [{"key": r["config_key"], "value": r["config_value"]} for r in cur.fetchall()]
+            return jsonify({"success": True, "config": entries})
+        except Exception as e:
+            logger.error("[Dispatch] Config failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/dispatch/config/<key>", methods=["PUT"])
+    @login_required
+    @admin_required_decorator
+    def dispatch_config_update(key):
+        """Update a config value."""
+        data = request.get_json() or {}
+        value = data.get("value", "")
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """UPDATE autonomy_config SET config_value = %s, updated_at = NOW()
+                       WHERE config_key = %s""",
+                    (value, key),
+                )
+                if cur.rowcount == 0:
+                    return jsonify({"success": False, "error": "Key not found"})
+            return jsonify({"success": True, "key": key})
+        except Exception as e:
+            logger.error("[Dispatch] Config update failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # ── Repair Pipeline ──
+
+    @bp.route("/api/dispatch/repair-pipeline", methods=["GET"])
+    @login_required
+    @admin_required_decorator
+    def dispatch_repair_pipeline():
+        """Repair pipeline status: proposals, sessions, CREED, audits."""
+        result = {
+            "open_proposals": 0,
+            "active_sessions": 0,
+            "creed_events": 0,
+            "audit_findings": 0,
+        }
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute("SELECT COUNT(*) FROM improvement_proposals WHERE status = 'pending'")
+                row = cur.fetchone()
+                if row:
+                    result["open_proposals"] = row[0]
+
+                cur.execute("SELECT COUNT(*) FROM work_sessions WHERE status = 'active'")
+                row = cur.fetchone()
+                if row:
+                    result["active_sessions"] = row[0]
+
+                try:
+                    cur.execute(
+                        """SELECT COUNT(*) FROM governance_audit_log
+                           WHERE timestamp > NOW() - INTERVAL '24 hours'"""
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        result["creed_events"] = row[0]
+                except Exception:
+                    pass
+
+                try:
+                    cur.execute(
+                        """SELECT COUNT(*) FROM security_scan_results
+                           WHERE created_at > NOW() - INTERVAL '24 hours'"""
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        result["audit_findings"] = row[0]
+                except Exception:
+                    pass
+
+        except Exception as e:
+            logger.warning("[Dispatch] Repair pipeline failed: %s", e)
+
+        return jsonify({"success": True, **result})

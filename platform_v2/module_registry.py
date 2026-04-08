@@ -878,11 +878,11 @@ MODULES: List[ModuleDefinition] = [
         priority=11,
         tags=["ai", "images", "video", "audio", "creative", "generation", "media"],
     ),
-    # Autonomy — Proactive Agent Loop
+    # Autonomy — Redirects to Department HQ Dispatch
     ModuleDefinition(
         id="autonomy",
         name="Autonomy",
-        description="Proactive agent loop & approvals<br>Email queue • Scheduled tasks • Reminders • Approval queue",
+        description="Redirects to Department HQ Dispatch Hub<br>All features centralized in Dept HQ",
         icon="bot",
         category=ModuleCategory.AI_COMMAND,
         route="/tools/autonomy",

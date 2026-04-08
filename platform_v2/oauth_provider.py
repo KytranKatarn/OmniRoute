@@ -40,6 +40,7 @@ def init_oauth_provider(app):
 def authorize():
     client_id = request.args.get("client_id")
     redirect_uri = request.args.get("redirect_uri")
+    state = request.args.get("state", "")
 
     if not client_id or not redirect_uri:
         return jsonify({"error": "missing client_id or redirect_uri"}), 400
@@ -69,9 +70,12 @@ def authorize():
             (code, client_id, current_user.id, redirect_uri, expires_at),
         )
 
-    # Redirect back to the client with the code
+    # Redirect back to the client with the code + state (OAuth 2.0 spec)
     separator = "&" if "?" in redirect_uri else "?"
-    return redirect(f"{redirect_uri}{separator}code={code}")
+    callback = f"{redirect_uri}{separator}code={code}"
+    if state:
+        callback += f"&state={state}"
+    return redirect(callback)
 
 
 # ============================================================================

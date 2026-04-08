@@ -41,6 +41,7 @@ class KytranAuth:
         self.client_secret = None
         self.auth_url = None
         self.redirect_uri = None
+        self.internal_url = None
         self.app = None
         self._on_login = None
         if app:
@@ -53,6 +54,11 @@ class KytranAuth:
         self.client_secret = app.config.get("KYTRAN_CLIENT_SECRET") or os.environ.get("KYTRAN_CLIENT_SECRET", "")
         self.auth_url = app.config.get("KYTRAN_AUTH_URL") or os.environ.get("KYTRAN_AUTH_URL", "https://archie.kytranempowerment.com")
         self.redirect_uri = app.config.get("KYTRAN_REDIRECT_URI") or os.environ.get("KYTRAN_REDIRECT_URI", "")
+        self.internal_url = (
+            app.config.get("KYTRAN_AUTH_INTERNAL_URL")
+            or os.environ.get("KYTRAN_AUTH_INTERNAL_URL", "")
+            or self.auth_url
+        )
 
         self._register_routes(app)
 
@@ -121,7 +127,7 @@ class KytranAuth:
             # Exchange code for token
             try:
                 token_resp = requests.post(
-                    f"{sdk.auth_url}/oauth/token",
+                    f"{sdk.internal_url}/oauth/token",
                     data={
                         "grant_type": "authorization_code",
                         "code": code,
@@ -152,7 +158,7 @@ class KytranAuth:
             # Get user info
             try:
                 userinfo_resp = requests.get(
-                    f"{sdk.auth_url}/oauth/userinfo",
+                    f"{sdk.internal_url}/oauth/userinfo",
                     headers={"Authorization": f"Bearer {access_token}"},
                     timeout=15,
                 )

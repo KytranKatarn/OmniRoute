@@ -419,7 +419,7 @@
   }
 
   function _pollOpsSummary() {
-    fetch("/tools/autonomy/api/ops-summary")
+    fetch("/tools/department-hq/api/dispatch/ops-summary")
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data) return;

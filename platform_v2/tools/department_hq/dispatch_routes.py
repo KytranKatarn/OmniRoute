@@ -605,3 +605,94 @@ def register_dispatch_routes(bp, admin_required_decorator):
             logger.warning("[Dispatch] Repair pipeline failed: %s", e)
 
         return jsonify({"success": True, **result})
+
+    # ── Ops Summary (migrated from Autonomy — powers global alert bar) ──
+
+    @bp.route("/api/dispatch/ops-summary", methods=["GET"])
+    @login_required
+    @admin_required_decorator
+    def dispatch_ops_summary():
+        """Lightweight counts for the global ops alert bar."""
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT
+                           COUNT(*) FILTER (WHERE status = 'pending') AS pending,
+                           COUNT(*) FILTER (
+                               WHERE status = 'pending' AND expires_at < NOW()
+                           ) AS expired
+                       FROM autonomy_approval_queue"""
+                )
+                ar = dict(cur.fetchone())
+                approvals = {
+                    "pending": ar.get("pending") or 0,
+                    "expired": ar.get("expired") or 0,
+                }
+
+                cur.execute(
+                    """SELECT
+                           COUNT(*) FILTER (WHERE status = 'running') AS running,
+                           COUNT(*) FILTER (WHERE status = 'pending') AS pending,
+                           COUNT(*) FILTER (
+                               WHERE status = 'running'
+                               AND updated_at < NOW() - INTERVAL '15 minutes'
+                           ) AS stalled
+                       FROM bridge_jobs
+                       WHERE status IN ('running', 'pending')
+                          OR (status = 'running'
+                              AND updated_at < NOW() - INTERVAL '15 minutes')"""
+                )
+                bj = dict(cur.fetchone())
+
+                cur.execute(
+                    """SELECT COUNT(*) AS cnt FROM bridge_jobs
+                       WHERE status = 'failed'
+                       AND completed_at >= NOW() - INTERVAL '1 hour'"""
+                )
+                bridge_failed = cur.fetchone()["cnt"] or 0
+
+                cur.execute(
+                    """SELECT COUNT(*) AS cnt FROM autonomy_loop_log
+                       WHERE status != 'success'
+                       AND created_at >= NOW() - INTERVAL '1 hour'"""
+                )
+                loop_errors = cur.fetchone()["cnt"] or 0
+
+            agent_loop = current_app.config.get("AGENT_LOOP")
+            agent_loop_running = bool(agent_loop and getattr(agent_loop, "is_running", False))
+            scheduler = current_app.config.get("CONSCIOUSNESS_SCHEDULER")
+            scheduler_running = bool(scheduler and scheduler.running)
+
+            active_jobs = {
+                "bridge_running": bj.get("running") or 0,
+                "bridge_pending": bj.get("pending") or 0,
+                "bridge_stalled": bj.get("stalled") or 0,
+                "agent_loop_running": agent_loop_running,
+                "scheduler_running": scheduler_running,
+            }
+            errors_1h = {
+                "bridge_failed": bridge_failed,
+                "loop_errors": loop_errors,
+            }
+
+            alerts = []
+            if approvals["expired"] > 0:
+                alerts.append({"severity": "high", "message": f"{approvals['expired']} expired approval(s)"})
+            if (bj.get("stalled") or 0) > 0:
+                alerts.append({"severity": "high", "message": f"{bj['stalled']} stalled bridge job(s)"})
+            if loop_errors > 0:
+                alerts.append({"severity": "medium", "message": f"{loop_errors} loop error(s) in last hour"})
+            if bridge_failed > 0:
+                alerts.append({"severity": "medium", "message": f"{bridge_failed} failed bridge job(s) in last hour"})
+            if not agent_loop_running:
+                alerts.append({"severity": "medium", "message": "Agent loop is not running"})
+            if not scheduler_running:
+                alerts.append({"severity": "medium", "message": "Scheduler is not running"})
+
+            return jsonify(
+                {"approvals": approvals, "active_jobs": active_jobs, "errors_1h": errors_1h, "alerts": alerts}
+            )
+
+        except Exception as e:
+            logger.error("[Dispatch] Ops summary failed: %s", e)
+            return jsonify({"approvals": {}, "active_jobs": {}, "errors_1h": {}, "alerts": []})

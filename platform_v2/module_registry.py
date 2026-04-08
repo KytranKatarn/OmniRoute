@@ -878,21 +878,22 @@ MODULES: List[ModuleDefinition] = [
         priority=11,
         tags=["ai", "images", "video", "audio", "creative", "generation", "media"],
     ),
-    # Autonomy — Redirects to Department HQ Dispatch
+    # Autonomy — REMOVED: All features migrated to Department HQ Dispatch tab
+    # Blueprint kept registered but disabled — module no longer appears on dashboard
     ModuleDefinition(
         id="autonomy",
-        name="Autonomy",
-        description="Redirects to Department HQ Dispatch Hub<br>All features centralized in Dept HQ",
+        name="Autonomy (Deprecated)",
+        description="Migrated to Department HQ Dispatch Hub",
         icon="bot",
         category=ModuleCategory.AI_COMMAND,
         route="/tools/autonomy",
         blueprint_import="tools.autonomy:autonomy_bp",
         required_permissions=["autonomy:manage"],
         minimum_role="ADMIN",
-        enabled=True,
+        enabled=False,
         health_check=lambda: default_health_check("autonomy"),
-        priority=6,
-        tags=["autonomy", "agent-loop", "proactive", "approvals", "ai-command"],
+        priority=99,
+        tags=["deprecated"],
     ),
     # User Profile - accessible to all authenticated users
     ModuleDefinition(

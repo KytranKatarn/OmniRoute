@@ -112,10 +112,6 @@
             <i data-lucide="layout-dashboard"></i>
             <span data-i18n="bridge.tabs.overview">Overview</span>
         </button>
-        <button class="bridge-tab" data-tab="dispatch" onclick="switchBridgeTab('dispatch')">
-            <i data-lucide="activity"></i>
-            <span data-i18n="bridge.tabs.dispatch">Dispatch</span>
-        </button>
         <button class="bridge-tab" data-tab="crew" onclick="switchBridgeTab('crew')">
             <i data-lucide="users"></i>
             <span data-i18n="bridge.tabs.crew">Crew</span>
@@ -311,7 +307,7 @@
                     <div class="briefing-card-header">
                         <i data-lucide="activity"></i>
                         <span data-i18n="bridge.overview.recent_activity">Recent Dispatch</span>
-                        <a href="#dispatch" onclick="switchBridgeTab('dispatch'); return false;" class="briefing-card-link" data-i18n="bridge.overview.view_all">View All</a>
+                        <a href="/tools/department-hq/" onclick="window.location='/tools/department-hq/?tab=dispatch'; return false;" class="briefing-card-link" data-i18n="bridge.overview.view_all">View All</a>
                     </div>
                     <div class="briefing-card-body" id="overviewMiniActivity">
                         <span class="briefing-muted" data-i18n="bridge.overview.loading">Loading...</span>
@@ -419,117 +415,6 @@
                 </div>
             </div><!-- /fleet-map panel -->
 
-            <!-- Dispatch Tab Panel -->
-            <div class="bridge-tab-panel" data-panel="dispatch">
-            <!-- LCARS Frame: Dispatch Metrics -->
-            <div style="--frame-color: #00ffff; --frame-rgb: 0,255,255;">
-            <div class="lcars-frame">
-                <div class="lcars-sidebar">
-                    <div class="lcars-elbow-top"></div>
-                    <div class="lcars-seg" style="--seg-color: #00ffff"></div>
-                    <div class="lcars-seg-light" style="--seg-color: #00ff41"></div>
-                    <div class="lcars-seg" style="--seg-color: #0ea5e9"></div>
-                    <div class="lcars-seg-fill"></div>
-                    <div class="lcars-elbow-bottom"></div>
-                </div>
-                <div class="lcars-content">
-                    <div class="lcars-bar">
-                        <span class="lcars-bar-title">DISPATCH METRICS</span>
-                        <div class="lcars-bar-spacer"></div>
-                        <div class="lcars-pips"><span class="lcars-pip" style="width:20px;background:rgba(0,0,0,0.3)"></span><span class="lcars-pip" style="width:35px;background:rgba(0,0,0,0.3)"></span></div>
-                    </div>
-                    <div class="lcars-body">
-            <!-- Dispatch Stats HUD Pods -->
-            <div class="bridge-hud-strip">
-                <div class="bridge-hud-pod">
-                    <span class="bridge-hud-label" data-i18n="bridge.dispatch.total_24h">Dispatches (24h)</span>
-                    <div class="bridge-hud-value" id="dispatch-total">--</div>
-                    <span class="bridge-hud-unit" data-i18n="bridge.dispatch.requests">requests</span>
-                </div>
-                <div class="bridge-hud-pod">
-                    <span class="bridge-hud-label" data-i18n="bridge.dispatch.success">Success</span>
-                    <div class="bridge-hud-value hud-success" id="dispatch-success">--</div>
-                    <span class="bridge-hud-unit" data-i18n="bridge.dispatch.completed">completed</span>
-                </div>
-                <div class="bridge-hud-pod">
-                    <span class="bridge-hud-label" data-i18n="bridge.dispatch.failed">Failed</span>
-                    <div class="bridge-hud-value hud-danger" id="dispatch-failed">--</div>
-                    <span class="bridge-hud-unit" data-i18n="bridge.dispatch.errors">errors</span>
-                </div>
-                <div class="bridge-hud-pod">
-                    <span class="bridge-hud-label" data-i18n="bridge.dispatch.avg_ms">Avg ms</span>
-                    <div class="bridge-hud-value hud-gold" id="dispatch-avg-ms">--</div>
-                    <span class="bridge-hud-unit" data-i18n="bridge.dispatch.response_time">response</span>
-                </div>
-            </div>
-                    </div>
-                    <div class="lcars-footer-bar"><div class="lcars-footer-dots"><span class="lcars-footer-dot" style="background:#00ffff"></span><span class="lcars-footer-dot" style="background:#00ff41"></span><span class="lcars-footer-dot" style="background:#0ea5e9"></span></div></div>
-                </div>
-            </div>
-            </div>
-
-            <!-- LCARS Frame: Dispatch Log -->
-            <div style="--frame-color: #ffaa00; --frame-rgb: 255,170,0;">
-            <div class="lcars-frame">
-                <div class="lcars-sidebar">
-                    <div class="lcars-elbow-top"></div>
-                    <div class="lcars-seg" style="--seg-color: #ffaa00"></div>
-                    <div class="lcars-seg-light" style="--seg-color: #00ffff"></div>
-                    <div class="lcars-seg" style="--seg-color: rgba(255,170,0,0.6)"></div>
-                    <div class="lcars-seg" style="--seg-color: rgba(255,170,0,0.3)"></div>
-                    <div class="lcars-seg-fill"></div>
-                    <div class="lcars-elbow-bottom"></div>
-                </div>
-                <div class="lcars-content">
-                    <div class="lcars-bar">
-                        <span class="lcars-bar-title">DISPATCH LOG</span>
-                        <div class="lcars-bar-spacer"></div>
-                        <div class="lcars-pips"><span class="lcars-pip" style="width:18px;background:rgba(0,0,0,0.3)"></span><span class="lcars-pip" style="width:28px;background:rgba(0,0,0,0.3)"></span></div>
-                    </div>
-                    <div class="lcars-body">
-            <!-- Active Jobs (hidden when empty) -->
-            <div class="briefing-card" style="--card-accent: #ffaa00; display: none;" id="dispatch-jobs-section">
-                <div class="briefing-card-header">
-                    <i data-lucide="loader"></i>
-                    <span data-i18n="bridge.dispatch.active_jobs">Active Jobs</span>
-                    <span class="dispatch-jobs-count" id="dispatch-jobs-count"></span>
-                </div>
-                <div class="briefing-card-body dispatch-jobs-list" id="dispatch-jobs-list">
-                    <!-- JS renders active job cards here -->
-                </div>
-            </div>
-
-            <!-- Recent Dispatches -->
-            <div class="briefing-card" style="--card-accent: #00ffff;">
-                <div class="briefing-card-header">
-                    <i data-lucide="history"></i>
-                    <span data-i18n="bridge.dispatch.recent">Recent Dispatches</span>
-                </div>
-                <div class="briefing-card-body">
-                    <div class="dispatch-history-list" id="dispatch-history-list">
-                        <div class="dispatch-empty" data-i18n="bridge.loading.dispatch_history">Loading dispatch history...</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Station Activity (24h) -->
-            <div class="briefing-card" style="--card-accent: #00ffff;">
-                <div class="briefing-card-header">
-                    <i data-lucide="bar-chart-3"></i>
-                    <span data-i18n="bridge.dispatch.station_activity">Station Activity (24h)</span>
-                </div>
-                <div class="briefing-card-body">
-                    <div class="dispatch-station-bars" id="dispatch-station-bars">
-                        <div class="dispatch-empty" data-i18n="bridge.loading.station_activity">Loading station activity...</div>
-                    </div>
-                </div>
-            </div>
-                    </div>
-                    <div class="lcars-footer-bar"><div class="lcars-footer-dots"><span class="lcars-footer-dot" style="background:#ffaa00"></span><span class="lcars-footer-dot" style="background:#00ffff"></span><span class="lcars-footer-dot" style="background:rgba(255,170,0,0.5)"></span></div></div>
-                </div>
-            </div>
-            </div>
-            </div><!-- /dispatch panel -->
 
             <!-- Crew Tab Panel -->
             <div class="bridge-tab-panel" data-panel="crew">
@@ -1244,7 +1129,6 @@
     <div class="lcars-console-body">
         <div class="lcars-tab-rail" id="lcarsTabRail">
             <button class="lcars-tab-pill active" data-console-tab="crew"><span data-i18n="bridge.crew">CREW</span></button>
-            <button class="lcars-tab-pill" data-console-tab="dispatch"><span data-i18n="bridge.dspch">DSPCH</span></button>
             <button class="lcars-tab-pill" data-console-tab="nodes"><span data-i18n="bridge.nodes">NODES</span></button>
             <button class="lcars-tab-pill" data-console-tab="metrics"><span data-i18n="bridge.stats">STATS</span></button>
             <button class="lcars-tab-pill" data-console-tab="memory"><span data-i18n="bridge.mem">MEM</span></button>
@@ -1254,7 +1138,6 @@
         </div>
         <div class="lcars-tab-content" id="lcarsTabContent">
             <div class="lcars-tab-panel active" data-console-panel="crew" id="lcarsCrewPanel"></div>
-            <div class="lcars-tab-panel" data-console-panel="dispatch" id="lcarsDispatchPanel"></div>
             <div class="lcars-tab-panel" data-console-panel="nodes" id="lcarsNodesPanel"></div>
             <div class="lcars-tab-panel" data-console-panel="metrics" id="lcarsMetricsPanel"></div>
             <div class="lcars-tab-panel" data-console-panel="memory" id="lcarsMemoryPanel"></div>

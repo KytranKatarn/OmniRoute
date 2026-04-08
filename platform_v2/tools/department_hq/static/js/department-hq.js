@@ -1393,6 +1393,10 @@ async function loadDispatch() {
             if (el) setHtml(el, msg);
         });
     }
+    // Load additional sections in parallel
+    loadServerLoops();
+    loadDispatchApprovals();
+    loadDispatchHistory();
 }
 
 function renderOllamaHud(o) {
@@ -1492,13 +1496,15 @@ function renderLoopJobs(jobs) {
     });
     var html = '<table class="dhq-loop-table"><thead><tr>'
         + '<th>JOB</th><th>DEPARTMENT</th><th>STATUS</th>'
-        + '<th>NEXT RUN</th><th>OK</th><th>ERR</th>'
+        + '<th>NEXT RUN</th><th>OK</th><th>ERR</th><th>ACTIONS</th>'
         + '</tr></thead><tbody>';
     jobs.forEach(function(j) {
         var statusCls = !j.enabled ? 'dhq-loop-off'
             : j.err_24h > 0 ? 'dhq-loop-err' : 'dhq-loop-ok';
         var statusLabel = !j.enabled ? 'DISABLED'
             : j.err_24h > 0 ? 'ERRORS' : 'OK';
+        var toggleLabel = j.enabled ? 'Disable' : 'Enable';
+        var toggleColor = j.enabled ? '#ef4444' : '#10B981';
         html += '<tr>'
             + '<td>' + esc(j.name) + '</td>'
             + '<td>' + esc(j.department || '\u2014') + '</td>'
@@ -1506,10 +1512,124 @@ function renderLoopJobs(jobs) {
             + '<td style="color:var(--dhq-text-dim)">' + fmtTime(j.next_run) + '</td>'
             + '<td class="dhq-loop-ok">' + (j.ok_24h || 0) + '</td>'
             + '<td class="' + (j.err_24h > 0 ? 'dhq-loop-err' : '') + '">' + (j.err_24h || 0) + '</td>'
-            + '</tr>';
+            + '<td>'
+            + '<button onclick="dispatchJobToggle(\'' + esc(j.name) + '\',' + !j.enabled + ')" style="background:' + toggleColor + ';color:#fff;border:none;padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;margin-right:4px">' + toggleLabel + '</button>'
+            + '<button onclick="dispatchJobRun(\'' + esc(j.name) + '\')" style="background:#8b5cf6;color:#fff;border:none;padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer">Run</button>'
+            + '</td></tr>';
     });
     html += '</tbody></table>';
     setHtml(el, html);
+}
+
+// ── Job Control Actions ──
+
+async function dispatchJobToggle(name, enabled) {
+    try {
+        await apiPost('/api/dispatch/jobs/' + encodeURIComponent(name) + '/toggle', {enabled: enabled});
+        loaded['dispatch'] = false;
+        loadDispatch();
+    } catch (e) { alert('Failed: ' + e.message); }
+}
+
+async function dispatchJobRun(name) {
+    try {
+        await apiPost('/api/dispatch/jobs/' + encodeURIComponent(name) + '/run', {});
+        loaded['dispatch'] = false;
+        loadDispatch();
+    } catch (e) { alert('Failed: ' + e.message); }
+}
+
+// ── Server Loops ──
+
+async function loadServerLoops() {
+    var el = document.getElementById('dispatchServerLoops');
+    try {
+        var data = await api('/api/dispatch/loops');
+        var loops = data.loops || {};
+        var keys = Object.keys(loops);
+        if (!keys.length) { setHtml(el, '<div class="dhq-empty">No server loops configured</div>'); return; }
+        var html = '<div style="display:flex;gap:12px;flex-wrap:wrap">';
+        keys.forEach(function(k) {
+            var running = loops[k];
+            var color = running ? '#10B981' : '#ef4444';
+            var label = running ? 'RUNNING' : 'STOPPED';
+            html += '<div class="dhq-pod" style="min-width:140px;border-color:' + color + '33">'
+                + '<div class="dhq-pod-label">' + esc(k.toUpperCase()) + '</div>'
+                + '<div class="dhq-pod-val" style="font-size:0.9rem;color:' + color + '">' + label + '</div>'
+                + '<button onclick="toggleServerLoop(\'' + esc(k) + '\')" style="margin-top:6px;background:' + (running ? '#ef4444' : '#10B981') + ';color:#fff;border:none;padding:4px 12px;border-radius:4px;font-size:0.65rem;cursor:pointer">' + (running ? 'Stop' : 'Start') + '</button>'
+                + '</div>';
+        });
+        html += '</div>';
+        setHtml(el, html);
+    } catch (e) { setHtml(el, '<div class="dhq-empty">Error: ' + esc(e.message) + '</div>'); }
+}
+
+async function toggleServerLoop(name) {
+    try {
+        await apiPost('/api/dispatch/loops/toggle', {name: name});
+        loadServerLoops();
+    } catch (e) { alert('Failed: ' + e.message); }
+}
+
+// ── Approvals ──
+
+async function loadDispatchApprovals() {
+    var el = document.getElementById('dispatchApprovalsContent');
+    var countEl = document.getElementById('dispatchApprovalCount');
+    try {
+        var data = await api('/api/dispatch/approvals?status=pending');
+        var items = data.approvals || [];
+        if (countEl) countEl.textContent = '(' + items.length + ' pending)';
+        if (!items.length) { setHtml(el, '<div class="dhq-empty">No pending approvals</div>'); return; }
+        var html = '';
+        items.forEach(function(a) {
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--dhq-border)">'
+                + '<div><span class="dhq-status-badge dhq-status-pending">' + esc(a.type) + '</span> '
+                + esc(a.description) + '<br><span style="color:var(--dhq-text-dim);font-size:0.7rem">by ' + esc(a.requested_by) + ' — ' + fmtTime(a.created_at) + '</span></div>'
+                + '<div style="display:flex;gap:6px">'
+                + '<button onclick="approvalAction(' + a.id + ',\'approve\')" style="background:#10B981;color:#fff;border:none;padding:4px 10px;border-radius:4px;font-size:0.7rem;cursor:pointer">Approve</button>'
+                + '<button onclick="approvalAction(' + a.id + ',\'reject\')" style="background:#ef4444;color:#fff;border:none;padding:4px 10px;border-radius:4px;font-size:0.7rem;cursor:pointer">Reject</button>'
+                + '</div></div>';
+        });
+        setHtml(el, html);
+    } catch (e) { setHtml(el, '<div class="dhq-empty">Error: ' + esc(e.message) + '</div>'); }
+}
+
+async function approvalAction(id, action) {
+    try {
+        await apiPost('/api/dispatch/approvals/' + id + '/' + action, {});
+        loadDispatchApprovals();
+    } catch (e) { alert('Failed: ' + e.message); }
+}
+
+// ── History ──
+
+async function loadDispatchHistory() {
+    var el = document.getElementById('dispatchHistoryContent');
+    var hoursEl = document.getElementById('dispatchHistoryHours');
+    var hours = hoursEl ? hoursEl.value : 24;
+    try {
+        var data = await api('/api/dispatch/history?hours=' + hours + '&limit=50');
+        var entries = data.history || [];
+        if (!entries.length) { setHtml(el, '<div class="dhq-empty">No history in this period</div>'); return; }
+        var html = '<table class="dhq-loop-table"><thead><tr>'
+            + '<th>SOURCE</th><th>ACTOR</th><th>ACTION</th><th>STATUS</th><th>DURATION</th><th>TIME</th>'
+            + '</tr></thead><tbody>';
+        entries.forEach(function(h) {
+            var statusCls = h.status === 'success' ? 'dhq-loop-ok' : h.status === 'failed' ? 'dhq-loop-err' : '';
+            var dur = h.duration_ms ? (h.duration_ms / 1000).toFixed(1) + 's' : '\u2014';
+            html += '<tr>'
+                + '<td><span class="dhq-status-badge ' + (h.source === 'dispatch' ? 'dhq-status-running' : 'dhq-status-pending') + '">' + esc(h.source) + '</span></td>'
+                + '<td>' + esc(h.actor) + '</td>'
+                + '<td>' + esc(h.action) + '</td>'
+                + '<td class="' + statusCls + '">' + esc(h.status) + '</td>'
+                + '<td style="color:var(--dhq-text-dim)">' + dur + '</td>'
+                + '<td style="color:var(--dhq-text-dim)">' + fmtTime(h.created_at) + '</td>'
+                + '</tr>';
+        });
+        html += '</tbody></table>';
+        setHtml(el, html);
+    } catch (e) { setHtml(el, '<div class="dhq-empty">Error: ' + esc(e.message) + '</div>'); }
 }
 
 // ───────────────────────────────────────────────────────────────

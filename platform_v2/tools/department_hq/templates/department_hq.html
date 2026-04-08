@@ -155,6 +155,30 @@
         <div class="dhq-section-title">AUTONOMY LOOP JOBS <span id="dispatchLoopCount" style="color:var(--dhq-text-dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem"></span></div>
         <div id="dispatchLoopContent" class="dhq-loading">Loading loop jobs...</div>
       </div>
+      <!-- Server Loops -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">SERVER LOOPS</div>
+        <div id="dispatchServerLoops" class="dhq-loading">Loading server loops...</div>
+      </div>
+      <!-- Approvals -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">APPROVAL QUEUE <span id="dispatchApprovalCount" style="color:var(--dhq-text-dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem"></span></div>
+        <div id="dispatchApprovalsContent" class="dhq-loading">Loading approvals...</div>
+      </div>
+      <!-- History -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>DISPATCH HISTORY</span>
+          <select id="dispatchHistoryHours" onchange="loadDispatchHistory()" style="background:var(--dhq-surface-2);color:var(--dhq-text);border:1px solid var(--dhq-border);border-radius:4px;padding:4px 8px;font-size:0.7rem">
+            <option value="1">Last 1h</option>
+            <option value="6">Last 6h</option>
+            <option value="24" selected>Last 24h</option>
+            <option value="72">Last 3d</option>
+            <option value="168">Last 7d</option>
+          </select>
+        </div>
+        <div id="dispatchHistoryContent" class="dhq-loading">Loading history...</div>
+      </div>
     </div>
 
   </div>

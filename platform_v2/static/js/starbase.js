@@ -720,7 +720,6 @@ function switchBridgeTab(tabName) {
     if (tabName === 'overview') loadOverviewData();
     // DEPRECATED: Stations tab replaced by Fleet Map in Phase 4
     // if (tabName === 'stations') { loadStations(); triggerWarpIntro(); }
-    if (tabName === 'dispatch') { startDispatchRefresh(); } else { stopDispatchRefresh(); }
     if (tabName === 'crew') { startCrewRefresh(); } else { stopCrewRefresh(); }
     if (tabName === 'network') { loadNodes(); loadModelAvailability(); loadMeshLoans(); loadMeshLearning(); loadMeshAvailableAgents(); }
     // Re-render Lucide icons for any new content
@@ -730,7 +729,7 @@ function switchBridgeTab(tabName) {
 // Restore tab from URL hash on page load
 (function() {
     var hash = window.location.hash.replace('#', '');
-    var validTabs = ['stations', 'overview', 'dispatch', 'crew', 'network'];
+    var validTabs = ['stations', 'overview', 'crew', 'network'];
     if (hash && validTabs.indexOf(hash) !== -1) {
         setTimeout(function() { switchBridgeTab(hash); }, 100);
     } else {
@@ -1184,7 +1183,6 @@ function loadStations() { /* no-op — Stations tab removed */ }
 // === LCARS STATION CONSOLE ===
 
 let _consoleCurrentZone = null;
-let _consoleDispatchTimer = null;
 let _consoleEventSource = null;
 let _consoleNodeCache = {};
 
@@ -1236,11 +1234,6 @@ function closeStationConsole() {
     if (backdrop) backdrop.classList.remove('active');
     document.removeEventListener('keydown', _consoleEscHandler);
 
-    // Stop dispatch auto-refresh
-    if (_consoleDispatchTimer) {
-        clearInterval(_consoleDispatchTimer);
-        _consoleDispatchTimer = null;
-    }
     if (_consoleEventSource) {
         _consoleEventSource.close();
         _consoleEventSource = null;
@@ -1273,7 +1266,6 @@ function switchConsoleTab(tabName) {
     var zd = _consoleCurrentZone.zd;
     var zoneInfo = _consoleCurrentZone.zoneInfo;
 
-    if (tabName === 'dispatch') loadConsoleDispatch(zoneInfo.stations);
     if (tabName === 'nodes') loadConsoleNodes(zd, zoneInfo.color);
     if (tabName === 'metrics') loadConsoleMetrics(zoneInfo.stations);
     if (tabName === 'memory') loadConsoleMemory();
@@ -4135,117 +4127,6 @@ function renderCrewTab(agents, stationColor, maxPrimary, maxAuxiliary) {
 
 // === CONSOLE STUBS (Tasks 7-10) ===
 
-async function loadConsoleDispatch(stationCodes) {
-    var panel = document.getElementById('lcarsDispatchPanel');
-    if (!panel) return;
-    panel.textContent = '';
-    var loadingEl = document.createElement('div');
-    loadingEl.className = 'lcars-empty';
-    loadingEl.textContent = 'Loading dispatch activity...';
-    panel.appendChild(loadingEl);
-
-    // Stop any existing timer
-    if (_consoleDispatchTimer) clearInterval(_consoleDispatchTimer);
-
-    async function fetchAndRender() {
-        try {
-            // Fetch for each station code and merge
-            var allEvents = [];
-            for (var i = 0; i < stationCodes.length; i++) {
-                var resp = await fetch('/tools/starbase/api/stations/' + encodeURIComponent(stationCodes[i]) + '/dispatch');
-                var events = await resp.json();
-                if (Array.isArray(events)) allEvents = allEvents.concat(events);
-            }
-
-            // Sort by time descending, limit to 20
-            allEvents.sort(function(a, b) {
-                return (b.created_at || '').localeCompare(a.created_at || '');
-            });
-            allEvents = allEvents.slice(0, 20);
-
-            panel.textContent = '';
-
-            if (allEvents.length === 0) {
-                var emptyEl = document.createElement('div');
-                emptyEl.className = 'lcars-empty';
-                emptyEl.textContent = 'No recent dispatch activity';
-                panel.appendChild(emptyEl);
-                return;
-            }
-
-            var label = document.createElement('div');
-            label.className = 'lcars-section-label';
-            label.textContent = 'RECENT DISPATCHES';
-            panel.appendChild(label);
-
-            for (var j = 0; j < allEvents.length; j++) {
-                var ev = allEvents[j];
-                var row = document.createElement('div');
-                row.className = 'lcars-dispatch-row';
-
-                var timeEl = document.createElement('div');
-                timeEl.className = 'lcars-dispatch-time';
-                timeEl.textContent = ev.created_at ? ArchieTime.time(ev.created_at) : '--:--';
-                row.appendChild(timeEl);
-
-                var statusEl = document.createElement('div');
-                statusEl.className = 'lcars-dispatch-status';
-                statusEl.textContent = ev.success ? '\u2713' : '\u2717';
-                statusEl.style.color = ev.success ? '#10b981' : '#ef4444';
-                row.appendChild(statusEl);
-
-                var modelEl = document.createElement('div');
-                modelEl.className = 'lcars-dispatch-model';
-                modelEl.textContent = (ev.model_used || 'unknown') + ' \u2014 ' + (ev.task_type || ev.capability || '');
-                row.appendChild(modelEl);
-
-                var latencyEl = document.createElement('div');
-                latencyEl.className = 'lcars-dispatch-latency';
-                latencyEl.textContent = ev.duration_ms ? ev.duration_ms + 'ms' : '';
-                row.appendChild(latencyEl);
-
-                panel.appendChild(row);
-            }
-        } catch (e) {
-            console.error('Console dispatch error:', e);
-            panel.textContent = '';
-            var errEl = document.createElement('div');
-            errEl.className = 'lcars-empty';
-            errEl.textContent = 'Error loading dispatch data';
-            panel.appendChild(errEl);
-        }
-    }
-
-    // Initial load via fetch (immediate data)
-    await fetchAndRender();
-
-    // Real-time updates via SSE
-    try {
-        if (_consoleEventSource) _consoleEventSource.close();
-        _consoleEventSource = new EventSource('/tools/starbase/api/dispatch/stream');
-        _consoleEventSource.onmessage = function(e) {
-            try {
-                var evt = JSON.parse(e.data);
-                var stationMatch = stationCodes.some(function(code) {
-                    return evt.data && evt.data.station_code === code;
-                });
-                if (stationMatch || !evt.data || !evt.data.station_code) {
-                    fetchAndRender();
-                }
-            } catch(err) { /* ignore parse errors */ }
-        };
-        _consoleEventSource.onerror = function() {
-            if (_consoleEventSource) _consoleEventSource.close();
-            _consoleEventSource = null;
-            _consoleDispatchTimer = setInterval(fetchAndRender, 15000);
-        };
-    } catch(sseErr) {
-        _consoleDispatchTimer = setInterval(fetchAndRender, 15000);
-    }
-
-    // Load skill gaps section
-    loadSkillGaps(panel);
-}
 
 async function loadSkillGaps(parentPanel) {
     try {
@@ -7013,287 +6894,6 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(loadMeshLearning, 60000);
     setInterval(loadMeshAvailableAgents, 30000);
 });
-
-// ============================================================================
-// DISPATCH ACTIVITY (Project #91 — Phase 6)
-// ============================================================================
-
-var _dispatchRefreshTimer = null;
-
-async function loadDispatchActivity() {
-    try {
-        const resp = await fetch('/tools/starbase/api/bridge/dispatch-overview?limit=20&jobs_limit=10');
-        if (!resp.ok) return;
-        const data = await resp.json();
-        if (!data.success) return;
-
-        renderDispatchStats(data.dispatch_stats);
-        renderStationActivity(data.station_activity);
-        renderDispatchHistory(data.history);
-        renderActiveJobs(data.jobs || []);
-    } catch (e) {
-        // Silently fail — dispatch panel is supplementary
-    }
-}
-
-function startDispatchRefresh() {
-    if (_dispatchRefreshTimer) return;
-    loadDispatchActivity();
-    _dispatchRefreshTimer = setInterval(loadDispatchActivity, 30000);
-}
-
-function stopDispatchRefresh() {
-    if (_dispatchRefreshTimer) {
-        clearInterval(_dispatchRefreshTimer);
-        _dispatchRefreshTimer = null;
-    }
-}
-
-function formatDuration(ms) {
-    if (ms == null) return '--';
-    ms = Number(ms);
-    if (ms < 1000) return ms + 'ms';
-    if (ms < 60000) return (ms / 1000).toFixed(1) + 's';
-    var m = Math.floor(ms / 60000);
-    var s = Math.round((ms % 60000) / 1000);
-    return m + 'm ' + s + 's';
-}
-
-function renderDispatchStats(stats) {
-    const totalEl = document.getElementById('dispatch-total');
-    const successEl = document.getElementById('dispatch-success');
-    const failedEl = document.getElementById('dispatch-failed');
-    const avgEl = document.getElementById('dispatch-avg-ms');
-
-    if (totalEl) totalEl.textContent = stats.total_24h || stats.total_1h || '0';
-    if (successEl) successEl.textContent = stats.successful_24h || stats.successful_1h || '0';
-    if (failedEl) failedEl.textContent = stats.failed_24h || stats.failed_1h || '0';
-    if (avgEl) avgEl.textContent = formatDuration(stats.avg_duration_ms);
-}
-
-function renderDispatchHistory(history) {
-    const container = document.getElementById('dispatch-history-list');
-    if (!container) return;
-
-    container.replaceChildren();
-
-    if (!history || history.length === 0) {
-        const empty = document.createElement('div');
-        empty.className = 'dispatch-empty';
-        empty.textContent = _t('bridge.empty.no_dispatches', 'No dispatch activity yet');
-        container.appendChild(empty);
-        return;
-    }
-
-    history.forEach(function(item) {
-        const row = document.createElement('div');
-        row.className = 'dispatch-history-item' + (item.success === false ? ' failed' : '');
-        if (item.station_color) {
-            row.style.borderLeftColor = item.station_color;
-        }
-
-        const agent = document.createElement('span');
-        agent.className = 'dispatch-history-agent';
-        agent.textContent = item.agent_name || 'Unknown';
-
-        const module = document.createElement('span');
-        module.className = 'dispatch-history-module';
-        module.textContent = (item.module || '') + (item.capability ? ' / ' + item.capability : '');
-
-        const duration = document.createElement('span');
-        duration.className = 'dispatch-history-duration';
-        duration.textContent = formatDuration(item.duration_ms);
-
-        const time = document.createElement('span');
-        time.className = 'dispatch-history-time';
-        if (item.timestamp) {
-            time.textContent = ArchieTime.time(item.timestamp);
-        }
-
-        row.appendChild(agent);
-        row.appendChild(module);
-        row.appendChild(duration);
-        row.appendChild(time);
-        container.appendChild(row);
-    });
-}
-
-function renderStationActivity(stations) {
-    const container = document.getElementById('dispatch-station-bars');
-    if (!container) return;
-
-    container.replaceChildren();
-
-    if (!stations || stations.length === 0) {
-        const empty = document.createElement('div');
-        empty.className = 'dispatch-empty';
-        empty.textContent = _t('bridge.empty.no_station_activity', 'No station activity recorded');
-        container.appendChild(empty);
-        return;
-    }
-
-    const maxCount = Math.max(...stations.map(function(s) { return s.dispatch_count; }), 1);
-
-    stations.forEach(function(station) {
-        const bar = document.createElement('div');
-        bar.className = 'dispatch-station-bar';
-
-        const label = document.createElement('span');
-        label.className = 'dispatch-station-label';
-        label.textContent = station.station_name;
-
-        const fillBg = document.createElement('div');
-        fillBg.className = 'dispatch-station-fill-bg';
-
-        const fill = document.createElement('div');
-        fill.className = 'dispatch-station-fill';
-        fill.style.width = Math.round((station.dispatch_count / maxCount) * 100) + '%';
-        fill.style.background = station.color || 'var(--archie-cyan)';
-        fillBg.appendChild(fill);
-
-        const count = document.createElement('span');
-        count.className = 'dispatch-station-count';
-        count.textContent = station.dispatch_count;
-
-        bar.appendChild(label);
-        bar.appendChild(fillBg);
-        bar.appendChild(count);
-        container.appendChild(bar);
-    });
-}
-
-// ============================================================================
-// ACTIVE JOBS (Bridge Job Tracking)
-// ============================================================================
-
-function renderActiveJobs(jobs) {
-    const section = document.getElementById('dispatch-jobs-section');
-    const container = document.getElementById('dispatch-jobs-list');
-    const countEl = document.getElementById('dispatch-jobs-count');
-    if (!section || !container) return;
-
-    // Filter: show running/pending jobs + recently finished (last 2 min)
-    const now = Date.now();
-    const visible = jobs.filter(function(j) {
-        if (j.status === 'running' || j.status === 'pending') return true;
-        if (j.completed_at) {
-            var age = now - new Date(j.completed_at).getTime();
-            return age < 120000; // 2 minutes
-        }
-        return false;
-    });
-
-    if (visible.length === 0) {
-        section.style.display = 'none';
-        return;
-    }
-
-    section.style.display = 'block';
-    if (countEl) {
-        var running = visible.filter(function(j) { return j.status === 'running'; }).length;
-        countEl.textContent = running > 0 ? running + ' running' : '';
-    }
-
-    container.replaceChildren();
-
-    visible.forEach(function(job) {
-        var card = document.createElement('div');
-        card.className = 'dispatch-job-card status-' + job.status;
-
-        // Info column (description + agent)
-        var info = document.createElement('div');
-        info.className = 'dispatch-job-info';
-
-        var desc = document.createElement('div');
-        desc.className = 'dispatch-job-desc';
-        desc.textContent = job.description || job.job_type;
-        desc.title = job.description || '';
-        info.appendChild(desc);
-
-        var agent = document.createElement('div');
-        agent.className = 'dispatch-job-agent';
-        agent.textContent = job.agent_name || (job.status === 'pending' ? '(queued)' : '—');
-        info.appendChild(agent);
-
-        // Step counter
-        var steps = document.createElement('div');
-        steps.className = 'dispatch-job-steps';
-        var stepText = job.completed_steps + '/' + job.total_steps;
-        if (job.failed_steps > 0 && job.status !== 'running') {
-            stepText += ' (' + job.failed_steps + ' failed)';
-        }
-        steps.textContent = stepText;
-
-        // Progress bar
-        var progress = document.createElement('div');
-        progress.className = 'dispatch-job-progress';
-
-        var barBg = document.createElement('div');
-        barBg.className = 'dispatch-job-bar';
-
-        var barFill = document.createElement('div');
-        barFill.className = 'dispatch-job-bar-fill';
-        barFill.style.width = Math.min(job.progress_pct, 100) + '%';
-        barBg.appendChild(barFill);
-
-        var pct = document.createElement('span');
-        pct.className = 'dispatch-job-pct';
-        pct.textContent = Math.round(job.progress_pct) + '%';
-
-        progress.appendChild(barBg);
-        progress.appendChild(pct);
-
-        // ETA
-        var eta = document.createElement('div');
-        eta.className = 'dispatch-job-eta';
-        if (job.status === 'running' && job.eta_seconds) {
-            eta.textContent = formatEta(job.eta_seconds);
-        } else if (job.status === 'completed') {
-            eta.textContent = 'done';
-        } else if (job.status === 'failed') {
-            eta.textContent = 'FAILED';
-            eta.style.color = 'var(--archie-danger)';
-        } else if (job.status === 'cancelled') {
-            eta.textContent = 'cancelled';
-            eta.style.color = 'var(--archie-text-muted)';
-        } else {
-            eta.textContent = '--';
-        }
-
-        card.appendChild(info);
-        card.appendChild(steps);
-        card.appendChild(progress);
-        card.appendChild(eta);
-        container.appendChild(card);
-    });
-}
-
-function formatEta(seconds) {
-    if (!seconds || seconds <= 0) return '--';
-    if (seconds < 60) return seconds + 's';
-    if (seconds < 3600) return Math.round(seconds / 60) + 'm';
-    var h = Math.floor(seconds / 3600);
-    var m = Math.round((seconds % 3600) / 60);
-    return h + 'h ' + m + 'm';
-}
-
-// ============================================================================
-// CREW SUB-TAB SWITCHING
-// ============================================================================
-
-function switchCrewSubtab(name) {
-    document.querySelectorAll('.crew-subtab').forEach(function(btn) {
-        btn.classList.toggle('active', btn.dataset.subtab === name);
-    });
-    document.querySelectorAll('.crew-subpanel').forEach(function(panel) {
-        panel.classList.toggle('active', panel.dataset.subpanel === name);
-    });
-    if (name === 'contractors') loadContractors();
-    if (name === 'leaderboard') loadLeaderboard();
-    if (name === 'training') loadTrainingTab();
-    if (name === 'lounge') loadLoungeTab();
-    if (typeof lucide !== 'undefined') lucide.createIcons();
-}
 
 // ============================================================================
 // LEADERBOARD

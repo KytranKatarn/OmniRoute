@@ -10,7 +10,7 @@ import logging
 import os
 
 import requests as _req
-from flask import current_app, jsonify
+from flask import current_app, jsonify, request
 from flask_login import login_required
 
 from database import get_db_cursor
@@ -235,3 +235,182 @@ def register_dispatch_routes(bp, admin_required_decorator):
             logger.warning("[Dispatch] Loop jobs failed: %s", e)
 
         return jsonify({"success": True, **result})
+
+    # ── Job Control Actions ──
+
+    @bp.route("/api/dispatch/jobs/<name>/toggle", methods=["POST"])
+    @login_required
+    @admin_required_decorator
+    def dispatch_job_toggle(name):
+        """Enable or disable a loop job."""
+        data = request.get_json() or {}
+        enabled = data.get("enabled", True)
+        try:
+            svc = current_app.config.get("JOB_SERVICE")
+            if not svc:
+                return jsonify({"success": False, "error": "Job service unavailable"}), 503
+            if enabled:
+                svc.enable_job(name)
+            else:
+                svc.disable_job(name)
+            return jsonify({"success": True, "name": name, "enabled": enabled})
+        except Exception as e:
+            logger.error("[Dispatch] Job toggle failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/dispatch/jobs/<name>/run", methods=["POST"])
+    @login_required
+    @admin_required_decorator
+    def dispatch_job_run(name):
+        """Manually trigger a loop job."""
+        try:
+            svc = current_app.config.get("JOB_SERVICE")
+            if not svc:
+                return jsonify({"success": False, "error": "Job service unavailable"}), 503
+            svc.run_job(name)
+            return jsonify({"success": True, "name": name, "message": "Job triggered"})
+        except Exception as e:
+            logger.error("[Dispatch] Job run failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # ── Server Loop Toggles ──
+
+    @bp.route("/api/dispatch/loops", methods=["GET"])
+    @login_required
+    @admin_required_decorator
+    def dispatch_loops_status():
+        """Get server loop statuses (embedding, analysis, translate)."""
+        try:
+            loop_svc = current_app.config.get("LOOP_SERVICE")
+            if loop_svc:
+                states = loop_svc.get_all_states()
+            else:
+                states = {}
+            return jsonify({"success": True, "loops": states})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/dispatch/loops/toggle", methods=["POST"])
+    @login_required
+    @admin_required_decorator
+    def dispatch_loop_toggle():
+        """Toggle a server loop on/off."""
+        data = request.get_json() or {}
+        loop_name = data.get("name", "")
+        try:
+            loop_svc = current_app.config.get("LOOP_SERVICE")
+            if not loop_svc:
+                return jsonify({"success": False, "error": "Loop service unavailable"}), 503
+            new_state = loop_svc.toggle(loop_name)
+            return jsonify({"success": True, "name": loop_name, "running": new_state})
+        except Exception as e:
+            logger.error("[Dispatch] Loop toggle failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # ── Approvals ──
+
+    @bp.route("/api/dispatch/approvals", methods=["GET"])
+    @login_required
+    @admin_required_decorator
+    def dispatch_approvals():
+        """Fetch approval queue items."""
+        status = request.args.get("status", "pending")
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT id, action_type, reason, requested_by,
+                              status, tier, created_at
+                       FROM autonomy_approval_queue
+                       WHERE status = %s
+                       ORDER BY created_at DESC LIMIT 50""",
+                    (status,),
+                )
+                items = []
+                for row in cur.fetchall():
+                    r = dict(row)
+                    items.append(
+                        {
+                            "id": r["id"],
+                            "type": r.get("action_type", ""),
+                            "description": r.get("reason", ""),
+                            "requested_by": r.get("requested_by", ""),
+                            "status": r.get("status", ""),
+                            "tier": r.get("tier", 2),
+                            "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
+                        }
+                    )
+            return jsonify({"success": True, "approvals": items})
+        except Exception as e:
+            logger.error("[Dispatch] Approvals failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/dispatch/approvals/<int:approval_id>/<action>", methods=["POST"])
+    @login_required
+    @admin_required_decorator
+    def dispatch_approval_action(approval_id, action):
+        """Approve or reject an approval item."""
+        if action not in ("approve", "reject"):
+            return jsonify({"success": False, "error": "Invalid action"}), 400
+        new_status = "approved" if action == "approve" else "rejected"
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """UPDATE autonomy_approval_queue
+                       SET status = %s, approved_at = NOW()
+                       WHERE id = %s AND status = 'pending'""",
+                    (new_status, approval_id),
+                )
+                if cur.rowcount == 0:
+                    return jsonify({"success": False, "error": "Not found or already resolved"})
+            return jsonify({"success": True, "id": approval_id, "status": new_status})
+        except Exception as e:
+            logger.error("[Dispatch] Approval action failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # ── History ──
+
+    @bp.route("/api/dispatch/history", methods=["GET"])
+    @login_required
+    @admin_required_decorator
+    def dispatch_history():
+        """Unified dispatch + loop history."""
+        hours = min(int(request.args.get("hours", 24)), 168)
+        limit = min(int(request.args.get("limit", 50)), 200)
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """(SELECT 'dispatch' AS source, id, agent_name AS actor,
+                              task_type AS action, module_source AS module,
+                              CASE WHEN success THEN 'success' ELSE 'failed' END AS status,
+                              duration_ms, created_at
+                        FROM task_execution_log
+                        WHERE created_at > NOW() - INTERVAL '%s hours'
+                        ORDER BY created_at DESC LIMIT %s)
+                       UNION ALL
+                       (SELECT 'loop' AS source, id, job_name AS actor,
+                               status AS action, '' AS module,
+                               status, duration_ms, created_at
+                        FROM autonomy_loop_log
+                        WHERE created_at > NOW() - INTERVAL '%s hours'
+                        ORDER BY created_at DESC LIMIT %s)
+                       ORDER BY created_at DESC LIMIT %s""",
+                    (hours, limit, hours, limit, limit),
+                )
+                entries = []
+                for row in cur.fetchall():
+                    r = dict(row)
+                    entries.append(
+                        {
+                            "source": r["source"],
+                            "actor": r.get("actor", ""),
+                            "action": r.get("action", ""),
+                            "module": r.get("module", ""),
+                            "status": r.get("status", ""),
+                            "duration_ms": r.get("duration_ms"),
+                            "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
+                        }
+                    )
+            return jsonify({"success": True, "history": entries, "hours": hours})
+        except Exception as e:
+            logger.error("[Dispatch] History failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500

@@ -725,7 +725,13 @@ def collect_dns_history():
                 skipped += 1
                 continue
 
-            blocked = entry.get("reason", "") != ""
+            reason = entry.get("reason", "")
+            # Rewrites and whitelisted entries are NOT blocked
+            blocked = reason != "" and reason not in (
+                "Rewrite",
+                "NotFilteredWhiteList",
+                "NotFilteredNotFound",
+            )
 
             key = (client_ip, domain)
             if key not in buckets:

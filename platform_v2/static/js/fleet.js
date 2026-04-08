@@ -1,4 +1,4 @@
-/* starbase.js — Starbase Command module logic (extracted from starbase.html) */
+/* fleet.js — A.R.M.A.D.A. module logic (migrated from starbase.js) */
 
 // ── LCARS Confirm (shared utility, guarded against double-define) ──
 if (typeof window.lcarsConfirm === 'undefined') {
@@ -718,7 +718,7 @@ function switchBridgeTab(tabName) {
     history.replaceState(null, '', '#' + tabName);
     // Trigger data load for the tab if needed
     if (tabName === 'overview') loadOverviewData();
-    if (tabName === 'fleet-map') { if (typeof initFleetMap === 'function') { initFleetMap(); loadFleetUsage(); loadCloudProviders(); loadProviderManagement(); startFleetRefresh(); } }
+    if (tabName === 'fleet-map') { if (typeof initFleetMap === 'function') { initFleetMap(); loadFleetData(); loadFleetUsage(); loadCloudProviders(); loadProviderManagement(); startFleetRefresh(); } }
     if (tabName === 'crew') { startCrewRefresh(); } else { stopCrewRefresh(); }
     if (tabName === 'network') { loadNodes(); loadModelAvailability(); loadMeshLoans(); loadMeshLearning(); loadMeshAvailableAgents(); }
     // Re-render Lucide icons for any new content
@@ -7965,7 +7965,7 @@ function renderCrewManifest(crew, capacity, nodeCapacities) {
 
     // === HUB SECTION — purple border, collapsible ===
     var hubAgentCount = gpuAgents.length + cpuAgents.length + cloudAgents.length + swapAgents.length;
-    var hubSec = _createCollapsibleSection('\u2B50 A.R.C.H.I.E. STARBASE', hubAgentCount, '#8b5cf6', true);
+    var hubSec = _createCollapsibleSection('\u2B50 A.R.M.A.D.A. HUB', hubAgentCount, '#8b5cf6', true);
     var hubBody = hubSec.body;
     hubBody.style.cssText += 'display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;';
 
@@ -8160,7 +8160,7 @@ function _showModelControlModal(agent, action, nodeDbId, onConfirm) {
     var body = document.getElementById('model-control-body');
     var actions = document.getElementById('model-control-actions');
     var model = (agent.model || '').replace(':latest', '');
-    var target = nodeDbId ? (agent.node_name || 'Fleet Node') : 'A.R.C.H.I.E. Starbase';
+    var target = nodeDbId ? (agent.node_name || 'Fleet Node') : 'A.R.M.A.D.A. Hub';
     var isLoad = action === 'load';
 
     title.textContent = isLoad ? 'LOAD MODEL' : 'UNLOAD MODEL';
@@ -10609,7 +10609,7 @@ function renderFleetPins(data) {
                 iconAnchor: [16, 16],
             }),
         }).addTo(fleetMap);
-        marker.bindPopup(buildFleetPopup('STARBASE HUB', [
+        marker.bindPopup(buildFleetPopup('A.R.M.A.D.A. HUB', [
             ['Location', hub.city || 'Home Base'],
             ['Status', '<span style="color:#10b981;">ONLINE</span>'],
         ]), { className: 'fleet-popup' });

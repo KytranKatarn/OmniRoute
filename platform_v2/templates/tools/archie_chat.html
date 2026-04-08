@@ -1725,7 +1725,7 @@ document.getElementById('messageInput').focus();
 // Activity badge polling
 (function(){
     function updateActivityBadge(){
-        fetch('/tools/fleet/api/dispatch/fleet-metrics')
+        fetch('/tools/department-hq/api/dispatch/fleet-metrics')
             .then(function(r){ return r.json(); })
             .then(function(m){
                 var dot = document.getElementById('cab-dot');

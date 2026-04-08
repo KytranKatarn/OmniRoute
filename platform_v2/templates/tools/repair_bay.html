@@ -1012,7 +1012,7 @@ function _startFastPolling() {
         checkStationJobs();
         // Check if our scan job completed
         if (_scanJobId) {
-            fetch('/tools/fleet/api/bridge/jobs/' + _scanJobId).then(function(r) {
+            fetch('/tools/department-hq/api/bridge/jobs/' + _scanJobId).then(function(r) {
                 return r.json();
             }).then(function(data) {
                 if (!data.success) return;

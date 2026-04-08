@@ -81,7 +81,7 @@
     /**
      * Render a full agent profile into the given DOM elements.
      *
-     * @param {Object} data       - Response from /tools/fleet/api/agents/<id>/profile
+     * @param {Object} data       - Response from /tools/department-hq/api/agents/<id>/profile
      * @param {Element} bodyEl    - Container element for the profile body
      * @param {Element} titleEl   - Element to set the title text
      * @param {Object} [options]  - { stationColor, agentId, onClose, showSkillEdit,
@@ -276,7 +276,7 @@
                     selBtn.textContent = 'Select';
                     selBtn.onclick = function(e) {
                         e.stopPropagation();
-                        fetch('/tools/fleet/api/agents/' + agentId + '/portraits/' + v.id + '/select', { method: 'POST' })
+                        fetch('/tools/department-hq/api/agents/' + agentId + '/portraits/' + v.id + '/select', { method: 'POST' })
                             .then(function(r) { return r.json(); })
                             .then(function(res) {
                                 if (res.success) {
@@ -303,7 +303,7 @@
             }
 
             function _loadVariants() {
-                fetch('/tools/fleet/api/agents/' + agentId + '/portraits')
+                fetch('/tools/department-hq/api/agents/' + agentId + '/portraits')
                     .then(function(r) { return r.json(); })
                     .then(function(data) {
                         if (data.success) _renderVariantGrid(data.portraits);
@@ -315,7 +315,7 @@
                 genBtn.textContent = 'Generating on all GPUs...';
                 genStatus.textContent = 'Fan-out to all ComfyUI hosts...';
 
-                fetch('/tools/fleet/api/agents/' + agentId + '/generate-portrait', {
+                fetch('/tools/department-hq/api/agents/' + agentId + '/generate-portrait', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ prompt: a.avatar_generation_prompt })
@@ -736,7 +736,7 @@
         bodyEl.appendChild(whSection);
 
         /* ── Async: C.R.E.E.D. Welfare & Compliance ────────────────────── */
-        fetch('/tools/fleet/api/agents/workload')
+        fetch('/tools/department-hq/api/agents/workload')
             .then(function (r) { return r.json(); })
             .then(function (wData) {
                 var section = document.getElementById('profile-creed-section');
@@ -815,7 +815,7 @@
             }).catch(function () { /* silently skip */ });
 
         /* ── Async: Work History ──────────────────────────────────── */
-        fetch('/tools/fleet/api/agents/' + parseInt(agentId) + '/work-history')
+        fetch('/tools/department-hq/api/agents/' + parseInt(agentId) + '/work-history')
             .then(function (r) { return r.json(); })
             .then(function (whData) {
                 var section = document.getElementById('profile-work-history-section');

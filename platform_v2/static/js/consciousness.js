@@ -838,8 +838,8 @@ function _stopJobPolling() {
 }
 
 function checkActiveJobs() {
-  /* Pull from Fleet Command — single source of truth for agent/station work */
-  fetch("/tools/fleet/api/bridge/jobs?status=running").then(function(resp) {
+  /* Pull from Department HQ — single source of truth for agent/station work */
+  fetch("/tools/department-hq/api/bridge/jobs?status=running").then(function(resp) {
     var ct = resp.headers.get("content-type") || "";
     if (ct.indexOf("application/json") === -1) return Promise.reject("not json");
     return resp.json();

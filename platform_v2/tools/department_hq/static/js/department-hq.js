@@ -1842,93 +1842,66 @@ async function _loadFleetHealth() {
 }
 
 // ───────────────────────────────────────────────────────────────
-// Contractors Tab
+// Contractors Tab — Helpers
+// ───────────────────────────────────────────────────────────────
+
+var escapeHtml = esc; // alias for fleet.js compat
+
+function _el(tag, cls, style) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (style) e.style.cssText = style;
+    return e;
+}
+
+function showToast(msg, type) {
+    var t = document.createElement('div');
+    t.style.cssText = 'position:fixed;bottom:24px;right:24px;padding:10px 20px;border-radius:6px;color:#fff;font-size:0.85rem;z-index:10000;opacity:0;transition:opacity 0.3s;';
+    t.style.background = type === 'error' ? '#ef4444' : type === 'warning' ? '#f59e0b' : '#10b981';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    requestAnimationFrame(function() { t.style.opacity = '1'; });
+    setTimeout(function() { t.style.opacity = '0'; setTimeout(function() { t.remove(); }, 300); }, 3000);
+}
+
+// ───────────────────────────────────────────────────────────────
+// Contractors Tab — Full Provider Management
 // ───────────────────────────────────────────────────────────────
 
 async function loadContractors() {
     loaded['contractors'] = true;
     try {
-        var data = await api('/api/contractors/providers');
-        var el = document.getElementById('contractorProvidersContent');
-        if (!el) return;
-        var providers = (data && data.providers) || [];
-        var countEl = document.getElementById('contractorCount');
-        if (countEl) countEl.textContent = '(' + providers.length + ')';
-        if (providers.length === 0) { el.textContent = 'No external contractors configured'; return; }
-        el.textContent = '';
-        var grid = document.createElement('div');
-        grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;';
-        providers.forEach(function(p) {
-            var active = p.is_active;
-            var card = document.createElement('div');
-            card.style.cssText = 'background:rgba(255,255,255,0.03);border:1px solid ' + (active ? 'rgba(16,185,129,0.3)' : 'rgba(107,114,128,0.3)') + ';border-radius:8px;padding:12px;';
-            // Header
-            var hdr = document.createElement('div');
-            hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;';
-            var nameDiv = document.createElement('div');
-            nameDiv.style.fontWeight = '600';
-            var dot = document.createElement('span');
-            dot.style.cssText = 'display:inline-block;width:8px;height:8px;border-radius:50%;background:' + (active ? '#10b981' : '#6b7280') + ';margin-right:6px;';
-            nameDiv.appendChild(dot);
-            nameDiv.appendChild(document.createTextNode(p.display_name || p.provider));
-            hdr.appendChild(nameDiv);
-            var tier = document.createElement('span');
-            tier.style.cssText = 'font-size:0.65rem;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.06);';
-            tier.textContent = p.account_tier || 'free';
-            hdr.appendChild(tier);
-            card.appendChild(hdr);
-            // Stats
-            var stats = p.stats_24h || {};
-            var sg = document.createElement('div');
-            sg.style.cssText = 'font-size:0.75rem;color:rgba(255,255,255,0.5);display:grid;grid-template-columns:1fr 1fr;gap:4px;';
-            sg.textContent = '';
-            ['24h: ' + (stats.requests || 0) + ' req', 'Cost: $' + (stats.cost || 0).toFixed(4), 'Latency: ' + (stats.avg_latency_ms || 0).toFixed(0) + 'ms', 'Success: ' + (stats.success_rate || 100).toFixed(0) + '%'].forEach(function(t) {
-                var cell = document.createElement('div');
-                cell.textContent = t;
-                sg.appendChild(cell);
-            });
-            card.appendChild(sg);
-            // Budget bar
-            if (p.monthly_budget_usd > 0) {
-                var pct = Math.min(p.budget_pct || 0, 100);
-                var bc = pct > 80 ? '#ef4444' : pct > 50 ? '#f59e0b' : '#10b981';
-                var bar = document.createElement('div');
-                bar.style.cssText = 'margin-top:8px;background:rgba(255,255,255,0.06);border-radius:4px;height:6px;overflow:hidden;';
-                var fill = document.createElement('div');
-                fill.style.cssText = 'width:' + pct + '%;height:100%;background:' + bc + ';border-radius:4px;';
-                bar.appendChild(fill);
-                card.appendChild(bar);
-                var budgetTxt = document.createElement('div');
-                budgetTxt.style.cssText = 'font-size:0.65rem;color:rgba(255,255,255,0.4);margin-top:2px;';
-                budgetTxt.textContent = '$' + (p.current_month_cost_usd || 0).toFixed(2) + ' / $' + p.monthly_budget_usd.toFixed(2);
-                card.appendChild(budgetTxt);
-            }
-            // Models
-            if (p.models && p.models.length > 0) {
-                var mods = document.createElement('div');
-                mods.style.cssText = 'margin-top:8px;font-size:0.7rem;';
-                p.models.forEach(function(m) {
-                    var mc = m.enabled ? '#a3e635' : '#6b7280';
-                    var tag = document.createElement('span');
-                    tag.style.cssText = 'display:inline-block;margin:2px 4px 2px 0;padding:1px 6px;border-radius:3px;background:rgba(255,255,255,0.04);border:1px solid ' + mc + '40;color:' + mc + ';';
-                    tag.textContent = m.name;
-                    mods.appendChild(tag);
-                });
-                card.appendChild(mods);
-            }
-            grid.appendChild(card);
+        var results = await Promise.all([
+            fetch('/tools/fleet/api/external-providers'),
+            fetch('/tools/fleet/api/routing-mode')
+        ]);
+        var provResp = results[0];
+        var modeResp = results[1];
+        if (!provResp.ok) throw new Error('Failed to load providers');
+        var data = await provResp.json();
+        var routingMode = 'full';
+        if (modeResp.ok) {
+            var modeData = await modeResp.json();
+            if (modeData.success) routingMode = modeData.routing_mode || 'full';
+        }
+        renderContractors(data.providers || [], routingMode, {
+            creed_total_24h: data.creed_total_24h || 0,
+            creed_blocked_24h: data.creed_blocked_24h || 0
         });
-        el.appendChild(grid);
-    } catch (e) { console.error('Contractors load:', e); }
+    } catch (e) {
+        console.error('loadContractors error:', e);
+        var grid = document.getElementById('contractors-grid');
+        if (grid) grid.textContent = 'Failed to load contractors';
+    }
 
     // Definitions table
     try {
         var data = await api('/api/contractors/definitions');
-        var el = document.getElementById('contractorDefinitionsContent');
-        if (!el || !data || !data.success) return;
+        var defEl = document.getElementById('contractorDefinitionsContent');
+        if (!defEl || !data || !data.success) return;
         var defs = data.providers || [];
-        if (defs.length === 0) { el.textContent = 'No contractor definitions'; return; }
-        el.textContent = '';
+        if (defs.length === 0) { defEl.textContent = 'No contractor definitions'; return; }
+        defEl.textContent = '';
         var tbl = document.createElement('table');
         tbl.style.cssText = 'width:100%;font-size:0.75rem;border-collapse:collapse;';
         var thead = document.createElement('tr');
@@ -1959,8 +1932,608 @@ async function loadContractors() {
             });
             tbl.appendChild(tr);
         });
-        el.appendChild(tbl);
+        defEl.appendChild(tbl);
     } catch (e) { console.error('Contractor defs load:', e); }
+}
+
+function renderContractors(providers, routingMode, creedData) {
+    routingMode = routingMode || 'full';
+    creedData = creedData || { creed_total_24h: 0, creed_blocked_24h: 0 };
+    var creedBlocked = creedData.creed_blocked_24h || 0;
+    var cloudProviders = providers.filter(function(p) { return p.is_cloud_proxy; }).map(function(p) { return p.provider; });
+    var grid = document.getElementById('contractors-grid');
+    var summaryEl = document.getElementById('contractors-summary');
+    if (!grid) return;
+
+    // Compute summary
+    var activeCount = 0;
+    var totalCount = providers.length;
+    var totalSpent = 0;
+    var totalBudget = 0;
+    providers.forEach(function(p) {
+        if (p.is_active) activeCount++;
+        totalSpent += (p.current_month_cost_usd || 0);
+        totalBudget += (p.monthly_budget_usd || 0);
+    });
+    if (summaryEl) {
+        summaryEl.textContent = activeCount + '/' + totalCount + ' active \u2014 $' + totalSpent.toFixed(2) + ' / $' + totalBudget.toFixed(0);
+    }
+    // Also update the count badge
+    var countEl = document.getElementById('contractorCount');
+    if (countEl) countEl.textContent = '(' + totalCount + ')';
+
+    if (providers.length === 0) {
+        grid.textContent = '';
+        var emptyMsg = document.createElement('span');
+        emptyMsg.className = 'briefing-muted';
+        emptyMsg.textContent = 'No external providers configured. Click "+ Add Provider" to get started.';
+        grid.appendChild(emptyMsg);
+        return;
+    }
+
+    grid.textContent = '';
+    providers.forEach(function(p) {
+        var providerName = p.display_name || (p.name || p.provider || '').replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+        var providerKey = p.provider || p.name || '';
+        var tierPositions = p.tier_positions || {};
+        var tierPosVals = Object.values(tierPositions);
+        var tierPos = tierPosVals.length > 0 ? Math.min.apply(null, tierPosVals) : '--';
+        var isEnabled = p.is_active !== false;
+        var accountTier = p.account_tier || 'free';
+        var tierLabel = accountTier.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+        var tierColor = accountTier === 'enterprise' ? '#a855f7' : accountTier === 'pro' ? '#f59e0b' : accountTier === 'pay_as_you_go' ? '#3b82f6' : '#6b7280';
+        var monthlyBudget = p.monthly_budget_usd || 0;
+        var currentCost = p.current_month_cost_usd || 0;
+        var isOverBudget = monthlyBudget > 0 && currentCost > monthlyBudget;
+        var statusClass = isOverBudget ? 'over-budget' : (isEnabled ? 'active' : 'inactive');
+        var statusText = isOverBudget ? 'Over Budget' : (isEnabled ? 'Active' : 'Inactive');
+        var budgetPct = monthlyBudget > 0 ? Math.min(100, (currentCost / monthlyBudget) * 100) : 0;
+        var budgetFillClass = budgetPct > 100 ? 'over' : (budgetPct > 75 ? 'warning' : '');
+        var isBlocked = (routingMode === 'local_only') ||
+                        (routingMode === 'local_cloud' && cloudProviders.indexOf(p.provider) === -1);
+
+        // Compute session/weekly totals for collapsed summary
+        var pSess = 0, pSessLim = 0, pWkly = 0, pWklyLim = 0;
+        (p.models || []).forEach(function(m) {
+            var mw = m.usage_windows || {};
+            pSess += (mw.session_2h != null ? mw.session_2h : 0);
+            pSessLim += (mw.session_limit || 0);
+            pWkly += (mw.weekly_7d != null ? mw.weekly_7d : 0);
+            pWklyLim += (mw.weekly_limit || 0);
+        });
+        var sPct = pSessLim > 0 ? Math.min(100, Math.round(pSess / pSessLim * 100)) + '%' : '\u221e';
+        var wPct = pWklyLim > 0 ? Math.min(100, Math.round(pWkly / pWklyLim * 100)) + '%' : '\u221e';
+        var headerSummary = (pSess > 0 || pWkly > 0 || pSessLim > 0 || pWklyLim > 0) ? 's=' + sPct + ' / w=' + wPct : '';
+
+        // --- Build contractor firm card via DOM ---
+        var firm = _el('div', 'contractor-firm');
+        if (isBlocked) {
+            firm.style.cssText = 'position:relative;opacity:0.4;pointer-events:none;';
+        }
+
+        // Header row (clickable to expand)
+        var firmHeader = _el('div', 'contractor-firm-header');
+        firmHeader.addEventListener('click', function() { firm.classList.toggle('expanded'); });
+
+        var chevron = _el('i');
+        chevron.setAttribute('data-lucide', 'chevron-right');
+        chevron.className = 'chevron-icon';
+        firmHeader.appendChild(chevron);
+
+        var nameSpan = _el('span', 'contractor-firm-name');
+        nameSpan.textContent = providerName;
+        firmHeader.appendChild(nameSpan);
+
+        if (headerSummary) {
+            var summarySpan = _el('span', 'contractor-header-summary');
+            summarySpan.textContent = headerSummary;
+            firmHeader.appendChild(summarySpan);
+        }
+
+        var tierBadge = _el('span', 'contractor-tier-badge');
+        tierBadge.textContent = 'Tier ' + String(tierPos);
+        firmHeader.appendChild(tierBadge);
+
+        var tierLabelSpan = _el('span', '', 'font-size:0.6rem;padding:1px 6px;border-radius:3px;border:1px solid ' + tierColor + ';color:' + tierColor + ';text-transform:uppercase;letter-spacing:0.5px;');
+        tierLabelSpan.textContent = tierLabel;
+        firmHeader.appendChild(tierLabelSpan);
+
+        var statusBadge = _el('span', 'contractor-status-badge ' + statusClass);
+        statusBadge.textContent = statusText;
+        firmHeader.appendChild(statusBadge);
+
+        var budgetBar = _el('div', 'budget-bar');
+        var budgetFill = _el('div', 'budget-fill ' + budgetFillClass);
+        budgetFill.style.width = budgetPct.toFixed(0) + '%';
+        budgetBar.appendChild(budgetFill);
+        firmHeader.appendChild(budgetBar);
+
+        var firmActions = _el('div', 'contractor-firm-actions');
+        var editBtn = _el('button', 'contractor-btn-edit');
+        editBtn.textContent = 'Edit';
+        (function(pk) {
+            editBtn.addEventListener('click', function(e) { e.stopPropagation(); editProvider(pk); });
+        })(providerKey);
+        firmActions.appendChild(editBtn);
+
+        var toggleBtn = _el('button', 'contractor-btn-toggle');
+        toggleBtn.textContent = isEnabled ? 'Disable' : 'Enable';
+        (function(pk) {
+            toggleBtn.addEventListener('click', function(e) { e.stopPropagation(); toggleProvider(pk); });
+        })(providerKey);
+        firmActions.appendChild(toggleBtn);
+
+        firmHeader.appendChild(firmActions);
+        firm.appendChild(firmHeader);
+
+        // Body (models list)
+        var firmBody = _el('div', 'contractor-firm-body');
+
+        // Auth & budget info row
+        var authRow = _el('div', '', 'display:flex;flex-wrap:wrap;gap:12px;padding:6px 8px;margin-bottom:8px;background:rgba(255,255,255,0.03);border-radius:4px;font-size:0.72rem;color:var(--archie-text-tertiary);');
+        var authLabels = [
+            { label: 'Auth', value: p.auth_method || 'API key', color: 'var(--archie-cyan)' },
+            { label: 'Key', value: p.key_hint || 'Not set', color: p.key_hint ? 'var(--archie-text-secondary)' : '#ff6b6b' },
+            { label: 'Budget', value: '$' + monthlyBudget.toFixed(2) + '/mo', color: 'var(--archie-text-secondary)' },
+            { label: 'Spent', value: '$' + currentCost.toFixed(2), color: 'var(--archie-text-secondary)' }
+        ];
+        authLabels.forEach(function(item) {
+            var span = document.createElement('span');
+            var valSpan = document.createElement('span');
+            valSpan.style.color = item.color;
+            valSpan.textContent = item.value;
+            span.textContent = item.label + ': ';
+            span.appendChild(valSpan);
+            authRow.appendChild(span);
+        });
+        firmBody.appendChild(authRow);
+
+        var models = p.models || [];
+        if (models.length === 0) {
+            var noModels = _el('span', 'briefing-muted', 'font-size:0.7rem;');
+            noModels.textContent = 'No models registered for this provider';
+            firmBody.appendChild(noModels);
+        } else {
+            var modelsGrid = _el('div', 'contractor-models-grid');
+            models.forEach(function(m) {
+                var modelEnabled = m.enabled !== false;
+                var modelCard = _el('div', 'contractor-model-card' + (modelEnabled ? '' : ' disabled'));
+                var mStats = m.stats_24h || {};
+                var mTierPos = m.tier_position != null ? m.tier_position : tierPos;
+
+                var modelName = _el('div', 'contractor-model-name');
+                modelName.textContent = m.name || m.model_name || '';
+                modelCard.appendChild(modelName);
+
+                var modelMeta = _el('div', 'contractor-model-meta');
+                var metaSpan = document.createElement('span');
+                metaSpan.textContent = 'Contract Worker \u00b7 Tier ' + String(mTierPos);
+                modelMeta.appendChild(metaSpan);
+                modelCard.appendChild(modelMeta);
+
+                // 24h stats
+                var statsDiv = _el('div', 'model-stats');
+                var statItems = [
+                    { label: 'Tasks/24h', val: (mStats.requests != null ? String(mStats.requests) : '0') },
+                    { label: 'Success', val: (mStats.success_rate != null && mStats.requests > 0 ? parseFloat(mStats.success_rate).toFixed(0) + '%' : '--') },
+                    { label: 'Avg latency', val: (mStats.avg_latency_ms != null && mStats.requests > 0 ? (parseFloat(mStats.avg_latency_ms) / 1000).toFixed(1) + 's' : '--') },
+                    { label: 'Cost/24h', val: '$' + (mStats.cost != null ? parseFloat(mStats.cost).toFixed(3) : '0.000') }
+                ];
+                statItems.forEach(function(si) {
+                    var row = document.createElement('div');
+                    row.textContent = si.label + ': ';
+                    var valSpan = _el('span', 'stat-val');
+                    valSpan.textContent = si.val;
+                    row.appendChild(valSpan);
+                    statsDiv.appendChild(row);
+                });
+                modelCard.appendChild(statsDiv);
+
+                // All-time stats
+                var mAlltime = m.stats_alltime || null;
+                if (mAlltime) {
+                    var lastUsedStr = mAlltime.last_used && typeof ArchieTime !== 'undefined' ? ArchieTime.date(mAlltime.last_used) : (mAlltime.last_used || '--');
+                    var allDiv = _el('div', 'model-stats', 'margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.06);');
+                    var allItems = [
+                        { label: 'Total', val: mAlltime.requests + ' tasks' },
+                        { label: 'Success', val: parseFloat(mAlltime.success_rate).toFixed(0) + '%' },
+                        { label: 'Last used', val: lastUsedStr },
+                        { label: 'Total cost', val: '$' + parseFloat(mAlltime.cost).toFixed(3) }
+                    ];
+                    allItems.forEach(function(ai) {
+                        var row = document.createElement('div');
+                        row.textContent = ai.label + ': ';
+                        var valSpan = _el('span', 'stat-val');
+                        valSpan.textContent = ai.val;
+                        row.appendChild(valSpan);
+                        allDiv.appendChild(row);
+                    });
+                    modelCard.appendChild(allDiv);
+                }
+
+                // Usage windows (session/weekly bars)
+                var mWindows = m.usage_windows || null;
+                if (mWindows) {
+                    var sess = mWindows.session_2h != null ? mWindows.session_2h : 0;
+                    var sessLimit = mWindows.session_limit || null;
+                    var wkly = mWindows.weekly_7d != null ? mWindows.weekly_7d : 0;
+                    var wklyLimit = mWindows.weekly_limit || null;
+                    var sessPct = sessLimit ? Math.min(sess / sessLimit * 100, 100) : 0;
+                    var wklyPct = wklyLimit ? Math.min(wkly / wklyLimit * 100, 100) : 0;
+                    var barColor = function(pct) { return pct > 80 ? '#ff4444' : pct > 50 ? '#ffaa00' : '#22cc88'; };
+                    var sessStr = sessLimit ? sess + ' / ' + sessLimit : sess + ' req';
+                    var wklyStr = wklyLimit ? wkly + ' / ' + wklyLimit : wkly + ' req';
+
+                    var windowsDiv = _el('div', '', 'margin-top:4px;padding:5px 6px;border-top:1px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;gap:5px;font-size:0.65rem;');
+
+                    // Session bar
+                    var sessRow = _el('div', '', 'display:flex;align-items:center;gap:6px;');
+                    var sessLabel = _el('span', '', 'color:rgba(255,255,255,0.5);min-width:58px;display:flex;align-items:center;gap:3px;');
+                    var sessIcon = _el('i', '', 'width:10px;height:10px;');
+                    sessIcon.setAttribute('data-lucide', 'clock');
+                    sessLabel.appendChild(sessIcon);
+                    sessLabel.appendChild(document.createTextNode(' Session'));
+                    sessRow.appendChild(sessLabel);
+                    if (sessLimit) {
+                        var sessPctSpan = _el('span', '', 'color:' + barColor(sessPct) + ';min-width:28px;font-weight:600;font-size:0.6rem;');
+                        sessPctSpan.textContent = Math.round(sessPct) + '%';
+                        sessRow.appendChild(sessPctSpan);
+                        var sessBarWrap = _el('div', '', 'flex:1;height:10px;background:rgba(255,255,255,0.06);border-radius:5px;overflow:hidden;position:relative;');
+                        var sessBarFill = _el('div', '', 'height:100%;width:' + sessPct.toFixed(1) + '%;background:' + barColor(sessPct) + ';border-radius:5px;transition:width 0.4s ease;');
+                        sessBarWrap.appendChild(sessBarFill);
+                        sessRow.appendChild(sessBarWrap);
+                    } else {
+                        var unlimitedSpan = _el('span', '', 'color:var(--archie-cyan);font-size:0.6rem;flex:1;');
+                        unlimitedSpan.textContent = 'Unlimited';
+                        sessRow.appendChild(unlimitedSpan);
+                    }
+                    var sessValSpan = _el('span', '', 'color:rgba(255,255,255,0.45);min-width:62px;text-align:right;font-size:0.6rem;');
+                    sessValSpan.textContent = sessStr;
+                    sessRow.appendChild(sessValSpan);
+                    windowsDiv.appendChild(sessRow);
+
+                    // Weekly bar
+                    var wklyRow = _el('div', '', 'display:flex;align-items:center;gap:6px;');
+                    var wklyLabel = _el('span', '', 'color:rgba(255,255,255,0.5);min-width:58px;display:flex;align-items:center;gap:3px;');
+                    var wklyIcon = _el('i', '', 'width:10px;height:10px;');
+                    wklyIcon.setAttribute('data-lucide', 'calendar');
+                    wklyLabel.appendChild(wklyIcon);
+                    wklyLabel.appendChild(document.createTextNode(' Weekly'));
+                    wklyRow.appendChild(wklyLabel);
+                    if (wklyLimit) {
+                        var wklyPctSpan = _el('span', '', 'color:' + barColor(wklyPct) + ';min-width:28px;font-weight:600;font-size:0.6rem;');
+                        wklyPctSpan.textContent = Math.round(wklyPct) + '%';
+                        wklyRow.appendChild(wklyPctSpan);
+                        var wklyBarWrap = _el('div', '', 'flex:1;height:10px;background:rgba(255,255,255,0.06);border-radius:5px;overflow:hidden;position:relative;');
+                        var wklyBarFill = _el('div', '', 'height:100%;width:' + wklyPct.toFixed(1) + '%;background:' + barColor(wklyPct) + ';border-radius:5px;transition:width 0.4s ease;');
+                        wklyBarWrap.appendChild(wklyBarFill);
+                        wklyRow.appendChild(wklyBarWrap);
+                    } else {
+                        var unlimitedSpan2 = _el('span', '', 'color:var(--archie-cyan);font-size:0.6rem;flex:1;');
+                        unlimitedSpan2.textContent = 'Unlimited';
+                        wklyRow.appendChild(unlimitedSpan2);
+                    }
+                    var wklyValSpan = _el('span', '', 'color:rgba(255,255,255,0.45);min-width:62px;text-align:right;font-size:0.6rem;');
+                    wklyValSpan.textContent = wklyStr;
+                    wklyRow.appendChild(wklyValSpan);
+                    windowsDiv.appendChild(wklyRow);
+
+                    modelCard.appendChild(windowsDiv);
+                }
+
+                // CREED badge + model toggle row
+                var bottomRow = _el('div', '', 'display:flex;align-items:center;justify-content:space-between;');
+                var creedBadge = _el('span', 'contractor-creed-badge');
+                if (creedBlocked > 0) {
+                    creedBadge.style.cssText = 'color:#ffaa00;border-color:#ffaa00;';
+                    var shieldAlert = _el('i', '', 'width:10px;height:10px;');
+                    shieldAlert.setAttribute('data-lucide', 'shield-alert');
+                    creedBadge.appendChild(shieldAlert);
+                    creedBadge.appendChild(document.createTextNode(' C.R.E.E.D.: ' + creedBlocked + ' blocked'));
+                } else {
+                    var shieldCheck = _el('i', '', 'width:10px;height:10px;');
+                    shieldCheck.setAttribute('data-lucide', 'shield-check');
+                    creedBadge.appendChild(shieldCheck);
+                    creedBadge.appendChild(document.createTextNode(' C.R.E.E.D. Compliant'));
+                }
+                bottomRow.appendChild(creedBadge);
+
+                var toggleLabel = _el('label', 'contractor-model-toggle');
+                var toggleCheck = document.createElement('input');
+                toggleCheck.type = 'checkbox';
+                if (modelEnabled) toggleCheck.checked = true;
+                (function(pk, mn) {
+                    toggleCheck.addEventListener('change', function() {
+                        toggleContractorModel(pk, mn, this.checked);
+                    });
+                })(providerKey, m.name || m.model_name || '');
+                toggleLabel.appendChild(toggleCheck);
+                toggleLabel.appendChild(document.createTextNode(' Enabled'));
+                bottomRow.appendChild(toggleLabel);
+
+                modelCard.appendChild(bottomRow);
+                modelsGrid.appendChild(modelCard);
+            });
+            firmBody.appendChild(modelsGrid);
+        }
+        firm.appendChild(firmBody);
+
+        // Blocked overlay
+        if (isBlocked) {
+            var blockedText = routingMode === 'local_only' ? 'Routing: Local Only' : 'Routing: Local + Cloud Only';
+            var blockedOverlay = _el('div', '', 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.7);color:#ffaa00;padding:4px 12px;border-radius:4px;font-size:0.7rem;z-index:1;pointer-events:auto;');
+            blockedOverlay.textContent = blockedText;
+            firm.appendChild(blockedOverlay);
+        }
+
+        grid.appendChild(firm);
+    });
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function toggleProvider(provider) {
+    fetch('/tools/fleet/api/external-providers/' + encodeURIComponent(provider) + '/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        showToast(data.message || 'Provider toggled', 'success');
+        loadContractors();
+    })
+    .catch(function() {
+        showToast('Failed to toggle provider', 'error');
+    });
+}
+
+function toggleContractorModel(provider, model, enabled) {
+    fetch('/tools/fleet/api/external-providers/' + encodeURIComponent(provider) + '/models/' + encodeURIComponent(model) + '/toggle', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: enabled })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        showToast(data.message || 'Model toggled', 'success');
+        loadContractors();
+    })
+    .catch(function() {
+        showToast('Failed to toggle model', 'error');
+    });
+}
+
+function editProvider(providerName) {
+    openAddProviderModal(providerName);
+}
+
+function openAddProviderModal(editProviderName) {
+    // Remove existing modal if any
+    var existing = document.querySelector('.bm-overlay.bm-provider-modal');
+    if (existing) existing.remove();
+
+    // Fetch both contractor-providers definitions AND current key data in parallel
+    Promise.all([
+        fetch('/tools/fleet/api/contractor-providers').then(function(r) { return r.json(); }),
+        fetch('/tools/fleet/api/external-providers').then(function(r) { return r.json(); })
+    ]).then(function(results) {
+        var cpData = results[0];
+        var epData = results[1];
+        var contractorProviders = cpData.providers || [];
+        var configuredProviders = epData.providers || [];
+        var current = editProviderName ? configuredProviders.find(function(p) { return p.provider === editProviderName; }) : null;
+
+        // Build provider options dynamically from contractor_providers table
+        var providerOptions = contractorProviders.map(function(cp) {
+            return { value: cp.provider_key, label: cp.display_name, is_cloud_proxy: cp.is_cloud_proxy };
+        });
+
+        var budgetVal = current ? (current.monthly_budget_usd || 10) : 10;
+        var currentTier = current ? (current.account_tier || 'free') : 'free';
+        var isCloud = editProviderName && providerOptions.some(function(opt) { return opt.value === editProviderName && opt.is_cloud_proxy; });
+        var keyPlaceholder = current && current.key_hint ? 'Current: ' + current.key_hint + ' (leave blank to keep)' : 'sk-... or key';
+
+        var tierOptions = [
+            { value: 'free', label: 'Free' },
+            { value: 'pro', label: 'Pro' },
+            { value: 'pay_as_you_go', label: 'Pay As You Go' },
+            { value: 'enterprise', label: 'Enterprise' },
+            { value: 'max', label: 'Max' }
+        ];
+
+        // --- Build LCARS tablet modal ---
+        var overlay = _el('div', 'bm-overlay active bm-provider-modal', '--bm-accent:#a855f7;--bm-accent-rgb:168,85,247;');
+        overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+        var shell = _el('div', 'bm-shell', 'max-width:400px;');
+
+        // Left frame sidebar
+        var frame = _el('div', 'bm-frame');
+        frame.appendChild(_el('div', 'bm-frame-elbow-top'));
+        frame.appendChild(_el('div', 'bm-frame-seg'));
+        frame.appendChild(_el('div', 'bm-frame-seg dim'));
+        frame.appendChild(_el('div', 'bm-frame-light on'));
+        frame.appendChild(_el('div', 'bm-frame-light amber'));
+        frame.appendChild(_el('div', 'bm-frame-seg purple'));
+        frame.appendChild(_el('div', 'bm-frame-fill'));
+        frame.appendChild(_el('div', 'bm-frame-elbow-bottom'));
+        shell.appendChild(frame);
+
+        // Right content column
+        var content = _el('div', 'bm-content');
+
+        // Header
+        var header = _el('div', 'bm-header');
+        var title = _el('span', 'bm-header-title');
+        title.textContent = (editProviderName ? 'EDIT' : 'ADD') + ' PROVIDER';
+        header.appendChild(title);
+        var strip = _el('div', 'bm-header-strip');
+        strip.appendChild(_el('span', 'bm-header-pip w1'));
+        strip.appendChild(_el('span', 'bm-header-pip w2'));
+        strip.appendChild(_el('span', 'bm-header-pip w3'));
+        var closeBtn = _el('button', 'bm-close');
+        closeBtn.textContent = '\u00D7';
+        closeBtn.addEventListener('click', function() { overlay.remove(); });
+        strip.appendChild(closeBtn);
+        header.appendChild(strip);
+        content.appendChild(header);
+
+        // Body
+        var body = _el('div', 'bm-body');
+
+        // Provider select
+        var lbl1 = document.createElement('label');
+        lbl1.textContent = 'Provider';
+        body.appendChild(lbl1);
+        var provSelect = document.createElement('select');
+        provSelect.id = 'provider-modal-name';
+        if (editProviderName) provSelect.disabled = true;
+        var defOpt = document.createElement('option');
+        defOpt.value = '';
+        defOpt.textContent = 'Select provider...';
+        provSelect.appendChild(defOpt);
+        providerOptions.forEach(function(opt) {
+            var o = document.createElement('option');
+            o.value = opt.value;
+            o.textContent = opt.label;
+            if (editProviderName && editProviderName === opt.value) o.selected = true;
+            provSelect.appendChild(o);
+        });
+        body.appendChild(provSelect);
+
+        // Auth note container
+        var authNoteDiv = document.createElement('div');
+        authNoteDiv.id = 'provider-modal-auth-note';
+        if (isCloud) {
+            var noteInner = document.createElement('div');
+            noteInner.style.cssText = 'margin:6px 0 8px;padding:6px 8px;background:rgba(0,255,255,0.06);border:1px solid rgba(0,255,255,0.15);border-radius:4px;font-size:0.72rem;color:var(--archie-cyan);';
+            noteInner.textContent = 'Auth: OLLAMA_API_KEY env var (shared Ollama cloud proxy)';
+            authNoteDiv.appendChild(noteInner);
+        }
+        body.appendChild(authNoteDiv);
+
+        // Account tier select
+        var lbl2 = document.createElement('label');
+        lbl2.textContent = 'Account Tier';
+        body.appendChild(lbl2);
+        var tierSelect = document.createElement('select');
+        tierSelect.id = 'provider-modal-tier';
+        tierOptions.forEach(function(opt) {
+            var o = document.createElement('option');
+            o.value = opt.value;
+            o.textContent = opt.label;
+            if (opt.value === currentTier) o.selected = true;
+            tierSelect.appendChild(o);
+        });
+        body.appendChild(tierSelect);
+
+        // API key input
+        var lbl3 = document.createElement('label');
+        lbl3.textContent = 'API Key';
+        body.appendChild(lbl3);
+        var keyInput = document.createElement('input');
+        keyInput.type = 'password';
+        keyInput.id = 'provider-modal-key';
+        keyInput.placeholder = keyPlaceholder;
+        body.appendChild(keyInput);
+
+        // Budget input
+        var lbl4 = document.createElement('label');
+        lbl4.textContent = 'Monthly Budget ($)';
+        body.appendChild(lbl4);
+        var budgetInput = document.createElement('input');
+        budgetInput.type = 'number';
+        budgetInput.id = 'provider-modal-budget';
+        budgetInput.value = budgetVal;
+        budgetInput.min = '0';
+        budgetInput.step = '1';
+        body.appendChild(budgetInput);
+
+        content.appendChild(body);
+
+        // Actions bar
+        var actions = _el('div', 'bm-actions');
+        var cancelBtn2 = _el('button', 'btn-cancel');
+        cancelBtn2.textContent = 'Cancel';
+        cancelBtn2.addEventListener('click', function() { overlay.remove(); });
+        var saveBtn = _el('button', 'btn-submit');
+        saveBtn.textContent = 'Save';
+        saveBtn.addEventListener('click', function() { saveProvider(); });
+        actions.appendChild(cancelBtn2);
+        actions.appendChild(saveBtn);
+        content.appendChild(actions);
+
+        // Footer decorative strip
+        var footer = _el('div', 'bm-footer');
+        var footerStrip = _el('div', 'bm-footer-strip');
+        footerStrip.appendChild(_el('span', 'bm-footer-dot purple'));
+        footerStrip.appendChild(_el('span', 'bm-footer-dot gold'));
+        footerStrip.appendChild(_el('span', 'bm-footer-dot cyan'));
+        footer.appendChild(footerStrip);
+        content.appendChild(footer);
+
+        shell.appendChild(content);
+        overlay.appendChild(shell);
+        document.body.appendChild(overlay);
+
+        // Dynamic auth note update when provider changes
+        if (!editProviderName) {
+            provSelect.addEventListener('change', function() {
+                var sel = this.value;
+                var cp = providerOptions.find(function(o) { return o.value === sel; });
+                var noteEl = document.getElementById('provider-modal-auth-note');
+                if (noteEl) {
+                    while (noteEl.firstChild) noteEl.removeChild(noteEl.firstChild);
+                    if (cp && cp.is_cloud_proxy) {
+                        var noteInner = document.createElement('div');
+                        noteInner.style.cssText = 'margin:6px 0 8px;padding:6px 8px;background:rgba(0,255,255,0.06);border:1px solid rgba(0,255,255,0.15);border-radius:4px;font-size:0.72rem;color:var(--archie-cyan);';
+                        noteInner.textContent = 'Auth: OLLAMA_API_KEY env var (shared Ollama cloud proxy)';
+                        noteEl.appendChild(noteInner);
+                    }
+                }
+            });
+        }
+
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    });
+}
+
+function saveProvider() {
+    var nameEl = document.getElementById('provider-modal-name');
+    var keyEl = document.getElementById('provider-modal-key');
+    var budgetEl = document.getElementById('provider-modal-budget');
+
+    if (!nameEl || !nameEl.value) {
+        showToast('Please select a provider', 'error');
+        return;
+    }
+
+    var tierEl = document.getElementById('provider-modal-tier');
+    var payload = {
+        provider: nameEl.value,
+        monthly_budget_usd: parseFloat(budgetEl.value) || 10,
+        account_tier: tierEl ? tierEl.value : 'free'
+    };
+    if (keyEl.value) {
+        payload.api_key = keyEl.value;
+    }
+
+    fetch('/tools/fleet/api/external-providers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        showToast(data.message || 'Provider saved', 'success');
+        var overlay = document.querySelector('.bm-overlay.bm-provider-modal');
+        if (overlay) overlay.remove();
+        loadContractors();
+    })
+    .catch(function() {
+        showToast('Failed to save provider', 'error');
+    });
 }
 
 // ───────────────────────────────────────────────────────────────

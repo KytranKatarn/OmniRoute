@@ -437,8 +437,8 @@ MODULES: List[ModuleDefinition] = [
     # NOTE: blueprint (Mission Control) removed from grid 2026-02-04
     # Blueprint Flask routes still registered manually in app.py for Dev HQ API access
     # NOTE: Starbase + Starship merged into A.R.M.A.D.A. (2026-04-08)
-    # A.R.M.A.D.A. — hidden from dashboard grid, accessed via Department HQ Fleet tab
-    # Blueprint still registered for API endpoints
+    # A.R.M.A.D.A. — fleet management, LCARS provider config, token tracking
+    # Blueprint MUST be enabled for API endpoints (Dept HQ Fleet/Contractors tabs depend on it)
     ModuleDefinition(
         id="fleet",
         name="A.R.M.A.D.A.",
@@ -449,7 +449,7 @@ MODULES: List[ModuleDefinition] = [
         blueprint_import="tools.fleet.routes:fleet_bp",
         required_permissions=[],
         minimum_role="USER",
-        enabled=False,
+        enabled=True,
         health_check=lambda: default_health_check("fleet"),
         priority=2,
         tags=[

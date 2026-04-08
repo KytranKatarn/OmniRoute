@@ -64,36 +64,10 @@ fleet_bp = Blueprint("fleet", __name__, url_prefix="/tools/fleet", template_fold
 @fleet_bp.route("/")
 @login_required
 def fleet_dashboard():
-    """Render the main Fleet command center"""
-    deployment_mode = os.getenv("DEPLOYMENT_MODE", "hub")
-    if deployment_mode == "business_node":
-        return render_template(
-            "fleet_hub.html",
-            deployment_mode=deployment_mode,
-            node_id=os.getenv("NODE_ID", ""),
-            hub_url=os.getenv("HUB_URL", ""),
-        )
-    else:
-        # Hub and default: full command center with stations, agents, crew + mesh
-        # Pre-fetch status bar data so it shows instantly (no flash of "--")
-        agent_count = 0
-        interactions_24h = 0
-        try:
-            with get_db_cursor(commit=False) as (conn, cur):
-                cur.execute("SELECT COUNT(*) AS cnt FROM agents WHERE status = 'active'")
-                agent_count = cur.fetchone()["cnt"]
-                cur.execute(
-                    "SELECT COUNT(*) AS cnt FROM task_execution_log " "WHERE created_at >= NOW() - INTERVAL '24 hours'"
-                )
-                interactions_24h = cur.fetchone()["cnt"]
-        except Exception as e:
-            logger.warning("Failed to pre-fetch status bar data: %s", e)
-        return render_template(
-            "fleet.html",
-            deployment_mode=deployment_mode,
-            initial_agent_count=agent_count,
-            initial_interactions_24h=interactions_24h,
-        )
+    """Redirect to Department HQ Fleet tab — all fleet UI lives there now."""
+    from flask import redirect
+
+    return redirect("/tools/department-hq/#fleet", code=302)
 
 
 # ============================================================================

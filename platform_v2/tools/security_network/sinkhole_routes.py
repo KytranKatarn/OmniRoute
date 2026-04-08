@@ -230,6 +230,8 @@ def register_sinkhole_routes(bp, admin_required_decorator):
             return jsonify({"success": False, "error": "domain required"}), 400
 
         try:
+            from concurrent.futures import ThreadPoolExecutor, TimeoutError
+
             from bridge_dispatcher import dispatch
 
             prompt = (
@@ -241,7 +243,26 @@ def register_sinkhole_routes(bp, admin_required_decorator):
                 f"Keep the response under 150 words, be direct."
             )
 
-            result = dispatch("general", prompt, module_id="security_network")
+            # Dispatch through Department HQ — let it assign the right agent
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(
+                    dispatch,
+                    capability="classify",
+                    prompt=prompt,
+                    module_id="security_network",
+                )
+                try:
+                    result = future.result(timeout=120)
+                except TimeoutError:
+                    logger.warning("[Domain Investigate] Dispatch timed out after 120s")
+                    return jsonify(
+                        {
+                            "success": False,
+                            "error": "Investigation timed out — AI agents are busy. Try again shortly.",
+                            "domain": domain,
+                        }
+                    )
+
             if result and result.success:
                 # Persist report to database
                 try:

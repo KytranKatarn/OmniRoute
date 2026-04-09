@@ -1621,9 +1621,10 @@ function _renderFirewallPanel(panel, fw) {
     panel.textContent = '';
     var wrap = document.createElement('div');
     wrap.style.cssText = 'display:flex;gap:16px;flex-wrap:wrap';
+    var isActive = fw.active || fw.enabled || fw.status === 'active';
     var items = [
-        {label:'STATUS', badge:fw.active?'Active':'Inactive', type:fw.active?'success':'danger'},
-        {label:'RULES', text:String(fw.rules_count||fw.rule_count||0)},
+        {label:'STATUS', badge:isActive?'Active':'Inactive', type:isActive?'success':'danger'},
+        {label:'RULES', text:String(fw.rules_count||fw.rule_count||(fw.rules?fw.rules.length:0)||0)},
         {label:'DEFAULT', text:fw.default_policy||fw.default_incoming||'-'}
     ];
     items.forEach(function(item){

@@ -298,11 +298,65 @@ async function loadDNSOverview() {
             document.getElementById('dns-total-queries').textContent = formatNum(s.num_dns_queries || 0);
             document.getElementById('dns-blocked').textContent = formatNum(s.num_blocked_filtering || 0);
             document.getElementById('dns-safe-browsing').textContent = formatNum(s.num_replaced_safebrowsing || 0);
+            var protEnabled = d.status && d.status.protection_enabled !== undefined ? d.status.protection_enabled : true;
             const pEl = document.getElementById('dns-protection-status');
-            pEl.textContent = d.protection_enabled !== false ? 'ON' : 'OFF';
-            pEl.style.color = d.protection_enabled !== false ? 'var(--archie-green)' : 'var(--archie-red)';
+            pEl.textContent = protEnabled ? 'ON' : 'OFF';
+            pEl.style.color = protEnabled ? 'var(--archie-green)' : 'var(--archie-red)';
+
+            // Render Top Queried Domains
+            _renderTopDomainList('dns-top-queried', 'dns-top-queried-count', s.top_queried_domains, '#00e5ff', 15);
+            // Render Top Blocked Domains
+            _renderTopDomainList('dns-top-blocked', 'dns-top-blocked-count', s.top_blocked_domains, '#ef4444', 24);
         }
     } catch(e) { console.error('DNS overview error:', e); }
+}
+
+function _renderTopDomainList(containerId, countId, domainList, accentColor, maxItems) {
+    var container = document.getElementById(containerId);
+    var countEl = document.getElementById(countId);
+    if (!container) return;
+    if (!domainList || !domainList.length) {
+        container.textContent = '';
+        var empty = document.createElement('div');
+        empty.style.cssText = 'color:#666;padding:12px;font-size:0.8rem;text-align:center';
+        empty.textContent = 'No data available';
+        container.appendChild(empty);
+        if (countEl) countEl.textContent = '0';
+        return;
+    }
+    if (countEl) countEl.textContent = domainList.length + ' domains';
+    container.textContent = '';
+    var items = domainList.slice(0, maxItems);
+    items.forEach(function(entry, idx) {
+        // Each entry is {domain: count} — extract key/value
+        var domain = Object.keys(entry)[0];
+        var count = entry[domain];
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:6px 12px;border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer;transition:background 0.15s';
+        row.addEventListener('mouseenter', function() { row.style.background = 'rgba(255,255,255,0.04)'; });
+        row.addEventListener('mouseleave', function() { row.style.background = 'transparent'; });
+        row.addEventListener('click', function() { if (typeof openDomainIntel === 'function') openDomainIntel(domain); });
+        row.title = 'Click to investigate ' + domain;
+
+        var left = document.createElement('div');
+        left.style.cssText = 'display:flex;align-items:center;gap:8px;min-width:0';
+        var rank = document.createElement('span');
+        rank.style.cssText = 'color:#555;font-size:0.7rem;min-width:20px;text-align:right';
+        rank.textContent = (idx + 1) + '.';
+        var name = document.createElement('span');
+        name.style.cssText = 'color:#ccc;font-size:0.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+        name.textContent = domain;
+        left.appendChild(rank);
+        left.appendChild(name);
+
+        var badge = document.createElement('span');
+        badge.style.cssText = 'background:' + accentColor + '22;color:' + accentColor + ';padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;white-space:nowrap';
+        badge.textContent = formatNum(count);
+
+        row.appendChild(left);
+        row.appendChild(badge);
+        container.appendChild(row);
+    });
 }
 
 function dnsBlockDomain() {
@@ -399,15 +453,12 @@ async function loadQueryLog(offset) {
                 var domLink = document.createElement('span');
                 domLink.textContent = domain;
                 domLink.style.cursor = 'pointer';
-                domLink.title = 'Click to block this domain';
+                domLink.style.color = 'var(--archie-accent, #00e5ff)';
+                domLink.style.textDecoration = 'underline';
+                domLink.style.textDecorationColor = 'rgba(0,229,255,0.3)';
+                domLink.title = 'Click to view domain intelligence';
                 domLink.addEventListener('click', function() {
-                    if (confirm('Block domain: ' + domain + '?')) {
-                        fetch(API+'/dns/adguard/block',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain:domain})})
-                        .then(function(r){return r.json();}).then(function(d){
-                            if(d.success) showToast('success',domain+' blocked');
-                            else showToast('error',d.error||'Failed');
-                        });
-                    }
+                    if (typeof openDomainIntel === 'function') openDomainIntel(domain);
                 });
                 tdDomain.appendChild(domLink);
                 tr.appendChild(tdDomain);
@@ -471,8 +522,27 @@ async function loadFilters() {
         const r = await fetch(API+'/dns/adguard/filters');
         const d = await r.json();
         if(d.success && d.filters) {
-            if(!d.filters.length) { showEmpty(container,'No filters configured'); return; }
+            if(!d.filters.length) { showEmpty(container,'No filters configured — add a filter list above'); return; }
             container.textContent = '';
+
+            // Summary bar
+            var totalRules = 0;
+            var enabledCount = 0;
+            d.filters.forEach(function(f) { totalRules += (f.rules_count || 0); if (f.enabled) enabledCount++; });
+            var summary = document.createElement('div');
+            summary.style.cssText = 'display:flex;gap:16px;padding:8px 12px;margin-bottom:8px;font-size:0.8rem;border-bottom:1px solid rgba(255,255,255,0.06)';
+            var s1 = document.createElement('span');
+            s1.style.color = '#00e5ff';
+            s1.textContent = d.filters.length + ' filter lists';
+            var s2 = document.createElement('span');
+            s2.style.color = '#22c55e';
+            s2.textContent = enabledCount + ' active';
+            var s3 = document.createElement('span');
+            s3.style.color = '#f97316';
+            s3.textContent = formatNum(totalRules) + ' total rules';
+            summary.appendChild(s1); summary.appendChild(s2); summary.appendChild(s3);
+            container.appendChild(summary);
+
             const rows = d.filters.map(f => {
                 const toggle = document.createElement('label');
                 toggle.className = 'toggle-switch';
@@ -488,11 +558,13 @@ async function loadFilters() {
                 delBtn.className = 'btn btn-danger btn-sm';
                 delBtn.textContent = 'Remove';
                 delBtn.addEventListener('click', function() { removeFilter(f.url); });
-                return [toggle, f.name, f.url, f.rules_count||0, delBtn];
+                return [toggle, f.name, f.url, formatNum(f.rules_count||0), delBtn];
             });
             container.appendChild(buildTable(['Enabled','Name','URL','Rules',''], rows));
+        } else {
+            showEmpty(container, (d.error || 'Could not load filters') + ' — check AdGuard connection');
         }
-    } catch(e) { showEmpty(container, 'Error loading filters'); }
+    } catch(e) { showEmpty(container, 'Error loading filters: ' + e.message); }
 }
 
 function addFilter() {
@@ -533,8 +605,15 @@ async function loadRewrites() {
         const r = await fetch(API+'/dns/adguard/rewrites');
         const d = await r.json();
         if(d.success && d.rewrites) {
-            if(!d.rewrites.length){showEmpty(container,'No DNS rewrites');return;}
+            if(!d.rewrites.length){showEmpty(container,'No DNS rewrites configured — use the form above to map domains to custom IPs');return;}
             container.textContent='';
+
+            // Description + count
+            var info = document.createElement('div');
+            info.style.cssText = 'padding:8px 12px;margin-bottom:8px;font-size:0.78rem;color:#888;border-bottom:1px solid rgba(255,255,255,0.06)';
+            info.textContent = d.rewrites.length + ' rewrite' + (d.rewrites.length !== 1 ? 's' : '') + ' active \u2014 DNS rewrites map domains to custom IPs. Used for split DNS (internal services resolve to local IPs).';
+            container.appendChild(info);
+
             const rows = d.rewrites.map(rw => {
                 const delBtn = document.createElement('button');
                 delBtn.className='btn btn-danger btn-sm';
@@ -542,9 +621,11 @@ async function loadRewrites() {
                 delBtn.addEventListener('click', function(){deleteRewrite(rw.domain,rw.answer);});
                 return [rw.domain, rw.answer, delBtn];
             });
-            container.appendChild(buildTable(['Domain','Answer',''], rows));
+            container.appendChild(buildTable(['Domain','Answer (IP)',''], rows));
+        } else {
+            showEmpty(container, (d.error || 'Could not load rewrites') + ' — check AdGuard connection');
         }
-    } catch(e) { showEmpty(container,'Error loading rewrites'); }
+    } catch(e) { showEmpty(container,'Error loading rewrites: ' + e.message); }
 }
 
 function addRewrite() {
@@ -617,14 +698,104 @@ async function loadUserRules() {
     try {
         const r = await fetch(API+'/dns/adguard/rules');
         const d = await r.json();
-        if(d.success) document.getElementById('user-rules').value = d.rules||'';
+        if(d.success) {
+            var rulesText = d.rules || '';
+            document.getElementById('user-rules').value = rulesText;
+            _renderRulesSummary(rulesText);
+        }
     } catch(e){console.error('Rules load error:',e);}
+}
+
+function _renderRulesSummary(rulesText) {
+    var lines = rulesText.split('\n').filter(function(l) { return l.trim(); });
+    var blocked = [], allowed = [], comments = 0;
+    lines.forEach(function(line) {
+        var t = line.trim();
+        if (t.startsWith('#') || t.startsWith('!')) { comments++; }
+        else if (t.startsWith('@@||')) {
+            var m = t.match(/^@@\|\|(.+?)\^/);
+            if (m) allowed.push(m[1]);
+        } else if (t.startsWith('||')) {
+            var m2 = t.match(/^\|\|(.+?)\^/);
+            if (m2) blocked.push(m2[1]);
+        }
+    });
+
+    var bcEl = document.getElementById('rules-blocked-count');
+    var acEl = document.getElementById('rules-allowed-count');
+    var ccEl = document.getElementById('rules-comment-count');
+    if (bcEl) bcEl.textContent = blocked.length;
+    if (acEl) acEl.textContent = allowed.length;
+    if (ccEl) ccEl.textContent = comments;
+
+    var chips = document.getElementById('rules-domain-chips');
+    if (!chips) return;
+    chips.textContent = '';
+
+    if (!blocked.length && !allowed.length) {
+        var empty = document.createElement('span');
+        empty.style.cssText = 'color:#666;font-size:0.78rem';
+        empty.textContent = 'No custom domain rules. Use Quick Block above or edit the textarea below.';
+        chips.appendChild(empty);
+        return;
+    }
+
+    blocked.forEach(function(domain) {
+        var chip = document.createElement('span');
+        chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:rgba(239,68,68,0.12);color:#ef4444;padding:3px 8px;border-radius:4px;font-size:0.72rem;border:1px solid rgba(239,68,68,0.25)';
+        var txt = document.createTextNode(domain);
+        var x = document.createElement('span');
+        x.style.cssText = 'cursor:pointer;font-weight:700;margin-left:2px;opacity:0.7';
+        x.textContent = '\u00d7';
+        x.title = 'Remove block rule for ' + domain;
+        x.addEventListener('click', function(e) {
+            e.stopPropagation();
+            _removeRule('||' + domain + '^');
+        });
+        chip.appendChild(txt);
+        chip.appendChild(x);
+        chip.style.cursor = 'pointer';
+        chip.title = 'Click to investigate ' + domain;
+        chip.addEventListener('click', function() { if (typeof openDomainIntel === 'function') openDomainIntel(domain); });
+        chips.appendChild(chip);
+    });
+
+    allowed.forEach(function(domain) {
+        var chip = document.createElement('span');
+        chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:rgba(34,197,94,0.12);color:#22c55e;padding:3px 8px;border-radius:4px;font-size:0.72rem;border:1px solid rgba(34,197,94,0.25)';
+        var txt = document.createTextNode(domain);
+        var x = document.createElement('span');
+        x.style.cssText = 'cursor:pointer;font-weight:700;margin-left:2px;opacity:0.7';
+        x.textContent = '\u00d7';
+        x.title = 'Remove whitelist rule for ' + domain;
+        x.addEventListener('click', function(e) {
+            e.stopPropagation();
+            _removeRule('@@||' + domain + '^');
+        });
+        chip.appendChild(txt);
+        chip.appendChild(x);
+        chips.appendChild(chip);
+    });
+}
+
+function _removeRule(rule) {
+    var textarea = document.getElementById('user-rules');
+    if (!textarea) return;
+    var lines = textarea.value.split('\n');
+    var filtered = lines.filter(function(l) { return l.trim() !== rule; });
+    textarea.value = filtered.join('\n');
+    // Auto-save and refresh summary
+    saveUserRules();
+    _renderRulesSummary(textarea.value);
 }
 
 function saveUserRules() {
     const rules = document.getElementById('user-rules').value;
     fetch(API+'/dns/adguard/rules',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rules:rules})})
-    .then(r=>r.json()).then(d=>{if(d.success) showToast('success','Rules saved'); else showToast('error',d.error||'Failed');})
+    .then(r=>r.json()).then(d=>{
+        if(d.success) { showToast('success','Rules saved'); _renderRulesSummary(rules); }
+        else showToast('error',d.error||'Failed');
+    })
     .catch(e=>showToast('error',e.message));
 }
 
@@ -1762,14 +1933,34 @@ async function loadDomainsOverview() {
     try {
         const r = await fetch(API + '/domains/overview');
         const d = await r.json();
-        if (!d.success) { showToast('error', d.error || 'Failed to load domains overview'); return; }
+        if (!d.success) {
+            // Show error in stats instead of just a toast
+            var errMsg = d.error || 'Failed to load';
+            document.getElementById('domains-public-ip').textContent = 'Error';
+            document.getElementById('domains-dns-count').textContent = '--';
+            document.getElementById('domains-proxy-count').textContent = '--';
+            document.getElementById('domains-cert-count').textContent = '--';
+            var errBody = document.getElementById('domains-unified-body');
+            if (errBody) {
+                errBody.textContent = '';
+                var tr = document.createElement('tr');
+                var td = document.createElement('td');
+                td.colSpan = 5;
+                td.style.cssText = 'text-align:center;color:#f97316;padding:20px';
+                td.textContent = 'Could not load domain data: ' + errMsg + '. Check Hostinger API configuration in Security Network settings.';
+                tr.appendChild(td);
+                errBody.appendChild(tr);
+            }
+            showToast('error', errMsg);
+            return;
+        }
 
         document.getElementById('domains-public-ip').textContent = d.public_ip || 'Unknown';
-        document.getElementById('domains-dns-count').textContent = Array.isArray(d.dns_records) ? d.dns_records.length : '--';
-        document.getElementById('domains-proxy-count').textContent = Array.isArray(d.proxy_hosts) ? d.proxy_hosts.length : '--';
+        document.getElementById('domains-dns-count').textContent = Array.isArray(d.dns_records) ? d.dns_records.length : '0';
+        document.getElementById('domains-proxy-count').textContent = Array.isArray(d.proxy_hosts) ? d.proxy_hosts.length : 'N/A';
 
         /* Certificate count from overview response */
-        document.getElementById('domains-cert-count').textContent = Array.isArray(d.certificates) ? d.certificates.length : '--';
+        document.getElementById('domains-cert-count').textContent = Array.isArray(d.certificates) ? d.certificates.length : 'N/A';
 
         // Build unified subdomain map
         const dnsRecords = Array.isArray(d.dns_records) ? d.dns_records : [];

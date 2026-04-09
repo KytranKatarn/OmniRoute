@@ -870,6 +870,7 @@ function _setFooterButtonsState(disabled) {
     });
 }
 
+var _investigateTimer = null;
 function investigateDomain(domain) {
     if (_domainIntelLoading) return; // Prevent double-click
     _domainIntelLoading = true;
@@ -877,15 +878,23 @@ function investigateDomain(domain) {
     // Cancel any previous in-flight request
     if (_domainIntelAbort) { try { _domainIntelAbort.abort(); } catch(e){} }
     _domainIntelAbort = new AbortController();
+    if (_investigateTimer) { clearInterval(_investigateTimer); _investigateTimer = null; }
 
     var btn = document.getElementById('domain-investigate-btn');
     var result = document.getElementById('domain-investigate-result');
-    if (btn) { btn.disabled = true; btn.textContent = 'Analyzing...'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Analyzing... 0s'; }
     _setFooterButtonsState(true);
     if (result) {
         result.style.cssText = 'background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.3);border-radius:8px;padding:16px;min-height:60px;color:#8b5cf6;font-size:0.8rem;line-height:1.5;font-style:italic';
-        result.textContent = 'AI is researching this domain... This may take up to 4-5 minutes.';
+        result.textContent = 'AI is researching this domain... Please wait.';
     }
+
+    // Elapsed timer on the button
+    var startTime = Date.now();
+    _investigateTimer = setInterval(function() {
+        var elapsed = Math.round((Date.now() - startTime) / 1000);
+        if (btn && btn.disabled) btn.textContent = 'Analyzing... ' + elapsed + 's';
+    }, 1000);
 
     fetch(SN_API + '/dns/domain-investigate', {
         method: 'POST',
@@ -895,6 +904,7 @@ function investigateDomain(domain) {
     }).then(function(r) { return r.json(); }).then(function(d) {
         _domainIntelLoading = false;
         _domainIntelAbort = null;
+        if (_investigateTimer) { clearInterval(_investigateTimer); _investigateTimer = null; }
         if (btn) { btn.disabled = false; btn.textContent = 'Re-investigate'; }
         _setFooterButtonsState(false);
         if (d.success && d.report) {
@@ -902,16 +912,19 @@ function investigateDomain(domain) {
             result.textContent = d.report;
         } else {
             result.style.cssText = 'background:rgba(249,115,22,0.06);border:1px dashed rgba(249,115,22,0.3);border-radius:8px;padding:16px;min-height:60px;color:#f97316;font-size:0.8rem;line-height:1.5;font-style:italic';
-            result.textContent = 'AI unavailable: ' + (d.error || 'try again later');
+            result.textContent = (d.error || 'AI unavailable — try again later') + '\nTip: If a cached report was shown previously, it remains valid.';
         }
     }).catch(function(e) {
         _domainIntelLoading = false;
         _domainIntelAbort = null;
+        if (_investigateTimer) { clearInterval(_investigateTimer); _investigateTimer = null; }
         if (e.name === 'AbortError') return; // Cancelled by new modal open — ignore
         if (btn) { btn.disabled = false; btn.textContent = 'Investigate'; }
         _setFooterButtonsState(false);
-        result.style.cssText = 'background:rgba(239,68,68,0.06);border:1px dashed rgba(239,68,68,0.3);border-radius:8px;padding:16px;min-height:60px;color:#ef4444;font-size:0.8rem;line-height:1.5;font-style:italic';
-        result.textContent = 'Error: ' + e;
+        if (result) {
+            result.style.cssText = 'background:rgba(239,68,68,0.06);border:1px dashed rgba(239,68,68,0.3);border-radius:8px;padding:16px;min-height:60px;color:#ef4444;font-size:0.8rem;line-height:1.5;font-style:italic';
+            result.textContent = 'Connection error — AI agents may be busy. Try again in a moment.';
+        }
     });
 }
 

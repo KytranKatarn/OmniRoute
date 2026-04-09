@@ -387,6 +387,28 @@
                     <div class="stat-value" id="dns-protection-status">--</div>
                 </div>
             </div>
+
+            <!-- Top Domains Grid -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title" style="color:#00e5ff">Top Queried Domains</span>
+                        <span class="badge" id="dns-top-queried-count" style="background:rgba(0,229,255,0.15);color:#00e5ff;font-size:0.7rem">--</span>
+                    </div>
+                    <div id="dns-top-queried" style="max-height:400px;overflow-y:auto">
+                        <div class="loading-state"><span class="spinner"></span> Loading...</div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title" style="color:#ef4444">Top Blocked Domains</span>
+                        <span class="badge" id="dns-top-blocked-count" style="background:rgba(239,68,68,0.15);color:#ef4444;font-size:0.7rem">--</span>
+                    </div>
+                    <div id="dns-top-blocked" style="max-height:400px;overflow-y:auto">
+                        <div class="loading-state"><span class="spinner"></span> Loading...</div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div id="subtab-dns-querylog" class="subtab-content">
@@ -476,11 +498,28 @@
                     <button class="btn btn-success btn-sm" onclick="dnsUnblockDomain()">Unblock</button>
                 </div>
             </div>
+
+            <!-- Parsed Rules Summary -->
+            <div class="card" style="margin-bottom:16px">
+                <div class="card-header">
+                    <span class="card-title">Active Rules Summary</span>
+                </div>
+                <div id="rules-summary-stats" style="display:flex;gap:16px;padding:8px 0;margin-bottom:8px;font-size:0.8rem">
+                    <span style="color:#ef4444"><strong id="rules-blocked-count">0</strong> blocked</span>
+                    <span style="color:#22c55e"><strong id="rules-allowed-count">0</strong> whitelisted</span>
+                    <span style="color:#888"><strong id="rules-comment-count">0</strong> comments</span>
+                </div>
+                <div id="rules-domain-chips" style="display:flex;flex-wrap:wrap;gap:6px;max-height:200px;overflow-y:auto">
+                    <span style="color:#666;font-size:0.78rem">Loading rules...</span>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="card-header">
                     <span class="card-title"><span data-i18n="security_network.custom_filtering_rules">Custom Filtering Rules</span></span>
                     <button class="btn btn-primary btn-sm" onclick="saveUserRules()"><span data-i18n="security_network.save_rules">Save Rules</span></button>
                 </div>
+                <div style="color:#666;font-size:0.72rem;margin-bottom:6px">Advanced: Edit raw AdGuard rules directly. Use <code>||domain^</code> to block, <code>@@||domain^</code> to whitelist.</div>
                 <textarea class="form-textarea" id="user-rules" placeholder="# Custom AdGuard filtering rules&#10;# One rule per line&#10;||ads.example.com^"></textarea>
             </div>
         </div>

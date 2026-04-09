@@ -1617,61 +1617,99 @@ function refreshSSLMonitors() {
 // SYSOPS_API alias — same base URL as SN_API / API
 var SYSOPS_API = typeof SN_API !== 'undefined' ? SN_API : '/tools/security-network/api';
 
+function _renderFirewallPanel(panel, fw) {
+    panel.textContent = '';
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;gap:16px;flex-wrap:wrap';
+    var items = [
+        {label:'STATUS', badge:fw.active?'Active':'Inactive', type:fw.active?'success':'danger'},
+        {label:'RULES', text:String(fw.rules_count||fw.rule_count||0)},
+        {label:'DEFAULT', text:fw.default_policy||fw.default_incoming||'-'}
+    ];
+    items.forEach(function(item){
+        var cell = document.createElement('div');
+        var lbl = document.createElement('span');
+        lbl.style.cssText='font-size:0.72rem;color:var(--archie-text-muted)';
+        lbl.textContent = item.label;
+        cell.appendChild(lbl);
+        cell.appendChild(document.createElement('br'));
+        if(item.badge){cell.appendChild(createBadge(item.badge,item.type));}
+        else{var v=document.createElement('span');v.style.cssText='font-family:var(--archie-font-mono);color:var(--archie-text-primary)';v.textContent=item.text;cell.appendChild(v);}
+        wrap.appendChild(cell);
+    });
+    panel.appendChild(wrap);
+}
+
 async function loadFirewall() {
     var panel = document.getElementById('firewall-panel');
     var rulesDiv = document.getElementById('firewall-rules');
+
+    // Show cached firewall status immediately
+    try {
+        var cached = localStorage.getItem('sn_firewall_cache');
+        if (cached) {
+            var cdata = JSON.parse(cached);
+            _renderFirewallPanel(panel, cdata.fw);
+            var note = document.createElement('div');
+            note.style.cssText = 'font-size:0.65rem;color:#666;text-align:right;margin-top:4px';
+            note.textContent = 'Cached — refreshing...';
+            note.id = 'fw-cache-note';
+            panel.appendChild(note);
+            if (cdata.rules && cdata.rules.length) {
+                _renderFirewallRules(rulesDiv, cdata.rules);
+            }
+        }
+    } catch(e) {}
+
+    // Fetch fresh status
     try {
         var r = await fetch(SYSOPS_API+'/firewall/status');
         var d = await r.json();
         if(d.success) {
             var fw = d.firewall || d;
-            panel.textContent='';
-            var wrap = document.createElement('div');
-            wrap.style.cssText='display:flex;gap:16px;flex-wrap:wrap';
-            var items = [
-                {label:'STATUS', badge:fw.active?'Active':'Inactive', type:fw.active?'success':'danger'},
-                {label:'RULES', text:String(fw.rules_count||fw.rule_count||0)},
-                {label:'DEFAULT', text:fw.default_policy||fw.default_incoming||'-'}
-            ];
-            items.forEach(function(item){
-                var cell = document.createElement('div');
-                var lbl = document.createElement('span');
-                lbl.style.cssText='font-size:0.72rem;color:var(--archie-text-muted)';
-                lbl.textContent = item.label;
-                cell.appendChild(lbl);
-                cell.appendChild(document.createElement('br'));
-                if(item.badge){cell.appendChild(createBadge(item.badge,item.type));}
-                else{var v=document.createElement('span');v.style.cssText='font-family:var(--archie-font-mono);color:var(--archie-text-primary)';v.textContent=item.text;cell.appendChild(v);}
-                wrap.appendChild(cell);
-            });
-            panel.appendChild(wrap);
-        } else { showEmpty(panel,'Firewall status unavailable'); }
-    } catch(e) { showEmpty(panel,'Error loading firewall'); }
+            _renderFirewallPanel(panel, fw);
+            try { var cache = JSON.parse(localStorage.getItem('sn_firewall_cache') || '{}'); cache.fw = fw; cache.ts = Date.now(); localStorage.setItem('sn_firewall_cache', JSON.stringify(cache)); } catch(e) {}
+        } else if (!localStorage.getItem('sn_firewall_cache')) {
+            showEmpty(panel,'Firewall status unavailable — host agent may be busy');
+        } else {
+            var n = document.getElementById('fw-cache-note');
+            if (n) n.textContent = 'Cached — live refresh failed';
+        }
+    } catch(e) {
+        if (!localStorage.getItem('sn_firewall_cache')) showEmpty(panel,'Error loading firewall');
+    }
 
     // Load rules
     try {
         var r2 = await fetch(SYSOPS_API+'/firewall/rules');
         var d2 = await r2.json();
-        rulesDiv.textContent='';
         var rules = d2.rules || [];
-        if(rules.length === 0) { showEmpty(rulesDiv,'No firewall rules'); return; }
-        var rows = rules.map(function(rule) {
-            var delBtn = document.createElement('button');
-            delBtn.className = 'btn btn-danger btn-sm';
-            delBtn.textContent = 'Delete';
-            delBtn.addEventListener('click', function(){ deleteFirewallRule(rule.number || rule.id); });
-            return [
-                rule.number || rule.id || '-',
-                createBadge(rule.action || 'allow', (rule.action||'allow')==='allow'?'success':'danger'),
-                rule.to || rule.port || '-',
-                rule.from || 'Anywhere',
-                rule.protocol || '-',
-                rule.comment || '-',
-                delBtn
-            ];
-        });
-        rulesDiv.appendChild(buildTable(['#','Action','Port','From','Proto','Comment',''], rows));
-    } catch(e) { showEmpty(rulesDiv,'Error loading rules'); }
+        _renderFirewallRules(rulesDiv, rules);
+        try { var cache = JSON.parse(localStorage.getItem('sn_firewall_cache') || '{}'); cache.rules = rules; localStorage.setItem('sn_firewall_cache', JSON.stringify(cache)); } catch(e) {}
+    } catch(e) {
+        if (!localStorage.getItem('sn_firewall_cache')) showEmpty(rulesDiv,'Error loading rules');
+    }
+}
+
+function _renderFirewallRules(rulesDiv, rules) {
+    rulesDiv.textContent = '';
+    if (rules.length === 0) { showEmpty(rulesDiv, 'No firewall rules'); return; }
+    var rows = rules.map(function(rule) {
+        var delBtn = document.createElement('button');
+        delBtn.className = 'btn btn-danger btn-sm';
+        delBtn.textContent = 'Delete';
+        delBtn.addEventListener('click', function(){ deleteFirewallRule(rule.number || rule.id); });
+        return [
+            rule.number || rule.id || '-',
+            createBadge(rule.action || 'allow', (rule.action||'allow')==='allow'?'success':'danger'),
+            rule.to || rule.port || '-',
+            rule.from || 'Anywhere',
+            rule.protocol || '-',
+            rule.comment || '-',
+            delBtn
+        ];
+    });
+    rulesDiv.appendChild(buildTable(['#','Action','Port','From','Proto','Comment',''], rows));
 }
 
 function toggleFirewall(enable) {

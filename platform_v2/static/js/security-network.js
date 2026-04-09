@@ -1058,39 +1058,69 @@ function loadDefense() {
     loadConnections();
 }
 
+function _renderFail2banJails(container, jails) {
+    container.textContent = '';
+    if (!jails.length) { snShowEmpty(container, 'No jails data'); return; }
+    jails.forEach(function(j) {
+        var online = j.status === 'active' || j.active;
+        var row = document.createElement('div');
+        row.className = 'sn-jail-row';
+
+        var name = document.createElement('span');
+        name.className = 'sn-jail-name';
+        name.textContent = j.name || j.jail_name || '-';
+        row.appendChild(name);
+
+        var stat1 = document.createElement('span');
+        stat1.className = 'sn-jail-stat';
+        stat1.textContent = 'Banned: ' + (j.currently_banned || 0);
+        row.appendChild(stat1);
+
+        var stat2 = document.createElement('span');
+        stat2.className = 'sn-jail-stat';
+        stat2.textContent = 'Total: ' + (j.total_banned || 0);
+        row.appendChild(stat2);
+
+        var badge = snCreateBadge(online ? 'ACTIVE' : 'INACTIVE', online ? 'success' : 'danger');
+        row.appendChild(badge);
+
+        container.appendChild(row);
+    });
+}
+
 function loadFail2banJails() {
+    var container = document.getElementById('defense-fail2ban-jails');
+    if (!container) return;
+
+    // Show cached data immediately
+    try {
+        var cached = localStorage.getItem('sn_fail2ban_cache');
+        if (cached) {
+            var cdata = JSON.parse(cached);
+            _renderFail2banJails(container, cdata.jails || []);
+            var age = document.createElement('div');
+            age.style.cssText = 'font-size:0.65rem;color:#666;text-align:right;margin-top:4px';
+            age.textContent = 'Cached — refreshing...';
+            age.id = 'f2b-cache-note';
+            container.appendChild(age);
+        }
+    } catch(e) { /* ignore cache errors */ }
+
+    // Fetch fresh data in background
     snApi('/fail2ban/jails').then(function(d) {
-        var container = document.getElementById('defense-fail2ban-jails');
-        if (!container) return;
         var jails = d.jails || [];
-        if (!jails.length) { snShowEmpty(container, 'No jails data'); return; }
-        container.textContent = '';
-        jails.forEach(function(j) {
-            var online = j.status === 'active' || j.active;
-            var row = document.createElement('div');
-            row.className = 'sn-jail-row';
-
-            var name = document.createElement('span');
-            name.className = 'sn-jail-name';
-            name.textContent = j.name || j.jail_name || '-';
-            row.appendChild(name);
-
-            var stat1 = document.createElement('span');
-            stat1.className = 'sn-jail-stat';
-            stat1.textContent = 'Banned: ' + (j.currently_banned || 0);
-            row.appendChild(stat1);
-
-            var stat2 = document.createElement('span');
-            stat2.className = 'sn-jail-stat';
-            stat2.textContent = 'Total: ' + (j.total_banned || 0);
-            row.appendChild(stat2);
-
-            var badge = snCreateBadge(online ? 'ACTIVE' : 'INACTIVE', online ? 'success' : 'danger');
-            row.appendChild(badge);
-
-            container.appendChild(row);
-        });
-    }).catch(function() { snShowEmpty('defense-fail2ban-jails', 'fail2ban unavailable'); });
+        _renderFail2banJails(container, jails);
+        // Cache for next load
+        try { localStorage.setItem('sn_fail2ban_cache', JSON.stringify({jails: jails, ts: Date.now()})); } catch(e) {}
+    }).catch(function() {
+        // If no cached data was shown, show error
+        if (!localStorage.getItem('sn_fail2ban_cache')) {
+            snShowEmpty(container, 'fail2ban unavailable — host agent may be busy');
+        } else {
+            var note = document.getElementById('f2b-cache-note');
+            if (note) note.textContent = 'Cached — live refresh failed (host agent busy)';
+        }
+    });
 }
 
 function loadDdnsStatus() {

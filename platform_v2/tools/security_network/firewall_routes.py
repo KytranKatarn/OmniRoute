@@ -57,15 +57,17 @@ def register_firewall_routes(bp, admin_required_decorator):
             )
 
             if not is_queue_available():
-                return jsonify({"success": True, "rules": []})
-            result_data = submit_and_wait("firewall_rules", {}, timeout=10, submitted_by="security_network")
+                return jsonify({"success": True, "rules": [], "note": "Host command queue not available"})
+            result_data = submit_and_wait("firewall_rules", {}, timeout=60, submitted_by="security_network")
             cmd_result = result_data.get("result", {})
             if cmd_result.get("success"):
                 return jsonify({"success": True, "rules": cmd_result.get("rules", [])})
-            return jsonify({"success": True, "rules": []})
+            return jsonify({"success": True, "rules": [], "note": cmd_result.get("error", "No rules returned")})
         except Exception as e:
-            logger.exception("firewall rules error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            logger.warning("firewall rules: %s", e)
+            return jsonify(
+                {"success": True, "rules": [], "note": "Host agent busy — rules will appear shortly after daemon syncs"}
+            )
 
     @bp.route("/api/firewall/enable", methods=["POST"])
     @login_required
@@ -83,7 +85,7 @@ def register_firewall_routes(bp, admin_required_decorator):
                     jsonify({"success": False, "error": "Host command queue not available"}),
                     503,
                 )
-            result_data = submit_and_wait("firewall_enable", {}, timeout=10, submitted_by="security_network")
+            result_data = submit_and_wait("firewall_enable", {}, timeout=60, submitted_by="security_network")
             return jsonify(result_data.get("result", {"success": False}))
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
@@ -104,7 +106,7 @@ def register_firewall_routes(bp, admin_required_decorator):
                     jsonify({"success": False, "error": "Host command queue not available"}),
                     503,
                 )
-            result_data = submit_and_wait("firewall_disable", {}, timeout=10, submitted_by="security_network")
+            result_data = submit_and_wait("firewall_disable", {}, timeout=60, submitted_by="security_network")
             return jsonify(result_data.get("result", {"success": False}))
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
@@ -126,7 +128,7 @@ def register_firewall_routes(bp, admin_required_decorator):
                     jsonify({"success": False, "error": "Host command queue not available"}),
                     503,
                 )
-            result_data = submit_and_wait("firewall_allow", data, timeout=10, submitted_by="security_network")
+            result_data = submit_and_wait("firewall_allow", data, timeout=60, submitted_by="security_network")
             return jsonify(result_data.get("result", {"success": False}))
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
@@ -148,7 +150,7 @@ def register_firewall_routes(bp, admin_required_decorator):
                     jsonify({"success": False, "error": "Host command queue not available"}),
                     503,
                 )
-            result_data = submit_and_wait("firewall_deny", data, timeout=10, submitted_by="security_network")
+            result_data = submit_and_wait("firewall_deny", data, timeout=60, submitted_by="security_network")
             return jsonify(result_data.get("result", {"success": False}))
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
@@ -170,7 +172,7 @@ def register_firewall_routes(bp, admin_required_decorator):
                     jsonify({"success": False, "error": "Host command queue not available"}),
                     503,
                 )
-            result_data = submit_and_wait("firewall_delete", data, timeout=10, submitted_by="security_network")
+            result_data = submit_and_wait("firewall_delete", data, timeout=60, submitted_by="security_network")
             return jsonify(result_data.get("result", {"success": False}))
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500

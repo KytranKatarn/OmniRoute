@@ -37,7 +37,7 @@ def get_firewall_status() -> Dict[str, Any]:
         if not is_queue_available():
             return {"enabled": False, "rules": [], "status": "unknown"}
 
-        result_data = submit_and_wait("firewall_status", {}, timeout=10, submitted_by="security_network")
+        result_data = submit_and_wait("firewall_status", {}, timeout=60, submitted_by="security_network")
         cmd_result = result_data.get("result", {})
 
         if cmd_result.get("success"):

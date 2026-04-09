@@ -26,7 +26,7 @@ class Fail2banService:
         """Validate jail name — alphanumeric + hyphens only."""
         return bool(re.match(r"^[a-zA-Z0-9_-]+$", name))
 
-    def _submit(self, command_type: str, params: dict = None, timeout: int = 15) -> dict:
+    def _submit(self, command_type: str, params: dict = None, timeout: int = 60) -> dict:
         """Submit a command to the host command queue and wait for result."""
         try:
             from tools.system_operations.host_command_client import (

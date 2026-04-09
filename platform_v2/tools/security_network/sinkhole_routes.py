@@ -75,6 +75,64 @@ def register_sinkhole_routes(bp, admin_required_decorator):
             logger.error("[Sinkhole] Stats failed: %s", e)
             return jsonify({"status": "error", "message": str(e)}), 500
 
+    @bp.route("/api/dns/sinkhole-stats/category", methods=["GET"])
+    @login_required
+    @admin_required_decorator
+    def dns_sinkhole_category_domains():
+        """Return blocked domains for a specific category."""
+        category = request.args.get("category", "").strip()
+        if not category:
+            return jsonify({"success": False, "error": "category required"}), 400
+
+        hours = int(request.args.get("hours", 24))
+        if hours > 0:
+            hours = min(hours, 8760)
+        time_filter = "AND ddh.hour_bucket > NOW() - INTERVAL '%s hours'" % hours if hours > 0 else ""
+
+        try:
+            with get_db_cursor() as (conn, cur):
+                if category == "uncategorized":
+                    cur.execute(
+                        f"""
+                        SELECT ddh.domain, SUM(ddh.query_count) AS block_count,
+                               COUNT(DISTINCT ddh.device_ip) AS unique_devices
+                        FROM device_dns_history ddh
+                        LEFT JOIN traffic_categories tc
+                            ON tc.domain_pattern = SUBSTRING(ddh.domain FROM '([^.]+\\.[^.]+)$')
+                        WHERE ddh.blocked = true
+                          AND tc.category IS NULL
+                          {time_filter}
+                          AND ddh.domain LIKE '%%.%%'
+                        GROUP BY ddh.domain
+                        ORDER BY block_count DESC
+                        LIMIT 30
+                        """
+                    )
+                else:
+                    cur.execute(
+                        f"""
+                        SELECT ddh.domain, SUM(ddh.query_count) AS block_count,
+                               COUNT(DISTINCT ddh.device_ip) AS unique_devices
+                        FROM device_dns_history ddh
+                        JOIN traffic_categories tc
+                            ON tc.domain_pattern = SUBSTRING(ddh.domain FROM '([^.]+\\.[^.]+)$')
+                        WHERE ddh.blocked = true
+                          AND tc.category = %s
+                          {time_filter}
+                          AND ddh.domain LIKE '%%.%%'
+                        GROUP BY ddh.domain
+                        ORDER BY block_count DESC
+                        LIMIT 30
+                        """,
+                        (category,),
+                    )
+                domains = [dict(row) for row in cur.fetchall()]
+
+            return jsonify({"success": True, "category": category, "domains": domains})
+        except Exception as e:
+            logger.error("[Sinkhole] Category domains failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
     @bp.route("/api/dns/domain-intel", methods=["GET"])
     @login_required
     @admin_required_decorator

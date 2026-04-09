@@ -543,24 +543,60 @@ async function loadFilters() {
             summary.appendChild(s1); summary.appendChild(s2); summary.appendChild(s3);
             container.appendChild(summary);
 
-            const rows = d.filters.map(f => {
-                const toggle = document.createElement('label');
+            var table = document.createElement('table');
+            table.className = 'data-table';
+            var thead = document.createElement('thead');
+            var hrow = document.createElement('tr');
+            ['Enabled','Name','URL','Rules',''].forEach(function(h) {
+                var th = document.createElement('th'); th.textContent = h; hrow.appendChild(th);
+            });
+            thead.appendChild(hrow);
+            table.appendChild(thead);
+            var tbody = document.createElement('tbody');
+            d.filters.forEach(function(f) {
+                var tr = document.createElement('tr');
+
+                var tdToggle = document.createElement('td');
+                var toggle = document.createElement('label');
                 toggle.className = 'toggle-switch';
-                const input = document.createElement('input');
+                var input = document.createElement('input');
                 input.type = 'checkbox';
                 input.checked = f.enabled;
                 input.addEventListener('change', function() { toggleFilter(f.url, this.checked); });
-                const slider = document.createElement('span');
+                var slider = document.createElement('span');
                 slider.className = 'toggle-slider';
                 toggle.appendChild(input);
                 toggle.appendChild(slider);
-                const delBtn = document.createElement('button');
+                tdToggle.appendChild(toggle);
+                tr.appendChild(tdToggle);
+
+                var tdName = document.createElement('td');
+                tdName.textContent = f.name;
+                tdName.style.fontWeight = '500';
+                tr.appendChild(tdName);
+
+                var tdUrl = document.createElement('td');
+                tdUrl.style.cssText = 'font-size:0.72rem;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+                tdUrl.textContent = f.url;
+                tdUrl.title = f.url;
+                tr.appendChild(tdUrl);
+
+                var tdRules = document.createElement('td');
+                tdRules.textContent = formatNum(f.rules_count || 0);
+                tr.appendChild(tdRules);
+
+                var tdAction = document.createElement('td');
+                var delBtn = document.createElement('button');
                 delBtn.className = 'btn btn-danger btn-sm';
                 delBtn.textContent = 'Remove';
                 delBtn.addEventListener('click', function() { removeFilter(f.url); });
-                return [toggle, f.name, f.url, formatNum(f.rules_count||0), delBtn];
+                tdAction.appendChild(delBtn);
+                tr.appendChild(tdAction);
+
+                tbody.appendChild(tr);
             });
-            container.appendChild(buildTable(['Enabled','Name','URL','Rules',''], rows));
+            table.appendChild(tbody);
+            container.appendChild(table);
         } else {
             showEmpty(container, (d.error || 'Could not load filters') + ' — check AdGuard connection');
         }
@@ -614,14 +650,36 @@ async function loadRewrites() {
             info.textContent = d.rewrites.length + ' rewrite' + (d.rewrites.length !== 1 ? 's' : '') + ' active \u2014 DNS rewrites map domains to custom IPs. Used for split DNS (internal services resolve to local IPs).';
             container.appendChild(info);
 
-            const rows = d.rewrites.map(rw => {
-                const delBtn = document.createElement('button');
-                delBtn.className='btn btn-danger btn-sm';
-                delBtn.textContent='Delete';
-                delBtn.addEventListener('click', function(){deleteRewrite(rw.domain,rw.answer);});
-                return [rw.domain, rw.answer, delBtn];
+            var table = document.createElement('table');
+            table.className = 'data-table';
+            var thead = document.createElement('thead');
+            var hrow = document.createElement('tr');
+            ['Domain','Answer (IP)',''].forEach(function(h) {
+                var th = document.createElement('th'); th.textContent = h; hrow.appendChild(th);
             });
-            container.appendChild(buildTable(['Domain','Answer (IP)',''], rows));
+            thead.appendChild(hrow);
+            table.appendChild(thead);
+            var tbd = document.createElement('tbody');
+            d.rewrites.forEach(function(rw) {
+                var tr = document.createElement('tr');
+                var tdDom = document.createElement('td');
+                tdDom.textContent = rw.domain;
+                tdDom.style.color = '#00e5ff';
+                tr.appendChild(tdDom);
+                var tdAns = document.createElement('td');
+                tdAns.textContent = rw.answer;
+                tr.appendChild(tdAns);
+                var tdAct = document.createElement('td');
+                var delBtn = document.createElement('button');
+                delBtn.className = 'btn btn-danger btn-sm';
+                delBtn.textContent = 'Delete';
+                delBtn.addEventListener('click', function() { deleteRewrite(rw.domain, rw.answer); });
+                tdAct.appendChild(delBtn);
+                tr.appendChild(tdAct);
+                tbd.appendChild(tr);
+            });
+            table.appendChild(tbd);
+            container.appendChild(table);
         } else {
             showEmpty(container, (d.error || 'Could not load rewrites') + ' — check AdGuard connection');
         }

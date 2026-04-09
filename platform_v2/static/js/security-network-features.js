@@ -521,9 +521,17 @@ function loadSinkholeStats() {
                 },
                 options: {
                     responsive:true, maintainAspectRatio:false,
-                    plugins: {legend:{position:'right',labels:{color:'#ccc',font:{size:11}}}}
+                    plugins: {legend:{position:'right',labels:{color:'#ccc',font:{size:11}}}},
+                    onClick: function(evt, elements) {
+                        if (!elements.length) return;
+                        var idx = elements[0].index;
+                        var category = cats[idx].category;
+                        _showCategoryDomains(category, hours);
+                    }
                 }
             });
+            // Also make legend items clickable (cursor hint)
+            ctx.style.cursor = 'pointer';
         }
         // Top blocked domains table
         const domains = d.top_blocked || d.domains || [];
@@ -537,6 +545,125 @@ function loadSinkholeStats() {
             el.innerHTML = '<div class="empty-state">No blocked domains</div>';
         }
     }).catch(() => {});
+}
+
+function _showCategoryDomains(category, hours) {
+    // Remove any existing category modal
+    var existing = document.getElementById('category-domains-overlay');
+    if (existing) existing.remove();
+
+    var safeCategory = category.replace(/[<>&"']/g, '');
+    var color = CAT_COLORS[category] || '#00e5ff';
+
+    var overlay = document.createElement('div');
+    overlay.className = 'bm-overlay active';
+    overlay.id = 'category-domains-overlay';
+    overlay.style.cssText = '--bm-accent:' + color + ';--bm-accent-rgb:0,229,255';
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+    var shell = document.createElement('div');
+    shell.className = 'bm-shell';
+    shell.style.maxWidth = '540px';
+
+    var frame = document.createElement('div');
+    frame.className = 'bm-frame';
+    ['bm-frame-elbow-top','bm-frame-seg','bm-frame-seg dim','bm-frame-light on','bm-frame-light amber','bm-frame-seg purple','bm-frame-fill','bm-frame-elbow-bottom'].forEach(function(cls) {
+        var el = document.createElement('div');
+        el.className = cls;
+        frame.appendChild(el);
+    });
+
+    var content = document.createElement('div');
+    content.className = 'bm-content';
+
+    var header = document.createElement('div');
+    header.className = 'bm-header';
+    var title = document.createElement('span');
+    title.className = 'bm-header-title';
+    title.textContent = 'BLOCKED: ' + safeCategory.toUpperCase();
+    var strip = document.createElement('div');
+    strip.className = 'bm-header-strip';
+    var closeX = document.createElement('button');
+    closeX.className = 'bm-close';
+    closeX.textContent = '\u00d7';
+    closeX.addEventListener('click', function() { overlay.remove(); });
+    strip.appendChild(closeX);
+    header.appendChild(title);
+    header.appendChild(strip);
+
+    var body = document.createElement('div');
+    body.className = 'bm-body';
+    body.style.cssText = 'padding:16px;max-height:60vh;overflow-y:auto';
+    body.textContent = 'Loading domains...';
+
+    var footer = document.createElement('div');
+    footer.className = 'bm-footer';
+    footer.style.cssText = 'padding:12px 16px;display:flex;gap:8px;justify-content:flex-end';
+    var closeBtn = document.createElement('button');
+    closeBtn.className = 'btn';
+    closeBtn.style.opacity = '0.7';
+    closeBtn.textContent = 'Close';
+    closeBtn.addEventListener('click', function() { overlay.remove(); });
+    footer.appendChild(closeBtn);
+
+    content.appendChild(header);
+    content.appendChild(body);
+    content.appendChild(footer);
+    shell.appendChild(frame);
+    shell.appendChild(content);
+    overlay.appendChild(shell);
+    document.body.appendChild(overlay);
+
+    // Fetch domains for this category
+    fetch(SN_API + '/dns/sinkhole-stats/category?category=' + encodeURIComponent(category) + '&hours=' + hours)
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (!d.success || !d.domains || !d.domains.length) {
+                body.textContent = 'No domains found in this category.';
+                return;
+            }
+            body.textContent = '';
+            var countInfo = document.createElement('div');
+            countInfo.style.cssText = 'color:#888;font-size:0.75rem;margin-bottom:12px';
+            countInfo.textContent = d.domains.length + ' blocked domain' + (d.domains.length !== 1 ? 's' : '') + ' in "' + safeCategory + '"';
+            body.appendChild(countInfo);
+
+            d.domains.forEach(function(dom, idx) {
+                var row = document.createElement('div');
+                row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer;transition:background 0.15s';
+                row.addEventListener('mouseenter', function() { row.style.background = 'rgba(255,255,255,0.04)'; });
+                row.addEventListener('mouseleave', function() { row.style.background = 'transparent'; });
+                row.addEventListener('click', function() { overlay.remove(); if (typeof openDomainIntel === 'function') openDomainIntel(dom.domain); });
+                row.title = 'Click to investigate ' + dom.domain;
+
+                var left = document.createElement('div');
+                left.style.cssText = 'display:flex;align-items:center;gap:8px;min-width:0';
+                var rank = document.createElement('span');
+                rank.style.cssText = 'color:#555;font-size:0.7rem;min-width:20px;text-align:right';
+                rank.textContent = (idx + 1) + '.';
+                var name = document.createElement('span');
+                name.style.cssText = 'color:#ccc;font-size:0.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+                name.textContent = dom.domain;
+                left.appendChild(rank);
+                left.appendChild(name);
+
+                var right = document.createElement('div');
+                right.style.cssText = 'display:flex;align-items:center;gap:8px';
+                var badge = document.createElement('span');
+                badge.style.cssText = 'background:rgba(239,68,68,0.15);color:#ef4444;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600';
+                badge.textContent = fmtNum(dom.block_count);
+                var devBadge = document.createElement('span');
+                devBadge.style.cssText = 'color:#666;font-size:0.65rem';
+                devBadge.textContent = dom.unique_devices + ' device' + (dom.unique_devices !== 1 ? 's' : '');
+                right.appendChild(badge);
+                right.appendChild(devBadge);
+
+                row.appendChild(left);
+                row.appendChild(right);
+                body.appendChild(row);
+            });
+        })
+        .catch(function(e) { body.textContent = 'Error loading category domains: ' + e; });
 }
 
 function loadDnsTrend() {

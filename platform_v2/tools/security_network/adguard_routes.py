@@ -257,6 +257,89 @@ def register_adguard_routes(bp, admin_required_decorator):
             logger.exception("Route error: %s", e)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
+    @bp.route("/api/dns/adguard/filters/<int:filter_id>/rules")
+    @login_required
+    @admin_required_decorator
+    def api_dns_adguard_filter_rules(filter_id):
+        """Fetch a sample of rules from a specific filter list."""
+        if not ADGUARD_SERVICE_AVAILABLE or not adguard_service:
+            return jsonify({"success": False, "error": "AdGuard service not available"}), 503
+
+        search = request.args.get("search", "").strip().lower()
+        limit = min(int(request.args.get("limit", 200)), 500)
+
+        try:
+            import requests as _req
+
+            # Get filter URL from AdGuard
+            status = adguard_service.get_filtering_status()
+            if not status:
+                return jsonify({"success": False, "error": "Could not get filter status"}), 503
+
+            target = None
+            for f in status.get("filters", []):
+                if f.get("id") == filter_id:
+                    target = f
+                    break
+
+            if not target:
+                return jsonify({"success": False, "error": "Filter not found"}), 404
+
+            # Fetch the filter list (stream, read first chunk only)
+            resp = _req.get(target["url"], timeout=10, stream=True)
+            resp.raise_for_status()
+
+            domains = []
+            lines_read = 0
+            for line in resp.iter_lines(decode_unicode=True):
+                if lines_read > 50000:
+                    break  # Safety cap
+                lines_read += 1
+                if not line or line.startswith("#") or line.startswith("!"):
+                    continue
+                # Extract domain from various formats
+                domain = line.strip()
+                if domain.startswith("||") and domain.endswith("^"):
+                    domain = domain[2:-1]
+                elif domain.startswith("0.0.0.0 "):
+                    domain = domain[8:].strip()
+                elif domain.startswith("127.0.0.1 "):
+                    domain = domain[10:].strip()
+                elif " " in domain:
+                    continue  # Skip unknown formats
+
+                if not domain or "." not in domain:
+                    continue
+
+                if search and search not in domain:
+                    continue
+
+                domains.append(domain)
+                if len(domains) >= limit:
+                    break
+
+            resp.close()
+
+            return jsonify(
+                {
+                    "success": True,
+                    "filter": {
+                        "id": target.get("id"),
+                        "name": target.get("name"),
+                        "url": target.get("url"),
+                        "rules_count": target.get("rules_count", 0),
+                        "enabled": target.get("enabled", False),
+                        "last_updated": target.get("last_updated"),
+                    },
+                    "domains": domains,
+                    "total_scanned": lines_read,
+                    "search": search or None,
+                }
+            )
+        except Exception as e:
+            logger.exception("Filter rules fetch error: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
     @bp.route("/api/dns/adguard/rules")
     @login_required
     @admin_required_decorator

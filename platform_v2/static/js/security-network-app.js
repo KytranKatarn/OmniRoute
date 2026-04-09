@@ -579,8 +579,13 @@ async function loadFilters() {
                 tr.appendChild(tdToggle);
 
                 var tdName = document.createElement('td');
-                tdName.textContent = f.name;
                 tdName.style.fontWeight = '500';
+                var nameLink = document.createElement('span');
+                nameLink.textContent = f.name;
+                nameLink.style.cssText = 'cursor:pointer;color:#00e5ff;text-decoration:underline;text-decoration-color:rgba(0,229,255,0.3)';
+                nameLink.title = 'Click to view domains in this filter';
+                nameLink.addEventListener('click', function() { _showFilterRules(f.id, f.name, f.rules_count); });
+                tdName.appendChild(nameLink);
                 tr.appendChild(tdName);
 
                 var tdUrl = document.createElement('td');
@@ -633,6 +638,150 @@ function removeFilter(url) {
     fetch(API+'/dns/adguard/filters/'+encodeURIComponent(url),{method:'DELETE'})
     .then(r=>r.json()).then(d=>{if(d.success){showToast('success','Filter removed');loadFilters();}else showToast('error',d.error||'Failed');})
     .catch(e=>showToast('error',e.message));
+}
+
+function _showFilterRules(filterId, filterName, totalRules) {
+    var existing = document.getElementById('filter-rules-overlay');
+    if (existing) existing.remove();
+
+    var safeName = filterName.replace(/[<>&"']/g, '');
+
+    var overlay = document.createElement('div');
+    overlay.className = 'bm-overlay active';
+    overlay.id = 'filter-rules-overlay';
+    overlay.style.cssText = '--bm-accent:#f97316;--bm-accent-rgb:249,115,22';
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+    var shell = document.createElement('div');
+    shell.className = 'bm-shell';
+    shell.style.maxWidth = '600px';
+
+    var frame = document.createElement('div');
+    frame.className = 'bm-frame';
+    ['bm-frame-elbow-top','bm-frame-seg','bm-frame-seg dim','bm-frame-light on','bm-frame-light amber','bm-frame-seg purple','bm-frame-fill','bm-frame-elbow-bottom'].forEach(function(cls) {
+        var el = document.createElement('div'); el.className = cls; frame.appendChild(el);
+    });
+
+    var content = document.createElement('div');
+    content.className = 'bm-content';
+
+    var header = document.createElement('div');
+    header.className = 'bm-header';
+    var title = document.createElement('span');
+    title.className = 'bm-header-title';
+    title.textContent = safeName;
+    var strip = document.createElement('div');
+    strip.className = 'bm-header-strip';
+    var closeX = document.createElement('button');
+    closeX.className = 'bm-close';
+    closeX.textContent = '\u00d7';
+    closeX.addEventListener('click', function() { overlay.remove(); });
+    strip.appendChild(closeX);
+    header.appendChild(title);
+    header.appendChild(strip);
+
+    var body = document.createElement('div');
+    body.className = 'bm-body';
+    body.style.cssText = 'padding:16px;max-height:65vh;overflow-y:auto';
+
+    // Info bar
+    var info = document.createElement('div');
+    info.style.cssText = 'display:flex;gap:16px;margin-bottom:12px;font-size:0.8rem;flex-wrap:wrap';
+    var s1 = document.createElement('span');
+    s1.style.color = '#f97316';
+    s1.textContent = formatNum(totalRules) + ' total rules';
+    info.appendChild(s1);
+    body.appendChild(info);
+
+    // Search bar
+    var searchRow = document.createElement('div');
+    searchRow.style.cssText = 'display:flex;gap:8px;margin-bottom:12px';
+    var searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.className = 'form-input';
+    searchInput.placeholder = 'Search domains in this filter...';
+    searchInput.style.cssText = 'flex:1;font-size:0.78rem';
+    var searchBtn = document.createElement('button');
+    searchBtn.className = 'btn btn-primary btn-sm';
+    searchBtn.textContent = 'Search';
+    searchBtn.addEventListener('click', function() { _fetchFilterRules(filterId, listContainer, searchInput.value); });
+    searchInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); _fetchFilterRules(filterId, listContainer, searchInput.value); } });
+    searchRow.appendChild(searchInput);
+    searchRow.appendChild(searchBtn);
+    body.appendChild(searchRow);
+
+    var listContainer = document.createElement('div');
+    listContainer.style.cssText = 'font-size:0.78rem';
+    listContainer.textContent = 'Loading domains...';
+    body.appendChild(listContainer);
+
+    var footer = document.createElement('div');
+    footer.className = 'bm-footer';
+    footer.style.cssText = 'padding:12px 16px;display:flex;gap:8px;justify-content:flex-end';
+    var closeBtn = document.createElement('button');
+    closeBtn.className = 'btn';
+    closeBtn.style.opacity = '0.7';
+    closeBtn.textContent = 'Close';
+    closeBtn.addEventListener('click', function() { overlay.remove(); });
+    footer.appendChild(closeBtn);
+
+    content.appendChild(header);
+    content.appendChild(body);
+    content.appendChild(footer);
+    shell.appendChild(frame);
+    shell.appendChild(content);
+    overlay.appendChild(shell);
+    document.body.appendChild(overlay);
+
+    _fetchFilterRules(filterId, listContainer, '');
+}
+
+function _fetchFilterRules(filterId, container, search) {
+    container.textContent = 'Loading...';
+    var params = 'limit=200';
+    if (search) params += '&search=' + encodeURIComponent(search);
+    fetch(API + '/dns/adguard/filters/' + filterId + '/rules?' + params)
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            container.textContent = '';
+            if (!d.success) {
+                container.textContent = 'Error: ' + (d.error || 'Failed to load');
+                return;
+            }
+            if (!d.domains || !d.domains.length) {
+                container.textContent = search ? 'No domains matching "' + search + '"' : 'No domains found';
+                return;
+            }
+            var note = document.createElement('div');
+            note.style.cssText = 'color:#888;font-size:0.7rem;margin-bottom:8px';
+            note.textContent = 'Showing ' + d.domains.length + ' of ' + formatNum(d.filter.rules_count) + ' rules' + (d.search ? ' matching "' + d.search + '"' : '');
+            container.appendChild(note);
+
+            d.domains.forEach(function(domain, idx) {
+                var row = document.createElement('div');
+                row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.03);cursor:pointer;transition:background 0.15s';
+                row.addEventListener('mouseenter', function() { row.style.background = 'rgba(255,255,255,0.04)'; });
+                row.addEventListener('mouseleave', function() { row.style.background = 'transparent'; });
+                row.title = 'Click to investigate';
+                row.addEventListener('click', function() {
+                    var overlay = document.getElementById('filter-rules-overlay');
+                    if (overlay) overlay.remove();
+                    if (typeof openDomainIntel === 'function') openDomainIntel(domain);
+                });
+
+                var rank = document.createElement('span');
+                rank.style.cssText = 'color:#555;font-size:0.68rem;min-width:28px;text-align:right;margin-right:8px';
+                rank.textContent = (idx + 1) + '.';
+                var name = document.createElement('span');
+                name.style.cssText = 'color:#ccc;font-size:0.76rem';
+                name.textContent = domain;
+
+                row.appendChild(rank);
+                row.appendChild(name);
+                container.appendChild(row);
+            });
+        })
+        .catch(function(e) { container.textContent = 'Error: ' + e; });
 }
 
 function refreshAllFilters() {

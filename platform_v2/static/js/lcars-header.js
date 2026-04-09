@@ -419,7 +419,7 @@
   }
 
   function _pollOpsSummary() {
-    fetch("/tools/autonomy/api/ops-summary")
+    fetch("/tools/department-hq/api/dispatch/ops-summary")
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data) return;
@@ -462,8 +462,8 @@
             approvals + " approval" + (approvals > 1 ? "s" : "") + " require your review",
             "warning",
             {
-              href: "/tools/autonomy#approvals",
-              actionLabel: "OPEN APPROVALS \u25B8",
+              href: "/tools/department-hq/?tab=dispatch",
+              actionLabel: "OPEN DISPATCH HUB \u25B8",
               onDismiss: function () { _dismissOps("approvals"); }
             }
           );
@@ -474,8 +474,8 @@
             errors + " error" + (errors > 1 ? "s" : "") + " detected in the last hour",
             "error",
             {
-              href: "/tools/autonomy#active",
-              actionLabel: "VIEW ERROR LOG \u25B8",
+              href: "/tools/department-hq/?tab=dispatch",
+              actionLabel: "VIEW DISPATCH HUB \u25B8",
               onDismiss: function () { _dismissOps("errors"); }
             }
           );

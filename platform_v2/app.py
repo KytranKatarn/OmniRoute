@@ -305,15 +305,53 @@ except ImportError as e:
 # ============================================================================
 
 
+# ============================================================================
+# LEGACY COMPAT REDIRECTS — Starbase/Starship/Fleet/Bridge → Department HQ
+# All fleet APIs now live under /tools/department-hq/api/*
+# ============================================================================
+
+
 @app.route("/tools/bridge/<path:subpath>", methods=["GET", "POST", "PUT", "DELETE"])
 def bridge_compat_redirect(subpath):
-    """Redirect old /tools/bridge/ URLs to /tools/starbase/ for node clients."""
+    """Redirect old /tools/bridge/ URLs to Department HQ."""
     from flask import redirect, request as req
 
-    new_url = f"/tools/starbase/{subpath}"
+    new_url = f"/tools/department-hq/{subpath}"
     if req.query_string:
         new_url += f"?{req.query_string.decode()}"
-    # 307 preserves method and body (unlike 301/302 which change POST→GET)
+    return redirect(new_url, code=307)
+
+
+@app.route("/tools/starbase/<path:subpath>", methods=["GET", "POST", "PUT", "DELETE"])
+def starbase_compat_redirect(subpath):
+    """Redirect old /tools/starbase/ URLs to Department HQ."""
+    from flask import redirect, request as req
+
+    new_url = f"/tools/department-hq/{subpath}"
+    if req.query_string:
+        new_url += f"?{req.query_string.decode()}"
+    return redirect(new_url, code=307)
+
+
+@app.route("/tools/starship/<path:subpath>", methods=["GET", "POST", "PUT", "DELETE"])
+def starship_compat_redirect(subpath):
+    """Redirect old /tools/starship/ URLs to Department HQ."""
+    from flask import redirect, request as req
+
+    new_url = f"/tools/department-hq/{subpath}"
+    if req.query_string:
+        new_url += f"?{req.query_string.decode()}"
+    return redirect(new_url, code=307)
+
+
+@app.route("/tools/fleet/<path:subpath>", methods=["GET", "POST", "PUT", "DELETE"])
+def fleet_compat_redirect(subpath):
+    """Redirect old /tools/fleet/ URLs to Department HQ."""
+    from flask import redirect, request as req
+
+    new_url = f"/tools/department-hq/{subpath}"
+    if req.query_string:
+        new_url += f"?{req.query_string.decode()}"
     return redirect(new_url, code=307)
 
 
@@ -3275,6 +3313,34 @@ if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
             logger.info("[Startup] JobService initialized with budget reset jobs")
         except Exception as e:
             logger.error("[Startup] JobService failed to initialize: %s", e)
+
+        # Phase 4b: Wire up LOOP_SERVICE for dispatch monitoring
+        try:
+            from services import loop_service as _loop_svc
+
+            class _LoopServiceWrapper:
+                """Thin wrapper to give loop_service module an object interface."""
+
+                def get_all_states(self):
+                    loops = _loop_svc.get_server_loops()
+                    result = {}
+                    for op in _loop_svc.VALID_LOOP_OPS:
+                        result[op] = {
+                            "enabled": loops.get(op, False),
+                            "name": op.title(),
+                        }
+                    return result
+
+                def toggle(self, loop_name):
+                    current = _loop_svc.get_server_loops()
+                    new_state = not current.get(loop_name, False)
+                    _loop_svc.set_server_loop(loop_name, new_state)
+                    return new_state
+
+            app.config["LOOP_SERVICE"] = _LoopServiceWrapper()
+            logger.info("[Startup] LOOP_SERVICE initialized (analysis, embedding, translate)")
+        except Exception as e:
+            logger.error("[Startup] LOOP_SERVICE failed: %s", e)
 
         # Phase 5: Bridge agent_loop jobs into job_service
         try:

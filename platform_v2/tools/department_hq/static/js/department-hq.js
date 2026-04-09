@@ -101,6 +101,9 @@ function switchTab(tab) {
         'creed':        loadCreed,
         'social':       loadSocialFeed,
         'devices':      loadDevices,
+        'dispatch':     loadDispatch,
+        'fleet':        loadFleet,
+        'contractors':  loadContractors,
     };
     if (!loaded[tab] && loaders[tab]) {
         loaders[tab]();
@@ -1372,6 +1375,1413 @@ async function revokeDevice(deviceId) {
 }
 
 // ───────────────────────────────────────────────────────────────
+// Dispatch & Orchestration
+// ───────────────────────────────────────────────────────────────
+
+async function loadDispatch() {
+    loaded['dispatch'] = true;
+    try {
+        var data = await api('/api/dispatch/overview');
+        renderOllamaHud(data.ollama || {});
+        renderActiveJobs(data.active_jobs || []);
+        renderWorkloadGrid(data.workload_grid || []);
+        renderDispatchMetrics(data.dispatch_metrics || {});
+        renderLoopJobs(data.loop_jobs || []);
+    } catch (err) {
+        var msg = '<div class="dhq-empty">Error loading dispatch data: ' + esc(err.message) + '</div>';
+        ['dispatchJobsContent','dispatchWorkloadContent',
+         'dispatchMetricsContent','dispatchLoopContent'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) setHtml(el, msg);
+        });
+    }
+    // Load additional sections in parallel
+    loadServerLoops();
+    loadDispatchApprovals();
+    loadDispatchHistory();
+    loadDispatchComponents();
+    loadDispatchScheduler();
+    loadDispatchConfig();
+    loadDispatchRepairPipeline();
+}
+
+function renderOllamaHud(o) {
+    var el = function(id, val) { var e = document.getElementById(id); if (e) e.textContent = val; };
+    el('podModelsLoaded', o.loaded_models ? o.loaded_models.length : '--');
+    el('podRamUsed', o.total_ram_used_gb != null ? o.total_ram_used_gb.toFixed(1) + ' GB' : '--');
+    el('podSlots', o.parallel_slots != null ? o.parallel_slots : '--');
+    el('podAvailable', o.available_count != null ? o.available_count : '--');
+}
+
+function renderActiveJobs(jobs) {
+    var el = document.getElementById('dispatchJobsContent');
+    var countEl = document.getElementById('dispatchJobCount');
+    var running = jobs.filter(function(j) { return j.status === 'running' || j.status === 'pending'; });
+    if (countEl) countEl.textContent = '(' + running.length + ' active)';
+    if (!jobs.length) {
+        setHtml(el, '<div class="dhq-empty">No active bridge jobs</div>');
+        return;
+    }
+    var html = '';
+    jobs.forEach(function(j) {
+        var pct = j.progress_pct || 0;
+        var statusCls = 'dhq-status-' + (j.status || 'pending');
+        html += '<div class="dhq-job-row">'
+            + '<div><span class="dhq-status-badge ' + statusCls + '">' + esc(j.status) + '</span> '
+            + esc(j.description || j.job_type) + '</div>'
+            + '<div style="color:var(--dhq-accent)">' + esc(j.agent_name || 'unassigned') + '</div>'
+            + '<div class="dhq-progress-row"><div class="dhq-progress-wrap">'
+            + '<div class="dhq-progress-fill" style="width:' + pct + '%"></div></div>'
+            + '<span style="font-size:0.7rem;color:var(--dhq-text-dim)">' + pct + '%</span></div>'
+            + '<div style="color:var(--dhq-text-dim);font-size:0.7rem">' + esc(j.station_code || '') + '</div>'
+            + '</div>';
+    });
+    setHtml(el, html);
+}
+
+function renderWorkloadGrid(rows) {
+    var el = document.getElementById('dispatchWorkloadContent');
+    if (!rows.length) {
+        setHtml(el, '<div class="dhq-empty">No workload data</div>');
+        return;
+    }
+    var html = '<div class="dhq-workload-grid">';
+    rows.forEach(function(r) {
+        var color = floorColor(r.floor);
+        var busy = r.active + r.deployed;
+        var idle = r.barracked;
+        html += '<div class="dhq-workload-card" style="border-left-color:' + color + '">'
+            + '<div class="dhq-workload-dept" style="color:' + color + '">' + esc(r.department) + '</div>'
+            + '<div class="dhq-workload-counts">'
+            + '<span style="color:#10B981">' + busy + ' busy</span>'
+            + '<span>' + idle + ' idle</span>'
+            + (r.cooldown ? '<span style="color:#FFAA00">' + r.cooldown + ' cooldown</span>' : '')
+            + '<span style="color:var(--dhq-text-dim)">' + r.total + ' total</span>'
+            + '</div></div>';
+    });
+    html += '</div>';
+    setHtml(el, html);
+}
+
+function renderDispatchMetrics(m) {
+    var el = document.getElementById('dispatchMetricsContent');
+    var total = m.total_24h || 0;
+    var success = m.success_24h || 0;
+    var failed = m.failed_24h || 0;
+    var avg = m.avg_duration_ms ? (m.avg_duration_ms / 1000).toFixed(1) + 's' : '--';
+    var rate = total > 0 ? Math.round(success / total * 100) : 0;
+    var rateClass = rate >= 95 ? 'good' : rate >= 80 ? 'warn' : 'bad';
+    var html = '<div class="dhq-metrics-row">'
+        + _metricCell('TOTAL 24H', total, '')
+        + _metricCell('SUCCESS', success, 'good')
+        + _metricCell('FAILED', failed, failed > 0 ? 'bad' : '')
+        + _metricCell('AVG RESPONSE', avg, '')
+        + _metricCell('SUCCESS RATE', rate + '%', rateClass)
+        + '</div>';
+    setHtml(el, html);
+}
+
+function _metricCell(label, val, cls) {
+    return '<div class="dhq-metric-cell"><div class="dhq-metric-label">' + label + '</div>'
+        + '<div class="dhq-metric-val ' + cls + '">' + val + '</div></div>';
+}
+
+function renderLoopJobs(jobs) {
+    var el = document.getElementById('dispatchLoopContent');
+    var countEl = document.getElementById('dispatchLoopCount');
+    if (countEl) countEl.textContent = '(' + jobs.length + ' jobs)';
+    if (!jobs.length) {
+        setHtml(el, '<div class="dhq-empty">No loop jobs found</div>');
+        return;
+    }
+    // Sort: errors first, then by department
+    jobs.sort(function(a, b) {
+        if (a.err_24h > 0 && b.err_24h === 0) return -1;
+        if (b.err_24h > 0 && a.err_24h === 0) return 1;
+        return (a.department || '').localeCompare(b.department || '') || (a.name || '').localeCompare(b.name || '');
+    });
+    var html = '<table class="dhq-loop-table"><thead><tr>'
+        + '<th>JOB</th><th>DEPARTMENT</th><th>STATUS</th>'
+        + '<th>NEXT RUN</th><th>OK</th><th>ERR</th><th>ACTIONS</th>'
+        + '</tr></thead><tbody>';
+    jobs.forEach(function(j) {
+        var statusCls = !j.enabled ? 'dhq-loop-off'
+            : j.err_24h > 0 ? 'dhq-loop-err' : 'dhq-loop-ok';
+        var statusLabel = !j.enabled ? 'DISABLED'
+            : j.err_24h > 0 ? 'ERRORS' : 'OK';
+        var toggleLabel = j.enabled ? 'Disable' : 'Enable';
+        var toggleColor = j.enabled ? '#ef4444' : '#10B981';
+        html += '<tr>'
+            + '<td>' + esc(j.name) + '</td>'
+            + '<td>' + esc(j.department || '\u2014') + '</td>'
+            + '<td class="' + statusCls + '">' + statusLabel + '</td>'
+            + '<td style="color:var(--dhq-text-dim)">' + fmtTime(j.next_run) + '</td>'
+            + '<td class="dhq-loop-ok">' + (j.ok_24h || 0) + '</td>'
+            + '<td class="' + (j.err_24h > 0 ? 'dhq-loop-err' : '') + '">' + (j.err_24h || 0) + '</td>'
+            + '<td>'
+            + '<button onclick="dispatchJobToggle(\'' + esc(j.name) + '\',' + !j.enabled + ')" style="background:' + toggleColor + ';color:#fff;border:none;padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;margin-right:4px">' + toggleLabel + '</button>'
+            + '<button onclick="dispatchJobRun(\'' + esc(j.name) + '\')" style="background:#8b5cf6;color:#fff;border:none;padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer">Run</button>'
+            + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    setHtml(el, html);
+}
+
+// ── Job Control Actions ──
+
+async function dispatchJobToggle(name, enabled) {
+    try {
+        await apiPost('/api/dispatch/jobs/' + encodeURIComponent(name) + '/toggle', {enabled: enabled});
+        loaded['dispatch'] = false;
+        loadDispatch();
+    } catch (e) { alert('Failed: ' + e.message); }
+}
+
+async function dispatchJobRun(name) {
+    try {
+        await apiPost('/api/dispatch/jobs/' + encodeURIComponent(name) + '/run', {});
+        loaded['dispatch'] = false;
+        loadDispatch();
+    } catch (e) { alert('Failed: ' + e.message); }
+}
+
+// ── Server Loops ──
+
+async function loadServerLoops() {
+    var el = document.getElementById('dispatchServerLoops');
+    try {
+        var data = await api('/api/dispatch/loops');
+        var loops = data.loops || {};
+        var keys = Object.keys(loops);
+        if (!keys.length) { setHtml(el, '<div class="dhq-empty">No server loops configured</div>'); return; }
+        var html = '<div style="display:flex;gap:12px;flex-wrap:wrap">';
+        keys.forEach(function(k) {
+            var running = loops[k];
+            var color = running ? '#10B981' : '#ef4444';
+            var label = running ? 'RUNNING' : 'STOPPED';
+            html += '<div class="dhq-pod" style="min-width:140px;border-color:' + color + '33">'
+                + '<div class="dhq-pod-label">' + esc(k.toUpperCase()) + '</div>'
+                + '<div class="dhq-pod-val" style="font-size:0.9rem;color:' + color + '">' + label + '</div>'
+                + '<button onclick="toggleServerLoop(\'' + esc(k) + '\')" style="margin-top:6px;background:' + (running ? '#ef4444' : '#10B981') + ';color:#fff;border:none;padding:4px 12px;border-radius:4px;font-size:0.65rem;cursor:pointer">' + (running ? 'Stop' : 'Start') + '</button>'
+                + '</div>';
+        });
+        html += '</div>';
+        setHtml(el, html);
+    } catch (e) { setHtml(el, '<div class="dhq-empty">Error: ' + esc(e.message) + '</div>'); }
+}
+
+async function toggleServerLoop(name) {
+    try {
+        await apiPost('/api/dispatch/loops/toggle', {name: name});
+        loadServerLoops();
+    } catch (e) { alert('Failed: ' + e.message); }
+}
+
+// ── Approvals ──
+
+async function loadDispatchApprovals() {
+    var el = document.getElementById('dispatchApprovalsContent');
+    var countEl = document.getElementById('dispatchApprovalCount');
+    try {
+        var data = await api('/api/dispatch/approvals?status=pending');
+        var items = data.approvals || [];
+        if (countEl) countEl.textContent = '(' + items.length + ' pending)';
+        if (!items.length) { setHtml(el, '<div class="dhq-empty">No pending approvals</div>'); return; }
+        var html = '';
+        items.forEach(function(a) {
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--dhq-border)">'
+                + '<div><span class="dhq-status-badge dhq-status-pending">' + esc(a.type) + '</span> '
+                + esc(a.description) + '<br><span style="color:var(--dhq-text-dim);font-size:0.7rem">by ' + esc(a.requested_by) + ' — ' + fmtTime(a.created_at) + '</span></div>'
+                + '<div style="display:flex;gap:6px">'
+                + '<button onclick="approvalAction(' + a.id + ',\'approve\')" style="background:#10B981;color:#fff;border:none;padding:4px 10px;border-radius:4px;font-size:0.7rem;cursor:pointer">Approve</button>'
+                + '<button onclick="approvalAction(' + a.id + ',\'reject\')" style="background:#ef4444;color:#fff;border:none;padding:4px 10px;border-radius:4px;font-size:0.7rem;cursor:pointer">Reject</button>'
+                + '</div></div>';
+        });
+        setHtml(el, html);
+    } catch (e) { setHtml(el, '<div class="dhq-empty">Error: ' + esc(e.message) + '</div>'); }
+}
+
+async function approvalAction(id, action) {
+    try {
+        await apiPost('/api/dispatch/approvals/' + id + '/' + action, {});
+        loadDispatchApprovals();
+    } catch (e) { alert('Failed: ' + e.message); }
+}
+
+// ── History ──
+
+async function loadDispatchHistory() {
+    var el = document.getElementById('dispatchHistoryContent');
+    var hoursEl = document.getElementById('dispatchHistoryHours');
+    var hours = hoursEl ? hoursEl.value : 24;
+    try {
+        var data = await api('/api/dispatch/history?hours=' + hours + '&limit=50');
+        var entries = data.history || [];
+        if (!entries.length) { setHtml(el, '<div class="dhq-empty">No history in this period</div>'); return; }
+        var html = '<table class="dhq-loop-table"><thead><tr>'
+            + '<th>SOURCE</th><th>ACTOR</th><th>ACTION</th><th>STATUS</th><th>DURATION</th><th>TIME</th>'
+            + '</tr></thead><tbody>';
+        entries.forEach(function(h) {
+            var statusCls = h.status === 'success' ? 'dhq-loop-ok' : h.status === 'failed' ? 'dhq-loop-err' : '';
+            var dur = h.duration_ms ? (h.duration_ms / 1000).toFixed(1) + 's' : '\u2014';
+            html += '<tr>'
+                + '<td><span class="dhq-status-badge ' + (h.source === 'dispatch' ? 'dhq-status-running' : 'dhq-status-pending') + '">' + esc(h.source) + '</span></td>'
+                + '<td>' + esc(h.actor) + '</td>'
+                + '<td>' + esc(h.action) + '</td>'
+                + '<td class="' + statusCls + '">' + esc(h.status) + '</td>'
+                + '<td style="color:var(--dhq-text-dim)">' + dur + '</td>'
+                + '<td style="color:var(--dhq-text-dim)">' + fmtTime(h.created_at) + '</td>'
+                + '</tr>';
+        });
+        html += '</tbody></table>';
+        setHtml(el, html);
+    } catch (e) { setHtml(el, '<div class="dhq-empty">Error: ' + esc(e.message) + '</div>'); }
+}
+
+// ── System Components ──
+
+async function loadDispatchComponents() {
+    var el = document.getElementById('dispatchComponentsContent');
+    try {
+        var data = await api('/api/dispatch/components');
+        var comps = data.components || [];
+        if (!comps.length) { setHtml(el, '<div class="dhq-empty">No components</div>'); return; }
+        var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:0.5rem">';
+        comps.forEach(function(c) {
+            var color = c.ok ? '#10B981' : '#ef4444';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0.6rem;background:var(--dhq-surface-2);border:1px solid var(--dhq-border);border-radius:4px">'
+                + '<span style="font-size:0.78rem">' + esc(c.name) + '</span>'
+                + '<span style="font-size:0.7rem;font-weight:600;color:' + color + '">' + esc(c.detail || (c.ok ? 'OK' : 'ERROR')) + '</span>'
+                + '</div>';
+        });
+        html += '</div>';
+        setHtml(el, html);
+    } catch(e) { setHtml(el, '<div class="dhq-empty">Error: ' + esc(e.message) + '</div>'); }
+}
+
+// ── Scheduler Jobs ──
+
+async function loadDispatchScheduler() {
+    var el = document.getElementById('dispatchSchedContent');
+    var countEl = document.getElementById('dispatchSchedCount');
+    try {
+        var data = await api('/api/dispatch/scheduler');
+        var jobs = data.jobs || [];
+        if (countEl) countEl.textContent = '(' + jobs.length + ')';
+        if (!jobs.length) { setHtml(el, '<div class="dhq-empty">No scheduler jobs</div>'); return; }
+        var html = '<table class="dhq-loop-table"><thead><tr><th>JOB ID</th><th>NAME</th><th>NEXT RUN</th><th>TRIGGER</th></tr></thead><tbody>';
+        jobs.forEach(function(j) {
+            html += '<tr><td style="color:var(--dhq-accent)">' + esc(j.id) + '</td><td>' + esc(j.name) + '</td><td style="color:var(--dhq-text-dim)">' + fmtTime(j.next_run) + '</td><td style="color:var(--dhq-text-dim);font-size:0.7rem">' + esc(j.trigger) + '</td></tr>';
+        });
+        html += '</tbody></table>';
+        setHtml(el, html);
+    } catch(e) { setHtml(el, '<div class="dhq-empty">Error: ' + esc(e.message) + '</div>'); }
+}
+
+// ── Configuration ──
+
+async function loadDispatchConfig() {
+    var el = document.getElementById('dispatchConfigContent');
+    try {
+        var data = await api('/api/dispatch/config');
+        var entries = data.config || [];
+        if (!entries.length) { setHtml(el, '<div class="dhq-empty">No config entries</div>'); return; }
+        var html = '<table class="dhq-loop-table"><thead><tr><th>KEY</th><th>VALUE</th><th></th></tr></thead><tbody>';
+        entries.forEach(function(c) {
+            html += '<tr><td style="color:var(--dhq-accent);font-family:monospace">' + esc(c.key) + '</td>'
+                + '<td><input id="dhq-cfg-' + esc(c.key) + '" value="' + esc(c.value) + '" style="background:var(--dhq-surface-2);border:1px solid var(--dhq-border);color:var(--dhq-text);padding:3px 8px;border-radius:4px;font-family:monospace;font-size:0.78rem;width:180px"></td>'
+                + '<td><button onclick="saveDispatchConfig(\'' + esc(c.key) + '\')" style="background:var(--dhq-accent);color:#000;border:none;padding:3px 10px;border-radius:4px;font-size:0.65rem;cursor:pointer;font-weight:600">Save</button></td></tr>';
+        });
+        html += '</tbody></table>';
+        setHtml(el, html);
+    } catch(e) { setHtml(el, '<div class="dhq-empty">Error: ' + esc(e.message) + '</div>'); }
+}
+
+async function saveDispatchConfig(key) {
+    var input = document.getElementById('dhq-cfg-' + key);
+    if (!input) return;
+    try {
+        await apiPost('/api/dispatch/config/' + encodeURIComponent(key), {value: input.value});
+        input.style.borderColor = '#10B981';
+        setTimeout(function() { input.style.borderColor = ''; }, 2000);
+    } catch(e) { input.style.borderColor = '#ef4444'; }
+}
+
+// ── Repair Pipeline ──
+
+async function loadDispatchRepairPipeline() {
+    var el = document.getElementById('dispatchRepairContent');
+    try {
+        var data = await api('/api/dispatch/repair-pipeline');
+        var html = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.75rem">';
+        [{l:'OPEN PROPOSALS',v:data.open_proposals||0},{l:'ACTIVE SESSIONS',v:data.active_sessions||0},{l:'CREED EVENTS 24H',v:data.creed_events||0},{l:'AUDIT FINDINGS 24H',v:data.audit_findings||0}].forEach(function(item) {
+            html += '<div class="dhq-metric-cell"><div class="dhq-metric-label">' + item.l + '</div><div class="dhq-metric-val">' + item.v + '</div></div>';
+        });
+        html += '</div>';
+        setHtml(el, html);
+    } catch(e) { setHtml(el, '<div class="dhq-empty">Pipeline unavailable</div>'); }
+}
+
+// ───────────────────────────────────────────────────────────────
+function loadFleet() {
+    loaded["fleet"] = true;
+    setTimeout(function() {
+        initFleetMap();
+        loadFleetData();
+        loadFleetUsage();
+        loadCloudProviders();
+        loadProviderManagement();
+        startFleetRefresh();
+    }, 200);
+}
+
+/* ============================================================
+   FLEET MAP — Phase 4 Agent Lifecycle Coordination
+   ============================================================ */
+
+var fleetMap = null;
+var fleetMarkers = [];
+var _fleetRefreshInterval = null;
+
+function startFleetRefresh() {
+    if (_fleetRefreshInterval) return;
+    _fleetRefreshInterval = setInterval(function() {
+        loadFleetData();
+        loadFleetUsage();
+        loadCloudProviders();
+        loadProviderManagement();
+    }, 30000);
+}
+
+function stopFleetRefresh() {
+    if (_fleetRefreshInterval) {
+        clearInterval(_fleetRefreshInterval);
+        _fleetRefreshInterval = null;
+    }
+}
+
+function initFleetMap() {
+    if (fleetMap) return;
+    var el = document.getElementById('fleetMap');
+    if (!el) return;
+
+    fleetMap = L.map('fleetMap', {
+        center: [35, -40],
+        zoom: 3,
+        minZoom: 2,
+        maxZoom: 12,
+        zoomControl: true,
+        attributionControl: false,
+    });
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '',
+    }).addTo(fleetMap);
+
+    loadFleetData();
+    loadCloudProviders();
+}
+
+function loadFleetData() {
+    fetch('/tools/department-hq/api/fleet-map')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.error) { console.error('Fleet map error:', data.error); return; }
+        renderFleetPins(data);
+        updateFleetStats(data);
+    })
+    .catch(function(e) {
+        console.error('Fleet map load failed:', e);
+    });
+}
+
+var PROVIDER_STYLES = {
+    'openai':      { color: '#10a37f', bg: 'rgba(16,163,127,0.3)', label: 'AI' },
+    'anthropic':   { color: '#d4a27f', bg: 'rgba(212,162,127,0.3)', label: 'An' },
+    'google':      { color: '#4285f4', bg: 'rgba(66,133,244,0.3)', label: 'G' },
+    'gemini':      { color: '#4285f4', bg: 'rgba(66,133,244,0.3)', label: 'Ge' },
+    'mistral':     { color: '#ff7000', bg: 'rgba(255,112,0,0.3)', label: 'Mi' },
+    'cohere':      { color: '#39594d', bg: 'rgba(57,89,77,0.3)', label: 'Co' },
+    'grok':        { color: '#1da1f2', bg: 'rgba(29,161,242,0.3)', label: 'X' },
+    'together':    { color: '#6366f1', bg: 'rgba(99,102,241,0.3)', label: 'To' },
+    'huggingface': { color: '#ff9d00', bg: 'rgba(255,157,0,0.3)', label: '\u{1F917}' },
+    'cloudflare':  { color: '#f38020', bg: 'rgba(243,128,32,0.3)', label: 'CF' },
+    'ollama':      { color: '#ffffff', bg: 'rgba(255,255,255,0.2)', label: '\u{1F999}' },
+    'groq':        { color: '#f55036', bg: 'rgba(245,80,54,0.3)', label: 'Gq' },
+    'deepseek':    { color: '#4d6bfe', bg: 'rgba(77,107,254,0.3)', label: 'DS' },
+    'cerebras':    { color: '#00d4aa', bg: 'rgba(0,212,170,0.3)', label: 'Ce' },
+};
+
+function renderFleetPins(data) {
+    fleetMarkers.forEach(function(m) { fleetMap.removeLayer(m); });
+    fleetMarkers = [];
+
+    if (data.hub) {
+        var hub = data.hub;
+        var marker = L.marker([hub.lat, hub.lon], {
+            icon: L.divIcon({
+                className: 'fleet-marker-hub',
+                html: '<i data-lucide="radio-tower" style="width:16px;height:16px;"></i>',
+                iconSize: [32, 32],
+                iconAnchor: [16, 16],
+            }),
+        }).addTo(fleetMap);
+        marker.bindPopup(buildFleetPopup('A.R.M.A.D.A. HUB', [
+            ['Location', hub.city || 'Home Base'],
+            ['Status', '<span style="color:#10b981;">ONLINE</span>'],
+        ]), { className: 'fleet-popup' });
+        fleetMarkers.push(marker);
+    }
+
+    (data.nodes || []).forEach(function(node) {
+        if (!node.lat || !node.lon) return;
+        var isOnline = node.status === 'online';
+        var marker = L.marker([node.lat, node.lon], {
+            icon: L.divIcon({
+                className: 'fleet-marker-node ' + (isOnline ? '' : 'offline'),
+                html: '<i data-lucide="ship" style="width:14px;height:14px;"></i>',
+                iconSize: [24, 24],
+                iconAnchor: [12, 12],
+            }),
+        }).addTo(fleetMap);
+        marker.bindPopup(buildFleetPopup(node.node_name || node.hostname, [
+            ['Type', node.deployment_mode || 'starship'],
+            ['Status', isOnline ? '<span style="color:#10b981;">ONLINE</span>' : '<span style="color:#ef4444;">OFFLINE</span>'],
+            ['GPU', node.gpu_model || 'None'],
+            ['VRAM', node.gpu_vram_gb ? node.gpu_vram_gb + ' GB' : '--'],
+            ['RAM', node.ram_gb ? node.ram_gb + ' GB' : '--'],
+        ]), { className: 'fleet-popup' });
+        marker.on('click', function() { showNodeDetail(node); });
+        fleetMarkers.push(marker);
+    });
+
+    (data.providers || []).forEach(function(prov) {
+        if (!prov.lat || !prov.lon) return;
+        var key = (prov.provider_key || '').toLowerCase();
+        var style = PROVIDER_STYLES[key] || { color: '#f97316', bg: 'rgba(249,115,22,0.3)', label: (prov.provider_key || '?').charAt(0).toUpperCase() };
+        var marker = L.marker([prov.lat, prov.lon], {
+            icon: L.divIcon({
+                className: 'fleet-marker-provider-custom ' + (prov.is_active ? '' : 'inactive'),
+                html: '<span style="background:' + style.bg + ';border-color:' + style.color + ';color:' + style.color + '">' + style.label + '</span>',
+                iconSize: [28, 28],
+                iconAnchor: [14, 14],
+            }),
+        }).addTo(fleetMap);
+
+        var budgetStr = prov.monthly_budget_usd
+            ? '$' + (prov.current_month_cost_usd||0).toFixed(2) + ' / $' + prov.monthly_budget_usd.toFixed(2)
+            : 'No budget set';
+
+        marker.bindPopup(buildFleetPopup(prov.provider_key.toUpperCase(), [
+            ['City', prov.city || '--'],
+            ['Tier', prov.tier_position || '--'],
+            ['Budget', budgetStr],
+            ['Status', prov.is_active ? '<span style="color:#10b981;">ACTIVE</span>' : '<span style="color:#6b7280;">INACTIVE</span>'],
+        ]), { className: 'fleet-popup' });
+        fleetMarkers.push(marker);
+    });
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function buildFleetPopup(title, rows) {
+    var html = '<div class="fleet-popup-title">' + title + '</div>';
+    rows.forEach(function(row) {
+        html += '<div class="fleet-popup-row"><span class="fleet-popup-label">' + row[0] + '</span><span class="fleet-popup-value">' + row[1] + '</span></div>';
+    });
+    return html;
+}
+
+function updateFleetStats(data) {
+    var nodeCount = (data.nodes || []).filter(function(n) { return n.status === 'online'; }).length;
+    var provCount = (data.providers || []).filter(function(p) { return p.is_active; }).length;
+    var nodeEl = document.getElementById('fleetStatNodes');
+    var provEl = document.getElementById('fleetStatProviders');
+    if (nodeEl) nodeEl.textContent = nodeCount + ' node' + (nodeCount !== 1 ? 's' : '') + ' online';
+    if (provEl) provEl.textContent = provCount + ' provider' + (provCount !== 1 ? 's' : '') + ' active';
+}
+
+async function loadCloudProviders() {
+    try {
+        const resp = await fetch('/tools/department-hq/api/cloud-providers');
+        const data = await resp.json();
+        if (data.error) { console.error('Cloud providers error:', data.error); return; }
+
+        const grid = document.getElementById('fleetProvidersGrid');
+        if (!grid) return;
+
+        const providers = data.providers || [];
+        const countEl = document.getElementById('fleetProviderCount');
+        if (countEl) countEl.textContent = providers.length;
+
+        if (providers.length === 0) {
+            grid.textContent = '';
+            var emptyMsg = document.createElement('div');
+            emptyMsg.style.cssText = 'text-align:center;color:#6b7280;padding:24px;';
+            emptyMsg.textContent = 'No cloud providers configured';
+            grid.appendChild(emptyMsg);
+            return;
+        }
+
+        grid.textContent = '';
+        providers.forEach(function(p) {
+            var statusColor = p.status === 'active' ? '#10b981' : '#6b7280';
+            var budgetPct = p.monthly_budget > 0
+                ? Math.min(((p.monthly_usage || 0) / p.monthly_budget) * 100, 100).toFixed(0)
+                : 0;
+            var budgetColor = budgetPct > 80 ? '#ef4444' : budgetPct > 50 ? '#f59e0b' : '#10b981';
+
+            var card = document.createElement('div');
+            card.className = 'fleet-provider-card';
+
+            // Header
+            var header = document.createElement('div');
+            header.className = 'fleet-provider-card-header';
+            var nameSpan = document.createElement('span');
+            nameSpan.className = 'fleet-provider-name';
+            nameSpan.textContent = p.name;
+            var statusSpan = document.createElement('span');
+            statusSpan.className = 'fleet-provider-status';
+            statusSpan.style.color = statusColor;
+            statusSpan.textContent = (p.status || 'unknown').toUpperCase();
+            header.appendChild(nameSpan);
+            header.appendChild(statusSpan);
+            card.appendChild(header);
+
+            // Body rows
+            var body = document.createElement('div');
+            body.className = 'fleet-provider-card-body';
+            [['Type', p.provider_type || 'cloud'], ['Tier', p.tier || 'free'],
+             ['City', p.headquarters_city || '--'],
+             ['Budget', '$' + (p.monthly_usage || 0).toFixed(2) + ' / $' + (p.monthly_budget || 0).toFixed(2)]
+            ].forEach(function(pair) {
+                var row = document.createElement('div');
+                row.className = 'fleet-provider-row';
+                var lbl = document.createElement('span');
+                lbl.textContent = pair[0];
+                var val = document.createElement('span');
+                val.textContent = pair[1];
+                row.appendChild(lbl);
+                row.appendChild(val);
+                body.appendChild(row);
+            });
+
+            // Budget bar
+            if (p.monthly_budget > 0) {
+                var barWrap = document.createElement('div');
+                barWrap.className = 'fleet-provider-budget-bar';
+                var barFill = document.createElement('div');
+                barFill.style.cssText = 'width:' + budgetPct + '%;background:' + budgetColor + ';height:100%;border-radius:2px;';
+                barWrap.appendChild(barFill);
+                body.appendChild(barWrap);
+            }
+
+            // Capability tags
+            var caps = document.createElement('div');
+            caps.className = 'fleet-provider-caps';
+            (p.capabilities || []).forEach(function(c) {
+                var tag = document.createElement('span');
+                tag.className = 'fleet-cap-tag';
+                tag.textContent = c;
+                caps.appendChild(tag);
+            });
+            body.appendChild(caps);
+            card.appendChild(body);
+
+            // Actions
+            var actions = document.createElement('div');
+            actions.className = 'fleet-provider-card-actions';
+            var toggleBtn = document.createElement('button');
+            toggleBtn.className = 'fleet-btn-sm';
+            toggleBtn.textContent = p.status === 'active' ? 'Disable' : 'Enable';
+            toggleBtn.addEventListener('click', function() { toggleCloudProvider(p.id); });
+            actions.appendChild(toggleBtn);
+            card.appendChild(actions);
+
+            grid.appendChild(card);
+        });
+    } catch(e) {
+        console.error('loadCloudProviders failed:', e);
+    }
+}
+
+async function toggleCloudProvider(providerId) {
+    try {
+        const resp = await fetch('/tools/department-hq/api/cloud-providers/' + providerId + '/toggle', { method: 'POST' });
+        const data = await resp.json();
+        if (data.success) {
+            loadCloudProviders();
+            loadFleetData();
+        }
+    } catch(e) {
+        console.error('Toggle cloud provider failed:', e);
+    }
+}
+
+function showNodeDetail(node) {
+    var panel = document.getElementById('fleetDetailPanel');
+    var titleEl = document.getElementById('fleetDetailTitle');
+    var body = document.getElementById('fleetDetailBody');
+    if (!panel || !titleEl || !body) return;
+
+    titleEl.textContent = node.node_name || node.name || node.hostname;
+
+    // Build detail content using DOM methods (trusted server data)
+    body.textContent = '';
+    var sections = [
+        { title: 'Hardware', rows: [
+            ['GPU', node.gpu_model || node.gpu || 'None'],
+            ['VRAM', node.gpu_vram_gb ? node.gpu_vram_gb + ' GB' : '--'],
+            ['RAM', (node.ram_gb || node.ram) ? (node.ram_gb || node.ram) + ' GB' : '--'],
+            ['Region', node.region || '--']
+        ]},
+        { title: 'Network', rows: [
+            ['Hostname', node.hostname || '--'],
+            ['Mesh IP', node.mesh_ip || '--'],
+            ['Mode', node.deployment_mode || '--']
+        ]},
+        { title: 'Status', rows: [
+            ['Status', node.status || '--'],
+            ['Last Heartbeat', node.last_heartbeat || '--']
+        ]}
+    ];
+    sections.forEach(function(sec) {
+        var h = document.createElement('div');
+        h.className = 'detail-section-title';
+        h.textContent = sec.title;
+        body.appendChild(h);
+        sec.rows.forEach(function(r) {
+            var row = document.createElement('div');
+            row.className = 'detail-row';
+            var lbl = document.createElement('span');
+            lbl.className = 'detail-label';
+            lbl.textContent = r[0];
+            var val = document.createElement('span');
+            val.className = 'detail-value';
+            val.textContent = r[1];
+            row.appendChild(lbl);
+            row.appendChild(val);
+            body.appendChild(row);
+        });
+    });
+
+    // Deployed Agents section with Department HQ cross-links
+    var agents = node.agents || [];
+    var agentHeader = document.createElement('div');
+    agentHeader.className = 'detail-section-title';
+    agentHeader.textContent = 'Deployed Agents (' + agents.length + ')';
+    body.appendChild(agentHeader);
+
+    if (agents.length === 0) {
+        var noAgents = document.createElement('div');
+        noAgents.className = 'detail-row';
+        noAgents.style.opacity = '0.5';
+        noAgents.textContent = 'No agents deployed';
+        body.appendChild(noAgents);
+    } else {
+        agents.forEach(function(agent) {
+            var row = document.createElement('div');
+            row.className = 'detail-row';
+            var link = document.createElement('a');
+            link.href = '/tools/department-hq#agent-' + (agent.hub_agent_id || '');
+            link.style.cssText = 'color:#8b5cf6;text-decoration:none;font-weight:500;cursor:pointer;';
+            link.textContent = agent.display_name || 'Unknown';
+            link.title = 'View in Department HQ';
+            link.addEventListener('mouseenter', function() { link.style.textDecoration = 'underline'; });
+            link.addEventListener('mouseleave', function() { link.style.textDecoration = 'none'; });
+            row.appendChild(link);
+            if (agent.department) {
+                var dept = document.createElement('span');
+                dept.className = 'detail-value';
+                dept.style.cssText = 'font-size:0.7rem;opacity:0.6;margin-left:8px;';
+                dept.textContent = agent.department;
+                row.appendChild(dept);
+            }
+            body.appendChild(row);
+        });
+
+        // "View all in Department HQ" link
+        var viewAll = document.createElement('a');
+        viewAll.href = '/tools/department-hq#agents';
+        viewAll.style.cssText = 'display:block;margin-top:8px;color:#8b5cf6;text-decoration:none;font-size:0.75rem;text-align:center;opacity:0.8;';
+        viewAll.textContent = 'View all in Department HQ \u2192';
+        viewAll.addEventListener('mouseenter', function() { viewAll.style.opacity = '1'; });
+        viewAll.addEventListener('mouseleave', function() { viewAll.style.opacity = '0.8'; });
+        body.appendChild(viewAll);
+    }
+
+    panel.style.display = 'block';
+}
+
+function closeFleetDetail() {
+    var panel = document.getElementById('fleetDetailPanel');
+    if (panel) panel.style.display = 'none';
+}
+
+// Auto-init fleet map when tab becomes active
+(function() {
+    var _origSwitch = typeof switchBridgeTab === 'function' ? switchBridgeTab : null;
+    if (_origSwitch) {
+        switchBridgeTab = function(tab) {
+            _origSwitch(tab);
+            if (tab === 'fleet-map') {
+                setTimeout(function() {
+                    initFleetMap();
+                    if (fleetMap) fleetMap.invalidateSize();
+                    loadFleetUsage();
+                    loadCloudProviders();
+                    loadProviderManagement();
+                    startFleetRefresh();
+                }, 100);
+            } else {
+                stopFleetRefresh();
+            }
+        };
+    }
+})();
+
+/* Fleet Usage Dashboard */
+async function loadFleetUsage() {
+    try {
+        const [usageResp, mapResp] = await Promise.all([
+            fetch('/tools/department-hq/api/fleet-usage'),
+            fetch('/tools/department-hq/api/fleet-map'),
+        ]);
+        const usage = await usageResp.json();
+        const map = await mapResp.json();
+
+        // Summary cards
+        const costEl = document.getElementById('fleetUsageCost');
+        const provEl = document.getElementById('fleetUsageProviders');
+        const callEl = document.getElementById('fleetUsageCalls');
+        if (costEl) costEl.textContent = '$' + (usage.total_cost || 0).toFixed(2);
+        if (provEl) provEl.textContent = (map.providers || []).filter(p => p.is_active).length;
+        if (callEl) callEl.textContent = (usage.total_calls || 0).toLocaleString();
+
+        // Provider budget table
+        const tbody = document.getElementById('fleetBudgetTableBody');
+        if (!tbody) return;
+
+        const providers = map.providers || [];
+        if (providers.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#6b7280;">No providers configured</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = providers
+            .sort((a, b) => (b.current_month_cost_usd || 0) - (a.current_month_cost_usd || 0))
+            .map(p => {
+                const budget = p.monthly_budget_usd || 0;
+                const spent = p.current_month_cost_usd || 0;
+                const pct = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0;
+                const barColor = pct > 90 ? '#ef4444' : pct > 70 ? '#fbbf24' : '#10b981';
+                const pKey = (p.provider_key || '').toLowerCase();
+                const pStyle = PROVIDER_STYLES[pKey] || { color: '#f97316', bg: 'rgba(249,115,22,0.3)', label: (p.provider_key || '?').charAt(0).toUpperCase() };
+
+                return `<tr>
+                    <td><div class="fleet-provider-name">
+                        <div class="fleet-provider-icon" style="background:${pStyle.bg};border-color:${pStyle.color};color:${pStyle.color}">${pStyle.label}</div>
+                        ${p.provider_key || '--'}
+                    </div></td>
+                    <td>${p.tier_position || '--'}</td>
+                    <td>${budget > 0 ? '$' + budget.toFixed(2) : '--'}</td>
+                    <td>${spent > 0 ? '$' + spent.toFixed(2) : '$0.00'}</td>
+                    <td>
+                        <div class="fleet-budget-bar">
+                            <div class="fleet-budget-bar-fill" style="width:${pct}%;background:${barColor}"></div>
+                        </div>
+                        ${pct > 0 ? pct.toFixed(0) + '%' : '--'}
+                    </td>
+                    <td><span class="fleet-status-dot ${p.is_active ? 'active' : 'inactive'}"></span></td>
+                </tr>`;
+            }).join('');
+
+        // Cloud providers budget rows (Phase 4)
+        try {
+            const cloudResp = await fetch('/tools/department-hq/api/cloud-providers');
+            const cloudData = await cloudResp.json();
+            (cloudData.providers || []).forEach(function(p) {
+                var budgetPct = p.monthly_budget > 0
+                    ? ((p.monthly_usage || 0) / p.monthly_budget * 100).toFixed(0)
+                    : '--';
+                var statusColor = p.status === 'active' ? '#10b981' : '#6b7280';
+                var row = document.createElement('tr');
+                var cells = [p.name, p.tier || 'free',
+                    '$' + (p.monthly_budget || 0).toFixed(2),
+                    '$' + (p.monthly_usage || 0).toFixed(2),
+                    budgetPct + (budgetPct !== '--' ? '%' : ''),
+                    (p.status || '--').toUpperCase()];
+                cells.forEach(function(text, i) {
+                    var td = document.createElement('td');
+                    td.textContent = text;
+                    if (i === 5) td.style.color = statusColor;
+                    row.appendChild(td);
+                });
+                tbody.appendChild(row);
+            });
+        } catch(e) {
+            console.error('Cloud providers budget table error:', e);
+        }
+    } catch (e) {
+        console.error('Fleet usage load failed:', e);
+    }
+}
+
+/* Cloud Provider Management Panel */
+async function loadProviderManagement() {
+    try {
+        const resp = await fetch('/tools/department-hq/api/providers');
+        const data = await resp.json();
+        const providers = data.providers || [];
+
+        var countEl = document.getElementById('fleetProviderCount');
+        if (countEl) countEl.textContent = providers.filter(function(p) { return p.is_active; }).length + ' active';
+
+        var grid = document.getElementById('fleetProvidersGrid');
+        if (!grid) return;
+
+        if (providers.length === 0) {
+            grid.innerHTML = '<div style="text-align:center;color:#6b7280;padding:24px;">No providers configured</div>';
+            return;
+        }
+
+        grid.innerHTML = providers
+            .sort(function(a, b) { return (a.tier_position || 99) - (b.tier_position || 99); })
+            .map(function(p) {
+                var key = (p.provider_key || '').toLowerCase();
+                var style = PROVIDER_STYLES[key] || { color: '#f97316', bg: 'rgba(249,115,22,0.3)', label: key.charAt(0).toUpperCase() };
+                var budget = p.monthly_budget_usd || 0;
+                var spent = p.current_month_cost_usd || 0;
+                var pct = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0;
+                var barColor = pct > 90 ? '#ef4444' : pct > 70 ? '#fbbf24' : '#10b981';
+                var caps = (p.capabilities || []).slice(0, 4);
+
+                return '<div class="fleet-prov-card ' + (p.is_active ? '' : 'inactive') + '">' +
+                    '<div class="fleet-prov-header">' +
+                        '<span class="fleet-prov-icon" style="background:' + style.bg + ';border-color:' + style.color + ';color:' + style.color + '">' + style.label + '</span>' +
+                        '<span class="fleet-prov-name">' + (p.provider_key || '--') + '</span>' +
+                        '<button class="fleet-prov-toggle ' + (p.is_active ? 'active' : '') + '" onclick="toggleProvider(\'' + p.provider_key + '\')">' +
+                            (p.is_active ? 'ON' : 'OFF') +
+                        '</button>' +
+                    '</div>' +
+                    '<div class="fleet-prov-details">' +
+                        '<div class="fleet-prov-row"><span>Tier</span><span>' + (p.tier_position || '--') + '</span></div>' +
+                        '<div class="fleet-prov-row"><span>Model</span><span>' + (p.default_model || '--') + '</span></div>' +
+                        '<div class="fleet-prov-row"><span>Budget</span><span>$' + budget.toFixed(2) + '</span></div>' +
+                        '<div class="fleet-prov-row">' +
+                            '<span>Spent</span>' +
+                            '<span>$' + spent.toFixed(2) + ' (' + pct.toFixed(0) + '%)</span>' +
+                        '</div>' +
+                        '<div class="fleet-prov-bar"><div class="fleet-prov-bar-fill" style="width:' + pct + '%;background:' + barColor + '"></div></div>' +
+                    '</div>' +
+                    '<div class="fleet-prov-caps">' + caps.map(function(c) { return '<span class="fleet-cap-tag">' + c + '</span>'; }).join('') + '</div>' +
+                '</div>';
+            }).join('');
+    } catch (e) {
+        console.error('Provider management load failed:', e);
+    }
+}
+
+async function toggleProvider(key) {
+    try {
+        await fetch('/tools/department-hq/api/providers/' + key + '/toggle', { method: 'POST' });
+        loadProviderManagement();
+        loadFleetData();
+        loadFleetUsage();
+        loadCloudProviders();
+    } catch (e) {
+        console.error('Toggle provider failed:', e);
+    }
+}
+
+var escapeHtml = typeof esc === "function" ? esc : function(s) { var d = document.createElement("div"); d.textContent = String(s == null ? "" : s); return d.innerHTML; };
+function showToast(msg, type) { console.log("[" + (type||"info") + "] " + msg); }
+// CONTRACTORS (External Providers) — Crew Sub-Tab
+// ============================================================================
+
+async function loadContractors() {
+    try {
+        var [provResp, modeResp] = await Promise.all([
+            fetch('/tools/department-hq/api/external-providers'),
+            fetch('/tools/department-hq/api/routing-mode')
+        ]);
+        if (!provResp.ok) throw new Error('Failed to load providers');
+        var data = await provResp.json();
+        var routingMode = 'full';
+        if (modeResp.ok) {
+            var modeData = await modeResp.json();
+            if (modeData.success) routingMode = modeData.routing_mode || 'full';
+        }
+        renderContractors(data.providers || [], routingMode, {
+            creed_total_24h: data.creed_total_24h || 0,
+            creed_blocked_24h: data.creed_blocked_24h || 0
+        });
+    } catch (e) {
+        console.error('loadContractors error:', e);
+        var grid = document.getElementById('contractors-grid');
+        if (grid) grid.innerHTML = '<span class="briefing-muted">Failed to load contractors</span>';
+    }
+}
+
+function renderContractors(providers, routingMode, creedData) {
+    routingMode = routingMode || 'full';
+    creedData = creedData || { creed_total_24h: 0, creed_blocked_24h: 0 };
+    var creedBlocked = creedData.creed_blocked_24h || 0;
+    // Dynamic cloud provider check — use is_cloud_proxy from API data
+    var cloudProviders = providers.filter(function(p) { return p.is_cloud_proxy; }).map(function(p) { return p.provider; });
+    var grid = document.getElementById('contractors-grid');
+    var summaryEl = document.getElementById('contractors-summary');
+    if (!grid) return;
+
+    // Compute summary — use actual API field names
+    var activeCount = 0;
+    var totalCount = providers.length;
+    var totalSpent = 0;
+    var totalBudget = 0;
+    providers.forEach(function(p) {
+        if (p.is_active) activeCount++;
+        totalSpent += (p.current_month_cost_usd || 0);
+        totalBudget += (p.monthly_budget_usd || 0);
+    });
+    if (summaryEl) {
+        summaryEl.textContent = activeCount + '/' + totalCount + ' active \u2014 $' + totalSpent.toFixed(2) + ' / $' + totalBudget.toFixed(0);
+    }
+
+    if (providers.length === 0) {
+        grid.innerHTML = '<span class="briefing-muted">No external providers configured. Click "+ Add Provider" to get started.</span>';
+        return;
+    }
+
+    var html = '';
+    providers.forEach(function(p) {
+        var providerName = escapeHtml(p.display_name || (p.name || p.provider || '').replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }));
+        var providerKey = escapeHtml(p.provider || p.name || '');
+        // Get first tier position from tier_positions map
+        var tierPositions = p.tier_positions || {};
+        var tierPosVals = Object.values(tierPositions);
+        var tierPos = tierPosVals.length > 0 ? Math.min.apply(null, tierPosVals) : '--';
+        var isEnabled = p.is_active !== false;
+        var accountTier = p.account_tier || 'free';
+        var tierLabel = accountTier.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+        var tierColor = accountTier === 'enterprise' ? '#a855f7' : accountTier === 'pro' ? '#f59e0b' : accountTier === 'pay_as_you_go' ? '#3b82f6' : '#6b7280';
+        var monthlyBudget = p.monthly_budget_usd || 0;
+        var currentCost = p.current_month_cost_usd || 0;
+        var isOverBudget = monthlyBudget > 0 && currentCost > monthlyBudget;
+        var statusClass = isOverBudget ? 'over-budget' : (isEnabled ? 'active' : 'inactive');
+        var statusText = isOverBudget ? 'Over Budget' : (isEnabled ? 'Active' : 'Inactive');
+        var budgetPct = monthlyBudget > 0 ? Math.min(100, (currentCost / monthlyBudget) * 100) : 0;
+        var budgetFillClass = budgetPct > 100 ? 'over' : (budgetPct > 75 ? 'warning' : '');
+        var isBlocked = (routingMode === 'local_only') ||
+                        (routingMode === 'local_cloud' && cloudProviders.indexOf(p.provider) === -1);
+        var blockedStyle = isBlocked ? 'position:relative;opacity:0.4;pointer-events:none;' : '';
+
+        // Compute session/weekly totals for collapsed summary
+        var pSess = 0, pSessLim = 0, pWkly = 0, pWklyLim = 0;
+        (p.models || []).forEach(function(m) {
+            var mw = m.usage_windows || {};
+            pSess += (mw.session_2h != null ? mw.session_2h : 0);
+            pSessLim += (mw.session_limit || 0);
+            pWkly += (mw.weekly_7d != null ? mw.weekly_7d : 0);
+            pWklyLim += (mw.weekly_limit || 0);
+        });
+        var sPct = pSessLim > 0 ? Math.min(100, Math.round(pSess / pSessLim * 100)) + '%' : '\u221e';
+        var wPct = pWklyLim > 0 ? Math.min(100, Math.round(pWkly / pWklyLim * 100)) + '%' : '\u221e';
+        var headerSummary = (pSess > 0 || pWkly > 0 || pSessLim > 0 || pWklyLim > 0) ? 's=' + sPct + ' / w=' + wPct : '';
+
+        html += '<div class="contractor-firm"' + (blockedStyle ? ' style="' + blockedStyle + '"' : '') + '>';
+        html += '<div class="contractor-firm-header" onclick="this.parentElement.classList.toggle(\'expanded\')">';
+        html += '<i data-lucide="chevron-right" class="chevron-icon"></i>';
+        html += '<span class="contractor-firm-name">' + providerName + '</span>';
+        if (headerSummary) html += '<span class="contractor-header-summary">' + headerSummary + '</span>';
+        html += '<span class="contractor-tier-badge">Tier ' + escapeHtml(String(tierPos)) + '</span>';
+        html += '<span style="font-size:0.6rem;padding:1px 6px;border-radius:3px;border:1px solid ' + tierColor + ';color:' + tierColor + ';text-transform:uppercase;letter-spacing:0.5px;">' + escapeHtml(tierLabel) + '</span>';
+        html += '<span class="contractor-status-badge ' + statusClass + '">' + statusText + '</span>';
+        html += '<div class="budget-bar"><div class="budget-fill ' + budgetFillClass + '" style="width:' + budgetPct.toFixed(0) + '%"></div></div>';
+        html += '<div class="contractor-firm-actions">';
+        html += '<button class="contractor-btn-edit" onclick="event.stopPropagation();editProvider(\'' + providerKey + '\')">Edit</button>';
+        html += '<button class="contractor-btn-toggle" onclick="event.stopPropagation();toggleProvider(\'' + providerKey + '\')">' + (isEnabled ? 'Disable' : 'Enable') + '</button>';
+        html += '</div>';
+        html += '</div>'; // header
+
+        // Models body
+        html += '<div class="contractor-firm-body">';
+        // Auth & budget info row
+        var authMethod = escapeHtml(p.auth_method || 'API key');
+        var keyHint = p.key_hint ? escapeHtml(p.key_hint) : 'Not set';
+        html += '<div style="display:flex;flex-wrap:wrap;gap:12px;padding:6px 8px;margin-bottom:8px;background:rgba(255,255,255,0.03);border-radius:4px;font-size:0.72rem;color:var(--archie-text-tertiary);">';
+        html += '<span>Auth: <span style="color:var(--archie-cyan);">' + authMethod + '</span></span>';
+        html += '<span>Key: <span style="color:' + (p.key_hint ? 'var(--archie-text-secondary)' : '#ff6b6b') + ';">' + keyHint + '</span></span>';
+        html += '<span>Budget: <span style="color:var(--archie-text-secondary);">$' + monthlyBudget.toFixed(2) + '/mo</span></span>';
+        html += '<span>Spent: <span style="color:var(--archie-text-secondary);">$' + currentCost.toFixed(2) + '</span></span>';
+        html += '</div>';
+        var models = p.models || [];
+        if (models.length === 0) {
+            html += '<span class="briefing-muted" style="font-size:0.7rem;">No models registered for this provider</span>';
+        } else {
+            html += '<div class="contractor-models-grid">';
+            models.forEach(function(m) {
+                var modelEnabled = m.enabled !== false;
+                html += '<div class="contractor-model-card' + (modelEnabled ? '' : ' disabled') + '">';
+                var mStats = m.stats_24h || {};
+                var mTierPos = m.tier_position != null ? m.tier_position : tierPos;
+                html += '<div class="contractor-model-name">' + escapeHtml(m.name || m.model_name || '') + '</div>';
+                html += '<div class="contractor-model-meta">';
+                html += '<span>Contract Worker \u00b7 Tier ' + escapeHtml(String(mTierPos)) + '</span>';
+                html += '</div>';
+                var mAlltime = m.stats_alltime || null;
+                html += '<div class="model-stats">';
+                html += '<div>Tasks/24h: <span class="stat-val">' + (mStats.requests != null ? mStats.requests : '0') + '</span></div>';
+                html += '<div>Success: <span class="stat-val">' + (mStats.success_rate != null && mStats.requests > 0 ? parseFloat(mStats.success_rate).toFixed(0) + '%' : '--') + '</span></div>';
+                html += '<div>Avg latency: <span class="stat-val">' + (mStats.avg_latency_ms != null && mStats.requests > 0 ? (parseFloat(mStats.avg_latency_ms) / 1000).toFixed(1) + 's' : '--') + '</span></div>';
+                html += '<div>Cost/24h: <span class="stat-val">$' + (mStats.cost != null ? parseFloat(mStats.cost).toFixed(3) : '0.000') + '</span></div>';
+                html += '</div>';
+                if (mAlltime) {
+                    var lastUsedStr = mAlltime.last_used ? ArchieTime.date(mAlltime.last_used) : '--';
+                    html += '<div class="model-stats" style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.06);">';
+                    html += '<div>Total: <span class="stat-val">' + mAlltime.requests + ' tasks</span></div>';
+                    html += '<div>Success: <span class="stat-val">' + parseFloat(mAlltime.success_rate).toFixed(0) + '%</span></div>';
+                    html += '<div>Last used: <span class="stat-val">' + lastUsedStr + '</span></div>';
+                    html += '<div>Total cost: <span class="stat-val">$' + parseFloat(mAlltime.cost).toFixed(3) + '</span></div>';
+                    html += '</div>';
+                }
+                var mWindows = m.usage_windows || null;
+                if (mWindows) {
+                    var sess = mWindows.session_2h != null ? mWindows.session_2h : 0;
+                    var sessLimit = mWindows.session_limit || null;
+                    var wkly = mWindows.weekly_7d != null ? mWindows.weekly_7d : 0;
+                    var wklyLimit = mWindows.weekly_limit || null;
+                    var sessPct = sessLimit ? Math.min(sess / sessLimit * 100, 100) : 0;
+                    var sessPct = sessLimit ? Math.min(sess / sessLimit * 100, 100) : 0;
+                    var wklyPct = wklyLimit ? Math.min(wkly / wklyLimit * 100, 100) : 0;
+                    var barColor = function(pct) { return pct > 80 ? '#ff4444' : pct > 50 ? '#ffaa00' : '#22cc88'; };
+                    var sessStr = sessLimit ? sess + ' / ' + sessLimit : sess + ' req';
+                    var wklyStr = wklyLimit ? wkly + ' / ' + wklyLimit : wkly + ' req';
+                    var sessPctStr = sessLimit ? Math.round(sessPct) + '%' : '';
+                    var wklyPctStr = wklyLimit ? Math.round(wklyPct) + '%' : '';
+                    html += '<div style="margin-top:4px;padding:5px 6px;border-top:1px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;gap:5px;font-size:0.65rem;">';
+                    // Session bar
+                    html += '<div style="display:flex;align-items:center;gap:6px;">';
+                    html += '<span style="color:rgba(255,255,255,0.5);min-width:58px;display:flex;align-items:center;gap:3px;"><i data-lucide="clock" style="width:10px;height:10px;"></i> Session</span>';
+                    if (sessLimit) {
+                        html += '<span style="color:' + barColor(sessPct) + ';min-width:28px;font-weight:600;font-size:0.6rem;">' + sessPctStr + '</span>';
+                        html += '<div style="flex:1;height:10px;background:rgba(255,255,255,0.06);border-radius:5px;overflow:hidden;position:relative;">';
+                        html += '<div style="height:100%;width:' + sessPct.toFixed(1) + '%;background:' + barColor(sessPct) + ';border-radius:5px;transition:width 0.4s ease;"></div>';
+                        html += '</div>';
+                    } else {
+                        html += '<span style="color:var(--archie-cyan);font-size:0.6rem;flex:1;">Unlimited</span>';
+                    }
+                    html += '<span style="color:rgba(255,255,255,0.45);min-width:62px;text-align:right;font-size:0.6rem;">' + sessStr + '</span>';
+                    html += '</div>';
+                    // Weekly bar
+                    html += '<div style="display:flex;align-items:center;gap:6px;">';
+                    html += '<span style="color:rgba(255,255,255,0.5);min-width:58px;display:flex;align-items:center;gap:3px;"><i data-lucide="calendar" style="width:10px;height:10px;"></i> Weekly</span>';
+                    if (wklyLimit) {
+                        html += '<span style="color:' + barColor(wklyPct) + ';min-width:28px;font-weight:600;font-size:0.6rem;">' + wklyPctStr + '</span>';
+                        html += '<div style="flex:1;height:10px;background:rgba(255,255,255,0.06);border-radius:5px;overflow:hidden;position:relative;">';
+                        html += '<div style="height:100%;width:' + wklyPct.toFixed(1) + '%;background:' + barColor(wklyPct) + ';border-radius:5px;transition:width 0.4s ease;"></div>';
+                        html += '</div>';
+                    } else {
+                        html += '<span style="color:var(--archie-cyan);font-size:0.6rem;flex:1;">Unlimited</span>';
+                    }
+                    html += '<span style="color:rgba(255,255,255,0.45);min-width:62px;text-align:right;font-size:0.6rem;">' + wklyStr + '</span>';
+                    html += '</div>';
+                    html += '</div>';
+                }
+                html += '<div style="display:flex;align-items:center;justify-content:space-between;">';
+                if (creedBlocked > 0) {
+                    html += '<span class="contractor-creed-badge" style="color:#ffaa00;border-color:#ffaa00;"><i data-lucide="shield-alert" style="width:10px;height:10px;"></i> C.R.E.E.D.: ' + escapeHtml(String(creedBlocked)) + ' blocked</span>';
+                } else {
+                    html += '<span class="contractor-creed-badge"><i data-lucide="shield-check" style="width:10px;height:10px;"></i> C.R.E.E.D. Compliant</span>';
+                }
+                html += '<label class="contractor-model-toggle"><input type="checkbox" ' + (modelEnabled ? 'checked' : '') + ' onchange="toggleContractorModel(\'' + providerKey + '\',\'' + escapeHtml(m.name || m.model_name || '') + '\',this.checked)"> Enabled</label>';
+                html += '</div>';
+                html += '</div>'; // model card
+            });
+            html += '</div>'; // models grid
+        }
+        html += '</div>'; // firm body
+        if (isBlocked) {
+            var blockedText = routingMode === 'local_only' ? 'Routing: Local Only' : 'Routing: Local + Cloud Only';
+            html += '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.7);color:#ffaa00;padding:4px 12px;border-radius:4px;font-size:0.7rem;z-index:1;pointer-events:auto;">' + blockedText + '</div>';
+        }
+        html += '</div>'; // firm
+    });
+
+    grid.innerHTML = html;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function toggleProvider(provider) {
+    fetch('/tools/department-hq/api/external-providers/' + encodeURIComponent(provider) + '/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        showToast(data.message || 'Provider toggled', 'success');
+        loadContractors();
+    })
+    .catch(function(e) {
+        showToast('Failed to toggle provider', 'error');
+    });
+}
+
+function toggleContractorModel(provider, model, enabled) {
+    fetch('/tools/department-hq/api/external-providers/' + encodeURIComponent(provider) + '/models/' + encodeURIComponent(model) + '/toggle', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: enabled })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        showToast(data.message || 'Model toggled', 'success');
+        loadContractors();
+    })
+    .catch(function(e) {
+        showToast('Failed to toggle model', 'error');
+    });
+}
+
+function openAddProviderModal(editProviderName) {
+    // Remove existing modal if any
+    var existing = document.querySelector('.bm-overlay.bm-provider-modal');
+    if (existing) existing.remove();
+
+    // Fetch both contractor-providers definitions AND current key data in parallel
+    Promise.all([
+        fetch('/tools/department-hq/api/contractor-providers').then(function(r) { return r.json(); }),
+        fetch('/tools/department-hq/api/external-providers').then(function(r) { return r.json(); })
+    ]).then(function(results) {
+        var cpData = results[0];
+        var epData = results[1];
+        var contractorProviders = cpData.providers || [];
+        var configuredProviders = epData.providers || [];
+        var current = editProviderName ? configuredProviders.find(function(p) { return p.provider === editProviderName; }) : null;
+
+        // Build provider options dynamically from contractor_providers table
+        var providerOptions = contractorProviders.map(function(cp) {
+            return { value: cp.provider_key, label: cp.display_name, is_cloud_proxy: cp.is_cloud_proxy };
+        });
+
+        var budgetVal = current ? (current.monthly_budget_usd || 10) : 10;
+        var currentTier = current ? (current.account_tier || 'free') : 'free';
+        var isCloud = editProviderName && providerOptions.some(function(opt) { return opt.value === editProviderName && opt.is_cloud_proxy; });
+        var keyPlaceholder = current && current.key_hint ? 'Current: ' + current.key_hint + ' (leave blank to keep)' : 'sk-... or key';
+
+        var tierOptions = [
+            { value: 'free', label: 'Free' },
+            { value: 'pro', label: 'Pro' },
+            { value: 'pay_as_you_go', label: 'Pay As You Go' },
+            { value: 'enterprise', label: 'Enterprise' },
+            { value: 'max', label: 'Max' }
+        ];
+
+        // Helper to create elements
+        function el(tag, cls, style) {
+            var e = document.createElement(tag);
+            if (cls) e.className = cls;
+            if (style) e.style.cssText = style;
+            return e;
+        }
+
+        // --- Build LCARS tablet modal ---
+        var overlay = el('div', 'bm-overlay active bm-provider-modal', '--bm-accent:#a855f7;--bm-accent-rgb:168,85,247;');
+        overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+
+        var shell = el('div', 'bm-shell', 'max-width:400px;');
+
+        // Left frame sidebar
+        var frame = el('div', 'bm-frame');
+        frame.appendChild(el('div', 'bm-frame-elbow-top'));
+        frame.appendChild(el('div', 'bm-frame-seg'));
+        frame.appendChild(el('div', 'bm-frame-seg dim'));
+        frame.appendChild(el('div', 'bm-frame-light on'));
+        frame.appendChild(el('div', 'bm-frame-light amber'));
+        frame.appendChild(el('div', 'bm-frame-seg purple'));
+        frame.appendChild(el('div', 'bm-frame-fill'));
+        frame.appendChild(el('div', 'bm-frame-elbow-bottom'));
+        shell.appendChild(frame);
+
+        // Right content column
+        var content = el('div', 'bm-content');
+
+        // Header
+        var header = el('div', 'bm-header');
+        var title = el('span', 'bm-header-title');
+        title.textContent = (editProviderName ? 'EDIT' : 'ADD') + ' PROVIDER';
+        header.appendChild(title);
+        var strip = el('div', 'bm-header-strip');
+        strip.appendChild(el('span', 'bm-header-pip w1'));
+        strip.appendChild(el('span', 'bm-header-pip w2'));
+        strip.appendChild(el('span', 'bm-header-pip w3'));
+        var closeBtn = el('button', 'bm-close');
+        closeBtn.textContent = '\u00D7';
+        closeBtn.onclick = function() { overlay.remove(); };
+        strip.appendChild(closeBtn);
+        header.appendChild(strip);
+        content.appendChild(header);
+
+        // Body
+        var body = el('div', 'bm-body');
+
+        // Provider select
+        var lbl1 = document.createElement('label');
+        lbl1.textContent = 'Provider';
+        body.appendChild(lbl1);
+        var provSelect = document.createElement('select');
+        provSelect.id = 'provider-modal-name';
+        if (editProviderName) provSelect.disabled = true;
+        var defOpt = document.createElement('option');
+        defOpt.value = '';
+        defOpt.textContent = 'Select provider...';
+        provSelect.appendChild(defOpt);
+        providerOptions.forEach(function(opt) {
+            var o = document.createElement('option');
+            o.value = opt.value;
+            o.textContent = opt.label;
+            if (editProviderName && editProviderName === opt.value) o.selected = true;
+            provSelect.appendChild(o);
+        });
+        body.appendChild(provSelect);
+
+        // Auth note container
+        var authNoteDiv = document.createElement('div');
+        authNoteDiv.id = 'provider-modal-auth-note';
+        if (isCloud) {
+            var noteInner = document.createElement('div');
+            noteInner.style.cssText = 'margin:6px 0 8px;padding:6px 8px;background:rgba(0,255,255,0.06);border:1px solid rgba(0,255,255,0.15);border-radius:4px;font-size:0.72rem;color:var(--archie-cyan);';
+            noteInner.textContent = 'Auth: OLLAMA_API_KEY env var (shared Ollama cloud proxy)';
+            authNoteDiv.appendChild(noteInner);
+        }
+        body.appendChild(authNoteDiv);
+
+        // Account tier select
+        var lbl2 = document.createElement('label');
+        lbl2.textContent = 'Account Tier';
+        body.appendChild(lbl2);
+        var tierSelect = document.createElement('select');
+        tierSelect.id = 'provider-modal-tier';
+        tierOptions.forEach(function(opt) {
+            var o = document.createElement('option');
+            o.value = opt.value;
+            o.textContent = opt.label;
+            if (opt.value === currentTier) o.selected = true;
+            tierSelect.appendChild(o);
+        });
+        body.appendChild(tierSelect);
+
+        // API key input
+        var lbl3 = document.createElement('label');
+        lbl3.textContent = 'API Key';
+        body.appendChild(lbl3);
+        var keyInput = document.createElement('input');
+        keyInput.type = 'password';
+        keyInput.id = 'provider-modal-key';
+        keyInput.placeholder = keyPlaceholder;
+        body.appendChild(keyInput);
+
+        // Budget input
+        var lbl4 = document.createElement('label');
+        lbl4.textContent = 'Monthly Budget ($)';
+        body.appendChild(lbl4);
+        var budgetInput = document.createElement('input');
+        budgetInput.type = 'number';
+        budgetInput.id = 'provider-modal-budget';
+        budgetInput.value = budgetVal;
+        budgetInput.min = '0';
+        budgetInput.step = '1';
+        body.appendChild(budgetInput);
+
+        content.appendChild(body);
+
+        // Actions bar
+        var actions = el('div', 'bm-actions');
+        var cancelBtn2 = el('button', 'btn-cancel');
+        cancelBtn2.textContent = 'Cancel';
+        cancelBtn2.onclick = function() { overlay.remove(); };
+        var saveBtn = el('button', 'btn-submit');
+        saveBtn.textContent = 'Save';
+        saveBtn.onclick = function() { saveProvider(); };
+        actions.appendChild(cancelBtn2);
+        actions.appendChild(saveBtn);
+        content.appendChild(actions);
+
+        // Footer decorative strip
+        var footer = el('div', 'bm-footer');
+        var footerStrip = el('div', 'bm-footer-strip');
+        footerStrip.appendChild(el('span', 'bm-footer-dot purple'));
+        footerStrip.appendChild(el('span', 'bm-footer-dot gold'));
+        footerStrip.appendChild(el('span', 'bm-footer-dot cyan'));
+        footer.appendChild(footerStrip);
+        content.appendChild(footer);
+
+        shell.appendChild(content);
+        overlay.appendChild(shell);
+        document.body.appendChild(overlay);
+
+        // Dynamic auth note update when provider changes
+        if (!editProviderName) {
+            provSelect.addEventListener('change', function() {
+                var sel = this.value;
+                var cp = providerOptions.find(function(o) { return o.value === sel; });
+                var noteEl = document.getElementById('provider-modal-auth-note');
+                if (noteEl) {
+                    while (noteEl.firstChild) noteEl.removeChild(noteEl.firstChild);
+                    if (cp && cp.is_cloud_proxy) {
+                        var noteInner = document.createElement('div');
+                        noteInner.style.cssText = 'margin:6px 0 8px;padding:6px 8px;background:rgba(0,255,255,0.06);border:1px solid rgba(0,255,255,0.15);border-radius:4px;font-size:0.72rem;color:var(--archie-cyan);';
+                        noteInner.textContent = 'Auth: OLLAMA_API_KEY env var (shared Ollama cloud proxy)';
+                        noteEl.appendChild(noteInner);
+                    }
+                }
+            });
+        }
+
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    });
+}
+
+function editProvider(providerName) {
+    openAddProviderModal(providerName);
+}
+
+function saveProvider() {
+    var nameEl = document.getElementById('provider-modal-name');
+    var keyEl = document.getElementById('provider-modal-key');
+    var budgetEl = document.getElementById('provider-modal-budget');
+
+    if (!nameEl || !nameEl.value) {
+        showToast('Please select a provider', 'error');
+        return;
+    }
+
+    var tierEl = document.getElementById('provider-modal-tier');
+    var payload = {
+        provider: nameEl.value,
+        monthly_budget_usd: parseFloat(budgetEl.value) || 10,
+        account_tier: tierEl ? tierEl.value : 'free'
+    };
+    if (keyEl.value) {
+        payload.api_key = keyEl.value;
+    }
+
+    fetch('/tools/department-hq/api/external-providers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        showToast(data.message || 'Provider saved', 'success');
+        var overlay = document.querySelector('.bm-overlay.bm-provider-modal');
+        if (overlay) overlay.remove();
+        loadContractors();
+    })
+    .catch(function(e) {
+        showToast('Failed to save provider', 'error');
+    });
+}
 // Init
 // ───────────────────────────────────────────────────────────────
 

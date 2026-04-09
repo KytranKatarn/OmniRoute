@@ -1,0 +1,370 @@
+/* Donate Page Styles */
+
+.donate-hero {
+    padding: 8rem 0 4rem;
+    text-align: center;
+}
+
+.donate-hero__title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(1.8rem, 4vw, 2.8rem);
+    font-weight: 700;
+    color: #c9a44c;
+    letter-spacing: 0.08em;
+    margin-bottom: 1.5rem;
+}
+
+.donate-hero__text {
+    font-size: 1.15rem;
+    line-height: 1.8;
+    color: #e2e8f0;
+    max-width: 650px;
+    margin: 0 auto;
+}
+
+/* Donation Tiers */
+.donate-tiers {
+    padding: 4rem 0;
+}
+
+.donate-tiers__heading {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(1.3rem, 3vw, 1.8rem);
+    color: #c9a44c;
+    letter-spacing: 0.1em;
+    text-align: center;
+    margin-bottom: 1rem;
+}
+
+.donate-tiers__sub {
+    text-align: center;
+    color: #94a3b8;
+    margin-bottom: 3rem;
+    max-width: 550px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.donate-tiers__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1.5rem;
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.donate-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(201, 164, 76, 0.15);
+    border-radius: 12px;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    transition: border-color 0.3s ease, transform 0.3s ease;
+}
+
+.donate-card:hover {
+    border-color: rgba(201, 164, 76, 0.4);
+    transform: translateY(-4px);
+}
+
+.donate-card--featured {
+    border-top: 3px solid #c9a44c;
+    background: rgba(201, 164, 76, 0.04);
+}
+
+.donate-card__tier {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    color: #c9a44c;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 0.5rem;
+}
+
+.donate-card__name {
+    font-family: 'Antonio', sans-serif;
+    font-size: 1.3rem;
+    color: #e2e8f0;
+    margin-bottom: 0.75rem;
+}
+
+.donate-card__price {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #c9a44c;
+    margin-bottom: 0.25rem;
+}
+
+.donate-card__price-alt {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-bottom: 1.25rem;
+}
+
+.donate-card__perks {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1.5rem;
+    flex: 1;
+}
+
+.donate-card__perks li {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    line-height: 1.7;
+    padding-left: 1.2rem;
+    position: relative;
+    margin-bottom: 0.4rem;
+}
+
+.donate-card__perks li::before {
+    content: '\2713';
+    position: absolute;
+    left: 0;
+    color: #c9a44c;
+    font-size: 0.75rem;
+}
+
+.donate-card__btn {
+    display: inline-block;
+    padding: 0.7rem 1.5rem;
+    border: 1px solid #c9a44c;
+    border-radius: 6px;
+    color: #c9a44c;
+    text-decoration: none;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    text-align: center;
+    transition: background 0.3s ease, color 0.3s ease;
+}
+
+.donate-card__btn:hover {
+    background: #c9a44c;
+    color: #0a0a1a;
+}
+
+.donate-card__btn--primary {
+    background: #c9a44c;
+    color: #0a0a1a;
+}
+
+.donate-card__btn--primary:hover {
+    background: #b8933b;
+    border-color: #b8933b;
+}
+
+/* Where Your Money Goes */
+.donate-breakdown {
+    padding: 4rem 0;
+    background: rgba(201, 164, 76, 0.03);
+    border-top: 1px solid rgba(201, 164, 76, 0.1);
+    border-bottom: 1px solid rgba(201, 164, 76, 0.1);
+}
+
+.donate-breakdown__heading {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(1.3rem, 3vw, 1.8rem);
+    color: #c9a44c;
+    letter-spacing: 0.1em;
+    text-align: center;
+    margin-bottom: 2.5rem;
+}
+
+.donate-breakdown__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    max-width: 800px;
+    margin: 0 auto;
+    align-items: center;
+}
+
+.donate-chart {
+    position: relative;
+    width: 220px;
+    height: 220px;
+    margin: 0 auto;
+}
+
+.donate-chart svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.donate-chart__center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+
+.donate-chart__center-pct {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #c9a44c;
+}
+
+.donate-chart__center-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.donate-legend {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.donate-legend li {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    font-size: 0.9rem;
+    color: #e2e8f0;
+}
+
+.donate-legend__dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.donate-legend__pct {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    color: #c9a44c;
+    margin-left: auto;
+    font-size: 0.85rem;
+}
+
+/* Corporate Sponsorship */
+.donate-corporate {
+    padding: 5rem 0;
+}
+
+.donate-corporate__inner {
+    max-width: 700px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.donate-corporate__heading {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(1.3rem, 3vw, 1.8rem);
+    color: #c9a44c;
+    letter-spacing: 0.1em;
+    margin-bottom: 1rem;
+}
+
+.donate-corporate__text {
+    color: #94a3b8;
+    font-size: 1rem;
+    line-height: 1.8;
+    margin-bottom: 2rem;
+}
+
+.donate-corporate__benefits {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    text-align: left;
+}
+
+.donate-corporate__benefit {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 1.25rem;
+}
+
+.donate-corporate__benefit h4 {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.95rem;
+    color: #e2e8f0;
+    margin-bottom: 0.4rem;
+}
+
+.donate-corporate__benefit p {
+    font-size: 0.8rem;
+    color: #64748b;
+    line-height: 1.6;
+}
+
+/* Tax Info */
+.donate-tax {
+    padding: 3rem 0 5rem;
+    text-align: center;
+}
+
+.donate-tax__inner {
+    max-width: 600px;
+    margin: 0 auto;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 2rem;
+}
+
+.donate-tax__heading {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    color: #c9a44c;
+    letter-spacing: 0.1em;
+    margin-bottom: 1rem;
+}
+
+.donate-tax__text {
+    color: #94a3b8;
+    font-size: 0.9rem;
+    line-height: 1.7;
+}
+
+.donate-tax__text a {
+    color: #c9a44c;
+    text-decoration: none;
+}
+
+.donate-tax__text a:hover {
+    text-decoration: underline;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .donate-breakdown__grid {
+        grid-template-columns: 1fr;
+    }
+
+    .donate-corporate__benefits {
+        grid-template-columns: 1fr;
+    }
+
+    .donate-tiers__grid {
+        grid-template-columns: 1fr;
+        max-width: 400px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+}
+
+@media (max-width: 480px) {
+    .donate-hero {
+        padding: 6rem 0 3rem;
+    }
+
+    .donate-hero__text {
+        font-size: 1rem;
+    }
+}

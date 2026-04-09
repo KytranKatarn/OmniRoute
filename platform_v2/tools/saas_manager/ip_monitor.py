@@ -62,11 +62,27 @@ def check_and_update_ip():
 
 
 def _update_dns_records(new_ip):
-    """Update all Hostinger DNS A records to point to new IP."""
-    from services.hostinger_integration import get_hostinger_api
+    """Update all Hostinger DNS A records pointing to hub to new IP.
+
+    Uses Hostinger API v1 zone update format:
+    zone: [{name, type, ttl, records: [{content}]}]
+    Only updates A records that point to a known old hub IP.
+    """
+    import json
+    import os
+
+    import requests
 
     updated = []
-    api = get_hostinger_api()
+    api_token = os.getenv("HOSTINGER_API_TOKEN", "")
+    if not api_token:
+        logger.error("DDNS: No HOSTINGER_API_TOKEN set")
+        return updated
+
+    headers = {
+        "Authorization": f"Bearer {api_token}",
+        "Content-Type": "application/json",
+    }
 
     with get_db_cursor(commit=False) as (conn, cur):
         cur.execute(
@@ -77,21 +93,54 @@ def _update_dns_records(new_ip):
         )
         root_domains = [r["root_domain"] for r in cur.fetchall()]
 
+        # Get known old IPs to match against
+        cur.execute("SELECT ip_address FROM org_ip_history ORDER BY detected_at DESC LIMIT 5")
+        old_ips = {r["ip_address"] for r in cur.fetchall()}
+
     for root in root_domains:
         try:
-            records = api.get_dns_records(root)
-            if records.get("success"):
-                for rec in records.get("data", []):
-                    if rec.get("type") == "A":
-                        api.update_dns_record(
-                            domain=root,
-                            record_id=rec["id"],
-                            record_type="A",
-                            name=rec["name"],
-                            content=new_ip,
-                            ttl=rec.get("ttl", 3600),
-                        )
-                        updated.append(f"{rec['name']}.{root}")
+            # Get current records
+            resp = requests.get(
+                f"https://api.hostinger.com/api/dns/v1/zones/{root}",
+                headers=headers,
+                timeout=10,
+            )
+            if resp.status_code != 200:
+                logger.error("DDNS: Failed to get DNS for %s: %s", root, resp.status_code)
+                continue
+
+            records = resp.json()
+            # Build zone update — only update A records pointing to old hub IPs
+            zone_updates = []
+            for rec in records:
+                if rec.get("type") == "A":
+                    for entry in rec.get("records", []):
+                        if entry.get("content") in old_ips:
+                            zone_updates.append(
+                                {
+                                    "name": rec["name"],
+                                    "type": "A",
+                                    "ttl": rec.get("ttl", 14400),
+                                    "records": [{"content": new_ip}],
+                                }
+                            )
+                            updated.append(f"{rec['name']}.{root}")
+
+            if zone_updates:
+                put_resp = requests.put(
+                    f"https://api.hostinger.com/api/dns/v1/zones/{root}",
+                    headers=headers,
+                    json={"overwrite": True, "zone": zone_updates},
+                    timeout=10,
+                )
+                if put_resp.status_code not in (200, 201, 204):
+                    logger.error(
+                        "DDNS: Failed to update DNS for %s: %s %s",
+                        root,
+                        put_resp.status_code,
+                        put_resp.text[:200],
+                    )
+
         except Exception as e:
             logger.error("Failed to update DNS for %s: %s", root, e)
 

@@ -433,33 +433,12 @@ MODULES: List[ModuleDefinition] = [
     # ============================================
     # AI COMMAND (3 modules)
     # ============================================
-    # consciousness, team_management, starbase
+    # consciousness, team_management, fleet (A.R.M.A.D.A.)
     # NOTE: blueprint (Mission Control) removed from grid 2026-02-04
     # Blueprint Flask routes still registered manually in app.py for Dev HQ API access
-    ModuleDefinition(
-        id="starbase",
-        name="Starbase Command",
-        description="Central AI command center<br>Stations • LLM • IDE • Training",
-        icon="monitor",
-        category=ModuleCategory.AI_COMMAND,
-        route="/tools/starbase",
-        blueprint_import="tools.starbase.routes:starbase_bp",
-        required_permissions=["admin:access"],
-        minimum_role="ADMIN",
-        enabled=True,
-        health_check=lambda: default_health_check("starbase"),
-        priority=2,
-        tags=[
-            "starbase",
-            "llm",
-            "monitoring",
-            "command",
-            "stations",
-            "ide",
-            "training",
-            "ai-command",
-        ],
-    ),
+    # NOTE: Starbase + Starship → A.R.M.A.D.A. → fully merged into Department HQ (2026-04-08)
+    # Fleet/node/mesh/OTA routes now registered on department_hq_bp
+    # Old /tools/fleet/* URLs redirect via app.py compat redirects
     ModuleDefinition(
         id="team_management",
         name="Team Management",
@@ -878,22 +857,7 @@ MODULES: List[ModuleDefinition] = [
         priority=11,
         tags=["ai", "images", "video", "audio", "creative", "generation", "media"],
     ),
-    # Autonomy — Proactive Agent Loop
-    ModuleDefinition(
-        id="autonomy",
-        name="Autonomy",
-        description="Proactive agent loop & approvals<br>Email queue • Scheduled tasks • Reminders • Approval queue",
-        icon="bot",
-        category=ModuleCategory.AI_COMMAND,
-        route="/tools/autonomy",
-        blueprint_import="tools.autonomy:autonomy_bp",
-        required_permissions=["autonomy:manage"],
-        minimum_role="ADMIN",
-        enabled=True,
-        health_check=lambda: default_health_check("autonomy"),
-        priority=6,
-        tags=["autonomy", "agent-loop", "proactive", "approvals", "ai-command"],
-    ),
+    # Autonomy — DELETED: All features migrated to Department HQ Dispatch tab (2026-04-08)
     # User Profile - accessible to all authenticated users
     ModuleDefinition(
         id="user_profile",
@@ -928,29 +892,23 @@ MODULES: List[ModuleDefinition] = [
     #     priority=12,
     #     tags=["ai", "mobile", "apps", "ios", "android"],
     # ),
-    # Starship Command — Node Management (SaaS feature for all users)
-    ModuleDefinition(
-        id="starship",
-        name="Starship Command",
-        description="Fleet node management<br>Your starships • Hardware • Models • Privacy controls",
-        icon="rocket",
-        category=ModuleCategory.SAAS_SERVICES,
-        route="/tools/starship",
-        blueprint_import="tools.starship.routes:starship_bp",
-        required_permissions=[],
-        minimum_role="USER",
-        enabled=True,
-        health_check=lambda: default_health_check("starship"),
-        priority=14,
-        tags=[
-            "starship",
-            "fleet",
-            "nodes",
-            "compute",
-            "network",
-            "privacy",
-        ],
-    ),
+    # Starship Command — MERGED into Fleet Command (2026-04-08)
+    # Old URLs redirect via app.py starship_compat_redirect
+    # ModuleDefinition(
+    #     id="starship",
+    #     name="Starship Command",
+    #     description="[Merged] → Fleet Command",
+    #     icon="rocket",
+    #     category=ModuleCategory.SAAS_SERVICES,
+    #     route="/tools/starship",
+    #     blueprint_import="tools.starship.routes:starship_bp",
+    #     required_permissions=[],
+    #     minimum_role="USER",
+    #     enabled=False,
+    #     health_check=lambda: default_health_check("starship"),
+    #     priority=14,
+    #     tags=["starship", "fleet", "nodes"],
+    # ),
     ModuleDefinition(
         id="google_work_suite",
         name="Google Work Suite",

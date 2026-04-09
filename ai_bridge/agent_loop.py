@@ -483,6 +483,14 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        self.scheduler.add_job(
+            with_app_context(self._check_ddns),
+            trigger=IntervalTrigger(minutes=15),
+            id="ddns_ip_monitor",
+            name="Agent Loop: DDNS Public IP Monitor",
+            replace_existing=True,
+        )
+
         # Phase 5: Moved to services/agent_jobs.py
         # self.scheduler.add_job(
         #     with_app_context(self._recover_idle_welfare),
@@ -1076,6 +1084,22 @@ class AgentLoop:
             trigger=IntervalTrigger(seconds=30),
             id="vigilil_threat_responder",
             name="V.I.G.I.L.: Threat Responder",
+            replace_existing=True,
+        )
+
+        self.scheduler.add_job(
+            with_app_context(self._vigilil_vpn_scan),
+            trigger=IntervalTrigger(minutes=5),
+            id="vigilil_vpn_scan",
+            name="V.I.G.I.L.: VPN Usage Monitor",
+            replace_existing=True,
+        )
+
+        self.scheduler.add_job(
+            with_app_context(self._vigilil_bandwidth_alerts),
+            trigger=IntervalTrigger(minutes=30),
+            id="vigilil_bandwidth_alerts",
+            name="V.I.G.I.L.: Bandwidth Threshold Monitor",
             replace_existing=True,
         )
 
@@ -2988,6 +3012,229 @@ class AgentLoop:
             logger.error("Dependency audit failed: %s", e)
 
     # ------------------------------------------------------------------
+    # DDNS Public IP Monitor
+    # ------------------------------------------------------------------
+
+    def _check_ddns(self):
+        """Check public IP every 15 min. On change, log + update Hostinger DNS."""
+        try:
+            import sys
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from tools.saas_manager.ip_monitor import check_and_update_ip
+
+            result = check_and_update_ip()
+
+            if result.get("changed"):
+                old = result.get("old_ip", "unknown")
+                new = result.get("current_ip", "unknown")
+                updated = result.get("updated_domains", [])
+                msg = (
+                    f"\U0001f310 *Public IP Changed*\n\n"
+                    f"`{old}` \u2192 `{new}`\n"
+                )
+                if updated:
+                    msg += f"\nUpdated DNS: {', '.join(updated)}"
+                else:
+                    msg += "\n\u26a0\ufe0f DNS auto-update failed — check Hostinger manually"
+
+                self._send_telegram(msg)
+                self._create_network_alert(
+                    "ip_changed",
+                    "high",
+                    "ddns_monitor",
+                    f"Public IP changed: {old} → {new}",
+                    {"old_ip": old, "new_ip": new, "updated_domains": updated},
+                )
+                logger.warning("DDNS: Public IP changed %s -> %s", old, new)
+            else:
+                logger.debug(
+                    "DDNS: IP unchanged (%s)", result.get("current_ip")
+                )
+
+        except Exception as e:
+            logger.error("DDNS check failed: %s", e)
+
+    # ------------------------------------------------------------------
+    # V.I.G.I.L.: VPN Usage Monitor
+    # ------------------------------------------------------------------
+
+    def _vigilil_vpn_scan(self):
+        """Scan ntopng flows for VPN/tunnel traffic every 5 min."""
+        try:
+            import os
+            import sys
+
+            import requests as _req
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from database import get_db_cursor
+
+            nt_host = os.getenv("NTOPNG_HOST", "192.168.1.200")
+            nt_port = os.getenv("NTOPNG_PORT", "3001")
+            nt_user = os.getenv("NTOPNG_USER", "admin")
+            nt_pass = os.getenv(
+                "NTOPNG_ADMIN_PASSWORD", os.getenv("NTOPNG_PASS", "admin")
+            )
+
+            VPN_L7 = {
+                "OpenVPN", "WireGuard", "IPSec", "PPTP", "L2TP",
+                "Tor", "SOCKS", "SoftEther", "Tailscale",
+            }
+            VPN_L7_PARTIAL = [
+                "Tailscale", "NordVPN", "ExpressVPN",
+                "Surfshark", "ProtonVPN", "Mullvad",
+            ]
+
+            ns = _req.Session()
+            ns.post(
+                f"http://{nt_host}:{nt_port}/authorize.html",
+                data={"user": nt_user, "password": nt_pass},
+                allow_redirects=True,
+                timeout=3,
+            )
+            fr = ns.get(
+                f"http://{nt_host}:{nt_port}/lua/rest/v2/get/flow/active.lua",
+                params={"ifid": 0, "currentPage": 1, "perPage": 500},
+                timeout=5,
+            )
+            if fr.status_code != 200:
+                return
+
+            raw = fr.json()
+            flows = raw.get("rsp", {})
+            if isinstance(flows, dict):
+                flows = flows.get("data", [])
+            if not isinstance(flows, list):
+                return
+
+            vpn_devices = {}
+            for flow in flows:
+                proto = flow.get("protocol", {})
+                l7 = proto.get("l7", "")
+                is_vpn = l7 in VPN_L7 or any(v in l7 for v in VPN_L7_PARTIAL)
+                if not is_vpn:
+                    srv_port = flow.get("server", {}).get("port", 0)
+                    cli_port = flow.get("client", {}).get("port", 0)
+                    VPN_PORTS = {1194, 500, 4500, 51820, 1723}
+                    is_vpn = srv_port in VPN_PORTS or cli_port in VPN_PORTS
+
+                if is_vpn:
+                    cli_ip = flow.get("client", {}).get("ip", "?")
+                    if cli_ip.startswith("192.168."):
+                        if cli_ip not in vpn_devices:
+                            vpn_devices[cli_ip] = {"protocols": set(), "bytes": 0}
+                        vpn_devices[cli_ip]["protocols"].add(l7)
+                        vpn_devices[cli_ip]["bytes"] += flow.get("bytes", 0)
+
+            # Alert on NEW VPN devices (not already alerted in last hour)
+            for ip, info in vpn_devices.items():
+                protos = ", ".join(info["protocols"])
+                # Resolve label
+                label = ip
+                try:
+                    with get_db_cursor() as (conn, cur):
+                        cur.execute(
+                            """SELECT COALESCE(ndu.user_name, ndu.device_label) as label
+                               FROM network_traffic_stats nts
+                               LEFT JOIN network_device_users ndu ON ndu.mac_address = nts.device_mac
+                               WHERE nts.device_ip = %s LIMIT 1""",
+                            (ip,),
+                        )
+                        row = cur.fetchone()
+                        if row and row["label"]:
+                            label = row["label"]
+
+                        # Dedup: skip if alerted in last hour
+                        cur.execute(
+                            """SELECT id FROM network_alerts
+                               WHERE alert_type = 'vpn_detected' AND source = 'vpn_monitor'
+                               AND details->>'ip' = %s AND created_at > NOW() - INTERVAL '1 hour'""",
+                            (ip,),
+                        )
+                        if cur.fetchone():
+                            continue
+                except Exception:
+                    pass
+
+                self._create_network_alert(
+                    "vpn_detected",
+                    "medium",
+                    "vpn_monitor",
+                    f"VPN traffic detected: {label} ({ip}) using {protos}",
+                    {"ip": ip, "label": label, "protocols": list(info["protocols"]), "bytes": info["bytes"]},
+                )
+
+        except Exception as e:
+            logger.error("V.I.G.I.L. VPN scan failed: %s", e)
+
+    # ------------------------------------------------------------------
+    # V.I.G.I.L.: Bandwidth Threshold Monitor
+    # ------------------------------------------------------------------
+
+    def _vigilil_bandwidth_alerts(self):
+        """Check per-device bandwidth and alert on heavy consumers (>10GB/24h)."""
+        try:
+            import sys
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from database import get_db_cursor
+
+            THRESHOLD_BYTES = 10 * 1024 * 1024 * 1024  # 10 GB
+
+            with get_db_cursor() as (conn, cur):
+                # Use delta calculation — bytes are cumulative from ntopng
+                cur.execute(
+                    """WITH deltas AS (
+                        SELECT device_ip, device_mac, hour_bucket,
+                               bytes_in - COALESCE(
+                                   LAG(bytes_in) OVER (PARTITION BY device_ip ORDER BY hour_bucket), 0
+                               ) AS delta_in,
+                               bytes_out - COALESCE(
+                                   LAG(bytes_out) OVER (PARTITION BY device_ip ORDER BY hour_bucket), 0
+                               ) AS delta_out
+                        FROM network_traffic_stats
+                    )
+                    SELECT d.device_ip,
+                           COALESCE(ndu.user_name, ndu.device_label, d.device_ip) as label,
+                           SUM(GREATEST(d.delta_in, 0) + GREATEST(d.delta_out, 0)) as total
+                    FROM deltas d
+                    LEFT JOIN network_device_users ndu ON ndu.mac_address = d.device_mac
+                    WHERE d.hour_bucket >= NOW() - INTERVAL '24 hours'
+                    GROUP BY d.device_ip, label
+                    HAVING SUM(GREATEST(d.delta_in, 0) + GREATEST(d.delta_out, 0)) > %s
+                    ORDER BY total DESC""",
+                    (THRESHOLD_BYTES,),
+                )
+                heavy = [dict(r) for r in cur.fetchall()]
+
+                for dev in heavy:
+                    ip = dev["device_ip"]
+                    total_gb = round(dev["total"] / (1024 ** 3), 1)
+                    label = dev["label"] or ip
+
+                    # Dedup: skip if alerted in last 6 hours
+                    cur.execute(
+                        """SELECT id FROM network_alerts
+                           WHERE alert_type = 'bandwidth_exceeded' AND source = 'bandwidth_monitor'
+                           AND details->>'ip' = %s AND created_at > NOW() - INTERVAL '6 hours'""",
+                        (ip,),
+                    )
+                    if cur.fetchone():
+                        continue
+
+                    self._create_network_alert(
+                        "bandwidth_exceeded",
+                        "medium",
+                        "bandwidth_monitor",
+                        f"High bandwidth: {label} used {total_gb} GB in 24h",
+                        {"ip": ip, "label": label, "total_bytes": dev["total"], "total_gb": total_gb},
+                    )
+
+        except Exception as e:
+            logger.error("V.I.G.I.L. bandwidth alerts failed: %s", e)
+
+    # ------------------------------------------------------------------
     # HR Tracker (Project #91 — Phase 7)
     # ------------------------------------------------------------------
 
@@ -4679,14 +4926,32 @@ class AgentLoop:
 
             # Check AdGuard
             try:
+                ag_user = os.getenv("ADGUARD_USER", "kytran")
+                ag_pass = os.getenv("ADGUARD_PASS", "")
                 result = subprocess.run(
-                    ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "http://network_adguard:80/control/status"],
+                    ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}",
+                     "-u", f"{ag_user}:{ag_pass}",
+                     "http://network_adguard:80/control/status"],
                     capture_output=True, text=True, timeout=5
                 )
                 if result.stdout.strip() != "200":
                     issues.append("AdGuard is not responding")
             except Exception as e:
                 issues.append(f"AdGuard check failed: {e}")
+
+            # Check NPM (Nginx Proxy Manager) — critical for all HTTPS subdomains + OAuth
+            try:
+                result = subprocess.run(
+                    ["docker", "inspect", "--format", "{{.State.Health.Status}}", "nginx_proxy_manager"],
+                    capture_output=True, text=True, timeout=10
+                )
+                npm_status = result.stdout.strip()
+                if npm_status != "healthy":
+                    issues.append(f"NPM is {npm_status or 'not running'} — all HTTPS subdomains affected")
+                    if npm_status in ("unhealthy", ""):
+                        subprocess.run(["docker", "restart", "nginx_proxy_manager"], capture_output=True, timeout=30)
+            except Exception as e:
+                issues.append(f"NPM check failed: {e}")
 
             if issues:
                 self._create_network_alert(
@@ -4697,7 +4962,11 @@ class AgentLoop:
             logger.error(f"V.I.G.I.L. network health check failed: {e}")
 
     def _vigilil_traffic_aggregator(self):
-        """Pull traffic data from ntopng and DNS stats from AdGuard into DB."""
+        """Pull traffic data from ntopng and DNS stats from AdGuard into DB.
+
+        Uses UPSERT to prevent duplicates — takes the MAX of bytes seen
+        for each device per hour bucket (ntopng reports cumulative bytes).
+        """
         try:
             from tools.security_network.ntopng_service import NtopngService
             from database import get_db_cursor
@@ -4710,23 +4979,40 @@ class AgentLoop:
                 return
 
             hour_bucket = datetime.now().replace(minute=0, second=0, microsecond=0)
+            count = 0
 
             with get_db_cursor(commit=True) as (conn, cur):
                 for host in hosts:
-                    if isinstance(host, dict):
-                        cur.execute(
-                            """INSERT INTO network_traffic_stats (device_mac, device_ip, bytes_in, bytes_out, protocol, hour_bucket)
-                               VALUES (%s, %s, %s, %s, %s, %s)""",
-                            (
-                                host.get("mac", ""),
-                                host.get("ip", ""),
-                                host.get("bytes.rcvd", 0),
-                                host.get("bytes.sent", 0),
-                                host.get("l7proto", "unknown"),
-                                hour_bucket,
-                            ),
-                        )
-            logger.info(f"V.I.G.I.L.: Aggregated traffic for {len(hosts)} hosts")
+                    if not isinstance(host, dict):
+                        continue
+                    mac = host.get("mac", "")
+                    ip = host.get("ip", "")
+                    if not ip or ip.startswith("ff") or ip.startswith("239."):
+                        continue  # skip multicast
+                    bytes_in = host.get("bytes.rcvd", 0)
+                    bytes_out = host.get("bytes.sent", 0)
+                    if bytes_in == 0 and bytes_out == 0:
+                        continue
+                    cur.execute(
+                        """INSERT INTO network_traffic_stats
+                               (device_mac, device_ip, bytes_in, bytes_out, protocol, hour_bucket)
+                           VALUES (%s, %s, %s, %s, %s, %s)
+                           ON CONFLICT (device_ip, hour_bucket)
+                           DO UPDATE SET
+                               bytes_in = GREATEST(network_traffic_stats.bytes_in, EXCLUDED.bytes_in),
+                               bytes_out = GREATEST(network_traffic_stats.bytes_out, EXCLUDED.bytes_out),
+                               device_mac = COALESCE(NULLIF(EXCLUDED.device_mac, ''), network_traffic_stats.device_mac)""",
+                        (
+                            mac,
+                            ip,
+                            bytes_in,
+                            bytes_out,
+                            host.get("l7proto", "unknown"),
+                            hour_bucket,
+                        ),
+                    )
+                    count += 1
+            logger.info(f"V.I.G.I.L.: Aggregated traffic for {count} hosts")
         except Exception as e:
             logger.error(f"V.I.G.I.L. traffic aggregator failed: {e}")
 

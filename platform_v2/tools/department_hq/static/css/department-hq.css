@@ -1345,3 +1345,167 @@
     .dhq-social-stats-bar { flex-direction: column; gap: 0.3rem; }
     .dhq-devices-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Dispatch & Orchestration Tab ───────────────────────────── */
+.dhq-dispatch-section {
+    background: var(--dhq-surface);
+    border: 1px solid var(--dhq-border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+.dhq-section-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.75rem;
+    color: var(--dhq-accent);
+    letter-spacing: 2px;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid var(--dhq-border);
+    padding-bottom: 0.5rem;
+}
+.dhq-dispatch-pods {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.75rem;
+}
+.dhq-pod {
+    background: var(--dhq-surface-2);
+    border: 1px solid var(--dhq-border);
+    border-radius: 6px;
+    padding: 0.75rem;
+    text-align: center;
+}
+.dhq-pod-label {
+    font-size: 0.65rem;
+    color: var(--dhq-text-dim);
+    margin-bottom: 0.4rem;
+    letter-spacing: 1px;
+}
+.dhq-pod-val {
+    font-size: 1.5rem;
+    font-family: 'Orbitron', sans-serif;
+    color: var(--dhq-accent);
+    font-weight: 700;
+}
+.dhq-job-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr 120px 80px;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--dhq-border);
+    font-size: 0.78rem;
+}
+.dhq-job-row:last-child { border-bottom: none; }
+.dhq-progress-wrap {
+    background: var(--dhq-surface-2);
+    border-radius: 4px;
+    height: 6px;
+    overflow: hidden;
+    flex: 1;
+}
+.dhq-progress-fill {
+    height: 100%;
+    background: var(--dhq-accent);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+.dhq-progress-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.dhq-workload-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.5rem;
+}
+.dhq-workload-card {
+    background: var(--dhq-surface-2);
+    border: 1px solid var(--dhq-border);
+    border-left: 3px solid var(--dhq-accent);
+    border-radius: 6px;
+    padding: 0.6rem 0.8rem;
+}
+.dhq-workload-dept {
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-bottom: 0.3rem;
+}
+.dhq-workload-counts {
+    display: flex;
+    gap: 0.6rem;
+    font-size: 0.7rem;
+    color: var(--dhq-text-dim);
+}
+.dhq-metrics-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.75rem;
+}
+.dhq-metric-cell {
+    background: var(--dhq-surface-2);
+    border: 1px solid var(--dhq-border);
+    border-radius: 6px;
+    padding: 0.75rem;
+    text-align: center;
+}
+.dhq-metric-label {
+    font-size: 0.6rem;
+    color: var(--dhq-text-dim);
+    letter-spacing: 1px;
+    margin-bottom: 0.3rem;
+}
+.dhq-metric-val {
+    font-size: 1.3rem;
+    font-family: 'Orbitron', sans-serif;
+    color: var(--dhq-text);
+}
+.dhq-metric-val.good { color: #10B981; }
+.dhq-metric-val.warn { color: #FFAA00; }
+.dhq-metric-val.bad  { color: #ef4444; }
+.dhq-loop-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+}
+.dhq-loop-table th {
+    color: var(--dhq-text-dim);
+    font-weight: 600;
+    text-align: left;
+    padding: 0.4rem 0.6rem;
+    border-bottom: 1px solid var(--dhq-border);
+    font-size: 0.65rem;
+    letter-spacing: 1px;
+}
+.dhq-loop-table td {
+    padding: 0.4rem 0.6rem;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    color: var(--dhq-text);
+}
+.dhq-loop-ok   { color: #10B981; font-weight: 600; }
+.dhq-loop-err  { color: #ef4444; font-weight: 600; }
+.dhq-loop-off  { color: var(--dhq-text-dim); }
+.dhq-status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 600;
+}
+.dhq-status-running  { background: rgba(0,229,255,0.15); color: #00e5ff; }
+.dhq-status-pending  { background: rgba(255,170,0,0.15); color: #FFAA00; }
+.dhq-status-completed { background: rgba(16,185,129,0.15); color: #10B981; }
+.dhq-status-failed   { background: rgba(239,68,68,0.15); color: #ef4444; }
+
+@media (max-width: 768px) {
+    .dhq-dispatch-pods { grid-template-columns: repeat(2, 1fr); }
+    .dhq-metrics-row { grid-template-columns: repeat(2, 1fr); }
+    .dhq-job-row { grid-template-columns: 1fr 80px; }
+    .dhq-workload-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 480px) {
+    .dhq-dispatch-pods { grid-template-columns: 1fr 1fr; }
+    .dhq-metrics-row { grid-template-columns: 1fr 1fr; }
+    .dhq-workload-grid { grid-template-columns: 1fr; }
+}

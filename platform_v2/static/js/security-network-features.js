@@ -39,16 +39,17 @@ let _sinkholeChart = null, _speedChart = null, _trafficClassChart = null;
    ═══════════════════════════════════════════════════════════════════ */
 function loadTopology() {
     // Stats
-    fetch(SN_API + '/api/topology/stats').then(r=>r.json()).then(d => {
+    fetch(SN_API + '/topology/stats').then(r=>r.json()).then(d => {
         if (!d.success) return;
         const s = d.stats || d;
         document.getElementById('topo-device-count').textContent = s.total_devices || s.device_count || '--';
         document.getElementById('topo-bandwidth').textContent = fmtBytes(s.total_bandwidth || s.total_bytes || 0);
-        document.getElementById('topo-top-talker').textContent = s.top_talker || '--';
+        var tt = s.top_talker;
+        document.getElementById('topo-top-talker').textContent = (tt && typeof tt === 'object') ? (tt.label || tt.name || tt.ip || JSON.stringify(tt)) : (tt || '--');
     }).catch(()=>{});
 
     // Graph
-    fetch(SN_API + '/api/topology/graph').then(r=>r.json()).then(d => {
+    fetch(SN_API + '/topology/graph').then(r=>r.json()).then(d => {
         if (!d.success) return;
         renderTopologyGraph(d.nodes || [], d.links || []);
     }).catch(e => console.error('Topology load error:', e));
@@ -109,7 +110,7 @@ function renderTopologyGraph(nodes, links) {
 function loadParentalSchedules() {
     const el = document.getElementById('parental-schedules');
     el.innerHTML = '<div class="loading-state"><span class="spinner"></span> Loading...</div>';
-    fetch(SN_API + '/api/parental/schedules').then(r=>r.json()).then(d => {
+    fetch(SN_API + '/parental/schedules').then(r=>r.json()).then(d => {
         if (!d.success || !d.schedules || d.schedules.length === 0) {
             el.innerHTML = '<div class="empty-state">No parental schedules configured. Click "Add Schedule" to create one.</div>';
             return;
@@ -195,7 +196,7 @@ function saveSchedule() {
         },
         blocked_categories: cats
     };
-    fetch(SN_API + '/api/parental/schedules', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})
+    fetch(SN_API + '/parental/schedules', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})
         .then(r=>r.json()).then(d => {
             document.getElementById('modal-overlay').style.display = 'none';
             if (d.success) loadParentalSchedules();
@@ -205,7 +206,7 @@ function saveSchedule() {
 
 function deleteSchedule(id) {
     if (!confirm('Delete this schedule?')) return;
-    fetch(SN_API + '/api/parental/schedules/' + id, {method:'DELETE'}).then(r=>r.json()).then(() => loadParentalSchedules());
+    fetch(SN_API + '/parental/schedules/' + id, {method:'DELETE'}).then(r=>r.json()).then(() => loadParentalSchedules());
 }
 
 /* ─── Traffic by User ─── */
@@ -213,7 +214,7 @@ function loadTrafficByUser() {
     const el = document.getElementById('traffic-by-user');
     const hours = document.getElementById('traffic-period')?.value || 24;
     el.innerHTML = '<div class="loading-state"><span class="spinner"></span> Loading...</div>';
-    fetch(SN_API + '/api/traffic/classification/by-user?hours=' + hours).then(r=>r.json()).then(d => {
+    fetch(SN_API + '/traffic/classification/by-user?hours=' + hours).then(r=>r.json()).then(d => {
         if (!d.success || !d.data || d.data.length === 0) { el.innerHTML = '<div class="empty-state">No traffic data</div>'; return; }
         let html = '<table class="data-table"><thead><tr><th>User</th>';
         const cats = [...new Set(d.data.map(r=>r.category))].sort();
@@ -240,7 +241,7 @@ function loadTrafficByUser() {
 function loadBrainRotBoard() {
     const el = document.getElementById('brain-rot-board');
     el.innerHTML = '<div class="loading-state"><span class="spinner"></span> Loading...</div>';
-    fetch(SN_API + '/api/traffic/classification/by-user?hours=24').then(r=>r.json()).then(d => {
+    fetch(SN_API + '/traffic/classification/by-user?hours=24').then(r=>r.json()).then(d => {
         if (!d.success || !d.data || d.data.length === 0) { el.innerHTML = '<div class="empty-state">No data</div>'; return; }
         const rotCats = ['social','streaming','gaming','shopping'];
         const users = {};
@@ -288,7 +289,7 @@ function loadIntelTab() {
 }
 
 function loadThreatFeeds() {
-    fetch(SN_API + '/api/threat-intel/status').then(r=>r.json()).then(d => {
+    fetch(SN_API + '/threat-intel/status').then(r=>r.json()).then(d => {
         if (!d.success) return;
         const el = document.getElementById('intel-feeds');
         const feeds = d.feeds || d.status || {};
@@ -317,13 +318,13 @@ function loadThreatFeeds() {
 function syncThreatIntel() {
     const el = document.getElementById('intel-feeds');
     el.innerHTML = '<div class="loading-state"><span class="spinner"></span> Syncing feeds...</div>';
-    fetch(SN_API + '/api/threat-intel/sync', {method:'POST'}).then(r=>r.json()).then(d => {
+    fetch(SN_API + '/threat-intel/sync', {method:'POST'}).then(r=>r.json()).then(d => {
         loadThreatFeeds(); loadThreatHits();
     }).catch(() => { el.innerHTML = '<div class="empty-state">Sync failed</div>'; });
 }
 
 function loadThreatHits() {
-    fetch(SN_API + '/api/threat-intel/hits?limit=20').then(r=>r.json()).then(d => {
+    fetch(SN_API + '/threat-intel/hits?limit=20').then(r=>r.json()).then(d => {
         const el = document.getElementById('intel-hits');
         const hits = d.hits || [];
         document.getElementById('intel-hit-count').textContent = hits.length;
@@ -341,7 +342,7 @@ function loadThreatHits() {
    4. INCIDENTS
    ═══════════════════════════════════════════════════════════════════ */
 function loadIncidents() {
-    fetch(SN_API + '/api/incidents?status=open').then(r=>r.json()).then(d => {
+    fetch(SN_API + '/incidents?status=open').then(r=>r.json()).then(d => {
         const el = document.getElementById('intel-incidents');
         const incidents = d.incidents || [];
         document.getElementById('intel-incident-count').textContent = incidents.length;
@@ -359,11 +360,11 @@ function loadIncidents() {
 }
 
 function correlateIncidents() {
-    fetch(SN_API + '/api/incidents/correlate', {method:'POST'}).then(r=>r.json()).then(() => loadIncidents());
+    fetch(SN_API + '/incidents/correlate', {method:'POST'}).then(r=>r.json()).then(() => loadIncidents());
 }
 
 function resolveIncident(id) {
-    fetch(SN_API + '/api/incidents/' + id + '/resolve', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({notes:'Resolved from dashboard'})})
+    fetch(SN_API + '/incidents/' + id + '/resolve', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({notes:'Resolved from dashboard'})})
         .then(r=>r.json()).then(() => loadIncidents());
 }
 
@@ -371,7 +372,7 @@ function resolveIncident(id) {
    5. SPEED TEST
    ═══════════════════════════════════════════════════════════════════ */
 function loadSpeedHistory() {
-    fetch(SN_API + '/api/speed-test/history?limit=20').then(r=>r.json()).then(d => {
+    fetch(SN_API + '/speed-test/history?limit=20').then(r=>r.json()).then(d => {
         const results = d.results || d.history || [];
         if (results.length > 0) {
             const latest = results[0];
@@ -408,7 +409,7 @@ function runSpeedTest() {
     const el = document.getElementById('speed-test-status');
     el.textContent = 'Running speed test... (this takes ~30 seconds)';
     el.style.color = '#fbbf24';
-    fetch(SN_API + '/api/speed-test/run', {method:'POST'}).then(r=>r.json()).then(d => {
+    fetch(SN_API + '/speed-test/run', {method:'POST'}).then(r=>r.json()).then(d => {
         if (d.success && d.result) {
             el.textContent = `Done! ${d.result.download_mbps}↓ / ${d.result.upload_mbps}↑ Mbps, ${d.result.ping_ms}ms ping`;
             el.style.color = '#22c55e';
@@ -424,18 +425,18 @@ function runSpeedTest() {
    6. HONEYPOT
    ═══════════════════════════════════════════════════════════════════ */
 function loadHoneypotEvents() {
-    fetch(SN_API + '/api/honeypot/config').then(r=>r.json()).then(d => {
+    fetch(SN_API + '/honeypot/config').then(r=>r.json()).then(d => {
         const running = d.config?.running || d.running || false;
         const el = document.getElementById('honeypot-events');
         if (!running) {
-            fetch(SN_API + '/api/honeypot/events?limit=20').then(r=>r.json()).then(d2 => {
+            fetch(SN_API + '/honeypot/events?limit=20').then(r=>r.json()).then(d2 => {
                 const events = d2.events || [];
                 if (!events.length) { el.innerHTML = '<div class="empty-state">Honeypot not running. Click "Start" to begin monitoring.</div>'; return; }
                 renderHoneypotTable(events, el);
             });
             return;
         }
-        fetch(SN_API + '/api/honeypot/events?limit=20').then(r=>r.json()).then(d2 => {
+        fetch(SN_API + '/honeypot/events?limit=20').then(r=>r.json()).then(d2 => {
             const events = d2.events || [];
             if (!events.length) { el.innerHTML = '<div class="empty-state" style="color:#22c55e">Honeypot active — no events yet</div>'; return; }
             renderHoneypotTable(events, el);
@@ -452,15 +453,15 @@ function renderHoneypotTable(events, el) {
     el.innerHTML = html;
 }
 
-function startHoneypot() { fetch(SN_API + '/api/honeypot/start', {method:'POST'}).then(()=>loadHoneypotEvents()); }
-function stopHoneypot() { fetch(SN_API + '/api/honeypot/stop', {method:'POST'}).then(()=>loadHoneypotEvents()); }
+function startHoneypot() { fetch(SN_API + '/honeypot/start', {method:'POST'}).then(()=>loadHoneypotEvents()); }
+function stopHoneypot() { fetch(SN_API + '/honeypot/stop', {method:'POST'}).then(()=>loadHoneypotEvents()); }
 
 /* ═══════════════════════════════════════════════════════════════════
    7. WEEKLY REPORT
    ═══════════════════════════════════════════════════════════════════ */
 function loadWeeklyReport() {
     const el = document.getElementById('weekly-report-preview');
-    fetch(SN_API + '/api/reports/weekly').then(r=>r.json()).then(d => {
+    fetch(SN_API + '/reports/weekly').then(r=>r.json()).then(d => {
         if (!d.success || !d.report) { el.innerHTML = '<div class="empty-state">No report data</div>'; return; }
         const s = d.report.sections || {};
         let html = '<div style="padding:12px;font-size:0.82rem">';
@@ -484,7 +485,7 @@ function loadWeeklyReport() {
 }
 
 function sendWeeklyReport() {
-    fetch(SN_API + '/api/reports/weekly/send', {method:'POST'}).then(r=>r.json()).then(d => {
+    fetch(SN_API + '/reports/weekly/send', {method:'POST'}).then(r=>r.json()).then(d => {
         alert(d.success ? 'Weekly report sent to Telegram!' : 'Failed: ' + (d.error||'Unknown'));
     });
 }
@@ -493,7 +494,16 @@ function sendWeeklyReport() {
    8. SINKHOLE ANALYTICS (DNS tab)
    ═══════════════════════════════════════════════════════════════════ */
 function loadSinkholeStats() {
-    fetch(SN_API + '/api/dns/sinkhole-stats?hours=24').then(r=>r.json()).then(d => {
+    var sel = document.getElementById('dns-period-select');
+    // Restore saved period on first load
+    if (sel && !sel._restored) {
+        var saved = localStorage.getItem('sn_dns_period');
+        if (saved && sel.querySelector('option[value="' + saved + '"]')) sel.value = saved;
+        sel._restored = true;
+    }
+    var hours = sel ? sel.value : '24';
+    if (sel) localStorage.setItem('sn_dns_period', hours);
+    fetch(SN_API + '/dns/sinkhole-stats?hours=' + hours).then(r=>r.json()).then(d => {
         if (!d.success) return;
         // Pie chart by category
         const cats = d.categories || d.category_breakdown || [];
@@ -505,22 +515,30 @@ function loadSinkholeStats() {
                 data: {
                     labels: cats.map(c => c.category),
                     datasets: [{
-                        data: cats.map(c => c.count || c.queries),
+                        data: cats.map(c => c.block_count || c.count || c.queries),
                         backgroundColor: cats.map(c => CAT_COLORS[c.category] || '#555')
                     }]
                 },
                 options: {
                     responsive:true, maintainAspectRatio:false,
-                    plugins: {legend:{position:'right',labels:{color:'#ccc',font:{size:11}}}}
+                    plugins: {legend:{position:'right',labels:{color:'#ccc',font:{size:11}}}},
+                    onClick: function(evt, elements) {
+                        if (!elements.length) return;
+                        var idx = elements[0].index;
+                        var category = cats[idx].category;
+                        _showCategoryDomains(category, hours);
+                    }
                 }
             });
+            // Also make legend items clickable (cursor hint)
+            ctx.style.cursor = 'pointer';
         }
         // Top blocked domains table
         const domains = d.top_blocked || d.domains || [];
         const el = document.getElementById('sinkhole-table');
         if (domains.length) {
             let html = '<table class="data-table"><thead><tr><th>Domain</th><th>Blocked</th></tr></thead><tbody>';
-            domains.slice(0,15).forEach(dd => { html += `<tr><td>${dd.domain}</td><td>${fmtNum(dd.count||dd.queries)}</td></tr>`; });
+            domains.slice(0,15).forEach(dd => { html += `<tr><td><a href="#" onclick="openDomainIntel('${dd.domain}');return false" style="color:#00e5ff;text-decoration:none;cursor:pointer">${dd.domain}</a></td><td>${fmtNum(dd.block_count||dd.count||dd.queries)}</td></tr>`; });
             html += '</tbody></table>';
             el.innerHTML = html;
         } else {
@@ -529,16 +547,234 @@ function loadSinkholeStats() {
     }).catch(() => {});
 }
 
+function _showCategoryDomains(category, hours) {
+    // Remove any existing category modal
+    var existing = document.getElementById('category-domains-overlay');
+    if (existing) existing.remove();
+
+    var safeCategory = category.replace(/[<>&"']/g, '');
+    var color = CAT_COLORS[category] || '#00e5ff';
+
+    var overlay = document.createElement('div');
+    overlay.className = 'bm-overlay active';
+    overlay.id = 'category-domains-overlay';
+    overlay.style.cssText = '--bm-accent:' + color + ';--bm-accent-rgb:0,229,255';
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+    var shell = document.createElement('div');
+    shell.className = 'bm-shell';
+    shell.style.maxWidth = '540px';
+
+    var frame = document.createElement('div');
+    frame.className = 'bm-frame';
+    ['bm-frame-elbow-top','bm-frame-seg','bm-frame-seg dim','bm-frame-light on','bm-frame-light amber','bm-frame-seg purple','bm-frame-fill','bm-frame-elbow-bottom'].forEach(function(cls) {
+        var el = document.createElement('div');
+        el.className = cls;
+        frame.appendChild(el);
+    });
+
+    var content = document.createElement('div');
+    content.className = 'bm-content';
+
+    var header = document.createElement('div');
+    header.className = 'bm-header';
+    var title = document.createElement('span');
+    title.className = 'bm-header-title';
+    title.textContent = 'BLOCKED: ' + safeCategory.toUpperCase();
+    var strip = document.createElement('div');
+    strip.className = 'bm-header-strip';
+    var closeX = document.createElement('button');
+    closeX.className = 'bm-close';
+    closeX.textContent = '\u00d7';
+    closeX.addEventListener('click', function() { overlay.remove(); });
+    strip.appendChild(closeX);
+    header.appendChild(title);
+    header.appendChild(strip);
+
+    var body = document.createElement('div');
+    body.className = 'bm-body';
+    body.style.cssText = 'padding:16px;max-height:60vh;overflow-y:auto';
+    body.textContent = 'Loading domains...';
+
+    var footer = document.createElement('div');
+    footer.className = 'bm-footer';
+    footer.style.cssText = 'padding:12px 16px;display:flex;gap:8px;justify-content:flex-end';
+    var closeBtn = document.createElement('button');
+    closeBtn.className = 'btn';
+    closeBtn.style.opacity = '0.7';
+    closeBtn.textContent = 'Close';
+    closeBtn.addEventListener('click', function() { overlay.remove(); });
+    footer.appendChild(closeBtn);
+
+    content.appendChild(header);
+    content.appendChild(body);
+    content.appendChild(footer);
+    shell.appendChild(frame);
+    shell.appendChild(content);
+    overlay.appendChild(shell);
+    document.body.appendChild(overlay);
+
+    // Fetch domains for this category
+    fetch(SN_API + '/dns/sinkhole-stats/category?category=' + encodeURIComponent(category) + '&hours=' + hours)
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (!d.success || !d.domains || !d.domains.length) {
+                body.textContent = 'No domains found in this category.';
+                return;
+            }
+            body.textContent = '';
+            var countInfo = document.createElement('div');
+            countInfo.style.cssText = 'color:#888;font-size:0.75rem;margin-bottom:12px';
+            countInfo.textContent = d.domains.length + ' blocked domain' + (d.domains.length !== 1 ? 's' : '') + ' in "' + safeCategory + '"';
+            body.appendChild(countInfo);
+
+            d.domains.forEach(function(dom, idx) {
+                var row = document.createElement('div');
+                row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer;transition:background 0.15s';
+                row.addEventListener('mouseenter', function() { row.style.background = 'rgba(255,255,255,0.04)'; });
+                row.addEventListener('mouseleave', function() { row.style.background = 'transparent'; });
+                row.addEventListener('click', function() { overlay.remove(); if (typeof openDomainIntel === 'function') openDomainIntel(dom.domain); });
+                row.title = 'Click to investigate ' + dom.domain;
+
+                var left = document.createElement('div');
+                left.style.cssText = 'display:flex;align-items:center;gap:8px;min-width:0';
+                var rank = document.createElement('span');
+                rank.style.cssText = 'color:#555;font-size:0.7rem;min-width:20px;text-align:right';
+                rank.textContent = (idx + 1) + '.';
+                var name = document.createElement('span');
+                name.style.cssText = 'color:#ccc;font-size:0.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+                name.textContent = dom.domain;
+                left.appendChild(rank);
+                left.appendChild(name);
+
+                var right = document.createElement('div');
+                right.style.cssText = 'display:flex;align-items:center;gap:8px';
+                var badge = document.createElement('span');
+                badge.style.cssText = 'background:rgba(239,68,68,0.15);color:#ef4444;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600';
+                badge.textContent = fmtNum(dom.block_count);
+                var devBadge = document.createElement('span');
+                devBadge.style.cssText = 'color:#666;font-size:0.65rem';
+                devBadge.textContent = dom.unique_devices + ' device' + (dom.unique_devices !== 1 ? 's' : '');
+                right.appendChild(badge);
+                right.appendChild(devBadge);
+
+                row.appendChild(left);
+                row.appendChild(right);
+                body.appendChild(row);
+            });
+        })
+        .catch(function(e) { body.textContent = 'Error loading category domains: ' + e; });
+}
+
+function loadDnsTrend() {
+    var sel = document.getElementById('dns-period-select');
+    var hours = sel ? sel.value : '24';
+    fetch(SN_API + '/dns/query-trend?hours=' + hours).then(r=>r.json()).then(d => {
+        if (!d.success || !d.points || !d.points.length) return;
+        _renderDnsTrendChart(d.points);
+    }).catch(() => {});
+}
+
+function _renderDnsTrendChart(points) {
+    var svg = document.getElementById('dns-trend-chart');
+    if (!svg || !points.length) return;
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+    var w = svg.clientWidth || 500;
+    var h = svg.clientHeight || 180;
+    var ns = 'http://www.w3.org/2000/svg';
+    var pad = {top: 8, right: 10, bottom: 24, left: 45};
+    var cw = w - pad.left - pad.right;
+    var ch = h - pad.top - pad.bottom;
+
+    var max = 1;
+    points.forEach(function(p) { if (p.total > max) max = p.total; });
+    max *= 1.15;
+    var step = cw / Math.max(points.length - 1, 1);
+
+    // Gradient defs
+    var defs = document.createElementNS(ns, 'defs');
+    [['dns-total', '#00e5ff'], ['dns-blocked', '#ef4444']].forEach(function(pair) {
+        var grad = document.createElementNS(ns, 'linearGradient');
+        grad.setAttribute('id', pair[0]); grad.setAttribute('x1','0'); grad.setAttribute('y1','0');
+        grad.setAttribute('x2','0'); grad.setAttribute('y2','1');
+        var s1 = document.createElementNS(ns, 'stop');
+        s1.setAttribute('offset','0%'); s1.setAttribute('stop-color', pair[1]); s1.setAttribute('stop-opacity','0.4');
+        var s2 = document.createElementNS(ns, 'stop');
+        s2.setAttribute('offset','100%'); s2.setAttribute('stop-color', pair[1]); s2.setAttribute('stop-opacity','0.02');
+        grad.appendChild(s1); grad.appendChild(s2); defs.appendChild(grad);
+    });
+    svg.appendChild(defs);
+
+    // Grid lines + Y-axis
+    var fmtNum = function(n) { return n >= 1000 ? (n/1000).toFixed(1)+'K' : n.toString(); };
+    for (var gi = 0; gi <= 4; gi++) {
+        var gy = pad.top + ch - (gi / 4) * ch;
+        var gLine = document.createElementNS(ns, 'line');
+        gLine.setAttribute('x1', pad.left); gLine.setAttribute('y1', gy.toFixed(1));
+        gLine.setAttribute('x2', w - pad.right); gLine.setAttribute('y2', gy.toFixed(1));
+        gLine.setAttribute('stroke', 'rgba(255,255,255,0.06)'); gLine.setAttribute('stroke-width', '1');
+        svg.appendChild(gLine);
+        var yLabel = document.createElementNS(ns, 'text');
+        yLabel.setAttribute('x', pad.left - 4); yLabel.setAttribute('y', (gy + 3).toFixed(1));
+        yLabel.setAttribute('fill', '#666'); yLabel.setAttribute('font-size', '9');
+        yLabel.setAttribute('text-anchor', 'end'); yLabel.setAttribute('font-family', '"IBM Plex Mono",monospace');
+        yLabel.textContent = fmtNum(Math.round((gi / 4) * max));
+        svg.appendChild(yLabel);
+    }
+
+    // X-axis labels
+    var xCount = Math.min(points.length, 6);
+    var xStep = Math.max(1, Math.floor((points.length - 1) / (xCount - 1)));
+    for (var xi = 0; xi < points.length; xi += xStep) {
+        var xx = pad.left + xi * step;
+        var xLabel = document.createElementNS(ns, 'text');
+        xLabel.setAttribute('x', xx.toFixed(1)); xLabel.setAttribute('y', (h - 4).toFixed(1));
+        xLabel.setAttribute('fill', '#666'); xLabel.setAttribute('font-size', '9');
+        xLabel.setAttribute('text-anchor', 'middle'); xLabel.setAttribute('font-family', '"IBM Plex Mono",monospace');
+        xLabel.textContent = points[xi].label;
+        svg.appendChild(xLabel);
+    }
+
+    // Draw both series
+    [['total', '#00e5ff', 'dns-total'], ['blocked', '#ef4444', 'dns-blocked']].forEach(function(cfg) {
+        var key = cfg[0], color = cfg[1], gradId = cfg[2];
+        var pts = points.map(function(p, i) {
+            return [pad.left + i * step, pad.top + ch - (p[key] / max) * ch];
+        });
+        // Area
+        var areaStr = (pad.left).toFixed(1)+','+(pad.top+ch).toFixed(1)+' '+pts.map(function(p){return p[0].toFixed(1)+','+p[1].toFixed(1);}).join(' ')+' '+pts[pts.length-1][0].toFixed(1)+','+(pad.top+ch).toFixed(1);
+        var area = document.createElementNS(ns, 'polygon');
+        area.setAttribute('points', areaStr); area.setAttribute('fill', 'url(#'+gradId+')');
+        svg.appendChild(area);
+        // Line
+        var line = document.createElementNS(ns, 'polyline');
+        line.setAttribute('points', pts.map(function(p){return p[0].toFixed(1)+','+p[1].toFixed(1);}).join(' '));
+        line.setAttribute('fill','none'); line.setAttribute('stroke', color);
+        line.setAttribute('stroke-width','2.5'); line.setAttribute('stroke-linejoin','round'); line.setAttribute('stroke-linecap','round');
+        svg.appendChild(line);
+        // Dots if few points
+        if (pts.length <= 30) {
+            pts.forEach(function(p) {
+                var dot = document.createElementNS(ns, 'circle');
+                dot.setAttribute('cx', p[0].toFixed(1)); dot.setAttribute('cy', p[1].toFixed(1));
+                dot.setAttribute('r', '3'); dot.setAttribute('fill', color); dot.setAttribute('opacity', '0.7');
+                svg.appendChild(dot);
+            });
+        }
+    });
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    9. TRAFFIC CLASSIFICATION (Devices tab)
    ═══════════════════════════════════════════════════════════════════ */
 function loadTrafficClassification() {
-    fetch(SN_API + '/api/traffic/classification?hours=24').then(r=>r.json()).then(d => {
+    fetch(SN_API + '/traffic/classification?hours=24').then(r=>r.json()).then(d => {
         if (!d.success) return;
-        const data = d.data || d.classification || [];
+        const data = d.per_device || d.data || d.classification || [];
         // Aggregate chart
         const agg = {};
-        data.forEach(r => { agg[r.category] = (agg[r.category]||0) + parseInt(r.queries||0); });
+        data.forEach(r => { agg[r.category] = (agg[r.category]||0) + parseInt(r.query_count||r.queries||0); });
         const ctx = document.getElementById('traffic-class-chart');
         if (ctx && Object.keys(agg).length) {
             if (_trafficClassChart) _trafficClassChart.destroy();
@@ -560,8 +796,8 @@ function loadTrafficClassification() {
         data.forEach(r => {
             const key = r.device_ip || 'unknown';
             if (!devices[key]) devices[key] = {total:0};
-            devices[key][r.category] = (devices[key][r.category]||0) + parseInt(r.queries||0);
-            devices[key].total += parseInt(r.queries||0);
+            devices[key][r.category] = (devices[key][r.category]||0) + parseInt(r.query_count||r.queries||0);
+            devices[key].total += parseInt(r.query_count||r.queries||0);
         });
         const el = document.getElementById('traffic-class-table');
         const sortedDevs = Object.entries(devices).sort((a,b)=>b[1].total-a[1].total).slice(0,15);
@@ -574,6 +810,280 @@ function loadTrafficClassification() {
         html += '</tbody></table>';
         el.innerHTML = html;
     }).catch(() => {});
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   DOMAIN INTELLIGENCE MODAL
+   ═══════════════════════════════════════════════════════════════════ */
+// Global state for domain intel modal
+var _domainIntelAbort = null;
+var _domainIntelLoading = false;
+
+function openDomainIntel(domain) {
+    // Cancel any in-flight investigation request
+    if (_domainIntelAbort) { try { _domainIntelAbort.abort(); } catch(e){} }
+    _domainIntelAbort = null;
+
+    var existing = document.getElementById('domain-intel-overlay');
+    if (existing) existing.remove();
+
+    // Sanitize domain for display
+    var safeDomain = domain.replace(/[<>&"']/g, '');
+
+    var html =
+      '<div class="bm-overlay active" id="domain-intel-overlay" style="--bm-accent:#00e5ff;--bm-accent-rgb:0,229,255">' +
+        '<div class="bm-shell" style="max-width:640px">' +
+          '<div class="bm-frame">' +
+            '<div class="bm-frame-elbow-top"></div><div class="bm-frame-seg"></div>' +
+            '<div class="bm-frame-seg dim"></div><div class="bm-frame-light on"></div>' +
+            '<div class="bm-frame-light amber"></div><div class="bm-frame-seg purple"></div>' +
+            '<div class="bm-frame-fill"></div><div class="bm-frame-elbow-bottom"></div>' +
+          '</div>' +
+          '<div class="bm-content">' +
+            '<div class="bm-header">' +
+              '<span class="bm-header-title">DOMAIN INTELLIGENCE</span>' +
+              '<div class="bm-header-strip">' +
+                '<div class="bm-header-pip w1"></div><div class="bm-header-pip w2"></div>' +
+                '<div class="bm-header-pip w3"></div>' +
+                '<button class="bm-close" onclick="document.getElementById(\'domain-intel-overlay\').remove()">&times;</button>' +
+              '</div>' +
+            '</div>' +
+            '<div style="text-align:center;padding:12px 16px 4px;border-bottom:1px solid rgba(0,229,255,0.15)">' +
+              '<div style="color:#fff;font-family:\'IBM Plex Mono\',monospace;font-size:1.2rem;font-weight:600">' + safeDomain + '</div>' +
+            '</div>' +
+            '<div class="bm-body" id="domain-intel-body" style="padding:16px;max-height:60vh;overflow-y:auto">' +
+              '<div style="text-align:center;padding:30px;color:#666">Loading intelligence...</div>' +
+            '</div>' +
+            '<div class="bm-footer" id="domain-intel-footer" style="padding:12px 16px;display:flex;gap:8px;justify-content:flex-end">' +
+              '<button class="btn" onclick="document.getElementById(\'domain-intel-overlay\').remove()" style="opacity:0.7">Close</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    document.body.insertAdjacentHTML('beforeend', html);
+    var modal = document.getElementById('domain-intel-overlay');
+    modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
+
+    var body = document.getElementById('domain-intel-body');
+    fetch(SN_API + '/dns/domain-intel?domain=' + encodeURIComponent(domain))
+        .then(function(r) { return r.json(); })
+        .then(function(d) { if (!d.success) { body.textContent = 'Failed to load'; return; } _renderDomainIntel(body, d); })
+        .catch(function(e) { body.textContent = 'Error: ' + e; });
+}
+
+function _renderDomainIntel(body, d) {
+    body.textContent = '';
+    var ag = d.adguard_status || {};
+    var reason = ag.reason || '';
+    var statusColor = '#10b981', statusText = 'Allowed';
+    if (reason === 'FilteredBlackList' || reason === 'FilteredBlockedService') { statusColor = '#ef4444'; statusText = 'Blocked'; }
+    else if (reason === 'Rewrite') { statusColor = '#00e5ff'; statusText = 'Rewritten'; }
+
+    // Stats grid
+    var grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px';
+    [{val: fmtNum(d.total_queries||0), label: 'TOTAL QUERIES', color: '#00e5ff'},
+     {val: fmtNum(d.blocked_queries||0), label: 'BLOCKED', color: '#ef4444'},
+     {val: statusText, label: 'STATUS', color: statusColor}].forEach(function(s) {
+        var card = document.createElement('div');
+        card.style.cssText = 'background:rgba(255,255,255,0.04);padding:10px;border-radius:8px;text-align:center';
+        var val = document.createElement('div');
+        val.style.cssText = 'color:' + s.color + ';font-size:1.1rem;font-weight:700;font-family:Orbitron,sans-serif';
+        val.textContent = s.val;
+        var lbl = document.createElement('div');
+        lbl.style.cssText = 'color:#888;font-size:0.7rem';
+        lbl.textContent = s.label;
+        card.appendChild(val); card.appendChild(lbl); grid.appendChild(card);
+    });
+    body.appendChild(grid);
+
+    // Category + dates
+    var meta = document.createElement('div');
+    meta.style.cssText = 'display:flex;gap:16px;margin-bottom:16px;font-size:0.8rem;flex-wrap:wrap';
+    var catSpan = document.createElement('span');
+    catSpan.style.color = '#fbbf24';
+    catSpan.textContent = 'Category: ' + (d.category || 'uncategorized');
+    meta.appendChild(catSpan);
+    if (d.first_seen) { var fs = document.createElement('span'); fs.style.color = '#888'; fs.textContent = 'First: ' + new Date(d.first_seen).toLocaleDateString(); meta.appendChild(fs); }
+    if (d.last_seen) { var ls = document.createElement('span'); ls.style.color = '#888'; ls.textContent = 'Last: ' + new Date(d.last_seen).toLocaleDateString(); meta.appendChild(ls); }
+    body.appendChild(meta);
+
+    // Devices table
+    if (d.devices && d.devices.length) {
+        var devTitle = document.createElement('div');
+        devTitle.style.cssText = 'color:#00e5ff;font-size:0.75rem;font-weight:600;margin-bottom:6px';
+        devTitle.textContent = 'DEVICES QUERYING THIS DOMAIN';
+        body.appendChild(devTitle);
+        var table = document.createElement('table');
+        table.className = 'data-table';
+        table.style.fontSize = '0.78rem';
+        table.style.marginBottom = '16px';
+        var thead = document.createElement('thead');
+        thead.appendChild(_tr(['Device','IP','Queries'], true));
+        table.appendChild(thead);
+        var tbody = document.createElement('tbody');
+        d.devices.forEach(function(dev) { tbody.appendChild(_tr([dev.label||dev.ip, dev.ip, fmtNum(dev.queries)])); });
+        table.appendChild(tbody);
+        body.appendChild(table);
+    }
+
+    // AI Report section — always visible with predetermined area
+    var aiSection = document.createElement('div');
+    aiSection.style.cssText = 'border-top:1px solid rgba(139,92,246,0.3);padding-top:12px;margin-top:12px';
+    var aiHeader = document.createElement('div');
+    aiHeader.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:10px';
+    var aiLabel = document.createElement('span');
+    aiLabel.style.cssText = 'color:#8b5cf6;font-size:0.75rem;font-weight:700;letter-spacing:1px';
+    aiLabel.textContent = 'AI SECURITY REPORT';
+    var aiBtn = document.createElement('button');
+    aiBtn.id = 'domain-investigate-btn';
+    aiBtn.style.cssText = 'background:#8b5cf6;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.78rem;font-family:"IBM Plex Mono",monospace';
+    aiBtn.textContent = 'Investigate';
+    aiBtn.addEventListener('click', function() { investigateDomain(d.domain); });
+    aiHeader.appendChild(aiLabel); aiHeader.appendChild(aiBtn);
+    aiSection.appendChild(aiHeader);
+    // Predetermined report box — always visible, show DB-persisted report if available
+    var aiResult = document.createElement('div');
+    aiResult.id = 'domain-investigate-result';
+    if (d.last_report) {
+        aiResult.style.cssText = 'background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.3);border-left:3px solid #8b5cf6;border-radius:8px;padding:16px;min-height:60px;color:#ccc;font-size:0.8rem;line-height:1.6;white-space:pre-wrap;font-style:normal';
+        aiResult.textContent = d.last_report;
+        var ageTag = document.createElement('div');
+        ageTag.style.cssText = 'color:#666;font-size:0.65rem;margin-top:8px;font-style:italic';
+        var ageText = 'Unknown age';
+        if (d.report_age) {
+            var ageMs = Date.now() - new Date(d.report_age).getTime();
+            var ageMin = Math.round(ageMs / 60000);
+            ageText = ageMin < 60 ? ageMin + ' min ago' : Math.round(ageMin / 60) + 'h ago';
+        }
+        ageTag.textContent = 'Investigated by ' + (d.report_by || 'AI Bridge') + ' — ' + ageText + ' — click Re-investigate for fresh analysis';
+        aiResult.appendChild(ageTag);
+        aiBtn.textContent = 'Re-investigate';
+    } else {
+        aiResult.style.cssText = 'background:rgba(139,92,246,0.06);border:1px dashed rgba(139,92,246,0.25);border-radius:8px;padding:16px;min-height:60px;color:#777;font-size:0.8rem;line-height:1.5;font-style:italic';
+        aiResult.textContent = 'No report available. Click "Investigate" to request an AI security analysis of this domain.';
+    }
+    aiSection.appendChild(aiResult);
+    body.appendChild(aiSection);
+
+    // Quick actions — put in LCARS footer
+    var footer = document.getElementById('domain-intel-footer');
+    if (footer) {
+        var closeBtn = footer.querySelector('.btn');
+        [{label:'Block',color:'#ef4444',action:'block'},{label:'Unblock',color:'#10b981',action:'unblock'},{label:'Rewrite to Local',color:'#00e5ff',tcolor:'#000',action:'rewrite'}].forEach(function(a) {
+            var btn = document.createElement('button');
+            btn.style.cssText = 'background:'+a.color+';color:'+(a.tcolor||'#fff')+';border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:0.75rem';
+            btn.textContent = a.label;
+            btn.addEventListener('click', function() { dnsQuickAction(a.action, d.domain); });
+            footer.insertBefore(btn, closeBtn);
+        });
+    }
+}
+
+function _tr(cells, isHeader) {
+    var tr = document.createElement('tr');
+    cells.forEach(function(c) { var td = document.createElement(isHeader ? 'th' : 'td'); td.textContent = c; tr.appendChild(td); });
+    return tr;
+}
+
+function _setFooterButtonsState(disabled) {
+    var footer = document.getElementById('domain-intel-footer');
+    if (!footer) return;
+    footer.querySelectorAll('button').forEach(function(b) {
+        if (b.textContent !== 'Close') b.disabled = disabled;
+        if (disabled) b.style.opacity = '0.5';
+        else b.style.opacity = '1';
+    });
+}
+
+var _investigateTimer = null;
+function investigateDomain(domain) {
+    if (_domainIntelLoading) return; // Prevent double-click
+    _domainIntelLoading = true;
+
+    // Cancel any previous in-flight request
+    if (_domainIntelAbort) { try { _domainIntelAbort.abort(); } catch(e){} }
+    _domainIntelAbort = new AbortController();
+    if (_investigateTimer) { clearInterval(_investigateTimer); _investigateTimer = null; }
+
+    var btn = document.getElementById('domain-investigate-btn');
+    var result = document.getElementById('domain-investigate-result');
+    if (btn) { btn.disabled = true; btn.textContent = 'Analyzing... 0s'; }
+    _setFooterButtonsState(true);
+    if (result) {
+        result.style.cssText = 'background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.3);border-radius:8px;padding:16px;min-height:60px;color:#8b5cf6;font-size:0.8rem;line-height:1.5;font-style:italic';
+        result.textContent = 'AI is researching this domain... Please wait.';
+    }
+
+    // Elapsed timer on the button
+    var startTime = Date.now();
+    _investigateTimer = setInterval(function() {
+        var elapsed = Math.round((Date.now() - startTime) / 1000);
+        if (btn && btn.disabled) btn.textContent = 'Analyzing... ' + elapsed + 's';
+    }, 1000);
+
+    fetch(SN_API + '/dns/domain-investigate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({domain: domain}),
+        signal: _domainIntelAbort.signal
+    }).then(function(r) { return r.json(); }).then(function(d) {
+        _domainIntelLoading = false;
+        _domainIntelAbort = null;
+        if (_investigateTimer) { clearInterval(_investigateTimer); _investigateTimer = null; }
+        if (btn) { btn.disabled = false; btn.textContent = 'Re-investigate'; }
+        _setFooterButtonsState(false);
+        if (d.success && d.report) {
+            result.style.cssText = 'background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.3);border-left:3px solid #8b5cf6;border-radius:8px;padding:16px;min-height:60px;color:#ccc;font-size:0.8rem;line-height:1.6;white-space:pre-wrap;font-style:normal';
+            result.textContent = d.report;
+        } else {
+            result.style.cssText = 'background:rgba(249,115,22,0.06);border:1px dashed rgba(249,115,22,0.3);border-radius:8px;padding:16px;min-height:60px;color:#f97316;font-size:0.8rem;line-height:1.5;font-style:italic';
+            result.textContent = (d.error || 'AI unavailable — try again later') + '\nTip: If a cached report was shown previously, it remains valid.';
+        }
+    }).catch(function(e) {
+        _domainIntelLoading = false;
+        _domainIntelAbort = null;
+        if (_investigateTimer) { clearInterval(_investigateTimer); _investigateTimer = null; }
+        if (e.name === 'AbortError') return; // Cancelled by new modal open — ignore
+        if (btn) { btn.disabled = false; btn.textContent = 'Investigate'; }
+        _setFooterButtonsState(false);
+        if (result) {
+            result.style.cssText = 'background:rgba(239,68,68,0.06);border:1px dashed rgba(239,68,68,0.3);border-radius:8px;padding:16px;min-height:60px;color:#ef4444;font-size:0.8rem;line-height:1.5;font-style:italic';
+            result.textContent = 'Connection error — AI agents may be busy. Try again in a moment.';
+        }
+    });
+}
+
+var _quickActionBusy = false;
+function dnsQuickAction(action, domain) {
+    if (_quickActionBusy) return;
+    _quickActionBusy = true;
+    _setFooterButtonsState(true);
+
+    var endpoint = action === 'block' ? '/dns/adguard/block' :
+                   action === 'unblock' ? '/dns/adguard/unblock' :
+                   '/dns/adguard/rewrites';
+    var payload = action === 'rewrite' ?
+        {domain: domain, answer: '192.168.1.200'} : {domain: domain};
+
+    fetch(SN_API + endpoint, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    }).then(function(r) { return r.json(); }).then(function(d) {
+        _quickActionBusy = false;
+        if (d.success) {
+            if (typeof showToast === 'function') showToast('success', domain + ' ' + action + 'ed');
+            openDomainIntel(domain); // Refresh modal with updated status
+        } else {
+            _setFooterButtonsState(false);
+            if (typeof showToast === 'function') showToast('error', d.error || 'Failed');
+        }
+    }).catch(function() {
+        _quickActionBusy = false;
+        _setFooterButtonsState(false);
+    });
 }
 
 /* ═══════════════════════════════════════════════════════════════════

@@ -186,14 +186,18 @@ function switchSecurityTab(tabName) {
             break;
         case 'traffic':
             loadTraffic();
+            if (typeof loadVpnDetect === 'function') setTimeout(loadVpnDetect, 1000);
             _trafficPollTimer = setInterval(loadTraffic, 10000);
             break;
         case 'dns':
             if (!dnsTabLoaded) { dnsTabLoaded = true; loadDNSOverview(); loadUserRules(); }
+            if (typeof loadSinkholeStats === 'function') setTimeout(loadSinkholeStats, 300);
+            if (typeof loadDnsTrend === 'function') setTimeout(loadDnsTrend, 500);
             break;
         case 'devices':
             loadDevices();
             loadNetworkMonitor();
+            if (typeof loadTrafficClassification === 'function') setTimeout(loadTrafficClassification, 300);
             break;
         case 'defense':
             loadDefense();
@@ -210,6 +214,17 @@ function switchSecurityTab(tabName) {
         case 'reports':
             loadReports();
             loadReportsList();
+            break;
+        case 'topology':
+            if (typeof loadTopology === 'function') loadTopology();
+            break;
+        case 'parental':
+            if (typeof loadParentalSchedules === 'function') loadParentalSchedules();
+            if (typeof loadTrafficByUser === 'function') loadTrafficByUser();
+            if (typeof loadBrainRotBoard === 'function') loadBrainRotBoard();
+            break;
+        case 'intel':
+            if (typeof loadIntelTab === 'function') loadIntelTab();
             break;
     }
 
@@ -269,6 +284,36 @@ function loadNocOverview() {
         snSetText('noc-threats', formatNum(stats.threats_blocked_24h || 0));
         snSetText('noc-traffic', formatBytes(stats.traffic_bytes || 0));
         snSetText('noc-banned', formatNum(stats.currently_banned || 0));
+        snSetText('noc-active-devices', formatNum(stats.active_devices || 0));
+
+        /* DNS protection indicator */
+        var shieldEl = document.getElementById('noc-dns-shield');
+        if (shieldEl) {
+            var dot = document.createElement('span');
+            dot.textContent = stats.dns_protection_on ? '\u25CF ON' : '\u25CF OFF';
+            dot.style.color = stats.dns_protection_on ? '#22c55e' : '#ef4444';
+            shieldEl.textContent = '';
+            shieldEl.appendChild(dot);
+        }
+
+        /* last scan */
+        var scan = d.last_scan;
+        if (scan) {
+            var scanTime = scan.time ? new Date(scan.time) : null;
+            var scanAgo = scanTime ? _timeAgo(scanTime) : '';
+            snSetText('noc-last-scan', scan.module + ' \u2014 ' + scan.status);
+            var scanCard = document.getElementById('noc-last-scan-card');
+            if (scanCard) {
+                var lbl = scanCard.querySelector('.noc-hero-label');
+                if (lbl) lbl.textContent = 'Last Scan' + (scanAgo ? ' (' + scanAgo + ')' : '');
+            }
+        }
+
+        /* top bandwidth consumers */
+        _renderTopConsumers(d.top_consumers || []);
+
+        /* traffic sparkline */
+        _renderSparkline(d.traffic_sparkline || []);
 
         /* service badges in header */
         var svc = d.services || {};
@@ -381,37 +426,376 @@ function _renderNocActivity(alerts) {
     });
 }
 
+function _timeAgo(date) {
+    var seconds = Math.floor((new Date() - date) / 1000);
+    if (seconds < 60) return 'just now';
+    var minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return minutes + 'm ago';
+    var hours = Math.floor(minutes / 60);
+    if (hours < 24) return hours + 'h ago';
+    var days = Math.floor(hours / 24);
+    return days + 'd ago';
+}
+
+function _renderTopConsumers(consumers) {
+    var el = document.getElementById('noc-top-consumers');
+    if (!el) return;
+    el.textContent = '';
+    if (!consumers.length) {
+        snShowEmpty(el, 'No traffic data yet');
+        return;
+    }
+    var maxBytes = consumers[0].bytes || 1;
+    consumers.forEach(function(c) {
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px';
+
+        var label = document.createElement('span');
+        label.style.cssText = 'min-width:100px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--archie-text)';
+        label.textContent = c.label || c.ip;
+        label.title = c.ip;
+        row.appendChild(label);
+
+        var barOuter = document.createElement('div');
+        barOuter.style.cssText = 'flex:1;height:6px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden';
+        var barInner = document.createElement('div');
+        var pct = Math.max(2, (c.bytes / maxBytes) * 100);
+        barInner.style.cssText = 'height:100%;border-radius:3px;background:linear-gradient(90deg,#00e5ff,#8b5cf6);width:' + pct + '%';
+        barOuter.appendChild(barInner);
+        row.appendChild(barOuter);
+
+        var val = document.createElement('span');
+        val.style.cssText = 'min-width:60px;text-align:right;color:var(--archie-text-muted);font-family:"IBM Plex Mono",monospace;font-size:0.75rem';
+        val.textContent = formatBytes(c.bytes || 0);
+        row.appendChild(val);
+
+        el.appendChild(row);
+    });
+}
+
+function _renderSparkline(data) {
+    var svg = document.getElementById('noc-sparkline');
+    if (!svg || !data.length) return;
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+    var w = svg.clientWidth || 300;
+    var h = svg.clientHeight || 80;
+    var max = Math.max.apply(null, data.map(function(d) { return d.bytes; })) || 1;
+    var step = w / Math.max(data.length - 1, 1);
+
+    var points = data.map(function(d, i) {
+        var x = i * step;
+        var y = h - (d.bytes / max) * (h - 4) - 2;
+        return x.toFixed(1) + ',' + y.toFixed(1);
+    });
+
+    // Gradient definition
+    var ns = 'http://www.w3.org/2000/svg';
+    var defs = document.createElementNS(ns, 'defs');
+    var grad = document.createElementNS(ns, 'linearGradient');
+    grad.setAttribute('id', 'spark-grad');
+    grad.setAttribute('x1', '0'); grad.setAttribute('y1', '0');
+    grad.setAttribute('x2', '0'); grad.setAttribute('y2', '1');
+    var s1 = document.createElementNS(ns, 'stop');
+    s1.setAttribute('offset', '0%'); s1.setAttribute('stop-color', '#00e5ff'); s1.setAttribute('stop-opacity', '0.3');
+    var s2 = document.createElementNS(ns, 'stop');
+    s2.setAttribute('offset', '100%'); s2.setAttribute('stop-color', '#00e5ff'); s2.setAttribute('stop-opacity', '0.02');
+    grad.appendChild(s1); grad.appendChild(s2);
+    defs.appendChild(grad);
+    svg.appendChild(defs);
+
+    // Fill area
+    var area = document.createElementNS(ns, 'polygon');
+    var areaPoints = '0,' + h + ' ' + points.join(' ') + ' ' + ((data.length - 1) * step).toFixed(1) + ',' + h;
+    area.setAttribute('points', areaPoints);
+    area.setAttribute('fill', 'url(#spark-grad)');
+    svg.appendChild(area);
+
+    // Line
+    var line = document.createElementNS(ns, 'polyline');
+    line.setAttribute('points', points.join(' '));
+    line.setAttribute('fill', 'none');
+    line.setAttribute('stroke', '#00e5ff');
+    line.setAttribute('stroke-width', '2');
+    line.setAttribute('stroke-linejoin', 'round');
+    svg.appendChild(line);
+}
+
 /* ═══════════════════════════════════════════════════
    TAB 2: TRAFFIC
 ═══════════════════════════════════════════════════ */
 
 function loadTraffic() {
-    /* Per-client activity from AdGuard DNS — primary data source */
+    /* Real bandwidth data from ntopng + DB */
+    var sel = document.getElementById('traffic-period-select');
+    // Restore saved period on first load
+    if (sel && !sel._restored) {
+        var saved = localStorage.getItem('sn_traffic_period');
+        if (saved && sel.querySelector('option[value="' + saved + '"]')) sel.value = saved;
+        sel._restored = true;
+    }
+    var period = sel ? sel.value : '24h';
+    // Save selection
+    if (sel) localStorage.setItem('sn_traffic_period', period);
+    var periodLabels = {'24h': '24h', '7d': '7 Days', '30d': '30 Days', '90d': '90 Days', 'all': 'All Time'};
+    var lbl = periodLabels[period] || period;
+
+    // Update all period labels in the UI
+    ['traffic-period-label-dl','traffic-period-label-up','traffic-period-label-hist','traffic-period-label-dev'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = lbl;
+    });
+
+    snApi('/noc/traffic-tab?period=' + period).then(function(d) {
+        if (!d.success) return;
+
+        /* Hero stats — actual bytes */
+        snSetText('traffic-bytes-in', formatBytes(d.bytes_in || 0));
+        snSetText('traffic-bytes-out', formatBytes(d.bytes_out || 0));
+        snSetText('traffic-flows', formatNum(d.active_flows || 0));
+        snSetText('traffic-devices', formatNum(d.active_devices || 0));
+
+        /* Bandwidth bar — real in/out */
+        _renderBandwidthBar({
+            bytes_rcvd: d.bytes_in || 0,
+            bytes_sent: d.bytes_out || 0,
+            _labelIn: 'Download: ' + formatBytes(d.bytes_in || 0),
+            _labelOut: 'Upload: ' + formatBytes(d.bytes_out || 0)
+        });
+
+        /* Per-device bandwidth table */
+        _renderPerDeviceBandwidth(d.per_device || []);
+
+        /* Traffic history chart */
+        _renderTrafficHistory(d.hourly || []);
+
+    }).catch(function(e) {
+        console.warn('Traffic tab bandwidth error:', e);
+    });
+
+    /* DNS activity (secondary) */
     snApi('/traffic/activity?limit=5000').then(function(d) {
         if (!d.success) return;
-        var clients = d.clients || [];
-        _renderClientActivity(clients);
-        _renderServiceBreakdown(clients);
-
-        /* Update hero stats from activity data */
-        var totalQueries = 0, totalBlocked = 0;
-        clients.forEach(function(c) { totalQueries += c.total_queries || 0; totalBlocked += c.blocked || 0; });
-        snSetText('traffic-bytes-in', formatNum(totalQueries) + ' queries');
-        snSetText('traffic-bytes-out', formatNum(totalBlocked) + ' blocked');
-        snSetText('traffic-pkts', formatNum(clients.length));
-        snSetText('traffic-iface', d.query_count + ' log entries');
-
-        /* Render bandwidth bar — use real bytes if available, else DNS counts */
-        var bwIn = d.bandwidth_bytes_in || 0;
-        var bwOut = d.bandwidth_bytes_out || 0;
-        if (bwIn > 0 || bwOut > 0) {
-            _renderBandwidthBar({ bytes_rcvd: bwIn, bytes_sent: bwOut, _labelIn: 'In: ' + formatBytes(bwIn), _labelOut: 'Out: ' + formatBytes(bwOut) });
-        } else {
-            var total = totalQueries || 1;
-            _renderBandwidthBar({ bytes_rcvd: totalQueries - totalBlocked, bytes_sent: totalBlocked, _labelIn: 'Clean: ' + formatNum(totalQueries - totalBlocked), _labelOut: 'Blocked: ' + formatNum(totalBlocked) });
-        }
+        _renderClientActivity(d.clients || []);
     }).catch(function(e) {
-        snShowEmpty(document.getElementById('traffic-hosts-table'), 'Failed to load activity');
+        snShowEmpty(document.getElementById('traffic-hosts-table'), 'No DNS activity data');
+    });
+
+    /* L7 Protocol breakdown from ntopng (replaces DNS-based service detection) */
+    snApi('/noc/l7-protocols').then(function(d) {
+        if (!d.success) return;
+        _renderL7Protocols(d.protocols || []);
+    }).catch(function(e) {
+        snShowEmpty(document.getElementById('traffic-protocols'), 'No protocol data');
+    });
+}
+
+function _renderPerDeviceBandwidth(devices) {
+    var el = document.getElementById('traffic-per-device');
+    if (!el) return;
+    el.textContent = '';
+    if (!devices.length) { snShowEmpty(el, 'No bandwidth data yet'); return; }
+
+    var maxBytes = devices[0].total || 1;
+    devices.forEach(function(dev) {
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:8px';
+
+        // Bandwidth thresholds: >100GB red, >10GB orange, >1GB yellow
+        var total = dev.total || 0;
+        var isHeavy = total > 1073741824; // 1 GB
+        var isVeryHeavy = total > 10737418240; // 10 GB
+        var isExtreme = total > 107374182400; // 100 GB
+        if (isExtreme) row.style.cssText += ';border-left:3px solid #ef4444;padding-left:4px';
+        else if (isVeryHeavy) row.style.cssText += ';border-left:3px solid #f97316;padding-left:4px';
+        else if (isHeavy) row.style.cssText += ';border-left:3px solid #fbbf24;padding-left:4px';
+
+        var label = document.createElement('span');
+        label.style.cssText = 'min-width:90px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:0.78rem';
+        label.style.color = isExtreme ? '#ef4444' : isVeryHeavy ? '#f97316' : isHeavy ? '#fbbf24' : 'var(--archie-text)';
+        label.textContent = dev.label || dev.ip;
+        label.title = dev.ip + (dev.mac ? ' (' + dev.mac + ')' : '');
+        row.appendChild(label);
+
+        var barOuter = document.createElement('div');
+        barOuter.style.cssText = 'flex:1;height:8px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;display:flex';
+        var pctIn = (dev.bytes_in / maxBytes) * 100;
+        var pctOut = (dev.bytes_out / maxBytes) * 100;
+        var barIn = document.createElement('div');
+        barIn.style.cssText = 'height:100%;background:#00e5ff;width:' + pctIn.toFixed(1) + '%';
+        barIn.title = 'Download: ' + formatBytes(dev.bytes_in);
+        var barOut = document.createElement('div');
+        barOut.style.cssText = 'height:100%;background:#8b5cf6;width:' + pctOut.toFixed(1) + '%';
+        barOut.title = 'Upload: ' + formatBytes(dev.bytes_out);
+        barOuter.appendChild(barIn);
+        barOuter.appendChild(barOut);
+        row.appendChild(barOuter);
+
+        var val = document.createElement('span');
+        val.style.cssText = 'min-width:55px;text-align:right;color:var(--archie-text-muted);font-family:"IBM Plex Mono",monospace;font-size:0.72rem';
+        val.textContent = formatBytes(dev.total || 0);
+        row.appendChild(val);
+
+        el.appendChild(row);
+    });
+}
+
+function _renderTrafficHistory(hourly) {
+    var svg = document.getElementById('traffic-history-chart');
+    if (!svg || !hourly.length) return;
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+    var w = svg.clientWidth || 500;
+    var h = svg.clientHeight || 200;
+    var ns = 'http://www.w3.org/2000/svg';
+    var pad = {top: 24, right: 10, bottom: 28, left: 55};
+    var cw = w - pad.left - pad.right;
+    var ch = h - pad.top - pad.bottom;
+
+    var max = 1;
+    hourly.forEach(function(d) {
+        if (d.bytes_in > max) max = d.bytes_in;
+        if (d.bytes_out > max) max = d.bytes_out;
+    });
+    max *= 1.15; // headroom
+    var step = cw / Math.max(hourly.length - 1, 1);
+
+    // Gradient defs
+    var defs = document.createElementNS(ns, 'defs');
+    [['traf-in', '#00e5ff'], ['traf-out', '#8b5cf6']].forEach(function(pair) {
+        var grad = document.createElementNS(ns, 'linearGradient');
+        grad.setAttribute('id', pair[0]);
+        grad.setAttribute('x1', '0'); grad.setAttribute('y1', '0');
+        grad.setAttribute('x2', '0'); grad.setAttribute('y2', '1');
+        var s1 = document.createElementNS(ns, 'stop');
+        s1.setAttribute('offset', '0%'); s1.setAttribute('stop-color', pair[1]); s1.setAttribute('stop-opacity', '0.4');
+        var s2 = document.createElementNS(ns, 'stop');
+        s2.setAttribute('offset', '100%'); s2.setAttribute('stop-color', pair[1]); s2.setAttribute('stop-opacity', '0.02');
+        grad.appendChild(s1); grad.appendChild(s2); defs.appendChild(grad);
+    });
+    svg.appendChild(defs);
+
+    // Horizontal grid lines + Y-axis labels
+    var gridLines = 4;
+    for (var gi = 0; gi <= gridLines; gi++) {
+        var gy = pad.top + ch - (gi / gridLines) * ch;
+        var gLine = document.createElementNS(ns, 'line');
+        gLine.setAttribute('x1', pad.left); gLine.setAttribute('y1', gy.toFixed(1));
+        gLine.setAttribute('x2', w - pad.right); gLine.setAttribute('y2', gy.toFixed(1));
+        gLine.setAttribute('stroke', 'rgba(255,255,255,0.06)'); gLine.setAttribute('stroke-width', '1');
+        svg.appendChild(gLine);
+        var yLabel = document.createElementNS(ns, 'text');
+        yLabel.setAttribute('x', pad.left - 6); yLabel.setAttribute('y', (gy + 3).toFixed(1));
+        yLabel.setAttribute('fill', '#666'); yLabel.setAttribute('font-size', '9');
+        yLabel.setAttribute('text-anchor', 'end'); yLabel.setAttribute('font-family', '"IBM Plex Mono",monospace');
+        yLabel.textContent = formatBytes((gi / gridLines) * max);
+        svg.appendChild(yLabel);
+    }
+
+    // X-axis labels (show ~6 evenly spaced)
+    var xLabelCount = Math.min(hourly.length, 6);
+    var xLabelStep = Math.max(1, Math.floor((hourly.length - 1) / (xLabelCount - 1)));
+    for (var xi = 0; xi < hourly.length; xi += xLabelStep) {
+        var xx = pad.left + xi * step;
+        var xLabel = document.createElementNS(ns, 'text');
+        xLabel.setAttribute('x', xx.toFixed(1)); xLabel.setAttribute('y', (h - 6).toFixed(1));
+        xLabel.setAttribute('fill', '#666'); xLabel.setAttribute('font-size', '9');
+        xLabel.setAttribute('text-anchor', 'middle'); xLabel.setAttribute('font-family', '"IBM Plex Mono",monospace');
+        xLabel.textContent = hourly[xi].hour;
+        svg.appendChild(xLabel);
+        // Vertical grid
+        var vLine = document.createElementNS(ns, 'line');
+        vLine.setAttribute('x1', xx.toFixed(1)); vLine.setAttribute('y1', pad.top.toFixed(1));
+        vLine.setAttribute('x2', xx.toFixed(1)); vLine.setAttribute('y2', (h - pad.bottom).toFixed(1));
+        vLine.setAttribute('stroke', 'rgba(255,255,255,0.03)'); vLine.setAttribute('stroke-width', '1');
+        svg.appendChild(vLine);
+    }
+
+    // Draw areas + smooth lines for both in and out
+    ['bytes_in', 'bytes_out'].forEach(function(key, idx) {
+        var color = idx === 0 ? '#00e5ff' : '#8b5cf6';
+        var gradId = idx === 0 ? 'traf-in' : 'traf-out';
+        var pts = hourly.map(function(d, i) {
+            var x = pad.left + i * step;
+            var y = pad.top + ch - (d[key] / max) * ch;
+            return [x, y];
+        });
+
+        // Area fill
+        var areaStr = pts.map(function(p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ');
+        areaStr = (pad.left).toFixed(1) + ',' + (pad.top + ch).toFixed(1) + ' ' + areaStr + ' ' + pts[pts.length-1][0].toFixed(1) + ',' + (pad.top + ch).toFixed(1);
+        var area = document.createElementNS(ns, 'polygon');
+        area.setAttribute('points', areaStr);
+        area.setAttribute('fill', 'url(#' + gradId + ')');
+        svg.appendChild(area);
+
+        // Line
+        var lineStr = pts.map(function(p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ');
+        var line = document.createElementNS(ns, 'polyline');
+        line.setAttribute('points', lineStr);
+        line.setAttribute('fill', 'none');
+        line.setAttribute('stroke', color);
+        line.setAttribute('stroke-width', '2.5');
+        line.setAttribute('stroke-linejoin', 'round');
+        line.setAttribute('stroke-linecap', 'round');
+        svg.appendChild(line);
+
+        // Data point dots (if few enough)
+        if (pts.length <= 30) {
+            pts.forEach(function(p) {
+                var dot = document.createElementNS(ns, 'circle');
+                dot.setAttribute('cx', p[0].toFixed(1)); dot.setAttribute('cy', p[1].toFixed(1));
+                dot.setAttribute('r', '3'); dot.setAttribute('fill', color);
+                dot.setAttribute('opacity', '0.7');
+                svg.appendChild(dot);
+            });
+        }
+    });
+
+    // Legend (top right)
+    var lx = w - pad.right - 140;
+    [['Download', '#00e5ff'], ['Upload', '#8b5cf6']].forEach(function(pair, i) {
+        var lt = document.createElementNS(ns, 'text');
+        lt.setAttribute('x', (lx + i * 80).toFixed(0)); lt.setAttribute('y', '14');
+        lt.setAttribute('fill', pair[1]); lt.setAttribute('font-size', '10');
+        lt.setAttribute('font-family', '"IBM Plex Mono",monospace');
+        lt.textContent = '\u25CF ' + pair[0];
+        svg.appendChild(lt);
+    });
+}
+
+function _renderL7Protocols(protocols) {
+    var el = document.getElementById('traffic-protocols');
+    if (!el) return;
+    el.textContent = '';
+    if (!protocols.length) { snShowEmpty(el, 'No protocol data'); return; }
+
+    var maxBytes = protocols[0].bytes || 1;
+    var colors = ['#00e5ff','#8b5cf6','#10b981','#f472b6','#fbbf24','#ef4444','#22d3ee','#a3e635','#f97316','#818cf8'];
+    var top = protocols.slice(0, 15);
+    top.forEach(function(p, i) {
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:6px';
+
+        var name = document.createElement('span');
+        name.style.cssText = 'min-width:100px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:' + colors[i % colors.length] + ';font-size:0.78rem;font-family:"IBM Plex Mono",monospace';
+        name.textContent = p.name;
+        row.appendChild(name);
+
+        var barOuter = document.createElement('div');
+        barOuter.style.cssText = 'flex:1;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden';
+        var bar = document.createElement('div');
+        var pct = (p.bytes / maxBytes) * 100;
+        bar.style.cssText = 'height:100%;border-radius:3px;background:' + colors[i % colors.length] + ';width:' + pct.toFixed(1) + '%';
+        barOuter.appendChild(bar);
+        row.appendChild(barOuter);
+
+        var val = document.createElement('span');
+        val.style.cssText = 'min-width:55px;text-align:right;color:var(--archie-text-muted);font-family:"IBM Plex Mono",monospace;font-size:0.72rem';
+        val.textContent = formatBytes(p.bytes);
+        row.appendChild(val);
+
+        el.appendChild(row);
     });
 }
 
@@ -547,6 +931,52 @@ function _renderProtocolBreakdown(protocols) {
     });
 }
 
+/* VPN Detection */
+function loadVpnDetect() {
+    var el = document.getElementById('vpn-detect-results');
+    if (!el) return;
+    el.innerHTML = '<div class="loading-state"><span class="spinner"></span> Scanning flows...</div>';
+
+    snApi('/noc/vpn-detect').then(function(d) {
+        if (!d.success) { el.innerHTML = '<div style="color:#ef4444">Scan failed</div>'; return; }
+
+        if (!d.total_vpn_flows) {
+            el.innerHTML = '<div style="color:#10b981;padding:8px 0">&#x2705; No VPN/tunnel traffic detected — ' +
+                (d.total_active_flows || 0) + ' active flows scanned</div>';
+            return;
+        }
+
+        var html = '<div style="color:#fbbf24;margin-bottom:12px">&#x26a0;&#xfe0f; <strong>' + d.total_vpn_flows +
+            ' VPN/tunnel flow(s) detected</strong> out of ' + (d.total_active_flows || '?') + ' active flows</div>';
+
+        if (d.suspicious_devices && d.suspicious_devices.length) {
+            html += '<table class="data-table"><thead><tr><th>Device</th><th>IP</th><th>Protocol</th><th>Flows</th><th>Data</th></tr></thead><tbody>';
+            d.suspicious_devices.forEach(function(dev) {
+                html += '<tr><td><strong>' + (dev.label || dev.ip) + '</strong></td><td style="font-family:monospace">' + dev.ip + '</td><td>' +
+                    dev.protocols.map(function(p) { return '<span style="color:#fbbf24">' + p + '</span>'; }).join(', ') +
+                    '</td><td>' + dev.flow_count + '</td><td>' + formatBytes(dev.total_bytes) + '</td></tr>';
+            });
+            html += '</tbody></table>';
+        }
+
+        if (d.vpn_flows && d.vpn_flows.length) {
+            html += '<details style="margin-top:8px"><summary style="cursor:pointer;color:var(--archie-text-muted)">Flow details (' + d.vpn_flows.length + ')</summary>';
+            html += '<table class="data-table" style="margin-top:4px"><thead><tr><th>Client</th><th>Server</th><th>L7 Proto</th><th>Port</th><th>Data</th><th>Duration</th></tr></thead><tbody>';
+            d.vpn_flows.forEach(function(f) {
+                var dur = f.duration ? Math.round(f.duration / 60) + 'm' : '--';
+                html += '<tr><td>' + (f.client_name || f.client) + '</td><td>' + (f.server_name || f.server) +
+                    '</td><td style="color:#fbbf24">' + f.l7 + '</td><td>' + f.port +
+                    '</td><td>' + formatBytes(f.bytes) + '</td><td>' + dur + '</td></tr>';
+            });
+            html += '</tbody></table></details>';
+        }
+
+        el.innerHTML = html;
+    }).catch(function(e) {
+        el.innerHTML = '<div style="color:#ef4444">Error: ' + e + '</div>';
+    });
+}
+
 /* ═══════════════════════════════════════════════════
    TAB 4: DEVICES
 ═══════════════════════════════════════════════════ */
@@ -556,7 +986,7 @@ function loadDevices() {
         var container = document.getElementById('devices-users-table');
         if (!container) return;
         var users = d.users || d.mappings || [];
-        if (!users.length) { snShowEmpty(container, 'No device mappings'); return; }
+        if (!users.length) { snShowEmpty(container, 'No device mappings — use the form above or click "Name" on a device below'); return; }
         var rows = users.map(function(u) {
             var delBtn = document.createElement('button');
             delBtn.className = 'btn btn-danger btn-sm';
@@ -564,7 +994,7 @@ function loadDevices() {
             (function(uid) {
                 delBtn.addEventListener('click', function() { deleteDeviceMapping(uid); });
             }(u.id));
-            return [u.mac || '-', u.ip || '-', u.username || '-', u.device_name || '-', delBtn];
+            return [u.mac_address || u.mac || '-', u.ip_address || u.ip || '-', u.user_name || u.username || '-', u.device_label || u.device_name || '-', delBtn];
         });
         container.textContent = '';
         container.appendChild(snBuildTable(['MAC', 'IP', 'Username', 'Device Name', ''], rows));
@@ -619,48 +1049,80 @@ function deleteDeviceMapping(id) {
 ═══════════════════════════════════════════════════ */
 
 function loadDefense() {
-    loadFail2banJails();
+    // Fast local-only loads first (no host agent queue)
     loadDdnsStatus();
-    loadFirewall();
     loadIPAccess();
     loadAutoBlockSettings();
     loadSecurityEvents();
     loadConnections();
+    // Slow host-agent loads last (use cached data while waiting)
+    loadFail2banJails();
+    loadFirewall();
+}
+
+function _renderFail2banJails(container, jails) {
+    container.textContent = '';
+    if (!jails.length) { snShowEmpty(container, 'No jails data'); return; }
+    jails.forEach(function(j) {
+        var online = j.status === 'active' || j.active;
+        var row = document.createElement('div');
+        row.className = 'sn-jail-row';
+
+        var name = document.createElement('span');
+        name.className = 'sn-jail-name';
+        name.textContent = j.name || j.jail_name || '-';
+        row.appendChild(name);
+
+        var stat1 = document.createElement('span');
+        stat1.className = 'sn-jail-stat';
+        stat1.textContent = 'Banned: ' + (j.currently_banned || 0);
+        row.appendChild(stat1);
+
+        var stat2 = document.createElement('span');
+        stat2.className = 'sn-jail-stat';
+        stat2.textContent = 'Total: ' + (j.total_banned || 0);
+        row.appendChild(stat2);
+
+        var badge = snCreateBadge(online ? 'ACTIVE' : 'INACTIVE', online ? 'success' : 'danger');
+        row.appendChild(badge);
+
+        container.appendChild(row);
+    });
 }
 
 function loadFail2banJails() {
+    var container = document.getElementById('defense-fail2ban-jails');
+    if (!container) return;
+
+    // Show cached data immediately
+    try {
+        var cached = localStorage.getItem('sn_fail2ban_cache');
+        if (cached) {
+            var cdata = JSON.parse(cached);
+            _renderFail2banJails(container, cdata.jails || []);
+            var age = document.createElement('div');
+            age.style.cssText = 'font-size:0.65rem;color:#666;text-align:right;margin-top:4px';
+            age.textContent = 'Cached — refreshing...';
+            age.id = 'f2b-cache-note';
+            container.appendChild(age);
+        }
+    } catch(e) { /* ignore cache errors */ }
+
+    // Fetch fresh data in background
     snApi('/fail2ban/jails').then(function(d) {
-        var container = document.getElementById('defense-fail2ban-jails');
-        if (!container) return;
         var jails = d.jails || [];
-        if (!jails.length) { snShowEmpty(container, 'No jails data'); return; }
-        container.textContent = '';
-        jails.forEach(function(j) {
-            var online = j.status === 'active' || j.active;
-            var row = document.createElement('div');
-            row.className = 'sn-jail-row';
-
-            var name = document.createElement('span');
-            name.className = 'sn-jail-name';
-            name.textContent = j.name || j.jail_name || '-';
-            row.appendChild(name);
-
-            var stat1 = document.createElement('span');
-            stat1.className = 'sn-jail-stat';
-            stat1.textContent = 'Banned: ' + (j.currently_banned || 0);
-            row.appendChild(stat1);
-
-            var stat2 = document.createElement('span');
-            stat2.className = 'sn-jail-stat';
-            stat2.textContent = 'Total: ' + (j.total_banned || 0);
-            row.appendChild(stat2);
-
-            var badge = snCreateBadge(online ? 'ACTIVE' : 'INACTIVE', online ? 'success' : 'danger');
-            row.appendChild(badge);
-
-            container.appendChild(row);
-        });
-    }).catch(function() { snShowEmpty('defense-fail2ban-jails', 'fail2ban unavailable'); });
+        _renderFail2banJails(container, jails);
+        // Cache for next load
+        try { localStorage.setItem('sn_fail2ban_cache', JSON.stringify({jails: jails, ts: Date.now()})); } catch(e) {}
+    }).catch(function() {
+        // If no cached data was shown, show error
+        if (!localStorage.getItem('sn_fail2ban_cache')) {
+            snShowEmpty(container, 'fail2ban unavailable — host agent may be busy');
+        } else {
+            var note = document.getElementById('f2b-cache-note');
+            if (note) note.textContent = 'Cached — live refresh failed (host agent busy)';
+        }
+    });
 }
 
 function loadDdnsStatus() {

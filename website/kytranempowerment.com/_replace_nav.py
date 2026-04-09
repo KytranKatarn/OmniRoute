@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Replace old nav in all HTML files with the new mega-dropdown nav partial."""
+"""Replace nav + lang overlay + mobile nav in all HTML files with the nav partial.
+
+The partial contains everything from <nav> through the closing </div> of nav-mobile.
+This script replaces the ENTIRE navigation block — not just <nav>...</nav>.
+"""
 import os
 import re
 import glob
@@ -10,9 +14,6 @@ SITE_DIR = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(SITE_DIR, '_nav-partial.html'), 'r', encoding='utf-8') as f:
     nav_partial = f.read().strip()
 
-# Indent the nav partial to match typical indentation (4 spaces)
-nav_indented = '\n'.join('    ' + line if line.strip() else '' for line in nav_partial.split('\n'))
-
 html_files = sorted(glob.glob(os.path.join(SITE_DIR, '*.html')))
 
 replaced = 0
@@ -20,40 +21,43 @@ skipped = 0
 
 for filepath in html_files:
     basename = os.path.basename(filepath)
-    # Skip partials (files starting with _)
     if basename.startswith('_'):
         continue
 
     with open(filepath, 'r', encoding='utf-8') as f:
         content = f.read()
 
-    # Pattern: match from <nav to </nav> (greedy enough to get the whole nav block)
-    # Also capture any leading whitespace/comments before <nav
-    nav_pattern = re.compile(
-        r'([ \t]*(?:<!--[^>]*Navigation[^>]*-->\s*)?)'  # optional comment before nav
-        r'<nav\b[^>]*>.*?</nav>',
-        re.DOTALL
-    )
-
-    match = nav_pattern.search(content)
-    if not match:
+    # Find the start: <!-- Navigation --> or <nav
+    start_pattern = re.compile(r'[ \t]*(?:<!--\s*Navigation\s*-->\s*)?<nav\b')
+    start_match = start_pattern.search(content)
+    if not start_match:
         print(f"  SKIP (no nav found): {basename}")
         skipped += 1
         continue
 
-    # Also check for and remove any old mobile menu div that follows the nav
-    # Look for div.nav-mobile or div#mobileMenu or div with mobile-menu class
-    old_mobile_pattern = re.compile(
-        r'\s*<div\s+(?:class="(?:nav-mobile|mobile-menu)[^"]*"|id="(?:navMobile|mobileMenu)")[^>]*>.*?</div>\s*(?=\s*<)',
-        re.DOTALL
-    )
+    # Find the end: last </div> of the nav-mobile block.
+    # The partial ends with </div> after nav-mobile. We need to find
+    # the closing </div> of nav-mobile in the page.
+    # Strategy: find the LAST occurrence of nav-mobile's closing pattern
+    # which is right before <!-- Page content --> or <main or <section
+    # that is NOT inside nav.
+    after_nav = content[start_match.start():]
 
-    # Replace the nav
-    leading = match.group(1) or '    '
-    # Use the leading whitespace from the original nav
+    # Find where the page content begins (first <main or <!-- Page content -->)
+    end_pattern = re.compile(r'\n[ \t]*(?:<!--\s*Page\s*content\s*-->|<main\b|<section\b(?!.*nav))')
+    end_match = end_pattern.search(after_nav)
+
+    if not end_match:
+        # Fallback: just find </nav> and replace only that
+        print(f"  WARN (no page content marker): {basename}")
+        skipped += 1
+        continue
+
+    # The replacement region is from start_match.start() to start_match.start() + end_match.start()
+    region_end = start_match.start() + end_match.start()
+
+    # Build indented replacement
     indent = '    '
-
-    # Build replacement with proper indentation
     replacement_lines = []
     for line in nav_partial.split('\n'):
         if line.strip():
@@ -61,14 +65,9 @@ for filepath in html_files:
         else:
             replacement_lines.append('')
     replacement = '\n'.join(replacement_lines)
+    replacement = f'    <!-- Navigation -->\n{replacement}\n'
 
-    # Add the navigation comment back
-    replacement = f'    <!-- Navigation -->\n{replacement}'
-
-    new_content = content[:match.start()] + '\n' + replacement + '\n' + content[match.end():]
-
-    # Remove any old mobile menu divs (shouldn't exist but just in case)
-    new_content = old_mobile_pattern.sub('', new_content)
+    new_content = content[:start_match.start()] + '\n' + replacement + '\n' + content[region_end:]
 
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(new_content)

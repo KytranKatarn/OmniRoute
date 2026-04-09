@@ -25,10 +25,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/base.css?v=20260407z">
-    <link rel="stylesheet" href="css/components.css?v=20260407z">
-    <link rel="stylesheet" href="css/responsive.css?v=20260407z">
-    <link rel="stylesheet" href="css/reduced-motion.css?v=20260407z">
+    <link rel="stylesheet" href="css/base.css?v=20260407q">
+    <link rel="stylesheet" href="css/components.css?v=20260407q">
+    <link rel="stylesheet" href="css/responsive.css?v=20260407q">
+    <link rel="stylesheet" href="css/reduced-motion.css?v=20260407q">
     <style>
         .links-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; }
         .link-card { padding: 2rem; text-decoration: none; transition: transform 0.2s, border-color 0.2s; }
@@ -50,6 +50,14 @@
     <div class="dot-grid"></div>
     <div class="noise-overlay"></div>
     <div class="cursor-glow" id="cursorGlow"></div>
+
+
+
+
+
+
+
+
 
 
     <!-- Navigation -->
@@ -76,7 +84,8 @@
               <a href="legal-watch.html" class="nav__dropdown-item" data-i18n="nav.legal_watch">Legal Watch</a>
               <a href="gov-watch.html" class="nav__dropdown-item" data-i18n="nav.gov_watch">Gov Watch</a>
               <div class="nav__dropdown-divider"></div>
-              <a href="https://business.kytranempowerment.com" class="nav__dropdown-item" data-i18n="nav.business_suite">Business Suite</a>
+              <a href="business-suite.html" class="nav__dropdown-item" data-i18n="nav.business_suite">Business Suite</a>
+              <a href="system-operations.html" class="nav__dropdown-item" data-i18n="nav.sysops">System Operations</a>
             </div>
           </div>
 
@@ -87,7 +96,12 @@
             </button>
             <div class="nav__dropdown-menu">
               <a href="services.html" class="nav__dropdown-item" data-i18n="nav.all_services">All Services</a>
+              <div class="nav__dropdown-divider"></div>
+              <a href="website-services.html" class="nav__dropdown-item">Website Design &amp; Hosting</a>
+              <a href="security-services.html" class="nav__dropdown-item">Security Testing</a>
+              <a href="ai-services.html" class="nav__dropdown-item">AI Automation</a>
               <a href="compliance-services.html" class="nav__dropdown-item" data-i18n="nav.compliance_scanning">Compliance Scanning</a>
+              <div class="nav__dropdown-divider"></div>
               <a href="membership.html" class="nav__dropdown-item" data-i18n="nav.pricing">Membership &amp; Pricing</a>
             </div>
           </div>
@@ -113,7 +127,6 @@
               <a href="about.html" class="nav__dropdown-item" data-i18n="nav.about">About</a>
               <a href="vision.html" class="nav__dropdown-item" data-i18n="nav.vision">Vision</a>
               <a href="directory.html" class="nav__dropdown-item" data-i18n="nav.directory">Directory</a>
-              <a href="books.html" class="nav__dropdown-item" data-i18n="nav.books">Books</a>
               <a href="tips.html" class="nav__dropdown-item" data-i18n="nav.tips">Tips &amp; Tricks</a>
               <a href="links.html" class="nav__dropdown-item" data-i18n="nav.links">Programs &amp; Resources</a>
               <a href="submit-story.html" class="nav__dropdown-item" data-i18n="nav.submit_story">Submit Your Story</a>
@@ -133,88 +146,90 @@
             <span class="nav__menu-icon"></span>
           </button>
         </div>
-      </div>    </nav>
+      </div>
 
 
-      <div class="lang-overlay" hidden>
-        <div class="lang-overlay__panel">
-          <button class="lang-overlay__close" aria-label="Close language selector">&times;</button>
-          <h3 class="lang-overlay__title" data-i18n="lang.choose">Choose Language</h3>
-          <div class="lang-overlay__grid">
-            <button class="lang-overlay__btn" data-lang="en">English</button>
-            <button class="lang-overlay__btn" data-lang="fr">Fran&ccedil;ais (QC)</button>
-            <button class="lang-overlay__btn" data-lang="es">Espa&ntilde;ol</button>
-            <button class="lang-overlay__btn" data-lang="pt">Portugu&ecirc;s</button>
-            <button class="lang-overlay__btn" data-lang="de">Deutsch</button>
-            <button class="lang-overlay__btn" data-lang="zh">&#20013;&#25991;</button>
-            <button class="lang-overlay__btn" data-lang="ar" dir="rtl">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</button>
-            <button class="lang-overlay__btn" data-lang="he" dir="rtl">&#1506;&#1489;&#1512;&#1497;&#1514;</button>
+    </nav>
+
+    <div class="lang-overlay" hidden>
+      <div class="lang-overlay__panel">
+        <button class="lang-overlay__close" aria-label="Close language selector">&times;</button>
+        <h3 class="lang-overlay__title" data-i18n="lang.choose">Choose Language</h3>
+        <div class="lang-overlay__grid">
+          <button class="lang-overlay__btn" data-lang="en">English</button>
+          <button class="lang-overlay__btn" data-lang="fr">Fran&ccedil;ais (QC)</button>
+          <button class="lang-overlay__btn" data-lang="es">Espa&ntilde;ol</button>
+          <button class="lang-overlay__btn" data-lang="pt">Portugu&ecirc;s</button>
+          <button class="lang-overlay__btn" data-lang="de">Deutsch</button>
+          <button class="lang-overlay__btn" data-lang="zh">&#20013;&#25991;</button>
+          <button class="lang-overlay__btn" data-lang="ar" dir="rtl">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</button>
+          <button class="lang-overlay__btn" data-lang="he" dir="rtl">&#1506;&#1489;&#1512;&#1497;&#1514;</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav-mobile" id="navMobile" aria-hidden="true">
+      <div class="nav-mobile__inner">
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.products">Products</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="platform.html" data-i18n="nav.platform">Platform (A.R.C.H.I.E.)</a>
+            <a href="ai-directors.html" data-i18n="nav.ai_directors">AI Directors</a>
+            <a href="archie-code.html" data-i18n="nav.archie_code">ARCHIE Code CLI</a>
+            <a href="market-watch.html" data-i18n="nav.market_watch">Market Watch</a>
+            <a href="civic-watch.html" data-i18n="nav.civic_watch">Civic Watch</a>
+            <a href="legal-watch.html" data-i18n="nav.legal_watch">Legal Watch</a>
+            <a href="gov-watch.html" data-i18n="nav.gov_watch">Gov Watch</a>
+            <a href="business-suite.html" data-i18n="nav.business_suite">Business Suite</a>
+            <a href="system-operations.html" data-i18n="nav.sysops">System Operations</a>
           </div>
         </div>
-      </div>
-
-<div class="nav-mobile" id="navMobile" aria-hidden="true">
-  <div class="nav-mobile__inner">
-    <div class="nav-mobile__group">
-      <button class="nav-mobile__trigger" aria-expanded="false">
-        <span data-i18n="nav.products">Products</span>
-        <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-      </button>
-      <div class="nav-mobile__items">
-        <a href="platform.html" data-i18n="nav.platform">Platform (A.R.C.H.I.E.)</a>
-        <a href="ai-directors.html" data-i18n="nav.ai_directors">AI Directors</a>
-        <a href="archie-code.html" data-i18n="nav.archie_code">ARCHIE Code CLI</a>
-        <a href="market-watch.html" data-i18n="nav.market_watch">Market Watch</a>
-        <a href="civic-watch.html" data-i18n="nav.civic_watch">Civic Watch</a>
-        <a href="legal-watch.html" data-i18n="nav.legal_watch">Legal Watch</a>
-        <a href="gov-watch.html" data-i18n="nav.gov_watch">Gov Watch</a>
-        <a href="https://business.kytranempowerment.com" data-i18n="nav.business_suite">Business Suite</a>
-      </div>
-    </div>
-    <div class="nav-mobile__group">
-      <button class="nav-mobile__trigger" aria-expanded="false">
-        <span data-i18n="nav.services">Services</span>
-        <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-      </button>
-      <div class="nav-mobile__items">
-        <a href="services.html" data-i18n="nav.all_services">All Services</a>
-        <a href="compliance-services.html" data-i18n="nav.compliance_scanning">Compliance Scanning</a>
-        <a href="membership.html" data-i18n="nav.pricing">Membership &amp; Pricing</a>
-      </div>
-    </div>
-    <div class="nav-mobile__group">
-      <button class="nav-mobile__trigger" aria-expanded="false">
-        <span data-i18n="nav.trust">Trust</span>
-        <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-      </button>
-      <div class="nav-mobile__items">
-        <a href="compliance.html" data-i18n="nav.trust_center">Trust Center</a>
-        <a href="competitors.html" data-i18n="nav.competitors">Why A.R.C.H.I.E.</a>
-        <a href="creed.html" data-i18n="nav.creed">C.R.E.E.D.</a>
-      </div>
-    </div>
-    <div class="nav-mobile__group">
-      <button class="nav-mobile__trigger" aria-expanded="false">
-        <span data-i18n="nav.company">Company</span>
-        <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-      </button>
-      <div class="nav-mobile__items">
-        <a href="about.html" data-i18n="nav.about">About</a>
-        <a href="vision.html" data-i18n="nav.vision">Vision</a>
-        <a href="directory.html" data-i18n="nav.directory">Directory</a>
-        <a href="books.html" data-i18n="nav.books">Books</a>
-        <a href="tips.html" data-i18n="nav.tips">Tips &amp; Tricks</a>
-        <a href="links.html" data-i18n="nav.links">Programs &amp; Resources</a>
-        <a href="submit-story.html" data-i18n="nav.submit_story">Submit Your Story</a>
-      </div>
-    </div>
-    <a href="store.html" class="nav-mobile__direct" data-i18n="nav.store">Store</a>
-    <a href="contact.html" class="nav-mobile__direct" data-i18n="nav.contact">Contact</a>
-    <a href="membership.html" class="nav-mobile__cta" data-i18n="nav.get_started">Get Started</a>
-  </div>
-</div>
-</div></div></div></div>
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.services">Services</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="services.html" data-i18n="nav.all_services">All Services</a>
+            <a href="website-services.html">Website Design &amp; Hosting</a>
+            <a href="security-services.html">Security Testing</a>
+            <a href="ai-services.html">AI Automation</a>
+            <a href="compliance-services.html" data-i18n="nav.compliance_scanning">Compliance Scanning</a>
+            <a href="membership.html" data-i18n="nav.pricing">Membership &amp; Pricing</a>
+          </div>
         </div>
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.trust">Trust</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="compliance.html" data-i18n="nav.trust_center">Trust Center</a>
+            <a href="competitors.html" data-i18n="nav.competitors">Why A.R.C.H.I.E.</a>
+            <a href="creed.html" data-i18n="nav.creed">C.R.E.E.D.</a>
+          </div>
+        </div>
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.company">Company</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="about.html" data-i18n="nav.about">About</a>
+            <a href="vision.html" data-i18n="nav.vision">Vision</a>
+            <a href="directory.html" data-i18n="nav.directory">Directory</a>
+            <a href="tips.html" data-i18n="nav.tips">Tips &amp; Tricks</a>
+            <a href="links.html" data-i18n="nav.links">Programs &amp; Resources</a>
+            <a href="submit-story.html" data-i18n="nav.submit_story">Submit Your Story</a>
+          </div>
+        </div>
+        <a href="store.html" class="nav-mobile__direct" data-i18n="nav.store">Store</a>
+        <a href="contact.html" class="nav-mobile__direct" data-i18n="nav.contact">Contact</a>
+        <a href="membership.html" class="nav-mobile__cta" data-i18n="nav.get_started">Get Started</a>
+      </div>
     </div>
 
 
@@ -222,44 +237,84 @@
         <section class="hero">
             <div class="hero__content container">
                 <h1 class="hero__title gradient-text">Programs &amp; Resources</h1>
-                <p class="hero__tagline">Tools, courses, and community for your growth journey.</p>
+                <p class="hero__tagline">Courses, guides, and mentorship to help you master AI, business, and technology.</p>
             </div>
         </section>
 
         <section class="section">
             <div class="container">
+                <h2 style="font-family:var(--font-heading);color:#fff;text-align:center;margin-bottom:2rem;font-size:1.75rem;">Learning Paths</h2>
                 <div class="links-grid" data-stagger>
-                    <a href="vision.html" class="glass-panel link-card">
-                        <div class="link-card__icon">&#x1F3AF;</div>
-                        <div class="link-card__title">Vitality Boost Course</div>
-                        <div class="link-card__desc">Mental resilience, fitness fundamentals, and mindset training for peak performance.</div>
-                    </a>
-                    <a href="books.html" class="glass-panel link-card">
-                        <div class="link-card__icon">&#x1F4D6;</div>
-                        <div class="link-card__title">Kytran Financial Playbook</div>
-                        <div class="link-card__desc">Practical financial strategies, investment fundamentals, and wealth-building frameworks.</div>
-                    </a>
-                    <a href="store.html" class="glass-panel link-card">
-                        <div class="link-card__icon">&#x1F6CD;&#xFE0F;</div>
-                        <div class="link-card__title">Merchandise Store</div>
-                        <div class="link-card__desc">Kytran branded gear — hoodies, tees, and accessories. Powered by Printful.</div>
-                    </a>
-                    <a href="membership.html" class="glass-panel link-card">
-                        <div class="link-card__icon">&#x1F91D;</div>
-                        <div class="link-card__title">Join the Brotherhood</div>
-                        <div class="link-card__desc">Access exclusive content, community events, mentorship, and AI-powered business tools.</div>
-                    </a>
+                    <div class="glass-panel" style="padding:2rem;text-align:center;">
+                        <div style="font-size:2.5rem;margin-bottom:1rem;">&#x1F9E0;</div>
+                        <h3 style="font-family:var(--font-heading);color:#fff;margin-bottom:0.75rem;">AI for Everyone</h3>
+                        <p style="color:var(--color-text-muted);font-size:0.95rem;margin-bottom:1rem;">Beginner-friendly introduction to AI. What it is, how it works, how to use it in your daily life and business. No coding required.</p>
+                        <span style="display:inline-block;padding:0.25rem 0.75rem;border-radius:4px;font-size:0.75rem;font-family:var(--font-nav);letter-spacing:0.1em;text-transform:uppercase;background:rgba(0,229,255,0.1);color:var(--color-primary);">Coming Soon</span>
+                    </div>
+                    <div class="glass-panel" style="padding:2rem;text-align:center;">
+                        <div style="font-size:2.5rem;margin-bottom:1rem;">&#x2699;&#xFE0F;</div>
+                        <h3 style="font-family:var(--font-heading);color:#fff;margin-bottom:0.75rem;">Business Automation 101</h3>
+                        <p style="color:var(--color-text-muted);font-size:0.95rem;margin-bottom:1rem;">Learn to identify bottlenecks, design workflows, and deploy AI-powered automation. From spreadsheets to smart systems.</p>
+                        <span style="display:inline-block;padding:0.25rem 0.75rem;border-radius:4px;font-size:0.75rem;font-family:var(--font-nav);letter-spacing:0.1em;text-transform:uppercase;background:rgba(0,229,255,0.1);color:var(--color-primary);">Coming Soon</span>
+                    </div>
+                    <div class="glass-panel" style="padding:2rem;text-align:center;">
+                        <div style="font-size:2.5rem;margin-bottom:1rem;">&#x1F5A5;&#xFE0F;</div>
+                        <h3 style="font-family:var(--font-heading);color:#fff;margin-bottom:0.75rem;">Self-Hosted AI</h3>
+                        <p style="color:var(--color-text-muted);font-size:0.95rem;margin-bottom:1rem;">Run your own AI models on your own hardware. Privacy, control, no monthly fees. Step-by-step guides for Ollama, Docker, and local LLMs.</p>
+                        <span style="display:inline-block;padding:0.25rem 0.75rem;border-radius:4px;font-size:0.75rem;font-family:var(--font-nav);letter-spacing:0.1em;text-transform:uppercase;background:rgba(0,229,255,0.1);color:var(--color-primary);">Coming Soon</span>
+                    </div>
+                    <div class="glass-panel" style="padding:2rem;text-align:center;">
+                        <div style="font-size:2.5rem;margin-bottom:1rem;">&#x1F4BB;</div>
+                        <h3 style="font-family:var(--font-heading);color:#fff;margin-bottom:0.75rem;">Claude Code Mastery</h3>
+                        <p style="color:var(--color-text-muted);font-size:0.95rem;margin-bottom:1rem;">Master AI-assisted development. Project memory, skills, hooks, subagents. Build faster with the tools we use every day.</p>
+                        <span style="display:inline-block;padding:0.25rem 0.75rem;border-radius:4px;font-size:0.75rem;font-family:var(--font-nav);letter-spacing:0.1em;text-transform:uppercase;background:rgba(0,229,255,0.1);color:var(--color-primary);">Coming Soon</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="container">
+                <h2 style="font-family:var(--font-heading);color:#fff;text-align:center;margin-bottom:2rem;font-size:1.75rem;">Free Resources</h2>
+                <div class="links-grid" data-stagger>
                     <a href="tips.html" class="glass-panel link-card">
                         <div class="link-card__icon">&#x1F4A1;</div>
                         <div class="link-card__title">Tips &amp; Tricks</div>
-                        <div class="link-card__desc">Hard-won lessons from building a 128-agent AI platform. Claude Code, agent coordination, and more.</div>
+                        <div class="link-card__desc">Hard-won lessons from building a 129-agent AI platform.</div>
                     </a>
-                    <a href="compliance-services.html" class="glass-panel link-card">
+                    <a href="https://github.com/KytranKatarn" target="_blank" class="glass-panel link-card">
+                        <div class="link-card__icon">&#x1F4E6;</div>
+                        <div class="link-card__title">Open Source Tools</div>
+                        <div class="link-card__desc">Free tools, skills, and CLI on GitHub.</div>
+                    </a>
+                    <a href="compliance.html" class="glass-panel link-card">
                         <div class="link-card__icon">&#x1F6E1;&#xFE0F;</div>
-                        <div class="link-card__title">Compliance Services</div>
-                        <div class="link-card__desc">Enterprise-grade STIG, HIPAA, and SOC 2 compliance scanning at a fraction of the cost.</div>
+                        <div class="link-card__title">Trust Center</div>
+                        <div class="link-card__desc">Live compliance scores and security documentation.</div>
+                    </a>
+                    <a href="ai-directors.html" class="glass-panel link-card">
+                        <div class="link-card__icon">&#x1F916;</div>
+                        <div class="link-card__title">AI Directors</div>
+                        <div class="link-card__desc">Meet the 16 AI department heads running the platform.</div>
+                    </a>
+                    <a href="membership.html" class="glass-panel link-card">
+                        <div class="link-card__icon">&#x1F91D;</div>
+                        <div class="link-card__title">Community</div>
+                        <div class="link-card__desc">Join the community for mentorship and support.</div>
+                    </a>
+                    <a href="contact.html" class="glass-panel link-card">
+                        <div class="link-card__icon">&#x1F4EC;</div>
+                        <div class="link-card__title">Contact Us</div>
+                        <div class="link-card__desc">Questions? We're here to help.</div>
                     </a>
                 </div>
+            </div>
+        </section>
+
+        <section class="section" style="text-align:center;padding-bottom:4rem;">
+            <div class="container">
+                <p style="color:var(--color-text-muted);font-size:1.1rem;margin-bottom:1.5rem;">Ready to learn? Join the community and start building with AI today.</p>
+                <a href="membership.html" class="btn btn--primary btn--lg magnetic">Get Started</a>
             </div>
         </section>
     </main>
@@ -284,16 +339,16 @@
         </div>
     </footer>
 
-    <script defer src="js/lib/gsap.min.js?v=20260407z"></script>
-    <script defer src="js/lib/ScrollTrigger.min.js?v=20260407z"></script>
-    <script defer src="js/lib/lenis.min.js?v=20260407z"></script>
-    <script defer src="js/lib/splitting.min.js?v=20260407z"></script>
-    <script defer src="js/lib/barba.min.js?v=20260407z"></script>
-    <script defer src="js/effects.js?v=20260407z"></script>
-    <script defer src="js/nav.js?v=20260407z"></script>
-    <script defer src="js/transitions.js?v=20260407z"></script>
-    <script defer src="js/i18n.js?v=20260407z"></script>
-    <script defer src="js/app.js?v=20260407z"></script>
+    <script defer src="js/lib/gsap.min.js?v=20260407q"></script>
+    <script defer src="js/lib/ScrollTrigger.min.js?v=20260407q"></script>
+    <script defer src="js/lib/lenis.min.js?v=20260407q"></script>
+    <script defer src="js/lib/splitting.min.js?v=20260407q"></script>
+    <script defer src="js/lib/barba.min.js?v=20260407q"></script>
+    <script defer src="js/effects.js?v=20260407q"></script>
+    <script defer src="js/nav.js?v=20260407q"></script>
+    <script defer src="js/transitions.js?v=20260407q"></script>
+    <script defer src="js/i18n.js?v=20260407q"></script>
+    <script defer src="js/app.js?v=20260407q"></script>
     <!-- Cookie Consent -->
     <div id="cookieConsent" class="cookie-consent" style="display:none;">
       <div class="cookie-consent__inner">

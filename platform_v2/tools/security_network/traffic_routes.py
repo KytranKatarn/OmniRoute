@@ -131,7 +131,12 @@ def register_traffic_routes(bp, admin_required_decorator):
             for entry in entries:
                 ip = entry.get("client", "")
                 domain = entry.get("question", {}).get("name", "").lower().rstrip(".")
-                blocked = entry.get("reason", "") != ""
+                reason = entry.get("reason", "")
+                blocked = reason != "" and reason not in (
+                    "Rewrite",
+                    "NotFilteredWhiteList",
+                    "NotFilteredNotFound",
+                )
 
                 if ip not in clients:
                     clients[ip] = {

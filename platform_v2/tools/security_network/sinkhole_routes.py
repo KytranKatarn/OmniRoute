@@ -21,44 +21,49 @@ def register_sinkhole_routes(bp, admin_required_decorator):
     def dns_sinkhole_stats():
         """Top blocked domains from device_dns_history with category breakdown."""
         try:
-            hours = min(int(request.args.get("hours", 24)), 168)  # max 7 days
+            hours = int(request.args.get("hours", 24))
+            # 0 = all time, otherwise cap at 8760 (1 year)
+            if hours > 0:
+                hours = min(hours, 8760)
+            time_filter = "AND hour_bucket > NOW() - INTERVAL '%s hours'" % hours if hours > 0 else ""
 
             with get_db_cursor() as (conn, cur):
                 # Top 50 blocked domains by count
                 cur.execute(
-                    """
-                    SELECT domain, COUNT(*) as block_count,
+                    f"""
+                    SELECT domain, SUM(query_count) as block_count,
                            COUNT(DISTINCT device_ip) as unique_devices
                     FROM device_dns_history
                     WHERE blocked = true
-                      AND queried_at > NOW() - INTERVAL '%s hours'
+                      {time_filter}
+                      AND domain LIKE '%%.%%'
                     GROUP BY domain
                     ORDER BY block_count DESC
                     LIMIT 50
-                    """,
-                    (hours,),
+                    """
                 )
                 top_blocked = [dict(row) for row in cur.fetchall()]
 
                 # Category breakdown: join blocked domains against traffic_categories
                 cur.execute(
-                    """
+                    f"""
                     SELECT COALESCE(tc.category, 'uncategorized') AS category,
-                           COUNT(*) AS block_count
+                           SUM(ddh.query_count) AS block_count
                     FROM device_dns_history ddh
                     LEFT JOIN traffic_categories tc
                         ON tc.domain_pattern = SUBSTRING(ddh.domain FROM '([^.]+\\.[^.]+)$')
                     WHERE ddh.blocked = true
-                      AND ddh.queried_at > NOW() - INTERVAL '%s hours'
+                      {time_filter.replace('hour_bucket', 'ddh.hour_bucket')}
+                      AND ddh.domain LIKE '%%.%%'
                     GROUP BY tc.category
                     ORDER BY block_count DESC
-                    """,
-                    (hours,),
+                    """
                 )
                 categories = [dict(row) for row in cur.fetchall()]
 
             return jsonify(
                 {
+                    "success": True,
                     "status": "ok",
                     "hours": hours,
                     "top_blocked": top_blocked,
@@ -69,6 +74,328 @@ def register_sinkhole_routes(bp, admin_required_decorator):
         except Exception as e:
             logger.error("[Sinkhole] Stats failed: %s", e)
             return jsonify({"status": "error", "message": str(e)}), 500
+
+    @bp.route("/api/dns/sinkhole-stats/category", methods=["GET"])
+    @login_required
+    @admin_required_decorator
+    def dns_sinkhole_category_domains():
+        """Return blocked domains for a specific category."""
+        category = request.args.get("category", "").strip()
+        if not category:
+            return jsonify({"success": False, "error": "category required"}), 400
+
+        hours = int(request.args.get("hours", 24))
+        if hours > 0:
+            hours = min(hours, 8760)
+        time_filter = "AND ddh.hour_bucket > NOW() - INTERVAL '%s hours'" % hours if hours > 0 else ""
+
+        try:
+            with get_db_cursor() as (conn, cur):
+                if category == "uncategorized":
+                    cur.execute(
+                        f"""
+                        SELECT ddh.domain, SUM(ddh.query_count) AS block_count,
+                               COUNT(DISTINCT ddh.device_ip) AS unique_devices
+                        FROM device_dns_history ddh
+                        LEFT JOIN traffic_categories tc
+                            ON tc.domain_pattern = SUBSTRING(ddh.domain FROM '([^.]+\\.[^.]+)$')
+                        WHERE ddh.blocked = true
+                          AND tc.category IS NULL
+                          {time_filter}
+                          AND ddh.domain LIKE '%%.%%'
+                        GROUP BY ddh.domain
+                        ORDER BY block_count DESC
+                        LIMIT 30
+                        """
+                    )
+                else:
+                    cur.execute(
+                        f"""
+                        SELECT ddh.domain, SUM(ddh.query_count) AS block_count,
+                               COUNT(DISTINCT ddh.device_ip) AS unique_devices
+                        FROM device_dns_history ddh
+                        JOIN traffic_categories tc
+                            ON tc.domain_pattern = SUBSTRING(ddh.domain FROM '([^.]+\\.[^.]+)$')
+                        WHERE ddh.blocked = true
+                          AND tc.category = %s
+                          {time_filter}
+                          AND ddh.domain LIKE '%%.%%'
+                        GROUP BY ddh.domain
+                        ORDER BY block_count DESC
+                        LIMIT 30
+                        """,
+                        (category,),
+                    )
+                domains = [dict(row) for row in cur.fetchall()]
+
+            return jsonify({"success": True, "category": category, "domains": domains})
+        except Exception as e:
+            logger.error("[Sinkhole] Category domains failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/dns/domain-intel", methods=["GET"])
+    @login_required
+    @admin_required_decorator
+    def dns_domain_intel():
+        """Instant intelligence for a domain — history, devices, category, status."""
+        domain = request.args.get("domain", "").strip().lower()
+        if not domain:
+            return jsonify({"success": False, "error": "domain required"}), 400
+
+        result = {
+            "domain": domain,
+            "total_queries": 0,
+            "blocked_queries": 0,
+            "first_seen": None,
+            "last_seen": None,
+            "devices": [],
+            "category": "uncategorized",
+            "adguard_status": None,
+            "hourly": [],
+            "last_report": None,
+            "report_age": None,
+        }
+
+        try:
+            with get_db_cursor() as (conn, cur):
+                # Aggregate stats
+                cur.execute(
+                    """SELECT SUM(query_count) as total,
+                              SUM(CASE WHEN blocked THEN query_count ELSE 0 END) as blocked,
+                              MIN(hour_bucket) as first_seen,
+                              MAX(hour_bucket) as last_seen
+                       FROM device_dns_history WHERE domain = %s""",
+                    (domain,),
+                )
+                row = cur.fetchone()
+                if row:
+                    r = dict(row)
+                    result["total_queries"] = int(r.get("total") or 0)
+                    result["blocked_queries"] = int(r.get("blocked") or 0)
+                    result["first_seen"] = r["first_seen"].isoformat() if r.get("first_seen") else None
+                    result["last_seen"] = r["last_seen"].isoformat() if r.get("last_seen") else None
+
+                # Per-device breakdown
+                cur.execute(
+                    """SELECT ddh.device_ip,
+                              COALESCE(ndu.user_name, ndu.device_label, ddh.device_ip) as label,
+                              SUM(ddh.query_count) as queries,
+                              MAX(ddh.hour_bucket) as last_seen
+                       FROM device_dns_history ddh
+                       LEFT JOIN network_device_users ndu
+                           ON ndu.mac_address = (
+                               SELECT device_mac FROM network_traffic_stats
+                               WHERE device_ip = ddh.device_ip LIMIT 1
+                           )
+                       WHERE ddh.domain = %s
+                       GROUP BY ddh.device_ip, label
+                       ORDER BY queries DESC LIMIT 10""",
+                    (domain,),
+                )
+                for row in cur.fetchall():
+                    r = dict(row)
+                    result["devices"].append(
+                        {
+                            "ip": r.get("device_ip", ""),
+                            "label": r.get("label", r.get("device_ip", "")),
+                            "queries": int(r.get("queries") or 0),
+                            "last_seen": (r["last_seen"].isoformat() if r.get("last_seen") else None),
+                        }
+                    )
+
+                # Category from traffic_categories
+                base_domain = ".".join(domain.rsplit(".", 2)[-2:])
+                cur.execute(
+                    "SELECT category FROM traffic_categories WHERE domain_pattern = %s",
+                    (base_domain,),
+                )
+                cat_row = cur.fetchone()
+                if cat_row:
+                    result["category"] = cat_row["category"]
+
+                # Recent hourly trend for this domain
+                cur.execute(
+                    """SELECT hour_bucket, query_count, blocked
+                       FROM device_dns_history
+                       WHERE domain = %s AND hour_bucket >= NOW() - INTERVAL '48 hours'
+                       ORDER BY hour_bucket DESC LIMIT 48""",
+                    (domain,),
+                )
+                for row in cur.fetchall():
+                    r = dict(row)
+                    result["hourly"].append(
+                        {
+                            "hour": r["hour_bucket"].isoformat() if r.get("hour_bucket") else "",
+                            "count": int(r.get("query_count") or 0),
+                            "blocked": bool(r.get("blocked")),
+                        }
+                    )
+
+            # Check AdGuard status
+            try:
+                import os
+
+                import requests as _req
+
+                ag_host = os.getenv("ADGUARD_HOST", "network_adguard")
+                ag_port = os.getenv("ADGUARD_PORT", "80")
+                ag_user = os.getenv("ADGUARD_USER", "kytran")
+                ag_pass = os.getenv("ADGUARD_PASS", "")
+                r = _req.get(
+                    f"http://{ag_host}:{ag_port}/control/filtering/check_host",
+                    params={"name": domain},
+                    auth=(ag_user, ag_pass),
+                    timeout=3,
+                )
+                if r.status_code == 200:
+                    result["adguard_status"] = r.json()
+            except Exception:
+                pass
+
+            # Check for cached AI report in database
+            try:
+                with get_db_cursor() as (conn2, cur2):
+                    cur2.execute(
+                        """SELECT report, risk_level, investigated_by,
+                                  created_at, updated_at
+                           FROM domain_intel_reports WHERE domain = %s""",
+                        (domain,),
+                    )
+                    rpt = cur2.fetchone()
+                    if rpt:
+                        rpt = dict(rpt)
+                        result["last_report"] = rpt.get("report")
+                        result["report_risk"] = rpt.get("risk_level", "unknown")
+                        result["report_by"] = rpt.get("investigated_by", "AI Bridge")
+                        result["report_age"] = rpt["updated_at"].isoformat() if rpt.get("updated_at") else None
+            except Exception:
+                pass
+
+        except Exception as e:
+            logger.error("[Domain Intel] Failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+        return jsonify({"success": True, **result})
+
+    @bp.route("/api/dns/domain-investigate", methods=["POST"])
+    @login_required
+    @admin_required_decorator
+    def dns_domain_investigate():
+        """Use AI Bridge to investigate a domain — returns analysis report."""
+        data = request.get_json() or {}
+        domain = data.get("domain", "").strip().lower()
+        if not domain:
+            return jsonify({"success": False, "error": "domain required"}), 400
+
+        try:
+            from concurrent.futures import ThreadPoolExecutor, TimeoutError
+
+            from bridge_dispatcher import dispatch
+
+            prompt = (
+                f"Investigate the domain '{domain}'. Provide a brief security analysis:\n"
+                f"1. What is this domain? (company, service, or threat)\n"
+                f"2. Is it safe, suspicious, or malicious?\n"
+                f"3. What category? (ads/tracking, social, streaming, work, malware, etc.)\n"
+                f"4. Should it be blocked or allowed on a home network?\n"
+                f"Keep the response under 150 words, be direct."
+            )
+
+            # Dispatch through Department HQ — let it assign the right agent
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(
+                    dispatch,
+                    capability="classify",
+                    prompt=prompt,
+                    module_id="security_network",
+                )
+                try:
+                    result = future.result(timeout=120)
+                except TimeoutError:
+                    logger.warning("[Domain Investigate] Dispatch timed out after 120s")
+                    return jsonify(
+                        {
+                            "success": False,
+                            "error": "Investigation timed out — AI agents are busy. Try again shortly.",
+                            "domain": domain,
+                        }
+                    )
+
+            if result and result.success:
+                # Persist report to database
+                try:
+                    with get_db_cursor(commit=True) as (conn2, cur2):
+                        cur2.execute(
+                            """INSERT INTO domain_intel_reports (domain, report, investigated_by, updated_at)
+                               VALUES (%s, %s, %s, NOW())
+                               ON CONFLICT (domain) DO UPDATE
+                               SET report = EXCLUDED.report,
+                                   investigated_by = EXCLUDED.investigated_by,
+                                   updated_at = NOW()""",
+                            (
+                                domain,
+                                result.response,
+                                getattr(result, "agent_name", "AI Bridge"),
+                            ),
+                        )
+                except Exception as db_err:
+                    logger.warning("[Domain Investigate] DB save failed: %s", db_err)
+
+                return jsonify({"success": True, "domain": domain, "report": result.response})
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "AI analysis unavailable",
+                    "domain": domain,
+                }
+            )
+
+        except Exception as e:
+            logger.error("[Domain Investigate] Failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/dns/query-trend", methods=["GET"])
+    @login_required
+    @admin_required_decorator
+    def dns_query_trend():
+        """Hourly/daily DNS query counts for trend chart."""
+        try:
+            hours = int(request.args.get("hours", 24))
+            if hours > 0:
+                hours = min(hours, 8760)
+
+            # Use day buckets for >48h, hour for shorter
+            bucket = "day" if hours > 48 or hours == 0 else "hour"
+            fmt = "%b %d" if bucket == "day" else "%H:%M"
+
+            time_filter = f"WHERE hour_bucket > NOW() - INTERVAL '{hours} hours'" if hours > 0 else "WHERE 1=1"
+
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    f"""
+                    SELECT date_trunc('{bucket}', hour_bucket) as bucket,
+                           SUM(query_count) as total,
+                           SUM(CASE WHEN blocked THEN query_count ELSE 0 END) as blocked
+                    FROM device_dns_history
+                    {time_filter}
+                    GROUP BY 1 ORDER BY 1
+                    """
+                )
+                points = []
+                for row in cur.fetchall():
+                    r = dict(row)
+                    points.append(
+                        {
+                            "label": r["bucket"].strftime(fmt) if r.get("bucket") else "",
+                            "total": int(r.get("total") or 0),
+                            "blocked": int(r.get("blocked") or 0),
+                        }
+                    )
+
+            return jsonify({"success": True, "points": points, "bucket": bucket})
+        except Exception as e:
+            logger.error("[DNS Trend] Failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
 
     @bp.route("/api/dns/vpn-leak-check", methods=["GET"])
     @login_required
@@ -92,7 +419,7 @@ def register_sinkhole_routes(bp, admin_required_decorator):
                     SELECT DISTINCT device_ip
                     FROM device_dns_history
                     WHERE (domain LIKE '%%cae.com' OR domain LIKE '%%cae.ca')
-                      AND queried_at > NOW() - INTERVAL '%s hours'
+                      AND hour_bucket > NOW() - INTERVAL '%s hours'
                     """,
                     (hours,),
                 )
@@ -118,9 +445,9 @@ def register_sinkhole_routes(bp, admin_required_decorator):
                       AND ddh.domain NOT LIKE '%%cae.com'
                       AND ddh.domain NOT LIKE '%%cae.ca'
                       AND ddh.domain NOT LIKE '%%internal%%'
-                      AND ddh.queried_at > NOW() - INTERVAL '%s hours'
-                      AND EXTRACT(DOW FROM ddh.queried_at) BETWEEN 1 AND 5
-                      AND EXTRACT(HOUR FROM ddh.queried_at) BETWEEN 9 AND 16
+                      AND ddh.hour_bucket > NOW() - INTERVAL '%s hours'
+                      AND EXTRACT(DOW FROM ddh.hour_bucket) BETWEEN 1 AND 5
+                      AND EXTRACT(HOUR FROM ddh.hour_bucket) BETWEEN 9 AND 16
                     GROUP BY ddh.device_ip
                     HAVING COUNT(*) > 5
                     ORDER BY non_vpn_queries DESC
@@ -168,11 +495,11 @@ def register_sinkhole_routes(bp, admin_required_decorator):
                     """
                     SELECT ddh.device_ip,
                            COALESCE(tc.category, 'uncategorized') AS category,
-                           COUNT(*) AS query_count
+                           SUM(ddh.query_count) AS query_count
                     FROM device_dns_history ddh
                     LEFT JOIN traffic_categories tc
                         ON tc.domain_pattern = SUBSTRING(ddh.domain FROM '([^.]+\\.[^.]+)$')
-                    WHERE ddh.queried_at > NOW() - INTERVAL '%s hours'
+                    WHERE ddh.hour_bucket > NOW() - INTERVAL '%s hours'
                     GROUP BY ddh.device_ip, tc.category
                     ORDER BY query_count DESC
                     """,
@@ -184,12 +511,12 @@ def register_sinkhole_routes(bp, admin_required_decorator):
                 cur.execute(
                     """
                     SELECT COALESCE(tc.category, 'uncategorized') AS category,
-                           COUNT(*) AS query_count,
+                           SUM(ddh.query_count) AS query_count,
                            COUNT(DISTINCT ddh.device_ip) AS unique_devices
                     FROM device_dns_history ddh
                     LEFT JOIN traffic_categories tc
                         ON tc.domain_pattern = SUBSTRING(ddh.domain FROM '([^.]+\\.[^.]+)$')
-                    WHERE ddh.queried_at > NOW() - INTERVAL '%s hours'
+                    WHERE ddh.hour_bucket > NOW() - INTERVAL '%s hours'
                     GROUP BY tc.category
                     ORDER BY query_count DESC
                     """,
@@ -199,6 +526,7 @@ def register_sinkhole_routes(bp, admin_required_decorator):
 
             return jsonify(
                 {
+                    "success": True,
                     "status": "ok",
                     "hours": hours,
                     "per_device": per_device,
@@ -222,14 +550,14 @@ def register_sinkhole_routes(bp, admin_required_decorator):
                     """
                     SELECT COALESCE(ndu.user_name, 'unknown') AS user_name,
                            COALESCE(tc.category, 'uncategorized') AS category,
-                           COUNT(*) AS query_count,
+                           SUM(ddh.query_count) AS query_count,
                            COUNT(DISTINCT ddh.device_ip) AS unique_devices
                     FROM device_dns_history ddh
                     LEFT JOIN traffic_categories tc
                         ON tc.domain_pattern = SUBSTRING(ddh.domain FROM '([^.]+\\.[^.]+)$')
                     LEFT JOIN network_device_users ndu
                         ON ndu.device_ip = ddh.device_ip
-                    WHERE ddh.queried_at > NOW() - INTERVAL '%s hours'
+                    WHERE ddh.hour_bucket > NOW() - INTERVAL '%s hours'
                     GROUP BY ndu.user_name, tc.category
                     ORDER BY query_count DESC
                     """,
@@ -239,6 +567,7 @@ def register_sinkhole_routes(bp, admin_required_decorator):
 
             return jsonify(
                 {
+                    "success": True,
                     "status": "ok",
                     "hours": hours,
                     "by_user": by_user,

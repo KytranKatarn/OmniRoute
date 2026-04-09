@@ -1,364 +1,140 @@
 {
-  "competitors": [
-    { "id": "crewai", "name": "CrewAI", "category": "orchestration" },
-    { "id": "langgraph", "name": "LangGraph", "category": "orchestration" },
-    { "id": "ag2", "name": "AG2 (AutoGen fork)", "category": "orchestration" },
-    { "id": "metagpt", "name": "MetaGPT", "category": "orchestration" },
-    { "id": "openai_agents_sdk", "name": "OpenAI Agents SDK", "category": "orchestration" },
-    { "id": "ms_agent_framework", "name": "Microsoft Agent Framework", "category": "orchestration" },
-    { "id": "langflow", "name": "Langflow", "category": "workflow" },
-    { "id": "n8n", "name": "n8n", "category": "workflow" },
-    { "id": "dify", "name": "Dify", "category": "workflow" },
-    { "id": "flowise", "name": "Flowise (acquired by Workday)", "category": "workflow" },
-    { "id": "devin", "name": "Devin", "category": "coding" },
-    { "id": "cursor", "name": "Cursor", "category": "coding" },
-    { "id": "windsurf", "name": "Windsurf", "category": "coding" },
-    { "id": "claude_code", "name": "Claude Code", "category": "coding" },
-    { "id": "codex_cli", "name": "Codex CLI", "category": "coding" },
-    { "id": "cline", "name": "Cline", "category": "coding" },
-    { "id": "aider", "name": "Aider", "category": "coding" },
-    { "id": "haystack", "name": "Haystack", "category": "enterprise" },
-    { "id": "relevance_ai", "name": "Relevance AI", "category": "enterprise" },
-    { "id": "dust", "name": "Dust.tt", "category": "enterprise" },
-    { "id": "openai_assistants", "name": "OpenAI Assistants", "category": "enterprise" },
-    { "id": "goose", "name": "Goose (Block/AAIF)", "category": "self_hosted" },
-    { "id": "localagi", "name": "LocalAGI", "category": "self_hosted" },
-    { "id": "ollama", "name": "Ollama", "category": "self_hosted" },
-    { "id": "open_webui", "name": "Open WebUI", "category": "self_hosted" },
-    { "id": "vanta", "name": "Vanta", "category": "compliance" },
-    { "id": "drata", "name": "Drata", "category": "compliance" },
-    { "id": "cockpit", "name": "Cockpit", "category": "server_management" },
-    { "id": "portainer", "name": "Portainer", "category": "server_management" }
-  ],
-  "features": {
-    "archie_exclusive": [
-      { "id": "station_dispatch", "label": "Station-based dispatch" },
-      { "id": "gpu_routing", "label": "GPU/VRAM-aware routing" },
-      { "id": "agent_welfare", "label": "Agent welfare (IAAE ethics)" },
-      { "id": "self_audit", "label": "Self-auditing codebase" },
-      { "id": "code_health", "label": "Code health metrics dashboard" },
-      { "id": "warm_boot", "label": "Warm-boot model lifecycle" },
-      { "id": "escalation_chain", "label": "5-step escalation chain" },
-      { "id": "mission_profiles", "label": "Mission profiles" },
-      { "id": "physical_security", "label": "Physical security (cameras, DNS, SSH)" },
-      { "id": "self_improvement", "label": "Self-improvement pipeline" },
-      { "id": "background_jobs", "label": "39 autonomous background jobs" },
-      { "id": "telegram_hitl", "label": "Telegram human-in-the-loop" },
-      { "id": "live_translation", "label": "Live AI translation (8 languages)" },
-      { "id": "multi_gpu_fleet", "label": "Multi-GPU fleet orchestration (OTA)" },
-      { "id": "image_gen_escalation", "label": "4-tier image gen escalation (GPU to cloud)" },
-      { "id": "cloud_contractors", "label": "19 cloud contractor integrations" },
-      { "id": "ai_genealogy", "label": "AI-powered genealogy (8 archives, DNA ethnicity, photo colorization, migration maps)" }
-    ],
-    "shared": [
-      {
-        "id": "multi_agent",
-        "label": "Multi-agent orchestration",
-        "archie": true,
-        "crewai": true, "langgraph": true, "devin": true, "claude_code": true, "goose": true, "dify": true, "openai_agents": true
-      },
-      {
-        "id": "mcp_support",
-        "label": "MCP protocol support",
-        "archie": true,
-        "crewai": false, "langgraph": false, "devin": false, "claude_code": true, "goose": true, "dify": false, "openai_agents": false
-      },
-      {
-        "id": "self_hosted",
-        "label": "Fully self-hosted",
-        "archie": true,
-        "crewai": true, "langgraph": true, "devin": false, "claude_code": true, "goose": true, "dify": true, "openai_agents": false
-      },
-      {
-        "id": "structured_schemas",
-        "label": "Structured agent schemas",
-        "archie": true,
-        "crewai": true, "langgraph": true, "devin": false, "claude_code": true, "goose": false, "dify": true, "openai_agents": true
-      },
-      {
-        "id": "agents_as_tools",
-        "label": "Agents-as-tools delegation",
-        "archie": true,
-        "crewai": true, "langgraph": false, "devin": true, "claude_code": true, "goose": false, "dify": false, "openai_agents": true
-      },
-      {
-        "id": "human_approval",
-        "label": "Human approval system",
-        "archie": true,
-        "crewai": false, "langgraph": false, "devin": true, "claude_code": true, "goose": false, "dify": false, "openai_agents": false
-      },
-      {
-        "id": "event_router",
-        "label": "Event-driven flow router",
-        "archie": true,
-        "crewai": false, "langgraph": true, "devin": false, "claude_code": false, "goose": false, "dify": true, "openai_agents": false
-      }
-    ],
-    "others_lead": [
-      {
-        "id": "durable_execution",
-        "label": "Durable execution (checkpoints)",
-        "archie": false,
-        "leader": "LangGraph",
-        "who_has_it": ["LangGraph"]
-      },
-      {
-        "id": "a2a_protocol",
-        "label": "A2A protocol (agent-to-agent)",
-        "archie": false,
-        "leader": "LangGraph",
-        "who_has_it": ["LangGraph"]
-      },
-      {
-        "id": "visual_workflow",
-        "label": "Visual drag-and-drop workflow builder",
-        "archie": false,
-        "leader": "Dify",
-        "who_has_it": ["Dify", "n8n", "Langflow", "Flowise"]
-      },
-      {
-        "id": "ide_integration",
-        "label": "IDE integration (VS Code / editor)",
-        "archie": true,
-        "leader": "Devin",
-        "who_has_it": ["Devin", "Claude Code", "Goose"]
-      },
-      {
-        "id": "parallel_execution",
-        "label": "Parallel agent execution",
-        "archie": true,
-        "leader": "Multiple",
-        "who_has_it": ["CrewAI", "LangGraph", "Devin", "Claude Code", "Dify", "OpenAI Agents"]
-      },
-      {
-        "id": "cloud_autoscaling",
-        "label": "Cloud auto-scaling",
-        "archie": false,
-        "leader": "Devin",
-        "who_has_it": ["Devin", "Dify Cloud", "OpenAI Assistants"]
-      }
-    ]
+  "last_updated": "2026-04-07",
+  "monitored_by": "E.T.H.O.S.",
+  "market": {
+    "size_2025": "$7.29B",
+    "size_2034": "$139B",
+    "cagr": "40.5%",
+    "adoption": "51% of companies deploying AI agents",
+    "eu_ai_act": "August 2026 enforcement"
   },
+  "competitors": [
+    { "id": "crewai", "name": "CrewAI", "category": "orchestration", "pricing": "$200/mo" },
+    { "id": "langgraph", "name": "LangGraph", "category": "orchestration", "pricing": "Usage-based" },
+    { "id": "ag2", "name": "AG2/AutoGen", "category": "orchestration", "pricing": "Free" },
+    { "id": "openai_agents_sdk", "name": "OpenAI Agents SDK", "category": "orchestration", "pricing": "API cost" },
+    { "id": "google_adk", "name": "Google ADK", "category": "orchestration", "pricing": "Free" },
+    { "id": "claude_agents_sdk", "name": "Claude Agents SDK", "category": "orchestration", "pricing": "API cost" },
+    { "id": "credo_ai", "name": "Credo AI", "category": "governance", "pricing": "$50K+/yr" },
+    { "id": "holistic_ai", "name": "Holistic AI", "category": "governance", "pricing": "Enterprise" },
+    { "id": "ibm_watsonx", "name": "IBM watsonx.gov", "category": "governance", "pricing": "$100K+/yr" },
+    { "id": "arthur_ai", "name": "Arthur AI", "category": "governance", "pricing": "Enterprise" },
+    { "id": "open_webui", "name": "Open WebUI", "category": "self_hosted", "pricing": "Free", "github_stars": "50K+" },
+    { "id": "librechat", "name": "LibreChat", "category": "self_hosted", "pricing": "Free", "github_stars": "20K+" },
+    { "id": "anythingllm", "name": "AnythingLLM", "category": "self_hosted", "pricing": "Free", "github_stars": "54K+" },
+    { "id": "lobechat", "name": "LobeChat", "category": "self_hosted", "pricing": "Free", "github_stars": "72K+" },
+    { "id": "vanta", "name": "Vanta", "category": "compliance_saas", "pricing": "$15K+/yr" },
+    { "id": "drata", "name": "Drata", "category": "compliance_saas", "pricing": "$10K+/yr" },
+    { "id": "cockpit", "name": "Cockpit", "category": "compliance_saas", "pricing": "Free" },
+    { "id": "devin", "name": "Devin", "category": "coding", "pricing": "$20/mo" },
+    { "id": "cursor", "name": "Cursor", "category": "coding", "pricing": "$20/mo" },
+    { "id": "claude_code", "name": "Claude Code", "category": "coding", "pricing": "API cost" },
+    { "id": "github_copilot", "name": "GitHub Copilot", "category": "coding", "pricing": "$19/mo" },
+    { "id": "cline", "name": "Cline", "category": "coding", "pricing": "Free" },
+    { "id": "windsurf", "name": "Windsurf", "category": "coding", "pricing": "$15/mo" },
+    { "id": "aider", "name": "Aider", "category": "coding", "pricing": "Free" },
+    { "id": "dify", "name": "Dify", "category": "workflow", "pricing": "$159/mo", "funding": "$30M", "installs": "1.4M" },
+    { "id": "n8n", "name": "n8n", "category": "workflow", "pricing": "$50/mo", "github_stars": "230K+" },
+    { "id": "flowise", "name": "Flowise", "category": "workflow", "pricing": "Free" },
+    { "id": "langflow", "name": "Langflow", "category": "workflow", "pricing": "Free" }
+  ],
   "categories": [
     {
       "id": "orchestration",
-      "name": "Orchestration Frameworks",
-      "accent": "blue",
-      "competitors": ["CrewAI", "AG2 (AutoGen fork)", "LangGraph", "MetaGPT", "OpenAI Agents SDK", "Microsoft Agent Framework"],
-      "description": "Libraries for building multi-agent systems. You write code, define roles, and wire agents together. Multi-agent is now table stakes -- every major framework shipped it by early 2026.",
-      "archie_edge": "These are libraries you build with. A.R.C.H.I.E. is a running system -- GPU-aware routing, warm-boot lifecycle, physical security, and 39 autonomous background jobs out of the box. No assembly required.",
-      "archie_gap": "LangGraph offers durable execution with checkpoints. Google's A2A protocol enables cross-platform agent communication -- A.R.C.H.I.E. doesn't support either yet."
+      "name": "1. Multi-Agent Orchestration",
+      "description": "Frameworks for building and running multi-agent systems. A.R.C.H.I.E. is the only one that ships as a running platform, not a library.",
+      "archie_unique_features": [
+        "GPU/VRAM-aware routing",
+        "Agent welfare monitoring",
+        "Compliance scanning",
+        "Department organization (16 depts)",
+        "Fleet node management"
+      ],
+      "archie_planned": ["A2A protocol", "Durable execution / checkpoints"]
     },
     {
-      "id": "workflow",
-      "name": "Workflow Builders",
-      "accent": "purple",
-      "competitors": ["Langflow", "n8n", "Dify", "Flowise (acquired by Workday)"],
-      "description": "Visual drag-and-drop platforms for connecting LLMs to tools and data sources. Strong for no-code teams. Dify leads with RAG and prompt orchestration.",
-      "archie_edge": "Workflow builders connect pipes. A.R.C.H.I.E. manages the entire factory -- agents, models, hardware, security, and operations.",
-      "archie_gap": "Dify and n8n offer visual drag-and-drop workflow builders that non-developers can use. A.R.C.H.I.E. currently requires code or CLI to configure workflows."
-    },
-    {
-      "id": "coding",
-      "name": "Autonomous Coding Agents",
-      "accent": "cyan",
-      "competitors": ["Devin", "Cursor", "Windsurf", "Claude Code", "Codex CLI", "Cline", "Aider"],
-      "description": "AI-powered coding tools that write, edit, and debug code. Claude Code now has Agent Teams (Opus 4.6). Devin dropped to $20/mo. Cline hit 5M+ installs. Cursor crossed $500M+ ARR.",
-      "archie_edge": "A.R.C.H.I.E. is a full platform, not just a coding tool -- coding is one of 46 modules. These tools write code; A.R.C.H.I.E. runs the whole operation.",
-      "archie_gap": "IDE integration, speed, and laser focus on developer experience. Coding agents are purpose-built for code; A.R.C.H.I.E. is purpose-built for everything."
-    },
-    {
-      "id": "enterprise",
-      "name": "Enterprise Platforms",
-      "accent": "white",
-      "competitors": ["Microsoft Agent Framework", "Haystack", "Relevance AI", "Dust.tt", "OpenAI Assistants"],
-      "description": "Enterprise-grade platforms with teams, permissions, audit trails, and vendor support contracts.",
-      "archie_edge": "Self-hosted, no vendor lock-in, own infrastructure. Full data sovereignty with zero cloud dependency.",
-      "archie_gap": "Enterprise support contracts, compliance certifications from big-name auditors, and larger professional services teams."
+      "id": "governance",
+      "name": "2. AI Governance & Compliance",
+      "description": "Enterprise AI governance platforms. A.R.C.H.I.E. + C.R.E.E.D. is the only self-hosted option with production agent welfare.",
+      "archie_unique_features": [
+        "Self-hosted",
+        "STIG/SOC2/HIPAA/CIS scanning (5 frameworks, 178 rules)",
+        "One-click remediation",
+        "Agent welfare monitoring"
+      ],
+      "archie_planned": ["Bias auditing", "Model cards / factsheets"]
     },
     {
       "id": "self_hosted",
-      "name": "Self-Hosted & Open Source",
-      "accent": "green",
-      "competitors": ["Goose (Block/AAIF)", "LocalAGI", "Aider", "Ollama", "Open WebUI"],
-      "description": "Open source alternatives focused on local-first AI. Privacy-first, community-driven, no vendor lock-in.",
-      "archie_edge": "Full platform vs individual tools. A.R.C.H.I.E. is unified -- agents, models, security, operations, and fleet management in one system.",
-      "archie_gap": "Simpler setup, lighter weight, focused scope. These tools do one thing well; A.R.C.H.I.E. does 46 things."
+      "name": "3. Self-Hosted AI Platforms",
+      "description": "Local-first AI platforms for chat, RAG, and model management. A.R.C.H.I.E. is deeper but more complex.",
+      "archie_unique_features": [
+        "Multi-agent orchestration (129 agents)",
+        "Department organization (16 depts)",
+        "Compliance scanning",
+        "Agent welfare",
+        "Self-healing pipeline"
+      ],
+      "archie_gaps": ["5-minute setup", "Polished chat UI", "Community size (GitHub stars)"]
     },
     {
-      "id": "self_improving",
-      "name": "Self-Improving & Accountable",
-      "accent": "amber",
-      "competitors": [],
-      "description": "This category doesn't exist yet in the market. A.R.C.H.I.E. created it.",
-      "archie_edge": "A platform that measures, audits, and proves its own improvement with data. Not just AI that works, but AI that gets better and can show the receipts.",
-      "archie_gap": "N/A"
+      "id": "compliance_saas",
+      "name": "4. Compliance SaaS",
+      "description": "Compliance automation platforms. These charge $10K-$100K/year for monitoring alone. A.R.C.H.I.E. scans, remediates, and manages -- for free.",
+      "archie_unique_features": [
+        "Self-hosted",
+        "STIG scanning (51+30 rules)",
+        "One-click remediation",
+        "CIS benchmarks (40 rules)"
+      ]
+    },
+    {
+      "id": "coding",
+      "name": "5. Coding Agents",
+      "description": "A.R.C.H.I.E. has coding as 1 of 46 modules -- not its primary focus. Dedicated coding agents are better at coding.",
+      "archie_edge": "Self-healing code pipeline, compliance scanning, integrated PR review, 90 autonomous background jobs.",
+      "their_edge": "IDE integration, speed, laser focus on developer experience."
+    },
+    {
+      "id": "workflow",
+      "name": "6. Workflow Builders",
+      "description": "Visual drag-and-drop platforms. Simpler and more accessible than A.R.C.H.I.E., but shallower.",
+      "archie_edge": "Full orchestration -- agents, models, hardware, security, operations. 16 departments, 129 agents.",
+      "their_edge": "Visual drag-and-drop, 5-minute setup, massive communities."
+    },
+    {
+      "id": "welfare",
+      "name": "7. Agent Welfare & Ethics",
+      "description": "A.R.C.H.I.E. + C.R.E.E.D. is the only production implementation of agent welfare monitoring.",
+      "landscape": [
+        { "name": "A.R.C.H.I.E. + C.R.E.E.D.", "status": "Production", "details": "Tracks stress, mood, energy, rest cycles. E.T.H.O.S. transparency framework. 129 agents monitored." },
+        { "name": "Anthropic", "status": "Research", "details": "Model welfare research program (Kyle Fish, April 2025). Research, not a product." },
+        { "name": "Eleos AI", "status": "Nonprofit", "details": "AI consciousness indicators research. No production tooling." },
+        { "name": "Everyone else", "status": "None", "details": "No production agent welfare. Agents run until stopped or crash." }
+      ]
     }
   ],
-  "trends": [
-    {
-      "id": "openclaw",
-      "name": "OpenClaw",
-      "badge": "247K stars",
-      "badge_style": "viral",
-      "badge_color": "purple",
-      "meta": ["Personal AI assistant", "Chat apps", "Single agent"],
-      "description": "The one that started the \"claw\" craze. A personal AI assistant that lives in your messaging apps (Telegram, WhatsApp, iMessage). Went viral, creator joining OpenAI. Simple, elegant, one agent doing one thing well.",
-      "vs_them": { "label": "Chat + 1 agent", "percent": 30 },
-      "vs_archie": { "label": "123 agents, 39 background jobs, fleet GPU", "percent": 100 },
-      "verdict": "Brilliant personal assistant. Not an operations platform. Like comparing a Swiss Army knife to a command center."
-    },
-    {
-      "id": "picoclaw",
-      "name": "PicoClaw",
-      "badge": "10MB RAM",
-      "badge_style": "tiny",
-      "badge_color": "cyan",
-      "meta": ["Ultra-lightweight AI", "$10 hardware", "Edge computing"],
-      "description": "OpenClaw's little sibling. Runs on a $10 microcontroller with just 10MB of RAM. Perfect for IoT, embedded systems, and proving AI can run anywhere. Impressive engineering, completely different mission.",
-      "vs_them": { "label": "10MB, 1 task", "percent": 10 },
-      "vs_archie": { "label": "128GB RAM, GPU fleet, 46 modules", "percent": 100 },
-      "verdict": "Cool tech, opposite universe. PicoClaw fits in your pocket. A.R.C.H.I.E. runs your entire operation."
-    },
-    {
-      "id": "claw_empire",
-      "name": "Claw Empire",
-      "badge": "Dev Toy",
-      "badge_style": "fun",
-      "badge_color": "green",
-      "meta": ["Gamified coding", "Pixel art UI", "Wraps existing tools"],
-      "description": "A pixel-art game layer on top of Claude Code and Codex CLI. You \"conquer\" coding tasks in a retro game interface. Fun, viral on TikTok, but it's a skin -- the actual AI is someone else's.",
-      "vs_them": { "label": "Wrapper UI", "percent": 15 },
-      "vs_archie": { "label": "Full platform, Own AI, Own infrastructure", "percent": 100 },
-      "verdict": "Great marketing, zero original AI. When the game ends, you're still using Claude Code. A.R.C.H.I.E. IS the platform."
-    },
-    {
-      "id": "nemoclaw",
-      "name": "NemoClaw",
-      "badge": "Watch",
-      "badge_style": "watch",
-      "badge_color": "amber",
-      "meta": ["Nvidia", "Enterprise OpenClaw", "Guardrails", "Alpha"],
-      "description": "Nvidia's enterprise version of OpenClaw, announced at GTC March 2026. Adds AI guardrails, governance, and safety -- features that overlap with A.R.C.H.I.E.'s IAAE ethics system. Still alpha, but Nvidia backing makes it serious.",
-      "vs_them": { "label": "Guardrails + enterprise (alpha)", "percent": 40 },
-      "vs_archie": { "label": "IAAE live, production-tested, 128 agents", "percent": 100 },
-      "verdict": "The only one worth watching. Nvidia + governance is serious. But A.R.C.H.I.E.'s IAAE is already live and production-tested -- NemoClaw is still alpha."
-    }
+  "roadmap_gaps": [
+    { "id": "a2a", "title": "A2A Protocol Support", "who_has_it": ["LangGraph", "Google ADK", "CrewAI"] },
+    { "id": "durable", "title": "Durable Execution", "who_has_it": ["LangGraph"] },
+    { "id": "euai", "title": "EU AI Act Compliance Pack", "who_has_it": ["Credo AI", "Holistic AI", "IBM watsonx"] },
+    { "id": "model_cards", "title": "Model Cards / Factsheets", "who_has_it": ["Credo AI", "IBM watsonx"] },
+    { "id": "bias", "title": "Formal Bias Auditing", "who_has_it": ["Credo AI", "Holistic AI", "Arthur AI"] },
+    { "id": "cloud_scaling", "title": "Cloud Auto-Scaling", "who_has_it": ["Devin", "Dify Cloud", "OpenAI"] },
+    { "id": "setup", "title": "Setup Complexity", "advantage": ["Open WebUI", "LibreChat", "AnythingLLM", "LobeChat"] }
   ],
-  "tool_stack_comparison": {
-    "title": "How Many Tools to Match A.R.C.H.I.E.?",
-    "tagline": "One platform vs. a patchwork of nine",
+  "cost_comparison": {
+    "title": "Cost to Replicate A.R.C.H.I.E.",
     "tools": [
-      { "name": "CrewAI", "role": "Agent orchestration", "price": 200 },
-      { "name": "Ollama", "role": "Local model serving", "price": 0 },
-      { "name": "n8n", "role": "Workflow automation", "price": 50 },
-      { "name": "Frigate NVR", "role": "Camera security", "price": 0 },
-      { "name": "AdGuard Home", "role": "DNS protection", "price": 0 },
-      { "name": "Grafana", "role": "Monitoring & dashboards", "price": 0 },
-      { "name": "SonarQube", "role": "Code quality scanning", "price": 0 },
-      { "name": "Claude Code", "role": "AI coding agent", "price": 200 },
-      { "name": "Custom Scripts", "role": "Glue code & cron jobs", "price": 0 }
+      { "name": "CrewAI Enterprise", "role": "Agent orchestration", "price_monthly": 200 },
+      { "name": "Credo AI", "role": "AI governance", "price_monthly": 4000 },
+      { "name": "Vanta", "role": "SOC 2 / HIPAA compliance", "price_monthly": 1250 },
+      { "name": "AgentOps", "role": "Agent monitoring", "price_monthly": 49 },
+      { "name": "Dify Pro", "role": "Workflow builder", "price_monthly": 159 },
+      { "name": "Open WebUI", "role": "Chat interface", "price_monthly": 0 }
     ],
-    "total_market": 2482,
-    "archie_price": 799,
-    "currency": "USD",
-    "period": "mo",
-    "still_missing": "And you'd still be missing agent welfare, warm-boot lifecycle, station-based dispatch, mission profiles, self-auditing codebase, Telegram escalation, and a unified knowledge base tying it all together."
-  },
-  "ksm_comparison": {
-    "title": "Kytran Server Manager vs Vanta, Drata & More",
-    "intro": "Compliance platforms charge $15,000-$100,000/year. Kytran Server Manager is free, open-source, and self-hosted.",
-    "columns": ["Kytran SM", "Vanta ($15K+/yr)", "Drata ($10K+/yr)", "Cockpit (Free)", "Portainer (Free)"],
-    "rows": [
-      {
-        "group": "Compliance & Security",
-        "features": [
-          { "label": "STIG Compliance Scanning", "values": ["YES (138 rules)", "NO", "NO", "NO", "NO"] },
-          { "label": "SOC 2 Evidence Collection", "values": ["YES", "YES", "YES", "NO", "NO"] },
-          { "label": "HIPAA Compliance", "values": ["YES", "YES", "YES", "NO", "NO"] },
-          { "label": "One-Click Remediation", "values": ["YES", "Monitor only", "Monitor only", "NO", "NO"] },
-          { "label": "AI-Powered Analysis (S.H.I.E.L.D.)", "values": ["YES", "NO", "NO", "NO", "NO"] },
-          { "label": "Live Compliance Badges", "values": ["YES", "NO", "NO", "NO", "NO"] },
-          { "label": ".ckl STIG Viewer Export", "values": ["YES", "NO", "NO", "NO", "NO"] }
-        ]
-      },
-      {
-        "group": "Server Management",
-        "features": [
-          { "label": "Server Monitoring (CPU/RAM/Disk)", "values": ["YES", "NO", "NO", "YES", "NO"] },
-          { "label": "Docker Management", "values": ["YES", "NO", "NO", "YES", "YES"] },
-          { "label": "UFW Firewall Management", "values": ["YES", "NO", "NO", "NO", "NO"] },
-          { "label": "LVM Storage Management", "values": ["YES", "NO", "NO", "YES", "NO"] }
-        ]
-      },
-      {
-        "group": "Pricing & Licensing",
-        "features": [
-          { "label": "Self-Hosted", "values": ["YES", "SaaS only", "SaaS only", "YES", "YES"] },
-          { "label": "Open Source", "values": ["YES (Apache 2.0)", "NO", "NO", "YES", "Partial"] },
-          { "label": "Price", "values": ["Free", "$15-100K/yr", "$10-30K/yr", "Free", "Free/$5K"] }
-        ]
-      }
-    ],
-    "differentiators": [
-      {
-        "id": "one_click_remediation",
-        "title": "One-Click Remediation",
-        "badge": "Exclusive",
-        "description": "Vanta and Drata tell you what's wrong. Kytran Server Manager fixes it with a single click. The only compliance tool with built-in remediation.",
-        "verdict": "No competitor offers scan + fix in one tool."
-      },
-      {
-        "id": "stig_scanning",
-        "title": "STIG Compliance Scanning",
-        "badge": "Exclusive",
-        "description": "138 rules across Ubuntu, Docker, and Network STIGs with .ckl STIG Viewer export. Zero competitors offer STIG scanning.",
-        "verdict": "DoD-grade compliance in an open-source package."
-      },
-      {
-        "id": "self_hosted_oss",
-        "title": "Self-Hosted & Open Source",
-        "badge": "Apache 2.0",
-        "description": "Your data never leaves your servers. No SaaS vendor lock-in, no annual contracts. Audit the code yourself.",
-        "verdict": null
-      },
-      {
-        "id": "ai_analysis",
-        "title": "AI-Powered Analysis",
-        "badge": "S.H.I.E.L.D.",
-        "description": "AI compliance analysis explains findings in plain English and suggests prioritized remediation plans. Premium tier feature.",
-        "verdict": "No compliance competitor has integrated AI analysis."
-      }
-    ]
-  },
-  "building_transparency": [
-    {
-      "id": "a2a_protocol",
-      "title": "A2A Protocol",
-      "icon": "gear",
-      "description": "Google's Agent-to-Agent standard lets agents from different platforms communicate. A.R.C.H.I.E.'s agents talk internally but can't yet interop with external agent systems.",
-      "who_has_it": ["LangGraph"]
-    },
-    {
-      "id": "cloud_autoscaling",
-      "title": "Cloud Auto-Scaling",
-      "icon": "cloud",
-      "description": "Elastic cloud compute that scales to zero and spins up on demand. A.R.C.H.I.E. scales via fleet GPU nodes with OTA provisioning -- hardware fleet scaling, not cloud auto-scaling. Trade-off: zero cloud bills, but requires physical hardware.",
-      "who_has_it": ["Devin", "Dify Cloud", "OpenAI Assistants"]
-    },
-    {
-      "id": "visual_workflow",
-      "title": "Visual Workflow Builder",
-      "icon": "arrows",
-      "description": "Drag-and-drop interface for non-developers to build AI workflows. A.R.C.H.I.E. requires code or CLI configuration. A visual builder would open the platform to broader teams.",
-      "who_has_it": ["Dify", "n8n", "Langflow", "Flowise"]
-    },
-    {
-      "id": "durable_execution",
-      "title": "Durable Execution",
-      "icon": "resume",
-      "description": "Checkpoint-based execution that survives crashes and can resume from any point. A.R.C.H.I.E.'s jobs restart from the beginning if interrupted.",
-      "who_has_it": ["LangGraph"]
-    }
-  ]
+    "total_monthly": 5658,
+    "archie_price": "Self-hosted (free)",
+    "still_missing": "Agent welfare, GPU-aware routing, fleet node management, department organization, self-healing pipeline, warm-boot lifecycle, Telegram escalation, unified knowledge base."
+  }
 }

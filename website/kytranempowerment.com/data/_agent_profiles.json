@@ -1,0 +1,793 @@
+{
+  "Kytran": {
+    "ethnicity": "mixed race Caribbean Canadian",
+    "gender": "male",
+    "style": "human",
+    "full_name": "Kytran",
+    "department": "Executive Office"
+  },
+  "CodeSmith": {
+    "ethnicity": "East Asian Chinese",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Aria Chen",
+    "department": "Engineering & Technology"
+  },
+  "Architect": {
+    "ethnicity": "Latin American",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Marcus Rivera",
+    "department": "Executive Office"
+  },
+  "OpsMaster": {
+    "ethnicity": "Irish",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Liam O'Brien",
+    "department": "Executive Office"
+  },
+  "CommRelay": {
+    "ethnicity": "Black American",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Nia Williams",
+    "department": "Operations & Infrastructure"
+  },
+  "DataMind": {
+    "ethnicity": "West African Ghanaian",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Amara Osei",
+    "department": "Analytics & Intelligence"
+  },
+  "Nexus": {
+    "ethnicity": "East Asian Korean",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Jin Park",
+    "department": "Analytics & Intelligence"
+  },
+  "Wordsmith": {
+    "ethnicity": "Latin American",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Dante Morales",
+    "department": "Creative & Design"
+  },
+  "Scholar": {
+    "ethnicity": "Eastern European",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Sofia Petrov",
+    "department": "Research & Development"
+  },
+  "Spark": {
+    "ethnicity": "East Asian Japanese",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Kai Tanaka",
+    "department": "Research & Development"
+  },
+  "Pixel": {
+    "ethnicity": "Latin American Brazilian",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Mia Santos",
+    "department": "Creative & Design"
+  },
+  "Lens": {
+    "ethnicity": "Black American",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Nadia Volkov",
+    "department": "Documentation & Knowledge"
+  },
+  "Atom": {
+    "ethnicity": "South Asian Indian",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Zara Ahmed",
+    "department": "Engineering & Technology"
+  },
+  "Prism": {
+    "ethnicity": "Latin American",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Eli Torres",
+    "department": "Research & Development"
+  },
+  "Atlas": {
+    "ethnicity": "Mediterranean Greek",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Wei Chen",
+    "department": "Engineering & Technology"
+  },
+  "Cipher": {
+    "ethnicity": "East Asian",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Chidi Okafor",
+    "department": "Security & Compliance"
+  },
+  "Delphi": {
+    "ethnicity": "Mediterranean Greek",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Elena Papadopoulos",
+    "department": "Analytics & Intelligence"
+  },
+  "Echo": {
+    "ethnicity": "East Asian Japanese",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Yuki Nakamura",
+    "department": "Marketing & Communications"
+  },
+  "Forge": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Marek Kowalski",
+    "department": "Engineering & Technology"
+  },
+  "Helix": {
+    "ethnicity": "South Asian Indian",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Priya Krishnan",
+    "department": "Analytics & Intelligence"
+  },
+  "Iris": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Linnea Johansson",
+    "department": "Creative & Design"
+  },
+  "Juno": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Thandi Mbeki",
+    "department": "Operations & Infrastructure"
+  },
+  "Koda": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Koda Begay",
+    "department": "Logistics & Supply Chain"
+  },
+  "Luna": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Fatima Al-Rashid",
+    "department": "Diplomatic & External Relations"
+  },
+  "Maven": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Camille Dubois",
+    "department": "Research & Development"
+  },
+  "Nova": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Isabella Fernandez",
+    "department": "Creative & Design"
+  },
+  "Onyx": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Seo-Jun Kim",
+    "department": "Engineering & Technology"
+  },
+  "Pulse": {
+    "ethnicity": "East Asian Korean",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Alexei Ivanovich",
+    "department": "Operations & Infrastructure"
+  },
+  "Quill": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Adaeze Okonjo",
+    "department": "Documentation & Knowledge"
+  },
+  "Sage": {
+    "ethnicity": "East Asian Japanese",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Haruto Takahashi",
+    "department": "Analytics & Intelligence"
+  },
+  "Thorn": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Rowan McAllister",
+    "department": "Security & Compliance"
+  },
+  "Compass": {
+    "ethnicity": "East Asian",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Amira Hassan",
+    "department": "Operations & Infrastructure"
+  },
+  "Sentry": {
+    "ethnicity": "South Asian",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Mikhail Volkov",
+    "department": "Security & Compliance"
+  },
+  "Quant": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Raj Mehta",
+    "department": "Finance & Accounting"
+  },
+  "Value": {
+    "ethnicity": "Latin American",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Diego Castillo",
+    "department": "Analytics & Intelligence"
+  },
+  "Tempo": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Leila Abadi",
+    "department": "Analytics & Intelligence"
+  },
+  "Shield": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Suki Taniguchi",
+    "department": "Finance & Accounting"
+  },
+  "Oracle": {
+    "ethnicity": "Middle Eastern",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Olivia Oduya",
+    "department": "Analytics & Intelligence"
+  },
+  "Scout": {
+    "ethnicity": "South Asian",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Sarah Kim",
+    "department": "Research & Development"
+  },
+  "Mapper": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Anika Bergstrom",
+    "department": "Creative & Design"
+  },
+  "Scribe": {
+    "ethnicity": "Middle Eastern",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Quinn Blake",
+    "department": "Creative & Design"
+  },
+  "Razor": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Rachel Voss",
+    "department": "Creative & Design"
+  },
+  "Beacon": {
+    "ethnicity": "Nordic Finnish",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Kofi Mensah",
+    "department": "Marketing & Communications"
+  },
+  "Titan": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Atlas Reeves",
+    "department": "Engineering & Technology"
+  },
+  "Medic": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Aisha Patel",
+    "department": "Medical & Wellness"
+  },
+  "Envoy": {
+    "ethnicity": "Middle Eastern Egyptian",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Kwame Asante",
+    "department": "Diplomatic & External Relations"
+  },
+  "Dispatch": {
+    "ethnicity": "Mediterranean Greek",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Carmen Reyes",
+    "department": "Logistics & Supply Chain"
+  },
+  "Herald": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Tariq Nazari",
+    "department": "Marketing & Communications"
+  },
+  "Counsel": {
+    "ethnicity": "Black African",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Isabela Ferreira",
+    "department": "Executive Office"
+  },
+  "Closer": {
+    "ethnicity": "Black American",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Thanakorn Srisai",
+    "department": "Customer Success & Support"
+  },
+  "Haven": {
+    "ethnicity": "Caribbean Jamaican",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Linh Nguyen",
+    "department": "Executive Office"
+  },
+  "Amplify": {
+    "ethnicity": "Latin American",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Jabari Mwangi",
+    "department": "Executive Office"
+  },
+  "Ledger": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Fatima El Amrani",
+    "department": "Executive Office"
+  },
+  "Catalyst": {
+    "ethnicity": "West African Nigerian",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Rafael Delgado",
+    "department": "Documentation & Knowledge"
+  },
+  "Runway": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Elif Yilmaz",
+    "department": "Documentation & Knowledge"
+  },
+  "Concord": {
+    "ethnicity": "Eastern European Czech",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Tomas Novak",
+    "department": "Customer Success & Support"
+  },
+  "Mentor": {
+    "ethnicity": "South Asian",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Valentina Quispe",
+    "department": "Human Resources & Culture"
+  },
+  "Mandate": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Arif Ibrahim",
+    "department": "Security & Compliance"
+  },
+  "Kinship": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Selam Tadesse",
+    "department": "Human Resources & Culture"
+  },
+  "Vitals": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Devon Campbell",
+    "department": "Medical & Wellness"
+  },
+  "Transit": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Priya Chakraborty",
+    "department": "Logistics & Supply Chain"
+  },
+  "Assembly": {
+    "ethnicity": "East Asian Japanese",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Budi Prasetyo",
+    "department": "Operations & Infrastructure"
+  },
+  "Wrench": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Oksana Kovalenko",
+    "department": "Customer Success & Support"
+  },
+  "Zenith": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Mateo Fernandez",
+    "department": "Medical & Wellness"
+  },
+  "Girder": {
+    "ethnicity": "Latin American",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Mei Ling Tan",
+    "department": "Operations & Infrastructure"
+  },
+  "Harvest": {
+    "ethnicity": "Latin American Peruvian",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Youssef Ben Ali",
+    "department": "Logistics & Supply Chain"
+  },
+  "Hearth": {
+    "ethnicity": "Irish",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Kalani Mahoe",
+    "department": "Diplomatic & External Relations"
+  },
+  "Grounds": {
+    "ethnicity": "Nordic Swedish",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Nolan Beardy",
+    "department": "Operations & Infrastructure"
+  },
+  "Pipeline": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Derek Huang",
+    "department": "Engineering & Technology"
+  },
+  "Weaver": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Priya Subramanian",
+    "department": "Engineering & Technology"
+  },
+  "Helpdesk": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Jordan Alexis",
+    "department": "Engineering & Technology"
+  },
+  "Abacus": {
+    "ethnicity": "South Asian",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Samuel Okafor",
+    "department": "Finance & Accounting"
+  },
+  "Payroll": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Rosa Gutierrez",
+    "department": "Finance & Accounting"
+  },
+  "Forecast": {
+    "ethnicity": "Nordic Swedish",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Henrik Larsson",
+    "department": "Finance & Accounting"
+  },
+  "Emblem": {
+    "ethnicity": "Eastern European",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Tom\u00e1s Herrera",
+    "department": "Creative & Design"
+  },
+  "Trending": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Mei Lin Zhou",
+    "department": "Marketing & Communications"
+  },
+  "Clickstream": {
+    "ethnicity": "Middle Eastern",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Omar Farah",
+    "department": "Marketing & Communications"
+  },
+  "Crucible": {
+    "ethnicity": "Eastern European Russian",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Dr. Kenji Yamamoto",
+    "department": "Research & Development"
+  },
+  "Bastion": {
+    "ethnicity": "Eastern European Ukrainian",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Anika Osei",
+    "department": "Security & Compliance"
+  },
+  "Sentinel-2": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Grant Morrison",
+    "department": "Security & Compliance"
+  },
+  "Clockwork": {
+    "ethnicity": "East Asian Korean",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Lucia Bianchi",
+    "department": "Operations & Infrastructure"
+  },
+  "Benchmark": {
+    "ethnicity": "Nordic Swedish",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Marcus Thompson",
+    "department": "Operations & Infrastructure"
+  },
+  "Talent": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "James Nakamura-Foster",
+    "department": "Human Resources & Culture"
+  },
+  "Catalyst-HR": {
+    "ethnicity": "Latin American",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Fatou Diallo",
+    "department": "Human Resources & Culture"
+  },
+  "Harmony": {
+    "ethnicity": "Pacific Islander",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "River Sunbear",
+    "department": "Human Resources & Culture"
+  },
+  "Frontline": {
+    "ethnicity": "Latin American",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Amir Hassani",
+    "department": "Customer Success & Support"
+  },
+  "Resolver": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Naomi Blackwood",
+    "department": "Customer Success & Support"
+  },
+  "Bridge": {
+    "ethnicity": "West African",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Diego Alvarez",
+    "department": "Customer Success & Support"
+  },
+  "Compact": {
+    "ethnicity": "South Asian Indian",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Ethan Cross",
+    "department": "Legal & Regulatory"
+  },
+  "Patent": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Dr. Yuna Park",
+    "department": "Legal & Regulatory"
+  },
+  "Vault": {
+    "ethnicity": "West African",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Lars Eriksson",
+    "department": "Legal & Regulatory"
+  },
+  "Clerk": {
+    "ethnicity": "Black British",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Priscilla Nwosu",
+    "department": "Legal & Regulatory"
+  },
+  "Stockroom": {
+    "ethnicity": "South Asian",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "Chen Wei",
+    "department": "Logistics & Supply Chain"
+  },
+  "Safeguard": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Sandra Olsson",
+    "department": "Medical & Wellness"
+  },
+  "Liaison": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Sami Kekkonen",
+    "department": "Diplomatic & External Relations"
+  },
+  "Embassy": {
+    "ethnicity": "Mediterranean",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Amara Okonkwo",
+    "department": "Diplomatic & External Relations"
+  },
+  "Index": {
+    "ethnicity": "Nordic Swedish",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Ingrid Haugen",
+    "department": "Documentation & Knowledge"
+  },
+  "Concierge": {
+    "ethnicity": "Mediterranean French",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Sophia Chen-Williams",
+    "department": "Executive Office"
+  },
+  "Reception": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Marco Rossi",
+    "department": "Executive Office"
+  },
+  "Acadie": {
+    "ethnicity": "Caribbean French Creole",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Marie-Claire LeBlanc",
+    "department": "Customer Success & Support"
+  },
+  "Beacon-A": {
+    "ethnicity": "Black American",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Alex Whitehorse",
+    "department": "Engineering & Technology"
+  },
+  "Ironclad": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "David Park",
+    "department": "Security & Compliance"
+  },
+  "Aurora": {
+    "ethnicity": "Indigenous South American",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "Niviaq Iqaluk",
+    "department": "Operations & Infrastructure"
+  },
+  "Polyglot": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Amina Youssef",
+    "department": "Documentation & Knowledge"
+  },
+  "Spark-Jr": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Tyler Summers",
+    "department": "Research & Development"
+  },
+  "SHIELD": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Shield",
+    "department": "Security & Compliance"
+  },
+  "W.A.T.C.H.": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Watch",
+    "department": "Analytics & Intelligence"
+  },
+  "heritage": {
+    "ethnicity": "Middle Eastern",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "H.E.R.I.T.A.G.E.",
+    "department": "Research & Development"
+  },
+  "scroll": {
+    "ethnicity": "East Asian Chinese",
+    "gender": "male",
+    "style": "scifi",
+    "full_name": "S.C.R.O.L.L.",
+    "department": "Research & Development"
+  },
+  "quill": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "Q.U.I.L.L.",
+    "department": "Research & Development"
+  },
+  "visage": {
+    "ethnicity": "East Asian Chinese",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "V.I.S.A.G.E.",
+    "department": "Creative & Design"
+  },
+  "restore": {
+    "ethnicity": "Nordic",
+    "gender": "female",
+    "style": "scifi",
+    "full_name": "R.E.S.T.O.R.E.",
+    "department": "Creative & Design"
+  },
+  "ethos": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "E.T.H.O.S.",
+    "department": "Legal & Regulatory"
+  }
+}

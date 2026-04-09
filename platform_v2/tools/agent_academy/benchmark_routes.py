@@ -7,14 +7,11 @@ Run benchmarks, view results, rank agents by capability.
 import json
 import logging
 import time
-import urllib.request
 
 from flask import jsonify, request
 from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
-
-OLLAMA_URL = "http://192.168.1.200:11434"
 
 
 def register_benchmark_routes(bp, admin_required):
@@ -129,20 +126,21 @@ def register_benchmark_routes(bp, admin_required):
                 }
             ).encode()
 
-            req = urllib.request.Request(
-                f"{OLLAMA_URL}/api/generate",
-                data=payload,
-                headers={"Content-Type": "application/json"},
-            )
+            from bridge_dispatcher import dispatch
 
             start = time.time()
-            with urllib.request.urlopen(req, timeout=120) as resp:
-                result = json.loads(resp.read())
+            result = dispatch(
+                capability="benchmark",
+                prompt=f"{system_prompt}\n\n{test_prompt}" if system_prompt else test_prompt,
+                model=model_name,
+                module_id="agent_academy",
+                timeout=120,
+            )
             duration_ms = int((time.time() - start) * 1000)
 
-            response_text = result.get("response", "")
-            prompt_tokens = result.get("prompt_eval_count", 0)
-            completion_tokens = result.get("eval_count", 0)
+            response_text = result.response if result and result.success else ""
+            prompt_tokens = getattr(result, "prompt_tokens", 0) or 0
+            completion_tokens = getattr(result, "completion_tokens", 0) or 0
             success = bool(response_text.strip())
 
             # Basic quality scoring: length + speed + completeness
@@ -273,32 +271,26 @@ def register_benchmark_routes(bp, admin_required):
         results = {}
         for label, model_name in [("a", model_a), ("b", model_b)]:
             try:
-                payload = json.dumps(
-                    {
-                        "model": model_name,
-                        "prompt": test_prompt,
-                        "stream": False,
-                        "options": {"temperature": 0.7, "num_predict": 2048},
-                    }
-                ).encode()
-                req = urllib.request.Request(
-                    f"{OLLAMA_URL}/api/generate",
-                    data=payload,
-                    headers={"Content-Type": "application/json"},
-                )
+                from bridge_dispatcher import dispatch
+
                 start = time.time()
-                with urllib.request.urlopen(req, timeout=120) as resp:
-                    result = json.loads(resp.read())
+                result = dispatch(
+                    capability="benchmark",
+                    prompt=test_prompt,
+                    model=model_name,
+                    module_id="agent_academy",
+                    timeout=120,
+                )
                 duration_ms = int((time.time() - start) * 1000)
 
                 results[label] = {
                     "model": model_name,
-                    "response": result.get("response", ""),
+                    "response": result.response if result and result.success else "",
                     "duration_ms": duration_ms,
-                    "prompt_tokens": result.get("prompt_eval_count", 0),
-                    "completion_tokens": result.get("eval_count", 0),
-                    "success": True,
-                    "error": None,
+                    "prompt_tokens": getattr(result, "prompt_tokens", 0) or 0,
+                    "completion_tokens": getattr(result, "completion_tokens", 0) or 0,
+                    "success": bool(result and result.success),
+                    "error": None if (result and result.success) else getattr(result, "error", "dispatch failed"),
                 }
             except Exception as e:
                 results[label] = {

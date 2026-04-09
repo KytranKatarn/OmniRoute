@@ -65,7 +65,7 @@
     var agentsEl = document.getElementById(this.agentsElId);
     if (!agentsEl) return;
 
-    var stationsUrl = this.dataUrl || "/tools/starbase/api/stations";
+    var stationsUrl = this.dataUrl || "/tools/department-hq/api/stations";
     fetch(stationsUrl).then(function(resp) {
       var ct = resp.headers.get("content-type") || "";
       if (ct.indexOf("application/json") === -1) return Promise.reject("not json");
@@ -307,7 +307,7 @@
 
   DepartmentOps.prototype.checkJobs = function() {
     var self = this;
-    return fetch("/tools/starbase/api/bridge/jobs?status=running").then(function(resp) {
+    return fetch("/tools/department-hq/api/bridge/jobs?status=running").then(function(resp) {
       var ct = resp.headers.get("content-type") || "";
       if (ct.indexOf("application/json") === -1) return Promise.reject("not json");
       return resp.json();
@@ -330,7 +330,7 @@
     var retries = 0;
     var maxRetries = 3;
     var poll = setInterval(function() {
-      fetch("/tools/starbase/api/bridge/jobs/" + jobId).then(function(resp) {
+      fetch("/tools/department-hq/api/bridge/jobs/" + jobId).then(function(resp) {
         var ct = resp.headers.get("content-type") || "";
         if (ct.indexOf("application/json") === -1) return Promise.reject("not json");
         return resp.json();
@@ -370,9 +370,9 @@
             msg.appendChild(icon);
             msg.appendChild(document.createTextNode(" Job #" + jobId + " running \u2014 check "));
             var link = document.createElement("a");
-            link.href = "/tools/starbase";
+            link.href = "/tools/fleet";
             link.style.color = "var(--stn-accent,#8b5cf6)";
-            link.textContent = "Starbase Command";
+            link.textContent = "A.R.M.A.D.A.";
             msg.appendChild(link);
             msg.appendChild(document.createTextNode(" for live progress"));
             fallbackEl.appendChild(msg);
@@ -497,28 +497,31 @@
         btn.dataset.actionKey = act.action_key;
 
         btn.addEventListener("click", function() {
-          btn.disabled = true;
-          btn.dataset.origText = btn.textContent;
-          btn.textContent = "Running...";
+          var schema = act.params_schema || [];
+          var visibleParams = schema.filter(function(p) { return p.type !== "hidden"; });
 
-          DepartmentOps._execAction(
-            self,
-            act.action_key,
-            act.endpoint_path,
-            act.http_method || "POST",
-            act.creates_job,
-            {},
-            self.jobsElId,
-            function(result, err) {
-              btn.disabled = false;
-              btn.textContent = btn.dataset.origText;
-              if (err) {
-                console.warn("[DepartmentOps] Action failed:", act.action_key, err);
+          if (visibleParams.length > 0) {
+            // Show LCARS parameter modal
+            DepartmentOps._showParamModal(self, act, btn);
+          } else {
+            // No user input needed — collect hidden defaults and execute
+            var params = {};
+            schema.forEach(function(p) { if (p.default) params[p.key] = p.default; });
+            btn.disabled = true;
+            btn.dataset.origText = btn.textContent;
+            btn.textContent = "Running...";
+            DepartmentOps._execAction(
+              self, act.action_key, act.endpoint_path,
+              act.http_method || "POST", act.creates_job, params,
+              self.jobsElId,
+              function(result, err) {
+                btn.disabled = false;
+                btn.textContent = btn.dataset.origText;
+                if (err) console.warn("[DepartmentOps] Action failed:", act.action_key, err);
+                self.checkJobs().then(function(r) { self.render(r.myJobs); });
               }
-              // Refresh jobs display after action completes
-              self.checkJobs().then(function(r) { self.render(r.myJobs); });
-            }
-          );
+            );
+          }
         });
 
         cmdsEl.appendChild(btn);
@@ -565,12 +568,143 @@
    *   DepartmentOps.fetchActions("repair_bay").then(function(actions) { ... });
    */
   DepartmentOps.fetchActions = function(moduleSource) {
-    return fetch("/tools/starbase/api/station-actions?module_source=" + encodeURIComponent(moduleSource))
+    return fetch("/tools/department-hq/api/station-actions?module_source=" + encodeURIComponent(moduleSource))
       .then(function(r) { return r.json(); })
       .then(function(data) {
         return (data.success && data.actions) ? data.actions : [];
       })
       .catch(function() { return []; });
+  };
+
+  /**
+   * Show LCARS parameter modal for actions that require user input.
+   * Dynamically builds form fields from params_schema, then executes on submit.
+   */
+  DepartmentOps._showParamModal = function(ops, act, triggerBtn) {
+    // Remove any existing param modal
+    var existing = document.getElementById("dept-ops-param-modal");
+    if (existing) existing.remove();
+
+    var schema = act.params_schema || [];
+    var accentColor = act.color_class === "red" ? "#ef4444" :
+                      act.color_class === "green" ? "#22c55e" :
+                      act.color_class === "cyan" ? "#00e5ff" : "#8b5cf6";
+    var accentRgb = act.color_class === "red" ? "239,68,68" :
+                    act.color_class === "green" ? "34,197,94" :
+                    act.color_class === "cyan" ? "0,229,255" : "139,92,246";
+
+    // Build modal HTML
+    var fieldsHtml = "";
+    schema.forEach(function(p) {
+      if (p.type === "hidden") return;
+      var req = p.required ? ' required' : '';
+      var ph = p.placeholder || p.label || p.key;
+      fieldsHtml += '<div style="margin-bottom:12px">' +
+        '<label style="display:block;font-size:0.75rem;color:var(--archie-text-muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">' +
+        escHtml(p.label || p.key) + (p.required ? ' *' : '') + '</label>' +
+        '<input type="text" class="form-input" id="dept-param-' + p.key + '" placeholder="' + escHtml(ph) + '"' +
+        (p.default ? ' value="' + escHtml(p.default) + '"' : '') + req +
+        ' style="width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:var(--archie-text);padding:8px 12px;border-radius:4px;font-family:\'IBM Plex Mono\',monospace">' +
+        '</div>';
+    });
+
+    var modalHtml =
+      '<div class="bm-overlay active" id="dept-ops-param-modal" style="--bm-accent:' + accentColor + ';--bm-accent-rgb:' + accentRgb + '">' +
+        '<div class="bm-shell" style="max-width:420px">' +
+          '<div class="bm-frame">' +
+            '<div class="bm-frame-elbow-top"></div>' +
+            '<div class="bm-frame-seg"></div>' +
+            '<div class="bm-frame-seg dim"></div>' +
+            '<div class="bm-frame-light on"></div>' +
+            '<div class="bm-frame-light amber"></div>' +
+            '<div class="bm-frame-seg purple"></div>' +
+            '<div class="bm-frame-fill"></div>' +
+            '<div class="bm-frame-elbow-bottom"></div>' +
+          '</div>' +
+          '<div class="bm-content">' +
+            '<div class="bm-header">' +
+              '<span class="bm-header-title">' + escHtml(act.label) + '</span>' +
+              '<div class="bm-header-strip">' +
+                '<div class="bm-header-pip w1"></div>' +
+                '<div class="bm-header-pip w2"></div>' +
+                '<div class="bm-header-pip w3"></div>' +
+                '<button class="bm-close" id="dept-param-close">&times;</button>' +
+              '</div>' +
+            '</div>' +
+            '<div class="bm-body" style="padding:16px">' +
+              (act.description ? '<p style="color:var(--archie-text-muted);font-size:0.8rem;margin-bottom:16px">' + escHtml(act.description) + '</p>' : '') +
+              '<div id="dept-param-error" style="display:none;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);color:#ef4444;padding:8px 12px;border-radius:6px;font-size:0.8rem;margin-bottom:12px"></div>' +
+              fieldsHtml +
+            '</div>' +
+            '<div class="bm-footer" style="padding:12px 16px;display:flex;gap:8px;justify-content:flex-end">' +
+              '<button class="btn" id="dept-param-cancel" style="opacity:0.7">Cancel</button>' +
+              '<button class="btn-submit" id="dept-param-submit" style="background:rgba(' + accentRgb + ',0.2);border-color:rgba(' + accentRgb + ',0.5);color:' + accentColor + '">' +
+                escHtml(act.label) +
+              '</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    document.body.insertAdjacentHTML("beforeend", modalHtml);
+
+    var modal = document.getElementById("dept-ops-param-modal");
+
+    // Close handlers
+    function closeModal() { if (modal) modal.remove(); }
+    document.getElementById("dept-param-close").addEventListener("click", closeModal);
+    document.getElementById("dept-param-cancel").addEventListener("click", closeModal);
+    modal.addEventListener("click", function(e) { if (e.target === modal) closeModal(); });
+
+    // Submit handler
+    document.getElementById("dept-param-submit").addEventListener("click", function() {
+      var params = {};
+      var hasError = false;
+      schema.forEach(function(p) {
+        if (p.type === "hidden") {
+          if (p.default) params[p.key] = p.default;
+          return;
+        }
+        var input = document.getElementById("dept-param-" + p.key);
+        var val = input ? input.value.trim() : "";
+        if (p.required && !val) {
+          hasError = true;
+          if (input) input.style.borderColor = "#ef4444";
+        } else {
+          params[p.key] = val;
+        }
+      });
+
+      if (hasError) {
+        var errEl = document.getElementById("dept-param-error");
+        errEl.textContent = "Please fill in all required fields.";
+        errEl.style.display = "block";
+        return;
+      }
+
+      closeModal();
+
+      // Execute action with collected params
+      triggerBtn.disabled = true;
+      triggerBtn.dataset.origText = triggerBtn.textContent;
+      triggerBtn.textContent = "Running...";
+
+      DepartmentOps._execAction(
+        ops, act.action_key, act.endpoint_path,
+        act.http_method || "POST", act.creates_job, params,
+        ops.jobsElId,
+        function(result, err) {
+          triggerBtn.disabled = false;
+          triggerBtn.textContent = triggerBtn.dataset.origText;
+          if (err) console.warn("[DepartmentOps] Action failed:", act.action_key, err);
+          ops.checkJobs().then(function(r) { ops.render(r.myJobs); });
+        }
+      );
+    });
+
+    // Focus first input
+    var firstInput = modal.querySelector("input");
+    if (firstInput) setTimeout(function() { firstInput.focus(); }, 100);
   };
 
   /**

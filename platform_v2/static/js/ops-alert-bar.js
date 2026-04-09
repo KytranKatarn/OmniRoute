@@ -1,13 +1,13 @@
 /**
  * Ops Alert Bar — Unified Ops Center persistent alert strip
- * Polls /tools/autonomy/api/ops-summary every 30s
+ * Polls /tools/department-hq/api/dispatch/ops-summary every 30s
  * SECURITY: All rendering uses createElement + textContent (no innerHTML)
  */
 (function () {
     'use strict';
 
     var POLL_INTERVAL = 30000;
-    var API_URL = '/tools/autonomy/api/ops-summary';
+    var API_URL = '/tools/department-hq/api/dispatch/ops-summary';
     var LS_SOUND = 'opsSoundEnabled';
     var LS_SNOOZE = 'opsSnoozedUntil';
     var LS_LAST_ALERTS = 'opsLastAlertIds';
@@ -172,7 +172,7 @@
                 'severity-high',
                 'APPROVALS',
                 String(approvals) + ' PENDING',
-                '/tools/autonomy#approvals'
+                '/tools/department-hq/?tab=dispatch'
             ));
         }
 
@@ -181,7 +181,7 @@
             'ok',
             'JOBS',
             String(jobs) + ' RUNNING',
-            '/tools/autonomy#active'
+            '/tools/department-hq/?tab=dispatch'
         ));
 
         // Loops active
@@ -189,7 +189,7 @@
             'ok',
             'LOOPS',
             String(loops) + ' ACTIVE',
-            '/tools/autonomy#active'
+            '/tools/department-hq/?tab=dispatch'
         ));
 
         // Errors
@@ -198,7 +198,7 @@
                 'severity-low',
                 'ERRORS',
                 String(errors),
-                '/tools/autonomy#active'
+                '/tools/department-hq/?tab=dispatch'
             ));
         }
 

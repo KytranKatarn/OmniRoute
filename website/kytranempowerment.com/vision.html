@@ -25,10 +25,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/base.css?v=20260407z">
-    <link rel="stylesheet" href="css/components.css?v=20260407z">
-    <link rel="stylesheet" href="css/responsive.css?v=20260407z">
-    <link rel="stylesheet" href="css/reduced-motion.css?v=20260407z">
+    <link rel="stylesheet" href="css/base.css?v=20260407q">
+    <link rel="stylesheet" href="css/components.css?v=20260407q">
+    <link rel="stylesheet" href="css/responsive.css?v=20260407q">
+    <link rel="stylesheet" href="css/reduced-motion.css?v=20260407q">
     <link rel="canonical" href="https://kytranempowerment.com/vision.html">
     <meta property="og:title" content="Our Vision — Kytran Empowerment">
     <meta property="og:description" content="Kytran Empowerment vision — building the future of autonomous business operations through ethical AI, open compliance, and community-driven innovation.">
@@ -43,6 +43,14 @@
     <div class="dot-grid"></div>
     <div class="noise-overlay"></div>
     <div class="cursor-glow" id="cursorGlow"></div>
+
+
+
+
+
+
+
+
 
 
     <!-- Navigation -->
@@ -69,7 +77,8 @@
               <a href="legal-watch.html" class="nav__dropdown-item" data-i18n="nav.legal_watch">Legal Watch</a>
               <a href="gov-watch.html" class="nav__dropdown-item" data-i18n="nav.gov_watch">Gov Watch</a>
               <div class="nav__dropdown-divider"></div>
-              <a href="https://business.kytranempowerment.com" class="nav__dropdown-item" data-i18n="nav.business_suite">Business Suite</a>
+              <a href="business-suite.html" class="nav__dropdown-item" data-i18n="nav.business_suite">Business Suite</a>
+              <a href="system-operations.html" class="nav__dropdown-item" data-i18n="nav.sysops">System Operations</a>
             </div>
           </div>
 
@@ -80,7 +89,12 @@
             </button>
             <div class="nav__dropdown-menu">
               <a href="services.html" class="nav__dropdown-item" data-i18n="nav.all_services">All Services</a>
+              <div class="nav__dropdown-divider"></div>
+              <a href="website-services.html" class="nav__dropdown-item">Website Design &amp; Hosting</a>
+              <a href="security-services.html" class="nav__dropdown-item">Security Testing</a>
+              <a href="ai-services.html" class="nav__dropdown-item">AI Automation</a>
               <a href="compliance-services.html" class="nav__dropdown-item" data-i18n="nav.compliance_scanning">Compliance Scanning</a>
+              <div class="nav__dropdown-divider"></div>
               <a href="membership.html" class="nav__dropdown-item" data-i18n="nav.pricing">Membership &amp; Pricing</a>
             </div>
           </div>
@@ -106,7 +120,6 @@
               <a href="about.html" class="nav__dropdown-item" data-i18n="nav.about">About</a>
               <a href="vision.html" class="nav__dropdown-item" data-i18n="nav.vision">Vision</a>
               <a href="directory.html" class="nav__dropdown-item" data-i18n="nav.directory">Directory</a>
-              <a href="books.html" class="nav__dropdown-item" data-i18n="nav.books">Books</a>
               <a href="tips.html" class="nav__dropdown-item" data-i18n="nav.tips">Tips &amp; Tricks</a>
               <a href="links.html" class="nav__dropdown-item" data-i18n="nav.links">Programs &amp; Resources</a>
               <a href="submit-story.html" class="nav__dropdown-item" data-i18n="nav.submit_story">Submit Your Story</a>
@@ -126,142 +139,206 @@
             <span class="nav__menu-icon"></span>
           </button>
         </div>
-      </div>    </nav>
+      </div>
 
 
-      <div class="lang-overlay" hidden>
-        <div class="lang-overlay__panel">
-          <button class="lang-overlay__close" aria-label="Close language selector">&times;</button>
-          <h3 class="lang-overlay__title" data-i18n="lang.choose">Choose Language</h3>
-          <div class="lang-overlay__grid">
-            <button class="lang-overlay__btn" data-lang="en">English</button>
-            <button class="lang-overlay__btn" data-lang="fr">Fran&ccedil;ais (QC)</button>
-            <button class="lang-overlay__btn" data-lang="es">Espa&ntilde;ol</button>
-            <button class="lang-overlay__btn" data-lang="pt">Portugu&ecirc;s</button>
-            <button class="lang-overlay__btn" data-lang="de">Deutsch</button>
-            <button class="lang-overlay__btn" data-lang="zh">&#20013;&#25991;</button>
-            <button class="lang-overlay__btn" data-lang="ar" dir="rtl">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</button>
-            <button class="lang-overlay__btn" data-lang="he" dir="rtl">&#1506;&#1489;&#1512;&#1497;&#1514;</button>
+    </nav>
+
+    <div class="lang-overlay" hidden>
+      <div class="lang-overlay__panel">
+        <button class="lang-overlay__close" aria-label="Close language selector">&times;</button>
+        <h3 class="lang-overlay__title" data-i18n="lang.choose">Choose Language</h3>
+        <div class="lang-overlay__grid">
+          <button class="lang-overlay__btn" data-lang="en">English</button>
+          <button class="lang-overlay__btn" data-lang="fr">Fran&ccedil;ais (QC)</button>
+          <button class="lang-overlay__btn" data-lang="es">Espa&ntilde;ol</button>
+          <button class="lang-overlay__btn" data-lang="pt">Portugu&ecirc;s</button>
+          <button class="lang-overlay__btn" data-lang="de">Deutsch</button>
+          <button class="lang-overlay__btn" data-lang="zh">&#20013;&#25991;</button>
+          <button class="lang-overlay__btn" data-lang="ar" dir="rtl">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</button>
+          <button class="lang-overlay__btn" data-lang="he" dir="rtl">&#1506;&#1489;&#1512;&#1497;&#1514;</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav-mobile" id="navMobile" aria-hidden="true">
+      <div class="nav-mobile__inner">
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.products">Products</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="platform.html" data-i18n="nav.platform">Platform (A.R.C.H.I.E.)</a>
+            <a href="ai-directors.html" data-i18n="nav.ai_directors">AI Directors</a>
+            <a href="archie-code.html" data-i18n="nav.archie_code">ARCHIE Code CLI</a>
+            <a href="market-watch.html" data-i18n="nav.market_watch">Market Watch</a>
+            <a href="civic-watch.html" data-i18n="nav.civic_watch">Civic Watch</a>
+            <a href="legal-watch.html" data-i18n="nav.legal_watch">Legal Watch</a>
+            <a href="gov-watch.html" data-i18n="nav.gov_watch">Gov Watch</a>
+            <a href="business-suite.html" data-i18n="nav.business_suite">Business Suite</a>
+            <a href="system-operations.html" data-i18n="nav.sysops">System Operations</a>
           </div>
         </div>
-      </div>
-
-<div class="nav-mobile" id="navMobile" aria-hidden="true">
-  <div class="nav-mobile__inner">
-    <div class="nav-mobile__group">
-      <button class="nav-mobile__trigger" aria-expanded="false">
-        <span data-i18n="nav.products">Products</span>
-        <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-      </button>
-      <div class="nav-mobile__items">
-        <a href="platform.html" data-i18n="nav.platform">Platform (A.R.C.H.I.E.)</a>
-        <a href="ai-directors.html" data-i18n="nav.ai_directors">AI Directors</a>
-        <a href="archie-code.html" data-i18n="nav.archie_code">ARCHIE Code CLI</a>
-        <a href="market-watch.html" data-i18n="nav.market_watch">Market Watch</a>
-        <a href="civic-watch.html" data-i18n="nav.civic_watch">Civic Watch</a>
-        <a href="legal-watch.html" data-i18n="nav.legal_watch">Legal Watch</a>
-        <a href="gov-watch.html" data-i18n="nav.gov_watch">Gov Watch</a>
-        <a href="https://business.kytranempowerment.com" data-i18n="nav.business_suite">Business Suite</a>
-      </div>
-    </div>
-    <div class="nav-mobile__group">
-      <button class="nav-mobile__trigger" aria-expanded="false">
-        <span data-i18n="nav.services">Services</span>
-        <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-      </button>
-      <div class="nav-mobile__items">
-        <a href="services.html" data-i18n="nav.all_services">All Services</a>
-        <a href="compliance-services.html" data-i18n="nav.compliance_scanning">Compliance Scanning</a>
-        <a href="membership.html" data-i18n="nav.pricing">Membership &amp; Pricing</a>
-      </div>
-    </div>
-    <div class="nav-mobile__group">
-      <button class="nav-mobile__trigger" aria-expanded="false">
-        <span data-i18n="nav.trust">Trust</span>
-        <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-      </button>
-      <div class="nav-mobile__items">
-        <a href="compliance.html" data-i18n="nav.trust_center">Trust Center</a>
-        <a href="competitors.html" data-i18n="nav.competitors">Why A.R.C.H.I.E.</a>
-        <a href="creed.html" data-i18n="nav.creed">C.R.E.E.D.</a>
-      </div>
-    </div>
-    <div class="nav-mobile__group">
-      <button class="nav-mobile__trigger" aria-expanded="false">
-        <span data-i18n="nav.company">Company</span>
-        <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-      </button>
-      <div class="nav-mobile__items">
-        <a href="about.html" data-i18n="nav.about">About</a>
-        <a href="vision.html" data-i18n="nav.vision">Vision</a>
-        <a href="directory.html" data-i18n="nav.directory">Directory</a>
-        <a href="books.html" data-i18n="nav.books">Books</a>
-        <a href="tips.html" data-i18n="nav.tips">Tips &amp; Tricks</a>
-        <a href="links.html" data-i18n="nav.links">Programs &amp; Resources</a>
-        <a href="submit-story.html" data-i18n="nav.submit_story">Submit Your Story</a>
-      </div>
-    </div>
-    <a href="store.html" class="nav-mobile__direct" data-i18n="nav.store">Store</a>
-    <a href="contact.html" class="nav-mobile__direct" data-i18n="nav.contact">Contact</a>
-    <a href="membership.html" class="nav-mobile__cta" data-i18n="nav.get_started">Get Started</a>
-  </div>
-</div>
-</div></div></div></div>
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.services">Services</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="services.html" data-i18n="nav.all_services">All Services</a>
+            <a href="website-services.html">Website Design &amp; Hosting</a>
+            <a href="security-services.html">Security Testing</a>
+            <a href="ai-services.html">AI Automation</a>
+            <a href="compliance-services.html" data-i18n="nav.compliance_scanning">Compliance Scanning</a>
+            <a href="membership.html" data-i18n="nav.pricing">Membership &amp; Pricing</a>
+          </div>
         </div>
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.trust">Trust</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="compliance.html" data-i18n="nav.trust_center">Trust Center</a>
+            <a href="competitors.html" data-i18n="nav.competitors">Why A.R.C.H.I.E.</a>
+            <a href="creed.html" data-i18n="nav.creed">C.R.E.E.D.</a>
+          </div>
+        </div>
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.company">Company</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="about.html" data-i18n="nav.about">About</a>
+            <a href="vision.html" data-i18n="nav.vision">Vision</a>
+            <a href="directory.html" data-i18n="nav.directory">Directory</a>
+            <a href="tips.html" data-i18n="nav.tips">Tips &amp; Tricks</a>
+            <a href="links.html" data-i18n="nav.links">Programs &amp; Resources</a>
+            <a href="submit-story.html" data-i18n="nav.submit_story">Submit Your Story</a>
+          </div>
+        </div>
+        <a href="store.html" class="nav-mobile__direct" data-i18n="nav.store">Store</a>
+        <a href="contact.html" class="nav-mobile__direct" data-i18n="nav.contact">Contact</a>
+        <a href="membership.html" class="nav-mobile__cta" data-i18n="nav.get_started">Get Started</a>
+      </div>
     </div>
 
 
     <!-- Page content -->
     <main data-barba="container" data-barba-namespace="vision">
+
+        <!-- Hero -->
         <section class="hero">
             <div class="hero__content container">
                 <h1 class="hero__title gradient-text">Our Vision</h1>
-                <p class="hero__tagline">Building the future of empowerment &mdash; one system at a time.</p>
+                <p class="hero__tagline">Bridge the gap between everyday people and the technology that can change their lives.</p>
             </div>
         </section>
 
-        <!-- The Retreat -->
+        <!-- Why This Exists -->
         <section class="section">
             <div class="container" style="max-width: 800px;">
                 <div class="glass-panel" style="padding: 3rem;">
-                    <h2 class="gradient-text" style="font-family: var(--font-heading); font-size: 1.8rem; margin-bottom: 1.5rem;">The Retreat Center</h2>
-                    <p style="color: var(--text-secondary); line-height: 1.8; font-size: 1.05rem; margin-bottom: 1.5rem;">
-                        We envision a private retreat center built by men, for men &mdash; where healing, entrepreneurship, fitness, and mindset training come together. This future campus will be a place of growth and transformation.
+                    <h2 class="gradient-text" style="font-family: var(--font-heading); font-size: 1.8rem; margin-bottom: 1.5rem;">Why This Exists</h2>
+                    <p style="color: var(--color-text-muted); line-height: 1.8; font-size: 1.05rem; margin-bottom: 1.5rem;">
+                        This company was born from rock bottom. After a second divorce, nearly losing his life, and years of not being heard &mdash; our founder spent four years building tools just to survive. Not to launch a startup. Not to impress investors. To stay alive and find a way forward.
                     </p>
-                    <p style="color: var(--text-secondary); line-height: 1.8; font-size: 1.05rem; margin-bottom: 1.5rem;">
-                        A space where veterans, entrepreneurs, and men seeking purpose can connect with mentors, access world-class AI tools, and build the discipline and skills to lead their industries.
+                    <p style="color: var(--color-text-muted); line-height: 1.8; font-size: 1.05rem; margin-bottom: 1.5rem;">
+                        Those tools worked. They became systems. The systems became a platform. And the platform became something worth sharing &mdash; because if it helped one person crawl out of the dark, it can help others too.
                     </p>
-                    <p style="color: var(--text-secondary); line-height: 1.8; font-size: 1.05rem;">
-                        Until then, we bring the retreat to you &mdash; through our AI platform, our community, and our content.
+                    <p style="color: var(--color-text-muted); line-height: 1.8; font-size: 1.05rem;">
+                        Kytran Empowerment isn't a tech company pretending to care. It's the real thing &mdash; built by someone who needed it first, and now wants to make sure nobody else has to build it alone.
                     </p>
                 </div>
             </div>
         </section>
 
-        <!-- Pillars -->
+        <!-- The Vision Camp -->
+        <section class="section">
+            <div class="container" style="max-width: 800px;">
+                <div class="glass-panel" style="padding: 3rem;">
+                    <h2 class="gradient-text" style="font-family: var(--font-heading); font-size: 1.8rem; margin-bottom: 1.5rem;">The Vision Camp</h2>
+                    <p style="color: var(--color-text-muted); line-height: 1.8; font-size: 1.05rem; margin-bottom: 1.5rem;">
+                        The long-term dream is land. A real place with mini homes, workshops, and open space &mdash; where people come to learn, grow, and rebuild. Physical skills alongside technical skills. Mentorship from people who've actually been through it.
+                    </p>
+                    <p style="color: var(--color-text-muted); line-height: 1.8; font-size: 1.05rem; margin-bottom: 1.5rem;">
+                        Imagine a camp where you learn to wire a house in the morning and deploy an AI assistant for your business in the afternoon. Where a retired tradesperson mentors someone just starting out, and a first-generation entrepreneur finds their footing surrounded by people who get it.
+                    </p>
+                    <p style="color: var(--color-text-muted); line-height: 1.8; font-size: 1.05rem;">
+                        Not a retreat for the privileged. A launchpad for people who need direction, community, and a fair shot.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Bridging AI & Everyday Life -->
+        <section class="section">
+            <div class="container" style="max-width: 800px;">
+                <div class="glass-panel" style="padding: 3rem;">
+                    <h2 class="gradient-text" style="font-family: var(--font-heading); font-size: 1.8rem; margin-bottom: 1.5rem;">Bridging AI &amp; Everyday Life</h2>
+                    <p style="color: var(--color-text-muted); line-height: 1.8; font-size: 1.05rem; margin-bottom: 1.5rem;">
+                        AI scares most people. It shouldn't. The problem isn't the technology &mdash; it's that nobody's explaining it in a way that makes sense for a small business owner, a farmer, a local government office, or someone just trying to get organized.
+                    </p>
+                    <p style="color: var(--color-text-muted); line-height: 1.8; font-size: 1.05rem; margin-bottom: 1.5rem;">
+                        We build local-first AI. Self-hosted. No vendor lock-in. No monthly ransom to a cloud giant. Your data stays yours. Our tools run on hardware you can touch, in a language you can understand.
+                    </p>
+                    <p style="color: var(--color-text-muted); line-height: 1.8; font-size: 1.05rem;">
+                        Residential automation. Rural operations. Small business workflows. Government transparency. Every industry needs advancement &mdash; and we believe everyone deserves access to it, not just the ones who can afford a six-figure consulting firm.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Four Pillars -->
         <section class="section">
             <div class="container">
                 <h2 class="section__title gradient-text" style="text-align: center; margin-bottom: 3rem;">Four Pillars</h2>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;">
                     <div class="glass-panel" style="padding: 2rem; text-align: center;">
                         <div style="font-size: 2.5rem; margin-bottom: 1rem;">&#x1F9E0;</div>
-                        <h3 style="font-family: var(--font-heading); color: var(--text-primary); margin-bottom: 0.75rem;">Mindset</h3>
-                        <p style="color: var(--text-secondary); font-size: 0.95rem;">Mental resilience training, stoic philosophy, and cognitive frameworks for peak performance.</p>
+                        <h3 style="font-family: var(--font-heading); color: var(--color-text-primary); margin-bottom: 0.75rem;">Mindset</h3>
+                        <p style="color: var(--color-text-muted); font-size: 0.95rem;">When everything falls apart, your mind is the first thing you rebuild. We teach the frameworks that got our founder through the worst years of his life &mdash; not theory, lived experience.</p>
                     </div>
                     <div class="glass-panel" style="padding: 2rem; text-align: center;">
                         <div style="font-size: 2.5rem; margin-bottom: 1rem;">&#x1F4BC;</div>
-                        <h3 style="font-family: var(--font-heading); color: var(--text-primary); margin-bottom: 0.75rem;">Entrepreneurship</h3>
-                        <p style="color: var(--text-secondary); font-size: 0.95rem;">AI-powered business tools, mentorship, and real-world strategies to build and scale.</p>
+                        <h3 style="font-family: var(--font-heading); color: var(--color-text-primary); margin-bottom: 0.75rem;">Entrepreneurship</h3>
+                        <p style="color: var(--color-text-muted); font-size: 0.95rem;">Real tools for real businesses. AI-powered systems you can actually use &mdash; invoicing, CRM, compliance, automation. Built for the person who's figuring it out as they go, not the one with an MBA.</p>
                     </div>
                     <div class="glass-panel" style="padding: 2rem; text-align: center;">
                         <div style="font-size: 2.5rem; margin-bottom: 1rem;">&#x1F4AA;</div>
-                        <h3 style="font-family: var(--font-heading); color: var(--text-primary); margin-bottom: 0.75rem;">Fitness</h3>
-                        <p style="color: var(--text-secondary); font-size: 0.95rem;">Physical training programs, nutrition guidance, and accountability systems.</p>
+                        <h3 style="font-family: var(--font-heading); color: var(--color-text-primary); margin-bottom: 0.75rem;">Fitness</h3>
+                        <p style="color: var(--color-text-muted); font-size: 0.95rem;">Your body carries you through everything else. Simple training, honest nutrition advice, and a community that holds you accountable &mdash; because discipline is a skill, not a personality trait.</p>
                     </div>
                     <div class="glass-panel" style="padding: 2rem; text-align: center;">
                         <div style="font-size: 2.5rem; margin-bottom: 1rem;">&#x2764;&#xFE0F;</div>
-                        <h3 style="font-family: var(--font-heading); color: var(--text-primary); margin-bottom: 0.75rem;">Healing</h3>
-                        <p style="color: var(--text-secondary); font-size: 0.95rem;">Trauma recovery, peer support, and evidence-based wellness practices.</p>
+                        <h3 style="font-family: var(--font-heading); color: var(--color-text-primary); margin-bottom: 0.75rem;">Healing</h3>
+                        <p style="color: var(--color-text-muted); font-size: 0.95rem;">You can't build a future on a broken foundation. We create space for real recovery &mdash; peer support, honest conversation, and practical wellness. No judgment, no gatekeeping.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- The Roadmap -->
+        <section class="section">
+            <div class="container">
+                <h2 class="section__title gradient-text" style="text-align: center; margin-bottom: 3rem;">The Roadmap</h2>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem;">
+                    <div class="glass-panel" style="padding: 2rem;">
+                        <p style="color: var(--color-accent); font-family: var(--font-mono); font-size: 0.85rem; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.1em;">Phase 1 &mdash; Now</p>
+                        <h3 style="font-family: var(--font-heading); color: var(--color-text-primary); margin-bottom: 0.75rem; font-size: 1.3rem;">Platform</h3>
+                        <p style="color: var(--color-text-muted); font-size: 0.95rem; line-height: 1.7;">Ship the products. Build the community. Prove that local AI and open compliance tools can serve real people &mdash; small businesses, municipalities, and individuals who've been priced out of the tech conversation.</p>
+                    </div>
+                    <div class="glass-panel" style="padding: 2rem;">
+                        <p style="color: var(--color-accent); font-family: var(--font-mono); font-size: 0.85rem; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.1em;">Phase 2 &mdash; 2026</p>
+                        <h3 style="font-family: var(--font-heading); color: var(--color-text-primary); margin-bottom: 0.75rem; font-size: 1.3rem;">Services</h3>
+                        <p style="color: var(--color-text-muted); font-size: 0.95rem; line-height: 1.7;">Consulting, teaching, and hands-on workshops. Go into communities and show people what's possible. Help small businesses adopt automation. Train the next wave of local tech talent.</p>
+                    </div>
+                    <div class="glass-panel" style="padding: 2rem;">
+                        <p style="color: var(--color-accent); font-family: var(--font-mono); font-size: 0.85rem; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.1em;">Phase 3 &mdash; Future</p>
+                        <h3 style="font-family: var(--font-heading); color: var(--color-text-primary); margin-bottom: 0.75rem; font-size: 1.3rem;">The Camp</h3>
+                        <p style="color: var(--color-text-muted); font-size: 0.95rem; line-height: 1.7;">A physical location. Land with mini homes, workshop space, and mentorship programs. A place where people come to learn trades, build businesses, heal, and leave with a real plan for their life.</p>
                     </div>
                 </div>
             </div>
@@ -269,13 +346,17 @@
 
         <!-- CTA -->
         <section class="section">
-            <div class="container" style="text-align: center;">
-                <p style="color: var(--text-secondary); font-size: 1.1rem; margin-bottom: 1.5rem; font-style: italic;">
-                    Strength through Strategy. Brotherhood through Purpose.
+            <div class="container" style="text-align: center; max-width: 600px;">
+                <p style="color: var(--color-text-muted); font-size: 1.2rem; margin-bottom: 0.75rem; line-height: 1.8;">
+                    This isn't a business plan. It's a promise.
+                </p>
+                <p style="color: var(--color-text-muted); font-size: 1.05rem; margin-bottom: 2rem; line-height: 1.8;">
+                    Hope makes us different. Everything we build starts there.
                 </p>
                 <a href="membership.html" class="btn btn--primary">Join the Movement</a>
             </div>
         </section>
+
     </main>
 
     <!-- Footer -->
@@ -299,16 +380,16 @@
         </div>
     </footer>
     <!-- Scripts -->
-    <script defer src="js/lib/gsap.min.js?v=20260407z"></script>
-    <script defer src="js/lib/ScrollTrigger.min.js?v=20260407z"></script>
-    <script defer src="js/lib/lenis.min.js?v=20260407z"></script>
-    <script defer src="js/lib/splitting.min.js?v=20260407z"></script>
-    <script defer src="js/lib/barba.min.js?v=20260407z"></script>
-    <script defer src="js/effects.js?v=20260407z"></script>
-    <script defer src="js/nav.js?v=20260407z"></script>
-    <script defer src="js/transitions.js?v=20260407z"></script>
-    <script defer src="js/i18n.js?v=20260407z"></script>
-    <script defer src="js/app.js?v=20260407z"></script>
+    <script defer src="js/lib/gsap.min.js?v=20260407q"></script>
+    <script defer src="js/lib/ScrollTrigger.min.js?v=20260407q"></script>
+    <script defer src="js/lib/lenis.min.js?v=20260407q"></script>
+    <script defer src="js/lib/splitting.min.js?v=20260407q"></script>
+    <script defer src="js/lib/barba.min.js?v=20260407q"></script>
+    <script defer src="js/effects.js?v=20260407q"></script>
+    <script defer src="js/nav.js?v=20260407q"></script>
+    <script defer src="js/transitions.js?v=20260407q"></script>
+    <script defer src="js/i18n.js?v=20260407q"></script>
+    <script defer src="js/app.js?v=20260407q"></script>
     <!-- Cookie Consent -->
     <div id="cookieConsent" class="cookie-consent" style="display:none;">
       <div class="cookie-consent__inner">

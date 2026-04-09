@@ -40,8 +40,8 @@ logger = logging.getLogger(__name__)
 # Wellness Coach agent ID
 FITNESS_AGENT_ID = 73
 
-# Fallback Ollama endpoint (if bridge unavailable)
-OLLAMA_URL = "http://localhost:11434"
+# Bridge dispatcher for fallback LLM calls
+from bridge_dispatcher import dispatch as bridge_dispatch
 
 # System prompt for fitness AI
 FITNESS_SYSTEM_PROMPT = """You are FLEX, an energetic AI fitness coach. You provide workout guidance, nutrition tips, and motivation for fitness goals.
@@ -76,28 +76,18 @@ def index():
 @fitness_bp.route("/api/status")
 def status():
     """API endpoint for module health check"""
-    import requests as req
-
-    # Check Ollama connection (fallback)
-    ollama_healthy = False
-    try:
-        response = req.get(f"{OLLAMA_URL}/api/tags", timeout=5)
-        ollama_healthy = response.status_code == 200
-    except Exception:
-        pass
-
     return jsonify(
         {
             "module": "fitness",
             "status": "active",
             "healthy": True,
             "bridge_available": BRIDGE_AVAILABLE,
-            "ollama_connected": ollama_healthy,
-            "agent": "Wellness Coach" if BRIDGE_AVAILABLE else "Direct Ollama",
+            "dispatcher_available": _dispatcher is not None,
+            "agent": "Wellness Coach" if BRIDGE_AVAILABLE else "Bridge Dispatcher",
             "message": (
                 "FLEX Fitness Coach is ready via A.R.C.H.I.E. Bridge"
                 if BRIDGE_AVAILABLE
-                else "FLEX Fitness Coach is ready (fallback mode)"
+                else "FLEX Fitness Coach is ready (bridge dispatch fallback)"
             ),
         }
     )
@@ -166,26 +156,19 @@ def chat():
             else:
                 logger.warning("archie_bridge returned error, falling back to direct Ollama")
 
-        # Fallback: Direct Ollama call
-        import requests as req
-
-        _default_model = _dispatcher.get_model_for_capability("conversation") if _dispatcher else ""
-        model = data.get("model") or _default_model
+        # Fallback: Bridge dispatcher
+        model = data.get("model") or ""
         context = f"\n[User fitness level: {fitness_level}]\n"
-        response = req.post(
-            f"{OLLAMA_URL}/api/generate",
-            json={
-                "model": model,
-                "prompt": f"{FITNESS_SYSTEM_PROMPT}{context}\n\nUser: {message}\n\nFLEX:",
-                "stream": False,
-                "options": {"temperature": 0.7, "num_predict": 1200},
-            },
+        result = bridge_dispatch(
+            capability="chat",
+            prompt=f"{FITNESS_SYSTEM_PROMPT}{context}\n\nUser: {message}\n\nFLEX:",
+            model=model,
+            module_id="fitness",
             timeout=90,
         )
 
-        if response.status_code == 200:
-            result = response.json()
-            ai_response = result.get("response", "").strip()
+        if result and result.success:
+            ai_response = (result.response or "").strip()
 
             # Add safety reminder if workout advice given
             if any(word in message.lower() for word in ["workout", "exercise", "routine", "train"]):
@@ -196,13 +179,13 @@ def chat():
                 {
                     "success": True,
                     "response": ai_response,
-                    "model": model,
-                    "agent": "Direct Ollama (fallback)",
-                    "source": "ollama_direct",
+                    "model": "bridge_dispatch",
+                    "agent": "Bridge Dispatcher (fallback)",
+                    "source": "bridge_dispatch",
                 }
             )
         else:
-            logger.error(f"Ollama error: {response.status_code}")
+            logger.error("Bridge dispatch failed for fitness chat fallback")
             return (
                 jsonify({"success": False, "error": "AI service temporarily unavailable"}),
                 503,
@@ -242,37 +225,18 @@ Format each exercise as:
 Include form tips for complex exercises."""
 
     try:
-        _default_model = _dispatcher.get_model_for_capability("conversation") if _dispatcher else ""
-        _workout_model = _default_model or (
-            _dispatcher.get_model_for_capability("conversation") if _dispatcher else "dolphin3-8k:latest"
-        )
-        response = requests.post(
-            f"{OLLAMA_URL}/api/generate",
-            json={
-                "model": _workout_model,
-                "prompt": f"{FITNESS_SYSTEM_PROMPT}\n\n{prompt}\n\nFLEX:",
-                "stream": False,
-                "options": {"temperature": 0.6, "num_predict": 2000},
-            },
+        result = bridge_dispatch(
+            capability="chat",
+            prompt=f"{FITNESS_SYSTEM_PROMPT}\n\n{prompt}\n\nFLEX:",
+            module_id="fitness",
             timeout=120,
         )
 
-        if response.status_code == 200:
-            result = response.json()
-            if _dispatcher:
-                try:
-                    _dispatcher.log_external_call(
-                        capability="conversation",
-                        module_id="fitness",
-                        model_used=_workout_model,
-                        success=True,
-                    )
-                except Exception:
-                    pass
+        if result and result.success:
             return jsonify(
                 {
                     "success": True,
-                    "workout": result.get("response", "").strip(),
+                    "workout": (result.response or "").strip(),
                     "type": workout_type,
                     "duration": duration,
                 }

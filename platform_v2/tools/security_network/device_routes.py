@@ -46,21 +46,23 @@ def register_device_routes(bp, admin_required_decorator):
                     """
                 )
                 rows = cur.fetchall()
-                users = [
-                    {
-                        "id": row[0],
-                        "mac_address": row[1],
-                        "user_name": row[2],
-                        "device_label": row[3],
-                        "device_type": row[4],
-                        "created_at": row[5].isoformat() if row[5] else None,
-                        "updated_at": row[6].isoformat() if row[6] else None,
-                        "ip_address": row[7],
-                        "hostname": row[8],
-                        "vendor": row[9],
-                    }
-                    for row in rows
-                ]
+                users = []
+                for row in rows:
+                    r = dict(row)
+                    users.append(
+                        {
+                            "id": r.get("id"),
+                            "mac_address": r.get("mac_address"),
+                            "user_name": r.get("user_name"),
+                            "device_label": r.get("device_label"),
+                            "device_type": r.get("device_type"),
+                            "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
+                            "updated_at": r["updated_at"].isoformat() if r.get("updated_at") else None,
+                            "ip_address": r.get("ip_address"),
+                            "hostname": r.get("hostname"),
+                            "vendor": r.get("manufacturer"),
+                        }
+                    )
             return jsonify({"success": True, "users": users})
         except Exception as exc:
             logger.error("devices_users_list error: %s", exc)
@@ -100,7 +102,7 @@ def register_device_routes(bp, admin_required_decorator):
                     (mac_address, user_name, device_label, device_type),
                 )
                 row = cur.fetchone()
-                record_id = row[0] if row else None
+                record_id = row["id"] if row else None
             return jsonify({"success": True, "id": record_id})
         except Exception as exc:
             logger.error("devices_users_upsert error: %s", exc)

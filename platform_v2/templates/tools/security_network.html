@@ -127,7 +127,7 @@
         <div class="stn-ops-terminal cs-ops-terminal" id="secOpsTerminal">
             <div class="stn-ops-header cs-ops-header">
                 <div class="stn-ops-elbow cs-ops-elbow"></div>
-                <div class="stn-ops-title cs-ops-title">SECURITY OPERATIONS</div>
+                <div class="stn-ops-title cs-ops-title">SECURITY DEPARTMENT</div>
                 <div class="stn-ops-status cs-ops-status" id="secOpsOnline">
                     <span class="stn-ops-dot cs-ops-dot"></span> ONLINE
                 </div>
@@ -139,11 +139,11 @@
             </div>
         </div>
 
-        <!-- NOC Hero Stats (4 cards) -->
-        <div class="noc-hero-grid">
+        <!-- NOC Hero Stats (6 cards) -->
+        <div class="noc-hero-grid" style="grid-template-columns:repeat(3,1fr)">
             <div class="noc-hero-card" style="--noc-accent:#ef4444">
                 <div class="noc-hero-val" id="noc-dns-queries">--</div>
-                <div class="noc-hero-label">DNS Queries (24h)</div>
+                <div class="noc-hero-label">DNS Queries (24h) <span id="noc-dns-shield" style="font-size:0.7rem"></span></div>
             </div>
             <div class="noc-hero-card" style="--noc-accent:#fbbf24">
                 <div class="noc-hero-val" id="noc-threats">--</div>
@@ -153,9 +153,37 @@
                 <div class="noc-hero-val" id="noc-traffic">--</div>
                 <div class="noc-hero-label">Network Traffic</div>
             </div>
+            <div class="noc-hero-card" style="--noc-accent:#10b981">
+                <div class="noc-hero-val" id="noc-active-devices">--</div>
+                <div class="noc-hero-label">Active Devices</div>
+            </div>
             <div class="noc-hero-card" style="--noc-accent:#ef4444">
                 <div class="noc-hero-val" id="noc-banned">--</div>
                 <div class="noc-hero-label">Currently Banned</div>
+            </div>
+            <div class="noc-hero-card" style="--noc-accent:#8b5cf6" id="noc-last-scan-card">
+                <div class="noc-hero-val" id="noc-last-scan" style="font-size:0.9rem">--</div>
+                <div class="noc-hero-label">Last Scan</div>
+            </div>
+        </div>
+
+        <!-- Traffic Sparkline + Top Consumers -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Traffic (24h)</span>
+                </div>
+                <div style="height:80px;padding:8px 0" id="noc-sparkline-container">
+                    <svg id="noc-sparkline" width="100%" height="100%" preserveAspectRatio="none"></svg>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Top Bandwidth Consumers</span>
+                </div>
+                <div id="noc-top-consumers" style="font-size:0.8rem">
+                    <div class="loading-state"><span class="spinner"></span> Loading...</div>
+                </div>
             </div>
         </div>
 
@@ -189,16 +217,16 @@
                     <span class="card-title"><span data-i18n="security_network.compliance_summary">Compliance Summary</span></span>
                     <button class="btn btn-sm" onclick="switchSecurityTab('compliance')">View Full</button>
                 </div>
-                <div style="display:flex;align-items:center;gap:16px;padding:12px 0">
-                    <div id="compliance-dash-score" style="font-size:2.4rem;font-weight:700;font-family:'Orbitron',monospace;color:var(--archie-text-dim)">--</div>
-                    <div>
-                        <div style="font-size:1.4rem;font-weight:700;font-family:'Orbitron',monospace" id="compliance-dash-grade">--</div>
-                        <div style="font-size:0.72rem;color:var(--archie-text-muted);margin-top:2px" id="compliance-dash-time">Never</div>
+                <div style="padding:12px 0">
+                    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px">
+                        <div id="compliance-dash-score" style="font-size:2rem;font-weight:700;font-family:'Orbitron',monospace;color:var(--archie-text-dim)">--</div>
+                        <div style="font-size:1.2rem;font-weight:700;font-family:'Orbitron',monospace" id="compliance-dash-grade">--</div>
                     </div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:1">
-                        <div style="font-size:0.75rem;color:var(--archie-text-muted)">Ubuntu <span id="compliance-dash-ubuntu" style="font-size:1.1rem;font-weight:600;font-family:'Orbitron',monospace">--</span></div>
-                        <div style="font-size:0.75rem;color:var(--archie-text-muted)">Docker <span id="compliance-dash-docker" style="font-size:1.1rem;font-weight:600;font-family:'Orbitron',monospace">--</span></div>
-                        <div style="font-size:0.75rem;color:var(--archie-text-muted)">Network <span id="compliance-dash-network" style="font-size:1.1rem;font-weight:600;font-family:'Orbitron',monospace">--</span></div>
+                    <div style="font-size:0.7rem;color:var(--archie-text-muted);margin-bottom:8px" id="compliance-dash-time">Never</div>
+                    <div style="display:flex;gap:12px;flex-wrap:wrap">
+                        <div style="font-size:0.72rem;color:var(--archie-text-muted)">Ubuntu <span id="compliance-dash-ubuntu" style="font-size:1rem;font-weight:600;font-family:'Orbitron',monospace">--</span></div>
+                        <div style="font-size:0.72rem;color:var(--archie-text-muted)">Docker <span id="compliance-dash-docker" style="font-size:1rem;font-weight:600;font-family:'Orbitron',monospace">--</span></div>
+                        <div style="font-size:0.72rem;color:var(--archie-text-muted)">Network <span id="compliance-dash-network" style="font-size:1rem;font-weight:600;font-family:'Orbitron',monospace">--</span></div>
                     </div>
                 </div>
             </div>
@@ -206,7 +234,7 @@
                 <div class="card-header">
                     <span class="card-title"><span data-i18n="security_network.quick_actions">Quick Actions</span></span>
                 </div>
-                <div style="display:flex;flex-direction:column;gap:10px">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
                     <button class="btn" id="dash-dns-toggle" onclick="quickToggleProtection()">
                         <i data-lucide="shield" style="width:14px;height:14px"></i>
                         <span id="dash-dns-toggle-text">DNS Protection</span>
@@ -236,52 +264,94 @@
         <div class="traffic-hero-grid">
             <div class="traffic-hero-card">
                 <div class="traffic-hero-val" id="traffic-bytes-in">--</div>
-                <div class="traffic-hero-label">DNS Queries</div>
+                <div class="traffic-hero-label">Downloaded (<span id="traffic-period-label-dl">24h</span>)</div>
             </div>
             <div class="traffic-hero-card">
                 <div class="traffic-hero-val" id="traffic-bytes-out">--</div>
-                <div class="traffic-hero-label">Blocked</div>
+                <div class="traffic-hero-label">Uploaded (<span id="traffic-period-label-up">24h</span>)</div>
             </div>
             <div class="traffic-hero-card">
-                <div class="traffic-hero-val" id="traffic-pkts">--</div>
-                <div class="traffic-hero-label">Active Clients</div>
+                <div class="traffic-hero-val" id="traffic-flows">--</div>
+                <div class="traffic-hero-label">Active Flows</div>
             </div>
             <div class="traffic-hero-card">
-                <div class="traffic-hero-val" id="traffic-iface">--</div>
-                <div class="traffic-hero-label">Log Entries</div>
+                <div class="traffic-hero-val" id="traffic-devices">--</div>
+                <div class="traffic-hero-label">Active Devices</div>
             </div>
         </div>
 
-        <!-- Bandwidth Bar -->
+        <!-- Bandwidth In/Out Bar -->
         <div class="card" style="margin-bottom:16px">
             <div class="card-header">
                 <span class="card-title">Bandwidth Distribution</span>
-                <button class="btn btn-sm" onclick="loadTraffic()">
-                    <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh
-                </button>
+                <div style="display:flex;align-items:center;gap:8px">
+                    <select id="traffic-period-select" onchange="loadTraffic()" style="font-size:0.75rem;padding:2px 8px;border-radius:4px;background:#1a1a2e;color:#ccc;border:1px solid #333;cursor:pointer">
+                        <option value="24h">Last 24 Hours</option>
+                        <option value="7d">Last 7 Days</option>
+                        <option value="30d">Last 30 Days</option>
+                        <option value="90d">Last 90 Days</option>
+                        <option value="all">All Time</option>
+                    </select>
+                    <button class="btn btn-sm" onclick="loadTraffic()">
+                        <i data-lucide="refresh-cw" style="width:12px;height:12px"></i>
+                    </button>
+                </div>
             </div>
             <div id="traffic-bw-bar" style="padding:4px 0">
                 <div class="loading-state"><span class="spinner"></span> Loading...</div>
             </div>
         </div>
 
-        <!-- Per-Client Activity + Service Detection -->
-        <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px">
+        <!-- Traffic History Chart -->
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title">Traffic History (<span id="traffic-period-label-hist">24h</span>)</span>
+            </div>
+            <div style="height:200px;padding:8px 12px" id="traffic-history-container">
+                <svg id="traffic-history-chart" width="100%" height="100%" preserveAspectRatio="none"></svg>
+            </div>
+        </div>
+
+        <!-- Per-Device Bandwidth + DNS Activity -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
             <div class="card">
                 <div class="card-header">
-                    <span class="card-title">Client Activity (DNS)</span>
+                    <span class="card-title">Bandwidth Per Device (<span id="traffic-period-label-dev">24h</span>)</span>
                 </div>
-                <div id="traffic-hosts-table" style="overflow-x:auto">
-                    <div class="loading-state"><span class="spinner"></span> Loading activity...</div>
+                <div id="traffic-per-device" style="overflow-x:auto;font-size:0.8rem">
+                    <div class="loading-state"><span class="spinner"></span> Loading...</div>
                 </div>
             </div>
             <div class="card">
                 <div class="card-header">
-                    <span class="card-title">Services Detected</span>
+                    <span class="card-title">DNS Activity Per Client</span>
                 </div>
-                <div id="traffic-protocols">
-                    <div class="loading-state"><span class="spinner"></span> Loading services...</div>
+                <div id="traffic-hosts-table" style="overflow-x:auto;font-size:0.8rem">
+                    <div class="loading-state"><span class="spinner"></span> Loading...</div>
                 </div>
+            </div>
+        </div>
+
+        <!-- VPN Detection -->
+        <div class="card" style="margin-top:16px">
+            <div class="card-header">
+                <span class="card-title" style="color:#ef4444">VPN Detection (Live Flows)</span>
+                <button class="btn btn-sm" onclick="loadVpnDetect()">
+                    <i data-lucide="shield-alert" style="width:12px;height:12px"></i> Scan Now
+                </button>
+            </div>
+            <div id="vpn-detect-results" style="padding:8px 12px;font-size:0.82rem">
+                <div style="color:var(--archie-text-muted)">Click "Scan Now" to check for VPN usage on the network</div>
+            </div>
+        </div>
+
+        <!-- Network Protocol Activity -->
+        <div class="card" style="margin-top:16px">
+            <div class="card-header">
+                <span class="card-title">Network Protocol Activity (Live)</span>
+            </div>
+            <div id="traffic-protocols">
+                <div class="loading-state"><span class="spinner"></span> Loading services...</div>
             </div>
         </div>
     </div>
@@ -294,7 +364,7 @@
             <button class="subtab-btn" data-subtab="dns-filters"><span data-i18n="security_network.filters">Filters</span></button>
             <button class="subtab-btn" data-subtab="dns-rewrites"><span data-i18n="security_network.rewrites">Rewrites</span></button>
             <button class="subtab-btn" data-subtab="dns-rules"><span data-i18n="security_network.rules">Rules</span></button>
-            <button class="subtab-btn" data-subtab="dns-clients">Clients</button>
+            <button class="subtab-btn" data-subtab="dns-clients">Devices & DNS</button>
             <button class="subtab-btn" data-subtab="domains-overview">Domains</button>
         </div>
 
@@ -315,6 +385,28 @@
                 <div class="stat-card">
                     <div class="stat-label"><span data-i18n="security_network.protection">Protection</span></div>
                     <div class="stat-value" id="dns-protection-status">--</div>
+                </div>
+            </div>
+
+            <!-- Top Domains Grid -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title" style="color:#00e5ff">Top Queried Domains</span>
+                        <span class="badge" id="dns-top-queried-count" style="background:rgba(0,229,255,0.15);color:#00e5ff;font-size:0.7rem">--</span>
+                    </div>
+                    <div id="dns-top-queried" style="max-height:400px;overflow-y:auto">
+                        <div class="loading-state"><span class="spinner"></span> Loading...</div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title" style="color:#ef4444">Top Blocked Domains</span>
+                        <span class="badge" id="dns-top-blocked-count" style="background:rgba(239,68,68,0.15);color:#ef4444;font-size:0.7rem">--</span>
+                    </div>
+                    <div id="dns-top-blocked" style="max-height:400px;overflow-y:auto">
+                        <div class="loading-state"><span class="spinner"></span> Loading...</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -406,11 +498,28 @@
                     <button class="btn btn-success btn-sm" onclick="dnsUnblockDomain()">Unblock</button>
                 </div>
             </div>
+
+            <!-- Parsed Rules Summary -->
+            <div class="card" style="margin-bottom:16px">
+                <div class="card-header">
+                    <span class="card-title">Active Rules Summary</span>
+                </div>
+                <div id="rules-summary-stats" style="display:flex;gap:16px;padding:8px 0;margin-bottom:8px;font-size:0.8rem">
+                    <span style="color:#ef4444"><strong id="rules-blocked-count">0</strong> blocked</span>
+                    <span style="color:#22c55e"><strong id="rules-allowed-count">0</strong> whitelisted</span>
+                    <span style="color:#888"><strong id="rules-comment-count">0</strong> comments</span>
+                </div>
+                <div id="rules-domain-chips" style="display:flex;flex-wrap:wrap;gap:6px;max-height:200px;overflow-y:auto">
+                    <span style="color:#666;font-size:0.78rem">Loading rules...</span>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="card-header">
                     <span class="card-title"><span data-i18n="security_network.custom_filtering_rules">Custom Filtering Rules</span></span>
                     <button class="btn btn-primary btn-sm" onclick="saveUserRules()"><span data-i18n="security_network.save_rules">Save Rules</span></button>
                 </div>
+                <div style="color:#666;font-size:0.72rem;margin-bottom:6px">Advanced: Edit raw AdGuard rules directly. Use <code>||domain^</code> to block, <code>@@||domain^</code> to whitelist.</div>
                 <textarea class="form-textarea" id="user-rules" placeholder="# Custom AdGuard filtering rules&#10;# One rule per line&#10;||ads.example.com^"></textarea>
             </div>
         </div>
@@ -516,6 +625,42 @@
                     </thead>
                     <tbody id="domains-unified-body">
                         <tr><td colspan="5" class="loading-state"><span class="spinner"></span> Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Managed Servers -->
+            <h3 style="margin:20px 0 10px;color:#fff">Managed Servers</h3>
+            <div style="overflow-x:auto">
+                <table class="data-table" id="domains-servers-table">
+                    <thead>
+                        <tr>
+                            <th>Server</th>
+                            <th>Public IP</th>
+                            <th>Mesh IP</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Subdomains</th>
+                        </tr>
+                    </thead>
+                    <tbody id="domains-servers-body">
+                        <tr><td colspan="6" class="loading-state"><span class="spinner"></span> Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- IP Change History -->
+            <h3 style="margin:20px 0 10px;color:#fff">Public IP History</h3>
+            <div style="overflow-x:auto">
+                <table class="data-table" id="domains-ip-history-table">
+                    <thead>
+                        <tr>
+                            <th>IP Address</th>
+                            <th>Detected</th>
+                        </tr>
+                    </thead>
+                    <tbody id="domains-ip-history-body">
+                        <tr><td colspan="2" class="loading-state"><span class="spinner"></span> Loading...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -667,9 +812,18 @@
         <div class="card" style="margin-top:16px">
             <div class="card-header">
                 <span class="card-title">Sinkhole Analytics (Blocked Domains)</span>
-                <button class="btn btn-sm" onclick="loadSinkholeStats()">
-                    <i data-lucide="refresh-cw" style="width:12px;height:12px"></i>
-                </button>
+                <div style="display:flex;align-items:center;gap:8px">
+                    <select id="dns-period-select" onchange="loadSinkholeStats()" style="font-size:0.75rem;padding:2px 8px;border-radius:4px;background:#1a1a2e;color:#ccc;border:1px solid #333;cursor:pointer">
+                        <option value="24">Last 24 Hours</option>
+                        <option value="168">Last 7 Days</option>
+                        <option value="720">Last 30 Days</option>
+                        <option value="2160">Last 90 Days</option>
+                        <option value="0">All Time</option>
+                    </select>
+                    <button class="btn btn-sm" onclick="loadSinkholeStats()">
+                        <i data-lucide="refresh-cw" style="width:12px;height:12px"></i>
+                    </button>
+                </div>
             </div>
             <div style="display:flex;gap:16px;flex-wrap:wrap">
                 <div style="flex:1;min-width:300px">
@@ -678,6 +832,20 @@
                 <div style="flex:1;min-width:300px" id="sinkhole-table">
                     <div class="loading-state"><span class="spinner"></span> Loading...</div>
                 </div>
+            </div>
+        </div>
+
+        <!-- DNS Query Trend Chart -->
+        <div class="card" style="margin-top:16px">
+            <div class="card-header">
+                <span class="card-title">DNS Query Trend</span>
+                <div style="display:flex;align-items:center;gap:6px">
+                    <span style="font-size:0.7rem;color:#00e5ff">&#9679; Total</span>
+                    <span style="font-size:0.7rem;color:#ef4444">&#9679; Blocked</span>
+                </div>
+            </div>
+            <div style="height:180px;padding:8px 12px">
+                <svg id="dns-trend-chart" width="100%" height="100%" preserveAspectRatio="none"></svg>
             </div>
         </div>
     </div>
@@ -792,52 +960,55 @@
         <!-- UFW Firewall + Auto-Block + IP Access + Security Events + Connections -->
 <!-- (access control content merged into Defense tab) -->
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-            <div class="card">
-                <div class="card-header">
-                    <span class="card-title">UFW Firewall</span>
-                    <div style="display:flex;gap:6px">
-                        <button class="btn btn-success btn-sm" onclick="toggleFirewall(true)">Enable</button>
-                        <button class="btn btn-danger btn-sm" onclick="toggleFirewall(false)">Disable</button>
-                        <button class="btn btn-sm" onclick="loadFirewall()">
-                            <i data-lucide="refresh-cw" style="width:12px;height:12px"></i>
-                        </button>
-                    </div>
-                </div>
-                <div id="firewall-panel">
-                    <div class="loading-state"><span class="spinner"></span> Loading...</div>
-                </div>
-                <div style="margin-top:12px">
-                    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px">
-                        <div>
-                            <label style="font-size:0.72rem;color:#ccc">Port</label>
-                            <input type="number" class="form-input" id="fw-port" placeholder="443" style="width:80px">
-                        </div>
-                        <div>
-                            <label style="font-size:0.72rem;color:#ccc">Protocol</label>
-                            <select class="form-input" id="fw-proto" style="width:80px">
-                                <option value="tcp">TCP</option>
-                                <option value="udp">UDP</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label style="font-size:0.72rem;color:#ccc">Action</label>
-                            <select class="form-input" id="fw-action" style="width:90px">
-                                <option value="allow">Allow</option>
-                                <option value="deny">Deny</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label style="font-size:0.72rem;color:#ccc">From (optional)</label>
-                            <input type="text" class="form-input" id="fw-from" placeholder="192.168.1.0/24" style="width:150px">
-                        </div>
-                        <button class="btn btn-primary btn-sm" onclick="addFirewallRule()">Add Rule</button>
-                    </div>
-                </div>
-                <div id="firewall-rules">
-                    <div class="loading-state"><span class="spinner"></span> Loading rules...</div>
+        <!-- UFW Firewall — full width -->
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title">UFW Firewall</span>
+                <div style="display:flex;gap:6px">
+                    <button class="btn btn-success btn-sm" onclick="toggleFirewall(true)">Enable</button>
+                    <button class="btn btn-danger btn-sm" onclick="toggleFirewall(false)">Disable</button>
+                    <button class="btn btn-sm" onclick="loadFirewall()">
+                        <i data-lucide="refresh-cw" style="width:12px;height:12px"></i>
+                    </button>
                 </div>
             </div>
+            <div id="firewall-panel">
+                <div class="loading-state"><span class="spinner"></span> Loading...</div>
+            </div>
+            <div style="margin-top:12px">
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px">
+                    <div>
+                        <label style="font-size:0.72rem;color:#ccc">Port</label>
+                        <input type="number" class="form-input" id="fw-port" placeholder="443" style="width:80px">
+                    </div>
+                    <div>
+                        <label style="font-size:0.72rem;color:#ccc">Protocol</label>
+                        <select class="form-input" id="fw-proto" style="width:80px">
+                            <option value="tcp">TCP</option>
+                            <option value="udp">UDP</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:0.72rem;color:#ccc">Action</label>
+                        <select class="form-input" id="fw-action" style="width:90px">
+                            <option value="allow">Allow</option>
+                            <option value="deny">Deny</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:0.72rem;color:#ccc">From (optional)</label>
+                        <input type="text" class="form-input" id="fw-from" placeholder="192.168.1.0/24" style="width:150px">
+                    </div>
+                    <button class="btn btn-primary btn-sm" onclick="addFirewallRule()">Add Rule</button>
+                </div>
+            </div>
+            <div id="firewall-rules">
+                <div class="loading-state"><span class="spinner"></span> Loading rules...</div>
+            </div>
+        </div>
+
+        <!-- Auto-Block + IP Access — side by side -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
             <div class="card">
                 <div class="card-header">
                     <span class="card-title"><span data-i18n="security_network.auto_block_settings">Auto-Block Settings</span></span>
@@ -846,32 +1017,31 @@
                     <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_3"> Loading...</span></div>
                 </div>
             </div>
-        </div>
-
-        <div class="card">
-            <div class="card-header">
-                <span class="card-title"><span data-i18n="security_network.ip_access_control">IP Access Control</span></span>
-            </div>
-            <div class="form-row" style="margin-bottom:12px">
-                <div class="form-group">
-                    <label class="form-label"><span data-i18n="security_network.ip_address">IP Address</span></label>
-                    <input type="text" class="form-input" id="ip-input" placeholder="192.168.1.x">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title"><span data-i18n="security_network.ip_access_control">IP Access Control</span></span>
                 </div>
-                <div class="form-group">
-                    <label class="form-label"><span data-i18n="security_network.reason">Reason</span></label>
-                    <input type="text" class="form-input" id="ip-reason" placeholder="Reason for blocking">
+                <div class="form-row" style="margin-bottom:12px">
+                    <div class="form-group">
+                        <label class="form-label"><span data-i18n="security_network.ip_address">IP Address</span></label>
+                        <input type="text" class="form-input" id="ip-input" placeholder="192.168.1.x">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label"><span data-i18n="security_network.reason">Reason</span></label>
+                        <input type="text" class="form-input" id="ip-reason" placeholder="Reason for blocking">
+                    </div>
+                    <button class="btn btn-danger btn-sm" onclick="blockIP()"><span data-i18n="security_network.block_2">Block</span></button>
+                    <button class="btn btn-success btn-sm" onclick="unblockIP()"><span data-i18n="security_network.unblock_2">Unblock</span></button>
                 </div>
-                <button class="btn btn-danger btn-sm" onclick="blockIP()"><span data-i18n="security_network.block_2">Block</span></button>
-                <button class="btn btn-success btn-sm" onclick="unblockIP()"><span data-i18n="security_network.unblock_2">Unblock</span></button>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                <div>
-                    <h4 style="color:var(--archie-red);font-size:0.85rem;margin-bottom:8px"><span data-i18n="security_network.blocked_ips">Blocked IPs</span></h4>
-                    <div id="blocked-ips-list"><div class="loading-state"><span class="spinner"></span></div></div>
-                </div>
-                <div>
-                    <h4 style="color:var(--archie-green);font-size:0.85rem;margin-bottom:8px"><span data-i18n="security_network.whitelisted_ips">Whitelisted IPs</span></h4>
-                    <div id="whitelisted-ips-list"><div class="loading-state"><span class="spinner"></span></div></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                    <div>
+                        <h4 style="color:var(--archie-red);font-size:0.85rem;margin-bottom:8px"><span data-i18n="security_network.blocked_ips">Blocked IPs</span></h4>
+                        <div id="blocked-ips-list"><div class="loading-state"><span class="spinner"></span></div></div>
+                    </div>
+                    <div>
+                        <h4 style="color:var(--archie-green);font-size:0.85rem;margin-bottom:8px"><span data-i18n="security_network.whitelisted_ips">Whitelisted IPs</span></h4>
+                        <div id="whitelisted-ips-list"><div class="loading-state"><span class="spinner"></span></div></div>
+                    </div>
                 </div>
             </div>
         </div>

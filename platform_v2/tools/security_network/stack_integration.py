@@ -17,7 +17,7 @@ class AdGuardLocalAPI:
     def __init__(self, host: str = "network_adguard", port: int = 80):
         # Try container name first, fall back to localhost with mapped port
         self.base_url = f"http://{host}:{port}"
-        self.fallback_url = "http://localhost:8053"
+        self.fallback_url = "http://192.168.1.200:5354"
         self.username = os.getenv("ADGUARD_USER", "admin")
         self.password = os.getenv("ADGUARD_PASS", "")
 
@@ -70,42 +70,58 @@ class AdGuardLocalAPI:
 
 
 class NtopngLocalAPI:
-    """Interface with local ntopng container"""
+    """Interface with local ntopng container (host mode — use host IP)"""
 
-    def __init__(self, host: str = "network_ntopng", port: int = 3000):
-        self.base_url = f"http://{host}:{port}"
-        self.fallback_url = "http://localhost:3001"
+    def __init__(self, host: str = None, port: int = None):
+        _host = host or os.getenv("NTOPNG_HOST", "192.168.1.200")
+        _port = port or int(os.getenv("NTOPNG_PORT", "3001"))
+        self.base_url = f"http://{_host}:{_port}"
         self.username = os.getenv("NTOPNG_USER", "admin")
-        self.password = os.getenv("NTOPNG_PASS", "admin")
+        self.password = os.getenv("NTOPNG_ADMIN_PASSWORD", os.getenv("NTOPNG_PASS", "admin"))
+        self._session = requests.Session()
+        self._authenticated = False
+
+    def _ensure_auth(self):
+        """Cookie-based session auth (ntopng does not support basic auth)."""
+        if self._authenticated:
+            return
+        try:
+            resp = self._session.post(
+                f"{self.base_url}/authorize.html",
+                data={"user": self.username, "password": self.password},
+                allow_redirects=True,
+                timeout=5,
+            )
+            # Auth succeeds if we don't land on login or wrong-credentials page
+            self._authenticated = "login" not in resp.url and "wrong" not in resp.url
+        except Exception:
+            self._authenticated = False
 
     def _request(self, endpoint: str, params: dict = None, timeout: int = 5) -> Optional[dict]:
-        """Make API request to ntopng"""
-        urls = [self.base_url, self.fallback_url]
-
-        for url in urls:
-            try:
-                full_url = f"{url}/lua/rest/v1/{endpoint}"
-                auth = (self.username, self.password)
-
-                response = requests.get(full_url, auth=auth, params=params, timeout=timeout)
-                response.raise_for_status()
-                return response.json()
-            except Exception:
-                continue
-
-        return None
+        """Make API request to ntopng with cookie auth (REST v2)"""
+        self._ensure_auth()
+        try:
+            full_url = f"{self.base_url}/lua/rest/v2/{endpoint}"
+            response = self._session.get(full_url, params=params, timeout=timeout)
+            response.raise_for_status()
+            data = response.json()
+            if data.get("rc") == 0:
+                return data
+            return None
+        except Exception:
+            return None
 
     def get_interface_stats(self) -> Optional[Dict]:
         """Get network interface statistics"""
-        return self._request("get/interface/data.lua")
+        return self._request("get/interface/data.lua", {"ifid": 0})
 
     def get_top_hosts(self, limit: int = 10) -> Optional[Dict]:
         """Get top hosts by traffic"""
-        return self._request("get/host/top_hosts.lua", {"limit": limit})
+        return self._request("get/host/active.lua", {"ifid": 0, "perPage": limit})
 
     def get_alerts(self) -> Optional[Dict]:
         """Get active alerts"""
-        return self._request("get/alert/list.lua")
+        return self._request("get/alert/list.lua", {"ifid": 0})
 
     def check_health(self) -> bool:
         """Check if ntopng is reachable"""

@@ -6583,26 +6583,29 @@ def main():
         last_health_check = 0
         last_cleanup = 0
 
-        while True:
-            try:
-                now = time.time()
+        # Dedicated queue-processing thread — never blocked by data collection
+        import threading
+        _queue_stop = threading.Event()
 
-                # Always check the command queue (every 3s)
+        def _queue_worker():
+            while not _queue_stop.is_set():
                 try:
                     processed = process_command_queue()
                     if processed > 0:
                         print(
-                            f"[{datetime.now().strftime('%H:%M:%S')}] Processed {processed} command(s)"
+                            f"[{datetime.now().strftime('%H:%M:%S')}] Queue worker processed {processed} command(s)"
                         )
-                        # Force immediate data collection after command execution
-                        print(
-                            f"[{datetime.now().strftime('%H:%M:%S')}] Refreshing system data..."
-                        )
-                        data = collect_all_data()
-                        write_data(data)
-                        last_data_collect = now
                 except Exception as e:
-                    print(f"Command queue error: {e}")
+                    print(f"Queue worker error: {e}")
+                _queue_stop.wait(3)  # Check every 3 seconds
+
+        queue_thread = threading.Thread(target=_queue_worker, daemon=True, name="cmd-queue")
+        queue_thread.start()
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] Command queue worker thread started")
+
+        while True:
+            try:
+                now = time.time()
 
                 # Collect system data at the configured interval
                 if now - last_data_collect >= args.interval:

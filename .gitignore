@@ -111,6 +111,9 @@ host_commands/
 # Website QA screenshots & large assets
 website/qa-screenshots/
 platform_v2/static/baselines/
+website/kytranempowerment.com/assets/portraits/
+website/kytranempowerment.com/assets/logo.png
+website/kytranempowerment.com/assets/cart-icon.png
 
 # Nested git repos (should be submodules)
 archie-code/

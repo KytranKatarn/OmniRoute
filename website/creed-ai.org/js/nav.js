@@ -11,6 +11,8 @@ var Nav = (function () {
         if (!navLinks || !menuToggle) return;
         navLinks.classList.toggle('nav__links--open');
         menuToggle.classList.toggle('is-open');
+        var nav = document.getElementById('mainNav');
+        if (nav) nav.classList.toggle('nav--menu-open');
     }
 
     function highlightActive() {
@@ -39,11 +41,26 @@ var Nav = (function () {
         }, { passive: true });
     }
 
+    function closeMenu() {
+        if (!navLinks || !menuToggle) return;
+        navLinks.classList.remove('nav__links--open');
+        menuToggle.classList.remove('is-open');
+        var nav = document.getElementById('mainNav');
+        if (nav) nav.classList.remove('nav--menu-open');
+    }
+
     function init() {
         menuToggle = document.getElementById('menuToggle');
         navLinks = document.getElementById('navLinks');
 
         if (menuToggle) menuToggle.addEventListener('click', toggleMenu);
+
+        // Close menu when any nav link is clicked
+        if (navLinks) {
+            navLinks.querySelectorAll('.nav__link').forEach(function (link) {
+                link.addEventListener('click', closeMenu);
+            });
+        }
 
         _bindScroll();
         highlightActive();

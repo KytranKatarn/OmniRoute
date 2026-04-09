@@ -4,6 +4,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('department_hq.static', filename='css/department-hq.css') }}">
+<link rel="stylesheet" href="/static/css/fleet.css">
 {% endblock %}
 
 {% block content %}
@@ -31,6 +32,9 @@
       <button class="dhq-tab" data-tab="creed" onclick="switchTab('creed')">C.R.E.E.D.</button>
       <button class="dhq-tab" data-tab="social" onclick="switchTab('social')">Social</button>
       <button class="dhq-tab" data-tab="devices" onclick="switchTab('devices')">Devices</button>
+      <button class="dhq-tab" data-tab="dispatch" onclick="switchTab('dispatch')">Dispatch</button>
+      <button class="dhq-tab" data-tab="fleet" onclick="switchTab('fleet')">Fleet</button>
+      <button class="dhq-tab" data-tab="contractors" onclick="switchTab('contractors')">Contractors</button>
     </div>
   </div>
 
@@ -120,6 +124,150 @@
         <span class="dhq-roster-count" id="deviceCount"></span>
       </div>
       <div id="devicesContent" class="dhq-loading">Loading devices...</div>
+    </div>
+
+    <!-- DISPATCH & ORCHESTRATION -->
+    <div class="dhq-panel" id="panel-dispatch">
+      <!-- Ollama Engine HUD -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">OLLAMA ENGINE</div>
+        <div class="dhq-dispatch-pods">
+          <div class="dhq-pod"><div class="dhq-pod-label">MODELS LOADED</div><div class="dhq-pod-val" id="podModelsLoaded">--</div></div>
+          <div class="dhq-pod"><div class="dhq-pod-label">RAM USED</div><div class="dhq-pod-val" id="podRamUsed">--</div></div>
+          <div class="dhq-pod"><div class="dhq-pod-label">PARALLEL SLOTS</div><div class="dhq-pod-val" id="podSlots">--</div></div>
+          <div class="dhq-pod"><div class="dhq-pod-label">AVAILABLE MODELS</div><div class="dhq-pod-val" id="podAvailable">--</div></div>
+        </div>
+      </div>
+      <!-- Active Bridge Jobs -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">ACTIVE BRIDGE JOBS <span id="dispatchJobCount" style="color:var(--dhq-text-dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem"></span></div>
+        <div id="dispatchJobsContent" class="dhq-loading">Loading jobs...</div>
+      </div>
+      <!-- Agent Workload -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">AGENT WORKLOAD BY DEPARTMENT</div>
+        <div id="dispatchWorkloadContent" class="dhq-loading">Loading workload...</div>
+      </div>
+      <!-- Dispatch Metrics -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">DISPATCH METRICS (24H)</div>
+        <div id="dispatchMetricsContent" class="dhq-loading">Loading metrics...</div>
+      </div>
+      <!-- Loop Jobs -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">AUTONOMY LOOP JOBS <span id="dispatchLoopCount" style="color:var(--dhq-text-dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem"></span></div>
+        <div id="dispatchLoopContent" class="dhq-loading">Loading loop jobs...</div>
+      </div>
+      <!-- Server Loops -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">SERVER LOOPS</div>
+        <div id="dispatchServerLoops" class="dhq-loading">Loading server loops...</div>
+      </div>
+      <!-- Approvals -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">APPROVAL QUEUE <span id="dispatchApprovalCount" style="color:var(--dhq-text-dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem"></span></div>
+        <div id="dispatchApprovalsContent" class="dhq-loading">Loading approvals...</div>
+      </div>
+      <!-- History -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>DISPATCH HISTORY</span>
+          <select id="dispatchHistoryHours" onchange="loadDispatchHistory()" style="background:var(--dhq-surface-2);color:var(--dhq-text);border:1px solid var(--dhq-border);border-radius:4px;padding:4px 8px;font-size:0.7rem">
+            <option value="1">Last 1h</option>
+            <option value="6">Last 6h</option>
+            <option value="24" selected>Last 24h</option>
+            <option value="72">Last 3d</option>
+            <option value="168">Last 7d</option>
+          </select>
+        </div>
+        <div id="dispatchHistoryContent" class="dhq-loading">Loading history...</div>
+      </div>
+      <!-- System Components -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">SYSTEM COMPONENTS</div>
+        <div id="dispatchComponentsContent" class="dhq-loading">Loading components...</div>
+      </div>
+      <!-- Scheduler Jobs -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">SCHEDULER JOBS <span id="dispatchSchedCount" style="color:var(--dhq-text-dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem"></span></div>
+        <div id="dispatchSchedContent" class="dhq-loading">Loading scheduler...</div>
+      </div>
+      <!-- Configuration -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">AUTONOMY CONFIGURATION</div>
+        <div id="dispatchConfigContent" class="dhq-loading">Loading config...</div>
+      </div>
+      <!-- Repair Pipeline -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">REPAIR PIPELINE</div>
+        <div id="dispatchRepairContent" class="dhq-loading">Loading pipeline...</div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- FLEET TAB — Fleet Map + Node Overview                         -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <div class="dhq-panel" id="panel-fleet">
+      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+      <!-- Fleet Map -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">A.R.M.A.D.A. FLEET NETWORK
+          <span style="margin-left:12px;font-size:0.7rem;">
+            <span style="color:#10b981;">&bull;</span> Hub
+            <span style="color:#a3e635;margin-left:8px;">&bull;</span> nodes
+            <span style="color:#f59e0b;margin-left:8px;">&bull;</span> providers
+          </span>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;font-size:0.75rem;">
+          <span id="fleetStatNodes" style="color:var(--dhq-text-dim);">-- nodes</span>
+          <span id="fleetStatProviders" style="color:var(--dhq-text-dim);">-- providers</span>
+        </div>
+        <div style="height:400px;border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,0.1);margin-bottom:16px;">
+          <div id="fleetMap" style="width:100%;height:100%;background:#0a0a12;"></div>
+        </div>
+      </div>
+
+      <!-- Fleet Usage Summary -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">FLEET USAGE (30 DAYS)</div>
+        <div style="display:flex;gap:24px;padding:8px 0;font-size:0.8rem;">
+          <div>Calls: <strong id="fleetUsageCalls">--</strong></div>
+          <div>Cost: <strong id="fleetUsageCost">--</strong></div>
+          <div>Providers: <strong id="fleetUsageProviders">--</strong></div>
+        </div>
+      </div>
+
+      <!-- Cloud Providers Grid -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">CLOUD PROVIDERS <span id="fleetProviderCount" style="color:var(--dhq-text-dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem"></span></div>
+        <div id="fleetProvidersGrid"></div>
+      </div>
+
+      <!-- Fleet Detail Panel (hidden by default) -->
+      <div id="fleetDetailPanel" style="display:none;">
+        <div class="dhq-section-title" id="fleetDetailTitle">Node Details</div>
+        <div id="fleetDetailBody"></div>
+      </div>
+
+      <!-- Budget Table -->
+      <div class="dhq-dispatch-section" style="display:none;" id="fleetBudgetSection">
+        <div class="dhq-section-title">PROVIDER BUDGETS</div>
+        <table style="width:100%;font-size:0.75rem;border-collapse:collapse;">
+          <tbody id="fleetBudgetTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- CONTRACTORS TAB — External AI Providers                       -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <div class="dhq-panel" id="panel-contractors">
+      <div id="contractors-summary"></div>
+      <div id="contractors-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px;padding:8px 0;"></div>
+      <div id="contractorProvidersContent"></div>
+      <div id="contractorDefinitionsContent"></div>
     </div>
 
   </div>

@@ -587,6 +587,36 @@ services:
       retries: 3
       start_period: 20s
 
+  # Nginx Proxy Manager — Reverse proxy + SSL termination for all subdomains
+  nginx_proxy_manager:
+    image: 'jc21/nginx-proxy-manager:2.14.0'
+    container_name: nginx_proxy_manager
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1.0
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - DAC_OVERRIDE
+      - CHOWN
+      - SETGID
+      - SETUID
+    ports:
+      - '80:80'
+      - '443:443'
+      - '127.0.0.1:81:81'
+    volumes:
+      - /mnt/HomeLab/nginx-proxy/data:/data
+      - /mnt/HomeLab/nginx-proxy/letsencrypt:/etc/letsencrypt
+    networks:
+      - archie_internal
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:81/api"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   security_nmap:
     image: instrumentisto/nmap:7.94
     container_name: security_nmap

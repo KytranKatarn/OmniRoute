@@ -194,6 +194,15 @@
     color: #00e5ff;
 }
 
+/* Avatar & Status */
+.dir-card__avatar { width:80px; height:80px; border-radius:50%; overflow:hidden; margin:0 auto 1rem; border:2px solid rgba(255,255,255,0.1); }
+.dir-card__avatar img { width:100%; height:100%; object-fit:cover; }
+.dir-card__avatar-fallback { width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-family:'Orbitron',sans-serif; font-size:1.8rem; font-weight:700; }
+.dir-card__status { display:inline-block; margin-top:0.75rem; padding:0.2rem 0.6rem; border-radius:4px; font-family:'IBM Plex Mono',monospace; font-size:0.7rem; letter-spacing:0.08em; background:rgba(0,229,255,0.1); color:#00e5ff; }
+.dir-card__status[data-state="active"] { background:rgba(16,185,129,0.15); color:#10b981; }
+.dir-card__status[data-state="barracked"] { background:rgba(139,92,246,0.15); color:#8b5cf6; }
+.dir-card__status[data-state="deployed"] { background:rgba(34,211,238,0.15); color:#22d3ee; }
+
 /* Responsive */
 @media (max-width: 768px) {
     .dir-grid {

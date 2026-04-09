@@ -373,17 +373,20 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-xs);
+    align-items: center;
+    text-align: center;
 }
 
 /* Accordion group */
 .nav-mobile__group {
     border-bottom: 1px solid var(--color-border);
+    width: 100%;
 }
 
 .nav-mobile__trigger {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
     width: 100%;
     padding: var(--space-md) 0;
     font-family: var(--font-nav);
@@ -395,6 +398,7 @@
     border: none;
     cursor: pointer;
     transition: color var(--speed-fast) ease;
+    gap: var(--space-sm);
 }
 .nav-mobile__trigger:hover { color: var(--color-primary); }
 
@@ -418,6 +422,10 @@
     display: flex;
 }
 
+.nav-mobile__items {
+    align-items: center;
+}
+
 .nav-mobile__items a {
     padding: var(--space-xs) var(--space-md);
     font-family: var(--font-nav);
@@ -426,12 +434,14 @@
     color: var(--color-text-muted);
     text-decoration: none;
     transition: color var(--speed-fast) ease;
+    text-align: center;
 }
 .nav-mobile__items a:hover { color: var(--color-primary); }
 
 /* Direct links (Store, Contact) */
 .nav-mobile__direct {
     display: block;
+    width: 100%;
     padding: var(--space-md) 0;
     font-family: var(--font-nav);
     font-size: 1rem;
@@ -439,6 +449,7 @@
     letter-spacing: 0.12em;
     color: var(--color-text);
     text-decoration: none;
+    text-align: center;
     border-bottom: 1px solid var(--color-border);
     transition: color var(--speed-fast) ease;
 }
@@ -532,6 +543,7 @@
     background: var(--color-glass-bg);
     border: 1px solid var(--color-glass-border);
     border-radius: var(--border-radius);
+    text-align: center;
 }
 
 /* --------------------------------------------------------------------------
@@ -678,15 +690,16 @@
 
 .footer__inner {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
     align-items: center;
-    justify-content: space-between;
-    gap: var(--space-xl);
+    text-align: center;
+    gap: var(--space-lg);
 }
 
 .footer__brand {
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: var(--space-xs);
 }
 
@@ -705,7 +718,9 @@
 
 .footer__links {
     display: flex;
-    gap: var(--space-xl);
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-lg) var(--space-xl);
 }
 
 .footer__links a {
@@ -722,9 +737,7 @@
 }
 
 .footer__contact {
-    margin-top: var(--space-md);
     text-align: center;
-    width: 100%;
 }
 
 .footer__contact a {
@@ -742,11 +755,10 @@
 .footer__copyright {
     font-size: var(--text-xs);
     color: var(--color-text-muted);
-    width: 100%;
     text-align: center;
-    margin-top: var(--space-lg);
     padding-top: var(--space-lg);
     border-top: 1px solid var(--color-border);
+    width: 100%;
 }
 
 

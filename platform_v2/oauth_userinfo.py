@@ -59,6 +59,7 @@ def userinfo():
             "kytran-mail",
             "market-watch-viewer",
             "market-watch-ai",
+            "news-watch",
         ]
 
     stripe_customer_id = None

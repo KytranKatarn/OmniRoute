@@ -2,14 +2,13 @@
 var API = typeof SN_API !== 'undefined' ? SN_API : '/tools/security-network/api';
 
 /* ========== Utility aliases — canonical implementations in security-network.js ========== */
-// security-network.js (loaded first) defines: formatNum, setBadge, formatBytes, showToast
-// It also defines snEsc, snBuildTable, snCreateBadge, snShowLoading, snShowEmpty with sn- prefix.
-// These aliases let existing app.js call-sites work without renaming.
-var esc        = typeof snEsc         !== 'undefined' ? snEsc         : function(s) { return s == null ? '' : String(s); };
-var buildTable = typeof snBuildTable  !== 'undefined' ? snBuildTable  : function() { return document.createElement('table'); };
-var createBadge= typeof snCreateBadge !== 'undefined' ? snCreateBadge : function(t) { var s=document.createElement('span'); s.textContent=t; return s; };
-var showLoading= typeof snShowLoading !== 'undefined' ? snShowLoading : function() {};
-var showEmpty  = typeof snShowEmpty   !== 'undefined' ? snShowEmpty   : function() {};
+// security-network.js loads with defer, so sn* functions may not exist yet at parse time.
+// These lazy wrappers resolve on first call to avoid the load-order race condition.
+function esc(s) { return typeof snEsc === 'function' ? snEsc(s) : (s == null ? '' : String(s)); }
+function buildTable(headers, rows) { return typeof snBuildTable === 'function' ? snBuildTable(headers, rows) : document.createElement('table'); }
+function createBadge(t, cls) { return typeof snCreateBadge === 'function' ? snCreateBadge(t, cls) : (function() { var s = document.createElement('span'); s.textContent = t; return s; })(); }
+function showLoading(el) { if (typeof snShowLoading === 'function') snShowLoading(el); }
+function showEmpty(el, msg) { if (typeof snShowEmpty === 'function') snShowEmpty(el, msg); }
 // formatNum and setBadge are already defined (without sn- prefix) in security-network.js — no alias needed.
 
 function formatTime(t) {
@@ -133,6 +132,72 @@ function updateDnsToggleUI(enabled) {
     }
 }
 
+function openQuickScanModal(module, title, fieldLabel, placeholder) {
+    var existing = document.getElementById('quick-scan-modal');
+    if (existing) existing.remove();
+
+    var html =
+      '<div class="bm-overlay active" id="quick-scan-modal" style="--bm-accent:#fbbf24;--bm-accent-rgb:251,191,36">' +
+        '<div class="bm-shell" style="max-width:420px">' +
+          '<div class="bm-frame">' +
+            '<div class="bm-frame-elbow-top"></div><div class="bm-frame-seg"></div>' +
+            '<div class="bm-frame-seg dim"></div><div class="bm-frame-light on"></div>' +
+            '<div class="bm-frame-light amber"></div><div class="bm-frame-seg purple"></div>' +
+            '<div class="bm-frame-fill"></div><div class="bm-frame-elbow-bottom"></div>' +
+          '</div>' +
+          '<div class="bm-content">' +
+            '<div class="bm-header">' +
+              '<span class="bm-header-title">' + title + '</span>' +
+              '<div class="bm-header-strip">' +
+                '<div class="bm-header-pip w1"></div><div class="bm-header-pip w2"></div>' +
+                '<div class="bm-header-pip w3"></div>' +
+                '<button class="bm-close" onclick="document.getElementById(\'quick-scan-modal\').remove()">&times;</button>' +
+              '</div>' +
+            '</div>' +
+            '<div class="bm-body" style="padding:16px">' +
+              '<label style="display:block;font-size:0.75rem;color:var(--archie-text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">' + fieldLabel + '</label>' +
+              '<input type="text" id="quick-scan-target" placeholder="' + placeholder + '" style="width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:var(--archie-text);padding:10px 12px;border-radius:4px;font-family:\'IBM Plex Mono\',monospace;font-size:0.9rem">' +
+              '<div id="quick-scan-error" style="display:none;color:#ef4444;font-size:0.8rem;margin-top:6px"></div>' +
+            '</div>' +
+            '<div class="bm-footer" style="padding:12px 16px;display:flex;gap:8px;justify-content:flex-end">' +
+              '<button class="btn" onclick="document.getElementById(\'quick-scan-modal\').remove()" style="opacity:0.7">Cancel</button>' +
+              '<button class="btn-submit" id="quick-scan-submit" style="background:rgba(251,191,36,0.2);border-color:rgba(251,191,36,0.5);color:#fbbf24">Run ' + title + '</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    document.body.insertAdjacentHTML('beforeend', html);
+    var modal = document.getElementById('quick-scan-modal');
+    modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
+    setTimeout(function() { document.getElementById('quick-scan-target').focus(); }, 100);
+
+    document.getElementById('quick-scan-submit').addEventListener('click', function() {
+        var target = document.getElementById('quick-scan-target').value.trim();
+        if (!target) {
+            var err = document.getElementById('quick-scan-error');
+            err.textContent = 'Please enter a target.';
+            err.style.display = 'block';
+            return;
+        }
+        modal.remove();
+        showToast('info', 'Starting ' + title + ' on ' + target + '...');
+        fetch(API + '/recon/scan', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({target: target, module: module})
+        }).then(function(r) { return r.json(); })
+          .then(function(d) {
+              if (d.success) {
+                  showToast('success', title + ' started — check Scanners tab for results');
+                  switchSecurityTab('scanners');
+              } else {
+                  showToast('error', d.error || 'Scan failed');
+              }
+          }).catch(function(e) { showToast('error', e.message); });
+    });
+}
+
 function quickToggleProtection() {
     var newState = !_dnsProtectionOn;
     fetch(API + '/dns/adguard/protection', {
@@ -232,11 +297,65 @@ async function loadDNSOverview() {
             document.getElementById('dns-total-queries').textContent = formatNum(s.num_dns_queries || 0);
             document.getElementById('dns-blocked').textContent = formatNum(s.num_blocked_filtering || 0);
             document.getElementById('dns-safe-browsing').textContent = formatNum(s.num_replaced_safebrowsing || 0);
+            var protEnabled = d.status && d.status.protection_enabled !== undefined ? d.status.protection_enabled : true;
             const pEl = document.getElementById('dns-protection-status');
-            pEl.textContent = d.protection_enabled !== false ? 'ON' : 'OFF';
-            pEl.style.color = d.protection_enabled !== false ? 'var(--archie-green)' : 'var(--archie-red)';
+            pEl.textContent = protEnabled ? 'ON' : 'OFF';
+            pEl.style.color = protEnabled ? 'var(--archie-green)' : 'var(--archie-red)';
+
+            // Render Top Queried Domains
+            _renderTopDomainList('dns-top-queried', 'dns-top-queried-count', s.top_queried_domains, '#00e5ff', 15);
+            // Render Top Blocked Domains
+            _renderTopDomainList('dns-top-blocked', 'dns-top-blocked-count', s.top_blocked_domains, '#ef4444', 24);
         }
     } catch(e) { console.error('DNS overview error:', e); }
+}
+
+function _renderTopDomainList(containerId, countId, domainList, accentColor, maxItems) {
+    var container = document.getElementById(containerId);
+    var countEl = document.getElementById(countId);
+    if (!container) return;
+    if (!domainList || !domainList.length) {
+        container.textContent = '';
+        var empty = document.createElement('div');
+        empty.style.cssText = 'color:#666;padding:12px;font-size:0.8rem;text-align:center';
+        empty.textContent = 'No data available';
+        container.appendChild(empty);
+        if (countEl) countEl.textContent = '0';
+        return;
+    }
+    if (countEl) countEl.textContent = domainList.length + ' domains';
+    container.textContent = '';
+    var items = domainList.slice(0, maxItems);
+    items.forEach(function(entry, idx) {
+        // Each entry is {domain: count} — extract key/value
+        var domain = Object.keys(entry)[0];
+        var count = entry[domain];
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:6px 12px;border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer;transition:background 0.15s';
+        row.addEventListener('mouseenter', function() { row.style.background = 'rgba(255,255,255,0.04)'; });
+        row.addEventListener('mouseleave', function() { row.style.background = 'transparent'; });
+        row.addEventListener('click', function() { if (typeof openDomainIntel === 'function') openDomainIntel(domain); });
+        row.title = 'Click to investigate ' + domain;
+
+        var left = document.createElement('div');
+        left.style.cssText = 'display:flex;align-items:center;gap:8px;min-width:0';
+        var rank = document.createElement('span');
+        rank.style.cssText = 'color:#555;font-size:0.7rem;min-width:20px;text-align:right';
+        rank.textContent = (idx + 1) + '.';
+        var name = document.createElement('span');
+        name.style.cssText = 'color:#ccc;font-size:0.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+        name.textContent = domain;
+        left.appendChild(rank);
+        left.appendChild(name);
+
+        var badge = document.createElement('span');
+        badge.style.cssText = 'background:' + accentColor + '22;color:' + accentColor + ';padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;white-space:nowrap';
+        badge.textContent = formatNum(count);
+
+        row.appendChild(left);
+        row.appendChild(badge);
+        container.appendChild(row);
+    });
 }
 
 function dnsBlockDomain() {
@@ -311,15 +430,21 @@ async function loadQueryLog(offset) {
             var tbody = document.createElement('tbody');
             entries.forEach(function(e) {
                 var q = e.question || {};
-                var blocked = e.reason && e.reason !== 'NotFilteredNotFound';
+                var reason = e.reason || '';
+                var notBlocked = !reason || reason === 'NotFilteredNotFound' || reason === 'NotFilteredWhiteList' || reason === 'Rewrite';
+                var blocked = !notBlocked;
+                var isRewrite = reason === 'Rewrite';
                 var clientIp = e.client || '-';
                 var domain = q.name || '-';
 
                 var tr = document.createElement('tr');
-                // Red tint on blocked rows
+                // Red tint on blocked rows, cyan tint on rewrites
                 if (blocked) {
                     tr.style.background = 'rgba(239,68,68,0.06)';
                     tr.style.borderLeft = '3px solid rgba(239,68,68,0.4)';
+                } else if (isRewrite) {
+                    tr.style.background = 'rgba(0,229,255,0.04)';
+                    tr.style.borderLeft = '3px solid rgba(0,229,255,0.25)';
                 }
 
                 // Time
@@ -333,15 +458,12 @@ async function loadQueryLog(offset) {
                 var domLink = document.createElement('span');
                 domLink.textContent = domain;
                 domLink.style.cursor = 'pointer';
-                domLink.title = 'Click to block this domain';
+                domLink.style.color = 'var(--archie-accent, #00e5ff)';
+                domLink.style.textDecoration = 'underline';
+                domLink.style.textDecorationColor = 'rgba(0,229,255,0.3)';
+                domLink.title = 'Click to view domain intelligence';
                 domLink.addEventListener('click', function() {
-                    if (confirm('Block domain: ' + domain + '?')) {
-                        fetch(API+'/dns/adguard/block',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain:domain})})
-                        .then(function(r){return r.json();}).then(function(d){
-                            if(d.success) showToast('success',domain+' blocked');
-                            else showToast('error',d.error||'Failed');
-                        });
-                    }
+                    if (typeof openDomainIntel === 'function') openDomainIntel(domain);
                 });
                 tdDomain.appendChild(domLink);
                 tr.appendChild(tdDomain);
@@ -380,7 +502,9 @@ async function loadQueryLog(offset) {
 
                 // Status badge
                 var tdStatus = document.createElement('td');
-                tdStatus.appendChild(createBadge(blocked?'Blocked':'OK', blocked?'danger':'success'));
+                var statusLabel = blocked ? 'Blocked' : isRewrite ? 'Rewrite' : 'OK';
+                var statusType = blocked ? 'danger' : isRewrite ? 'info' : 'success';
+                tdStatus.appendChild(createBadge(statusLabel, statusType));
                 tr.appendChild(tdStatus);
 
                 tbody.appendChild(tr);
@@ -405,28 +529,90 @@ async function loadFilters() {
         const r = await fetch(API+'/dns/adguard/filters');
         const d = await r.json();
         if(d.success && d.filters) {
-            if(!d.filters.length) { showEmpty(container,'No filters configured'); return; }
+            if(!d.filters.length) { showEmpty(container,'No filters configured — add a filter list above'); return; }
             container.textContent = '';
-            const rows = d.filters.map(f => {
-                const toggle = document.createElement('label');
+
+            // Summary bar
+            var totalRules = 0;
+            var enabledCount = 0;
+            d.filters.forEach(function(f) { totalRules += (f.rules_count || 0); if (f.enabled) enabledCount++; });
+            var summary = document.createElement('div');
+            summary.style.cssText = 'display:flex;gap:16px;padding:8px 12px;margin-bottom:8px;font-size:0.8rem;border-bottom:1px solid rgba(255,255,255,0.06)';
+            var s1 = document.createElement('span');
+            s1.style.color = '#00e5ff';
+            s1.textContent = d.filters.length + ' filter lists';
+            var s2 = document.createElement('span');
+            s2.style.color = '#22c55e';
+            s2.textContent = enabledCount + ' active';
+            var s3 = document.createElement('span');
+            s3.style.color = '#f97316';
+            s3.textContent = formatNum(totalRules) + ' total rules';
+            summary.appendChild(s1); summary.appendChild(s2); summary.appendChild(s3);
+            container.appendChild(summary);
+
+            var table = document.createElement('table');
+            table.className = 'data-table';
+            var thead = document.createElement('thead');
+            var hrow = document.createElement('tr');
+            ['Enabled','Name','URL','Rules',''].forEach(function(h) {
+                var th = document.createElement('th'); th.textContent = h; hrow.appendChild(th);
+            });
+            thead.appendChild(hrow);
+            table.appendChild(thead);
+            var tbody = document.createElement('tbody');
+            d.filters.forEach(function(f) {
+                var tr = document.createElement('tr');
+
+                var tdToggle = document.createElement('td');
+                var toggle = document.createElement('label');
                 toggle.className = 'toggle-switch';
-                const input = document.createElement('input');
+                var input = document.createElement('input');
                 input.type = 'checkbox';
                 input.checked = f.enabled;
                 input.addEventListener('change', function() { toggleFilter(f.url, this.checked); });
-                const slider = document.createElement('span');
+                var slider = document.createElement('span');
                 slider.className = 'toggle-slider';
                 toggle.appendChild(input);
                 toggle.appendChild(slider);
-                const delBtn = document.createElement('button');
+                tdToggle.appendChild(toggle);
+                tr.appendChild(tdToggle);
+
+                var tdName = document.createElement('td');
+                tdName.style.fontWeight = '500';
+                var nameLink = document.createElement('span');
+                nameLink.textContent = f.name;
+                nameLink.style.cssText = 'cursor:pointer;color:#00e5ff;text-decoration:underline;text-decoration-color:rgba(0,229,255,0.3)';
+                nameLink.title = 'Click to view domains in this filter';
+                nameLink.addEventListener('click', function() { _showFilterRules(f.id, f.name, f.rules_count); });
+                tdName.appendChild(nameLink);
+                tr.appendChild(tdName);
+
+                var tdUrl = document.createElement('td');
+                tdUrl.style.cssText = 'font-size:0.72rem;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+                tdUrl.textContent = f.url;
+                tdUrl.title = f.url;
+                tr.appendChild(tdUrl);
+
+                var tdRules = document.createElement('td');
+                tdRules.textContent = formatNum(f.rules_count || 0);
+                tr.appendChild(tdRules);
+
+                var tdAction = document.createElement('td');
+                var delBtn = document.createElement('button');
                 delBtn.className = 'btn btn-danger btn-sm';
                 delBtn.textContent = 'Remove';
                 delBtn.addEventListener('click', function() { removeFilter(f.url); });
-                return [toggle, f.name, f.url, f.rules_count||0, delBtn];
+                tdAction.appendChild(delBtn);
+                tr.appendChild(tdAction);
+
+                tbody.appendChild(tr);
             });
-            container.appendChild(buildTable(['Enabled','Name','URL','Rules',''], rows));
+            table.appendChild(tbody);
+            container.appendChild(table);
+        } else {
+            showEmpty(container, (d.error || 'Could not load filters') + ' — check AdGuard connection');
         }
-    } catch(e) { showEmpty(container, 'Error loading filters'); }
+    } catch(e) { showEmpty(container, 'Error loading filters: ' + e.message); }
 }
 
 function addFilter() {
@@ -453,6 +639,150 @@ function removeFilter(url) {
     .catch(e=>showToast('error',e.message));
 }
 
+function _showFilterRules(filterId, filterName, totalRules) {
+    var existing = document.getElementById('filter-rules-overlay');
+    if (existing) existing.remove();
+
+    var safeName = filterName.replace(/[<>&"']/g, '');
+
+    var overlay = document.createElement('div');
+    overlay.className = 'bm-overlay active';
+    overlay.id = 'filter-rules-overlay';
+    overlay.style.cssText = '--bm-accent:#f97316;--bm-accent-rgb:249,115,22';
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+    var shell = document.createElement('div');
+    shell.className = 'bm-shell';
+    shell.style.maxWidth = '600px';
+
+    var frame = document.createElement('div');
+    frame.className = 'bm-frame';
+    ['bm-frame-elbow-top','bm-frame-seg','bm-frame-seg dim','bm-frame-light on','bm-frame-light amber','bm-frame-seg purple','bm-frame-fill','bm-frame-elbow-bottom'].forEach(function(cls) {
+        var el = document.createElement('div'); el.className = cls; frame.appendChild(el);
+    });
+
+    var content = document.createElement('div');
+    content.className = 'bm-content';
+
+    var header = document.createElement('div');
+    header.className = 'bm-header';
+    var title = document.createElement('span');
+    title.className = 'bm-header-title';
+    title.textContent = safeName;
+    var strip = document.createElement('div');
+    strip.className = 'bm-header-strip';
+    var closeX = document.createElement('button');
+    closeX.className = 'bm-close';
+    closeX.textContent = '\u00d7';
+    closeX.addEventListener('click', function() { overlay.remove(); });
+    strip.appendChild(closeX);
+    header.appendChild(title);
+    header.appendChild(strip);
+
+    var body = document.createElement('div');
+    body.className = 'bm-body';
+    body.style.cssText = 'padding:16px;max-height:65vh;overflow-y:auto';
+
+    // Info bar
+    var info = document.createElement('div');
+    info.style.cssText = 'display:flex;gap:16px;margin-bottom:12px;font-size:0.8rem;flex-wrap:wrap';
+    var s1 = document.createElement('span');
+    s1.style.color = '#f97316';
+    s1.textContent = formatNum(totalRules) + ' total rules';
+    info.appendChild(s1);
+    body.appendChild(info);
+
+    // Search bar
+    var searchRow = document.createElement('div');
+    searchRow.style.cssText = 'display:flex;gap:8px;margin-bottom:12px';
+    var searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.className = 'form-input';
+    searchInput.placeholder = 'Search domains in this filter...';
+    searchInput.style.cssText = 'flex:1;font-size:0.78rem';
+    var searchBtn = document.createElement('button');
+    searchBtn.className = 'btn btn-primary btn-sm';
+    searchBtn.textContent = 'Search';
+    searchBtn.addEventListener('click', function() { _fetchFilterRules(filterId, listContainer, searchInput.value); });
+    searchInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); _fetchFilterRules(filterId, listContainer, searchInput.value); } });
+    searchRow.appendChild(searchInput);
+    searchRow.appendChild(searchBtn);
+    body.appendChild(searchRow);
+
+    var listContainer = document.createElement('div');
+    listContainer.style.cssText = 'font-size:0.78rem';
+    listContainer.textContent = 'Loading domains...';
+    body.appendChild(listContainer);
+
+    var footer = document.createElement('div');
+    footer.className = 'bm-footer';
+    footer.style.cssText = 'padding:12px 16px;display:flex;gap:8px;justify-content:flex-end';
+    var closeBtn = document.createElement('button');
+    closeBtn.className = 'btn';
+    closeBtn.style.opacity = '0.7';
+    closeBtn.textContent = 'Close';
+    closeBtn.addEventListener('click', function() { overlay.remove(); });
+    footer.appendChild(closeBtn);
+
+    content.appendChild(header);
+    content.appendChild(body);
+    content.appendChild(footer);
+    shell.appendChild(frame);
+    shell.appendChild(content);
+    overlay.appendChild(shell);
+    document.body.appendChild(overlay);
+
+    _fetchFilterRules(filterId, listContainer, '');
+}
+
+function _fetchFilterRules(filterId, container, search) {
+    container.textContent = 'Loading...';
+    var params = 'limit=200';
+    if (search) params += '&search=' + encodeURIComponent(search);
+    fetch(API + '/dns/adguard/filters/' + filterId + '/rules?' + params)
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            container.textContent = '';
+            if (!d.success) {
+                container.textContent = 'Error: ' + (d.error || 'Failed to load');
+                return;
+            }
+            if (!d.domains || !d.domains.length) {
+                container.textContent = search ? 'No domains matching "' + search + '"' : 'No domains found';
+                return;
+            }
+            var note = document.createElement('div');
+            note.style.cssText = 'color:#888;font-size:0.7rem;margin-bottom:8px';
+            note.textContent = 'Showing ' + d.domains.length + ' of ' + formatNum(d.filter.rules_count) + ' rules' + (d.search ? ' matching "' + d.search + '"' : '');
+            container.appendChild(note);
+
+            d.domains.forEach(function(domain, idx) {
+                var row = document.createElement('div');
+                row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.03);cursor:pointer;transition:background 0.15s';
+                row.addEventListener('mouseenter', function() { row.style.background = 'rgba(255,255,255,0.04)'; });
+                row.addEventListener('mouseleave', function() { row.style.background = 'transparent'; });
+                row.title = 'Click to investigate';
+                row.addEventListener('click', function() {
+                    var overlay = document.getElementById('filter-rules-overlay');
+                    if (overlay) overlay.remove();
+                    if (typeof openDomainIntel === 'function') openDomainIntel(domain);
+                });
+
+                var rank = document.createElement('span');
+                rank.style.cssText = 'color:#555;font-size:0.68rem;min-width:28px;text-align:right;margin-right:8px';
+                rank.textContent = (idx + 1) + '.';
+                var name = document.createElement('span');
+                name.style.cssText = 'color:#ccc;font-size:0.76rem';
+                name.textContent = domain;
+
+                row.appendChild(rank);
+                row.appendChild(name);
+                container.appendChild(row);
+            });
+        })
+        .catch(function(e) { container.textContent = 'Error: ' + e; });
+}
+
 function refreshAllFilters() {
     fetch(API+'/dns/adguard/filters/refresh',{method:'POST'}).then(r=>r.json()).then(d=>{
         if(d.success){showToast('success','Filters refreshed');loadFilters();}else showToast('error',d.error||'Failed');
@@ -467,18 +797,49 @@ async function loadRewrites() {
         const r = await fetch(API+'/dns/adguard/rewrites');
         const d = await r.json();
         if(d.success && d.rewrites) {
-            if(!d.rewrites.length){showEmpty(container,'No DNS rewrites');return;}
+            if(!d.rewrites.length){showEmpty(container,'No DNS rewrites configured — use the form above to map domains to custom IPs');return;}
             container.textContent='';
-            const rows = d.rewrites.map(rw => {
-                const delBtn = document.createElement('button');
-                delBtn.className='btn btn-danger btn-sm';
-                delBtn.textContent='Delete';
-                delBtn.addEventListener('click', function(){deleteRewrite(rw.domain,rw.answer);});
-                return [rw.domain, rw.answer, delBtn];
+
+            // Description + count
+            var info = document.createElement('div');
+            info.style.cssText = 'padding:8px 12px;margin-bottom:8px;font-size:0.78rem;color:#888;border-bottom:1px solid rgba(255,255,255,0.06)';
+            info.textContent = d.rewrites.length + ' rewrite' + (d.rewrites.length !== 1 ? 's' : '') + ' active \u2014 DNS rewrites map domains to custom IPs. Used for split DNS (internal services resolve to local IPs).';
+            container.appendChild(info);
+
+            var table = document.createElement('table');
+            table.className = 'data-table';
+            var thead = document.createElement('thead');
+            var hrow = document.createElement('tr');
+            ['Domain','Answer (IP)',''].forEach(function(h) {
+                var th = document.createElement('th'); th.textContent = h; hrow.appendChild(th);
             });
-            container.appendChild(buildTable(['Domain','Answer',''], rows));
+            thead.appendChild(hrow);
+            table.appendChild(thead);
+            var tbd = document.createElement('tbody');
+            d.rewrites.forEach(function(rw) {
+                var tr = document.createElement('tr');
+                var tdDom = document.createElement('td');
+                tdDom.textContent = rw.domain;
+                tdDom.style.color = '#00e5ff';
+                tr.appendChild(tdDom);
+                var tdAns = document.createElement('td');
+                tdAns.textContent = rw.answer;
+                tr.appendChild(tdAns);
+                var tdAct = document.createElement('td');
+                var delBtn = document.createElement('button');
+                delBtn.className = 'btn btn-danger btn-sm';
+                delBtn.textContent = 'Delete';
+                delBtn.addEventListener('click', function() { deleteRewrite(rw.domain, rw.answer); });
+                tdAct.appendChild(delBtn);
+                tr.appendChild(tdAct);
+                tbd.appendChild(tr);
+            });
+            table.appendChild(tbd);
+            container.appendChild(table);
+        } else {
+            showEmpty(container, (d.error || 'Could not load rewrites') + ' — check AdGuard connection');
         }
-    } catch(e) { showEmpty(container,'Error loading rewrites'); }
+    } catch(e) { showEmpty(container,'Error loading rewrites: ' + e.message); }
 }
 
 function addRewrite() {
@@ -551,14 +912,104 @@ async function loadUserRules() {
     try {
         const r = await fetch(API+'/dns/adguard/rules');
         const d = await r.json();
-        if(d.success) document.getElementById('user-rules').value = d.rules||'';
+        if(d.success) {
+            var rulesText = d.rules || '';
+            document.getElementById('user-rules').value = rulesText;
+            _renderRulesSummary(rulesText);
+        }
     } catch(e){console.error('Rules load error:',e);}
+}
+
+function _renderRulesSummary(rulesText) {
+    var lines = rulesText.split('\n').filter(function(l) { return l.trim(); });
+    var blocked = [], allowed = [], comments = 0;
+    lines.forEach(function(line) {
+        var t = line.trim();
+        if (t.startsWith('#') || t.startsWith('!')) { comments++; }
+        else if (t.startsWith('@@||')) {
+            var m = t.match(/^@@\|\|(.+?)\^/);
+            if (m) allowed.push(m[1]);
+        } else if (t.startsWith('||')) {
+            var m2 = t.match(/^\|\|(.+?)\^/);
+            if (m2) blocked.push(m2[1]);
+        }
+    });
+
+    var bcEl = document.getElementById('rules-blocked-count');
+    var acEl = document.getElementById('rules-allowed-count');
+    var ccEl = document.getElementById('rules-comment-count');
+    if (bcEl) bcEl.textContent = blocked.length;
+    if (acEl) acEl.textContent = allowed.length;
+    if (ccEl) ccEl.textContent = comments;
+
+    var chips = document.getElementById('rules-domain-chips');
+    if (!chips) return;
+    chips.textContent = '';
+
+    if (!blocked.length && !allowed.length) {
+        var empty = document.createElement('span');
+        empty.style.cssText = 'color:#666;font-size:0.78rem';
+        empty.textContent = 'No custom domain rules. Use Quick Block above or edit the textarea below.';
+        chips.appendChild(empty);
+        return;
+    }
+
+    blocked.forEach(function(domain) {
+        var chip = document.createElement('span');
+        chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:rgba(239,68,68,0.12);color:#ef4444;padding:3px 8px;border-radius:4px;font-size:0.72rem;border:1px solid rgba(239,68,68,0.25)';
+        var txt = document.createTextNode(domain);
+        var x = document.createElement('span');
+        x.style.cssText = 'cursor:pointer;font-weight:700;margin-left:2px;opacity:0.7';
+        x.textContent = '\u00d7';
+        x.title = 'Remove block rule for ' + domain;
+        x.addEventListener('click', function(e) {
+            e.stopPropagation();
+            _removeRule('||' + domain + '^');
+        });
+        chip.appendChild(txt);
+        chip.appendChild(x);
+        chip.style.cursor = 'pointer';
+        chip.title = 'Click to investigate ' + domain;
+        chip.addEventListener('click', function() { if (typeof openDomainIntel === 'function') openDomainIntel(domain); });
+        chips.appendChild(chip);
+    });
+
+    allowed.forEach(function(domain) {
+        var chip = document.createElement('span');
+        chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:rgba(34,197,94,0.12);color:#22c55e;padding:3px 8px;border-radius:4px;font-size:0.72rem;border:1px solid rgba(34,197,94,0.25)';
+        var txt = document.createTextNode(domain);
+        var x = document.createElement('span');
+        x.style.cssText = 'cursor:pointer;font-weight:700;margin-left:2px;opacity:0.7';
+        x.textContent = '\u00d7';
+        x.title = 'Remove whitelist rule for ' + domain;
+        x.addEventListener('click', function(e) {
+            e.stopPropagation();
+            _removeRule('@@||' + domain + '^');
+        });
+        chip.appendChild(txt);
+        chip.appendChild(x);
+        chips.appendChild(chip);
+    });
+}
+
+function _removeRule(rule) {
+    var textarea = document.getElementById('user-rules');
+    if (!textarea) return;
+    var lines = textarea.value.split('\n');
+    var filtered = lines.filter(function(l) { return l.trim() !== rule; });
+    textarea.value = filtered.join('\n');
+    // Auto-save and refresh summary
+    saveUserRules();
+    _renderRulesSummary(textarea.value);
 }
 
 function saveUserRules() {
     const rules = document.getElementById('user-rules').value;
     fetch(API+'/dns/adguard/rules',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rules:rules})})
-    .then(r=>r.json()).then(d=>{if(d.success) showToast('success','Rules saved'); else showToast('error',d.error||'Failed');})
+    .then(r=>r.json()).then(d=>{
+        if(d.success) { showToast('success','Rules saved'); _renderRulesSummary(rules); }
+        else showToast('error',d.error||'Failed');
+    })
     .catch(e=>showToast('error',e.message));
 }
 
@@ -1166,61 +1617,100 @@ function refreshSSLMonitors() {
 // SYSOPS_API alias — same base URL as SN_API / API
 var SYSOPS_API = typeof SN_API !== 'undefined' ? SN_API : '/tools/security-network/api';
 
+function _renderFirewallPanel(panel, fw) {
+    panel.textContent = '';
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;gap:16px;flex-wrap:wrap';
+    var isActive = fw.active || fw.enabled || fw.status === 'active';
+    var items = [
+        {label:'STATUS', badge:isActive?'Active':'Inactive', type:isActive?'success':'danger'},
+        {label:'RULES', text:String(fw.rules_count||fw.rule_count||(fw.rules?fw.rules.length:0)||0)},
+        {label:'DEFAULT', text:fw.default_policy||fw.default_incoming||'-'}
+    ];
+    items.forEach(function(item){
+        var cell = document.createElement('div');
+        var lbl = document.createElement('span');
+        lbl.style.cssText='font-size:0.72rem;color:var(--archie-text-muted)';
+        lbl.textContent = item.label;
+        cell.appendChild(lbl);
+        cell.appendChild(document.createElement('br'));
+        if(item.badge){cell.appendChild(createBadge(item.badge,item.type));}
+        else{var v=document.createElement('span');v.style.cssText='font-family:var(--archie-font-mono);color:var(--archie-text-primary)';v.textContent=item.text;cell.appendChild(v);}
+        wrap.appendChild(cell);
+    });
+    panel.appendChild(wrap);
+}
+
 async function loadFirewall() {
     var panel = document.getElementById('firewall-panel');
     var rulesDiv = document.getElementById('firewall-rules');
+
+    // Show cached firewall status immediately
+    try {
+        var cached = localStorage.getItem('sn_firewall_cache');
+        if (cached) {
+            var cdata = JSON.parse(cached);
+            _renderFirewallPanel(panel, cdata.fw);
+            var note = document.createElement('div');
+            note.style.cssText = 'font-size:0.65rem;color:#666;text-align:right;margin-top:4px';
+            note.textContent = 'Cached — refreshing...';
+            note.id = 'fw-cache-note';
+            panel.appendChild(note);
+            if (cdata.rules && cdata.rules.length) {
+                _renderFirewallRules(rulesDiv, cdata.rules);
+            }
+        }
+    } catch(e) {}
+
+    // Fetch fresh status
     try {
         var r = await fetch(SYSOPS_API+'/firewall/status');
         var d = await r.json();
         if(d.success) {
             var fw = d.firewall || d;
-            panel.textContent='';
-            var wrap = document.createElement('div');
-            wrap.style.cssText='display:flex;gap:16px;flex-wrap:wrap';
-            var items = [
-                {label:'STATUS', badge:fw.active?'Active':'Inactive', type:fw.active?'success':'danger'},
-                {label:'RULES', text:String(fw.rules_count||fw.rule_count||0)},
-                {label:'DEFAULT', text:fw.default_policy||fw.default_incoming||'-'}
-            ];
-            items.forEach(function(item){
-                var cell = document.createElement('div');
-                var lbl = document.createElement('span');
-                lbl.style.cssText='font-size:0.72rem;color:var(--archie-text-muted)';
-                lbl.textContent = item.label;
-                cell.appendChild(lbl);
-                cell.appendChild(document.createElement('br'));
-                if(item.badge){cell.appendChild(createBadge(item.badge,item.type));}
-                else{var v=document.createElement('span');v.style.cssText='font-family:var(--archie-font-mono);color:var(--archie-text-primary)';v.textContent=item.text;cell.appendChild(v);}
-                wrap.appendChild(cell);
-            });
-            panel.appendChild(wrap);
-        } else { showEmpty(panel,'Firewall status unavailable'); }
-    } catch(e) { showEmpty(panel,'Error loading firewall'); }
+            _renderFirewallPanel(panel, fw);
+            try { var cache = JSON.parse(localStorage.getItem('sn_firewall_cache') || '{}'); cache.fw = fw; cache.ts = Date.now(); localStorage.setItem('sn_firewall_cache', JSON.stringify(cache)); } catch(e) {}
+        } else if (!localStorage.getItem('sn_firewall_cache')) {
+            showEmpty(panel,'Firewall status unavailable — host agent may be busy');
+        } else {
+            var n = document.getElementById('fw-cache-note');
+            if (n) n.textContent = 'Cached — live refresh failed';
+        }
+    } catch(e) {
+        if (!localStorage.getItem('sn_firewall_cache')) showEmpty(panel,'Error loading firewall');
+    }
 
     // Load rules
     try {
         var r2 = await fetch(SYSOPS_API+'/firewall/rules');
         var d2 = await r2.json();
-        rulesDiv.textContent='';
         var rules = d2.rules || [];
-        if(rules.length === 0) { showEmpty(rulesDiv,'No firewall rules'); return; }
-        var rows = rules.map(function(rule) {
-            var delBtn = document.createElement('button');
-            delBtn.className = 'btn btn-danger btn-sm';
-            delBtn.textContent = 'Delete';
-            delBtn.addEventListener('click', function(){ deleteFirewallRule(rule.number || rule.id); });
-            return [
-                rule.number || rule.id || '-',
-                createBadge(rule.action || 'allow', (rule.action||'allow')==='allow'?'success':'danger'),
-                rule.to || rule.port || '-',
-                rule.from || 'Anywhere',
-                rule.protocol || '-',
-                rule.comment || '-',
-                delBtn
-            ];
-        });
-        rulesDiv.appendChild(buildTable(['#','Action','Port','From','Proto','Comment',''], rows));
-    } catch(e) { showEmpty(rulesDiv,'Error loading rules'); }
+        _renderFirewallRules(rulesDiv, rules);
+        try { var cache = JSON.parse(localStorage.getItem('sn_firewall_cache') || '{}'); cache.rules = rules; localStorage.setItem('sn_firewall_cache', JSON.stringify(cache)); } catch(e) {}
+    } catch(e) {
+        if (!localStorage.getItem('sn_firewall_cache')) showEmpty(rulesDiv,'Error loading rules');
+    }
+}
+
+function _renderFirewallRules(rulesDiv, rules) {
+    rulesDiv.textContent = '';
+    if (rules.length === 0) { showEmpty(rulesDiv, 'No firewall rules'); return; }
+    var rows = rules.map(function(rule) {
+        var delBtn = document.createElement('button');
+        delBtn.className = 'btn btn-danger btn-sm';
+        delBtn.textContent = 'Delete';
+        delBtn.addEventListener('click', function(){ deleteFirewallRule(rule.number || rule.id); });
+        return [
+            rule.number || rule.id || '-',
+            createBadge(rule.action || 'allow', (rule.action||'allow')==='allow'?'success':'danger'),
+            rule.to || rule.port || '-',
+            rule.from || 'Anywhere',
+            rule.protocol || '-',
+            rule.comment || '-',
+            delBtn
+        ];
+    });
+    rulesDiv.appendChild(buildTable(['#','Action','Port','From','Proto','Comment',''], rows));
 }
 
 function toggleFirewall(enable) {
@@ -1356,20 +1846,57 @@ async function loadSecurityEvents() {
         const d = await r.json();
         if(d.success && d.events && d.events.length) {
             container.textContent='';
-            const rows = d.events.map(ev=>{
-                const sevCls = ev.severity==='critical'||ev.severity==='high'?'danger':ev.severity==='medium'?'warning':'info';
-                const actions = document.createElement('span');
-                if(ev.status!=='resolved'){
-                    const btn = document.createElement('button');
-                    btn.className='btn btn-success btn-sm'; btn.textContent='Resolve';
-                    btn.addEventListener('click',function(){resolveEvent(ev.id);});
-                    actions.appendChild(btn);
-                } else { actions.appendChild(createBadge('Resolved','success')); }
-                return [formatTime(ev.created_at), ev.event_type||ev.type||'-', createBadge(ev.severity||'-',sevCls), ev.description||'', actions];
+            var table = document.createElement('table');
+            table.className = 'data-table';
+            var thead = document.createElement('thead');
+            var hrow = document.createElement('tr');
+            ['Time','Type','Severity','Details',''].forEach(function(h) {
+                var th = document.createElement('th'); th.textContent = h; hrow.appendChild(th);
             });
-            container.appendChild(buildTable(['Time','Type','Severity','Details',''], rows));
-        } else { showEmpty(container,'No security events'); }
-    } catch(e) { showEmpty(container,'Error loading events'); }
+            thead.appendChild(hrow);
+            table.appendChild(thead);
+            var tbody = document.createElement('tbody');
+            d.events.forEach(function(ev) {
+                var tr = document.createElement('tr');
+                var sevCls = ev.severity==='critical'||ev.severity==='high'?'danger':ev.severity==='medium'?'warning':'info';
+
+                var tdTime = document.createElement('td');
+                tdTime.textContent = formatTime(ev.created_at);
+                tdTime.style.fontSize = '0.78rem';
+                tr.appendChild(tdTime);
+
+                var tdType = document.createElement('td');
+                tdType.textContent = ev.event_type || ev.type || '-';
+                tr.appendChild(tdType);
+
+                var tdSev = document.createElement('td');
+                tdSev.appendChild(createBadge(ev.severity || '-', sevCls));
+                tr.appendChild(tdSev);
+
+                var tdDesc = document.createElement('td');
+                tdDesc.textContent = ev.description || '';
+                tdDesc.style.cssText = 'max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+                tdDesc.title = ev.description || '';
+                tr.appendChild(tdDesc);
+
+                var tdAction = document.createElement('td');
+                if (ev.status !== 'resolved') {
+                    var btn = document.createElement('button');
+                    btn.className = 'btn btn-success btn-sm';
+                    btn.textContent = 'Resolve';
+                    btn.addEventListener('click', function() { resolveEvent(ev.id); });
+                    tdAction.appendChild(btn);
+                } else {
+                    tdAction.appendChild(createBadge('Resolved', 'success'));
+                }
+                tr.appendChild(tdAction);
+
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+            container.appendChild(table);
+        } else { showEmpty(container,'No security events recorded'); }
+    } catch(e) { showEmpty(container,'Error loading events: ' + e.message); }
 }
 
 function resolveEvent(eventId) {
@@ -1379,20 +1906,134 @@ function resolveEvent(eventId) {
     .catch(e=>showToast('error',e.message));
 }
 
+// Known internal service labels
+var _CONN_LABELS = {
+    '127.0.0.11': 'Docker DNS',
+    '0.0.0.0:3000': 'ARCHIE Platform',
+    '0.0.0.0:5000': 'Flask Dev',
+    '172.26.0': 'AdGuard Network',
+    '172.27.0': 'Docker Bridge',
+    '192.168.1.200': 'Hub Server',
+    ':5432': 'PostgreSQL',
+    ':6379': 'Redis',
+    ':11434': 'Ollama',
+    ':8188': 'ComfyUI',
+    ':53': 'DNS'
+};
+
+function _labelConnection(addr) {
+    if (!addr || addr === '-') return '';
+    for (var pattern in _CONN_LABELS) {
+        if (addr.indexOf(pattern) >= 0) return _CONN_LABELS[pattern];
+    }
+    return '';
+}
+
+function _isInternalConn(c) {
+    var local = c.local_address || c.laddr || '';
+    var remote = c.foreign_address || c.remote_address || c.raddr || '';
+    // Internal: Docker DNS, loopback, Docker bridge with no remote
+    if (local.indexOf('127.0.0.11') >= 0) return true;
+    if (remote === '0.0.0.0:*' || remote === ':::*' || remote === '' || remote === '-') return false; // LISTEN = keep
+    if (remote.indexOf('127.') === 0) return true;
+    return false;
+}
+
 async function loadConnections() {
-    const container = document.getElementById('connections-list');
+    var container = document.getElementById('connections-list');
     try {
-        const r = await fetch(API+'/connections/active');
-        const d = await r.json();
+        var r = await fetch(API+'/connections/active');
+        var d = await r.json();
         if(d.success && d.connections && d.connections.length) {
             container.textContent='';
-            const rows = d.connections.slice(0,50).map(c=>[
-                c.proto||c.type||'-', c.local_address||c.laddr||'-',
-                c.remote_address||c.raddr||'-', createBadge(c.status||'-','muted'), c.pid||'-'
-            ]);
-            container.appendChild(buildTable(['Proto','Local','Remote','Status','PID'], rows));
-        } else { showEmpty(container,'No active connections data'); }
-    } catch(e) { showEmpty(container,'Error loading connections'); }
+
+            // Separate into listeners, external, and internal
+            var listeners = [], external = [], internal = [];
+            d.connections.forEach(function(c) {
+                var remote = c.foreign_address || c.remote_address || c.raddr || '';
+                var state = c.state || c.status || '';
+                if (state === 'LISTEN' || remote === '0.0.0.0:*' || remote === ':::*') {
+                    listeners.push(c);
+                } else if (_isInternalConn(c)) {
+                    internal.push(c);
+                } else {
+                    external.push(c);
+                }
+            });
+
+            // Summary stats
+            var stats = document.createElement('div');
+            stats.style.cssText = 'display:flex;gap:16px;margin-bottom:10px;font-size:0.78rem';
+            var s1 = document.createElement('span');
+            s1.style.color = '#22c55e';
+            s1.textContent = listeners.length + ' listening';
+            var s2 = document.createElement('span');
+            s2.style.color = '#00e5ff';
+            s2.textContent = external.length + ' external';
+            var s3 = document.createElement('span');
+            s3.style.color = '#888';
+            s3.textContent = internal.length + ' internal (hidden)';
+            stats.appendChild(s1); stats.appendChild(s2); stats.appendChild(s3);
+            container.appendChild(stats);
+
+            // Build table — show listeners + external only
+            var visible = listeners.concat(external).slice(0, 40);
+            var table = document.createElement('table');
+            table.className = 'data-table';
+            var thead = document.createElement('thead');
+            var hrow = document.createElement('tr');
+            ['Proto','Local','Remote','Service','Status'].forEach(function(h) {
+                var th = document.createElement('th'); th.textContent = h; hrow.appendChild(th);
+            });
+            thead.appendChild(hrow);
+            table.appendChild(thead);
+            var tbody = document.createElement('tbody');
+            visible.forEach(function(c) {
+                var local = c.local_address || c.laddr || '-';
+                var remote = c.foreign_address || c.remote_address || c.raddr || '-';
+                var state = c.state || c.status || '-';
+                var proto = c.protocol || c.proto || c.type || '-';
+                var label = _labelConnection(local) || _labelConnection(remote);
+
+                var tr = document.createElement('tr');
+                if (state === 'LISTEN') tr.style.borderLeft = '3px solid rgba(34,197,94,0.4)';
+
+                var tdProto = document.createElement('td');
+                tdProto.textContent = proto;
+                tr.appendChild(tdProto);
+
+                var tdLocal = document.createElement('td');
+                tdLocal.textContent = local;
+                tdLocal.style.cssText = 'font-family:monospace;font-size:0.73rem';
+                tr.appendChild(tdLocal);
+
+                var tdRemote = document.createElement('td');
+                tdRemote.textContent = (remote === '0.0.0.0:*' || remote === ':::*') ? '*' : remote;
+                tdRemote.style.cssText = 'font-family:monospace;font-size:0.73rem';
+                tr.appendChild(tdRemote);
+
+                var tdService = document.createElement('td');
+                if (label) {
+                    var tag = document.createElement('span');
+                    tag.style.cssText = 'background:rgba(0,229,255,0.1);color:#00e5ff;padding:1px 6px;border-radius:3px;font-size:0.68rem';
+                    tag.textContent = label;
+                    tdService.appendChild(tag);
+                } else {
+                    tdService.textContent = '-';
+                }
+                tr.appendChild(tdService);
+
+                var tdStatus = document.createElement('td');
+                var statType = state === 'LISTEN' ? 'success' : state === 'ESTABLISHED' ? 'info' : 'muted';
+                tdStatus.appendChild(createBadge(state, statType));
+                tr.appendChild(tdStatus);
+
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+            container.appendChild(table);
+        } else { showEmpty(container,'No active connections data available'); }
+    } catch(e) { showEmpty(container,'Error loading connections: ' + e.message); }
 }
 
 /* ========== Reports ========== */
@@ -1696,14 +2337,34 @@ async function loadDomainsOverview() {
     try {
         const r = await fetch(API + '/domains/overview');
         const d = await r.json();
-        if (!d.success) { showToast('error', d.error || 'Failed to load domains overview'); return; }
+        if (!d.success) {
+            // Show error in stats instead of just a toast
+            var errMsg = d.error || 'Failed to load';
+            document.getElementById('domains-public-ip').textContent = 'Error';
+            document.getElementById('domains-dns-count').textContent = '--';
+            document.getElementById('domains-proxy-count').textContent = '--';
+            document.getElementById('domains-cert-count').textContent = '--';
+            var errBody = document.getElementById('domains-unified-body');
+            if (errBody) {
+                errBody.textContent = '';
+                var tr = document.createElement('tr');
+                var td = document.createElement('td');
+                td.colSpan = 5;
+                td.style.cssText = 'text-align:center;color:#f97316;padding:20px';
+                td.textContent = 'Could not load domain data: ' + errMsg + '. Check Hostinger API configuration in Security Network settings.';
+                tr.appendChild(td);
+                errBody.appendChild(tr);
+            }
+            showToast('error', errMsg);
+            return;
+        }
 
         document.getElementById('domains-public-ip').textContent = d.public_ip || 'Unknown';
-        document.getElementById('domains-dns-count').textContent = Array.isArray(d.dns_records) ? d.dns_records.length : '--';
-        document.getElementById('domains-proxy-count').textContent = Array.isArray(d.proxy_hosts) ? d.proxy_hosts.length : '--';
+        document.getElementById('domains-dns-count').textContent = Array.isArray(d.dns_records) ? d.dns_records.length : '0';
+        document.getElementById('domains-proxy-count').textContent = Array.isArray(d.proxy_hosts) ? d.proxy_hosts.length : 'N/A';
 
         /* Certificate count from overview response */
-        document.getElementById('domains-cert-count').textContent = Array.isArray(d.certificates) ? d.certificates.length : '--';
+        document.getElementById('domains-cert-count').textContent = Array.isArray(d.certificates) ? d.certificates.length : 'N/A';
 
         // Build unified subdomain map
         const dnsRecords = Array.isArray(d.dns_records) ? d.dns_records : [];
@@ -1791,6 +2452,97 @@ async function loadDomainsOverview() {
 
             tbody.appendChild(tr);
         });
+
+        // Managed Servers
+        const servers = Array.isArray(d.servers) ? d.servers : [];
+        const serverBody = document.getElementById('domains-servers-body');
+        if (serverBody) {
+            serverBody.textContent = '';
+            if (!servers.length) {
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.colSpan = 6; td.style.textAlign = 'center'; td.style.color = 'var(--text-dim)';
+                td.textContent = 'No servers registered';
+                tr.appendChild(td); serverBody.appendChild(tr);
+            } else {
+                // Count subdomains per IP for each server
+                servers.forEach(function(srv) {
+                    const tr = document.createElement('tr');
+                    const ip = srv.public_ip || srv.hostname || '--';
+                    const meshIp = srv.vpn_ip || '--';
+
+                    // Count how many subdomains point to this server's IP
+                    const srvSubdomains = keys.filter(function(k) {
+                        return subdomains[k].dnsIP === ip || subdomains[k].dnsIP === srv.hostname;
+                    });
+
+                    const tdName = document.createElement('td');
+                    const strong = document.createElement('strong');
+                    strong.textContent = srv.node_name || 'Unknown';
+                    strong.style.color = srv.status === 'online' ? '#10b981' : '#ef4444';
+                    tdName.appendChild(strong);
+                    if (srv.description) { const desc = document.createElement('div'); desc.style.cssText = 'font-size:0.7rem;color:var(--text-dim)'; desc.textContent = srv.description; tdName.appendChild(desc); }
+                    tr.appendChild(tdName);
+
+                    const tdPub = document.createElement('td');
+                    tdPub.style.fontFamily = '"IBM Plex Mono",monospace';
+                    tdPub.textContent = ip;
+                    tr.appendChild(tdPub);
+
+                    const tdMesh = document.createElement('td');
+                    tdMesh.style.fontFamily = '"IBM Plex Mono",monospace';
+                    tdMesh.textContent = meshIp;
+                    tr.appendChild(tdMesh);
+
+                    const tdRole = document.createElement('td');
+                    tdRole.textContent = srv.gpu_available ? 'GPU Node' : 'Compute';
+                    tr.appendChild(tdRole);
+
+                    const tdStatus = document.createElement('td');
+                    const statusSpan = document.createElement('span');
+                    statusSpan.style.color = srv.status === 'online' ? '#10b981' : '#ef4444';
+                    statusSpan.textContent = '\u25CF ' + (srv.status || 'unknown').toUpperCase();
+                    tdStatus.appendChild(statusSpan);
+                    tr.appendChild(tdStatus);
+
+                    const tdSubs = document.createElement('td');
+                    tdSubs.textContent = srvSubdomains.length ? srvSubdomains.join(', ') : '--';
+                    tdSubs.style.cssText = 'font-size:0.75rem;max-width:200px;overflow:hidden;text-overflow:ellipsis';
+                    tr.appendChild(tdSubs);
+
+                    serverBody.appendChild(tr);
+                });
+            }
+        }
+
+        // IP Change History
+        const ipHistory = Array.isArray(d.ip_history) ? d.ip_history : [];
+        const ipBody = document.getElementById('domains-ip-history-body');
+        if (ipBody) {
+            ipBody.textContent = '';
+            if (!ipHistory.length) {
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.colSpan = 2; td.style.textAlign = 'center'; td.style.color = 'var(--text-dim)';
+                td.textContent = 'No IP changes recorded';
+                tr.appendChild(td); ipBody.appendChild(tr);
+            } else {
+                ipHistory.forEach(function(entry) {
+                    const tr = document.createElement('tr');
+                    const tdIp = document.createElement('td');
+                    tdIp.style.fontFamily = '"IBM Plex Mono",monospace';
+                    tdIp.textContent = entry.ip || '--';
+                    if (entry.ip === (d.public_ip || '')) { tdIp.style.color = '#10b981'; tdIp.textContent += ' (current)'; }
+                    tr.appendChild(tdIp);
+
+                    const tdDate = document.createElement('td');
+                    tdDate.textContent = entry.detected_at ? new Date(entry.detected_at).toLocaleString() : '--';
+                    tr.appendChild(tdDate);
+
+                    ipBody.appendChild(tr);
+                });
+            }
+        }
 
         lucide.createIcons();
     } catch (e) {
@@ -2284,10 +3036,10 @@ function _getSecOps() {
             commandsElId: 'secOpsCommands',
             statusElId: 'secOpsOnline',
             commands: [
-                { label: 'NMAP SCAN', cls: 'amber', fn: "switchToTab('recon')", id: 'secCmdNmap' },
-                { label: 'SSL CHECK', cls: 'green', fn: "switchToTab('scanning')", id: 'secCmdSsl' },
-                { label: 'DEVICE AUDIT', cls: 'cyan', fn: "loadDeviceClients()", id: 'secCmdDevices' },
-                { label: 'DNS REPORT', cls: 'purple', fn: "switchToTab('dns')", id: 'secCmdDns' }
+                { label: 'NMAP SCAN', cls: 'amber', fn: "openQuickScanModal('nmap_scan','NMAP SCAN','Target IP/Host','192.168.1.0/24')", id: 'secCmdNmap' },
+                { label: 'SSL CHECK', cls: 'green', fn: "openQuickScanModal('testssl_scan','SSL CHECK','Domain','archie.kytranempowerment.com')", id: 'secCmdSsl' },
+                { label: 'DEVICE AUDIT', cls: 'cyan', fn: "switchSecurityTab('devices')", id: 'secCmdDevices' },
+                { label: 'DNS REPORT', cls: 'purple', fn: "switchSecurityTab('dns')", id: 'secCmdDns' }
             ],
             onCapacityChange: function(atCap) {
                 ['secCmdNmap','secCmdSsl','secCmdDevices','secCmdDns'].forEach(function(id) {
@@ -3265,6 +4017,7 @@ function onHardeningTabShown() {
 
 // ========== NETWORK MONITOR ==========
 
+var _netMonDevices = [];
 async function loadNetworkMonitor() {
     var container = document.getElementById('network-monitor-table');
     if (!container) return;
@@ -3281,80 +4034,28 @@ async function loadNetworkMonitor() {
             return;
         }
 
-        var table = document.createElement('table');
-        table.className = 'data-table';
+        // Sort by total traffic descending
+        _netMonDevices = d.devices.sort(function(a, b) { return (b.total || 0) - (a.total || 0); });
 
-        // Header
-        var thead = document.createElement('thead');
-        var headerRow = document.createElement('tr');
-        ['Device', 'IP', 'MAC', 'Download', 'Upload', 'Total', 'Domains'].forEach(function(h) {
-            var th = document.createElement('th');
-            th.textContent = h;
-            headerRow.appendChild(th);
-        });
-        thead.appendChild(headerRow);
-        table.appendChild(thead);
+        // Search bar
+        var searchBar = document.createElement('div');
+        searchBar.style.cssText = 'display:flex;gap:8px;margin-bottom:10px;align-items:center';
+        var searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.className = 'form-input';
+        searchInput.id = 'netmon-search';
+        searchInput.placeholder = 'Filter by name, IP, or MAC...';
+        searchInput.style.cssText = 'flex:1;max-width:300px;font-size:0.78rem';
+        searchInput.addEventListener('input', function() { _renderNetMonTable(container, searchInput.value.toLowerCase()); });
+        var countLabel = document.createElement('span');
+        countLabel.style.cssText = 'color:#888;font-size:0.75rem';
+        countLabel.id = 'netmon-count';
+        countLabel.textContent = _netMonDevices.length + ' devices';
+        searchBar.appendChild(searchInput);
+        searchBar.appendChild(countLabel);
+        container.appendChild(searchBar);
 
-        // Body
-        var tbody = document.createElement('tbody');
-        d.devices.forEach(function(dev) {
-            var tr = document.createElement('tr');
-            tr.style.cursor = 'pointer';
-            tr.addEventListener('click', function() { openDeviceDetail(dev.device_ip); });
-
-            // Device name/label
-            var tdName = document.createElement('td');
-            var nameSpan = document.createElement('span');
-            nameSpan.style.fontWeight = '600';
-            nameSpan.textContent = dev.device_label || dev.user_name || 'Unknown';
-            tdName.appendChild(nameSpan);
-            if (dev.device_type) {
-                var typeSpan = document.createElement('span');
-                typeSpan.style.cssText = 'display:block;font-size:11px;opacity:0.6';
-                typeSpan.textContent = dev.device_type;
-                tdName.appendChild(typeSpan);
-            }
-            tr.appendChild(tdName);
-
-            // IP
-            var tdIp = document.createElement('td');
-            tdIp.textContent = dev.device_ip;
-            tdIp.style.fontFamily = 'monospace';
-            tr.appendChild(tdIp);
-
-            // MAC
-            var tdMac = document.createElement('td');
-            tdMac.textContent = dev.device_mac || '-';
-            tdMac.style.cssText = 'font-family:monospace;font-size:11px';
-            tr.appendChild(tdMac);
-
-            // Download (bytes_in = received from network)
-            var tdDown = document.createElement('td');
-            tdDown.textContent = formatBytes(dev.total_in || 0);
-            tdDown.style.color = '#22d3ee';
-            tr.appendChild(tdDown);
-
-            // Upload (bytes_out = sent to network)
-            var tdUp = document.createElement('td');
-            tdUp.textContent = formatBytes(dev.total_out || 0);
-            tdUp.style.color = '#f472b6';
-            tr.appendChild(tdUp);
-
-            // Total
-            var tdTotal = document.createElement('td');
-            tdTotal.textContent = formatBytes(dev.total || 0);
-            tdTotal.style.fontWeight = '600';
-            tr.appendChild(tdTotal);
-
-            // Domains count
-            var tdDomains = document.createElement('td');
-            tdDomains.textContent = dev.unique_domains || '0';
-            tr.appendChild(tdDomains);
-
-            tbody.appendChild(tr);
-        });
-        table.appendChild(tbody);
-        container.appendChild(table);
+        _renderNetMonTable(container, '');
 
     } catch(e) {
         console.error('loadNetworkMonitor error:', e);
@@ -3363,6 +4064,132 @@ async function loadNetworkMonitor() {
         errDiv.textContent = 'Error loading network monitor: ' + e.message;
         container.appendChild(errDiv);
     }
+}
+
+function _renderNetMonTable(container, filter) {
+    // Remove old table if exists
+    var oldTable = container.querySelector('table');
+    if (oldTable) oldTable.remove();
+
+    var filtered = _netMonDevices;
+    if (filter) {
+        filtered = _netMonDevices.filter(function(dev) {
+            var label = (dev.device_label || dev.user_name || '').toLowerCase();
+            var ip = (dev.device_ip || '').toLowerCase();
+            var mac = (dev.device_mac || '').toLowerCase();
+            return label.indexOf(filter) >= 0 || ip.indexOf(filter) >= 0 || mac.indexOf(filter) >= 0;
+        });
+    }
+    var countEl = document.getElementById('netmon-count');
+    if (countEl) countEl.textContent = filtered.length + ' of ' + _netMonDevices.length + ' devices';
+
+    var table = document.createElement('table');
+    table.className = 'data-table';
+
+    var thead = document.createElement('thead');
+    var headerRow = document.createElement('tr');
+    ['Device', 'IP', 'MAC', 'Download', 'Upload', 'Total', 'DNS Queries', ''].forEach(function(h) {
+        var th = document.createElement('th');
+        th.textContent = h;
+        headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    var tbody = document.createElement('tbody');
+    filtered.forEach(function(dev) {
+        var isUnknown = !dev.device_label && !dev.user_name;
+        var tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
+        if (isUnknown) tr.style.opacity = '0.75';
+        tr.addEventListener('click', function(e) {
+            if (e.target.tagName === 'BUTTON') return; // Don't open detail when clicking Name button
+            openDeviceDetail(dev.device_ip);
+        });
+
+        // Device name/label
+        var tdName = document.createElement('td');
+        var nameSpan = document.createElement('span');
+        nameSpan.style.fontWeight = '600';
+        nameSpan.textContent = dev.device_label || dev.user_name || 'Unknown';
+        if (isUnknown) nameSpan.style.color = '#f59e0b';
+        tdName.appendChild(nameSpan);
+        if (dev.device_type) {
+            var typeSpan = document.createElement('span');
+            typeSpan.style.cssText = 'display:block;font-size:11px;opacity:0.6';
+            typeSpan.textContent = dev.device_type;
+            tdName.appendChild(typeSpan);
+        }
+        tr.appendChild(tdName);
+
+        // IP
+        var tdIp = document.createElement('td');
+        tdIp.textContent = dev.device_ip;
+        tdIp.style.fontFamily = 'monospace';
+        tr.appendChild(tdIp);
+
+        // MAC
+        var tdMac = document.createElement('td');
+        tdMac.textContent = dev.device_mac || '-';
+        tdMac.style.cssText = 'font-family:monospace;font-size:11px';
+        tr.appendChild(tdMac);
+
+        // Download
+        var tdDown = document.createElement('td');
+        tdDown.textContent = formatBytes(dev.total_in || 0);
+        tdDown.style.color = '#22d3ee';
+        tr.appendChild(tdDown);
+
+        // Upload
+        var tdUp = document.createElement('td');
+        tdUp.textContent = formatBytes(dev.total_out || 0);
+        tdUp.style.color = '#f472b6';
+        tr.appendChild(tdUp);
+
+        // Total
+        var tdTotal = document.createElement('td');
+        tdTotal.textContent = formatBytes(dev.total || 0);
+        tdTotal.style.fontWeight = '600';
+        tr.appendChild(tdTotal);
+
+        // DNS Queries (unique_domains)
+        var tdDns = document.createElement('td');
+        var dnsCount = dev.unique_domains || 0;
+        tdDns.textContent = dnsCount;
+        if (dnsCount > 50) tdDns.style.color = '#00e5ff';
+        tr.appendChild(tdDns);
+
+        // Actions — Name button for unknown devices
+        var tdAction = document.createElement('td');
+        if (isUnknown) {
+            var nameBtn = document.createElement('button');
+            nameBtn.className = 'btn btn-sm';
+            nameBtn.style.cssText = 'font-size:0.68rem;padding:2px 8px;background:#f59e0b;color:#000;border:none;border-radius:4px';
+            nameBtn.textContent = 'Name';
+            nameBtn.title = 'Give this device a friendly name';
+            nameBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                _quickNameDevice(dev.device_mac || '', dev.device_ip || '');
+            });
+            tdAction.appendChild(nameBtn);
+        }
+        tr.appendChild(tdAction);
+
+        tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    container.appendChild(table);
+}
+
+function _quickNameDevice(mac, ip) {
+    // Pre-fill the Add Device Mapping form and scroll to it
+    var macEl = document.getElementById('device-mac');
+    var ipEl = document.getElementById('device-ip');
+    if (macEl) macEl.value = mac;
+    if (ipEl) ipEl.value = ip;
+    var nameEl = document.getElementById('device-name');
+    if (nameEl) { nameEl.focus(); nameEl.scrollIntoView({behavior: 'smooth', block: 'center'}); }
+    showToast('info', 'Fill in username and device name, then click Add Mapping');
 }
 
 async function openDeviceDetail(deviceIp) {

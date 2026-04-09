@@ -72,14 +72,16 @@ def _unload_model():
 
 
 def _free_gpu_for_tts():
-    """Ask Ollama to unload GPU models before TTS generation."""
+    """Ask Bridge dispatcher to unload GPU models before TTS generation."""
     try:
-        import requests as http_requests
+        from bridge_dispatcher import dispatch
 
-        # Send keep_alive=0 to unload any loaded model
-        http_requests.post(
-            "http://host.docker.internal:11434/api/generate",
-            json={"model": "dummy", "keep_alive": 0},
+        dispatch(
+            capability="chat",
+            prompt="unload",
+            model="dummy",
+            module_id="media_studio",
+            keep_alive=0,
             timeout=5,
         )
     except Exception:

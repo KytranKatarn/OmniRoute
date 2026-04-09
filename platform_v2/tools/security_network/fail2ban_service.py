@@ -62,13 +62,21 @@ class Fail2banService:
         if result.get("success"):
             return {
                 "jail": result.get("jail", jail_name),
+                "name": result.get("jail", jail_name),
+                "active": True,
+                "status": "active",
                 "currently_failed": result.get("currently_failed", 0),
                 "total_failed": result.get("total_failed", 0),
                 "currently_banned": result.get("currently_banned", 0),
                 "total_banned": result.get("total_banned", 0),
                 "banned_ips": result.get("banned_ips", []),
             }
-        return {"error": result.get("error", "Failed to get jail status")}
+        return {
+            "name": jail_name,
+            "active": False,
+            "status": "inactive",
+            "error": result.get("error", "Failed to get jail status"),
+        }
 
     def ban_ip(self, jail_name: str, ip: str) -> bool:
         """Ban an IP in a specific jail."""

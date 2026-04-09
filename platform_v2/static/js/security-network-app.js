@@ -2,14 +2,13 @@
 var API = typeof SN_API !== 'undefined' ? SN_API : '/tools/security-network/api';
 
 /* ========== Utility aliases — canonical implementations in security-network.js ========== */
-// security-network.js (loaded first) defines: formatNum, setBadge, formatBytes, showToast
-// It also defines snEsc, snBuildTable, snCreateBadge, snShowLoading, snShowEmpty with sn- prefix.
-// These aliases let existing app.js call-sites work without renaming.
-var esc        = typeof snEsc         !== 'undefined' ? snEsc         : function(s) { return s == null ? '' : String(s); };
-var buildTable = typeof snBuildTable  !== 'undefined' ? snBuildTable  : function() { return document.createElement('table'); };
-var createBadge= typeof snCreateBadge !== 'undefined' ? snCreateBadge : function(t) { var s=document.createElement('span'); s.textContent=t; return s; };
-var showLoading= typeof snShowLoading !== 'undefined' ? snShowLoading : function() {};
-var showEmpty  = typeof snShowEmpty   !== 'undefined' ? snShowEmpty   : function() {};
+// security-network.js loads with defer, so sn* functions may not exist yet at parse time.
+// These lazy wrappers resolve on first call to avoid the load-order race condition.
+function esc(s) { return typeof snEsc === 'function' ? snEsc(s) : (s == null ? '' : String(s)); }
+function buildTable(headers, rows) { return typeof snBuildTable === 'function' ? snBuildTable(headers, rows) : document.createElement('table'); }
+function createBadge(t, cls) { return typeof snCreateBadge === 'function' ? snCreateBadge(t, cls) : (function() { var s = document.createElement('span'); s.textContent = t; return s; })(); }
+function showLoading(el) { if (typeof snShowLoading === 'function') snShowLoading(el); }
+function showEmpty(el, msg) { if (typeof snShowEmpty === 'function') snShowEmpty(el, msg); }
 // formatNum and setBadge are already defined (without sn- prefix) in security-network.js — no alias needed.
 
 function formatTime(t) {
@@ -1808,20 +1807,57 @@ async function loadSecurityEvents() {
         const d = await r.json();
         if(d.success && d.events && d.events.length) {
             container.textContent='';
-            const rows = d.events.map(ev=>{
-                const sevCls = ev.severity==='critical'||ev.severity==='high'?'danger':ev.severity==='medium'?'warning':'info';
-                const actions = document.createElement('span');
-                if(ev.status!=='resolved'){
-                    const btn = document.createElement('button');
-                    btn.className='btn btn-success btn-sm'; btn.textContent='Resolve';
-                    btn.addEventListener('click',function(){resolveEvent(ev.id);});
-                    actions.appendChild(btn);
-                } else { actions.appendChild(createBadge('Resolved','success')); }
-                return [formatTime(ev.created_at), ev.event_type||ev.type||'-', createBadge(ev.severity||'-',sevCls), ev.description||'', actions];
+            var table = document.createElement('table');
+            table.className = 'data-table';
+            var thead = document.createElement('thead');
+            var hrow = document.createElement('tr');
+            ['Time','Type','Severity','Details',''].forEach(function(h) {
+                var th = document.createElement('th'); th.textContent = h; hrow.appendChild(th);
             });
-            container.appendChild(buildTable(['Time','Type','Severity','Details',''], rows));
-        } else { showEmpty(container,'No security events'); }
-    } catch(e) { showEmpty(container,'Error loading events'); }
+            thead.appendChild(hrow);
+            table.appendChild(thead);
+            var tbody = document.createElement('tbody');
+            d.events.forEach(function(ev) {
+                var tr = document.createElement('tr');
+                var sevCls = ev.severity==='critical'||ev.severity==='high'?'danger':ev.severity==='medium'?'warning':'info';
+
+                var tdTime = document.createElement('td');
+                tdTime.textContent = formatTime(ev.created_at);
+                tdTime.style.fontSize = '0.78rem';
+                tr.appendChild(tdTime);
+
+                var tdType = document.createElement('td');
+                tdType.textContent = ev.event_type || ev.type || '-';
+                tr.appendChild(tdType);
+
+                var tdSev = document.createElement('td');
+                tdSev.appendChild(createBadge(ev.severity || '-', sevCls));
+                tr.appendChild(tdSev);
+
+                var tdDesc = document.createElement('td');
+                tdDesc.textContent = ev.description || '';
+                tdDesc.style.cssText = 'max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+                tdDesc.title = ev.description || '';
+                tr.appendChild(tdDesc);
+
+                var tdAction = document.createElement('td');
+                if (ev.status !== 'resolved') {
+                    var btn = document.createElement('button');
+                    btn.className = 'btn btn-success btn-sm';
+                    btn.textContent = 'Resolve';
+                    btn.addEventListener('click', function() { resolveEvent(ev.id); });
+                    tdAction.appendChild(btn);
+                } else {
+                    tdAction.appendChild(createBadge('Resolved', 'success'));
+                }
+                tr.appendChild(tdAction);
+
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+            container.appendChild(table);
+        } else { showEmpty(container,'No security events recorded'); }
+    } catch(e) { showEmpty(container,'Error loading events: ' + e.message); }
 }
 
 function resolveEvent(eventId) {
@@ -1838,13 +1874,41 @@ async function loadConnections() {
         const d = await r.json();
         if(d.success && d.connections && d.connections.length) {
             container.textContent='';
-            const rows = d.connections.slice(0,50).map(c=>[
-                c.proto||c.type||'-', c.local_address||c.laddr||'-',
-                c.remote_address||c.raddr||'-', createBadge(c.status||'-','muted'), c.pid||'-'
-            ]);
-            container.appendChild(buildTable(['Proto','Local','Remote','Status','PID'], rows));
-        } else { showEmpty(container,'No active connections data'); }
-    } catch(e) { showEmpty(container,'Error loading connections'); }
+            var table = document.createElement('table');
+            table.className = 'data-table';
+            var thead = document.createElement('thead');
+            var hrow = document.createElement('tr');
+            ['Proto','Local','Remote','Status','PID'].forEach(function(h) {
+                var th = document.createElement('th'); th.textContent = h; hrow.appendChild(th);
+            });
+            thead.appendChild(hrow);
+            table.appendChild(thead);
+            var tbody = document.createElement('tbody');
+            d.connections.slice(0, 50).forEach(function(c) {
+                var tr = document.createElement('tr');
+                var tdProto = document.createElement('td');
+                tdProto.textContent = c.proto || c.type || '-';
+                tr.appendChild(tdProto);
+                var tdLocal = document.createElement('td');
+                tdLocal.textContent = c.local_address || c.laddr || '-';
+                tdLocal.style.cssText = 'font-family:monospace;font-size:0.75rem';
+                tr.appendChild(tdLocal);
+                var tdRemote = document.createElement('td');
+                tdRemote.textContent = c.remote_address || c.raddr || '-';
+                tdRemote.style.cssText = 'font-family:monospace;font-size:0.75rem';
+                tr.appendChild(tdRemote);
+                var tdStatus = document.createElement('td');
+                tdStatus.appendChild(createBadge(c.status || '-', 'muted'));
+                tr.appendChild(tdStatus);
+                var tdPid = document.createElement('td');
+                tdPid.textContent = c.pid || '-';
+                tr.appendChild(tdPid);
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+            container.appendChild(table);
+        } else { showEmpty(container,'No active connections data available'); }
+    } catch(e) { showEmpty(container,'Error loading connections: ' + e.message); }
 }
 
 /* ========== Reports ========== */

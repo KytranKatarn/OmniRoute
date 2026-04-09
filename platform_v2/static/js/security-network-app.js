@@ -1905,42 +1905,128 @@ function resolveEvent(eventId) {
     .catch(e=>showToast('error',e.message));
 }
 
+// Known internal service labels
+var _CONN_LABELS = {
+    '127.0.0.11': 'Docker DNS',
+    '0.0.0.0:3000': 'ARCHIE Platform',
+    '0.0.0.0:5000': 'Flask Dev',
+    '172.26.0': 'AdGuard Network',
+    '172.27.0': 'Docker Bridge',
+    '192.168.1.200': 'Hub Server',
+    ':5432': 'PostgreSQL',
+    ':6379': 'Redis',
+    ':11434': 'Ollama',
+    ':8188': 'ComfyUI',
+    ':53': 'DNS'
+};
+
+function _labelConnection(addr) {
+    if (!addr || addr === '-') return '';
+    for (var pattern in _CONN_LABELS) {
+        if (addr.indexOf(pattern) >= 0) return _CONN_LABELS[pattern];
+    }
+    return '';
+}
+
+function _isInternalConn(c) {
+    var local = c.local_address || c.laddr || '';
+    var remote = c.foreign_address || c.remote_address || c.raddr || '';
+    // Internal: Docker DNS, loopback, Docker bridge with no remote
+    if (local.indexOf('127.0.0.11') >= 0) return true;
+    if (remote === '0.0.0.0:*' || remote === ':::*' || remote === '' || remote === '-') return false; // LISTEN = keep
+    if (remote.indexOf('127.') === 0) return true;
+    return false;
+}
+
 async function loadConnections() {
-    const container = document.getElementById('connections-list');
+    var container = document.getElementById('connections-list');
     try {
-        const r = await fetch(API+'/connections/active');
-        const d = await r.json();
+        var r = await fetch(API+'/connections/active');
+        var d = await r.json();
         if(d.success && d.connections && d.connections.length) {
             container.textContent='';
+
+            // Separate into listeners, external, and internal
+            var listeners = [], external = [], internal = [];
+            d.connections.forEach(function(c) {
+                var remote = c.foreign_address || c.remote_address || c.raddr || '';
+                var state = c.state || c.status || '';
+                if (state === 'LISTEN' || remote === '0.0.0.0:*' || remote === ':::*') {
+                    listeners.push(c);
+                } else if (_isInternalConn(c)) {
+                    internal.push(c);
+                } else {
+                    external.push(c);
+                }
+            });
+
+            // Summary stats
+            var stats = document.createElement('div');
+            stats.style.cssText = 'display:flex;gap:16px;margin-bottom:10px;font-size:0.78rem';
+            var s1 = document.createElement('span');
+            s1.style.color = '#22c55e';
+            s1.textContent = listeners.length + ' listening';
+            var s2 = document.createElement('span');
+            s2.style.color = '#00e5ff';
+            s2.textContent = external.length + ' external';
+            var s3 = document.createElement('span');
+            s3.style.color = '#888';
+            s3.textContent = internal.length + ' internal (hidden)';
+            stats.appendChild(s1); stats.appendChild(s2); stats.appendChild(s3);
+            container.appendChild(stats);
+
+            // Build table — show listeners + external only
+            var visible = listeners.concat(external).slice(0, 40);
             var table = document.createElement('table');
             table.className = 'data-table';
             var thead = document.createElement('thead');
             var hrow = document.createElement('tr');
-            ['Proto','Local','Remote','Status','PID'].forEach(function(h) {
+            ['Proto','Local','Remote','Service','Status'].forEach(function(h) {
                 var th = document.createElement('th'); th.textContent = h; hrow.appendChild(th);
             });
             thead.appendChild(hrow);
             table.appendChild(thead);
             var tbody = document.createElement('tbody');
-            d.connections.slice(0, 50).forEach(function(c) {
+            visible.forEach(function(c) {
+                var local = c.local_address || c.laddr || '-';
+                var remote = c.foreign_address || c.remote_address || c.raddr || '-';
+                var state = c.state || c.status || '-';
+                var proto = c.protocol || c.proto || c.type || '-';
+                var label = _labelConnection(local) || _labelConnection(remote);
+
                 var tr = document.createElement('tr');
+                if (state === 'LISTEN') tr.style.borderLeft = '3px solid rgba(34,197,94,0.4)';
+
                 var tdProto = document.createElement('td');
-                tdProto.textContent = c.proto || c.type || '-';
+                tdProto.textContent = proto;
                 tr.appendChild(tdProto);
+
                 var tdLocal = document.createElement('td');
-                tdLocal.textContent = c.local_address || c.laddr || '-';
-                tdLocal.style.cssText = 'font-family:monospace;font-size:0.75rem';
+                tdLocal.textContent = local;
+                tdLocal.style.cssText = 'font-family:monospace;font-size:0.73rem';
                 tr.appendChild(tdLocal);
+
                 var tdRemote = document.createElement('td');
-                tdRemote.textContent = c.remote_address || c.raddr || '-';
-                tdRemote.style.cssText = 'font-family:monospace;font-size:0.75rem';
+                tdRemote.textContent = (remote === '0.0.0.0:*' || remote === ':::*') ? '*' : remote;
+                tdRemote.style.cssText = 'font-family:monospace;font-size:0.73rem';
                 tr.appendChild(tdRemote);
+
+                var tdService = document.createElement('td');
+                if (label) {
+                    var tag = document.createElement('span');
+                    tag.style.cssText = 'background:rgba(0,229,255,0.1);color:#00e5ff;padding:1px 6px;border-radius:3px;font-size:0.68rem';
+                    tag.textContent = label;
+                    tdService.appendChild(tag);
+                } else {
+                    tdService.textContent = '-';
+                }
+                tr.appendChild(tdService);
+
                 var tdStatus = document.createElement('td');
-                tdStatus.appendChild(createBadge(c.status || '-', 'muted'));
+                var statType = state === 'LISTEN' ? 'success' : state === 'ESTABLISHED' ? 'info' : 'muted';
+                tdStatus.appendChild(createBadge(state, statType));
                 tr.appendChild(tdStatus);
-                var tdPid = document.createElement('td');
-                tdPid.textContent = c.pid || '-';
-                tr.appendChild(tdPid);
+
                 tbody.appendChild(tr);
             });
             table.appendChild(tbody);

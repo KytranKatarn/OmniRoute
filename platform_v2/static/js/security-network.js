@@ -1049,13 +1049,15 @@ function deleteDeviceMapping(id) {
 ═══════════════════════════════════════════════════ */
 
 function loadDefense() {
-    loadFail2banJails();
+    // Fast local-only loads first (no host agent queue)
     loadDdnsStatus();
-    loadFirewall();
     loadIPAccess();
     loadAutoBlockSettings();
     loadSecurityEvents();
     loadConnections();
+    // Slow host-agent loads last (use cached data while waiting)
+    loadFail2banJails();
+    loadFirewall();
 }
 
 function _renderFail2banJails(container, jails) {

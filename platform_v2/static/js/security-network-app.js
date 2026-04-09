@@ -3828,6 +3828,7 @@ function onHardeningTabShown() {
 
 // ========== NETWORK MONITOR ==========
 
+var _netMonDevices = [];
 async function loadNetworkMonitor() {
     var container = document.getElementById('network-monitor-table');
     if (!container) return;
@@ -3844,80 +3845,28 @@ async function loadNetworkMonitor() {
             return;
         }
 
-        var table = document.createElement('table');
-        table.className = 'data-table';
+        // Sort by total traffic descending
+        _netMonDevices = d.devices.sort(function(a, b) { return (b.total || 0) - (a.total || 0); });
 
-        // Header
-        var thead = document.createElement('thead');
-        var headerRow = document.createElement('tr');
-        ['Device', 'IP', 'MAC', 'Download', 'Upload', 'Total', 'Domains'].forEach(function(h) {
-            var th = document.createElement('th');
-            th.textContent = h;
-            headerRow.appendChild(th);
-        });
-        thead.appendChild(headerRow);
-        table.appendChild(thead);
+        // Search bar
+        var searchBar = document.createElement('div');
+        searchBar.style.cssText = 'display:flex;gap:8px;margin-bottom:10px;align-items:center';
+        var searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.className = 'form-input';
+        searchInput.id = 'netmon-search';
+        searchInput.placeholder = 'Filter by name, IP, or MAC...';
+        searchInput.style.cssText = 'flex:1;max-width:300px;font-size:0.78rem';
+        searchInput.addEventListener('input', function() { _renderNetMonTable(container, searchInput.value.toLowerCase()); });
+        var countLabel = document.createElement('span');
+        countLabel.style.cssText = 'color:#888;font-size:0.75rem';
+        countLabel.id = 'netmon-count';
+        countLabel.textContent = _netMonDevices.length + ' devices';
+        searchBar.appendChild(searchInput);
+        searchBar.appendChild(countLabel);
+        container.appendChild(searchBar);
 
-        // Body
-        var tbody = document.createElement('tbody');
-        d.devices.forEach(function(dev) {
-            var tr = document.createElement('tr');
-            tr.style.cursor = 'pointer';
-            tr.addEventListener('click', function() { openDeviceDetail(dev.device_ip); });
-
-            // Device name/label
-            var tdName = document.createElement('td');
-            var nameSpan = document.createElement('span');
-            nameSpan.style.fontWeight = '600';
-            nameSpan.textContent = dev.device_label || dev.user_name || 'Unknown';
-            tdName.appendChild(nameSpan);
-            if (dev.device_type) {
-                var typeSpan = document.createElement('span');
-                typeSpan.style.cssText = 'display:block;font-size:11px;opacity:0.6';
-                typeSpan.textContent = dev.device_type;
-                tdName.appendChild(typeSpan);
-            }
-            tr.appendChild(tdName);
-
-            // IP
-            var tdIp = document.createElement('td');
-            tdIp.textContent = dev.device_ip;
-            tdIp.style.fontFamily = 'monospace';
-            tr.appendChild(tdIp);
-
-            // MAC
-            var tdMac = document.createElement('td');
-            tdMac.textContent = dev.device_mac || '-';
-            tdMac.style.cssText = 'font-family:monospace;font-size:11px';
-            tr.appendChild(tdMac);
-
-            // Download (bytes_in = received from network)
-            var tdDown = document.createElement('td');
-            tdDown.textContent = formatBytes(dev.total_in || 0);
-            tdDown.style.color = '#22d3ee';
-            tr.appendChild(tdDown);
-
-            // Upload (bytes_out = sent to network)
-            var tdUp = document.createElement('td');
-            tdUp.textContent = formatBytes(dev.total_out || 0);
-            tdUp.style.color = '#f472b6';
-            tr.appendChild(tdUp);
-
-            // Total
-            var tdTotal = document.createElement('td');
-            tdTotal.textContent = formatBytes(dev.total || 0);
-            tdTotal.style.fontWeight = '600';
-            tr.appendChild(tdTotal);
-
-            // Domains count
-            var tdDomains = document.createElement('td');
-            tdDomains.textContent = dev.unique_domains || '0';
-            tr.appendChild(tdDomains);
-
-            tbody.appendChild(tr);
-        });
-        table.appendChild(tbody);
-        container.appendChild(table);
+        _renderNetMonTable(container, '');
 
     } catch(e) {
         console.error('loadNetworkMonitor error:', e);
@@ -3926,6 +3875,132 @@ async function loadNetworkMonitor() {
         errDiv.textContent = 'Error loading network monitor: ' + e.message;
         container.appendChild(errDiv);
     }
+}
+
+function _renderNetMonTable(container, filter) {
+    // Remove old table if exists
+    var oldTable = container.querySelector('table');
+    if (oldTable) oldTable.remove();
+
+    var filtered = _netMonDevices;
+    if (filter) {
+        filtered = _netMonDevices.filter(function(dev) {
+            var label = (dev.device_label || dev.user_name || '').toLowerCase();
+            var ip = (dev.device_ip || '').toLowerCase();
+            var mac = (dev.device_mac || '').toLowerCase();
+            return label.indexOf(filter) >= 0 || ip.indexOf(filter) >= 0 || mac.indexOf(filter) >= 0;
+        });
+    }
+    var countEl = document.getElementById('netmon-count');
+    if (countEl) countEl.textContent = filtered.length + ' of ' + _netMonDevices.length + ' devices';
+
+    var table = document.createElement('table');
+    table.className = 'data-table';
+
+    var thead = document.createElement('thead');
+    var headerRow = document.createElement('tr');
+    ['Device', 'IP', 'MAC', 'Download', 'Upload', 'Total', 'DNS Queries', ''].forEach(function(h) {
+        var th = document.createElement('th');
+        th.textContent = h;
+        headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    var tbody = document.createElement('tbody');
+    filtered.forEach(function(dev) {
+        var isUnknown = !dev.device_label && !dev.user_name;
+        var tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
+        if (isUnknown) tr.style.opacity = '0.75';
+        tr.addEventListener('click', function(e) {
+            if (e.target.tagName === 'BUTTON') return; // Don't open detail when clicking Name button
+            openDeviceDetail(dev.device_ip);
+        });
+
+        // Device name/label
+        var tdName = document.createElement('td');
+        var nameSpan = document.createElement('span');
+        nameSpan.style.fontWeight = '600';
+        nameSpan.textContent = dev.device_label || dev.user_name || 'Unknown';
+        if (isUnknown) nameSpan.style.color = '#f59e0b';
+        tdName.appendChild(nameSpan);
+        if (dev.device_type) {
+            var typeSpan = document.createElement('span');
+            typeSpan.style.cssText = 'display:block;font-size:11px;opacity:0.6';
+            typeSpan.textContent = dev.device_type;
+            tdName.appendChild(typeSpan);
+        }
+        tr.appendChild(tdName);
+
+        // IP
+        var tdIp = document.createElement('td');
+        tdIp.textContent = dev.device_ip;
+        tdIp.style.fontFamily = 'monospace';
+        tr.appendChild(tdIp);
+
+        // MAC
+        var tdMac = document.createElement('td');
+        tdMac.textContent = dev.device_mac || '-';
+        tdMac.style.cssText = 'font-family:monospace;font-size:11px';
+        tr.appendChild(tdMac);
+
+        // Download
+        var tdDown = document.createElement('td');
+        tdDown.textContent = formatBytes(dev.total_in || 0);
+        tdDown.style.color = '#22d3ee';
+        tr.appendChild(tdDown);
+
+        // Upload
+        var tdUp = document.createElement('td');
+        tdUp.textContent = formatBytes(dev.total_out || 0);
+        tdUp.style.color = '#f472b6';
+        tr.appendChild(tdUp);
+
+        // Total
+        var tdTotal = document.createElement('td');
+        tdTotal.textContent = formatBytes(dev.total || 0);
+        tdTotal.style.fontWeight = '600';
+        tr.appendChild(tdTotal);
+
+        // DNS Queries (unique_domains)
+        var tdDns = document.createElement('td');
+        var dnsCount = dev.unique_domains || 0;
+        tdDns.textContent = dnsCount;
+        if (dnsCount > 50) tdDns.style.color = '#00e5ff';
+        tr.appendChild(tdDns);
+
+        // Actions — Name button for unknown devices
+        var tdAction = document.createElement('td');
+        if (isUnknown) {
+            var nameBtn = document.createElement('button');
+            nameBtn.className = 'btn btn-sm';
+            nameBtn.style.cssText = 'font-size:0.68rem;padding:2px 8px;background:#f59e0b;color:#000;border:none;border-radius:4px';
+            nameBtn.textContent = 'Name';
+            nameBtn.title = 'Give this device a friendly name';
+            nameBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                _quickNameDevice(dev.device_mac || '', dev.device_ip || '');
+            });
+            tdAction.appendChild(nameBtn);
+        }
+        tr.appendChild(tdAction);
+
+        tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    container.appendChild(table);
+}
+
+function _quickNameDevice(mac, ip) {
+    // Pre-fill the Add Device Mapping form and scroll to it
+    var macEl = document.getElementById('device-mac');
+    var ipEl = document.getElementById('device-ip');
+    if (macEl) macEl.value = mac;
+    if (ipEl) ipEl.value = ip;
+    var nameEl = document.getElementById('device-name');
+    if (nameEl) { nameEl.focus(); nameEl.scrollIntoView({behavior: 'smooth', block: 'center'}); }
+    showToast('info', 'Fill in username and device name, then click Add Mapping');
 }
 
 async function openDeviceDetail(deviceIp) {

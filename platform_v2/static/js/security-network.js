@@ -986,7 +986,7 @@ function loadDevices() {
         var container = document.getElementById('devices-users-table');
         if (!container) return;
         var users = d.users || d.mappings || [];
-        if (!users.length) { snShowEmpty(container, 'No device mappings'); return; }
+        if (!users.length) { snShowEmpty(container, 'No device mappings — use the form above or click "Name" on a device below'); return; }
         var rows = users.map(function(u) {
             var delBtn = document.createElement('button');
             delBtn.className = 'btn btn-danger btn-sm';
@@ -994,7 +994,7 @@ function loadDevices() {
             (function(uid) {
                 delBtn.addEventListener('click', function() { deleteDeviceMapping(uid); });
             }(u.id));
-            return [u.mac || '-', u.ip || '-', u.username || '-', u.device_name || '-', delBtn];
+            return [u.mac_address || u.mac || '-', u.ip_address || u.ip || '-', u.user_name || u.username || '-', u.device_label || u.device_name || '-', delBtn];
         });
         container.textContent = '';
         container.appendChild(snBuildTable(['MAC', 'IP', 'Username', 'Device Name', ''], rows));

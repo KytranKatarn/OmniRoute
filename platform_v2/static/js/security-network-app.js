@@ -431,15 +431,21 @@ async function loadQueryLog(offset) {
             var tbody = document.createElement('tbody');
             entries.forEach(function(e) {
                 var q = e.question || {};
-                var blocked = e.reason && e.reason !== 'NotFilteredNotFound';
+                var reason = e.reason || '';
+                var notBlocked = !reason || reason === 'NotFilteredNotFound' || reason === 'NotFilteredWhiteList' || reason === 'Rewrite';
+                var blocked = !notBlocked;
+                var isRewrite = reason === 'Rewrite';
                 var clientIp = e.client || '-';
                 var domain = q.name || '-';
 
                 var tr = document.createElement('tr');
-                // Red tint on blocked rows
+                // Red tint on blocked rows, cyan tint on rewrites
                 if (blocked) {
                     tr.style.background = 'rgba(239,68,68,0.06)';
                     tr.style.borderLeft = '3px solid rgba(239,68,68,0.4)';
+                } else if (isRewrite) {
+                    tr.style.background = 'rgba(0,229,255,0.04)';
+                    tr.style.borderLeft = '3px solid rgba(0,229,255,0.25)';
                 }
 
                 // Time
@@ -497,7 +503,9 @@ async function loadQueryLog(offset) {
 
                 // Status badge
                 var tdStatus = document.createElement('td');
-                tdStatus.appendChild(createBadge(blocked?'Blocked':'OK', blocked?'danger':'success'));
+                var statusLabel = blocked ? 'Blocked' : isRewrite ? 'Rewrite' : 'OK';
+                var statusType = blocked ? 'danger' : isRewrite ? 'info' : 'success';
+                tdStatus.appendChild(createBadge(statusLabel, statusType));
                 tr.appendChild(tdStatus);
 
                 tbody.appendChild(tr);

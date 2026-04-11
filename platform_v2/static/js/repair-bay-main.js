@@ -100,13 +100,37 @@ function loadReviews() {
     _rbFetchJson(RB_API + '/forge/prs?state=' + encodeURIComponent(state))
         .then(function(data) {
             var prs = data.prs || data.pull_requests || [];
-            if (countEl) countEl.textContent = prs.length + ' PR' + (prs.length !== 1 ? 's' : '');
             if (!prs.length) {
+                if (countEl) countEl.textContent = '0 PRs';
                 _rbEmpty(container, 'No ' + state + ' PRs found.');
                 return;
             }
-            _rbClear(container);
+
+            // Sort + rank: mergeable PRs get a merge-order rank (1..N) sorted
+            // oldest-ready-first so the most senior ready-to-merge work
+            // appears at the top. Conflicting/unknown sink to the bottom.
+            var mergeable = [];
+            var others = [];
             prs.forEach(function(pr) {
+                if (pr.mergeable === 'MERGEABLE') mergeable.push(pr);
+                else others.push(pr);
+            });
+            mergeable.sort(function(a, b) {
+                var ta = a.updated_at || a.created_at || '';
+                var tb = b.updated_at || b.created_at || '';
+                return ta < tb ? -1 : ta > tb ? 1 : 0;
+            });
+            mergeable.forEach(function(pr, i) { pr._mergeRank = i + 1; });
+            var ordered = mergeable.concat(others);
+
+            if (countEl) {
+                countEl.textContent =
+                    prs.length + ' PR' + (prs.length !== 1 ? 's' : '') +
+                    ' · ' + mergeable.length + ' ready to merge';
+            }
+
+            _rbClear(container);
+            ordered.forEach(function(pr) {
                 container.appendChild(_buildReviewCard(pr));
             });
             if (typeof lucide !== 'undefined' && lucide.createIcons) {
@@ -124,8 +148,24 @@ function _buildReviewCard(pr) {
         style: 'padding:14px 16px; margin-bottom:10px; border-left:3px solid #00d4ff; background:rgba(0,212,255,0.04); border-radius:4px;'
     });
 
-    /* Header row: number + title + external link */
+    /* Header row: [rank] + number + title + external link */
     var header = _rbMakeEl('div', {style: 'display:flex; align-items:flex-start; gap:10px; margin-bottom:8px;'});
+
+    // Merge order rank — purple pill, only on MERGEABLE PRs
+    if (pr._mergeRank) {
+        var rankPill = _rbMakeEl('span', {
+            style:
+                'display:inline-flex; align-items:center; justify-content:center; ' +
+                'min-width:26px; height:22px; padding:0 7px; margin-top:1px; ' +
+                'background:#8b5cf6; color:#0a0e1a; font-weight:800; ' +
+                'font-family:"IBM Plex Mono",monospace; font-size:0.72rem; ' +
+                'border-radius:4px; flex-shrink:0;',
+            text: '#' + pr._mergeRank
+        });
+        rankPill.title = 'Merge order: ' + pr._mergeRank +
+            ' (oldest ready-to-merge first). Conflicting PRs are not ranked.';
+        header.appendChild(rankPill);
+    }
 
     var numBadge = _rbMakeEl('span', {
         style: 'color:#00d4ff; font-family:"IBM Plex Mono",monospace; font-size:0.8rem; padding-top:2px;',

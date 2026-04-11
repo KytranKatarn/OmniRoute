@@ -3372,24 +3372,17 @@ def bulk_deactivate_agents():
         if not agent_ids:
             return jsonify({"success": False, "error": "No agent IDs provided"}), 400
 
-        conn = get_db()
-        cur = conn.cursor()
-
-        # Soft delete by setting status to inactive
-        cur.execute(
-            """
-            UPDATE agents
-            SET status = 'inactive', updated_at = CURRENT_TIMESTAMP
-            WHERE id = ANY(%s) AND status = 'active'
-            RETURNING id
-        """,
-            (agent_ids,),
-        )
-
-        deactivated = cur.fetchall()
-        deactivated_ids = [r[0] for r in deactivated]
-
-        conn.commit()
+        # Single-writer path: bulk deactivate via agent_service.delete_agent
+        # (soft-delete sets status=inactive, shift_state=off_duty) so every
+        # agents-table mutation flows through the canonical helper
+        # (Project #241 Track C.2). Slightly slower than the old ANY(%s)
+        # bulk UPDATE but preserves the only-active-agents filter.
+        deactivated_ids = []
+        for aid in agent_ids:
+            existing = agent_service.get_agent(aid)
+            if existing and existing.get("status") == "active":
+                agent_service.delete_agent(aid)
+                deactivated_ids.append(aid)
 
         return jsonify(
             {
@@ -7186,19 +7179,11 @@ def generate_agent_avatar(agent_id):
         if result.get("success"):
             avatar_url = result.get("image_url")
 
-            # Update agent's avatar_url in database
-            cur.execute(
-                """
-                UPDATE agents
-                SET avatar_url = %s, updated_at = NOW()
-                WHERE id = %s
-            """,
-                (avatar_url, agent_id),
-            )
-            conn.commit()
-
+            # Single-writer path: agents.avatar_url update via agent_service
+            # (Project #241 Track C.2).
             cur.close()
             conn.close()
+            agent_service.update_agent(agent_id, avatar_url=avatar_url)
 
             return jsonify(
                 {
@@ -7373,14 +7358,8 @@ def bulk_generate_avatars():
             )
 
             if result.get("success"):
-                # Update database
-                cur.execute(
-                    """
-                    UPDATE agents SET avatar_url = %s, updated_at = NOW()
-                    WHERE id = %s
-                """,
-                    (result.get("image_url"), agent["id"]),
-                )
+                # Single-writer path for avatar_url (Project #241 Track C.2).
+                agent_service.update_agent(agent["id"], avatar_url=result.get("image_url"))
 
                 cost = result.get("cost", 0.0)
                 total_cost += cost
@@ -7515,16 +7494,8 @@ def test_contractor_api(agent_id):
                 api_available = True
                 message = f"{env_var} is configured"
 
-                # Update the agent record
-                cur.execute(
-                    """
-                    UPDATE agents
-                    SET api_key_configured = TRUE
-                    WHERE id = %s
-                """,
-                    (agent_id,),
-                )
-                conn.commit()
+                # Single-writer path (Project #241 Track C.2).
+                agent_service.update_agent(agent_id, api_key_configured=True)
             else:
                 message = f"{env_var} not set in environment"
         else:
@@ -7613,19 +7584,9 @@ def save_contractor_api_key(agent_id):
         # Also set in current environment so it takes effect immediately
         os.environ[env_var] = api_key
 
-        # Update the agent record
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute(
-            """
-            UPDATE agents SET api_key_configured = TRUE, updated_at = NOW()
-            WHERE id = %s
-            RETURNING name
-        """,
-            (agent_id,),
-        )
-        agent = cur.fetchone()
-        conn.commit()
+        # Single-writer path (Project #241 Track C.2).
+        agent_service.update_agent(agent_id, api_key_configured=True)
+        agent = agent_service.get_agent(agent_id)
 
         return jsonify(
             {
@@ -7698,17 +7659,19 @@ def toggle_contractor(agent_id):
                     400,
                 )
 
-        # Update status
-        cur.execute(
-            """
-            UPDATE agents SET status = %s, updated_at = NOW()
-            WHERE id = %s AND worker_type = 'contract'
-            RETURNING id, name, status
-        """,
-            (new_status, agent_id),
-        )
-        updated = cur.fetchone()
-        conn.commit()
+        # Single-writer path: verify worker_type=contract before updating
+        # (Project #241 Track C.2).
+        existing = agent_service.get_agent(agent_id)
+        if existing and existing.get("worker_type") == "contract":
+            agent_service.update_agent(agent_id, status=new_status)
+            refreshed = agent_service.get_agent(agent_id)
+            updated = {
+                "id": refreshed["id"],
+                "name": refreshed["name"],
+                "status": refreshed["status"],
+            }
+        else:
+            updated = None
 
         if updated:
             return jsonify(
@@ -7768,13 +7731,8 @@ def test_all_contractor_apis():
                 api_key = os.getenv(env_var)
                 available = bool(api_key and len(api_key) > 5)
 
-                # Update database
-                cur.execute(
-                    """
-                    UPDATE agents SET api_key_configured = %s WHERE id = %s
-                """,
-                    (available, c["id"]),
-                )
+                # Single-writer path (Project #241 Track C.2).
+                agent_service.update_agent(c["id"], api_key_configured=available)
 
             results.append(
                 {
@@ -8205,32 +8163,25 @@ def update_contractor_budget(agent_id):
                 400,
             )
 
-        # Update budget settings
-        updates = []
-        params = []
-
+        # Single-writer path: collect dynamic updates into a kwargs dict
+        # and call agent_service.update_agent once (Project #241 Track C.2).
+        update_fields = {}
         if "monthly_budget" in data:
-            updates.append("contractor_budget_monthly = %s")
-            params.append(data["monthly_budget"])
-
+            update_fields["contractor_budget_monthly"] = data["monthly_budget"]
         if "auto_approve_threshold" in data:
-            updates.append("auto_approve_threshold = %s")
-            params.append(data["auto_approve_threshold"])
+            update_fields["auto_approve_threshold"] = data["auto_approve_threshold"]
 
-        if updates:
-            params.append(agent_id)
-            cur.execute(
-                f"""
-                UPDATE agents
-                SET {', '.join(updates)}, updated_at = NOW()
-                WHERE id = %s
-                RETURNING id, name, contractor_budget_monthly, auto_approve_threshold, contractor_usage_this_month
-            """,
-                params,
-            )
-
-            updated = dict(cur.fetchone())
-            conn.commit()
+        updated = None
+        if update_fields:
+            agent_service.update_agent(agent_id, **update_fields)
+            refreshed = agent_service.get_agent(agent_id)
+            updated = {
+                "id": refreshed["id"],
+                "name": refreshed["name"],
+                "contractor_budget_monthly": refreshed.get("contractor_budget_monthly"),
+                "auto_approve_threshold": refreshed.get("auto_approve_threshold"),
+                "contractor_usage_this_month": refreshed.get("contractor_usage_this_month"),
+            }
 
             # Log to governance audit
             cur.execute(
@@ -8856,57 +8807,66 @@ def api_create_agent():
     # Name (combined for legacy NOT NULL column)
     name = f"{first_name} {last_name}".strip()
 
-    conn = get_db()
+    # Single-writer path: create via agent_service.create_agent for the
+    # canonical fields, then follow up with update_agent for the extras
+    # that aren't in the create_agent signature (first_name, last_name,
+    # title, bio, default_model_tier). Project #241 Track C.2.
     try:
-        cur = conn.cursor()
-        cur.execute(
-            """
-            INSERT INTO agents (
-                name, first_name, last_name, title, department, worker_type,
-                model, temperature, max_tokens, system_prompt, bio,
-                default_model_tier, status, capabilities, created_at, updated_at
-            ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()
-            )
-            RETURNING id, first_name, last_name, model
-        """,
-            (
-                name,
-                first_name,
-                last_name,
-                title,
-                department,
-                worker_type,
-                model,
-                temperature,
-                max_tokens,
-                system_prompt,
-                bio,
-                default_model_tier,
-                status,
-                capabilities,
-            ),
+        # capabilities on the wire here is a JSON string; agent_service
+        # expects a dict/list, so decode first.
+        caps = None
+        if capabilities:
+            try:
+                caps = json.loads(capabilities) if isinstance(capabilities, str) else capabilities
+            except (ValueError, TypeError):
+                caps = {}
+
+        agent_id = agent_service.create_agent(
+            name=name,
+            display_name=title or name,
+            department=department,
+            model=model,
+            system_prompt=system_prompt or "",
+            temperature=temperature,
+            max_tokens=max_tokens,
+            capabilities=caps or {},
+            worker_type=worker_type,
         )
-        row = cur.fetchone()
-        conn.commit()
+
+        # Extras not in create_agent's core signature
+        extras = {}
+        if first_name:
+            extras["first_name"] = first_name
+        if last_name:
+            extras["last_name"] = last_name
+        if title:
+            extras["title"] = title
+        if bio:
+            extras["bio"] = bio
+        if default_model_tier:
+            extras["default_model_tier"] = default_model_tier
+        if status and status != "active":
+            extras["status"] = status
+
+        if extras:
+            agent_service.update_agent(agent_id, **extras)
 
         return jsonify(
             {
                 "success": True,
                 "agent": {
-                    "id": row[0],
-                    "first_name": row[1],
-                    "last_name": row[2],
-                    "model": row[3],
+                    "id": agent_id,
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "model": model,
                 },
-                "message": f"Agent {row[1]} {row[2]} created successfully",
+                "message": f"Agent {first_name} {last_name} created successfully",
             }
         )
+    except ValueError as ve:
+        return jsonify({"success": False, "error": str(ve)}), 400
     except Exception as e:
-        conn.rollback()
         return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        conn.close()
 
 
 # =============================================================================

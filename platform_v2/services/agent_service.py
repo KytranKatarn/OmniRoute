@@ -242,6 +242,45 @@ def increment_usage(agent_id, tier=None):
         )
 
 
+def update_performance_metrics(agent_id, success: bool):
+    """Atomically recompute performance metrics on the agents row.
+
+    Called by ai_bridge.bridge_dispatcher after a task completes so the
+    aggregate SQL lives inside the canonical single-writer module
+    (Project #241 Track C.3).
+
+    Uses subqueries over task_execution_log to recompute:
+      - total_tasks_completed (incremented iff success=True)
+      - success_rate = AVG(success) rounded to 2 decimals
+      - performance_score = weighted combo of success rate, volume, latency
+    """
+    if not agent_id:
+        return
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """UPDATE agents SET
+                total_tasks_completed = total_tasks_completed + CASE WHEN %s THEN 1 ELSE 0 END,
+                success_rate = (
+                    SELECT ROUND(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END), 2)
+                    FROM task_execution_log WHERE agent_id = %s
+                ),
+                performance_score = (
+                    SELECT ROUND(
+                        AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) * 60 +
+                        LEAST(COUNT(*)::numeric / 100, 1.0) * 25 +
+                        CASE WHEN AVG(duration_ms) < 30000 THEN 15
+                             WHEN AVG(duration_ms) < 60000 THEN 10
+                             ELSE 5 END,
+                        2
+                    )
+                    FROM task_execution_log WHERE agent_id = %s
+                ),
+                updated_at = NOW()
+               WHERE id = %s""",
+            (success, agent_id, agent_id, agent_id),
+        )
+
+
 # ---------------------------------------------------------------------------
 # Shift Lifecycle
 # ---------------------------------------------------------------------------

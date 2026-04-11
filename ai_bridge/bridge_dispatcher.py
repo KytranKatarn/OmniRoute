@@ -1123,11 +1123,14 @@ class BridgeDispatcher:
             VALUES (%s, NULL, %s, %s, NOW())
         """, (agent_id, new_state, reason))
 
-        # Update agent shift_state
-        cur.execute(
-            "UPDATE agents SET shift_state = %s WHERE id = %s",
-            (new_state, agent_id),
-        )
+        # Single-writer path: shift_state transition via agent_service
+        # (Project #241 Track C.3).
+        try:
+            from services import agent_service
+
+            agent_service.update_agent(agent_id, shift_state=new_state)
+        except Exception as exc:
+            logger.warning(f"update_agent shift_state failed for {agent_id}: {exc}")
 
         # Shift transitions managed via Department HQ — no Telegram notification needed
         logger.debug(
@@ -2490,41 +2493,20 @@ class BridgeDispatcher:
                     worker_type,
                 ),
             )
-            # Also update agent-level performance summary
-            # Skip when contractor did the work — don't credit the agent
-            if result.agent_id and not is_contractor:
-                cur.execute(
-                    """
-                    UPDATE agents SET
-                        total_tasks_completed = total_tasks_completed + CASE WHEN %s THEN 1 ELSE 0 END,
-                        success_rate = (
-                            SELECT ROUND(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END), 2)
-                            FROM task_execution_log WHERE agent_id = %s
-                        ),
-                        performance_score = (
-                            SELECT ROUND(
-                                AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) * 60 +
-                                LEAST(COUNT(*)::numeric / 100, 1.0) * 25 +
-                                CASE WHEN AVG(duration_ms) < 30000 THEN 15
-                                     WHEN AVG(duration_ms) < 60000 THEN 10
-                                     ELSE 5 END,
-                                2
-                            )
-                            FROM task_execution_log WHERE agent_id = %s
-                        )
-                    WHERE id = %s
-                    """,
-                    (
-                        result.success,
-                        result.agent_id,
-                        result.agent_id,
-                        result.agent_id,
-                    ),
-                )
-
             conn.commit()
             cur.close()
             conn.close()
+
+            # Also update agent-level performance summary via agent_service
+            # (Project #241 Track C.3). Skip when contractor did the work —
+            # don't credit the agent.
+            if result.agent_id and not is_contractor:
+                try:
+                    from services import agent_service
+
+                    agent_service.update_performance_metrics(result.agent_id, result.success)
+                except Exception as exc:
+                    logger.warning(f"update_performance_metrics failed: {exc}")
             # After logging, update agent emotional state based on recent performance
             if _HAS_AGENT_SERVICE:
                 svc_update_welfare_after_task(result.agent_id, result.success)
@@ -3566,40 +3548,53 @@ class BridgeDispatcher:
         last_name = parts[1] if len(parts) > 1 else ""
 
         try:
+            # Single-writer path: create via agent_service for the core
+            # fields then update_agent for lineage/audit extras (Project
+            # #241 Track C.3). agent_service.create_agent also inserts
+            # into agent_emotional_state, so the duplicate insert below
+            # is removed.
+            from services import agent_service
+
+            title = f"{capability.replace('_', ' ').title()} Specialist"
+            system_prompt = (
+                f"You are {suggested_name}, a specialist in {capability} "
+                f"in the {department} department."
+            )
+            try:
+                new_agent_id = agent_service.create_agent(
+                    name=suggested_name,
+                    display_name=title,
+                    department=department,
+                    model=suggested_model,
+                    system_prompt=system_prompt,
+                    temperature=0.5,
+                    max_tokens=4096,
+                    worker_type="internal",
+                    tier=3,
+                )
+            except ValueError as ve:
+                logger.error(
+                    f"[BridgeDispatcher] Auto-create rejected: {ve} "
+                    f"(department={department}, name={suggested_name})"
+                )
+                return None
+
+            agent_service.update_agent(
+                new_agent_id,
+                first_name=first_name,
+                last_name=last_name,
+                title=title,
+                cost_tier="free",
+                agent_generation=1,
+                parent_agent_id=2,
+                created_by_agent_id=2,
+            )
+
+            # Re-open the conn for the remaining inserts into sibling tables
+            # (agent_skills / agent_budgets / agent_creation_events) which
+            # are NOT owned by agent_service.
             conn = self._get_db()
             cur = conn.cursor()
-
-            # 1. INSERT into agents
-            cur.execute(
-                """
-                INSERT INTO agents (
-                    name, model, status, department, floor, title,
-                    first_name, last_name,
-                    worker_type, cost_tier, agent_generation,
-                    parent_agent_id, created_by_agent_id,
-                    system_prompt, temperature, max_tokens
-                ) VALUES (
-                    %s, %s, 'active', %s, %s, %s,
-                    %s, %s,
-                    'internal', 'free', 1,
-                    2, 2,
-                    %s, 0.5, 4096
-                )
-                RETURNING id
-                """,
-                (
-                    suggested_name,
-                    suggested_model,
-                    department,
-                    floor,
-                    f"{capability.replace('_', ' ').title()} Specialist",
-                    first_name,
-                    last_name,
-                    f"You are {suggested_name}, a specialist in {capability} "
-                    f"in the {department} department.",
-                ),
-            )
-            new_agent_id = cur.fetchone()[0]
 
             # 2. INSERT into agent_skills
             for skill in suggested_skills:
@@ -3626,16 +3621,12 @@ class BridgeDispatcher:
                 (new_agent_id,),
             )
 
-            # 4. INSERT into agent_emotional_state
-            cur.execute(
-                """
-                INSERT INTO agent_emotional_state (
-                    agent_id, current_mood, energy_level, stress_level,
-                    trigger_event
-                ) VALUES (%s, 'neutral', 0.8, 0.1, 'initial_creation')
-                """,
-                (new_agent_id,),
-            )
+            # 4. agent_emotional_state is already seeded by
+            # agent_service.create_agent() (stress=0.1, energy=0.9,
+            # mood='neutral') — Project #241 Track C.3 dropped the
+            # duplicate insert here. The old code used trigger_event=
+            # 'initial_creation' which isn't tracked by create_agent;
+            # that signal is lost but it was informational only.
 
             # 5. INSERT into agent_creation_events
             cur.execute(
@@ -7033,14 +7024,19 @@ class BridgeDispatcher:
         agent_ids = [r["hub_agent_id"] for r in deployed]
         agent_names = [r["name"] for r in deployed]
 
-        # 2. Return agents to barracks
-        cur.execute(
-            """
-            UPDATE agents SET shift_state = 'barracked'
-            WHERE id = ANY(%s) AND shift_state = 'deployed'
-            """,
-            (agent_ids,),
-        )
+        # 2. Return agents to barracks via agent_service.barracks so the
+        # agents-table mutation flows through the canonical helper
+        # (Project #241 Track C.3). Loops per agent but only transitions
+        # ones currently in 'deployed' state — matches the old WHERE clause.
+        try:
+            from services import agent_service
+
+            for aid in agent_ids:
+                existing = agent_service.get_agent(aid)
+                if existing and existing.get("shift_state") == "deployed":
+                    agent_service.barracks(aid)
+        except Exception as exc:
+            logger.warning(f"[BridgeDispatcher] bulk barracks return failed: {exc}")
 
         # 3. Mark node_agents inactive
         cur.execute(
@@ -7097,15 +7093,21 @@ class BridgeDispatcher:
                 continue
 
             if agent["shift_state"] == "barracked":
-                # Reactivate
+                # Reactivate — node_agents stays raw (different table),
+                # agents shift_state goes through agent_service
+                # (Project #241 Track C.3).
                 cur.execute(
                     "UPDATE node_agents SET status = 'active' WHERE node_id = %s AND hub_agent_id = %s",
                     (node_id, agent_id),
                 )
-                cur.execute(
-                    "UPDATE agents SET shift_state = 'deployed' WHERE id = %s",
-                    (agent_id,),
-                )
+                try:
+                    from services import agent_service
+
+                    agent_service.update_agent(agent_id, shift_state="deployed")
+                except Exception as exc:
+                    logger.warning(
+                        f"[BridgeDispatcher] deployed shift update failed for {agent_id}: {exc}"
+                    )
                 restored.append(agent_name)
             else:
                 # Already reassigned elsewhere

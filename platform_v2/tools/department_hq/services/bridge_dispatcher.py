@@ -2322,8 +2322,17 @@ class BridgeDispatcher:
         prefer_gpu: bool = True,
         temperature: float = 0.5,
         timeout: int = 300,
+        agent_name: Optional[str] = None,
+        capability: Optional[str] = None,
+        module_id: Optional[str] = None,
     ) -> Dict:
-        """Execute an LLM call using the existing archie_bridge functions."""
+        """Execute an LLM call using the existing archie_bridge functions.
+
+        When ``agent_name`` is supplied and the agent's ``worker_type='contract'``,
+        external (``call_external``) dispatches route through the Phase 7
+        Telegram approval gate whenever the estimated cost exceeds the agent's
+        ``auto_approve_threshold``.
+        """
         try:
             from ai_bridge.archie_bridge import call_ollama, call_ollama_json, call_ollama_cloud
 
@@ -2340,6 +2349,32 @@ class BridgeDispatcher:
                 if ext_config and ext_config.get("is_cloud_proxy"):
                     return call_ollama_cloud(prompt, model=model, system_prompt=system_prompt)
                 if ext_config:
+                    # Phase 7 — contractor approval gate (Project #244)
+                    if agent_name:
+                        gate = self._contractor_approval_gate(
+                            agent_name=agent_name,
+                            provider=ext_provider_key,
+                            model=model,
+                            prompt=prompt,
+                            system_prompt=system_prompt,
+                            capability=capability or "unknown",
+                            module_id=module_id or "unknown",
+                            timeout=timeout,
+                        )
+                        if gate == "rejected":
+                            return {
+                                "success": False,
+                                "error": "Contractor dispatch rejected via Telegram approval",
+                                "model": model,
+                                "provider": ext_provider_key,
+                            }
+                        if gate == "timeout":
+                            return {
+                                "success": False,
+                                "error": "Contractor dispatch timed out waiting for Telegram approval",
+                                "model": model,
+                                "provider": ext_provider_key,
+                            }
                     return call_external(
                         ext_provider_key,
                         prompt,
@@ -2402,6 +2437,189 @@ class BridgeDispatcher:
                 "error": "archie_bridge not available",
                 "model": model,
             }
+
+    # ------------------------------------------------------------------
+    # Phase 7 — contractor dispatch Telegram approval gate (Project #244)
+    # ------------------------------------------------------------------
+
+    def _get_contractor_policy(self, agent_name: str) -> Optional[Dict]:
+        """Return contractor policy for an agent, or None if not a contract worker.
+
+        Reads ``worker_type`` and ``auto_approve_threshold`` directly from the
+        agents table. Any internal (``worker_type != 'contract'``) agent or
+        lookup failure returns None, which tells the gate to proceed without
+        human approval.
+        """
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT worker_type, auto_approve_threshold "
+                "FROM agents WHERE name = %s OR display_name = %s LIMIT 1",
+                (agent_name, agent_name),
+            )
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            if not row or row[0] != "contract":
+                return None
+            return {
+                "worker_type": row[0],
+                "auto_approve_threshold": float(row[1] or 0.0),
+            }
+        except Exception as e:
+            logger.warning(f"[BridgeDispatcher] _get_contractor_policy({agent_name}) failed: {e}")
+            return None
+
+    def _estimate_contractor_cost(
+        self,
+        provider: str,
+        model: str,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+    ) -> float:
+        """Rough token estimate × provider pricing for the Phase 7 gate.
+
+        Uses the existing ``archie_bridge.calculate_cost`` pricing table.
+        Token count is approximated at 4 chars/token and completion is
+        assumed to be half the prompt length — deliberately coarse: the
+        goal is to catch runaway spend, not to invoice.
+        """
+        try:
+            from ai_bridge.archie_bridge import calculate_cost
+
+            total_chars = len(prompt or "") + len(system_prompt or "")
+            est_prompt_tokens = max(1, total_chars // 4)
+            est_completion_tokens = est_prompt_tokens // 2
+            total_tokens = est_prompt_tokens + est_completion_tokens
+            return float(
+                calculate_cost(
+                    provider,
+                    model,
+                    total_tokens,
+                    est_prompt_tokens,
+                    est_completion_tokens,
+                )
+                or 0.0
+            )
+        except Exception as e:
+            logger.debug(f"[BridgeDispatcher] _estimate_contractor_cost failed: {e}")
+            return 0.0
+
+    def wait_for_approval(
+        self,
+        approval_id: int,
+        timeout: int = 300,
+        poll_interval: float = 2.0,
+    ) -> Optional[str]:
+        """Block until an autonomy_approval_queue row resolves.
+
+        Returns:
+            'approved' or 'rejected' once the row reaches a terminal state.
+            None if the wait times out before resolution.
+
+        The existing Telegram escalation callback handles the row update on
+        button press, so this helper is a straight DB poll.
+        """
+        import time as _t
+
+        deadline = _t.time() + timeout
+        while _t.time() < deadline:
+            try:
+                conn = self._get_db()
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT status FROM autonomy_approval_queue WHERE id = %s",
+                    (approval_id,),
+                )
+                row = cur.fetchone()
+                cur.close()
+                conn.close()
+                if row and row[0] in ("approved", "rejected"):
+                    return row[0]
+            except Exception as e:
+                logger.warning(f"[BridgeDispatcher] wait_for_approval({approval_id}) poll error: {e}")
+            _t.sleep(poll_interval)
+        return None
+
+    def _contractor_approval_gate(
+        self,
+        agent_name: str,
+        provider: str,
+        model: str,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        capability: str = "unknown",
+        module_id: str = "unknown",
+        timeout: int = 300,
+    ) -> Optional[str]:
+        """Gate external contractor dispatch behind Telegram approval.
+
+        Returns:
+            None: proceed. Agent is internal, or cost is within the agent's
+                  auto_approve_threshold — no approval needed.
+            'approved': proceed. Human approved via Telegram button.
+            'rejected': fail-close. Human denied.
+            'timeout': fail-close. No response before ``timeout``.
+
+        Fail-closed on any internal error: if the policy lookup or the
+        approval submission fails, we return 'rejected' so we never charge
+        the user for a dispatch we couldn't audit.
+        """
+        policy = self._get_contractor_policy(agent_name)
+        if not policy:
+            return None  # not a contract worker — proceed
+
+        est_cost = self._estimate_contractor_cost(provider, model, prompt, system_prompt)
+        threshold = policy["auto_approve_threshold"]
+
+        if est_cost <= threshold:
+            logger.info(
+                f"[BridgeDispatcher] Contractor {agent_name} auto-approved: " f"${est_cost:.4f} ≤ ${threshold:.4f}"
+            )
+            return None
+
+        logger.info(
+            f"[BridgeDispatcher] Contractor {agent_name} requires Telegram approval: "
+            f"${est_cost:.4f} > ${threshold:.4f}"
+        )
+        try:
+            from ai_bridge.agent_loop import request_approval
+        except Exception as e:
+            logger.error(f"[BridgeDispatcher] request_approval import failed: {e} — failing closed")
+            return "rejected"
+
+        approval_id = request_approval(
+            action_type="contractor_dispatch",
+            action_data={
+                "agent": agent_name,
+                "provider": provider,
+                "model": model,
+                "capability": capability,
+                "module_id": module_id,
+                "estimated_cost": round(est_cost, 4),
+                "threshold": round(threshold, 4),
+                "prompt_preview": (prompt or "")[:200],
+            },
+            reason=(
+                f"Contractor {agent_name} dispatch estimated at "
+                f"${est_cost:.4f} exceeds auto-approve threshold ${threshold:.4f}"
+            ),
+            requested_by="bridge_dispatcher",
+            priority=7,
+            tier=2,
+        )
+        if not approval_id:
+            logger.error(
+                f"[BridgeDispatcher] request_approval returned None for contractor {agent_name} — failing closed"
+            )
+            return "rejected"
+
+        result = self.wait_for_approval(approval_id, timeout=timeout)
+        if result is None:
+            logger.warning(f"[BridgeDispatcher] Contractor approval #{approval_id} timed out")
+            return "timeout"
+        return result
 
     def _log_execution(
         self,
@@ -4417,6 +4635,9 @@ class BridgeDispatcher:
             prefer_gpu=prefer_gpu,
             temperature=temperature,
             timeout=timeout,
+            agent_name=agent.get("name") if agent else None,
+            capability=capability,
+            module_id=module_id,
         )
 
         duration_ms = int((time.time() - start) * 1000)
@@ -4440,6 +4661,9 @@ class BridgeDispatcher:
                         json_mode=json_mode,
                         prefer_gpu=prefer_gpu,
                         timeout=timeout,
+                        agent_name=agent.get("name") if agent else None,
+                        capability=capability,
+                        module_id=module_id,
                     )
                     if escalated_result.get("success"):
                         self._reset_failure(agent.get("id", 0), capability)

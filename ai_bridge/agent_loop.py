@@ -90,6 +90,24 @@ def _send_approval_telegram(
             lines.append(f"Type: Create New Agent")
             lines.append(f"Capability: {cap}")
             lines.append(f"Department: {department}")
+        elif action_type == "contractor_dispatch":
+            agent = action_data.get("agent", "?")
+            provider = action_data.get("provider", "?")
+            model = action_data.get("model", "?")
+            cap = action_data.get("capability", "?")
+            module = action_data.get("module_id", "?")
+            est_cost = action_data.get("estimated_cost", 0)
+            threshold = action_data.get("threshold", 0)
+            preview = action_data.get("prompt_preview", "")[:180]
+            lines.append(f"Type: Contractor Dispatch")
+            lines.append(f"Agent: `{agent}`")
+            lines.append(f"Provider: `{provider}` / `{model}`")
+            lines.append(f"Capability: {cap}")
+            lines.append(f"Module: {module}")
+            lines.append(f"\n*Estimated cost:* `${est_cost:.4f}`")
+            lines.append(f"*Threshold:* `${threshold:.4f}`")
+            if preview:
+                lines.append(f"\n_Prompt preview:_\n`{preview}`")
         elif action_type.startswith("compliance_fix_"):
             rule_id = action_data.get("rule_id", "?")
             severity = action_data.get("severity", "?")
@@ -3552,7 +3570,7 @@ class AgentLoop:
     def _reap_stale_jobs(self):
         """Reap orphaned bridge jobs that stopped updating (every 2 min)."""
         try:
-            from ai_bridge.bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.bridge_dispatcher import get_dispatcher
             dispatcher = get_dispatcher()
             reaped = dispatcher.reap_stale_jobs(max_age_minutes=5)
             if reaped:
@@ -3839,7 +3857,7 @@ class AgentLoop:
                             failure_summary["error_patterns"].append(msg[:100])
 
                     if error_texts:
-                        from ai_bridge.bridge_dispatcher import get_dispatcher
+                        from tools.department_hq.services.bridge_dispatcher import get_dispatcher
                         disp = get_dispatcher()
                         if disp:
                             prompt = (
@@ -4443,7 +4461,7 @@ class AgentLoop:
         """Job #48: Process approved improvement proposals by dispatching to coding agents."""
         try:
             from database import get_db_cursor
-            from ai_bridge.bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.bridge_dispatcher import get_dispatcher
 
             dispatcher = get_dispatcher()
             if not dispatcher:

@@ -92,7 +92,7 @@ def get_eligible_agents(capability: str) -> List[Dict]:
                     "id": info.get("id"),
                     "name": name,
                     "display_name": info.get("display_name", name),
-                    "station_code": station,
+                    "station_code": info.get("station_code", ""),
                     "model": model,
                     "score": score,
                 }

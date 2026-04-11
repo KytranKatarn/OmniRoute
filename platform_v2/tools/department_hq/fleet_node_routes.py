@@ -39,6 +39,63 @@ NODE_CLIENT_DIR = os.path.join(
 )
 
 
+# ============================================================================
+# Post-approval orchestration + installer-script generators — STUBS
+#
+# These 5 functions were referenced inside route handlers but the real
+# implementations were never landed in this module (lint baseline flagged
+# them all as F821 undefined). Stubbing with placeholder bodies so the
+# callers raise a clear RuntimeError instead of NameError. Real bodies
+# tracked as a follow-up in Project #243.
+# ============================================================================
+
+
+def _on_node_approved(node_id):
+    """Post-approval orchestration for a newly approved fleet node.
+
+    Called from the node approval flow (fleet_node_routes.py line ~1628).
+    Wraps in try/except at the call site, so a RuntimeError here is
+    logged but doesn't break the approval itself.
+    """
+    logger.warning(
+        "_on_node_approved(%s) is not yet implemented — post-approval "
+        "orchestration skipped. See Project #243 follow-up.",
+        node_id,
+    )
+
+
+def _generate_powershell_installer(hub_url: str, node_id: str, token: str) -> str:
+    """Return a PowerShell installer script for Windows node onboarding."""
+    raise RuntimeError(
+        "_generate_powershell_installer not yet implemented — see Project #243 follow-up. "
+        "Use the manual setup flow via /api/nodes/<id>/setup instead."
+    )
+
+
+def _generate_bash_installer(hub_url: str, node_id: str, token: str) -> str:
+    """Return a Bash installer script for Linux/macOS node onboarding."""
+    raise RuntimeError(
+        "_generate_bash_installer not yet implemented — see Project #243 follow-up. "
+        "Use the manual setup flow via /api/nodes/<id>/setup instead."
+    )
+
+
+def _generate_setup_ps1(hub_url: str, node_id: str, token: str, node_name: str) -> str:
+    """Return a self-contained PowerShell node setup script."""
+    raise RuntimeError(
+        "_generate_setup_ps1 not yet implemented — see Project #243 follow-up. "
+        "Use the pre-built installers in node_client/ instead."
+    )
+
+
+def _generate_setup_sh(hub_url: str, node_id: str, token: str, node_name: str) -> str:
+    """Return a self-contained Bash node setup script."""
+    raise RuntimeError(
+        "_generate_setup_sh not yet implemented — see Project #243 follow-up. "
+        "Use the pre-built installers in node_client/ instead."
+    )
+
+
 def register_node_routes(bp, login_required, admin_required):
     """Register node-related routes on the fleet blueprint."""
 

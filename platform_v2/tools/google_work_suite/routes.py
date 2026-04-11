@@ -675,4 +675,3 @@ def redirect_scheduler(subpath=""):
 @google_work_suite_bp.route("/redirect/google-workspace/<path:subpath>")
 def redirect_google_workspace(subpath=""):
     return redirect("/tools/google-work-suite")
-    return jsonify(result)

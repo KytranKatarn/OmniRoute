@@ -15,6 +15,12 @@ from .fleet_helpers import get_starship_node_for_user
 
 logger = logging.getLogger(__name__)
 
+# In-memory activity queue for the /api/dispatch/stream SSE endpoint.
+# Populated by code that logs agent activity events (TODO: wire to
+# bridge_dispatcher's job-completion hook). Until that wiring lands the
+# SSE stream degrades gracefully to just heartbeats.
+_activity_queue: list = []
+
 
 def register_mission_routes(bp, admin_required):
     """Register mission-related routes on the fleet blueprint."""

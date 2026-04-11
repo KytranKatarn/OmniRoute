@@ -3499,13 +3499,18 @@ class AgentLoop:
                 endpoint = desired[model_name]
                 use_gpu = model_name in gpu_models or f"{model_name}:latest" in gpu_models
                 try:
+                    # keep_alive="15m" — was -1 which means "pin in RAM forever".
+                    # -1 defeated Department HQ's ability to auto-unload idle
+                    # agents and caused ~64GB of models to accumulate until
+                    # swap maxed out. 15m lets Dept HQ's lifecycle manager
+                    # reclaim idle model RAM.
                     if endpoint == "embed":
-                        data = {"model": model_name, "input": "health", "keep_alive": -1}
+                        data = {"model": model_name, "input": "health", "keep_alive": "15m"}
                     else:
                         opts = {"num_predict": 1}
                         if not use_gpu:
                             opts["num_gpu"] = 0
-                        data = {"model": model_name, "prompt": "health", "stream": False, "options": opts, "keep_alive": -1}
+                        data = {"model": model_name, "prompt": "health", "stream": False, "options": opts, "keep_alive": "15m"}
                     timeout = 600 if "coder" in model_name else 300
                     r = req.post(f"{ollama_host}/api/{endpoint}", json=data, timeout=timeout)
                     if r.status_code == 200:

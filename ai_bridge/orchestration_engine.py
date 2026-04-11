@@ -1826,41 +1826,47 @@ Please try again or use the Team Management module directly.""",
         # Create the agent in DB
         conn = get_db()
         try:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute(
-                """
-                INSERT INTO agents (
-                    name, first_name, last_name, title, department, worker_type,
-                    model, temperature, max_tokens, system_prompt, bio,
-                    default_model_tier, status, capabilities,
-                    parent_agent_id, created_by_agent_id, created_by_user_id,
-                    agent_generation, created_at, updated_at
-                ) VALUES (
-                    %s, %s, %s, %s, %s, 'ai', %s, 0.7, 4096, %s, %s,
-                    'local', 'active', %s,
-                    %s, %s, %s, 1, NOW(), NOW()
-                )
-                RETURNING id, first_name, last_name, model, department, title
-            """,
-                (
-                    name,
-                    first_name,
-                    last_name,
-                    title,
-                    department,
-                    model,
-                    system_prompt,
-                    bio,
-                    capabilities_json,
-                    archie_id,
-                    archie_id,
-                    user_id,
-                ),
-            )
-            new_agent = cur.fetchone()
-            conn.commit()
+            # Single-writer path: create via agent_service for the core
+            # fields then update_agent for lineage/audit extras not in the
+            # create_agent signature (parent_agent_id, created_by_agent_id,
+            # created_by_user_id, agent_generation). Project #241 Track C.3.
+            from services import agent_service
 
-            # Log creation event via C.R.E.E.D.
+            caps_for_service = capabilities if isinstance(capabilities, (dict, list)) else {}
+            new_agent_id = agent_service.create_agent(
+                name=name,
+                display_name=title or name,
+                department=department,
+                model=model,
+                system_prompt=system_prompt or "",
+                temperature=0.7,
+                max_tokens=4096,
+                capabilities=caps_for_service,
+                worker_type="ai",
+            )
+            agent_service.update_agent(
+                new_agent_id,
+                first_name=first_name,
+                last_name=last_name,
+                title=title,
+                bio=bio,
+                default_model_tier="local",
+                parent_agent_id=archie_id,
+                created_by_agent_id=archie_id,
+                created_by_user_id=user_id,
+                agent_generation=1,
+            )
+            new_agent = {
+                "id": new_agent_id,
+                "first_name": first_name,
+                "last_name": last_name,
+                "model": model,
+                "department": department,
+                "title": title,
+            }
+
+            # Log creation event via C.R.E.E.D. (uses the local conn for
+            # its own audit queries; agent_service manages its own cursor).
             monitor.log_agent_creation_event(
                 parent_agent_id=archie_id,
                 child_agent_id=new_agent["id"],
@@ -1869,8 +1875,6 @@ Please try again or use the Team Management module directly.""",
                 source="chat",
                 conn=conn,
             )
-
-            cur.close()
 
             steps.append(
                 ThinkingStep(
@@ -1926,13 +1930,10 @@ Please try again or use the Team Management module directly.""",
                     f"I can't deactivate {agent['name']} — they're a core system agent."
                 )
 
-            cur = conn.cursor()
-            cur.execute(
-                "UPDATE agents SET status = 'inactive', updated_at = NOW() WHERE id = %s",
-                (agent["id"],),
-            )
-            conn.commit()
-            cur.close()
+            # Single-writer path (Project #241 Track C.3).
+            from services import agent_service
+
+            agent_service.delete_agent(agent["id"])
 
             steps.append(
                 ThinkingStep(
@@ -1995,13 +1996,15 @@ Please try again or use the Team Management module directly.""",
             if agent.get("department") == resolved_dept:
                 return f"**{agent['name']}** is already in the **{resolved_dept}** department."
 
-            # Update agent's department
-            cur.execute(
-                "UPDATE agents SET department = %s WHERE id = %s",
-                (resolved_dept, agent["id"]),
-            )
-            conn.commit()
-            cur.close()
+            # Single-writer path: update_agent auto-derives floor from
+            # DEPARTMENT_FLOOR_MAP (Project #241 Track C.3).
+            from services import agent_service
+
+            try:
+                agent_service.update_agent(agent["id"], department=resolved_dept)
+            except ValueError as ve:
+                cur.close()
+                return f"Couldn't reassign: {ve}"
 
             steps.append(
                 ThinkingStep(

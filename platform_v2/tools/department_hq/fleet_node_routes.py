@@ -3500,18 +3500,29 @@ def register_node_routes(bp, login_required, admin_required):
 
         try:
             node_db_id = node["id"]
-            with get_db_cursor(commit=True) as (conn, cur):
-                # Return deployed agents to barracks
-                cur.execute(
-                    """UPDATE agents SET shift_state = 'barracked'
-                       WHERE id IN (
-                           SELECT hub_agent_id FROM node_agents
-                           WHERE node_id = %s AND hub_agent_id IS NOT NULL
-                       ) AND shift_state = 'deployed'""",
+
+            # Fetch the deployed hub agents linked to this node so we can
+            # return them to barracks via agent_service (Project #241
+            # Track C.3 straggler — this site was missed by the original
+            # Track A audit).
+            with get_db_cursor(commit=False) as (_conn, _cur):
+                _cur.execute(
+                    """SELECT hub_agent_id FROM node_agents
+                       WHERE node_id = %s AND hub_agent_id IS NOT NULL""",
                     (node_db_id,),
                 )
-                returned = cur.rowcount
+                _hub_ids = [r["hub_agent_id"] if isinstance(r, dict) else r[0] for r in _cur.fetchall()]
 
+            from services import agent_service as _svc
+
+            returned = 0
+            for _aid in _hub_ids:
+                _existing = _svc.get_agent(_aid)
+                if _existing and _existing.get("shift_state") == "deployed":
+                    _svc.barracks(_aid)
+                    returned += 1
+
+            with get_db_cursor(commit=True) as (conn, cur):
                 # Delete node agents
                 cur.execute("DELETE FROM node_agents WHERE node_id = %s", (node_db_id,))
 

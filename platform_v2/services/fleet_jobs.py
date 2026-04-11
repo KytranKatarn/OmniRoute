@@ -215,8 +215,6 @@ def check_standalone_health():
     """Job #59: Monitor standalone product health, alert on downtime."""
     import requests as req
 
-    global _standalone_last_status
-
     standalones = [
         {
             "name": "Kytran System Operations",

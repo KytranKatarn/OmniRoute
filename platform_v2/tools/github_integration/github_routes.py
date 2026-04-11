@@ -128,12 +128,6 @@ def save_github_settings():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
 
 
 @github_bp.route("/get-settings", methods=["GET"])
@@ -244,12 +238,6 @@ def clone_repository():
         return jsonify({"error": "Clone operation timed out"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
 
 
 @github_bp.route("/pull-repo", methods=["POST"])
@@ -302,12 +290,6 @@ def pull_repository():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
 
 
 @github_bp.route("/push-repo", methods=["POST"])
@@ -387,12 +369,6 @@ def push_repository():
         )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
 
 
 @github_bp.route("/sync-repo", methods=["POST"])
@@ -510,12 +486,6 @@ def index_repository_content():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
 
 
 # ============================================================================
@@ -663,12 +633,6 @@ def get_repository_status():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
 
 
 # ============================================================================
@@ -693,9 +657,3 @@ def get_setting(key, default=None):
 
     except Exception:
         return default
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass

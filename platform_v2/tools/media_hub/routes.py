@@ -480,7 +480,6 @@ def api_library_recent():
 @media_hub_bp.route("/api/library/stats")
 def api_library_stats():
     """Get library statistics with caching"""
-    global _stats_cache
     force_refresh = request.args.get("refresh", "false").lower() == "true"
     current_time = time.time()
 
@@ -553,7 +552,6 @@ def api_library_stats():
 @media_hub_bp.route("/api/cache/clear", methods=["POST"])
 def api_clear_cache():
     """Clear library stats cache"""
-    global _stats_cache
     _stats_cache["data"] = None
     _stats_cache["timestamp"] = 0
     return jsonify({"success": True, "message": "Cache cleared"})

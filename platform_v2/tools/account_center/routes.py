@@ -5,7 +5,7 @@ API routes for account CRUD, permissions, subscriptions, sessions,
 API keys, bulk operations, and activity tracking.
 """
 
-from flask import render_template, jsonify, request, redirect, url_for, flash, Response
+from flask import render_template, jsonify, request, redirect, url_for, flash, Response, current_app
 from flask_login import login_required, current_user
 from functools import wraps
 from werkzeug.security import generate_password_hash

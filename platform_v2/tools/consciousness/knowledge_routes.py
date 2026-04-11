@@ -619,11 +619,6 @@ def register_knowledge_routes(bp, admin_required):
             return jsonify({"success": True, **stats})
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
-        finally:
-
-            cur.close()
-
-            conn.close()
 
     # ==================================================================
     # UNIFIED KNOWLEDGE API (Phase 4: Integration Layer)

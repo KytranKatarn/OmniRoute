@@ -312,6 +312,7 @@ def check_resource_limit(resource_type: str, current_count: int = None) -> dict:
     import psycopg2
     from psycopg2.extras import RealDictCursor
     import os
+    from database import _get_db_password
 
     tier = get_user_subscription_tier()
 

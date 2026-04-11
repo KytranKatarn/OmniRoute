@@ -48,7 +48,6 @@ def _get_pool():
 
 def _cleanup_pool():
     """Cleanup connection pool on exit"""
-    global _pool
     if _pool is not None:
         _pool.closeall()
 

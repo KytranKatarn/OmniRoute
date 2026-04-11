@@ -11,6 +11,7 @@ Features:
 """
 
 import os
+import json
 from database import _get_db_password
 import sys
 import psycopg2

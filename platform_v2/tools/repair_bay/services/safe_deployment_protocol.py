@@ -11,6 +11,7 @@ Ensures all deployments are safe with:
 """
 
 import os
+import logging
 from database import _get_db_password
 import sys
 import psycopg2
@@ -19,6 +20,8 @@ from datetime import datetime
 from typing import Dict, Optional
 import json
 import subprocess
+
+logger = logging.getLogger(__name__)
 
 # Add paths for imports
 sys.path.insert(0, "/mnt/archie_brain/platform_v2")

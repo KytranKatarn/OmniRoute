@@ -2239,7 +2239,9 @@ def _warmup_ollama_models():
 # Check fleet mode before warming up — skip if weekend mode
 _fleet_mode = "workday"
 try:
-    with get_db_cursor(commit=False) as (_fm_conn, _fm_cur):
+    from database import get_db_cursor as _fm_get_db_cursor
+
+    with _fm_get_db_cursor(commit=False) as (_fm_conn, _fm_cur):
         _fm_cur.execute("SELECT value FROM system_config WHERE key = 'fleet_mode'")
         _fm_row = _fm_cur.fetchone()
         if _fm_row:

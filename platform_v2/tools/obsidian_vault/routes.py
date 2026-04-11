@@ -152,12 +152,6 @@ def note_editor(note_id):
     except Exception as e:
         logger.error(f"Error loading note editor: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
 
 
 # ============================================================================
@@ -256,12 +250,6 @@ def get_note(note_id):
 
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
 
 
 @obsidian_vault_bp.route("/api/notes/<int:note_id>", methods=["PUT"])
@@ -309,12 +297,6 @@ def update_note(note_id):
 
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
 
 
 @obsidian_vault_bp.route("/api/notes/<int:note_id>", methods=["DELETE"])
@@ -356,12 +338,6 @@ def delete_note(note_id):
 
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
 
 
 @obsidian_vault_bp.route("/api/notes", methods=["GET"])
@@ -457,12 +433,6 @@ def list_notes():
     except Exception as e:
         logger.error(f"Error listing notes: {e}", exc_info=True)
         return jsonify({"success": False, "message": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
 
 
 # ============================================================================
@@ -604,12 +574,6 @@ def knowledge_stats():
     except Exception as e:
         logger.error(f"Error getting knowledge stats: {e}", exc_info=True)
         return jsonify({"success": False, "message": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
 
 
 # ============================================================================
@@ -752,12 +716,6 @@ def sync_logs():
 
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
 
 
 # ============================================================================

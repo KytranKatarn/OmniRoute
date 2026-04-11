@@ -818,11 +818,61 @@ async function loadTestBay() {
     }
 }
 
-function loadShip() {
-    if (_shipLoaded) return;
+/* ── Ship tab — populate top stat cards + nudge inline loaders ──
+ * The Ship tab has 3 top stat cards (#deployTotalCount, #deployReadyCount,
+ * #deployFailedCount) already in the HTML but static at 0. Inline
+ * loadDeployReady / loadDeployHistory / loadForgeStats also exist. This
+ * loader fills the top cards with real numbers from deploy/history +
+ * deploy/ready and nudges the inline loaders so sub-tabs auto-populate.
+ * Project #242 Task 7.
+ *
+ * Note: /api/forge/stats is broken on main (SQL error: relation
+ * "agent_loop_cycles" does not exist). Filed as follow-up; the F.O.R.G.E.
+ * sub-tab inline loader will just fail silently until that's fixed.
+ */
+async function loadShip() {
     _shipLoaded = true;
+
+    if (typeof loadDeployReady === 'function') {
+        try { loadDeployReady(); } catch (e) { /* ok */ }
+    }
+    if (typeof loadDeployHistory === 'function') {
+        try { loadDeployHistory(); } catch (e) { /* ok */ }
+    }
+
+    // Populate the 3 top stat cards from real data
+    try {
+        var ready = await _rbFetchJson(RB_API + '/deploy/ready');
+        var readyCount = 0;
+        if (ready && ready.proposals) readyCount = ready.proposals.length;
+        else if (ready && Array.isArray(ready)) readyCount = ready.length;
+        else if (ready && typeof ready.count === 'number') readyCount = ready.count;
+        var readyEl = document.getElementById('deployReadyCount');
+        if (readyEl) readyEl.textContent = readyCount;
+    } catch (e) {
+        console.warn('loadShip: /deploy/ready failed:', e.message);
+    }
+
+    try {
+        var hist = await _rbFetchJson(RB_API + '/deploy/history');
+        var deployments = (hist && hist.deployments) || [];
+        var total = deployments.length;
+        var failed = deployments.filter(function(d) {
+            var s = (d.status || '').toLowerCase();
+            return s === 'failed' || s === 'rolled_back' || s === 'rollback_failed';
+        }).length;
+        var totalEl = document.getElementById('deployTotalCount');
+        var failedEl = document.getElementById('deployFailedCount');
+        if (totalEl) totalEl.textContent = total;
+        if (failedEl) failedEl.textContent = failed;
+    } catch (e) {
+        console.warn('loadShip: /deploy/history failed:', e.message);
+    }
+
+    // F.O.R.G.E. sub-tab has its own inline loader; nudge it but swallow
+    // errors because /api/forge/stats has a pre-existing SQL bug on main.
     if (typeof loadForgeStats === 'function') {
-        try { loadForgeStats(); } catch (e) { console.warn('loadForgeStats error:', e); }
+        try { loadForgeStats(); } catch (e) { /* ok */ }
     }
 }
 

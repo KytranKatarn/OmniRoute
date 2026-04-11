@@ -227,14 +227,20 @@ def register_github_routes(bp, admin_required):
             )
             deploy_stats = {r["status"]: r["count"] for r in cur.fetchall()}
 
-            # Self-healing stats (from agent loop cycles)
+            # Self-healing stats (from autonomy loop log).
+            # NB: the old schema was agent_loop_cycles with cycle_type/
+            # success_count/error_count/timestamp — that table was renamed
+            # to autonomy_loop_log with job_name/items_processed/items_failed/
+            # created_at during the autonomy module rework. Project #242
+            # follow-up fix.
             cur.execute(
-                """SELECT cycle_type, SUM(success_count) as successes,
-                          SUM(error_count) as errors
-                   FROM agent_loop_cycles
-                   WHERE cycle_type IN ('skill_analyzer', 'github_auto_pull', 'forge_self_heal')
-                     AND timestamp > NOW() - interval '7 days'
-                   GROUP BY cycle_type"""
+                """SELECT job_name AS cycle_type,
+                          COALESCE(SUM(items_processed), 0) AS successes,
+                          COALESCE(SUM(items_failed), 0) AS errors
+                   FROM autonomy_loop_log
+                   WHERE job_name IN ('skill_analyzer', 'github_auto_pull', 'forge_self_heal')
+                     AND created_at > NOW() - interval '7 days'
+                   GROUP BY job_name"""
             )
             healing_stats = {r["cycle_type"]: dict(r) for r in cur.fetchall()}
 

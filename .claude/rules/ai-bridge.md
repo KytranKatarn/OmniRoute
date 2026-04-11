@@ -5,11 +5,14 @@ globs: ["ai_bridge/**"]
 # AI Bridge Rules
 
 ## Architecture
-- ALL LLM inference routes through Bridge dispatcher (ADR-013). No direct Ollama from modules.
+- ALL LLM inference routes through Bridge dispatcher (ADR-013, ADR-002). No direct Ollama from modules.
 - Direct Ollama GET for `/api/tags`/`/api/ps` is acceptable (not inference).
-- Smart Router: `ai_bridge/smart_router.py` — 11-tier escalation, GPU-aware
-- External providers: `ai_bridge/external_providers.py` — OpenAI-compatible adapters
-- Orchestration: `orchestration_engine.py` — 8-step pipeline (intent->IAAE->welfare->route->agent->GPU->execute->log)
+- **Dispatcher physically lives in Department HQ** (Project #244 Phase 2, 2026-04-11):
+  - `platform_v2/tools/department_hq/services/bridge_dispatcher.py` — dispatch entry point
+  - `platform_v2/tools/department_hq/services/orchestration_engine.py` — 8-step pipeline (intent→IAAE→welfare→route→agent→GPU→execute→log)
+  - `platform_v2/tools/department_hq/services/smart_router.py` — 11-tier escalation, GPU-aware
+- `ai_bridge/{bridge_dispatcher,orchestration_engine,smart_router}.py` are **back-compat shims only**. New code must import from `tools.department_hq.services.*` — enforced by `scripts/check_agent_single_writer.py`.
+- Still in `ai_bridge/`: `archie_bridge.py` (intent+cost), `external_providers.py` (OpenAI-compatible adapters), `knowledge_analyzer.py`, `embedding_service.py`, `db.py`.
 
 ## Ollama Config
 - Host: 192.168.1.200:11434 | Docker: `host.docker.internal:11434`
@@ -36,10 +39,12 @@ globs: ["ai_bridge/**"]
 - Files reduced: 80→45 root Python files after relocating module-specific code
 
 ## Dispatch API (MANDATORY)
-- `from bridge_dispatcher import dispatch` or `dispatch_json` — module-level functions ONLY
-- NEVER call `get_dispatcher().dispatch()` — the instance method is `request_work()`, not `dispatch()`
-- `dispatch()` returns `DispatchResult` (not `str`) — always check `.success` and use `.response`
-- `get_agent_cache()` keys skills by `skill_name` (not `skill_category`) — capability matching depends on this
+- New canonical import: `from tools.department_hq.services.bridge_dispatcher import dispatch, dispatch_json, get_dispatcher`
+  - Inside `department_hq/services/`, use relative: `from .bridge_dispatcher import get_dispatcher`
+- `dispatch()` / `dispatch_json()` are module-level functions — use these, not `get_dispatcher().dispatch()` (the instance method is `request_work()`).
+- `dispatch()` returns `DispatchResult` — always check `.success` and use `.response`.
+- `get_agent_cache()` keys skills by `skill_name` (not `skill_category`) — capability matching depends on this.
+- Legacy `from ai_bridge.bridge_dispatcher import ...` still works via shim but emits `DeprecationWarning` and is **blocked for new files** by the K.I.N. guardrail.
 
 ## Key Gotchas
 - `num_ctx` inflates VRAM massively (phi3.5: 2GB disk but 5.47GB with 2048 ctx)

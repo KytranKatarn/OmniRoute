@@ -96,7 +96,7 @@ Every new session MUST begin with one of:
 4. **Dev HQ** - Development command center (`/dev-hq`)
 5. **Consciousness** - Knowledge analytics, AI processing, embedding coverage
 6. **Self-Healing Pipeline** - Audit → Propose → Fix → Verify (`services/audit_pipeline.py`)
-7. **Orchestration Engine** - `ai_bridge/orchestration_engine.py` (intent→route→delegate→execute)
+7. **Orchestration Engine** - `platform_v2/tools/department_hq/services/orchestration_engine.py` (intent→route→delegate→execute)
 8. **C.R.E.E.D.** - `/creed` ethics & compliance institute, live governance stats
 9. **Agent Service** - Centralized agent CRUD, lifecycle, dispatch (`services/agent_service.py`)
 10. **Department HQ** - 16 departments, 5 floors, agent management (`tools/department_hq/`)
@@ -129,11 +129,14 @@ platform_v2/services/work_tracking_service.py - Work sessions, metrics
 platform_v2/tools/department_hq/            - Department management (6 tabs)
 platform_v2/tools/agent_academy/            - Training & benchmarks (5 tabs)
 platform_v2/static/js/archie-time.js        - Timezone formatter
-ai_bridge/archie_bridge.py                  - AI routing
-ai_bridge/orchestration_engine.py           - Orchestration pipeline
-ai_bridge/smart_router.py                   - GPU-aware model routing
+ai_bridge/archie_bridge.py                  - AI routing (intent parse + cost calc)
 ai_bridge/knowledge_analyzer.py             - Knowledge extraction
 ai_bridge/embedding_service.py              - Vector embeddings
+platform_v2/tools/department_hq/services/bridge_dispatcher.py    - Dispatch entry point (Project #244)
+platform_v2/tools/department_hq/services/orchestration_engine.py - 8-step orchestration pipeline
+platform_v2/tools/department_hq/services/smart_router.py         - GPU-aware 11-tier routing
+# NOTE: ai_bridge/{bridge_dispatcher,orchestration_engine,smart_router}.py are back-compat shims only.
+# New code must import from tools.department_hq.services.* — enforced by scripts/check_agent_single_writer.py
 ```
 
 ## Pattern Reference

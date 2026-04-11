@@ -286,6 +286,8 @@ class TeamAssignmentEngine:
 
     def _create_team_assignments(self, proposal_id: int, team: List[Dict], assigned_by: Optional[int] = None):
         """Create team assignment records in database"""
+        from services import agent_service
+
         cur = self.conn.cursor()
 
         for agent in team:
@@ -299,18 +301,18 @@ class TeamAssignmentEngine:
                 (proposal_id, agent["id"], agent["role"], assigned_by),
             )
 
-            # Update agent's last used timestamp
-            cur.execute(
-                """
-                UPDATE agents
-                SET last_used = NOW()
-                WHERE id = %s
-            """,
-                (agent["id"],),
-            )
-
         self.conn.commit()
         cur.close()
+
+        # Single-writer path: agents.last_used bookkeeping goes through
+        # agent_service.update_agent so the agents table only has one
+        # canonical mutation surface (Project #241 Track C.1).
+        now = datetime.now()
+        for agent in team:
+            try:
+                agent_service.update_agent(agent["id"], last_used=now)
+            except Exception as exc:
+                logger.warning(f"Failed to bump last_used for agent {agent['id']}: {exc}")
 
     def _update_proposal_team_info(self, proposal_id: int, team_size: int, required_skills: List[str]):
         """Update proposal with team assignment metadata"""
@@ -428,19 +430,18 @@ class TeamAssignmentEngine:
                 ),
             )
 
-            # Update new agent's last used timestamp
-            # Note: Workload tracking (current_load) not yet implemented
-            cur.execute(
-                """
-                UPDATE agents
-                SET last_used = NOW()
-                WHERE id = %s
-            """,
-                (new_agent_id,),
-            )
-
             self.conn.commit()
             cur.close()
+
+            # Single-writer path for agents.last_used (Project #241 Track C.1).
+            # Note: Workload tracking (current_load) not yet implemented.
+            try:
+                from services import agent_service
+
+                agent_service.update_agent(new_agent_id, last_used=datetime.now())
+            except Exception as exc:
+                logger.warning(f"Failed to bump last_used for new agent {new_agent_id}: {exc}")
+
             return True
 
         except Exception as e:

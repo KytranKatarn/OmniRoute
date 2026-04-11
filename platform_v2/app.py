@@ -2184,7 +2184,7 @@ def _warmup_ollama_models():
             for attempt in range(3):
                 try:
                     if endpoint == "embed":
-                        data = {"model": model_name, "input": "warmup", "keep_alive": -1}
+                        data = {"model": model_name, "input": "warmup", "keep_alive": "24h"}
                     else:
                         opts = {"num_predict": 1}
                         if not use_gpu:
@@ -2194,7 +2194,7 @@ def _warmup_ollama_models():
                             "prompt": "warmup",
                             "stream": False,
                             "options": opts,
-                            "keep_alive": -1,
+                            "keep_alive": "24h",
                         }
                     req_timeout = 600 if "coder" in model_name else 300
                     resp = req.post(

@@ -237,8 +237,8 @@ def register_sinkhole_routes(bp, admin_required_decorator):
 
                 import requests as _req
 
-                ag_host = os.getenv("ADGUARD_HOST", "network_adguard")
-                ag_port = os.getenv("ADGUARD_PORT", "80")
+                ag_host = os.getenv("ADGUARD_HOST", "host.docker.internal")
+                ag_port = os.getenv("ADGUARD_PORT", "5354")
                 ag_user = os.getenv("ADGUARD_USER", "kytran")
                 ag_pass = os.getenv("ADGUARD_PASS", "")
                 r = _req.get(
@@ -541,38 +541,150 @@ def register_sinkhole_routes(bp, admin_required_decorator):
     @login_required
     @admin_required_decorator
     def traffic_classification_by_user():
-        """Traffic classification grouped by user from network_device_users."""
+        """Traffic classification grouped by user/device owner."""
         try:
             hours = min(int(request.args.get("hours", 24)), 168)
 
             with get_db_cursor() as (conn, cur):
                 cur.execute(
                     """
-                    SELECT COALESCE(ndu.user_name, 'unknown') AS user_name,
+                    SELECT COALESCE(nd.owner, nd.friendly_name, nd.hostname,
+                                    ddh.device_ip::text, 'unknown') AS user_name,
                            COALESCE(tc.category, 'uncategorized') AS category,
-                           SUM(ddh.query_count) AS query_count,
+                           SUM(ddh.query_count) AS queries,
                            COUNT(DISTINCT ddh.device_ip) AS unique_devices
                     FROM device_dns_history ddh
                     LEFT JOIN traffic_categories tc
                         ON tc.domain_pattern = SUBSTRING(ddh.domain FROM '([^.]+\\.[^.]+)$')
-                    LEFT JOIN network_device_users ndu
-                        ON ndu.device_ip = ddh.device_ip
+                    LEFT JOIN network_devices nd
+                        ON nd.ip_address = ddh.device_ip::inet
                     WHERE ddh.hour_bucket > NOW() - INTERVAL '%s hours'
-                    GROUP BY ndu.user_name, tc.category
-                    ORDER BY query_count DESC
+                    GROUP BY user_name, tc.category
+                    ORDER BY queries DESC
                     """,
                     (hours,),
                 )
-                by_user = [dict(row) for row in cur.fetchall()]
+                data = [dict(row) for row in cur.fetchall()]
 
             return jsonify(
                 {
                     "success": True,
                     "status": "ok",
                     "hours": hours,
-                    "by_user": by_user,
+                    "data": data,
                 }
             )
         except Exception as e:
             logger.error("[Traffic Classification by User] Failed: %s", e)
             return jsonify({"status": "error", "message": str(e)}), 500
+
+    @bp.route("/api/traffic/classification/domains", methods=["GET"])
+    @login_required
+    @admin_required_decorator
+    def traffic_classification_domains():
+        """Top domains for a specific user + category combination."""
+        try:
+            hours = min(int(request.args.get("hours", 24)), 168)
+            user_filter = request.args.get("user", "")
+            category = request.args.get("category", "")
+
+            with get_db_cursor() as (conn, cur):
+                if category and category != "uncategorized":
+                    cur.execute(
+                        """
+                        SELECT ddh.domain,
+                               SUM(ddh.query_count) AS queries,
+                               bool_or(ddh.blocked) AS ever_blocked
+                        FROM device_dns_history ddh
+                        JOIN traffic_categories tc
+                            ON tc.domain_pattern = SUBSTRING(ddh.domain FROM '([^.]+\\.[^.]+)$')
+                        LEFT JOIN network_devices nd
+                            ON nd.ip_address = ddh.device_ip::inet
+                        WHERE ddh.hour_bucket > NOW() - INTERVAL '%s hours'
+                          AND tc.category = %s
+                          AND COALESCE(nd.owner, nd.friendly_name, nd.hostname,
+                                       ddh.device_ip::text, 'unknown') = %s
+                        GROUP BY ddh.domain
+                        ORDER BY queries DESC
+                        LIMIT 50
+                        """,
+                        (hours, category, user_filter),
+                    )
+                else:
+                    # Uncategorized = domains NOT in traffic_categories
+                    cur.execute(
+                        """
+                        SELECT ddh.domain,
+                               SUM(ddh.query_count) AS queries,
+                               bool_or(ddh.blocked) AS ever_blocked
+                        FROM device_dns_history ddh
+                        LEFT JOIN traffic_categories tc
+                            ON tc.domain_pattern = SUBSTRING(ddh.domain FROM '([^.]+\\.[^.]+)$')
+                        LEFT JOIN network_devices nd
+                            ON nd.ip_address = ddh.device_ip::inet
+                        WHERE ddh.hour_bucket > NOW() - INTERVAL '%s hours'
+                          AND tc.category IS NULL
+                          AND COALESCE(nd.owner, nd.friendly_name, nd.hostname,
+                                       ddh.device_ip::text, 'unknown') = %s
+                        GROUP BY ddh.domain
+                        ORDER BY queries DESC
+                        LIMIT 50
+                        """,
+                        (hours, user_filter),
+                    )
+                domains = [dict(row) for row in cur.fetchall()]
+
+            return jsonify(
+                {
+                    "success": True,
+                    "user": user_filter,
+                    "category": category or "uncategorized",
+                    "hours": hours,
+                    "domains": domains,
+                }
+            )
+        except Exception as e:
+            logger.error("[Traffic Classification Domains] Failed: %s", e)
+            return jsonify({"status": "error", "message": str(e)}), 500
+
+    @bp.route("/api/traffic/classification/reclassify", methods=["POST"])
+    @login_required
+    @admin_required_decorator
+    def traffic_reclassify_domain():
+        """Add or update a domain's category in traffic_categories."""
+        data = request.get_json(silent=True) or {}
+        domain_pattern = data.get("domain_pattern", "").strip().lower()
+        category = data.get("category", "").strip().lower()
+
+        if not domain_pattern or not category:
+            return jsonify({"success": False, "message": "domain_pattern and category required"}), 400
+
+        valid_cats = [
+            "work",
+            "social",
+            "streaming",
+            "gaming",
+            "shopping",
+            "ads",
+            "adult",
+            "infrastructure",
+        ]
+        if category not in valid_cats:
+            return jsonify({"success": False, "message": f"Invalid category. Use: {', '.join(valid_cats)}"}), 400
+
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    INSERT INTO traffic_categories (domain_pattern, category, source)
+                    VALUES (%s, %s, 'manual')
+                    ON CONFLICT (domain_pattern)
+                    DO UPDATE SET category = EXCLUDED.category, source = 'manual'
+                    """,
+                    (domain_pattern, category),
+                )
+            logger.info("Reclassified %s -> %s", domain_pattern, category)
+            return jsonify({"success": True, "domain_pattern": domain_pattern, "category": category})
+        except Exception as e:
+            logger.error("[Reclassify Domain] Failed: %s", e)
+            return jsonify({"success": False, "message": str(e)}), 500

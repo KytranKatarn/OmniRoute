@@ -35,6 +35,7 @@
       <button class="dhq-tab" data-tab="dispatch" onclick="switchTab('dispatch')">Dispatch</button>
       <button class="dhq-tab" data-tab="fleet" onclick="switchTab('fleet')">Fleet</button>
       <button class="dhq-tab" data-tab="contractors" onclick="switchTab('contractors')">Contractors</button>
+      <button class="dhq-tab" data-tab="approvals" onclick="switchTab('approvals')">Approvals <span id="dhq-approvals-badge" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:0 6px;font-size:0.7rem;margin-left:4px"></span></button>
     </div>
   </div>
 
@@ -270,8 +271,406 @@
       <div id="contractorDefinitionsContent"></div>
     </div>
 
+    <!-- APPROVALS TAB -->
+    <div class="dhq-panel" id="panel-approvals">
+      <div style="padding:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div>
+            <h2 style="color:#00e5ff;margin:0;font-family:'Orbitron',sans-serif">Pending Approvals</h2>
+            <div style="font-size:0.8rem;color:#94a3b8;margin-top:4px">Tier-2 actions awaiting human approval. Approve here or via Telegram — same result.</div>
+          </div>
+          <button class="btn btn-sm" onclick="loadDhqApprovals()">
+            <i data-lucide="refresh-cw" style="width:14px;height:14px"></i> Refresh
+          </button>
+        </div>
+        <div id="dhq-approvals-pending" style="min-height:200px">
+          <div style="text-align:center;padding:40px;color:#64748b">Loading...</div>
+        </div>
+
+        <h3 style="color:#64748b;margin-top:32px;font-size:0.85rem;text-transform:uppercase;letter-spacing:0.1em">Recent History</h3>
+        <div id="dhq-approvals-history" style="min-height:100px"></div>
+      </div>
+    </div>
+
   </div>
 </div>
+
+<script>
+async function loadDhqApprovals() {
+    var container = document.getElementById('dhq-approvals-pending');
+    if (!container) return;
+    container.textContent = '';
+    var loading = document.createElement('div');
+    loading.style.cssText = 'text-align:center;padding:40px;color:#64748b';
+    loading.textContent = 'Loading approvals...';
+    container.appendChild(loading);
+
+    try {
+        var resp = await fetch('/tools/department-hq/api/approvals/pending');
+        var data = await resp.json();
+        if (!data.success) { container.textContent = 'Error: ' + (data.error || 'unknown'); return; }
+
+        // Update badge count
+        var badge = document.getElementById('dhq-approvals-badge');
+        if (badge) {
+            if (data.count > 0) { badge.textContent = data.count; badge.style.display = 'inline-block'; }
+            else { badge.style.display = 'none'; }
+        }
+
+        container.textContent = '';
+        if (!data.approvals.length) {
+            var empty = document.createElement('div');
+            empty.style.cssText = 'text-align:center;padding:40px;color:#22c55e;font-size:0.9rem';
+            empty.textContent = 'No pending approvals — all clear.';
+            container.appendChild(empty);
+        } else {
+            data.approvals.forEach(function(a) {
+                container.appendChild(_renderApprovalCard(a));
+            });
+        }
+    } catch (e) {
+        container.textContent = 'Failed to load: ' + e.message;
+    }
+
+    // Load history
+    try {
+        var histResp = await fetch('/tools/department-hq/api/approvals/history?limit=20');
+        var histData = await histResp.json();
+        var histEl = document.getElementById('dhq-approvals-history');
+        if (histEl && histData.success) {
+            histEl.textContent = '';
+            if (!histData.history.length) {
+                histEl.textContent = 'No recent history';
+                histEl.style.color = '#64748b';
+                histEl.style.padding = '16px';
+                histEl.style.fontSize = '0.85rem';
+            } else {
+                histData.history.forEach(function(h) {
+                    var row = document.createElement('div');
+                    row.style.cssText = 'display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.8rem';
+                    var left = document.createElement('span');
+                    left.style.color = '#cbd5e1';
+                    left.textContent = '#' + h.id + ' ' + h.action_type;
+                    var right = document.createElement('span');
+                    var color = h.status === 'executed' ? '#22c55e' : (h.status === 'rejected' ? '#ef4444' : '#fbbf24');
+                    right.style.color = color;
+                    right.textContent = h.status.toUpperCase();
+                    row.appendChild(left);
+                    row.appendChild(right);
+                    histEl.appendChild(row);
+                });
+            }
+        }
+    } catch (e) {}
+}
+
+function _renderApprovalCard(a) {
+    var card = document.createElement('div');
+    card.style.cssText = 'background:rgba(0,229,255,0.05);border-left:3px solid #00e5ff;border-radius:6px;padding:16px;margin-bottom:12px';
+
+    var header = document.createElement('div');
+    header.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px';
+    var title = document.createElement('div');
+    var name = document.createElement('div');
+    name.style.cssText = 'font-weight:bold;color:#00e5ff;font-size:1rem';
+    name.textContent = a.display_name;
+    var sub = document.createElement('div');
+    sub.style.cssText = 'font-size:0.75rem;color:#94a3b8;margin-top:2px';
+    sub.textContent = '#' + a.id + ' | ' + a.action_type + ' | by ' + (a.requested_by || 'unknown');
+    title.appendChild(name);
+    title.appendChild(sub);
+
+    var priority = document.createElement('span');
+    var prioColor = a.priority <= 3 ? '#ef4444' : (a.priority <= 5 ? '#fbbf24' : '#94a3b8');
+    priority.style.cssText = 'color:' + prioColor + ';font-size:0.75rem;font-weight:bold';
+    priority.textContent = 'P' + a.priority;
+    header.appendChild(title);
+    header.appendChild(priority);
+    card.appendChild(header);
+
+    if (a.reason) {
+        var reasonDiv = document.createElement('div');
+        reasonDiv.style.cssText = 'background:rgba(0,0,0,0.2);padding:8px 12px;border-radius:4px;font-size:0.8rem;color:#e2e8f0;white-space:pre-wrap;margin-bottom:12px;max-height:120px;overflow-y:auto';
+        reasonDiv.textContent = a.reason;
+        card.appendChild(reasonDiv);
+    }
+
+    // Show action_data key fields
+    if (a.action_data && typeof a.action_data === 'object') {
+        var details = document.createElement('div');
+        details.style.cssText = 'font-size:0.75rem;color:#64748b;margin-bottom:12px';
+        if (a.category === 'compliance_fix') {
+            var fixDef = a.action_data.fix_def || {};
+            var sev = a.action_data.severity || '?';
+            details.textContent = 'Rule: ' + (a.action_data.rule_id || '?') + ' | Severity: ' + sev + ' | Fix: ' + (fixDef.type || '?');
+        }
+        card.appendChild(details);
+    }
+
+    var btns = document.createElement('div');
+    btns.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';
+
+    var approveBtn = document.createElement('button');
+    approveBtn.className = 'btn btn-sm btn-primary';
+    approveBtn.textContent = 'Approve';
+    approveBtn.onclick = function() { _dhqApproveApproval(a.id, approveBtn); };
+
+    var denyBtn = document.createElement('button');
+    denyBtn.className = 'btn btn-sm';
+    denyBtn.style.cssText = 'background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid #ef4444';
+    denyBtn.textContent = 'Deny';
+    denyBtn.onclick = function() { _dhqDenyApproval(a.id, denyBtn); };
+
+    btns.appendChild(approveBtn);
+    btns.appendChild(denyBtn);
+    card.appendChild(btns);
+    return card;
+}
+
+// LCARS-themed confirm/prompt/alert (replaces browser dialogs)
+function _dhqLcarsModal(opts) {
+    return new Promise(function(resolve) {
+        var existing = document.getElementById('dhq-lcars-modal');
+        if (existing) existing.remove();
+
+        var accent = opts.accent || '#00e5ff';
+        var rgb = opts.rgb || '0,229,255';
+
+        var overlay = document.createElement('div');
+        overlay.id = 'dhq-lcars-modal';
+        overlay.className = 'bm-overlay active';
+        overlay.style.cssText = '--bm-accent:' + accent + ';--bm-accent-rgb:' + rgb;
+
+        var shell = document.createElement('div');
+        shell.className = 'bm-shell';
+        shell.style.maxWidth = '480px';
+        var frame = document.createElement('div');
+        frame.className = 'bm-frame';
+        ['bm-frame-elbow-top','bm-frame-seg','bm-frame-seg dim','bm-frame-light on','bm-frame-light amber','bm-frame-seg purple','bm-frame-fill','bm-frame-elbow-bottom'].forEach(function(cls){
+            var el = document.createElement('div');
+            el.className = cls;
+            frame.appendChild(el);
+        });
+
+        var content = document.createElement('div');
+        content.className = 'bm-content';
+
+        var header = document.createElement('div');
+        header.className = 'bm-header';
+        var title = document.createElement('span');
+        title.className = 'bm-header-title';
+        title.textContent = opts.title || 'CONFIRM';
+        var strip = document.createElement('div');
+        strip.className = 'bm-header-strip';
+        ['w1','w2','w3'].forEach(function(w){
+            var p = document.createElement('div'); p.className = 'bm-header-pip ' + w; strip.appendChild(p);
+        });
+        var closeBtn = document.createElement('button');
+        closeBtn.className = 'bm-close';
+        closeBtn.textContent = '\u00D7';
+        closeBtn.onclick = function() { overlay.remove(); resolve(null); };
+        strip.appendChild(closeBtn);
+        header.appendChild(title);
+        header.appendChild(strip);
+
+        var body = document.createElement('div');
+        body.className = 'bm-body';
+        body.style.cssText = 'padding:20px;font-size:0.9rem;color:#e2e8f0;line-height:1.5';
+        var msgDiv = document.createElement('div');
+        msgDiv.textContent = opts.message || '';
+        body.appendChild(msgDiv);
+
+        var inputEl = null;
+        if (opts.input) {
+            inputEl = document.createElement('input');
+            inputEl.type = 'text';
+            inputEl.className = 'form-input';
+            inputEl.style.cssText = 'width:100%;margin-top:14px;padding:8px 12px;background:rgba(0,0,0,0.3);border:1px solid rgba(' + rgb + ',0.3);color:#e2e8f0;border-radius:4px';
+            inputEl.placeholder = opts.inputPlaceholder || '';
+            inputEl.value = opts.inputDefault || '';
+            body.appendChild(inputEl);
+        }
+
+        var footer = document.createElement('div');
+        footer.className = 'bm-footer';
+        footer.style.cssText = 'padding:12px 20px;display:flex;gap:10px;justify-content:flex-end';
+
+        if (opts.cancelLabel !== false) {
+            var cancelBtn = document.createElement('button');
+            cancelBtn.className = 'btn';
+            cancelBtn.style.opacity = '0.7';
+            cancelBtn.textContent = opts.cancelLabel || 'Cancel';
+            cancelBtn.onclick = function() { overlay.remove(); resolve(null); };
+            footer.appendChild(cancelBtn);
+        }
+
+        var okBtn = document.createElement('button');
+        okBtn.className = 'btn btn-primary';
+        okBtn.style.cssText = 'background:' + accent + ';color:#010409;border:none;font-weight:bold';
+        okBtn.textContent = opts.okLabel || 'OK';
+        okBtn.onclick = function() {
+            var val = opts.input ? (inputEl ? inputEl.value : '') : true;
+            overlay.remove();
+            resolve(val);
+        };
+        footer.appendChild(okBtn);
+
+        if (inputEl) {
+            inputEl.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') okBtn.click();
+                if (e.key === 'Escape') { overlay.remove(); resolve(null); }
+            });
+        }
+
+        content.appendChild(header);
+        content.appendChild(body);
+        content.appendChild(footer);
+        shell.appendChild(frame);
+        shell.appendChild(content);
+        overlay.appendChild(shell);
+        document.body.appendChild(overlay);
+
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay) { overlay.remove(); resolve(null); }
+        });
+
+        if (inputEl) setTimeout(function() { inputEl.focus(); inputEl.select(); }, 50);
+        else setTimeout(function() { okBtn.focus(); }, 50);
+    });
+}
+
+async function _dhqApproveApproval(approvalId, btn) {
+    var ok = await _dhqLcarsModal({
+        title: 'APPROVE REQUEST',
+        message: 'Approve request #' + approvalId + '?\n\nThe agent loop will execute the action within 15 seconds.',
+        accent: '#22c55e',
+        rgb: '34,197,94',
+        okLabel: 'Approve'
+    });
+    if (!ok) return;
+    btn.textContent = 'Approving...';
+    btn.disabled = true;
+    try {
+        var resp = await fetch('/tools/department-hq/api/approvals/' + approvalId + '/approve', {method: 'POST'});
+        var data = await resp.json();
+        if (data.success) {
+            btn.textContent = 'Approved \u2713';
+            setTimeout(loadDhqApprovals, 1500);
+        } else {
+            btn.textContent = 'Failed';
+            btn.disabled = false;
+            await _dhqLcarsModal({
+                title: 'APPROVE FAILED',
+                message: data.error || 'Unknown error',
+                accent: '#ef4444',
+                rgb: '239,68,68',
+                cancelLabel: false
+            });
+        }
+    } catch (e) {
+        btn.textContent = 'Error';
+        btn.disabled = false;
+        await _dhqLcarsModal({
+            title: 'NETWORK ERROR',
+            message: e.message,
+            accent: '#ef4444',
+            rgb: '239,68,68',
+            cancelLabel: false
+        });
+    }
+}
+
+async function _dhqDenyApproval(approvalId, btn) {
+    var reason = await _dhqLcarsModal({
+        title: 'DENY REQUEST',
+        message: 'Deny approval #' + approvalId + '? Please provide a reason:',
+        input: true,
+        inputDefault: 'Denied by admin',
+        accent: '#ef4444',
+        rgb: '239,68,68',
+        okLabel: 'Deny'
+    });
+    if (!reason) return;
+    btn.textContent = 'Denying...';
+    btn.disabled = true;
+    try {
+        var resp = await fetch('/tools/department-hq/api/approvals/' + approvalId + '/deny', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({reason: reason})
+        });
+        var data = await resp.json();
+        if (data.success) {
+            btn.textContent = 'Denied';
+            setTimeout(loadDhqApprovals, 1500);
+        } else {
+            btn.disabled = false;
+            await _dhqLcarsModal({
+                title: 'DENY FAILED',
+                message: data.error || 'Unknown error',
+                accent: '#ef4444',
+                rgb: '239,68,68',
+                cancelLabel: false
+            });
+        }
+    } catch (e) {
+        btn.disabled = false;
+        await _dhqLcarsModal({
+            title: 'NETWORK ERROR',
+            message: e.message,
+            accent: '#ef4444',
+            rgb: '239,68,68',
+            cancelLabel: false
+        });
+    }
+}
+
+// Auto-refresh approvals list every 15s while tab panel is active and visible.
+// Badge polls every 30s regardless of active tab.
+(function() {
+    function _updateApprovalsBadge() {
+        fetch('/tools/department-hq/api/approvals/pending').then(function(r) { return r.json(); }).then(function(d) {
+            var badge = document.getElementById('dhq-approvals-badge');
+            if (!badge) return;
+            if (d.success && d.count > 0) {
+                badge.textContent = d.count;
+                badge.style.display = 'inline-block';
+            } else {
+                badge.style.display = 'none';
+            }
+        }).catch(function() {});
+    }
+
+    // 15s auto-refresh for the list (only if panel active + tab visible)
+    setInterval(function() {
+        var panel = document.getElementById('panel-approvals');
+        if (panel && panel.classList.contains('active') && !document.hidden) {
+            if (typeof loadDhqApprovals === 'function') loadDhqApprovals();
+        }
+    }, 15000);
+
+    // 30s poll for badge count (always runs)
+    setInterval(_updateApprovalsBadge, 30000);
+
+    // Initial badge load — immediately on DOM ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', _updateApprovalsBadge);
+    } else {
+        _updateApprovalsBadge();
+    }
+
+    // Refresh immediately when tab becomes visible after being hidden
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) {
+            var panel = document.getElementById('panel-approvals');
+            if (panel && panel.classList.contains('active')) {
+                if (typeof loadDhqApprovals === 'function') loadDhqApprovals();
+            }
+            _updateApprovalsBadge();
+        }
+    });
+})();
+</script>
 
 <!-- Agent Detail Modal (LCARS) -->
 <div class="bm-overlay" id="agentDetailOverlay" style="display:none" onclick="closeAgentDetail(event)">

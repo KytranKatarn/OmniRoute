@@ -1,6 +1,6 @@
 /**
  * security-network-features.js
- * Powers all 15 new features: Topology, Parental, Intel, Speed Test, etc.
+ * Powers all 15 new features: Topology, Supervision, Intel, Speed Test, etc.
  * Loaded after security-network-app.js which defines SN_API.
  */
 
@@ -51,7 +51,8 @@ function loadTopology() {
     // Graph
     fetch(SN_API + '/topology/graph').then(r=>r.json()).then(d => {
         if (!d.success) return;
-        renderTopologyGraph(d.nodes || [], d.links || []);
+        const g = d.graph || d;
+        renderTopologyGraph(g.nodes || [], g.links || []);
     }).catch(e => console.error('Topology load error:', e));
 }
 
@@ -63,8 +64,10 @@ function renderTopologyGraph(nodes, links) {
     const h = container.clientHeight || 600;
     svg.attr('viewBox', `0 0 ${w} ${h}`);
 
-    const typeColor = {gateway:'#ef4444', hub:'#00e5ff', phone:'#10b981', computer:'#8b5cf6',
-        laptop:'#8b5cf6', tablet:'#a78bfa', smart_tv:'#f472b6', camera:'#f59e0b', server:'#00e5ff'};
+    const typeColor = {gateway:'#ef4444', hub:'#00e5ff', access_point:'#fbbf24', router:'#ef4444',
+        phone:'#10b981', computer:'#8b5cf6', desktop:'#8b5cf6', laptop:'#8b5cf6', tablet:'#a78bfa',
+        smart_tv:'#f472b6', camera:'#f59e0b', server:'#00e5ff', cloud:'#818cf8', outpost:'#f97316',
+        starship:'#22d3ee'};
 
     const sizeScale = d3.scaleSqrt().domain([0, d3.max(nodes, n=>n.bytes_total||1)]).range([6, 30]);
 
@@ -74,9 +77,19 @@ function renderTopologyGraph(nodes, links) {
         .force('center', d3.forceCenter(w/2, h/2))
         .force('collision', d3.forceCollide().radius(n => sizeScale(n.bytes_total||0) + 5));
 
+    const WIFI_AP = '192.168.1.251', INET = 'INTERNET';
+    function linkType(l) {
+        const s = l.source.id || l.source, t = l.target.id || l.target;
+        if (s === INET || t === INET) return 'wan';
+        if (s === WIFI_AP || t === WIFI_AP) return 'wifi';
+        return 'wired';
+    }
+    const linkStyles = {wan: {color:'#818cf8', width:2, dash:'6,4'}, wifi: {color:'#fbbf24', width:1.5, dash:'4,3'}, wired: {color:'#00e5ff', width:2.5, dash:'none'}};
     const link = svg.append('g').selectAll('line').data(links).join('line')
-        .attr('stroke', '#334155').attr('stroke-width', 1.5)
-        .attr('stroke-opacity', l => Math.min(0.8, 0.1 + (l.bytes||0) / (d3.max(links, x=>x.bytes)||1) * 0.7));
+        .attr('stroke', l => linkStyles[linkType(l)].color)
+        .attr('stroke-width', l => linkStyles[linkType(l)].width)
+        .attr('stroke-opacity', 0.5)
+        .attr('stroke-dasharray', l => linkStyles[linkType(l)].dash);
 
     const node = svg.append('g').selectAll('g').data(nodes).join('g')
         .call(d3.drag().on('start', dragStart).on('drag', dragging).on('end', dragEnd));
@@ -105,14 +118,85 @@ function renderTopologyGraph(nodes, links) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   2. PARENTAL CONTROLS
+   1b. DNS STATS DASHBOARD
    ═══════════════════════════════════════════════════════════════════ */
-function loadParentalSchedules() {
-    const el = document.getElementById('parental-schedules');
+function _escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function _renderDnsListItem(label, count, color) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.05)';
+    const nameSpan = document.createElement('span');
+    nameSpan.style.color = color;
+    nameSpan.textContent = label;
+    const countSpan = document.createElement('span');
+    countSpan.style.color = 'var(--archie-text-muted)';
+    countSpan.textContent = count.toLocaleString();
+    row.appendChild(nameSpan);
+    row.appendChild(countSpan);
+    return row;
+}
+
+function loadDnsStats() {
+    fetch(SN_API + '/reports/dns-stats').then(r=>r.json()).then(d => {
+        if (!d.success) return;
+        const s = d.stats;
+        document.getElementById('dns-total').textContent = (s.total_queries||0).toLocaleString();
+        document.getElementById('dns-blocked').textContent = (s.blocked||0).toLocaleString();
+        document.getElementById('dns-rate').textContent = (s.block_rate_pct||0) + '%';
+        document.getElementById('dns-latency').textContent = (s.avg_processing_ms||0) + 'ms';
+
+        // Top blocked domains
+        const blockedEl = document.getElementById('dns-top-blocked');
+        blockedEl.textContent = '';
+        if (s.top_blocked && s.top_blocked.length) {
+            s.top_blocked.slice(0,5).forEach(b => blockedEl.appendChild(_renderDnsListItem(b.domain, b.count, '#ef4444')));
+        } else { blockedEl.textContent = 'None'; }
+
+        // Top clients
+        const clientsEl = document.getElementById('dns-top-clients');
+        clientsEl.textContent = '';
+        if (s.top_clients && s.top_clients.length) {
+            s.top_clients.slice(0,5).forEach(c => clientsEl.appendChild(_renderDnsListItem(c.label, c.count, '#00e5ff')));
+        } else { clientsEl.textContent = 'None'; }
+
+        // 24h trend chart
+        _renderDnsTrendChart(s.hourly_queries || [], s.hourly_blocked || []);
+    }).catch(e => console.error('DNS stats error:', e));
+}
+
+function _renderDnsTrendChart(queries, blocked) {
+    const container = document.getElementById('dns-trend-chart');
+    if (!container || !queries.length) return;
+    const svg = d3.select('#dns-trend-chart').selectAll('*').remove();
+    const svgEl = d3.select('#dns-trend-chart').append('svg')
+        .attr('width', '100%').attr('height', '100%')
+        .attr('viewBox', '0 0 ' + (container.clientWidth || 600) + ' 120');
+    const w = container.clientWidth || 600, h = 110, pad = 2;
+    const barW = Math.max(2, (w - queries.length * pad) / queries.length);
+    const maxQ = d3.max(queries) || 1;
+
+    svgEl.selectAll('.q-bar').data(queries).join('rect')
+        .attr('x', function(d,i) { return i * (barW + pad); })
+        .attr('y', function(d) { return h - (d / maxQ) * h; })
+        .attr('width', barW).attr('height', function(d) { return (d / maxQ) * h; })
+        .attr('fill', '#00e5ff').attr('opacity', 0.3);
+
+    svgEl.selectAll('.b-bar').data(blocked).join('rect')
+        .attr('x', function(d,i) { return i * (barW + pad); })
+        .attr('y', function(d) { return h - (d / maxQ) * h; })
+        .attr('width', barW).attr('height', function(d) { return (d / maxQ) * h; })
+        .attr('fill', '#ef4444').attr('opacity', 0.7);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   2. SUPERVISION CONTROLS
+   ═══════════════════════════════════════════════════════════════════ */
+function loadSupervisionSchedules() {
+    const el = document.getElementById('supervision-schedules');
     el.innerHTML = '<div class="loading-state"><span class="spinner"></span> Loading...</div>';
-    fetch(SN_API + '/parental/schedules').then(r=>r.json()).then(d => {
+    fetch(SN_API + '/supervision/schedules').then(r=>r.json()).then(d => {
         if (!d.success || !d.schedules || d.schedules.length === 0) {
-            el.innerHTML = '<div class="empty-state">No parental schedules configured. Click "Add Schedule" to create one.</div>';
+            el.innerHTML = '<div class="empty-state">No supervision schedules configured. Click "Add Schedule" to create one.</div>';
             return;
         }
         let html = '<table class="data-table"><thead><tr><th>User/Device</th><th>Weekday Block</th><th>Weekend Block</th><th>Categories</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
@@ -138,15 +222,18 @@ function showAddScheduleModal() {
     const overlay = document.getElementById('modal-overlay');
     modal.innerHTML = `
         <div style="padding:20px;max-width:500px">
-            <h3 style="margin:0 0 16px;color:#00e5ff">Add Parental Schedule</h3>
+            <h3 style="margin:0 0 16px;color:#00e5ff">Add Supervision Schedule</h3>
+            <div style="margin-bottom:12px">
+                <label style="display:block;font-size:0.75rem;color:#888;margin-bottom:4px">Device</label>
+                <select id="ps-device" class="form-input" style="width:100%" onchange="(function(sel){var o=sel.options[sel.selectedIndex];document.getElementById('ps-mac').value=o.dataset.mac||'';document.getElementById('ps-user').value=o.dataset.user||'';})(this)">
+                    <option value="">Loading devices...</option>
+                </select>
+            </div>
             <div style="margin-bottom:12px">
                 <label style="display:block;font-size:0.75rem;color:#888;margin-bottom:4px">User Name</label>
                 <input type="text" id="ps-user" class="form-input" placeholder="e.g. Kids" style="width:100%">
             </div>
-            <div style="margin-bottom:12px">
-                <label style="display:block;font-size:0.75rem;color:#888;margin-bottom:4px">Device MAC</label>
-                <input type="text" id="ps-mac" class="form-input" placeholder="AA:BB:CC:DD:EE:FF" style="width:100%">
-            </div>
+            <input type="hidden" id="ps-mac">
             <div style="display:flex;gap:12px;margin-bottom:12px">
                 <div style="flex:1">
                     <label style="display:block;font-size:0.75rem;color:#888;margin-bottom:4px">Weekday Block Start</label>
@@ -183,6 +270,29 @@ function showAddScheduleModal() {
             </div>
         </div>`;
     overlay.style.display = 'flex';
+    // Load known devices into dropdown
+    fetch(SN_API + '/supervision/known-devices').then(r=>r.json()).then(d => {
+        const sel = document.getElementById('ps-device');
+        if (!sel) return;
+        sel.textContent = '';
+        var manualOpt = document.createElement('option');
+        manualOpt.value = 'manual';
+        manualOpt.textContent = '-- Manual entry --';
+        manualOpt.dataset.mac = '';
+        manualOpt.dataset.user = '';
+        sel.appendChild(manualOpt);
+        (d.devices || []).forEach(dev => {
+            var opt = document.createElement('option');
+            opt.value = dev.mac_address;
+            opt.textContent = (dev.user_name || '') + ' - ' + (dev.device_label || dev.mac_address) + ' (' + (dev.device_type || '?') + ')';
+            opt.dataset.mac = dev.mac_address;
+            opt.dataset.user = dev.user_name || dev.device_label || '';
+            sel.appendChild(opt);
+        });
+    }).catch(function() {
+        var sel = document.getElementById('ps-device');
+        if (sel) { sel.textContent = ''; var o = document.createElement('option'); o.textContent = 'Failed to load'; sel.appendChild(o); }
+    });
 }
 
 function saveSchedule() {
@@ -196,17 +306,17 @@ function saveSchedule() {
         },
         blocked_categories: cats
     };
-    fetch(SN_API + '/parental/schedules', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})
+    fetch(SN_API + '/supervision/schedules', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})
         .then(r=>r.json()).then(d => {
             document.getElementById('modal-overlay').style.display = 'none';
-            if (d.success) loadParentalSchedules();
+            if (d.success) loadSupervisionSchedules();
             else alert('Error: ' + (d.error||'Unknown'));
         });
 }
 
 function deleteSchedule(id) {
     if (!confirm('Delete this schedule?')) return;
-    fetch(SN_API + '/parental/schedules/' + id, {method:'DELETE'}).then(r=>r.json()).then(() => loadParentalSchedules());
+    fetch(SN_API + '/supervision/schedules/' + id, {method:'DELETE'}).then(r=>r.json()).then(() => loadSupervisionSchedules());
 }
 
 /* ─── Traffic by User ─── */
@@ -229,7 +339,14 @@ function loadTrafficByUser() {
         });
         Object.entries(users).sort((a,b)=>b[1].total-a[1].total).forEach(([user, data]) => {
             html += `<tr><td><strong>${user}</strong></td>`;
-            cats.forEach(c => { html += `<td>${fmtNum(data[c]||0)}</td>`; });
+            cats.forEach(c => {
+                const v = data[c]||0;
+                if (v > 0) {
+                    html += `<td><a href="#" onclick="showCategoryDomains('${user.replace(/'/g,"\\'")}','${c}',${hours});return false" style="color:${CAT_COLORS[c]||'#ccc'};text-decoration:underline;cursor:pointer">${fmtNum(v)}</a></td>`;
+                } else {
+                    html += `<td>0</td>`;
+                }
+            });
             html += `<td><strong>${fmtNum(data.total)}</strong></td></tr>`;
         });
         html += '</tbody></table>';
@@ -280,47 +397,377 @@ function loadBrainRotBoard() {
     }).catch(() => { el.innerHTML = '<div class="empty-state">Failed to load</div>'; });
 }
 
+/* ─── DNS Device Activity (AdGuard-powered) ─── */
+function loadDeviceActivity() {
+    var el = document.getElementById('dns-device-activity');
+    if (!el) return;
+    el.textContent = '';
+    var loading = document.createElement('div');
+    loading.className = 'loading-state';
+    loading.textContent = 'Loading DNS activity...';
+    el.appendChild(loading);
+
+    fetch(SN_API + '/supervision/device-activity').then(function(r) { return r.json(); }).then(function(d) {
+        el.textContent = '';
+        if (!d.success || !d.devices || !d.devices.length) {
+            el.textContent = 'No DNS activity data';
+            return;
+        }
+        var table = document.createElement('table');
+        table.className = 'data-table';
+        var thead = document.createElement('thead');
+        var hrow = document.createElement('tr');
+        ['Device', 'Queries', 'Blocked', 'Top Domains'].forEach(function(h) {
+            var th = document.createElement('th');
+            th.textContent = h;
+            hrow.appendChild(th);
+        });
+        thead.appendChild(hrow);
+        table.appendChild(thead);
+
+        var tbody = document.createElement('tbody');
+        d.devices.forEach(function(dev) {
+            var tr = document.createElement('tr');
+
+            var tdName = document.createElement('td');
+            var strong = document.createElement('strong');
+            strong.textContent = dev.label;
+            tdName.appendChild(strong);
+            var ipSpan = document.createElement('span');
+            ipSpan.style.cssText = 'display:block;font-size:0.7rem;color:#888';
+            ipSpan.textContent = dev.ip + (dev.type ? ' (' + dev.type + ')' : '');
+            tdName.appendChild(ipSpan);
+
+            var tdQueries = document.createElement('td');
+            tdQueries.style.color = '#00e5ff';
+            tdQueries.textContent = (dev.total_queries || 0).toLocaleString();
+
+            var tdBlocked = document.createElement('td');
+            tdBlocked.style.color = dev.blocked > 0 ? '#ef4444' : '#6b7280';
+            tdBlocked.textContent = (dev.blocked || 0).toLocaleString();
+
+            var tdDomains = document.createElement('td');
+            tdDomains.style.fontSize = '0.75rem';
+            (dev.top_domains || []).forEach(function(dom) {
+                var line = document.createElement('div');
+                line.textContent = dom.domain + ' (' + dom.count + ')';
+                tdDomains.appendChild(line);
+            });
+            if (!dev.top_domains || !dev.top_domains.length) tdDomains.textContent = '--';
+
+            tr.appendChild(tdName);
+            tr.appendChild(tdQueries);
+            tr.appendChild(tdBlocked);
+            tr.appendChild(tdDomains);
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        el.appendChild(table);
+    }).catch(function() { el.textContent = 'Failed to load DNS activity'; });
+}
+
+/* ─── Category Domain Drill-down (LCARS Modal) ─── */
+function showCategoryDomains(user, category, hours) {
+    const color = CAT_COLORS[category] || '#00e5ff';
+    const rgb = _hexToRgb(color);
+    const existing = document.getElementById('cat-domains-overlay');
+    if (existing) existing.remove();
+
+    const html = `<div class="bm-overlay active" id="cat-domains-overlay" style="--bm-accent:${color};--bm-accent-rgb:${rgb}">
+        <div class="bm-shell" style="max-width:640px">
+            <div class="bm-frame">
+                <div class="bm-frame-elbow-top"></div><div class="bm-frame-seg"></div>
+                <div class="bm-frame-seg dim"></div><div class="bm-frame-light on"></div>
+                <div class="bm-frame-light amber"></div><div class="bm-frame-seg purple"></div>
+                <div class="bm-frame-fill"></div><div class="bm-frame-elbow-bottom"></div>
+            </div>
+            <div class="bm-content">
+                <div class="bm-header">
+                    <span class="bm-header-title">${category.toUpperCase()} DOMAINS</span>
+                    <div class="bm-header-strip">
+                        <div class="bm-header-pip w1"></div><div class="bm-header-pip w2"></div>
+                        <div class="bm-header-pip w3"></div>
+                        <button class="bm-close" onclick="document.getElementById('cat-domains-overlay').remove()">&times;</button>
+                    </div>
+                </div>
+                <div style="padding:8px 16px;border-bottom:1px solid rgba(${rgb},0.15);font-size:0.75rem;color:#888">
+                    User: <strong style="color:#ccc">${user}</strong> &nbsp;|&nbsp; Last ${hours}h
+                </div>
+                <div class="bm-body" id="cat-domains-body" style="padding:12px 16px;max-height:55vh;overflow-y:auto">
+                    <div style="text-align:center;padding:20px;color:#94a3b8">Loading domains...</div>
+                </div>
+                <div class="bm-footer" style="padding:8px 16px;display:flex;gap:8px;justify-content:flex-end">
+                    <button class="btn" onclick="document.getElementById('cat-domains-overlay').remove()" style="opacity:0.7">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>`;
+
+    document.body.insertAdjacentHTML('beforeend', html);
+    document.getElementById('cat-domains-overlay').addEventListener('click', function(e) {
+        if (e.target === this) this.remove();
+    });
+
+    fetch(SN_API + '/traffic/classification/domains?user=' + encodeURIComponent(user) + '&category=' + encodeURIComponent(category) + '&hours=' + hours)
+        .then(r => r.json()).then(d => {
+            const el = document.getElementById('cat-domains-body');
+            if (!d.success || !d.domains || d.domains.length === 0) {
+                el.innerHTML = '<div class="empty-state">No domains found</div>';
+                return;
+            }
+            let tbl = '<table class="data-table" style="font-size:0.8rem"><thead><tr><th>Domain</th><th>Queries</th><th>Blocked</th><th>Classify</th></tr></thead><tbody>';
+            d.domains.forEach(dm => {
+                const blocked = dm.ever_blocked ? '<span style="color:#ef4444">Blocked</span>' : '<span style="color:#22c55e">Allowed</span>';
+                const safeDomain = dm.domain.replace(/[<>&"']/g, '');
+                tbl += `<tr>
+                    <td><a href="#" onclick="document.getElementById('cat-domains-overlay').remove();openDomainIntel('${safeDomain}');return false"
+                        style="color:${color};text-decoration:underline;cursor:pointer;word-break:break-all">${safeDomain}</a></td>
+                    <td>${fmtNum(dm.queries)}</td>
+                    <td>${blocked}</td>
+                    <td><select onchange="reclassifyDomain('${safeDomain}',this.value)" style="font-size:0.7rem;padding:2px 4px;background:#1a1a2e;color:#ccc;border:1px solid #333;border-radius:3px;cursor:pointer">
+                        <option value="">-- ${category} --</option>
+                        <option value="work">Work</option>
+                        <option value="social">Social</option>
+                        <option value="streaming">Streaming</option>
+                        <option value="gaming">Gaming</option>
+                        <option value="shopping">Shopping</option>
+                        <option value="ads">Ads/Tracking</option>
+                        <option value="adult">Adult</option>
+                    </select></td>
+                </tr>`;
+            });
+            tbl += '</tbody></table>';
+            el.innerHTML = tbl;
+        }).catch(() => {
+            document.getElementById('cat-domains-body').innerHTML = '<div class="empty-state">Failed to load domains</div>';
+        });
+}
+
+function reclassifyDomain(domain, newCategory) {
+    if (!newCategory) return;
+    fetch(SN_API + '/traffic/classification/reclassify', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({domain_pattern: domain.replace(/^.*?([^.]+\.[^.]+)$/, '$1'), category: newCategory})
+    }).then(r => r.json()).then(d => {
+        if (d.success) showToast('success', domain + ' → ' + newCategory);
+        else showToast('error', d.message || 'Failed');
+    }).catch(() => showToast('error', 'Network error'));
+}
+
+function _hexToRgb(hex) {
+    const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+    return r+','+g+','+b;
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    3. THREAT INTELLIGENCE
    ═══════════════════════════════════════════════════════════════════ */
 function loadIntelTab() {
     loadThreatFeeds(); loadThreatHits(); loadIncidents();
-    loadSpeedHistory(); loadHoneypotEvents(); loadWeeklyReport();
+    loadDnsThreatCrossref(); loadSeverityChart(); loadHoneypotEvents(); loadWeeklyReport();
+}
+
+function _feedHealthColor(lastUpdated) {
+    if (!lastUpdated) return '#ef4444';
+    var age = (Date.now() - new Date(lastUpdated).getTime()) / 3600000;
+    if (age < 6) return '#22c55e';
+    if (age < 24) return '#fbbf24';
+    return '#ef4444';
 }
 
 function loadThreatFeeds() {
-    fetch(SN_API + '/threat-intel/status').then(r=>r.json()).then(d => {
+    fetch(SN_API + '/threat-intel/status').then(function(r) { return r.json(); }).then(function(d) {
         if (!d.success) return;
-        const el = document.getElementById('intel-feeds');
-        const feeds = d.feeds || d.status || {};
-        let total = 0;
-        let html = '<div style="display:flex;gap:12px;flex-wrap:wrap;padding:8px">';
-        Object.entries(feeds).forEach(([name, info]) => {
-            const cnt = info.count || 0;
+        var el = document.getElementById('intel-feeds');
+        var feeds = d.feeds || d.status || {};
+        var total = 0;
+        var needsSync = false;
+        el.textContent = '';
+        var grid = document.createElement('div');
+        grid.style.cssText = 'display:flex;gap:12px;flex-wrap:wrap;padding:8px';
+
+        Object.entries(feeds).forEach(function(entry) {
+            var name = entry[0], info = entry[1];
+            var cnt = info.count || 0;
             total += cnt;
-            const updated = info.last_updated ? new Date(info.last_updated).toLocaleString() : 'Never';
-            const dot = cnt > 0 ? '#22c55e' : '#f59e0b';
-            html += `<div style="flex:1;min-width:200px;background:rgba(255,255,255,0.03);border-radius:8px;padding:12px;border:1px solid #333">
-                <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
-                    <span style="width:8px;height:8px;border-radius:50%;background:${dot}"></span>
-                    <strong style="color:#ccc">${name}</strong>
-                </div>
-                <div style="font-size:0.8rem;color:#888">${fmtNum(cnt)} IOCs</div>
-                <div style="font-size:0.7rem;color:#666">Updated: ${updated}</div>
-            </div>`;
+            var updated = info.last_updated ? new Date(info.last_updated).toLocaleString() : 'Never';
+            var dotColor = _feedHealthColor(info.last_updated);
+            if (dotColor !== '#22c55e') needsSync = true;
+
+            var card = document.createElement('div');
+            card.style.cssText = 'flex:1;min-width:200px;background:rgba(255,255,255,0.03);border-radius:8px;padding:12px;border:1px solid ' + dotColor + '33';
+            var header = document.createElement('div');
+            header.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:8px';
+            var dot = document.createElement('span');
+            dot.style.cssText = 'width:8px;height:8px;border-radius:50%;background:' + dotColor;
+            var strong = document.createElement('strong');
+            strong.style.color = '#e2e8f0';
+            strong.textContent = name;
+            header.appendChild(dot);
+            header.appendChild(strong);
+            var countDiv = document.createElement('div');
+            countDiv.style.cssText = 'font-size:0.8rem;color:#94a3b8';
+            countDiv.textContent = fmtNum(cnt) + ' IOCs';
+            var timeDiv = document.createElement('div');
+            timeDiv.style.cssText = 'font-size:0.7rem;color:#64748b';
+            timeDiv.textContent = 'Updated: ' + updated;
+            card.appendChild(header);
+            card.appendChild(countDiv);
+            card.appendChild(timeDiv);
+            grid.appendChild(card);
         });
-        html += '</div>';
-        el.innerHTML = html;
+        el.appendChild(grid);
         document.getElementById('intel-ioc-count').textContent = fmtNum(total);
-    }).catch(() => {});
+
+        // Auto-sync if any feed is stale (>6h) and total IOCs < 100
+        if (needsSync && total < 100) {
+            syncThreatIntel();
+        }
+    }).catch(function() {});
 }
 
 function syncThreatIntel() {
-    const el = document.getElementById('intel-feeds');
-    el.innerHTML = '<div class="loading-state"><span class="spinner"></span> Syncing feeds...</div>';
-    fetch(SN_API + '/threat-intel/sync', {method:'POST'}).then(r=>r.json()).then(d => {
-        loadThreatFeeds(); loadThreatHits();
-    }).catch(() => { el.innerHTML = '<div class="empty-state">Sync failed</div>'; });
+    var el = document.getElementById('intel-feeds');
+    el.textContent = '';
+    var loading = document.createElement('div');
+    loading.className = 'loading-state';
+    loading.textContent = 'Syncing feeds...';
+    el.appendChild(loading);
+    fetch(SN_API + '/threat-intel/sync', {method:'POST'}).then(function(r) { return r.json(); }).then(function(d) {
+        loadThreatFeeds(); loadThreatHits(); loadSeverityChart();
+    }).catch(function() { el.textContent = 'Sync failed'; });
+}
+
+/* ─── IOC Search ─── */
+function searchIOC() {
+    var query = document.getElementById('ioc-search-input').value.trim();
+    var el = document.getElementById('ioc-search-results');
+    if (!query || query.length < 3) { el.textContent = 'Enter at least 3 characters'; return; }
+    el.textContent = 'Searching...';
+    fetch(SN_API + '/threat-intel/search?q=' + encodeURIComponent(query)).then(function(r) { return r.json(); }).then(function(d) {
+        el.textContent = '';
+        if (!d.success || !d.results.length) { el.textContent = 'No matches found — ' + query + ' is not in threat database'; el.style.color = '#22c55e'; return; }
+        el.style.color = '';
+        var table = document.createElement('table');
+        table.className = 'data-table';
+        var thead = document.createElement('thead');
+        var hrow = document.createElement('tr');
+        ['IOC', 'Type', 'Severity', 'Feed'].forEach(function(h) { var th = document.createElement('th'); th.textContent = h; hrow.appendChild(th); });
+        thead.appendChild(hrow);
+        table.appendChild(thead);
+        var tbody = document.createElement('tbody');
+        d.results.forEach(function(r) {
+            var tr = document.createElement('tr');
+            [r.ioc_value, r.ioc_type, r.severity, r.feed].forEach(function(val, i) {
+                var td = document.createElement('td');
+                td.textContent = val;
+                if (i === 2) td.style.color = val === 'critical' ? '#ef4444' : val === 'high' ? '#f59e0b' : '#94a3b8';
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        el.appendChild(table);
+    }).catch(function() { el.textContent = 'Search failed'; });
+}
+
+/* ─── Severity Chart (D3 donut) ─── */
+function loadSeverityChart() {
+    var el = document.getElementById('intel-severity-chart');
+    if (!el) return;
+    fetch(SN_API + '/threat-intel/severity-stats').then(function(r) { return r.json(); }).then(function(d) {
+        if (!d.success || !d.breakdown.length) return;
+        el.textContent = '';
+        var w = 200, h = 200, radius = 80;
+        var colors = {critical:'#ef4444', high:'#f59e0b', medium:'#3b82f6', low:'#6b7280'};
+        var svg = d3.select(el).append('svg').attr('width', w).attr('height', h)
+            .append('g').attr('transform', 'translate(' + w/2 + ',' + h/2 + ')');
+        var pie = d3.pie().value(function(x) { return x.count; }).sort(null);
+        var arc = d3.arc().innerRadius(radius * 0.55).outerRadius(radius);
+        svg.selectAll('path').data(pie(d.breakdown)).join('path')
+            .attr('d', arc)
+            .attr('fill', function(x) { return colors[x.data.severity] || '#6b7280'; })
+            .attr('stroke', '#0a0a1a').attr('stroke-width', 2);
+        // Center total
+        svg.append('text').attr('text-anchor', 'middle').attr('dy', '-0.2em')
+            .attr('fill', '#e2e8f0').attr('font-size', '1.2rem').attr('font-family', 'Orbitron')
+            .text(fmtNum(d.total));
+        svg.append('text').attr('text-anchor', 'middle').attr('dy', '1.2em')
+            .attr('fill', '#64748b').attr('font-size', '0.65rem').text('IOCs');
+        // Legend
+        var legend = d3.select(el).append('div').style('display', 'flex').style('gap', '12px')
+            .style('justify-content', 'center').style('margin-top', '8px').style('font-size', '0.75rem');
+        d.breakdown.forEach(function(b) {
+            var item = legend.append('span').style('color', colors[b.severity] || '#6b7280');
+            item.text(b.severity + ': ' + fmtNum(b.count));
+        });
+    }).catch(function() {});
+}
+
+/* ─── Scan Query Log ─── */
+function scanQueryLog() {
+    var el = document.getElementById('querylog-scan-results');
+    if (!el) return;
+    el.textContent = 'Scanning DNS query log against IOC database...';
+    fetch(SN_API + '/threat-intel/scan-querylog', {method:'POST'}).then(function(r) { return r.json(); }).then(function(d) {
+        el.textContent = '';
+        if (!d.success) { el.textContent = 'Scan failed'; return; }
+        var summary = document.createElement('div');
+        summary.style.cssText = 'padding:8px;font-size:0.85rem;color:#e2e8f0';
+        summary.textContent = d.domains_scanned + ' domains scanned | ' + d.threat_count + ' threats found';
+        el.appendChild(summary);
+        if (d.threats_found && d.threats_found.length > 0) {
+            var table = document.createElement('table');
+            table.className = 'data-table';
+            var thead = document.createElement('thead');
+            var hrow = document.createElement('tr');
+            ['Domain', 'IOC Match', 'Severity', 'Feed', 'Threat'].forEach(function(h) { var th = document.createElement('th'); th.textContent = h; hrow.appendChild(th); });
+            thead.appendChild(hrow);
+            table.appendChild(thead);
+            var tbody = document.createElement('tbody');
+            d.threats_found.forEach(function(t) {
+                var tr = document.createElement('tr');
+                [t.domain, t.ioc_match, t.severity, t.feed, t.threat_type].forEach(function(val, i) {
+                    var td = document.createElement('td');
+                    td.textContent = val || '--';
+                    if (i === 0) td.style.color = '#ef4444';
+                    if (i === 2) td.style.color = val === 'critical' ? '#ef4444' : '#f59e0b';
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+            el.appendChild(table);
+        } else {
+            var clean = document.createElement('div');
+            clean.style.cssText = 'padding:8px;color:#22c55e;font-size:0.85rem';
+            clean.textContent = 'All clear — no queried domains match known threats.';
+            el.appendChild(clean);
+        }
+    }).catch(function() { el.textContent = 'Scan failed'; });
+}
+
+/* ─── Auto-Block IOC Domains ─── */
+function autoBlockThreats() {
+    if (!confirm('This will add high/critical threat domains to AdGuard block rules. Continue?')) return;
+    var el = document.getElementById('auto-block-results');
+    if (!el) return;
+    el.textContent = 'Blocking threat domains...';
+    fetch(SN_API + '/threat-intel/auto-block', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({min_severity:'high'})})
+        .then(function(r) { return r.json(); }).then(function(d) {
+            el.textContent = '';
+            var msg = document.createElement('div');
+            msg.style.cssText = 'padding:8px;font-size:0.85rem';
+            if (d.success) {
+                msg.style.color = '#22c55e';
+                msg.textContent = d.blocked + ' domains blocked (of ' + d.total_eligible + ' eligible, min severity: ' + d.min_severity + ')';
+            } else {
+                msg.style.color = '#ef4444';
+                msg.textContent = 'Failed: ' + (d.error || 'Unknown error');
+            }
+            el.appendChild(msg);
+        }).catch(function() { el.textContent = 'Failed'; });
 }
 
 function loadThreatHits() {
@@ -336,6 +783,83 @@ function loadThreatHits() {
         html += '</tbody></table>';
         el.innerHTML = html;
     }).catch(() => {});
+}
+
+/* ─── DNS Threat Cross-Reference ─── */
+function loadDnsThreatCrossref() {
+    var el = document.getElementById('intel-dns-crossref');
+    if (!el) return;
+    el.textContent = '';
+    var loading = document.createElement('div');
+    loading.className = 'loading-state';
+    loading.textContent = 'Analyzing...';
+    el.appendChild(loading);
+
+    fetch(SN_API + '/threat-intel/dns-crossref').then(function(r) { return r.json(); }).then(function(d) {
+        el.textContent = '';
+        if (!d.success) { el.textContent = 'Failed to load'; return; }
+
+        // Update hero card
+        var dnsEl = document.getElementById('intel-dns-blocked');
+        if (dnsEl) dnsEl.textContent = (d.dns_blocked_24h || 0).toLocaleString();
+
+        // Summary line
+        var summary = document.createElement('div');
+        summary.style.cssText = 'padding:8px 4px;font-size:0.85rem;color:#e2e8f0';
+        summary.textContent = d.total_blocked_domains + ' domains blocked by AdGuard | ' + d.match_count + ' matched threat intel IOCs';
+        el.appendChild(summary);
+
+        if (d.ioc_matches && d.ioc_matches.length > 0) {
+            var table = document.createElement('table');
+            table.className = 'data-table';
+            var thead = document.createElement('thead');
+            var hrow = document.createElement('tr');
+            ['Domain', 'Blocked', 'Severity', 'Feed', 'Threat'].forEach(function(h) {
+                var th = document.createElement('th'); th.textContent = h; hrow.appendChild(th);
+            });
+            thead.appendChild(hrow);
+            table.appendChild(thead);
+            var tbody = document.createElement('tbody');
+            d.ioc_matches.forEach(function(m) {
+                var tr = document.createElement('tr');
+                var cells = [m.domain, m.blocked_count.toLocaleString(), m.severity, m.feed, m.threat_type || '--'];
+                cells.forEach(function(val, i) {
+                    var td = document.createElement('td');
+                    td.textContent = val;
+                    if (i === 2) td.style.color = val === 'critical' ? '#ef4444' : val === 'high' ? '#f59e0b' : '#94a3b8';
+                    if (i === 0) td.style.color = '#ef4444';
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+            el.appendChild(table);
+        } else {
+            var clean = document.createElement('div');
+            clean.style.cssText = 'padding:12px;color:#22c55e;font-size:0.85rem';
+            clean.textContent = 'No blocked domains match known threat feeds — network traffic is clean.';
+            el.appendChild(clean);
+        }
+    }).catch(function() { el.textContent = 'Failed to load'; });
+}
+
+/* ─── Honeypot Monitor ─── */
+function loadHoneypotEvents() {
+    var el = document.getElementById('honeypot-events');
+    if (!el) return;
+    el.textContent = '';
+    // Check if honeypot port is being probed via AdGuard or connection logs
+    fetch(SN_API + '/threat-intel/dns-crossref').then(function(r) { return r.json(); }).then(function(d) {
+        if (!d.success) { el.textContent = 'Honeypot offline'; return; }
+        var div = document.createElement('div');
+        div.style.cssText = 'padding:12px;font-size:0.85rem;color:#94a3b8';
+        div.textContent = 'Honeypot monitoring via DNS threat correlation. ' +
+            d.dns_blocked_24h + ' suspicious queries blocked in last 24h. ' +
+            d.match_count + ' matched known threat IOCs.';
+        el.appendChild(div);
+    }).catch(function() {
+        el.textContent = 'Honeypot not configured';
+    });
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -653,7 +1177,7 @@ function _showCategoryDomains(category, hours) {
                 badge.style.cssText = 'background:rgba(239,68,68,0.15);color:#ef4444;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600';
                 badge.textContent = fmtNum(dom.block_count);
                 var devBadge = document.createElement('span');
-                devBadge.style.cssText = 'color:#666;font-size:0.65rem';
+                devBadge.style.cssText = 'color:#94a3b8;font-size:0.65rem';
                 devBadge.textContent = dom.unique_devices + ' device' + (dom.unique_devices !== 1 ? 's' : '');
                 right.appendChild(badge);
                 right.appendChild(devBadge);
@@ -852,7 +1376,7 @@ function openDomainIntel(domain) {
               '<div style="color:#fff;font-family:\'IBM Plex Mono\',monospace;font-size:1.2rem;font-weight:600">' + safeDomain + '</div>' +
             '</div>' +
             '<div class="bm-body" id="domain-intel-body" style="padding:16px;max-height:60vh;overflow-y:auto">' +
-              '<div style="text-align:center;padding:30px;color:#666">Loading intelligence...</div>' +
+              '<div style="text-align:center;padding:30px;color:#94a3b8">Loading intelligence...</div>' +
             '</div>' +
             '<div class="bm-footer" id="domain-intel-footer" style="padding:12px 16px;display:flex;gap:8px;justify-content:flex-end">' +
               '<button class="btn" onclick="document.getElementById(\'domain-intel-overlay\').remove()" style="opacity:0.7">Close</button>' +
@@ -950,7 +1474,7 @@ function _renderDomainIntel(body, d) {
         aiResult.style.cssText = 'background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.3);border-left:3px solid #8b5cf6;border-radius:8px;padding:16px;min-height:60px;color:#ccc;font-size:0.8rem;line-height:1.6;white-space:pre-wrap;font-style:normal';
         aiResult.textContent = d.last_report;
         var ageTag = document.createElement('div');
-        ageTag.style.cssText = 'color:#666;font-size:0.65rem;margin-top:8px;font-style:italic';
+        ageTag.style.cssText = 'color:#94a3b8;font-size:0.65rem;margin-top:8px;font-style:italic';
         var ageText = 'Unknown age';
         if (d.report_age) {
             var ageMs = Date.now() - new Date(d.report_age).getTime();
@@ -1094,7 +1618,7 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.addEventListener('click', function() {
             const tab = this.dataset.tab;
             if (tab === 'topology') loadTopology();
-            if (tab === 'parental') { loadParentalSchedules(); loadTrafficByUser(); loadBrainRotBoard(); }
+            if (tab === 'supervision') { loadSupervisionSchedules(); loadTrafficByUser(); loadBrainRotBoard(); }
             if (tab === 'intel') loadIntelTab();
             if (tab === 'dns') setTimeout(loadSinkholeStats, 300);
             if (tab === 'devices') setTimeout(loadTrafficClassification, 300);

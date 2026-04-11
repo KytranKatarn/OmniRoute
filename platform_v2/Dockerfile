@@ -17,6 +17,11 @@ RUN apt-get update && apt-get install -y \
     ufw \
     auditd \
     net-tools \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libcairo2 \
+    libgdk-pixbuf-2.0-0 \
+    libffi-dev \
     && curl -fsSL https://get.docker.com -o get-docker.sh \
     && sh get-docker.sh \
     && rm get-docker.sh \
@@ -28,8 +33,9 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright + Chromium for browser automation
-RUN playwright install chromium --with-deps || true
+# Install Playwright + Chromium to /opt (not /root/.cache which is tmpfs at runtime)
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
+RUN playwright install chromium --with-deps
 
 # Copy application
 COPY . .

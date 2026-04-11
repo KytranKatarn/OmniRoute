@@ -73,7 +73,8 @@
         {'id': 'scan', 'label': 'Diagnose', 'icon': 'shield-check'},
         {'id': 'proposals', 'label': 'Repairs', 'icon': 'wrench'},
         {'id': 'sandbox', 'label': 'Test Bay', 'icon': 'test-tube-2'},
-        {'id': 'deploy', 'label': 'Ship', 'icon': 'rocket'}
+        {'id': 'deploy', 'label': 'Ship', 'icon': 'rocket'},
+        {'id': 'qa', 'label': 'QA', 'icon': 'check-circle'}
     ], onswitch='switchTab') }}
 
     <!-- Repair Queue Tab (default) -->
@@ -456,9 +457,62 @@
             </div>
         </div>
     </div>
+
+    <!-- QA Tab (P.R.O.B.E.) -->
+    <div id="tab-qa" class="tab-content">
+        <div class="dp-stats" style="margin-bottom:16px;">
+            <div class="dp-stat-card" style="--card-accent: #00ff41;">
+                <div class="dp-stat-label">Suite</div>
+                <div class="dp-stat-value" id="qaCurrentSuite">—</div>
+            </div>
+            <div class="dp-stat-card" style="--card-accent: var(--archie-cyan, #00d4ff);">
+                <div class="dp-stat-label">Last Run</div>
+                <div class="dp-stat-value" id="qaLastStatus">—</div>
+            </div>
+            <div class="dp-stat-card" style="--card-accent: #10b981;">
+                <div class="dp-stat-label">Pass Rate</div>
+                <div class="dp-stat-value" id="qaPassRate">—</div>
+            </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
+            <select id="qaSuiteSelect" class="dp-module-select" style="min-width:250px;">
+                <option value="">Loading suites...</option>
+            </select>
+            <button onclick="runQaSuite()" class="lcars-btn" id="qaRunBtn" style="background:#00d4ff; color:#000; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-weight:bold;">
+                ▶ Run Now
+            </button>
+            <button onclick="generateQaReport()" class="lcars-btn" id="qaReportBtn" style="background:#8b5cf6; color:#fff; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">
+                📄 PDF Report
+            </button>
+        </div>
+
+        <div id="qaResultsPanel" style="display:none; margin-bottom:16px;">
+            <h3 style="color:#00d4ff; margin-bottom:10px;">Results <span id="qaRunSummary" style="font-size:14px; margin-left:10px;"></span></h3>
+            <div style="overflow-x:auto;">
+                <table class="dp-table" id="qaResultsTable">
+                    <thead>
+                        <tr><th>Test</th><th>Type</th><th>Status</th><th>Time</th><th>Details</th><th></th></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <h3 style="color:#00d4ff; margin-bottom:10px;">Run History</h3>
+        <table class="dp-table" id="qaHistoryTable">
+            <thead>
+                <tr><th>Run</th><th>Suite</th><th>By</th><th>Status</th><th>Pass/Total</th><th>Duration</th><th>When</th><th></th></tr>
+            </thead>
+            <tbody>
+                <tr><td colspan="8" style="text-align:center; color:#666; padding:20px;">No runs yet</td></tr>
+            </tbody>
+        </table>
+    </div>
 </div>
 
 <script src="{{ url_for('static', filename='js/department-ops.js') }}"></script>
+<script src="{{ url_for('static', filename='js/repair-bay-qa.js') }}"></script>
 <script>
 var API = '/tools/repair-bay/api';
 var _selectedFiles = [];
@@ -2266,6 +2320,7 @@ function switchTab(tabId) {
     if (tabId === 'scan') checkScanAi();
     if (tabId === 'sandbox') loadSandboxes();
     if (tabId === 'deploy') { loadDeployReady(); loadDeployHistory(); }
+    if (tabId === 'qa') loadQaTab();
 }
 
 // Hash navigation on load

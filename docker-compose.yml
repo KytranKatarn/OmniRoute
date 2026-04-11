@@ -54,7 +54,7 @@ services:
       - /tmp:size=512m
       - /var/run:size=16m
       - /var/log:size=128m
-      - /root/.cache:size=64m
+      - /root/.cache:size=1g,exec
       - /mnt/archie_brain/logs:size=64m
     mem_limit: 4g
     cpus: 4.0
@@ -94,10 +94,11 @@ services:
       CODE_SERVER_URL: ${CODE_SERVER_URL}
       OLLAMA_HOST: ${OLLAMA_PRIMARY}
       HOST_IP: "192.168.1.200"  # Host machine IP for System Operations module
-      NPM_API_URL: http://192.168.1.200:81/api
+      NPM_API_URL: http://nginx_proxy_manager:81/api
       NPM_ADMIN_EMAIL: ${NPM_ADMIN_EMAIL}
       NPM_ADMIN_PASSWORD: ${NPM_ADMIN_PASSWORD}
       HOSTINGER_API_KEY: ${HOSTINGER_API_KEY:-}
+      PLAYWRIGHT_BROWSERS_PATH: /opt/playwright
       HOSTINGER_DOMAIN: ${HOSTINGER_DOMAIN:-kytranempowerment.com}
       HA_URL: ${HA_URL:-http://192.168.1.200:8123}
       HA_API_TOKEN: ${HA_API_TOKEN:-}
@@ -675,6 +676,20 @@ services:
     cap_drop:
       - ALL
     entrypoint: ["tail", "-f", "/dev/null"]
+    restart: unless-stopped
+
+  security_zap:
+    image: ghcr.io/zaproxy/zaproxy:stable
+    container_name: security_zap
+    networks:
+      - archie_internal
+    tmpfs:
+      - /tmp:size=128m
+    mem_limit: 1g
+    cpus: 1.0
+    cap_drop:
+      - ALL
+    entrypoint: ["zap.sh", "-daemon", "-host", "0.0.0.0", "-port", "8090", "-config", "api.addrs.addr.name=.*", "-config", "api.addrs.addr.regex=true", "-config", "api.disablekey=true"]
     restart: unless-stopped
 
 secrets:

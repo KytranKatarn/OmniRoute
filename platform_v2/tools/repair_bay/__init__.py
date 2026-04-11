@@ -25,6 +25,7 @@ from .deploy_routes import register_deploy_routes  # noqa: E402
 from .station_routes import register_station_routes  # noqa: E402
 from .github_routes import register_github_routes  # noqa: E402
 from .repair_routes import register_repair_routes  # noqa: E402
+from .qa_routes import register_qa_routes  # noqa: E402
 
 # Register all route groups (service layer — no more proxy imports)
 register_scan_routes(repair_bay_bp, admin_required)
@@ -34,6 +35,7 @@ register_deploy_routes(repair_bay_bp, admin_required)
 register_station_routes(repair_bay_bp, admin_required)
 register_github_routes(repair_bay_bp, admin_required)
 register_repair_routes(repair_bay_bp, admin_required)
+register_qa_routes(repair_bay_bp, admin_required)
 
 # Register station actions so Bridge ACTN tab can discover them
 try:

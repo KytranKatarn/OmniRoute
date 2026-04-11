@@ -98,3 +98,6 @@ from . import ai_command_tools
 
 # F.O.R.G.E.: Self-healing code pipeline tools
 from . import forge_tools
+
+# P.R.O.B.E.: QA testing tools
+from . import qa_tools

@@ -206,7 +206,7 @@ function switchSecurityTab(tabName) {
             if (!survTabLoaded) { survTabLoaded = true; }
             loadSurveillance();
             if (!reconTabLoaded) { reconTabLoaded = true; loadReconModules(); loadReconHistory(); }
-            if (!scanTabLoaded) { scanTabLoaded = true; loadScanResults(); loadSSLMonitors(); }
+            if (!scanTabLoaded) { scanTabLoaded = true; loadScannerCards(); loadScanHistory(); loadSSLMonitors(); loadCampaigns(); }
             break;
         case 'compliance':
             onComplianceTabShown();
@@ -214,14 +214,16 @@ function switchSecurityTab(tabName) {
         case 'reports':
             loadReports();
             loadReportsList();
+            if (typeof loadDnsStats === 'function') loadDnsStats();
             break;
         case 'topology':
             if (typeof loadTopology === 'function') loadTopology();
             break;
-        case 'parental':
-            if (typeof loadParentalSchedules === 'function') loadParentalSchedules();
+        case 'supervision':
+            if (typeof loadSupervisionSchedules === 'function') loadSupervisionSchedules();
             if (typeof loadTrafficByUser === 'function') loadTrafficByUser();
             if (typeof loadBrainRotBoard === 'function') loadBrainRotBoard();
+            if (typeof loadDeviceActivity === 'function') loadDeviceActivity();
             break;
         case 'intel':
             if (typeof loadIntelTab === 'function') loadIntelTab();
@@ -258,9 +260,10 @@ function initSubtabs() {
             if (st === 'domains-dns') loadDomainDnsRecords();
             if (st === 'domains-proxy') loadDomainProxyHosts();
             if (st === 'domains-certs') loadDomainCertificates();
-            if (st === 'scanners-vuln') { if (!scanTabLoaded) { scanTabLoaded = true; loadScanResults(); loadSSLMonitors(); } }
+            if (st === 'scanners-vuln') { if (!scanTabLoaded) { scanTabLoaded = true; loadScannerCards(); loadScanHistory(); loadSSLMonitors(); loadCampaigns(); } }
             if (st === 'scanners-recon') { if (!reconTabLoaded) { reconTabLoaded = true; loadReconModules(); loadReconHistory(); } }
             if (st === 'scanners-surv') { loadSurveillance(); }
+            if (st === 'scanners-monitor') { if (typeof loadNagiosData === 'function' && !nagiosLoaded) loadNagiosData(); }
             snRefreshIcons();
         });
     });

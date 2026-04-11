@@ -36,12 +36,7 @@ services:
     image: adguard/adguardhome:v0.108.0-b.84
     container_name: network_adguard
     restart: unless-stopped
-    ports:
-      - "53:53/tcp"
-      - "53:53/udp"
-      - "5354:80/tcp"
-      - "5355:443/tcp"
-      - "853:853/tcp"
+    network_mode: host
     volumes:
       - /mnt/HomeLab/adguard/work:/opt/adguardhome/work
       - /mnt/HomeLab/adguard/conf:/opt/adguardhome/conf

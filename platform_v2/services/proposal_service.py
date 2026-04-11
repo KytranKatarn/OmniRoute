@@ -53,7 +53,7 @@ def list_proposals(status=None):
                        ip.code_diff, ip.retry_count,
                        a.display_name AS agent_display_name,
                        a.name AS agent_code_name,
-                       a.assigned_model AS agent_model
+                       a.model AS agent_model
                 FROM improvement_proposals ip
                 LEFT JOIN agents a ON a.id = ip.assigned_agent_id"""
         if status:

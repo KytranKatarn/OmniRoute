@@ -14,7 +14,7 @@ from typing import Optional, Dict, Any, List
 class AdGuardLocalAPI:
     """Interface with local AdGuard container"""
 
-    def __init__(self, host: str = "network_adguard", port: int = 80):
+    def __init__(self, host: str = "host.docker.internal", port: int = 5354):
         # Try container name first, fall back to localhost with mapped port
         self.base_url = f"http://{host}:{port}"
         self.fallback_url = "http://192.168.1.200:5354"
@@ -144,7 +144,7 @@ class SecurityScannerService:
             container_obj = client.containers.get(container)
 
             # Docker SDK exec_run is safe - command is passed as a list, not shell string
-            exec_result = container_obj.exec_run(command, demux=True, workdir="/scans")
+            exec_result = container_obj.exec_run(command, demux=True)
 
             stdout = exec_result.output[0].decode() if exec_result.output[0] else ""
             stderr = exec_result.output[1].decode() if exec_result.output[1] else ""
@@ -165,7 +165,7 @@ class SecurityScannerService:
             return {"success": False, "error": "Invalid target format"}
 
         scan_id = f"nmap_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        output_file = f"/scans/{scan_id}.xml"
+        output_file = f"/tmp/{scan_id}.xml"
 
         # Build nmap command based on scan type - command passed as list for safety
         if scan_type == "quick":
@@ -179,7 +179,7 @@ class SecurityScannerService:
 
         result = self._docker_exec("security_nmap", cmd)
         result["scan_id"] = scan_id
-        result["output_file"] = output_file.replace("/scans/", f"{self.scans_dir}/")
+        result["output_file"] = output_file.replace("/tmp/", f"{self.scans_dir}/")
 
         return result
 
@@ -189,13 +189,13 @@ class SecurityScannerService:
             return {"success": False, "error": "Invalid target format"}
 
         scan_id = f"nikto_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        output_file = f"/scans/{scan_id}.json"
+        output_file = f"/tmp/{scan_id}.json"
 
-        cmd = ["nikto", "-h", target, "-Format", "json", "-output", output_file]
+        cmd = ["nikto.pl", "-h", target, "-Format", "csv", "-output", output_file]
 
         result = self._docker_exec("security_nikto", cmd, timeout=600)
         result["scan_id"] = scan_id
-        result["output_file"] = output_file.replace("/scans/", f"{self.scans_dir}/")
+        result["output_file"] = output_file.replace("/tmp/", f"{self.scans_dir}/")
 
         return result
 
@@ -206,23 +206,28 @@ class SecurityScannerService:
 
         # Validate templates parameter
         allowed_templates = [
-            "cves",
+            "dast",
+            "dns",
+            "http",
+            "network",
+            "ssl",
             "vulnerabilities",
-            "misconfigurations",
             "exposures",
+            "misconfiguration",
             "default-logins",
         ]
         if templates not in allowed_templates:
             templates = "cves"
 
         scan_id = f"nuclei_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        output_file = f"/scans/{scan_id}.json"
+        output_file = f"/tmp/{scan_id}.json"
 
-        cmd = ["nuclei", "-u", target, "-t", templates, "-json", "-o", output_file]
+        template_dir = f"/root/nuclei-templates/{templates}"
+        cmd = ["nuclei", "-u", target, "-t", template_dir, "-jsonl", "-o", output_file]
 
         result = self._docker_exec("security_nuclei", cmd, timeout=600)
         result["scan_id"] = scan_id
-        result["output_file"] = output_file.replace("/scans/", f"{self.scans_dir}/")
+        result["output_file"] = output_file.replace("/tmp/", f"{self.scans_dir}/")
 
         return result
 
@@ -232,13 +237,13 @@ class SecurityScannerService:
             return {"success": False, "error": "Invalid domain format"}
 
         scan_id = f"ssl_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        output_file = f"/scans/{scan_id}.json"
+        output_file = f"/tmp/{scan_id}.json"
 
-        cmd = ["testssl.sh", "--jsonfile", output_file, domain]
+        cmd = ["/usr/local/bin/testssl.sh", "--jsonfile", output_file, domain]
 
         result = self._docker_exec("security_testssl", cmd, timeout=300)
         result["scan_id"] = scan_id
-        result["output_file"] = output_file.replace("/scans/", f"{self.scans_dir}/")
+        result["output_file"] = output_file.replace("/tmp/", f"{self.scans_dir}/")
 
         return result
 

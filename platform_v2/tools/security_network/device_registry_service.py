@@ -181,8 +181,8 @@ class DeviceRegistryService:
     _discovery_running = False
 
     def __init__(self):
-        self.adguard_host = os.getenv("ADGUARD_HOST", "network_adguard")
-        self.adguard_port = os.getenv("ADGUARD_PORT", "80")
+        self.adguard_host = os.getenv("ADGUARD_HOST", "host.docker.internal")
+        self.adguard_port = os.getenv("ADGUARD_PORT", "5354")
         self.adguard_user = os.getenv("ADGUARD_USER", "")
         self.adguard_pass = os.getenv("ADGUARD_PASS", "")
         self.adguard_base = f"http://{self.adguard_host}:{self.adguard_port}"

@@ -470,7 +470,7 @@ def external_tools_status():
     import socket
 
     tools = {
-        "adguard": {"host": "network_adguard", "port": 80},
+        "adguard": {"host": "host.docker.internal", "port": 5354},
         "ntopng": {"host": "192.168.1.200", "port": 3001},
         "nagios": {"host": "monitoring_nagios", "port": 80},
         "zap": {"host": "localhost", "port": 8090},

@@ -90,6 +90,36 @@ def _send_approval_telegram(
             lines.append(f"Type: Create New Agent")
             lines.append(f"Capability: {cap}")
             lines.append(f"Department: {department}")
+        elif action_type.startswith("compliance_fix_"):
+            rule_id = action_data.get("rule_id", "?")
+            severity = action_data.get("severity", "?")
+            fix_def = action_data.get("fix_def", {})
+            fix_type = fix_def.get("type", "?")
+            ai_review = action_data.get("ai_review", {})
+            lines.append(f"Type: Compliance Fix")
+            lines.append(f"Rule: `{rule_id}`")
+            lines.append(f"Severity: *{severity}*")
+            lines.append(f"Fix type: `{fix_type}`")
+            # Show the actual command/change being applied
+            if fix_type == "command":
+                cmd = fix_def.get("command", "")[:200]
+                lines.append(f"\n*Command:*\n`{cmd}`")
+            elif fix_type == "sysctl":
+                lines.append(f"Set: `{fix_def.get('param','?')} = {fix_def.get('value','?')}`")
+            elif fix_type == "file_line":
+                path = fix_def.get("path", "?")
+                line_val = fix_def.get("line", "")[:100]
+                lines.append(f"File: `{path}`")
+                lines.append(f"Line: `{line_val}`")
+            elif fix_type == "service":
+                lines.append(f"Service: `{fix_def.get('action','?')} {fix_def.get('service','?')}`")
+            # AI review reasoning
+            if ai_review:
+                risk = ai_review.get("risk_level", "?")
+                reasoning = ai_review.get("reasoning", "")[:300]
+                lines.append(f"\n*AI Review:* `{risk}` risk")
+                if reasoning:
+                    lines.append(f"_{reasoning}_")
         else:
             lines.append(f"Type: {action_type}")
 
@@ -455,6 +485,14 @@ class AgentLoop:
             trigger=IntervalTrigger(minutes=5),
             id="agent_stuck_job_watchdog",
             name="Agent Loop: Stuck Job Watchdog",
+            replace_existing=True,
+        )
+
+        self.scheduler.add_job(
+            with_app_context(self._run_qa_scheduled),
+            trigger=IntervalTrigger(hours=6),
+            id="qa_scheduled_run",
+            name="Agent Loop: P.R.O.B.E. QA Scheduled Run",
             replace_existing=True,
         )
 
@@ -2691,6 +2729,36 @@ class AgentLoop:
                 logger.error(f"Improvement approval execution failed: {imp_err}")
                 return {"executed": False, "error": str(imp_err)}
 
+        elif action_type.startswith("compliance_fix_"):
+            # Approved compliance fix — resume the apply pipeline from stage 3 (dry-run)
+            scan_id = data.get("scan_id")
+            rule_id = data.get("rule_id")
+            user_id = data.get("requested_user_id") or 0
+            if not scan_id or not rule_id:
+                return {"executed": False, "error": "Missing scan_id or rule_id"}
+
+            try:
+                import sys as _sys
+                _sys.path.insert(0, "/app")
+                from tools.security_network.compliance_service import (
+                    apply_fix_approved,
+                )
+
+                result = apply_fix_approved(scan_id, rule_id, user_id)
+                logger.info(
+                    f"Approved compliance fix #{item['id']} for {rule_id}: "
+                    f"success={result.get('success')}"
+                )
+                return {
+                    "executed": True,
+                    "rule_id": rule_id,
+                    "fix_success": result.get("success"),
+                    "stages": result.get("stages", {}),
+                }
+            except Exception as comp_err:
+                logger.error(f"Compliance fix execution failed: {comp_err}")
+                return {"executed": False, "error": str(comp_err)}
+
         else:
             logger.warning(f"Unknown approved action type: {action_type}")
             return {"skipped": True, "reason": f"Unknown action type: {action_type}"}
@@ -3525,6 +3593,35 @@ class AgentLoop:
                 logger.info(f"Stuck job watchdog: killed {len(killed)} hung jobs")
         except Exception as e:
             logger.warning(f"Failed: {e}")
+
+    def _run_qa_scheduled(self):
+        """Run all active internal QA suites on schedule (every 6h)."""
+        try:
+            import sys
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from services import qa_service
+
+            start = time.time()
+            suites = qa_service.get_suites()
+            internal_suites = [s for s in suites if s.get("suite_type") == "internal"]
+
+            total_passed = 0
+            total_failed = 0
+
+            for suite in internal_suites:
+                result = qa_service.run_suite(suite["id"], triggered_by="scheduled")
+                total_passed += result.get("passed", 0)
+                total_failed += result.get("failed", 0) + result.get("errors", 0)
+
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle(
+                "qa_scheduled",
+                total_passed,
+                total_failed,
+                duration_ms,
+            )
+        except Exception as e:
+            logger.warning(f"QA scheduled run failed: {e}")
 
     def _archive_stale_notifications(self):
         """Archive notifications older than 30 days (every 6 hours)."""

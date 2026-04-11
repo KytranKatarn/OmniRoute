@@ -14,12 +14,12 @@ class AdGuardService:
     """Full AdGuard Home API client"""
 
     def __init__(self):
-        host = os.getenv("ADGUARD_HOST", "network_adguard")
-        port = int(os.getenv("ADGUARD_PORT", "80"))
+        host = os.getenv("ADGUARD_HOST", "host.docker.internal")
+        port = int(os.getenv("ADGUARD_PORT", "5354"))
         self.base_url = f"http://{host}:{port}"
         _fallback_host = os.getenv("ARCHIE_HOST", "192.168.1.200")
-        self.fallback_url = f"http://{_fallback_host}:5355"
-        self.username = os.getenv("ADGUARD_USER", "archie_admin")
+        self.fallback_url = f"http://{_fallback_host}:5354"
+        self.username = os.getenv("ADGUARD_USER", "kytran")
         self.password = os.getenv("ADGUARD_PASS", "")
         self._active_url = None
 
@@ -216,6 +216,19 @@ class AdGuardService:
             "top_blocked": [{"domain": d, "count": c} for d, c in top_blocked],
             "recent": recent,
         }
+
+    # --- Blocked Services ---
+    def get_blocked_services_all(self) -> Optional[List]:
+        """Get full catalog of available services that can be blocked."""
+        return self._request("GET", "blocked_services/all")
+
+    def get_blocked_services(self) -> Optional[List]:
+        """Get currently blocked services."""
+        return self._request("GET", "blocked_services/list")
+
+    def set_blocked_services(self, service_ids: List[str]) -> Optional[Any]:
+        """Set global blocked services list."""
+        return self._request("POST", "blocked_services/set", service_ids)
 
     # --- Protection ---
     def set_protection(self, enabled: bool) -> Optional[Dict]:

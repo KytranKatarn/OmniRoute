@@ -374,6 +374,26 @@ def market_watch_redirect():
 
 
 # ============================================================================
+# P.R.O.B.E. QA SCREENSHOT ROUTE
+# ============================================================================
+
+
+@app.route("/api/qa/screenshots/<path:filename>")
+@login_required
+def qa_screenshot(filename):
+    """Serve P.R.O.B.E. E2E test screenshots from tmpfs."""
+    import os
+    from flask import send_from_directory, abort
+
+    screenshot_dir = "/tmp/qa_reports/screenshots"
+    safe_name = os.path.basename(filename)
+    filepath = os.path.join(screenshot_dir, safe_name)
+    if not os.path.isfile(filepath):
+        abort(404)
+    return send_from_directory(screenshot_dir, safe_name)
+
+
+# ============================================================================
 # AI BRIDGE ROUTES
 # ============================================================================
 

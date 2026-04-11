@@ -1,6 +1,6 @@
 """
-Parental Controls Service
-=========================
+Supervision Controls Service
+=============================
 Schedule-based DNS blocking per device via AdGuard Home.
 """
 
@@ -14,8 +14,8 @@ from tools.security_network.adguard_service import AdGuardService
 logger = logging.getLogger(__name__)
 
 
-class ParentalService:
-    """Manage parental control schedules and enforce them via AdGuard."""
+class SupervisionService:
+    """Manage supervision control schedules and enforce them via AdGuard."""
 
     CATEGORY_DOMAINS = {
         "social": [
@@ -57,22 +57,23 @@ class ParentalService:
     }
 
     def get_schedules(self):
-        """Return all parental schedules joined with device user info."""
+        """Return all supervision schedules joined with device info."""
         with get_db_cursor() as (conn, cur):
             cur.execute(
                 """
-                SELECT ps.*, ndu.display_name AS device_display_name,
-                       ndu.device_name
+                SELECT ps.*,
+                       COALESCE(nd.friendly_name, nd.hostname) AS device_display_name,
+                       COALESCE(nd.owner, nd.friendly_name) AS device_name
                 FROM parental_schedules ps
-                LEFT JOIN network_device_users ndu
-                    ON ps.device_mac = ndu.mac_address
+                LEFT JOIN network_devices nd
+                    ON ps.device_mac = nd.mac_address
                 ORDER BY ps.created_at DESC
                 """
             )
             return cur.fetchall()
 
     def create_schedule(self, device_mac, user_name, schedule, blocked_categories):
-        """Insert a new parental schedule.
+        """Insert a new supervision schedule.
 
         Args:
             device_mac: MAC address of the device.
@@ -129,7 +130,7 @@ class ParentalService:
             return cur.rowcount > 0
 
     def delete_schedule(self, schedule_id):
-        """Delete a parental schedule."""
+        """Delete a supervision schedule."""
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute("DELETE FROM parental_schedules WHERE id = %s", (schedule_id,))
             return cur.rowcount > 0
@@ -137,7 +138,7 @@ class ParentalService:
     def enforce_schedules(self):
         """Check all enabled schedules and block/unblock devices via AdGuard.
 
-        Called by agent loop job every 5 minutes.
+        Called by agent loop supervision enforcement job every 5 minutes.
         """
         schedules = self._get_enabled_schedules()
         if not schedules:
@@ -152,7 +153,7 @@ class ParentalService:
             try:
                 should_block = self._is_in_blocked_window(sched["schedule"], now)
                 mac = sched["device_mac"]
-                client_id = f"parental-{mac.replace(':', '-')}"
+                client_id = f"supervision-{mac.replace(':', '-')}"
 
                 # Build blocked services list from categories
                 blocked_services = []
@@ -180,10 +181,10 @@ class ParentalService:
 
                 enforced += 1
             except Exception as exc:
-                logger.error("Parental enforce error for %s: %s", sched.get("device_mac"), exc)
+                logger.error("Supervision enforce error for %s: %s", sched.get("device_mac"), exc)
                 errors += 1
 
-        logger.info("Parental enforcement: %d enforced, %d errors", enforced, errors)
+        logger.info("Supervision enforcement: %d enforced, %d errors", enforced, errors)
         return {"enforced": enforced, "errors": errors}
 
     def get_category_domains(self):

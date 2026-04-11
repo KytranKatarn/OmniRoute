@@ -104,8 +104,12 @@ function switchTab(tab) {
         'dispatch':     loadDispatch,
         'fleet':        loadFleet,
         'contractors':  loadContractors,
+        'approvals':    function() { if (typeof loadDhqApprovals === 'function') loadDhqApprovals(); },
     };
-    if (!loaded[tab] && loaders[tab]) {
+    // Approvals should always reload on tab click (not cached) for fresh state
+    if (tab === 'approvals') {
+        if (typeof loadDhqApprovals === 'function') loadDhqApprovals();
+    } else if (!loaded[tab] && loaders[tab]) {
         loaders[tab]();
     }
 }

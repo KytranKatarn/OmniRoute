@@ -958,150 +958,1591 @@ def _check_port_listening(check):
 # ============================================================================
 
 
-def apply_fix(scan_id, rule_id, user_id):
-    """Look up rule fix definition from the rule pack and execute it via host_command.
-
-    Returns dict with success status and details.
-    """
-    # Get the scan result + rule pack to find the fix definition
+def _lookup_fix_def(scan_id, rule_id):
+    """Get the fix_def + metadata for a scan result. Returns (fix_def, pack_id, severity, before) or (None, err)."""
     with get_db_cursor(commit=False) as (conn, cur):
         cur.execute(
-            """
-            SELECT r.pack_id, r.actual_value, r.severity
-            FROM compliance_scan_results r
-            WHERE r.scan_id = %s AND r.rule_id = %s
-            """,
+            """SELECT r.pack_id, r.actual_value, r.severity
+               FROM compliance_scan_results r
+               WHERE r.scan_id = %s AND r.rule_id = %s""",
             (scan_id, rule_id),
         )
         row = cur.fetchone()
-
     if not row:
-        return {"success": False, "error": f"No result found for {scan_id}/{rule_id}"}
+        return None, f"No result found for {scan_id}/{rule_id}"
 
     pack_id = row["pack_id"]
     before_value = row.get("actual_value", "")
+    severity = row.get("severity", "medium")
 
-    # Look up fix from the rule pack JSON
     with get_db_cursor(commit=False) as (conn, cur):
-        cur.execute(
-            "SELECT rules FROM compliance_rule_packs WHERE pack_id = %s",
-            (pack_id,),
-        )
+        cur.execute("SELECT rules FROM compliance_rule_packs WHERE pack_id = %s", (pack_id,))
         pack_row = cur.fetchone()
-
     if not pack_row:
-        return {"success": False, "error": f"Rule pack {pack_id} not found"}
+        return None, f"Rule pack {pack_id} not found"
 
     rules = pack_row["rules"] if isinstance(pack_row["rules"], list) else json.loads(pack_row["rules"])
     fix_def = None
+    rule_meta = None
     for rule in rules:
         if rule.get("rule_id") == rule_id:
             fix_def = rule.get("fix")
+            rule_meta = rule
             break
-
     if not fix_def:
-        return {"success": False, "error": "No fix definition for this rule"}
+        return None, "No fix definition for this rule"
+    return {
+        "fix_def": fix_def,
+        "pack_id": pack_id,
+        "before_value": before_value,
+        "severity": severity,
+        "rule_meta": rule_meta,
+    }, None
 
-    hc = _get_host_client()
-    if not hc["available"]():
-        return {"success": False, "error": "Host command queue unavailable"}
 
-    fix_type = fix_def.get("type", "")
-    command_executed = ""
+def _ai_review_fix(fix_def, rule_meta, severity):
+    """Ask the Bridge dispatcher to review a compliance fix for safety.
+
+    Returns dict: {risk_level, reasoning, approve, auto_approved}
+    Auto-approves if risk_level in (low, medium). Falls back to human approval on error.
+    """
+    try:
+        import sys as _sys
+
+        if "/mnt/archie_brain/ai_bridge" not in _sys.path:
+            _sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
+        from bridge_dispatcher import dispatch_json
+    except Exception as _import_err:
+        logger.warning(f"Bridge import failed: {_import_err}")
+        return {
+            "risk_level": severity or "medium",
+            "reasoning": f"AI review unavailable: {_import_err}",
+            "approve": severity in ("low", "medium"),
+            "auto_approved": False,
+        }
+
+    prompt = (
+        "You are reviewing a compliance remediation fix for safety. "
+        "Assess the risk of applying this fix on a production Linux host. "
+        'Return ONLY a JSON object: {"risk_level": "low"|"medium"|"high"|"critical", '
+        '"reasoning": "short explanation", "approve": true|false}\n\n'
+        f"Rule ID: {rule_meta.get('rule_id', 'unknown')}\n"
+        f"Rule title: {rule_meta.get('title', rule_meta.get('description', 'unknown'))}\n"
+        f"Severity: {severity}\n"
+        f"Fix type: {fix_def.get('type')}\n"
+        f"Fix definition: {json.dumps(fix_def)}\n\n"
+        "Approve if the fix is idempotent, targets a known-safe config, and uses standard tools. "
+        "Reject if it runs arbitrary shell, touches critical paths (/bin, /boot, /root), or could brick the system."
+    )
+    # Hard timeout on AI review so user clicks never block >15s waiting
+    # for Ollama cold-start. If Bridge doesn't respond in time, fall back
+    # to severity-based approval — Department HQ is responsible for keeping
+    # agents warm via agent loop jobs, not on-demand from user clicks.
+    import concurrent.futures
 
     try:
-        if fix_type == "file_line":
-            path = fix_def["path"]
-            line = fix_def["line"]
-            key = line.split()[0] if line.strip() else ""
-            if key:
-                command_executed = f"sed -i '/^{key}/d' {path} && echo '{line}' >> {path}"
-            else:
-                command_executed = f"echo '{line}' >> {path}"
-            _run_host_cmd(command_executed)
-            restart = fix_def.get("restart_service")
-            if restart:
-                _run_host_cmd(f"systemctl restart {restart}")
-                command_executed += f" && systemctl restart {restart}"
-
-        elif fix_type == "command":
-            command_executed = fix_def.get("command", "")
-            if not command_executed:
-                return {"success": False, "error": "No command in fix definition"}
-            _run_host_cmd(command_executed, timeout=60)
-
-        elif fix_type == "sysctl":
-            param = fix_def.get("param", "")
-            value = fix_def.get("value", "")
-            command_executed = f"sysctl -w {param}={value}"
-            _run_host_cmd(command_executed)
-            _run_host_cmd(
-                f"grep -q '^{param}' /etc/sysctl.conf && "
-                f"sed -i 's/^{param}.*/{param} = {value}/' /etc/sysctl.conf || "
-                f"echo '{param} = {value}' >> /etc/sysctl.conf"
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(
+                dispatch_json,
+                capability="security-review",
+                prompt=prompt,
+                module_id="compliance_fix_pipeline",
             )
+            try:
+                result = future.result(timeout=15)
+            except concurrent.futures.TimeoutError:
+                raise TimeoutError("Bridge dispatcher timeout (15s) — Ollama may be cold")
 
+        if not result or not isinstance(result, dict):
+            raise ValueError("No response from Bridge")
+        risk = (result.get("risk_level") or "medium").lower()
+        auto_ok = risk in ("low", "medium") and bool(result.get("approve", True))
+        return {
+            "risk_level": risk,
+            "reasoning": result.get("reasoning", ""),
+            "approve": bool(result.get("approve", False)) or auto_ok,
+            "auto_approved": auto_ok,
+        }
+    except Exception as exc:
+        logger.warning("AI review failed, defaulting to severity-based approval: %s", exc)
+        return {
+            "risk_level": severity or "medium",
+            "reasoning": (
+                f"AI review unavailable ({exc}); defaulted to severity-based approval. "
+                f"Department HQ should keep the security-review agent warm via agent loop."
+            ),
+            "approve": severity in ("low", "medium"),
+            "auto_approved": False,
+        }
+
+
+def _execute_fix_stage(fix_def, dry_run=True):
+    """Route a fix_def to the appropriate host_monitor command handler.
+
+    If the handler doesn't exist yet, returns a clear error without crashing.
+    """
+    fix_type = fix_def.get("type", "")
+    params = {"dry_run": dry_run}
+
+    if fix_type == "sysctl":
+        params["param"] = fix_def.get("param", "")
+        params["value"] = str(fix_def.get("value", ""))
+        command_type = "compliance_fix_sysctl"
+
+    elif fix_type == "file_line":
+        params["path"] = fix_def.get("path", "")
+        params["line"] = fix_def.get("line", "")
+        params["restart_service"] = fix_def.get("restart_service", "")
+        command_type = "compliance_fix_file_line"
+
+    elif fix_type == "service":
+        params["service"] = fix_def.get("service", "")
+        params["action"] = fix_def.get("action", "restart")
+        command_type = "compliance_fix_service"
+
+    elif fix_type == "command":
+        # Raw command fixes reach this point ONLY after human approval
+        # via Telegram/Department HQ. apply_fix() routes them to escalation
+        # instead, so this path is only hit from apply_fix_approved().
+        params["command"] = fix_def.get("command", "")
+        command_type = "compliance_fix_command"
+
+    else:
+        return {"success": False, "error": f"Unknown fix type: {fix_type}"}
+
+    try:
+        result = _run_host_cmd(command_type, params, timeout=30)
+        return {
+            "success": True,
+            "preview": result.get("preview", ""),
+            "applied": result.get("applied", not dry_run),
+            "output": result.get("output", ""),
+        }
+    except RuntimeError as exc:
+        msg = str(exc)
+        # Handler not yet deployed on host — clear error instead of crash
+        if "unknown command" in msg.lower() or "not found" in msg.lower():
+            return {
+                "success": False,
+                "error": (
+                    f"Host handler '{command_type}' not yet deployed. "
+                    "Add it to scripts/host_monitor.py and restart the host monitor service."
+                ),
+            }
+        return {"success": False, "error": msg}
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
+
+def _verify_fix(fix_def, before_value):
+    """Re-run the compliance check to confirm the fix took effect."""
+    fix_type = fix_def.get("type", "")
+    try:
+        if fix_type == "sysctl":
+            result = _run_host_cmd(
+                "compliance_check_sysctl",
+                {"param": fix_def.get("param", "")},
+                timeout=10,
+            )
+            after = str(result.get("value", "")).strip()
+            expected = str(fix_def.get("value", "")).strip()
+            return {
+                "success": after == expected,
+                "before": str(before_value).strip(),
+                "after": after,
+                "expected": expected,
+            }
+        elif fix_type == "file_line":
+            result = _run_host_cmd(
+                "compliance_read_file",
+                {"path": fix_def.get("path", "")},
+                timeout=10,
+            )
+            content = result.get("content", "")
+            target_line = fix_def.get("line", "")
+            return {
+                "success": target_line.strip() in content,
+                "line_found": target_line.strip() in content,
+            }
         elif fix_type == "service":
-            action = fix_def.get("action", "restart")
-            service = fix_def.get("service", "")
-            command_executed = f"systemctl {action} {service}"
-            _run_host_cmd(command_executed)
+            # No good re-check for service state, assume success if apply worked
+            return {"success": True, "note": "Service state not re-verified"}
+        elif fix_type == "command":
+            # Command-type fixes are inherently risky. Do a post-apply
+            # health check if the command touches critical infrastructure.
+            cmd = fix_def.get("command", "")
+            critical_health = _post_command_health_check(cmd)
+            if not critical_health.get("healthy"):
+                return {
+                    "success": False,
+                    "error": critical_health.get("error", "Post-apply health check failed"),
+                    "health_check": critical_health,
+                }
+            return {
+                "success": True,
+                "note": "Command executed; verify via next scan",
+                "health_check": critical_health,
+            }
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+    return {"success": False, "error": "No verification for fix type"}
 
-        else:
-            return {"success": False, "error": f"Unknown fix type: {fix_type}"}
 
-        # Record successful remediation
+# ============================================================================
+# Critical infrastructure patterns — fixes touching these must be verified
+# ============================================================================
+
+_CRITICAL_INFRA_PATTERNS = [
+    "docker",
+    "daemon.json",
+    "systemctl",
+    "containerd",
+    "kubelet",
+    "sshd",
+    "/etc/ssh",
+    "ssh.service",
+    "sshd_config",
+    "archie_platform",
+    "archie_database",
+    "postgres",
+    "postgresql.conf",
+    "nginx",
+    "caddy",
+    "network-manager",
+    "systemd-networkd",
+    "fail2ban",
+    "ufw",
+    "iptables",
+    "nftables",
+]
+
+
+# Rules that MUST NOT be auto-fixed are stored in the DB table
+# compliance_rule_blocklist (see migration 314). The helper below
+# checks the DB on every apply_fix() call — admins can add/remove
+# blocklist entries via /api/compliance/blocklist without code changes.
+def _extract_json_object(text):
+    """Best-effort JSON extraction from an LLM response that may include prose,
+    markdown code fences, or extra text around the JSON object.
+    Returns a dict or None."""
+    if not text:
+        return None
+    import re
+
+    s = str(text).strip()
+    # Strip markdown code fences ```json ... ``` or ``` ... ```
+    fence_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", s, re.DOTALL | re.IGNORECASE)
+    if fence_match:
+        s = fence_match.group(1)
+    # Try direct parse
+    try:
+        obj = json.loads(s)
+        if isinstance(obj, dict):
+            return obj
+    except Exception:
+        pass
+    # Find first { and matching closing } by brace-counting
+    try:
+        start = s.index("{")
+        depth = 0
+        in_str = False
+        escape = False
+        for i in range(start, len(s)):
+            ch = s[i]
+            if escape:
+                escape = False
+                continue
+            if ch == "\\":
+                escape = True
+                continue
+            if ch == '"':
+                in_str = not in_str
+                continue
+            if in_str:
+                continue
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    candidate = s[start : i + 1]
+                    try:
+                        obj = json.loads(candidate)
+                        if isinstance(obj, dict):
+                            return obj
+                    except Exception:
+                        return None
+                    break
+    except ValueError:
+        pass
+    return None
+
+
+def generate_remediation_plan(scan_id, rule_id, user_id=None):
+    """Ask F.O.R.G.E. to generate a customized remediation plan for a
+    blocklisted compliance rule.
+
+    Reads the current deployment state (docker-compose.yml, running containers)
+    and asks the AI to produce a runbook tailored to THIS system.
+    Stores result in compliance_remediation_plans table.
+    Returns {success, plan_id, plan, fallback?}.
+    """
+    lookup, err = _lookup_fix_def(scan_id, rule_id)
+    if err:
+        return {"success": False, "error": err}
+
+    fix_def = lookup["fix_def"]
+    pack_id = lookup["pack_id"]
+    rule_meta = lookup["rule_meta"] or {}
+    _, blocklist_entry = _is_rule_blocked(rule_id)
+    blocklist_entry = blocklist_entry or {}
+
+    # Gather deployment context
+    compose_content = ""
+    try:
+        r = _run_host_cmd(
+            "compliance_read_file",
+            {"path": "/mnt/archie_brain/docker-compose.yml"},
+            timeout=10,
+        )
+        compose_content = (r.get("content", "") if r else "")[:10000]
+    except Exception:
+        pass
+
+    running = ""
+    try:
+        r = _run_host_cmd(
+            "compliance_run_check",
+            {"check_type": "command_safe", "target": "docker info"},
+            timeout=10,
+        )
+        running = str(r.get("output", ""))[:2000]
+    except Exception:
+        pass
+
+    # Build F.O.R.G.E. prompt
+    prompt = (
+        "You are F.O.R.G.E., Engineering director for A.R.C.H.I.E. "
+        "Return ONLY a JSON object with these keys:\n"
+        "{affected_containers[], impact_analysis (markdown), prerequisites[], "
+        "steps[{action, why, safe_auto}], rollback_plan, estimated_downtime, "
+        "best_window, exemption_candidate, exemption_reason}\n\n"
+        f"RULE: {rule_id}\n"
+        f"Title: {rule_meta.get('title', 'unknown')}\n"
+        f"Severity: {rule_meta.get('severity', 'medium')}\n"
+        f"Description: {rule_meta.get('description', '')}\n"
+        f"Rule-pack fix: {json.dumps(fix_def)}\n"
+        f"Why auto-fix is blocked: {blocklist_entry.get('reason', 'N/A')}\n\n"
+        f"CURRENT docker-compose.yml:\n```yaml\n{compose_content}\n```\n\n"
+        f"docker info:\n```\n{running}\n```\n\n"
+        "Guidelines:\n"
+        "- Customize to ACTUAL containers running here, not generic STIG docs\n"
+        "- safe_auto=true ONLY for read-only commands (inspect, ls, cat)\n"
+        "- For mutations (stop/recreate/edit), safe_auto=false\n"
+        "- Respect containers that need GPU/privileged (e.g., plex)\n"
+        "- If rule legitimately doesn't apply, exemption_candidate=true"
+    )
+
+    import concurrent.futures
+
+    plan_json = None
+    model_used = None
+    try:
+        import sys as _sys
+
+        if "/mnt/archie_brain/ai_bridge" not in _sys.path:
+            _sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
+        from bridge_dispatcher import dispatch
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(
+                dispatch,
+                capability="code-generation",
+                prompt=prompt,
+                module_id="compliance_remediation_plan",
+            )
+            try:
+                result = future.result(timeout=240)
+                raw = getattr(result, "response", None) or str(result)
+                plan_json = _extract_json_object(raw)
+                model_used = "code-generation"
+                logger.info(
+                    f"F.O.R.G.E. plan returned: raw_len={len(raw or '')} " f"parsed_dict={isinstance(plan_json, dict)}"
+                )
+                if plan_json is None:
+                    logger.warning(f"F.O.R.G.E. plan unparseable for {rule_id}. " f"raw preview: {str(raw)[:500]}")
+            except concurrent.futures.TimeoutError:
+                logger.warning(f"F.O.R.G.E. plan timeout for {rule_id} after 240s")
+    except Exception as exc:
+        logger.warning(f"F.O.R.G.E. dispatch failed: {exc}", exc_info=True)
+
+    # Fallback if AI didn't respond
+    if not plan_json or not isinstance(plan_json, dict):
+        plan_json = {
+            "affected_containers": [],
+            "impact_analysis": blocklist_entry.get("reason", "Manual remediation required. AI plan unavailable."),
+            "prerequisites": ["Schedule planned downtime window"],
+            "steps": [
+                {
+                    "action": "Review rule + current deployment state",
+                    "why": "Understand scope before making changes",
+                    "safe_auto": True,
+                }
+            ],
+            "rollback_plan": "Restore from backup snapshot",
+            "estimated_downtime": "unknown",
+            "best_window": "next maintenance window",
+            "exemption_candidate": False,
+            "exemption_reason": None,
+            "_fallback": True,
+        }
+        model_used = "fallback"
+
+    # Store plan
+    try:
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute(
-                """
-                INSERT INTO compliance_remediations
-                    (scan_id, rule_id, pack_id, action_type, command_executed,
-                     result, risk_level, executed_by, before_value, executed_at)
-                VALUES (%s, %s, %s, %s, %s, 'success', %s, %s, %s, NOW())
-                """,
+                """INSERT INTO compliance_remediation_plans
+                       (rule_id, scan_id, pack_id, generated_by, model_used,
+                        affected_containers, impact_analysis, prerequisites,
+                        steps, rollback_plan, estimated_downtime, best_window,
+                        exemption_candidate, exemption_reason, status)
+                   VALUES (%s, %s, %s, 'F.O.R.G.E.', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'generated')
+                   RETURNING id""",
                 (
-                    scan_id,
                     rule_id,
+                    scan_id,
                     pack_id,
-                    fix_type,
-                    command_executed,
-                    fix_def.get("risk", "medium"),
-                    user_id,
-                    before_value,
+                    model_used,
+                    Json(plan_json.get("affected_containers", [])),
+                    plan_json.get("impact_analysis", ""),
+                    Json(plan_json.get("prerequisites", [])),
+                    Json(plan_json.get("steps", [])),
+                    plan_json.get("rollback_plan", ""),
+                    plan_json.get("estimated_downtime", ""),
+                    plan_json.get("best_window", ""),
+                    bool(plan_json.get("exemption_candidate", False)),
+                    plan_json.get("exemption_reason"),
                 ),
             )
+            row = cur.fetchone()
+            plan_id = row["id"] if isinstance(row, dict) else row[0]
+    except Exception as exc:
+        logger.error(f"Failed to store remediation plan: {exc}")
+        return {"success": False, "error": f"DB insert failed: {exc}"}
+
+    return {
+        "success": True,
+        "plan_id": plan_id,
+        "rule_id": rule_id,
+        "plan": plan_json,
+        "generated_by": "F.O.R.G.E.",
+        "fallback": plan_json.get("_fallback", False),
+    }
+
+
+def get_remediation_plan(plan_id):
+    """Fetch a stored plan by id."""
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute("SELECT * FROM compliance_remediation_plans WHERE id = %s", (plan_id,))
+            row = cur.fetchone()
+        if not row:
+            return None
+        p = dict(row)
+        for k in ["generated_at", "started_at", "completed_at", "created_at", "updated_at"]:
+            if p.get(k):
+                p[k] = p[k].isoformat()
+        return p
+    except Exception as exc:
+        logger.error(f"get_remediation_plan failed: {exc}")
+        return None
+
+
+def list_remediation_plans(rule_id=None, status=None):
+    """List plans, optionally filtered by rule_id or status."""
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            conditions, params = [], []
+            if rule_id:
+                conditions.append("rule_id = %s")
+                params.append(rule_id)
+            if status:
+                conditions.append("status = %s")
+                params.append(status)
+            where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+            cur.execute(
+                f"""SELECT id, rule_id, pack_id, status, generated_at,
+                           started_at, completed_at, exemption_candidate,
+                           jsonb_array_length(COALESCE(steps, '[]'::jsonb)) AS step_count
+                   FROM compliance_remediation_plans
+                   {where}
+                   ORDER BY generated_at DESC LIMIT 50""",
+                params,
+            )
+            rows = [dict(r) for r in cur.fetchall()]
+        for r in rows:
+            for k in ["generated_at", "started_at", "completed_at"]:
+                if r.get(k):
+                    r[k] = r[k].isoformat()
+        return rows
+    except Exception as exc:
+        logger.error(f"list_remediation_plans failed: {exc}")
+        return []
+
+
+def _dispatch_to_repair_bay(scan_id, rule_id, fix_def, blocklist_entry, user_id):
+    """Dispatch a blocklisted compliance fix to Repair Bay for AI-assisted
+    manual remediation.
+
+    Creates an improvement_proposal with category='compliance_fix',
+    assigns F.O.R.G.E. as the engineering agent, and queues a background
+    job to have F.O.R.G.E. generate the remediation patch via Bridge.
+
+    Returns: {success, proposal_id, patch_preview?, error?}
+    """
+    try:
+        # 1. Find F.O.R.G.E. agent ID
+        forge_agent_id = None
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute("SELECT id FROM agents WHERE name IN ('FORGE', 'F.O.R.G.E.') LIMIT 1")
+            row = cur.fetchone()
+            if row:
+                forge_agent_id = row["id"] if isinstance(row, dict) else row[0]
+
+        # 2. Create Repair Bay proposal
+        title = f"Compliance Fix (Repair Bay): {rule_id}"
+        description = (
+            f"Blocklisted rule routed to Repair Bay for AI-assisted remediation.\n\n"
+            f"Rule: {rule_id}\n"
+            f"Scan: {scan_id}\n"
+            f"Blocklist reason: {blocklist_entry.get('reason', 'unknown')}\n\n"
+            f"F.O.R.G.E. will read the current docker-compose.yml and generate "
+            f"a proposed patch. Human review required before deployment."
+        )
+        metadata = {
+            "source": "compliance_fix_pipeline",
+            "scan_id": scan_id,
+            "rule_id": rule_id,
+            "fix_def": fix_def,
+            "blocklist_reason": blocklist_entry.get("reason"),
+            "manual_steps": blocklist_entry.get("manual_steps", ""),
+        }
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """INSERT INTO improvement_proposals
+                       (title, description, category, priority, status,
+                        risk_level, metadata, assigned_agent_id, proposed_at)
+                   VALUES (%s, %s, 'compliance_fix', %s, 'pending_approval',
+                           %s, %s, %s, NOW())
+                   RETURNING id""",
+                (
+                    title,
+                    description,
+                    blocklist_entry.get("risk_level", "medium"),
+                    blocklist_entry.get("risk_level", "medium"),
+                    Json(metadata),
+                    forge_agent_id,
+                ),
+            )
+            row = cur.fetchone()
+            proposal_id = row["id"] if isinstance(row, dict) else row[0]
+
+        # 3. Attempt to generate patch synchronously via F.O.R.G.E. (with timeout)
+        patch_preview = _generate_compose_patch(rule_id, fix_def, blocklist_entry)
+
+        # 4. Update proposal with generated patch (if we got one)
+        if patch_preview:
+            try:
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        """UPDATE improvement_proposals
+                           SET code_diff = %s,
+                               status = 'pending_approval',
+                               reviewed_at = NOW()
+                           WHERE id = %s""",
+                        (patch_preview, proposal_id),
+                    )
+            except Exception:
+                pass
 
         return {
             "success": True,
-            "fix_type": fix_type,
-            "risk": fix_def.get("risk", "medium"),
+            "proposal_id": proposal_id,
+            "agent": "F.O.R.G.E.",
+            "patch_preview": patch_preview,
+            "repair_bay_url": f"/tools/repair-bay#proposal-{proposal_id}",
+        }
+    except Exception as exc:
+        logger.error(f"Repair Bay dispatch failed: {exc}")
+        return {"success": False, "error": str(exc)}
+
+
+def _generate_compose_patch(rule_id, fix_def, blocklist_entry):
+    """Ask F.O.R.G.E. (via Bridge) to generate a docker-compose patch that
+    fixes the given compliance rule. Returns unified diff text or None.
+
+    Hard 20s timeout so the user's click doesn't hang.
+    """
+    import concurrent.futures
+
+    # Read the current docker-compose.yml via host_monitor
+    try:
+        result = _run_host_cmd(
+            "compliance_read_file",
+            {"path": "/mnt/archie_brain/docker-compose.yml"},
+            timeout=10,
+        )
+        compose_content = result.get("content", "") if result else ""
+    except Exception:
+        compose_content = ""
+
+    if not compose_content:
+        return None
+
+    # Truncate for prompt size — F.O.R.G.E. gets relevant sections only
+    if len(compose_content) > 12000:
+        compose_content = compose_content[:12000] + "\n# ... (truncated)"
+
+    prompt = (
+        f"You are F.O.R.G.E., the Engineering director. Review this docker-compose.yml "
+        f"and generate a minimal patch to fix compliance rule {rule_id}.\n\n"
+        f"Rule description: {blocklist_entry.get('reason', '')}\n"
+        f"Manual steps provided: {blocklist_entry.get('manual_steps', '')[:500]}\n\n"
+        f"Current docker-compose.yml:\n```yaml\n{compose_content}\n```\n\n"
+        f"Return ONLY the unified diff (with --- and +++ headers) showing the "
+        f"minimum changes needed. Do NOT include explanation. If the rule cannot "
+        f"be fixed via docker-compose changes, return 'MANUAL_INTERVENTION_REQUIRED'."
+    )
+
+    try:
+        import sys as _sys
+
+        if "/mnt/archie_brain/ai_bridge" not in _sys.path:
+            _sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
+        from bridge_dispatcher import dispatch
+
+        def _call():
+            return dispatch(
+                capability="code-generation",
+                prompt=prompt,
+                module_id="compliance_fix_repair_bay",
+            )
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_call)
+            try:
+                result = future.result(timeout=20)
+            except concurrent.futures.TimeoutError:
+                logger.warning(f"F.O.R.G.E. patch generation timed out for {rule_id}")
+                return None
+
+        if not result:
+            return None
+        # dispatch() returns a DispatchResult object — extract response text
+        text = result.response if hasattr(result, "response") else str(result)
+        if "MANUAL_INTERVENTION_REQUIRED" in text:
+            return None
+        return text[:8000]
+    except Exception as exc:
+        logger.warning(f"F.O.R.G.E. patch generation failed: {exc}")
+        return None
+
+
+def _mark_scan_result_fixed(scan_id, rule_id):
+    """After successful remediation, update compliance_scan_results so the
+    rule stops appearing as failing in the Compliance tab. The next full
+    scan will replace this with a fresh result.
+    """
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """UPDATE compliance_scan_results
+                   SET status = 'pass',
+                       actual_value = COALESCE(actual_value, '') || ' (fixed)'
+                   WHERE scan_id = %s AND rule_id = %s""",
+                (scan_id, rule_id),
+            )
+            return cur.rowcount > 0
+    except Exception as exc:
+        logger.warning(f"Failed to mark scan result fixed: {exc}")
+        return False
+
+
+def _is_rule_blocked(rule_id):
+    """Check if a rule is in the blocklist. Returns (blocked, entry_dict)."""
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """SELECT rule_id, reason, risk_level, manual_steps,
+                          manually_applied_at
+                   FROM compliance_rule_blocklist
+                   WHERE rule_id = %s""",
+                (rule_id,),
+            )
+            row = cur.fetchone()
+        if row:
+            entry = dict(row)
+            if entry.get("manually_applied_at"):
+                entry["manually_applied_at"] = entry["manually_applied_at"].isoformat()
+            return True, entry
+    except Exception as exc:
+        logger.warning(f"Blocklist check failed: {exc}")
+    return False, None
+
+
+# Config files that command fixes commonly modify — these get auto-snapshotted
+# BEFORE command fixes run so we can rollback on failure.
+_CRITICAL_CONFIG_FILES = [
+    "/etc/docker/daemon.json",
+    "/etc/ssh/sshd_config",
+    "/etc/sysctl.conf",
+    "/etc/default/grub",
+    "/etc/audit/auditd.conf",
+    "/etc/fail2ban/jail.local",
+    "/etc/nginx/nginx.conf",
+]
+
+
+def _is_critical_command(cmd):
+    """Return True if the command touches critical infrastructure."""
+    if not cmd:
+        return False
+    lower = cmd.lower()
+    return any(p in lower for p in _CRITICAL_INFRA_PATTERNS)
+
+
+def _extract_files_from_command(cmd):
+    """Extract file paths from a shell command for pre-snapshot."""
+    import re
+
+    # Find all paths matching critical config files
+    files = []
+    for path in _CRITICAL_CONFIG_FILES:
+        if path in cmd:
+            files.append(path)
+    # Also look for any explicit /etc/* paths in the command
+    matches = re.findall(r"(/etc/[a-zA-Z0-9_/.\-]+)", cmd)
+    for m in matches:
+        if m not in files and len(m) > 5:
+            files.append(m)
+    return files
+
+
+def _post_command_health_check(cmd):
+    """Run health checks after a command-type compliance fix.
+
+    For docker/systemctl commands, verifies the affected service is still
+    responsive. Returns {healthy: bool, checks: {...}, error?: str}
+    """
+    if not cmd:
+        return {"healthy": True, "checks": {}}
+
+    checks = {}
+    errors = []
+    lower = cmd.lower()
+
+    # Docker health check
+    if "docker" in lower or "daemon.json" in cmd:
+        try:
+            # compliance_run_check has a whitelist for 'docker info'
+            result = _run_host_cmd(
+                "compliance_run_check",
+                {"check_type": "command_safe", "target": "docker info"},
+                timeout=15,
+            )
+            docker_ok = result.get("success") and result.get("returncode", 1) == 0
+            checks["docker"] = "ok" if docker_ok else "failed"
+            if not docker_ok:
+                errors.append("Docker daemon not responding")
+        except Exception as exc:
+            checks["docker"] = "error"
+            errors.append(f"Docker check error: {exc}")
+
+    # SSH health check
+    if "ssh" in lower:
+        try:
+            result = _run_host_cmd(
+                "compliance_run_check",
+                {"check_type": "service_status", "target": "ssh.service"},
+                timeout=10,
+            )
+            ssh_ok = result.get("success") and result.get("active") == "active"
+            checks["sshd"] = "ok" if ssh_ok else "failed"
+            if not ssh_ok:
+                errors.append("SSH service not active")
+        except Exception:
+            checks["sshd"] = "skipped"
+
+    return {
+        "healthy": len(errors) == 0,
+        "checks": checks,
+        "error": "; ".join(errors) if errors else None,
+    }
+
+
+def _read_host_file_safe(path):
+    """Read a file on the host for snapshot purposes. Returns content or None."""
+    try:
+        result = _run_host_cmd("compliance_read_file", {"path": path}, timeout=10)
+        if result.get("exists"):
+            return result.get("content", "")
+    except Exception:
+        pass
+    return None
+
+
+def _capture_file_snapshot(
+    file_path,
+    content_before,
+    content_after,
+    remediation_id,
+    proposal_id,
+    change_summary="",
+):
+    """Store a before/after file snapshot for audit + rollback."""
+    import hashlib
+
+    def _sha(s):
+        if s is None:
+            return None
+        return hashlib.sha256(s.encode("utf-8", errors="replace")).hexdigest()
+
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """INSERT INTO compliance_file_snapshots
+                       (remediation_id, proposal_id, file_path,
+                        content_before, content_after,
+                        sha256_before, sha256_after, change_summary)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                   RETURNING id""",
+                (
+                    remediation_id,
+                    proposal_id,
+                    file_path,
+                    content_before,
+                    content_after,
+                    _sha(content_before),
+                    _sha(content_after),
+                    change_summary,
+                ),
+            )
+            row = cur.fetchone()
+            return row["id"] if isinstance(row, dict) else row[0]
+    except Exception as exc:
+        logger.warning("Failed to capture file snapshot: %s", exc)
+        return None
+
+
+def get_file_history(file_path, limit=20):
+    """Return change history for a config file (newest first)."""
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """SELECT s.id, s.remediation_id, s.proposal_id, s.file_path,
+                          s.sha256_before, s.sha256_after, s.change_summary,
+                          s.captured_at, s.rolled_back_at,
+                          r.rule_id
+                   FROM compliance_file_snapshots s
+                   LEFT JOIN compliance_remediations r ON r.id = s.remediation_id
+                   WHERE s.file_path = %s
+                   ORDER BY s.captured_at DESC
+                   LIMIT %s""",
+                (file_path, limit),
+            )
+            return [dict(r) for r in cur.fetchall()]
+    except Exception as exc:
+        logger.error("get_file_history failed: %s", exc)
+        return []
+
+
+def rollback_file_snapshot(snapshot_id, user_id):
+    """Revert a file to its content_before state from a snapshot."""
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """SELECT file_path, content_before, rolled_back_at
+                   FROM compliance_file_snapshots WHERE id = %s""",
+                (snapshot_id,),
+            )
+            row = cur.fetchone()
+        if not row:
+            return {"success": False, "error": f"Snapshot {snapshot_id} not found"}
+        if row["rolled_back_at"]:
+            return {"success": False, "error": "Snapshot already rolled back"}
+        if row["content_before"] is None:
+            return {"success": False, "error": "No content_before available for rollback"}
+
+        if len(row["content_before"]) > 64 * 1024:
+            return {"success": False, "error": "File too large for rollback (>64KB)"}
+
+        result = _run_host_cmd(
+            "compliance_restore_file",
+            {"path": row["file_path"], "content": row["content_before"]},
+            timeout=30,
+        )
+
+        if not result.get("success"):
+            return {"success": False, "error": result.get("error", "Restore failed")}
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """UPDATE compliance_file_snapshots
+                   SET rolled_back_at = NOW(), rolled_back_by = %s
+                   WHERE id = %s""",
+                (user_id, snapshot_id),
+            )
+
+        return {"success": True, "file": row["file_path"]}
+    except Exception as exc:
+        logger.error("rollback_file_snapshot failed: %s", exc)
+        return {"success": False, "error": str(exc)}
+
+
+def _escalate_fix_to_telegram(scan_id, rule_id, fix_def, severity, review, user_id, proposal_id):
+    """Submit a high/critical compliance fix to the approval queue.
+
+    Returns dict: {approval_id, action_type, status, already_pending?}
+    """
+    action_type = f"compliance_fix_{rule_id}"
+
+    # Check for existing pending approval for this rule (dedup)
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """SELECT id FROM autonomy_approval_queue
+                   WHERE action_type = %s AND status = 'pending' LIMIT 1""",
+                (action_type,),
+            )
+            existing = cur.fetchone()
+        if existing:
+            existing_id = existing["id"] if isinstance(existing, dict) else existing[0]
+            return {
+                "approval_id": existing_id,
+                "action_type": action_type,
+                "status": "pending",
+                "already_pending": True,
+                "note": ("Approval already pending. " "Check Department HQ > Approvals tab or Telegram."),
+            }
+    except Exception as exc:
+        logger.warning(f"Dedup check failed: {exc}")
+
+    try:
+        import sys
+
+        # Add ai_bridge to path so agent_loop's `from db import get_db` works
+        if "/mnt/archie_brain/ai_bridge" not in sys.path:
+            sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
+        from agent_loop import request_approval
+
+        action_data = {
+            "scan_id": scan_id,
+            "rule_id": rule_id,
+            "fix_def": fix_def,
+            "severity": severity,
+            "proposal_id": proposal_id,
+            "requested_user_id": user_id,
+            "ai_review": review,
+        }
+        reason = (
+            f"High-risk compliance fix: {rule_id} ({severity})\n"
+            f"AI review: {review.get('reasoning', 'no reasoning')[:200]}"
+        )
+        approval_id = request_approval(
+            action_type=action_type,
+            action_data=action_data,
+            reason=reason,
+            requested_by="compliance_fix",
+            priority=3 if severity == "critical" else 5,
+            tier=2,
+        )
+        return {
+            "approval_id": approval_id,
+            "action_type": action_type,
+            "status": "pending" if approval_id else "failed_to_escalate",
+            "note": (
+                "Approve via Telegram, then agent_loop will execute the fix"
+                if approval_id
+                else "Approval creation failed (Telegram may be unreachable)"
+            ),
+        }
+    except Exception as exc:
+        logger.error(f"Telegram escalation failed: {exc}")
+        return {"approval_id": None, "status": "error", "error": str(exc)}
+
+
+def apply_fix_approved(scan_id, rule_id, user_id):
+    """Execute a compliance fix that has been approved via Telegram.
+
+    Skips the AI review stage (already approved by human).
+    Creates a full file backup before file_line fixes so we can
+    automatically roll back if verify fails.
+    """
+    stages = {}
+
+    lookup, err = _lookup_fix_def(scan_id, rule_id)
+    if err:
+        return {"success": False, "error": err, "stages": stages}
+
+    fix_def = lookup["fix_def"]
+    pack_id = lookup["pack_id"]
+    before_value = lookup["before_value"]
+    severity = lookup["severity"]
+    rule_meta = lookup["rule_meta"] or {}
+
+    hc = _get_host_client()
+    if not hc["available"]():
+        return {
+            "success": False,
+            "error": "Host command queue unavailable",
+            "stages": stages,
         }
 
+    # Record human approval as the review stage
+    stages["review"] = {
+        "risk_level": severity,
+        "approve": True,
+        "reasoning": "Approved via Telegram (human)",
+        "auto_approved": False,
+        "human_approved": True,
+    }
+
+    # Stage 3: Dry-run
+    dry_run = _execute_fix_stage(fix_def, dry_run=True)
+    stages["dry_run"] = dry_run
+    if not dry_run.get("success"):
+        _record_remediation(
+            scan_id,
+            rule_id,
+            pack_id,
+            fix_def,
+            before_value,
+            user_id,
+            "failed",
+            None,
+            "dry_run",
+            stages["review"],
+            dry_run,
+            None,
+        )
+        return {
+            "success": False,
+            "error": f"Dry-run failed: {dry_run.get('error', 'unknown')}",
+            "stages": stages,
+        }
+
+    # Capture BEFORE snapshot for file_line AND command fixes (failover).
+    # For command type, snapshot any critical config files it might touch.
+    snapshot_before = None
+    command_snapshots = {}  # path -> content
+    if fix_def.get("type") == "file_line":
+        snapshot_before = _read_host_file_safe(fix_def.get("path", ""))
+    elif fix_def.get("type") == "command":
+        cmd = fix_def.get("command", "")
+        files_to_snapshot = _extract_files_from_command(cmd)
+        for f in files_to_snapshot:
+            content = _read_host_file_safe(f)
+            if content is not None:
+                command_snapshots[f] = content
+        stages["pre_snapshot"] = {
+            "snapshotted_files": list(command_snapshots.keys()),
+            "count": len(command_snapshots),
+        }
+
+    # Stage 4: Apply for real
+    applied = _execute_fix_stage(fix_def, dry_run=False)
+    stages["applied"] = applied
+    if not applied.get("success"):
+        # AUTO-ROLLBACK on apply failure for command fixes (before the
+        # damage spreads). We rollback ANY snapshotted files and restart
+        # docker if daemon.json was in the snapshot set.
+        if fix_def.get("type") == "command" and command_snapshots:
+            logger.warning(
+                f"Apply FAILED for {rule_id}, auto-rollback from command snapshot " f"({len(command_snapshots)} files)"
+            )
+            rollback_results = {}
+            for path, content in command_snapshots.items():
+                try:
+                    _run_host_cmd(
+                        "compliance_restore_file",
+                        {"path": path, "content": content},
+                        timeout=15,
+                    )
+                    rollback_results[path] = "restored"
+                except Exception as rb_err:
+                    rollback_results[path] = f"error: {rb_err}"
+            # Restart docker if daemon.json was restored
+            if any("docker" in p for p in command_snapshots.keys()):
+                try:
+                    _run_host_cmd(
+                        "compliance_fix_service",
+                        {"service": "docker", "action": "restart", "dry_run": False},
+                        timeout=45,
+                    )
+                    rollback_results["docker_restart"] = "ok"
+                except Exception as rb_err:
+                    rollback_results["docker_restart"] = f"error: {rb_err}"
+            stages["rollback"] = {
+                "success": all("error" not in str(v) for v in rollback_results.values()),
+                "reason": "apply failed",
+                "type": "command",
+                "files": rollback_results,
+            }
+        elif fix_def.get("type") == "file_line" and snapshot_before is not None:
+            logger.warning(f"Apply FAILED for {rule_id}, auto-rollback file_line")
+            try:
+                _run_host_cmd(
+                    "compliance_restore_file",
+                    {"path": fix_def.get("path", ""), "content": snapshot_before},
+                    timeout=15,
+                )
+                stages["rollback"] = {"success": True, "reason": "apply failed", "type": "file_line"}
+            except Exception as rb_err:
+                stages["rollback"] = {"success": False, "error": str(rb_err)}
+
+        _record_remediation(
+            scan_id,
+            rule_id,
+            pack_id,
+            fix_def,
+            before_value,
+            user_id,
+            "failed",
+            None,
+            "applied",
+            stages["review"],
+            dry_run,
+            applied,
+        )
+        return {
+            "success": False,
+            "error": f"Apply failed: {applied.get('error', 'unknown')}",
+            "stages": stages,
+        }
+
+    # Stage 5: Verify
+    verified = _verify_fix(fix_def, before_value)
+    stages["verified"] = verified
+
+    # AUTO-ROLLBACK on verification failure
+    if not verified.get("success"):
+        if fix_def.get("type") == "file_line" and snapshot_before is not None:
+            logger.warning(f"Verify failed for {rule_id}, auto-rollback file_line")
+            try:
+                _run_host_cmd(
+                    "compliance_restore_file",
+                    {"path": fix_def.get("path", ""), "content": snapshot_before},
+                    timeout=15,
+                )
+                stages["rollback"] = {"success": True, "reason": "verify failed", "type": "file_line"}
+            except Exception as rb_err:
+                stages["rollback"] = {"success": False, "error": str(rb_err)}
+
+        elif fix_def.get("type") == "command" and command_snapshots:
+            # Restore ALL snapshotted files, then restart docker if any of them
+            # are docker-related. This recovers from destructive docker config
+            # changes like userns-remap.
+            logger.warning(f"Verify failed for {rule_id}, auto-rollback command " f"({len(command_snapshots)} files)")
+            rollback_results = {}
+            for path, content in command_snapshots.items():
+                try:
+                    _run_host_cmd(
+                        "compliance_restore_file",
+                        {"path": path, "content": content},
+                        timeout=15,
+                    )
+                    rollback_results[path] = "restored"
+                except Exception as rb_err:
+                    rollback_results[path] = f"error: {rb_err}"
+
+            # If we restored daemon.json, restart docker to re-read it
+            docker_restored = any("docker" in p for p in command_snapshots.keys())
+            if docker_restored:
+                try:
+                    _run_host_cmd(
+                        "compliance_fix_service",
+                        {"service": "docker", "action": "restart", "dry_run": False},
+                        timeout=45,
+                    )
+                    rollback_results["docker_restart"] = "ok"
+                except Exception as rb_err:
+                    rollback_results["docker_restart"] = f"error: {rb_err}"
+
+            stages["rollback"] = {
+                "success": all("error" not in str(v) for v in rollback_results.values()),
+                "reason": "verify failed",
+                "type": "command",
+                "files": rollback_results,
+            }
+
+    overall_success = verified.get("success", False)
+    remediation_id = _record_remediation(
+        scan_id,
+        rule_id,
+        pack_id,
+        fix_def,
+        before_value,
+        user_id,
+        "success" if overall_success else "failed",
+        None,
+        "verified",
+        stages["review"],
+        dry_run,
+        verified,
+    )
+
+    # Mark the scan result as passing so UI stops showing it as failing
+    if overall_success:
+        _mark_scan_result_fixed(scan_id, rule_id)
+
+    # Capture AFTER snapshot
+    if fix_def.get("type") == "file_line" and remediation_id:
+        snapshot_after = _read_host_file_safe(fix_def.get("path", ""))
+        snapshot_id = _capture_file_snapshot(
+            file_path=fix_def.get("path", ""),
+            content_before=snapshot_before,
+            content_after=snapshot_after,
+            remediation_id=remediation_id,
+            proposal_id=None,
+            change_summary=f"{rule_id}: {fix_def.get('line', '')[:100]} (via Telegram approval)",
+        )
+        stages["snapshot"] = {"success": snapshot_id is not None, "snapshot_id": snapshot_id}
+
+    return {
+        "success": overall_success,
+        "stages": stages,
+        "fix_type": fix_def.get("type"),
+    }
+
+
+def _create_compliance_proposal(scan_id, rule_id, rule_meta, severity, fix_def):
+    """Create an improvement_proposals row for audit trail. Returns proposal_id or None."""
+    try:
+        title = f"Compliance fix: {rule_id}"
+        description = (
+            f"Auto-generated proposal for compliance rule {rule_id}\n"
+            f"Title: {rule_meta.get('title', rule_meta.get('description', ''))}\n"
+            f"Severity: {severity}\n"
+            f"Fix type: {fix_def.get('type')}\n"
+            f"Scan ID: {scan_id}"
+        )
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """INSERT INTO improvement_proposals
+                       (title, description, category, priority, status,
+                        risk_level, metadata, proposed_at)
+                   VALUES (%s, %s, 'compliance_fix', %s, 'pending_approval',
+                           %s, %s, NOW())
+                   RETURNING id""",
+                (
+                    title,
+                    description,
+                    severity,
+                    severity,
+                    Json({"scan_id": scan_id, "rule_id": rule_id, "fix_def": fix_def}),
+                ),
+            )
+            row = cur.fetchone()
+            return row["id"] if isinstance(row, dict) else row[0]
     except Exception as exc:
-        logger.error("Fix failed for %s/%s: %s", scan_id, rule_id, exc)
+        logger.warning("Failed to create compliance proposal: %s", exc)
+        return None
+
+
+def apply_fix(scan_id, rule_id, user_id):
+    """Multi-stage compliance fix pipeline.
+
+    Stages:
+      1. Lookup fix definition from rule pack
+      2. Create improvement_proposal (audit trail)
+      3. AI review via Bridge dispatcher (auto-approve low/medium)
+      4. Dry-run on host (validates without applying)
+      5. Apply on host (only if dry-run passed)
+      6. Verify the rule now passes (re-run check)
+
+    Returns: {success, proposal_id, stages: {review, dry_run, applied, verified}}
+    """
+    stages = {}
+
+    # Stage 0: Lookup fix definition (needed for both normal + blocklisted flow)
+    lookup, err = _lookup_fix_def(scan_id, rule_id)
+    if err:
+        return {"success": False, "error": err, "stages": stages}
+
+    # Blocklisted rules dispatch to Repair Bay for AI-assisted remediation
+    # instead of blocking outright. F.O.R.G.E. generates a patch, human reviews
+    # it in Repair Bay UI, then deploys manually.
+    blocked, blocklist_entry = _is_rule_blocked(rule_id)
+    if blocked:
+        # If already manually applied, just mark the scan result as pass
+        if blocklist_entry.get("manually_applied_at"):
+            _mark_scan_result_fixed(scan_id, rule_id)
+            return {
+                "success": True,
+                "manual_only": True,
+                "already_applied": True,
+                "blocklist_entry": blocklist_entry,
+                "stages": {
+                    "manual": {"success": True, "note": "Previously marked as manually applied"},
+                },
+            }
+
+        # Dispatch to Repair Bay
+        repair_bay_result = _dispatch_to_repair_bay(scan_id, rule_id, lookup["fix_def"], blocklist_entry, user_id)
+        return {
+            "success": False,
+            "manual_only": True,
+            "dispatched_to_repair_bay": repair_bay_result.get("success", False),
+            "proposal_id": repair_bay_result.get("proposal_id"),
+            "patch_preview": repair_bay_result.get("patch_preview"),
+            "repair_bay_url": repair_bay_result.get("repair_bay_url"),
+            "error": (
+                f"Rule {rule_id} dispatched to Repair Bay. "
+                f"F.O.R.G.E. has been asked to generate a remediation patch. "
+                f"Review in Repair Bay before deploying."
+            ),
+            "blocklist_entry": blocklist_entry,
+            "manual_steps": blocklist_entry.get("manual_steps", ""),
+            "stages": {
+                "blocked": {
+                    "success": False,
+                    "reason": "blocklist",
+                    "rule_id": rule_id,
+                    "risk_level": blocklist_entry.get("risk_level", "high"),
+                },
+                "repair_bay_dispatch": {
+                    "success": repair_bay_result.get("success", False),
+                    "proposal_id": repair_bay_result.get("proposal_id"),
+                    "agent": "F.O.R.G.E.",
+                    "patch_generated": bool(repair_bay_result.get("patch_preview")),
+                },
+            },
+        }
+
+    fix_def = lookup["fix_def"]
+    pack_id = lookup["pack_id"]
+    before_value = lookup["before_value"]
+    severity = lookup["severity"]
+    rule_meta = lookup["rule_meta"] or {}
+
+    hc = _get_host_client()
+    if not hc["available"]():
+        return {"success": False, "error": "Host command queue unavailable", "stages": stages}
+
+    # Stage 1: Create proposal (audit trail)
+    proposal_id = _create_compliance_proposal(scan_id, rule_id, rule_meta, severity, fix_def)
+
+    # Stage 2: AI review
+    review = _ai_review_fix(fix_def, rule_meta, severity)
+    stages["review"] = review
+
+    # Raw command fixes ALWAYS require human approval regardless of AI review
+    is_command_fix = fix_def.get("type") == "command"
+    if is_command_fix:
+        review["risk_level"] = "high"
+        review["reasoning"] = review.get("reasoning", "") + " | Raw command fixes always require human approval."
+
+    # High/critical risk → escalate to Telegram approval instead of rejecting
+    if is_command_fix or review.get("risk_level") in ("high", "critical") or not review.get("approve"):
+        escalation = _escalate_fix_to_telegram(scan_id, rule_id, fix_def, severity, review, user_id, proposal_id)
+        stages["escalation"] = escalation
+        _record_remediation(
+            scan_id,
+            rule_id,
+            pack_id,
+            fix_def,
+            before_value,
+            user_id,
+            "pending",
+            proposal_id,
+            "escalated",
+            review,
+            None,
+            None,
+        )
+        return {
+            "success": False,
+            "pending_approval": True,
+            "approval_id": escalation.get("approval_id"),
+            "error": (
+                f"High/critical severity — awaiting Telegram approval. "
+                f"Reason: {review.get('reasoning', 'risk too high')}"
+            ),
+            "proposal_id": proposal_id,
+            "stages": stages,
+        }
+
+    # Stage 3: Dry-run
+    dry_run = _execute_fix_stage(fix_def, dry_run=True)
+    stages["dry_run"] = dry_run
+    if not dry_run.get("success"):
+        _record_remediation(
+            scan_id,
+            rule_id,
+            pack_id,
+            fix_def,
+            before_value,
+            user_id,
+            "failed",
+            proposal_id,
+            "dry_run",
+            review,
+            dry_run,
+            None,
+        )
+        return {
+            "success": False,
+            "error": f"Dry-run failed: {dry_run.get('error', 'unknown')}",
+            "proposal_id": proposal_id,
+            "stages": stages,
+        }
+
+    # Capture BEFORE snapshot for file_line fixes (git-style rollback)
+    snapshot_before = None
+    if fix_def.get("type") == "file_line":
+        snapshot_before = _read_host_file_safe(fix_def.get("path", ""))
+
+    # Stage 4: Apply for real
+    applied = _execute_fix_stage(fix_def, dry_run=False)
+    stages["applied"] = applied
+    if not applied.get("success"):
+        _record_remediation(
+            scan_id,
+            rule_id,
+            pack_id,
+            fix_def,
+            before_value,
+            user_id,
+            "failed",
+            proposal_id,
+            "applied",
+            review,
+            dry_run,
+            applied,
+        )
+        return {
+            "success": False,
+            "error": f"Apply failed: {applied.get('error', 'unknown')}",
+            "proposal_id": proposal_id,
+            "stages": stages,
+        }
+
+    # Stage 5: Verify
+    verified = _verify_fix(fix_def, before_value)
+    stages["verified"] = verified
+
+    overall_success = verified.get("success", False)
+    remediation_id = _record_remediation(
+        scan_id,
+        rule_id,
+        pack_id,
+        fix_def,
+        before_value,
+        user_id,
+        "success" if overall_success else "failed",
+        proposal_id,
+        "verified",
+        review,
+        dry_run,
+        verified,
+    )
+
+    # Mark the scan result as passing so UI stops showing it as failing
+    if overall_success:
+        _mark_scan_result_fixed(scan_id, rule_id)
+
+    # Capture AFTER snapshot for file_line fixes (git-style diff + rollback)
+    if fix_def.get("type") == "file_line" and remediation_id:
+        snapshot_after = _read_host_file_safe(fix_def.get("path", ""))
+        snapshot_id = _capture_file_snapshot(
+            file_path=fix_def.get("path", ""),
+            content_before=snapshot_before,
+            content_after=snapshot_after,
+            remediation_id=remediation_id,
+            proposal_id=proposal_id,
+            change_summary=f"{rule_id}: {fix_def.get('line', '')[:100]}",
+        )
+        stages["snapshot"] = {
+            "success": snapshot_id is not None,
+            "snapshot_id": snapshot_id,
+            "file": fix_def.get("path", ""),
+        }
+
+    # Update proposal status
+    if proposal_id:
         try:
             with get_db_cursor(commit=True) as (conn, cur):
                 cur.execute(
-                    """
-                    INSERT INTO compliance_remediations
-                        (scan_id, rule_id, pack_id, action_type, command_executed,
-                         result, risk_level, executed_by, before_value, executed_at)
-                    VALUES (%s, %s, %s, %s, %s, 'failed', %s, %s, %s, NOW())
-                    """,
+                    """UPDATE improvement_proposals
+                       SET status = %s, deployed_at = NOW(),
+                           execution_results = %s
+                       WHERE id = %s""",
                     (
-                        scan_id,
-                        rule_id,
-                        pack_id,
-                        fix_type,
-                        command_executed,
-                        fix_def.get("risk", "medium"),
-                        user_id,
-                        before_value,
+                        "deployed" if overall_success else "failed",
+                        Json({"stages": stages}),
+                        proposal_id,
                     ),
                 )
         except Exception:
             pass
-        return {"success": False, "error": str(exc)}
+
+    return {
+        "success": overall_success,
+        "proposal_id": proposal_id,
+        "stages": stages,
+        "fix_type": fix_def.get("type"),
+    }
+
+
+def _record_remediation(
+    scan_id,
+    rule_id,
+    pack_id,
+    fix_def,
+    before_value,
+    user_id,
+    result,
+    proposal_id,
+    stage,
+    review_result,
+    dry_run_result,
+    verification_result,
+):
+    """Insert a remediation row with all pipeline stage results. Returns remediation_id or None."""
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """INSERT INTO compliance_remediations
+                       (scan_id, rule_id, pack_id, action_type, command_executed,
+                        result, risk_level, executed_by, before_value, executed_at,
+                        proposal_id, stage, review_result, dry_run_result, verification_result)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(),
+                           %s, %s, %s, %s, %s)
+                   RETURNING id""",
+                (
+                    scan_id,
+                    rule_id,
+                    pack_id,
+                    fix_def.get("type", ""),
+                    json.dumps(fix_def),
+                    result,
+                    fix_def.get("risk", "medium"),
+                    user_id,
+                    before_value,
+                    proposal_id,
+                    stage,
+                    Json(review_result) if review_result else None,
+                    Json(dry_run_result) if dry_run_result else None,
+                    Json(verification_result) if verification_result else None,
+                ),
+            )
+            row = cur.fetchone()
+            return row["id"] if isinstance(row, dict) else row[0]
+    except Exception as exc:
+        logger.warning("Failed to record remediation: %s", exc)
+        return None
 
 
 # ============================================================================

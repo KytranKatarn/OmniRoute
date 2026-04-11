@@ -1,0 +1,86 @@
+suite:
+  name: "Security Network — Scanner E2E Tests"
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: "Scanner tab loads with 5 vulnerability cards"
+    type: e2e
+    path: /tools/security-network
+    actions:
+      - click: '[data-tab="scanners"]'
+      - click: '[data-subtab="scanners-vuln"]'
+      - wait_for: '.sn-scanner-card'
+        timeout: 5000
+    expect:
+      selector_count:
+        '.sn-scanner-card': 5
+      selector_visible:
+        '#scanner-cards-grid': true
+      screenshot: true
+      max_load_ms: 8000
+
+  - name: "Nmap LCARS modal opens on card click"
+    type: e2e
+    path: /tools/security-network
+    actions:
+      - click: '[data-tab="scanners"]'
+      - click: '[data-subtab="scanners-vuln"]'
+      - wait_for: '#scanner-card-nmap'
+        timeout: 5000
+      - click: '#scanner-card-nmap'
+      - wait_for: '#scan-launch-modal.active'
+        timeout: 3000
+    expect:
+      selector_visible:
+        '#scan-launch-modal': true
+      selector_text:
+        '#scan-launch-title': 'NMAP SCAN'
+      screenshot: true
+
+  - name: "Campaign form has scanner checkboxes"
+    type: e2e
+    path: /tools/security-network
+    actions:
+      - click: '[data-tab="scanners"]'
+      - click: '[data-subtab="scanners-vuln"]'
+      - wait_for: '.sn-campaign-form'
+        timeout: 5000
+      - scroll_to: '.sn-campaign-form'
+    expect:
+      selector_visible:
+        '.sn-campaign-form': true
+        '#campaign-client': true
+        '#campaign-target': true
+      screenshot: true
+
+  - name: "Monitoring tab shows Nagios hero stats"
+    type: e2e
+    path: /tools/security-network
+    actions:
+      - click: '[data-tab="scanners"]'
+      - click: '[data-subtab="scanners-monitor"]'
+      - wait_for: '#nagios-hero'
+        timeout: 5000
+      - wait: 2000
+    expect:
+      selector_visible:
+        '#nagios-hero': true
+        '#nagios-hosts-up': true
+      screenshot: true
+
+  - name: "Reconnaissance modules load in categories"
+    type: e2e
+    path: /tools/security-network
+    actions:
+      - click: '[data-tab="scanners"]'
+      - click: '[data-subtab="scanners-recon"]'
+      - wait_for: '.sn-recon-category'
+        timeout: 5000
+    expect:
+      selector_visible:
+        '#recon-modules-container': true
+      screenshot: true
+      max_load_ms: 8000

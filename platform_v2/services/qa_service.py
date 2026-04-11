@@ -1,0 +1,439 @@
+"""P.R.O.B.E. QA Orchestrator Service — runs test suites, stores results, alerts on failure.
+
+Import:
+    from services.qa_service import run_suite, get_run_results, get_recent_runs,
+        get_suites, create_suite_from_yaml
+"""
+
+import logging
+import os
+import time
+
+import requests as http_requests
+from psycopg2.extras import Json
+
+from database import get_db_cursor
+
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+
+def run_suite(suite_id, triggered_by="manual"):
+    """Execute all specs in a test suite and record results.
+
+    Returns dict: {success, run_id, status, total, passed, failed, errors}
+    """
+    # Fetch the suite
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            "SELECT id, name, description, target_url, spec, suite_type "
+            "FROM qa_test_suites WHERE id = %s AND is_active = true",
+            (suite_id,),
+        )
+        suite = cur.fetchone()
+        if not suite:
+            return {"success": False, "error": f"Suite {suite_id} not found or inactive"}
+        suite = dict(suite)
+
+    # Create the run record
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "INSERT INTO qa_test_runs (suite_id, triggered_by, status) " "VALUES (%s, %s, 'running') RETURNING id",
+            (suite_id, triggered_by),
+        )
+        run_id = cur.fetchone()["id"]
+
+    # Import spec runner inside function to avoid circular imports
+    from services.qa_spec_runner import execute_spec
+
+    # execute_spec takes the full spec dict {suite: ..., tests: [...]}
+    # and returns a list of result dicts, one per test
+    spec_data = suite.get("spec", {})
+
+    passed = 0
+    failed = 0
+    errors = 0
+    start_time = time.time()
+
+    try:
+        results = execute_spec(spec_data)
+    except Exception as exc:
+        logger.error("Suite %s execution failed: %s", suite_id, exc)
+        results = [
+            {
+                "test_name": "suite_execution",
+                "test_type": "api",
+                "status": "error",
+                "error_message": str(exc)[:500],
+            }
+        ]
+
+    # Store each result in DB
+    for result in results:
+        status = result.get("status", "error")
+        if status == "pass":
+            passed += 1
+        elif status == "fail":
+            failed += 1
+        elif status == "skip":
+            pass  # skips don't count as errors
+        else:
+            errors += 1
+
+        # expected_status may be a list (e.g. [302, 401]) — store first value
+        expected = result.get("expected_status")
+        if isinstance(expected, list):
+            expected = expected[0] if expected else None
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """INSERT INTO qa_test_results
+                   (run_id, test_name, test_type, status, url, method,
+                    expected_status, actual_status, response_time_ms,
+                    error_message, screenshot_path, assertions)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                (
+                    run_id,
+                    result.get("test_name", "unnamed"),
+                    result.get("test_type", "unknown"),
+                    status,
+                    result.get("url"),
+                    result.get("method"),
+                    expected,
+                    result.get("actual_status"),
+                    result.get("response_time_ms"),
+                    result.get("error_message"),
+                    result.get("screenshot_path"),
+                    Json(result.get("assertions")) if result.get("assertions") else None,
+                ),
+            )
+
+    total = passed + failed + errors
+    duration_ms = int((time.time() - start_time) * 1000)
+    run_status = "completed" if failed == 0 and errors == 0 else "failed"
+
+    # Update the run record with totals
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """UPDATE qa_test_runs
+               SET status = %s, total_tests = %s, passed = %s, failed = %s,
+                   errors = %s, duration_ms = %s, completed_at = NOW()
+               WHERE id = %s""",
+            (run_status, total, passed, failed, errors, duration_ms, run_id),
+        )
+
+    # Alert on failures
+    if failed > 0 or errors > 0:
+        try:
+            _send_qa_telegram_alert(
+                suite_name=suite["name"],
+                run_id=run_id,
+                total=total,
+                passed=passed,
+                failed=failed,
+                errors=errors,
+                results=results,
+            )
+        except Exception as exc:
+            logger.error("Telegram alert failed: %s", exc)
+
+        # Auto-create Repair Bay proposals for actionable failures
+        try:
+            _create_proposals_from_failures(
+                suite_name=suite["name"],
+                run_id=run_id,
+                results=results,
+            )
+        except Exception as exc:
+            logger.error("Auto-proposal creation failed: %s", exc)
+
+    return {
+        "success": True,
+        "run_id": run_id,
+        "status": run_status,
+        "total": total,
+        "passed": passed,
+        "failed": failed,
+        "errors": errors,
+    }
+
+
+def get_run_results(run_id):
+    """Fetch a run and all its test results.
+
+    Returns dict with run info + results list, or None if not found.
+    """
+    with get_db_cursor() as (conn, cur):
+        # Fetch run
+        cur.execute(
+            """SELECT r.id, r.suite_id, r.triggered_by, r.status,
+                      r.total_tests, r.passed, r.failed, r.errors,
+                      r.duration_ms, r.report_path, r.started_at, r.completed_at,
+                      s.name AS suite_name
+               FROM qa_test_runs r
+               JOIN qa_test_suites s ON s.id = r.suite_id
+               WHERE r.id = %s""",
+            (run_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        run = dict(row)
+
+        # Fetch results
+        cur.execute(
+            """SELECT id, test_name, test_type, status, url, method,
+                      expected_status, actual_status, response_time_ms,
+                      error_message, screenshot_path, assertions, created_at
+               FROM qa_test_results
+               WHERE run_id = %s
+               ORDER BY id""",
+            (run_id,),
+        )
+        results = []
+        for r in cur.fetchall():
+            rd = dict(r)
+            # Add viewable screenshot URL
+            if rd.get("screenshot_path"):
+                filename = rd["screenshot_path"].rsplit("/", 1)[-1]
+                rd["screenshot_url"] = f"/api/qa/screenshots/{filename}"
+            results.append(rd)
+
+    run["results"] = results
+    return run
+
+
+def get_recent_runs(limit=20):
+    """Fetch recent test runs with suite name, ordered by started_at DESC."""
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """SELECT r.id, r.suite_id, s.name AS suite_name,
+                      r.triggered_by, r.status, r.total_tests,
+                      r.passed, r.failed, r.errors,
+                      r.duration_ms, r.started_at, r.completed_at
+               FROM qa_test_runs r
+               JOIN qa_test_suites s ON s.id = r.suite_id
+               ORDER BY r.started_at DESC
+               LIMIT %s""",
+            (limit,),
+        )
+        return [dict(row) for row in cur.fetchall()]
+
+
+def get_suites():
+    """Fetch all active test suites."""
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """SELECT id, name, description, target_url, suite_type,
+                      user_id, is_active, created_at, updated_at
+               FROM qa_test_suites
+               WHERE is_active = true
+               ORDER BY name"""
+        )
+        return [dict(row) for row in cur.fetchall()]
+
+
+def create_suite_from_yaml(file_path, suite_type="internal", user_id=None):
+    """Load a YAML spec file and insert it as a new test suite.
+
+    Returns the new suite_id.
+    """
+    from services.qa_spec_runner import load_spec_from_file
+
+    spec_data = load_spec_from_file(file_path)
+
+    name = spec_data.get("name", os.path.basename(file_path))
+    description = spec_data.get("description", "")
+    target_url = spec_data.get("target_url", "http://192.168.1.200:3000")
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """INSERT INTO qa_test_suites
+               (name, description, target_url, spec, suite_type, user_id)
+               VALUES (%s, %s, %s, %s, %s, %s)
+               RETURNING id""",
+            (name, description, target_url, Json(spec_data), suite_type, user_id),
+        )
+        suite_id = cur.fetchone()["id"]
+
+    logger.info("Created QA suite '%s' (id=%s) from %s", name, suite_id, file_path)
+    return suite_id
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+def _send_qa_telegram_alert(suite_name, run_id, total, passed, failed, errors, results):
+    """Send a Telegram alert when a QA run has failures.
+
+    Skips silently if TELEGRAM_BOT_TOKEN is not set or no authorized users exist.
+    """
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    if not token:
+        return
+
+    # Build failure list (max 5)
+    failure_lines = []
+    for r in results:
+        if r.get("status") in ("failed", "error"):
+            name = r.get("test_name", "unknown")
+            err = r.get("error_message", "no details")
+            if len(err) > 120:
+                err = err[:117] + "..."
+            failure_lines.append(f"  - {name}: {err}")
+            if len(failure_lines) >= 5:
+                remaining = (failed + errors) - 5
+                if remaining > 0:
+                    failure_lines.append(f"  _...and {remaining} more_")
+                break
+
+    message = (
+        "\U0001f534 *P.R.O.B.E. QA Alert*\n\n"
+        f"Suite: *{suite_name}*\n"
+        f"Run ID: `{run_id}`\n"
+        f"Passed: {passed} | Failed: {failed} | Errors: {errors} | Total: {total}\n\n"
+        "Failed tests:\n" + "\n".join(failure_lines)
+    )
+
+    # Fetch authorized Telegram users
+    with get_db_cursor() as (conn, cur):
+        cur.execute("SELECT telegram_id FROM telegram_users WHERE is_authorized = true")
+        users = [row[0] for row in cur.fetchall()]
+
+    if not users:
+        logger.debug("No authorized Telegram users for QA alert")
+        return
+
+    api_url = f"https://api.telegram.org/bot{token}/sendMessage"
+    for chat_id in users:
+        try:
+            http_requests.post(
+                api_url,
+                json={
+                    "chat_id": chat_id,
+                    "text": message,
+                    "parse_mode": "Markdown",
+                },
+                timeout=10,
+            )
+        except Exception as exc:
+            logger.warning("Failed to send QA alert to %s: %s", chat_id, exc)
+
+
+def _create_proposals_from_failures(suite_name, run_id, results):
+    """Auto-create Repair Bay improvement proposals from QA test failures.
+
+    Follows the scan_pipeline pattern: dedup by source + test_name,
+    map severity from error type, insert into improvement_proposals.
+    """
+    failures = [r for r in results if r.get("status") in ("fail", "error")]
+    if not failures:
+        return
+
+    created = 0
+    for result in failures:
+        test_name = result.get("test_name", "unnamed")
+        error_msg = result.get("error_message", "No details")
+        test_type = result.get("test_type", "unknown")
+        url = result.get("url", "")
+        actual_status = result.get("actual_status")
+        expected_status = result.get("expected_status")
+
+        # Determine severity from error pattern
+        if "SSL" in error_msg or "certificate" in error_msg.lower():
+            severity = "high"
+            category = "security"
+        elif "Connection error" in error_msg or "timeout" in error_msg.lower():
+            severity = "high"
+            category = "availability"
+        elif actual_status == 404:
+            severity = "medium"
+            category = "quality"
+        elif actual_status and actual_status >= 500:
+            severity = "high"
+            category = "availability"
+        else:
+            severity = "medium"
+            category = "quality"
+
+        priority_map = {"high": "high", "medium": "medium", "low": "low"}
+        risk_map = {"high": "medium", "medium": "low", "low": "low"}
+
+        # Dedup: skip if open proposal exists for same source + test
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT id FROM improvement_proposals
+                   WHERE status NOT IN ('deployed', 'implemented', 'rejected',
+                                        'archived', 'failed')
+                     AND metadata->>'source' = 'qa_pipeline'
+                     AND metadata->>'test_name' = %s""",
+                (test_name,),
+            )
+            if cur.fetchone():
+                logger.debug("Skipping proposal for '%s' — open proposal exists", test_name)
+                continue
+
+        # Build proposal content
+        title = f"QA Failure: {test_name}"
+        if len(title) > 120:
+            title = title[:117] + "..."
+
+        description = (
+            f"**P.R.O.B.E. QA test failure detected**\n\n"
+            f"- **Suite:** {suite_name}\n"
+            f"- **Run ID:** {run_id}\n"
+            f"- **Test:** {test_name} ({test_type})\n"
+            f"- **URL:** {url}\n"
+        )
+        if expected_status and actual_status:
+            description += f"- **Expected:** {expected_status} → **Got:** {actual_status}\n"
+        description += f"- **Error:** {error_msg}\n"
+
+        metadata = {
+            "source": "qa_pipeline",
+            "test_name": test_name,
+            "test_type": test_type,
+            "suite_name": suite_name,
+            "run_id": run_id,
+            "url": url,
+            "severity": severity,
+            "auto_generated": True,
+        }
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """INSERT INTO improvement_proposals
+                   (title, category, description, priority, risk_level,
+                    status, metadata, collaboration_enabled)
+                   VALUES (%s, %s, %s, %s, %s, 'pending', %s, false)
+                   RETURNING id""",
+                (
+                    title,
+                    category,
+                    description,
+                    priority_map.get(severity, "medium"),
+                    risk_map.get(severity, "low"),
+                    Json(metadata),
+                ),
+            )
+            proposal_id = cur.fetchone()["id"]
+            created += 1
+            logger.info(
+                "Created proposal #%s for QA failure '%s' (%s)",
+                proposal_id,
+                test_name,
+                severity,
+            )
+
+    if created:
+        logger.info(
+            "P.R.O.B.E. auto-created %d Repair Bay proposals from run #%s",
+            created,
+            run_id,
+        )

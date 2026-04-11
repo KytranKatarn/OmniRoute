@@ -140,16 +140,16 @@ def register_device_routes(bp, admin_required_decorator):
                     SELECT
                         nts.device_ip,
                         nts.device_mac,
-                        ndu.user_name,
-                        ndu.device_label,
-                        ndu.device_type,
+                        COALESCE(nd.owner, nd.friendly_name, nd.hostname) AS user_name,
+                        nd.friendly_name AS device_label,
+                        nd.device_type,
                         MAX(nts.bytes_out) AS bytes_sent,
                         MAX(nts.bytes_in) AS bytes_recv,
                         MAX(nts.bytes_in + nts.bytes_out) AS bytes_total
                     FROM network_traffic_stats nts
-                    LEFT JOIN network_device_users ndu ON ndu.mac_address = nts.device_mac
+                    LEFT JOIN network_devices nd ON nd.ip_address = nts.device_ip::inet
                     WHERE nts.hour_bucket >= NOW() - INTERVAL '%s hours'
-                    GROUP BY nts.device_ip, nts.device_mac, ndu.user_name, ndu.device_label, ndu.device_type
+                    GROUP BY nts.device_ip, nts.device_mac, nd.owner, nd.friendly_name, nd.hostname, nd.device_type
                     ORDER BY bytes_total DESC
                     """,
                     (hours,),
@@ -184,15 +184,15 @@ def register_device_routes(bp, admin_required_decorator):
                 cur.execute(
                     """
                     SELECT
-                        COALESCE(ndu.user_name, 'Unknown') AS user_name,
+                        COALESCE(nd.owner, nd.friendly_name, nd.hostname, 'Unknown') AS user_name,
                         COUNT(DISTINCT nts.device_ip) AS device_count,
                         SUM(nts.bytes_out) AS bytes_sent,
                         SUM(nts.bytes_in) AS bytes_recv,
                         SUM(nts.bytes_in + nts.bytes_out) AS bytes_total
                     FROM network_traffic_stats nts
-                    LEFT JOIN network_device_users ndu ON ndu.mac_address = nts.device_mac
+                    LEFT JOIN network_devices nd ON nd.ip_address = nts.device_ip::inet
                     WHERE nts.hour_bucket >= NOW() - INTERVAL '%s hours'
-                    GROUP BY COALESCE(ndu.user_name, 'Unknown')
+                    GROUP BY COALESCE(nd.owner, nd.friendly_name, nd.hostname, 'Unknown')
                     ORDER BY bytes_total DESC
                     """,
                     (hours,),
@@ -230,22 +230,22 @@ def register_device_routes(bp, admin_required_decorator):
                     SELECT
                         nts.device_ip,
                         nts.device_mac,
-                        ndu.user_name,
-                        ndu.device_label,
-                        ndu.device_type,
+                        COALESCE(nd.owner, nd.friendly_name, nd.hostname) AS user_name,
+                        nd.friendly_name AS device_label,
+                        nd.device_type,
                         SUM(nts.bytes_in)  AS total_in,
                         SUM(nts.bytes_out) AS total_out,
                         COUNT(DISTINCT ddh.domain) AS unique_domains
                     FROM network_traffic_stats nts
-                    LEFT JOIN network_device_users ndu
-                        ON ndu.mac_address = nts.device_mac
+                    LEFT JOIN network_devices nd
+                        ON nd.ip_address = nts.device_ip::inet
                     LEFT JOIN device_dns_history ddh
                         ON ddh.device_ip = nts.device_ip
                         AND ddh.hour_bucket >= NOW() - INTERVAL '1 hour' * %s
                     WHERE nts.hour_bucket >= NOW() - INTERVAL '1 hour' * %s
                     GROUP BY
                         nts.device_ip, nts.device_mac,
-                        ndu.user_name, ndu.device_label, ndu.device_type
+                        nd.owner, nd.friendly_name, nd.hostname, nd.device_type
                     ORDER BY (SUM(nts.bytes_in) + SUM(nts.bytes_out)) DESC
                     """,
                     (hours, hours),
@@ -326,15 +326,12 @@ def register_device_routes(bp, admin_required_decorator):
                 cur.execute(
                     """
                     SELECT
-                        nts.device_mac,
-                        ndu.user_name,
-                        ndu.device_label,
-                        ndu.device_type
-                    FROM network_traffic_stats nts
-                    LEFT JOIN network_device_users ndu
-                        ON ndu.mac_address = nts.device_mac
-                    WHERE nts.device_ip = %s
-                    ORDER BY nts.hour_bucket DESC
+                        nd.mac_address,
+                        COALESCE(nd.owner, nd.friendly_name, nd.hostname) AS user_name,
+                        nd.friendly_name AS device_label,
+                        nd.device_type
+                    FROM network_devices nd
+                    WHERE nd.ip_address = %s::inet
                     LIMIT 1
                     """,
                     (device_ip,),
@@ -342,7 +339,7 @@ def register_device_routes(bp, admin_required_decorator):
                 info_row = cur.fetchone()
                 device_info = {
                     "ip": device_ip,
-                    "mac": info_row["device_mac"] if info_row else None,
+                    "mac": info_row["mac_address"] if info_row else None,
                     "user_name": info_row["user_name"] if info_row else None,
                     "device_label": info_row["device_label"] if info_row else None,
                     "device_type": info_row["device_type"] if info_row else None,
@@ -482,11 +479,11 @@ def register_device_routes(bp, admin_required_decorator):
                     f"""
                     SELECT
                         date_trunc('hour', nts.hour_bucket) AS hour,
-                        COALESCE(ndu.user_name, 'Unknown') AS user_name,
+                        COALESCE(nd.owner, nd.friendly_name, nd.hostname, 'Unknown') AS user_name,
                         SUM(nts.bytes_in) AS bytes_in,
                         SUM(nts.bytes_out) AS bytes_out
                     FROM network_traffic_stats nts
-                    LEFT JOIN network_device_users ndu ON ndu.mac_address = nts.device_mac
+                    LEFT JOIN network_devices nd ON nd.ip_address = nts.device_ip::inet
                     WHERE nts.hour_bucket >= NOW() - INTERVAL '{interval}'
                     GROUP BY hour, user_name
                     ORDER BY hour

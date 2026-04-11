@@ -14,8 +14,11 @@ from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
 
-GATEWAY_IP = "192.168.1.1"
+GATEWAY_IP = "192.168.1.254"
 HUB_IP = "192.168.1.200"
+WIFI_AP_IP = "192.168.1.251"
+# Devices wired directly to router — everything else goes through WiFi AP
+WIRED_IPS = {GATEWAY_IP, HUB_IP, WIFI_AP_IP}
 
 
 def register_topology_routes(bp, admin_required_decorator):
@@ -56,6 +59,12 @@ def register_topology_routes(bp, admin_required_decorator):
                     LEFT JOIN device_fingerprints df
                         ON df.device_ip = nts.device_ip
                     WHERE nts.hour_bucket >= NOW() - INTERVAL '%s hours'
+                      AND nts.device_ip LIKE '192.168.1.%%'
+                      AND nts.device_ip NOT IN ('192.168.1.255')
+                      AND nts.device_ip NOT LIKE '224.%%'
+                      AND nts.device_ip NOT LIKE '239.%%'
+                      AND nts.device_ip NOT LIKE '255.%%'
+                      AND nts.device_ip NOT LIKE 'fe80:%%'
                     GROUP BY
                         nts.device_ip,
                         nts.device_mac,
@@ -116,19 +125,100 @@ def register_topology_routes(bp, admin_required_decorator):
                     }
                 )
 
-            # -- Build link list (each device -> gateway) -----------------------
+            # -- Build link list (physical topology) ---------------------------
+            # Wired devices (.200 hub, .251 wifi AP) connect to gateway (.254)
+            # All other devices connect through WiFi AP (.251)
             links = []
+            seen_ips = {n["id"] for n in nodes}
+
+            # Ensure WiFi AP node exists
+            if WIFI_AP_IP not in seen_ips:
+                nodes.append(
+                    {
+                        "id": WIFI_AP_IP,
+                        "mac": None,
+                        "label": "WiFi AP",
+                        "user": None,
+                        "type": "access_point",
+                        "os": None,
+                        "bytes_total": 0,
+                        "is_gateway": False,
+                        "is_hub": False,
+                    }
+                )
+
             for node in nodes:
-                if node["id"] == GATEWAY_IP:
+                ip = node["id"]
+                if ip == GATEWAY_IP:
                     continue
-                if node["bytes_total"] > 0:
-                    links.append(
-                        {
-                            "source": node["id"],
-                            "target": GATEWAY_IP,
-                            "bytes": node["bytes_total"],
-                        }
-                    )
+                if node["bytes_total"] <= 0 and ip not in WIRED_IPS:
+                    continue
+                if ip in WIRED_IPS:
+                    # Hub and WiFi AP connect directly to router
+                    links.append({"source": ip, "target": GATEWAY_IP, "bytes": node["bytes_total"]})
+                else:
+                    # Everything else connects through WiFi AP
+                    links.append({"source": ip, "target": WIFI_AP_IP, "bytes": node["bytes_total"]})
+
+            # -- WAN layer: remote nodes + Internet cloud --------------------
+            internet_id = "INTERNET"
+            nodes.append(
+                {
+                    "id": internet_id,
+                    "mac": None,
+                    "label": "Internet",
+                    "user": None,
+                    "type": "cloud",
+                    "os": None,
+                    "bytes_total": 0,
+                    "is_gateway": False,
+                    "is_hub": False,
+                }
+            )
+            # Gateway connects to Internet
+            links.append({"source": GATEWAY_IP, "target": internet_id, "bytes": 0})
+
+            # Add remote/fleet nodes from DB
+            with get_db_cursor() as (conn2, cur2):
+                cur2.execute(
+                    """
+                    SELECT node_name, public_ip, hostname, status,
+                           node_type, location_label
+                    FROM remote_nodes
+                    WHERE hostname NOT LIKE '172.%%'
+                    ORDER BY node_name
+                    """
+                )
+                remote_rows = cur2.fetchall()
+
+            node_ids_added = {n["id"] for n in nodes}
+            for rn in remote_rows:
+                node_ip = rn["public_ip"] or rn["hostname"] or ""
+                if not node_ip or node_ip in node_ids_added:
+                    continue
+                node_ids_added.add(node_ip)
+                is_lan = node_ip.startswith("192.168.1.")
+
+                nodes.append(
+                    {
+                        "id": node_ip,
+                        "mac": None,
+                        "label": rn["node_name"],
+                        "user": rn["location_label"],
+                        "type": rn["node_type"] or "server",
+                        "os": None,
+                        "bytes_total": 0,
+                        "is_gateway": False,
+                        "is_hub": False,
+                        "status": rn["status"],
+                    }
+                )
+                if is_lan:
+                    # LAN fleet nodes connect through WiFi or wired
+                    links.append({"source": node_ip, "target": GATEWAY_IP, "bytes": 0})
+                else:
+                    # WAN nodes connect through Internet
+                    links.append({"source": node_ip, "target": internet_id, "bytes": 0})
 
             return jsonify(
                 {
@@ -164,6 +254,8 @@ def register_topology_routes(bp, admin_required_decorator):
                         COALESCE(SUM(nts.bytes_in + nts.bytes_out), 0) AS total_bytes
                     FROM network_traffic_stats nts
                     WHERE nts.hour_bucket >= NOW() - INTERVAL '%s hours'
+                      AND nts.device_ip LIKE '192.168.1.%%'
+                      AND nts.device_ip NOT IN ('192.168.1.255')
                     """,
                     (hours,),
                 )
@@ -181,6 +273,8 @@ def register_topology_routes(bp, admin_required_decorator):
                     LEFT JOIN network_device_users ndu
                         ON ndu.mac_address = nts.device_mac
                     WHERE nts.hour_bucket >= NOW() - INTERVAL '%s hours'
+                      AND nts.device_ip LIKE '192.168.1.%%'
+                      AND nts.device_ip NOT IN ('192.168.1.255')
                     GROUP BY nts.device_ip, ndu.device_label, ndu.user_name
                     ORDER BY bytes_total DESC
                     LIMIT 1

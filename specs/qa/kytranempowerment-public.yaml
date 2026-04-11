@@ -1,0 +1,124 @@
+suite:
+  name: "kytranempowerment.com — Public Site"
+  description: "Public website health checks — landing, services, directors, competitors"
+  base_url: "https://kytranempowerment.com"
+
+tests:
+  # ── Core Pages ──
+  - name: "Homepage loads"
+    type: api
+    method: GET
+    path: /
+    skip_auth: true
+    expect:
+      status: 200
+
+  - name: "Homepage contains company name"
+    type: page_load
+    path: /
+    skip_auth: true
+    expect:
+      status: 200
+      body_contains: "Kytran"
+      max_load_ms: 10000
+
+  # ── Service Pages ──
+  - name: "AI Services page loads"
+    type: api
+    method: GET
+    path: /ai-services.html
+    skip_auth: true
+    expect:
+      status: 200
+
+  - name: "Security Services page loads"
+    type: api
+    method: GET
+    path: /security-services.html
+    skip_auth: true
+    expect:
+      status: 200
+
+  - name: "Website Services page loads"
+    type: api
+    method: GET
+    path: /website-services.html
+    skip_auth: true
+    expect:
+      status: 200
+
+  - name: "System Operations page loads"
+    type: api
+    method: GET
+    path: /system-operations.html
+    skip_auth: true
+    expect:
+      status: 200
+
+  - name: "Business Suite page loads"
+    type: api
+    method: GET
+    path: /business-suite.html
+    skip_auth: true
+    expect:
+      status: 200
+
+  # ── Directors & Team ──
+  - name: "AI Directors page loads"
+    type: api
+    method: GET
+    path: /directors.html
+    skip_auth: true
+    expect:
+      status: 200
+
+  - name: "Directors data JSON loads"
+    type: api
+    method: GET
+    path: /directors.json
+    skip_auth: true
+    expect:
+      status: 200
+
+  # ── Competitors & About ──
+  - name: "Competitors page loads"
+    type: api
+    method: GET
+    path: /competitors.html
+    skip_auth: true
+    expect:
+      status: 200
+
+  # ── Static Assets ──
+  - name: "CSS loads"
+    type: api
+    method: GET
+    path: /styles.css
+    skip_auth: true
+    expect:
+      status: 200
+
+  - name: "Directors JS loads"
+    type: api
+    method: GET
+    path: /directors.js
+    skip_auth: true
+    expect:
+      status: 200
+
+  # ── Page Load Performance ──
+  - name: "Homepage performance"
+    type: page_load
+    path: /
+    skip_auth: true
+    expect:
+      status: 200
+      max_load_ms: 5000
+
+  - name: "AI Services performance"
+    type: page_load
+    path: /ai-services.html
+    skip_auth: true
+    expect:
+      status: 200
+      max_load_ms: 5000

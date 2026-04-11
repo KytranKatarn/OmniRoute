@@ -32,11 +32,12 @@ from .topology_routes import register_topology_routes
 from .threat_intel_routes import register_threat_intel_routes
 from .fingerprint_routes import register_fingerprint_routes
 from .speed_test_routes import register_speed_test_routes
-from .parental_routes import register_parental_routes
+from .supervision_routes import register_supervision_routes
 from .incident_routes import register_incident_routes
 from .honeypot_routes import register_honeypot_routes
 from .pcap_routes import register_pcap_routes
 from .sinkhole_routes import register_sinkhole_routes
+from .nagios_routes import register_nagios_routes
 
 register_compliance_routes(security_network_bp, _admin_required)
 register_defense_routes(security_network_bp, _admin_required)
@@ -58,11 +59,12 @@ register_topology_routes(security_network_bp, _admin_required)
 register_threat_intel_routes(security_network_bp, _admin_required)
 register_fingerprint_routes(security_network_bp, _admin_required)
 register_speed_test_routes(security_network_bp, _admin_required)
-register_parental_routes(security_network_bp, _admin_required)
+register_supervision_routes(security_network_bp, _admin_required)
 register_incident_routes(security_network_bp, _admin_required)
 register_honeypot_routes(security_network_bp, _admin_required)
 register_pcap_routes(security_network_bp, _admin_required)
 register_sinkhole_routes(security_network_bp, _admin_required)
+register_nagios_routes(security_network_bp, _admin_required)
 
 # Load rule packs on startup
 try:

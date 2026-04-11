@@ -1,0 +1,132 @@
+suite:
+  name: "ARCHIE Platform — Critical Paths"
+  description: "Core platform health checks — login, dashboard, key modules"
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  # ── API Health Checks ──
+  - name: "Login page loads"
+    type: api
+    method: GET
+    path: /login
+    skip_auth: true
+    expect:
+      status: 200
+
+  - name: "Dashboard requires auth"
+    type: api
+    method: GET
+    path: /dashboard
+    skip_auth: true
+    expect:
+      status: [302, 401]
+
+  - name: "Dashboard loads when authenticated"
+    type: api
+    method: GET
+    path: /dashboard
+    expect:
+      status: 200
+
+  - name: "Dev HQ loads"
+    type: api
+    method: GET
+    path: /dev-hq/
+    expect:
+      status: [200, 302]
+
+  - name: "Department HQ loads"
+    type: api
+    method: GET
+    path: /tools/department-hq/
+    expect:
+      status: 200
+
+  - name: "Security Network loads"
+    type: api
+    method: GET
+    path: /tools/security-network/
+    expect:
+      status: 200
+
+  - name: "Repair Bay loads"
+    type: api
+    method: GET
+    path: /tools/repair-bay/
+    expect:
+      status: [200, 302]
+
+  - name: "Consciousness module loads"
+    type: api
+    method: GET
+    path: /tools/consciousness/
+    expect:
+      status: 200
+
+  # ── API Endpoint Checks ──
+  - name: "Department HQ crew manifest API"
+    type: api
+    method: GET
+    path: /tools/department-hq/api/crew/manifest
+    expect:
+      status: 200
+      json_contains: {"success": true}
+
+  - name: "Dev HQ projects API"
+    type: api
+    method: GET
+    path: /dev-hq/api/projects
+    expect:
+      status: 200
+
+  - name: "Security Network overview API"
+    type: api
+    method: GET
+    path: /tools/security-network/api/overview
+    expect:
+      status: [200, 302]
+
+  - name: "QA suites API (self-test)"
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/qa/suites
+    expect:
+      status: 200
+      json_contains: {"success": true}
+
+  # ── Page Load Checks ──
+  - name: "Dashboard page renders"
+    type: page_load
+    path: /dashboard
+    expect:
+      status: 200
+      title_contains: "A.R.C.H.I.E."
+      max_load_ms: 8000
+
+  - name: "Security Network page renders"
+    type: page_load
+    path: /tools/security-network/
+    expect:
+      status: 200
+      max_load_ms: 8000
+
+  # ── E2E Flows ──
+  - name: "Login Flow"
+    type: e2e
+    steps:
+      - navigate: /login
+      - fill: {selector: "input[name='username']", value: "${ARCHIE_TEST_USERNAME}"}
+      - fill: {selector: "input[name='password']", value: "${ARCHIE_TEST_PASSWORD}"}
+      - click: "button[type='submit']"
+      - wait: {url_contains: "/dashboard", timeout: 8000}
+      - screenshot: "login-success"
+
+  - name: "Navigate to Security Network"
+    type: e2e
+    steps:
+      - navigate: /tools/security-network/
+      - wait: {url_contains: "security-network", timeout: 5000}
+      - screenshot: "security-network-loaded"

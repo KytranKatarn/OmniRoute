@@ -32,6 +32,70 @@ except ImportError:
 def register_report_routes(bp, admin_required_decorator):
     """Register all report endpoints on the security_network blueprint."""
 
+    @bp.route("/api/reports/dns-stats")
+    @login_required
+    @admin_required_decorator
+    def reports_dns_stats():
+        """Live DNS stats from AdGuard — queries, blocked, top domains, top clients."""
+        try:
+            from .adguard_service import AdGuardService
+
+            adguard = AdGuardService()
+            stats = adguard.get_stats()
+            if not stats:
+                return jsonify({"success": False, "error": "AdGuard unreachable"}), 503
+
+            # Enrich top clients with device names
+            from database import get_db_cursor
+
+            top_clients = []
+            for item in (stats.get("top_clients") or [])[:10]:
+                for ip, count in item.items():
+                    label = ip
+                    try:
+                        with get_db_cursor() as (conn, cur):
+                            cur.execute(
+                                """SELECT ndu.device_label, ndu.user_name
+                                   FROM network_device_users ndu
+                                   JOIN network_devices nd ON nd.mac_address = ndu.mac_address
+                                   WHERE nd.ip_address = %s LIMIT 1""",
+                                (ip,),
+                            )
+                            row = cur.fetchone()
+                            if row:
+                                label = row["device_label"] or row["user_name"] or ip
+                    except Exception:
+                        pass
+                    top_clients.append({"ip": ip, "label": label, "count": count})
+
+            total = stats.get("num_dns_queries", 0)
+            blocked = stats.get("num_blocked_filtering", 0)
+            rate = round((blocked / total * 100), 1) if total > 0 else 0
+
+            top_blocked = []
+            for item in (stats.get("top_blocked_domains") or [])[:10]:
+                for domain, count in item.items():
+                    top_blocked.append({"domain": domain, "count": count})
+
+            return jsonify(
+                {
+                    "success": True,
+                    "stats": {
+                        "total_queries": total,
+                        "blocked": blocked,
+                        "block_rate_pct": rate,
+                        "avg_processing_ms": round((stats.get("avg_processing_time", 0) or 0) * 1000, 2),
+                        "top_blocked": top_blocked,
+                        "top_clients": top_clients,
+                        "hourly_queries": stats.get("dns_queries", []),
+                        "hourly_blocked": stats.get("blocked_filtering", []),
+                    },
+                }
+            )
+        except Exception as exc:
+            logger.error("dns_stats error: %s", exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
     @bp.route("/api/reports/list")
     @login_required
     @admin_required_decorator
@@ -125,7 +189,13 @@ def register_report_routes(bp, admin_required_decorator):
         date_start = data.get("date_start")
         date_end = data.get("date_end")
 
-        valid_types = ["daily_summary", "weekly_report", "device_audit", "dns_analysis"]
+        valid_types = [
+            "daily_summary",
+            "weekly_report",
+            "device_audit",
+            "dns_analysis",
+            "dns_summary",
+        ]
         if report_type not in valid_types:
             return jsonify({"success": False, "error": f"Invalid report type: {report_type}"}), 400
 
@@ -134,6 +204,7 @@ def register_report_routes(bp, admin_required_decorator):
             "weekly_report": "Weekly Report",
             "device_audit": "Device Audit",
             "dns_analysis": "DNS Analysis",
+            "dns_summary": "DNS Summary (7-Day)",
         }
         title = f"{type_labels[report_type]} - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
 
@@ -154,7 +225,8 @@ def register_report_routes(bp, admin_required_decorator):
                         Json(content),
                     ),
                 )
-                report_id = cur.fetchone()[0]
+                row = cur.fetchone()
+                report_id = row["id"] if isinstance(row, dict) else row[0]
 
             return jsonify({"success": True, "id": report_id, "title": title})
         except Exception as e:
@@ -514,5 +586,74 @@ def _gather_report_content(report_type, date_start=None, date_end=None):
                 logger.debug("Report query failed (dns_providers): %s", e)
                 conn.rollback()
                 content["dns_providers"] = []
+
+        elif report_type == "dns_summary":
+            # Pull live AdGuard stats for DNS summary report
+            try:
+                from .adguard_service import AdGuardService
+
+                adguard = AdGuardService()
+                stats = adguard.get_stats() or {}
+                total = stats.get("num_dns_queries", 0)
+                blocked = stats.get("num_blocked_filtering", 0)
+
+                content["total_queries"] = total
+                content["blocked"] = blocked
+                content["block_rate_pct"] = round(blocked / total * 100, 1) if total > 0 else 0
+                content["avg_processing_ms"] = round((stats.get("avg_processing_time", 0) or 0) * 1000, 2)
+
+                # Top blocked domains
+                top_blocked = []
+                for item in (stats.get("top_blocked_domains") or [])[:15]:
+                    for domain, count in item.items():
+                        top_blocked.append({"domain": domain, "count": count})
+                content["top_blocked_domains"] = top_blocked
+
+                # Top clients with device name enrichment
+                top_clients = []
+                for item in (stats.get("top_clients") or [])[:10]:
+                    for ip, count in item.items():
+                        label = ip
+                        try:
+                            cur.execute(
+                                """SELECT ndu.device_label, ndu.user_name
+                                   FROM network_device_users ndu
+                                   JOIN network_devices nd
+                                     ON nd.mac_address = ndu.mac_address
+                                   WHERE nd.ip_address = %s LIMIT 1""",
+                                (ip,),
+                            )
+                            row = cur.fetchone()
+                            if row:
+                                label = row[0] or row[1] or ip
+                        except Exception:
+                            conn.rollback()
+                        top_clients.append({"ip": ip, "label": label, "count": count})
+                content["top_clients"] = top_clients
+
+                # Hourly trend data
+                content["hourly_queries"] = stats.get("dns_queries", [])
+                content["hourly_blocked"] = stats.get("blocked_filtering", [])
+
+                # Upstream performance
+                upstreams = []
+                for item in (stats.get("top_upstreams_avg_time") or [])[:5]:
+                    for upstream, avg_time in item.items():
+                        upstreams.append(
+                            {
+                                "upstream": upstream,
+                                "avg_time_ms": round(avg_time * 1000, 2),
+                            }
+                        )
+                content["upstream_performance"] = upstreams
+
+                # Filter status
+                filtering = adguard._request("GET", "filtering/status") or {}
+                active_filters = [f["name"] for f in filtering.get("filters", []) if f.get("enabled")]
+                content["active_filters"] = active_filters
+                content["user_rules_count"] = len(filtering.get("user_rules", []))
+            except Exception as e:
+                logger.debug("Report query failed (dns_summary): %s", e)
+                content["error"] = str(e)
 
     return content

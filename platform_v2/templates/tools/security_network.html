@@ -110,9 +110,9 @@
             <i data-lucide="network" style="width:16px;height:16px"></i>
             Topology
         </button>
-        <button class="tab-btn" data-tab="parental">
-            <i data-lucide="clock" style="width:16px;height:16px"></i>
-            Parental
+        <button class="tab-btn" data-tab="supervision">
+            <i data-lucide="eye" style="width:16px;height:16px"></i>
+            Supervision
         </button>
         <button class="tab-btn" data-tab="intel">
             <i data-lucide="radar" style="width:16px;height:16px"></i>
@@ -1084,6 +1084,9 @@
             <button class="subtab-btn" data-subtab="scanners-recon">
                 <i data-lucide="radar" style="width:14px;height:14px"></i> Reconnaissance
             </button>
+            <button class="subtab-btn" data-subtab="scanners-monitor">
+                <i data-lucide="activity" style="width:14px;height:14px"></i> Monitoring
+            </button>
         </div>
     <!-- Surveillance subtab -->
     <div id="subtab-scanners-surv" class="subtab-content active">
@@ -1175,120 +1178,312 @@
 
         <div id="subtab-scanners-vuln" class="subtab-content">
 
-        <div class="stats-grid" style="grid-template-columns:repeat(5,1fr)">
-            <div class="stat-card" style="cursor:pointer" onclick="showScannerForm('nmap')">
-                <div class="stat-label"><span data-i18n="security_network.nmap">Nmap</span></div>
-                <div style="margin:8px 0"><i data-lucide="network" style="width:24px;height:24px;color:var(--archie-cyan)"></i></div>
-                <div class="stat-subtitle"><span data-i18n="security_network.port_scanner">Port Scanner</span></div>
+        <!-- Scanner Cards Grid -->
+        <div class="sn-scanner-grid" id="scanner-cards-grid">
+            <div class="loading-state"><span class="spinner"></span> Loading scanners...</div>
+        </div>
+
+        <!-- Campaign Launch Form -->
+        <div class="sn-campaign-form" style="margin-top:20px">
+            <div class="sn-campaign-header">
+                <i data-lucide="briefcase" style="width:16px;height:16px;color:var(--archie-cyan)"></i>
+                <span>CLIENT SCAN CAMPAIGN</span>
             </div>
-            <div class="stat-card" style="cursor:pointer" onclick="showScannerForm('nikto')">
-                <div class="stat-label"><span data-i18n="security_network.nikto">Nikto</span></div>
-                <div style="margin:8px 0"><i data-lucide="bug" style="width:24px;height:24px;color:var(--archie-orange)"></i></div>
-                <div class="stat-subtitle"><span data-i18n="security_network.web_vuln_scanner">Web Vuln Scanner</span></div>
-            </div>
-            <div class="stat-card" style="cursor:pointer" onclick="showScannerForm('nuclei')">
-                <div class="stat-label"><span data-i18n="security_network.nuclei">Nuclei</span></div>
-                <div style="margin:8px 0"><i data-lucide="atom" style="width:24px;height:24px;color:var(--archie-green)"></i></div>
-                <div class="stat-subtitle"><span data-i18n="security_network.template_scanner">Template Scanner</span></div>
-            </div>
-            <div class="stat-card" style="cursor:pointer" onclick="showScannerForm('ssl')">
-                <div class="stat-label"><span data-i18n="security_network.ssl_tls">SSL/TLS</span></div>
-                <div style="margin:8px 0"><i data-lucide="lock" style="width:24px;height:24px;color:var(--archie-blue)"></i></div>
-                <div class="stat-subtitle"><span data-i18n="security_network.certificate_check">Certificate Check</span></div>
-            </div>
-            <div class="stat-card" style="cursor:pointer" onclick="showScannerForm('zap')">
-                <div class="stat-label"><span data-i18n="security_network.zap">ZAP</span></div>
-                <div style="margin:8px 0"><i data-lucide="zap" style="width:24px;height:24px;color:var(--archie-red)"></i></div>
-                <div class="stat-subtitle"><span data-i18n="security_network.web_app_scanner">Web App Scanner</span></div>
+            <div class="sn-campaign-body">
+                <div class="sn-campaign-row">
+                    <div class="form-group" style="flex:1">
+                        <label class="form-label">Client / Company</label>
+                        <input type="text" class="form-input" id="campaign-client" placeholder="e.g. Acme Corp">
+                    </div>
+                    <div class="form-group" style="flex:1">
+                        <label class="form-label">Target</label>
+                        <input type="text" class="form-input" id="campaign-target" placeholder="IP, hostname, or URL">
+                    </div>
+                    <div class="form-group" style="max-width:150px">
+                        <label class="form-label">Profile</label>
+                        <select class="form-select" id="campaign-profile">
+                            <option value="quick">Quick</option>
+                            <option value="standard" selected>Standard</option>
+                            <option value="full">Full</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="sn-campaign-checks">
+                    <label class="sn-check-item" style="--chk-color:#00ffff"><input type="checkbox" value="nmap" checked> <i data-lucide="network" style="width:14px;height:14px"></i> Nmap</label>
+                    <label class="sn-check-item" style="--chk-color:#ffaa00"><input type="checkbox" value="nikto" checked> <i data-lucide="bug" style="width:14px;height:14px"></i> Nikto</label>
+                    <label class="sn-check-item" style="--chk-color:#00ff41"><input type="checkbox" value="nuclei" checked> <i data-lucide="atom" style="width:14px;height:14px"></i> Nuclei</label>
+                    <label class="sn-check-item" style="--chk-color:#0ea5e9"><input type="checkbox" value="ssl"> <i data-lucide="lock" style="width:14px;height:14px"></i> SSL/TLS</label>
+                    <label class="sn-check-item" style="--chk-color:#ff6b6b"><input type="checkbox" value="zap"> <i data-lucide="zap" style="width:14px;height:14px"></i> ZAP</label>
+                </div>
+                <div style="display:flex;justify-content:flex-end;margin-top:10px">
+                    <button class="btn btn-primary" onclick="launchCampaign()">
+                        <i data-lucide="rocket" style="width:14px;height:14px"></i> Launch Campaign
+                    </button>
+                </div>
             </div>
         </div>
 
-        <div class="card" id="scanner-form-card" style="display:none">
-            <div class="card-header">
-                <span class="card-title" id="scanner-form-title"><span data-i18n="security_network.scanner">Scanner</span></span>
-                <button class="btn btn-sm" onclick="document.getElementById('scanner-form-card').style.display='none'"><span data-i18n="security_network.close">Close</span></button>
+        <!-- Campaign History -->
+        <div class="section-header">
+            <i data-lucide="folder-open" style="width:18px;height:18px"></i> Campaign Reports
+            <button class="btn btn-sm" onclick="loadCampaigns()" style="margin-left:auto">
+                <i data-lucide="refresh-cw" style="width:12px;height:12px"></i>
+            </button>
+        </div>
+        <div id="campaign-list">
+            <div class="loading-state"><span class="spinner"></span> Loading campaigns...</div>
+        </div>
+
+        <!-- ==================== SCAN LAUNCH LCARS MODAL ==================== -->
+        <div class="bm-overlay" id="scan-launch-modal" style="--bm-accent:#00ffff;--bm-accent-rgb:0,255,255;">
+            <div class="bm-shell" style="max-width:520px;">
+                <div class="bm-frame">
+                    <div class="bm-frame-elbow-top"></div>
+                    <div class="bm-frame-seg"></div>
+                    <div class="bm-frame-seg dim"></div>
+                    <div class="bm-frame-light on"></div>
+                    <div class="bm-frame-light amber"></div>
+                    <div class="bm-frame-seg purple"></div>
+                    <div class="bm-frame-fill"></div>
+                    <div class="bm-frame-elbow-bottom"></div>
+                </div>
+                <div class="bm-content">
+                    <div class="bm-header">
+                        <span class="bm-header-title" id="scan-launch-title">SCANNER</span>
+                        <div class="bm-header-strip">
+                            <div class="bm-header-pip w1"></div>
+                            <div class="bm-header-pip w2"></div>
+                            <div class="bm-header-pip w3"></div>
+                            <button class="bm-close" onclick="closeScanLaunch()">&times;</button>
+                        </div>
+                    </div>
+                    <div class="bm-body" style="padding:20px 24px">
+                        <div class="form-group" style="margin-bottom:14px">
+                            <label class="form-label">Target</label>
+                            <input type="text" class="form-input" id="scan-target" placeholder="IP, hostname, or URL">
+                        </div>
+                        <div class="form-group" style="margin-bottom:14px">
+                            <label class="form-label">Scan Profile</label>
+                            <select class="form-select" id="scan-profile">
+                                <option value="quick">Quick</option>
+                                <option value="standard" selected>Standard</option>
+                                <option value="full">Full</option>
+                            </select>
+                        </div>
+                        <div class="sn-scan-profile-desc" id="scan-profile-desc" style="margin-bottom:10px"></div>
+                        <div id="scan-confirm-internal" style="display:none;margin-bottom:10px">
+                            <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--archie-orange)">
+                                <input type="checkbox" id="scan-confirm-checkbox"> Confirm scan of internal network target
+                            </label>
+                        </div>
+                    </div>
+                    <div class="bm-actions">
+                        <button class="btn-cancel" onclick="closeScanLaunch()">Cancel</button>
+                        <button class="btn-submit" id="scan-run-btn" onclick="runVulnScan()">
+                            <i data-lucide="play" style="width:14px;height:14px"></i> Run Scan
+                        </button>
+                    </div>
+                    <div class="bm-footer">
+                        <div class="bm-footer-strip">
+                            <div class="bm-footer-dot cyan"></div>
+                            <div class="bm-footer-dot gold"></div>
+                            <div class="bm-footer-dot green"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label"><span data-i18n="security_network.target_2">Target</span></label>
-                    <input type="text" class="form-input" id="scan-target" placeholder="IP, hostname, or URL">
-                </div>
-                <div class="form-group" style="max-width:160px" id="scan-type-group">
-                    <label class="form-label"><span data-i18n="security_network.scan_type">Scan Type</span></label>
-                    <select class="form-select" id="scan-type">
-                        <option value="quick"><span data-i18n="security_network.quick">Quick</span></option>
-                        <option value="full"><span data-i18n="security_network.full">Full</span></option>
-                        <option value="stealth"><span data-i18n="security_network.stealth">Stealth</span></option>
-                    </select>
-                </div>
-                <button class="btn btn-primary" onclick="runVulnScan()">
-                    <i data-lucide="play" style="width:14px;height:14px"></i> Run
+        </div>
+
+        <!-- Scan History / Reports -->
+        <div class="section-header" style="margin-top:20px">
+            <i data-lucide="file-search" style="width:18px;height:18px"></i> Scan Reports
+            <div style="display:flex;gap:8px;margin-left:auto">
+                <select class="form-select" id="scan-filter-scanner" style="max-width:130px;font-size:0.75rem" onchange="loadScanHistory()">
+                    <option value="">All Scanners</option>
+                    <option value="nmap">Nmap</option>
+                    <option value="nikto">Nikto</option>
+                    <option value="nuclei">Nuclei</option>
+                    <option value="ssl">SSL/TLS</option>
+                    <option value="zap">ZAP</option>
+                </select>
+                <button class="btn btn-sm" onclick="loadScanHistory()">
+                    <i data-lucide="refresh-cw" style="width:12px;height:12px"></i>
                 </button>
             </div>
-            <div id="scan-confirm-internal" style="display:none;margin-top:8px">
-                <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--archie-orange)">
-                    <input type="checkbox" id="scan-confirm-checkbox"> Confirm scan of internal network target
-                </label>
+        </div>
+        <div id="scan-history-list">
+            <div class="loading-state"><span class="spinner"></span> Loading scan reports...</div>
+        </div>
+
+        <!-- SSL Monitoring -->
+        <div class="section-header">
+            <i data-lucide="shield-check" style="width:18px;height:18px"></i> SSL Monitoring
+            <div style="display:flex;gap:8px;margin-left:auto">
+                <button class="btn btn-sm" onclick="showAddSSLModal()">
+                    <i data-lucide="plus" style="width:12px;height:12px"></i> Add Monitor
+                </button>
+                <button class="btn btn-sm" onclick="refreshSSLMonitors()">
+                    <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh All
+                </button>
             </div>
-        </div>
-
-        <div class="section-header">
-            <i data-lucide="file-search" style="width:18px;height:18px"></i> Scan Results
-        </div>
-        <div id="scan-results-list">
-            <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_scan_results"> Loading scan results...</span></div>
-        </div>
-
-        <div class="section-header">
-            <i data-lucide="monitor" style="width:18px;height:18px"></i> SSL Monitoring
-        </div>
-        <div style="margin-bottom:8px">
-            <button class="btn btn-sm" onclick="showAddSSLModal()">
-                <i data-lucide="plus" style="width:12px;height:12px"></i> Add Monitor
-            </button>
-            <button class="btn btn-sm" onclick="refreshSSLMonitors()">
-                <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh All
-            </button>
         </div>
         <div id="ssl-monitors-list">
-            <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_ssl_monitors"> Loading SSL monitors...</span></div>
+            <div class="loading-state"><span class="spinner"></span> Loading SSL monitors...</div>
         </div>
         </div>
 
+        <!-- ==================== RECONNAISSANCE SUBTAB ==================== -->
         <div id="subtab-scanners-recon" class="subtab-content">
 
-        <div class="card">
-            <div class="card-header">
-                <span class="card-title"><span data-i18n="security_network.launch_scan">Launch Scan</span></span>
-            </div>
-            <div class="form-row">
-                <div class="form-group" style="max-width:200px">
-                    <label class="form-label"><span data-i18n="security_network.module">Module</span></label>
-                    <select class="form-select" id="recon-module"></select>
+        <!-- Hidden select for module tracking -->
+        <select id="recon-module" style="display:none"></select>
+
+        <!-- ==================== RECON LAUNCH LCARS MODAL ==================== -->
+        <div class="bm-overlay" id="recon-launch-modal" style="--bm-accent:#8b5cf6;--bm-accent-rgb:139,92,246;">
+            <div class="bm-shell" style="max-width:520px;">
+                <div class="bm-frame">
+                    <div class="bm-frame-elbow-top"></div>
+                    <div class="bm-frame-seg"></div>
+                    <div class="bm-frame-seg dim"></div>
+                    <div class="bm-frame-light on"></div>
+                    <div class="bm-frame-light amber"></div>
+                    <div class="bm-frame-seg cyan"></div>
+                    <div class="bm-frame-fill"></div>
+                    <div class="bm-frame-elbow-bottom"></div>
                 </div>
-                <div class="form-group">
-                    <label class="form-label"><span data-i18n="security_network.target">Target</span></label>
-                    <input type="text" class="form-input" id="recon-target" placeholder="example.com or 192.168.1.0/24">
+                <div class="bm-content">
+                    <div class="bm-header">
+                        <span class="bm-header-title" id="recon-launch-title">RECONNAISSANCE</span>
+                        <div class="bm-header-strip">
+                            <div class="bm-header-pip w1"></div>
+                            <div class="bm-header-pip w2"></div>
+                            <div class="bm-header-pip w3"></div>
+                            <button class="bm-close" onclick="closeReconLaunch()">&times;</button>
+                        </div>
+                    </div>
+                    <div class="bm-body" style="padding:20px 24px">
+                        <div id="recon-launch-desc" style="font-size:0.78rem;color:var(--archie-text-muted);margin-bottom:14px"></div>
+                        <div class="form-group" style="margin-bottom:14px">
+                            <label class="form-label">Target</label>
+                            <input type="text" class="form-input" id="recon-target" placeholder="example.com or 192.168.1.0/24">
+                        </div>
+                    </div>
+                    <div class="bm-actions">
+                        <button class="btn-cancel" onclick="closeReconLaunch()">Cancel</button>
+                        <button class="btn-submit" onclick="startReconScan()">
+                            <i data-lucide="play" style="width:14px;height:14px"></i> Run Scan
+                        </button>
+                    </div>
+                    <div class="bm-footer">
+                        <div class="bm-footer-strip">
+                            <div class="bm-footer-dot cyan"></div>
+                            <div class="bm-footer-dot gold"></div>
+                            <div class="bm-footer-dot purple"></div>
+                        </div>
+                    </div>
                 </div>
-                <button class="btn btn-primary" onclick="startReconScan()">
-                    <i data-lucide="play" style="width:14px;height:14px"></i> Start Scan
-                </button>
             </div>
         </div>
 
-        <div class="section-header">
-            <i data-lucide="grid-3x3" style="width:18px;height:18px"></i> Available Modules
-        </div>
-        <div class="module-grid" id="recon-modules">
-            <div class="loading-state" style="grid-column:1/-1"><span class="spinner"></span><span data-i18n="security_network.loading_modules"> Loading modules...</span></div>
+        <!-- Categorized Module Cards -->
+        <div id="recon-modules-container">
+            <div class="loading-state"><span class="spinner"></span> Loading modules...</div>
         </div>
 
-        <div class="section-header">
+        <!-- Recon Campaign Form -->
+        <div class="sn-campaign-form" style="margin-top:20px">
+            <div class="sn-campaign-header" style="color:var(--archie-purple)">
+                <i data-lucide="radar" style="width:16px;height:16px;color:var(--archie-purple)"></i>
+                <span>RECON CAMPAIGN</span>
+            </div>
+            <div class="sn-campaign-body">
+                <div class="sn-campaign-row">
+                    <div class="form-group" style="flex:1">
+                        <label class="form-label">Client / Company</label>
+                        <input type="text" class="form-input" id="recon-campaign-client" placeholder="e.g. Acme Corp">
+                    </div>
+                    <div class="form-group" style="flex:1">
+                        <label class="form-label">Target</label>
+                        <input type="text" class="form-input" id="recon-campaign-target" placeholder="example.com or 192.168.1.0/24">
+                    </div>
+                </div>
+                <div class="sn-campaign-checks" id="recon-campaign-checks">
+                    <!-- Populated dynamically from loaded modules -->
+                </div>
+                <div style="display:flex;justify-content:flex-end;margin-top:10px">
+                    <button class="btn btn-primary" onclick="launchReconCampaign()">
+                        <i data-lucide="rocket" style="width:14px;height:14px"></i> Launch Recon Campaign
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recon Scan History -->
+        <div class="section-header" style="margin-top:20px">
             <i data-lucide="history" style="width:18px;height:18px"></i> Scan History
+            <button class="btn btn-sm" onclick="loadReconHistory()" style="margin-left:auto">
+                <i data-lucide="refresh-cw" style="width:12px;height:12px"></i>
+            </button>
         </div>
         <div id="recon-history">
-            <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_history"> Loading history...</span></div>
+            <div class="loading-state"><span class="spinner"></span> Loading history...</div>
         </div>
+        </div>
+
+        <!-- ==================== MONITORING SUBTAB ==================== -->
+        <div id="subtab-scanners-monitor" class="subtab-content">
+
+        <!-- Nagios Status Hero -->
+        <div class="sn-nagios-hero" id="nagios-hero">
+            <div class="sn-nagios-hero-card">
+                <div class="sn-nagios-hero-value" id="nagios-hosts-up">—</div>
+                <div class="sn-nagios-hero-label">HOSTS UP</div>
+            </div>
+            <div class="sn-nagios-hero-card">
+                <div class="sn-nagios-hero-value sn-nagios-down" id="nagios-hosts-down">—</div>
+                <div class="sn-nagios-hero-label">HOSTS DOWN</div>
+            </div>
+            <div class="sn-nagios-hero-card">
+                <div class="sn-nagios-hero-value sn-nagios-ok" id="nagios-svc-ok">—</div>
+                <div class="sn-nagios-hero-label">SERVICES OK</div>
+            </div>
+            <div class="sn-nagios-hero-card">
+                <div class="sn-nagios-hero-value sn-nagios-warn" id="nagios-svc-warn">—</div>
+                <div class="sn-nagios-hero-label">WARNING</div>
+            </div>
+            <div class="sn-nagios-hero-card">
+                <div class="sn-nagios-hero-value sn-nagios-crit" id="nagios-svc-crit">—</div>
+                <div class="sn-nagios-hero-label">CRITICAL</div>
+            </div>
+        </div>
+
+        <!-- Problems -->
+        <div class="section-header">
+            <i data-lucide="alert-triangle" style="width:18px;height:18px"></i> Current Problems
+            <button class="btn btn-sm" onclick="loadNagiosData()" style="margin-left:auto">
+                <i data-lucide="refresh-cw" style="width:12px;height:12px"></i>
+            </button>
+        </div>
+        <div id="nagios-problems">
+            <div class="loading-state"><span class="spinner"></span> Loading problems...</div>
+        </div>
+
+        <!-- Host Status -->
+        <div class="section-header" style="margin-top:20px">
+            <i data-lucide="server" style="width:18px;height:18px"></i> Hosts
+        </div>
+        <div id="nagios-hosts">
+            <div class="loading-state"><span class="spinner"></span> Loading hosts...</div>
+        </div>
+
+        <!-- Service Status -->
+        <div class="section-header" style="margin-top:20px">
+            <i data-lucide="hard-drive" style="width:18px;height:18px"></i> Services
+        </div>
+        <div id="nagios-services">
+            <div class="loading-state"><span class="spinner"></span> Loading services...</div>
+        </div>
+
         </div>
     </div>
 
@@ -1417,6 +1612,47 @@
     <!-- ==================== TAB: REPORTS ==================== -->
     <div id="tab-reports" class="tab-content">
 
+        <!-- DNS Stats Dashboard -->
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title">DNS Overview (24h)</span>
+                <button class="btn btn-sm" onclick="loadDnsStats()" style="margin-left:auto">
+                    <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh
+                </button>
+            </div>
+            <div style="padding:12px">
+                <div id="sn-dns-hero" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px">
+                    <div class="sn-dns-stat-box" style="background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.2);border-radius:8px;padding:12px;text-align:center">
+                        <div style="font-size:0.7rem;color:var(--archie-text-muted);text-transform:uppercase">Total Queries</div>
+                        <div id="dns-total" style="font-size:1.4rem;font-family:'Orbitron',sans-serif;color:#00e5ff">--</div>
+                    </div>
+                    <div class="sn-dns-stat-box" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:12px;text-align:center">
+                        <div style="font-size:0.7rem;color:var(--archie-text-muted);text-transform:uppercase">Blocked</div>
+                        <div id="dns-blocked" style="font-size:1.4rem;font-family:'Orbitron',sans-serif;color:#ef4444">--</div>
+                    </div>
+                    <div class="sn-dns-stat-box" style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:8px;padding:12px;text-align:center">
+                        <div style="font-size:0.7rem;color:var(--archie-text-muted);text-transform:uppercase">Block Rate</div>
+                        <div id="dns-rate" style="font-size:1.4rem;font-family:'Orbitron',sans-serif;color:#10b981">--</div>
+                    </div>
+                    <div class="sn-dns-stat-box" style="background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.2);border-radius:8px;padding:12px;text-align:center">
+                        <div style="font-size:0.7rem;color:var(--archie-text-muted);text-transform:uppercase">Avg Latency</div>
+                        <div id="dns-latency" style="font-size:1.4rem;font-family:'Orbitron',sans-serif;color:#8b5cf6">--</div>
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                    <div>
+                        <div style="font-size:0.75rem;color:var(--archie-text-muted);margin-bottom:6px;text-transform:uppercase">Top Blocked Domains</div>
+                        <div id="dns-top-blocked" style="font-size:0.8rem">--</div>
+                    </div>
+                    <div>
+                        <div style="font-size:0.75rem;color:var(--archie-text-muted);margin-bottom:6px;text-transform:uppercase">Top Clients</div>
+                        <div id="dns-top-clients" style="font-size:0.8rem">--</div>
+                    </div>
+                </div>
+                <div id="dns-trend-chart" style="width:100%;height:120px;margin-top:12px"></div>
+            </div>
+        </div>
+
         <!-- Generate Daily Report -->
         <div class="card" style="margin-bottom:16px">
             <div class="card-header">
@@ -1462,6 +1698,7 @@
                             <option value="weekly_report">Weekly Report</option>
                             <option value="device_audit">Device Audit</option>
                             <option value="dns_analysis">DNS Analysis</option>
+                            <option value="dns_summary">DNS Summary (7-Day)</option>
                         </select>
                     </div>
                     <div style="flex:0.7;min-width:140px">
@@ -1823,17 +2060,17 @@
         </div>
     </div>
 
-    <!-- ==================== TAB: PARENTAL ==================== -->
-    <div id="tab-parental" class="tab-content">
+    <!-- ==================== TAB: SUPERVISION ==================== -->
+    <div id="tab-supervision" class="tab-content">
         <!-- Schedule Management -->
         <div class="card" style="margin-bottom:16px">
             <div class="card-header">
-                <span class="card-title">Parental Controls</span>
+                <span class="card-title">Supervision Controls</span>
                 <button class="btn btn-sm btn-primary" onclick="showAddScheduleModal()">
                     <i data-lucide="plus" style="width:12px;height:12px"></i> Add Schedule
                 </button>
             </div>
-            <div id="parental-schedules">
+            <div id="supervision-schedules">
                 <div class="loading-state"><span class="spinner"></span> Loading schedules...</div>
             </div>
         </div>
@@ -1862,6 +2099,19 @@
                 <div class="loading-state"><span class="spinner"></span> Loading...</div>
             </div>
         </div>
+
+        <!-- DNS Device Activity (AdGuard-powered) -->
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title">DNS Activity by Device</span>
+                <button class="btn btn-sm" onclick="loadDeviceActivity()">
+                    <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh
+                </button>
+            </div>
+            <div id="dns-device-activity" style="min-height:150px">
+                <div class="loading-state"><span class="spinner"></span> Loading...</div>
+            </div>
+        </div>
     </div>
 
     <!-- ==================== TAB: INTEL ==================== -->
@@ -1881,8 +2131,8 @@
                 <div class="noc-hero-label">Open Incidents</div>
             </div>
             <div class="noc-hero-card" style="--noc-accent:#10b981">
-                <div class="noc-hero-val" id="intel-speed">--</div>
-                <div class="noc-hero-label">Last Speed Test</div>
+                <div class="noc-hero-val" id="intel-dns-blocked">--</div>
+                <div class="noc-hero-label">DNS Blocked (24h)</div>
             </div>
         </div>
 
@@ -1896,6 +2146,69 @@
             </div>
             <div id="intel-feeds">
                 <div class="loading-state"><span class="spinner"></span> Loading...</div>
+            </div>
+        </div>
+
+        <!-- AdGuard DNS Threat Crossref -->
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title">DNS Threat Cross-Reference</span>
+                <button class="btn btn-sm" onclick="loadDnsThreatCrossref()">
+                    <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh
+                </button>
+            </div>
+            <div id="intel-dns-crossref" style="padding:8px">
+                <div class="loading-state"><span class="spinner"></span> Loading...</div>
+            </div>
+        </div>
+
+        <!-- IOC Search + Severity Chart -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">IOC Search</span>
+                </div>
+                <div style="padding:12px">
+                    <div style="display:flex;gap:8px;margin-bottom:8px">
+                        <input type="text" id="ioc-search-input" class="form-input" placeholder="Search domain or IP..." style="flex:1" onkeydown="if(event.key==='Enter')searchIOC()">
+                        <button class="btn btn-sm btn-primary" onclick="searchIOC()">Search</button>
+                    </div>
+                    <div id="ioc-search-results" style="font-size:0.8rem;color:#94a3b8;max-height:200px;overflow-y:auto">Enter a domain or IP to check against 26K+ IOCs</div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">IOC Severity Breakdown</span>
+                </div>
+                <div id="intel-severity-chart" style="display:flex;flex-direction:column;align-items:center;padding:8px;min-height:180px">
+                    <div class="loading-state"><span class="spinner"></span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Query Log Scanner + Auto-Block -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">DNS Query Log Scanner</span>
+                    <button class="btn btn-sm btn-primary" onclick="scanQueryLog()">
+                        <i data-lucide="scan" style="width:12px;height:12px"></i> Scan Now
+                    </button>
+                </div>
+                <div id="querylog-scan-results" style="padding:12px;font-size:0.85rem;color:#94a3b8">
+                    Scan recent DNS queries against IOC database to find threats AdGuard missed.
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Auto-Block Threats</span>
+                    <button class="btn btn-sm" onclick="autoBlockThreats()" style="background:rgba(239,68,68,0.2);color:#ef4444;border:1px solid #ef4444">
+                        <i data-lucide="shield-alert" style="width:12px;height:12px"></i> Block All
+                    </button>
+                </div>
+                <div id="auto-block-results" style="padding:12px;font-size:0.85rem;color:#94a3b8">
+                    Automatically add high/critical threat domains to AdGuard block rules.
+                </div>
             </div>
         </div>
 

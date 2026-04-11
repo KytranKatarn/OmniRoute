@@ -46,9 +46,9 @@ def register_noc_routes(bp, admin_required_decorator):
 
                     import os
 
-                    ag_host = os.getenv("ADGUARD_HOST", "network_adguard")
-                    ag_port = os.getenv("ADGUARD_PORT", "80")
-                    ag_user = os.getenv("ADGUARD_USER", "archie_admin")
+                    ag_host = os.getenv("ADGUARD_HOST", "host.docker.internal")
+                    ag_port = os.getenv("ADGUARD_PORT", "5354")
+                    ag_user = os.getenv("ADGUARD_USER", "kytran")
                     ag_pass = os.getenv("ADGUARD_PASS", "")
                     r = requests.get(
                         f"http://{ag_host}:{ag_port}/control/stats",
@@ -541,6 +541,12 @@ def register_noc_routes(bp, admin_required_decorator):
                     FROM deltas d
                     LEFT JOIN network_device_users ndu ON ndu.mac_address = d.device_mac
                     {time_clause.replace('hour_bucket', 'd.hour_bucket')}
+                      AND d.device_ip LIKE '192.168.1.%%'
+                      AND d.device_ip != '192.168.1.255'
+                      AND d.device_ip NOT LIKE '224.%%'
+                      AND d.device_ip NOT LIKE '239.%%'
+                      AND d.device_ip NOT LIKE '255.%%'
+                      AND d.device_ip NOT LIKE 'fe80:%%'
                     GROUP BY d.device_ip, d.device_mac, label
                     ORDER BY total DESC LIMIT 20"""
                 )

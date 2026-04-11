@@ -176,8 +176,8 @@ def run_security_audit():
         try:
             import requests
 
-            host = os.getenv("ADGUARD_HOST", "network_adguard")
-            port = os.getenv("ADGUARD_PORT", "80")
+            host = os.getenv("ADGUARD_HOST", "host.docker.internal")
+            port = os.getenv("ADGUARD_PORT", "5354")
             user = os.getenv("ADGUARD_USER", "")
             pw = os.getenv("ADGUARD_PASS", "")
             r = requests.get(
@@ -258,8 +258,8 @@ def daily_dns_report():
         import requests
         from tools.security_network.security_alerts import create_security_alert
 
-        host = os.getenv("ADGUARD_HOST", "network_adguard")
-        port = os.getenv("ADGUARD_PORT", "80")
+        host = os.getenv("ADGUARD_HOST", "host.docker.internal")
+        port = os.getenv("ADGUARD_PORT", "5354")
         user = os.getenv("ADGUARD_USER", "")
         pw = os.getenv("ADGUARD_PASS", "")
 
@@ -312,8 +312,8 @@ def detect_query_spike():
         import requests
         from tools.security_network.security_alerts import create_security_alert
 
-        host = os.getenv("ADGUARD_HOST", "network_adguard")
-        port = os.getenv("ADGUARD_PORT", "80")
+        host = os.getenv("ADGUARD_HOST", "host.docker.internal")
+        port = os.getenv("ADGUARD_PORT", "5354")
         user = os.getenv("ADGUARD_USER", "")
         pw = os.getenv("ADGUARD_PASS", "")
 
@@ -545,6 +545,106 @@ def run_auto_remediation():
             )
     except Exception as e:
         logger.error("Auto-remediation failed: %s", e)
+
+
+def run_auto_plan_generation():
+    """Job #61: Ask F.O.R.G.E. to pre-generate remediation plans for every
+    blocklisted rule that failed in the latest scan and doesn't already have
+    a fresh (<24h) plan on file. Runs autonomously after each scan so plans
+    are waiting in Department HQ before the admin opens the Compliance tab.
+    """
+    try:
+        from tools.security_network.compliance_service import (
+            get_latest_scores,
+            get_scan_results,
+            generate_remediation_plan,
+        )
+        from database import get_db_cursor
+
+        scores = get_latest_scores()
+        if not scores or not scores.get("scan_id"):
+            return
+        scan_id = scores["scan_id"]
+
+        results = get_scan_results(scan_id, status="fail")
+        if not results:
+            return
+
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute("SELECT rule_id FROM compliance_rule_blocklist")
+            blocked_ids = {r["rule_id"] for r in cur.fetchall()}
+
+            cur.execute(
+                """SELECT DISTINCT rule_id FROM compliance_remediation_plans
+                   WHERE generated_at > NOW() - INTERVAL '24 hours'"""
+            )
+            fresh_plan_ids = {r["rule_id"] for r in cur.fetchall()}
+
+        candidates = [r for r in results if r.get("rule_id") in blocked_ids and r.get("rule_id") not in fresh_plan_ids]
+
+        if not candidates:
+            logger.info(
+                "Auto-plan generation: nothing to do (blocked=%d fresh=%d)",
+                len(blocked_ids),
+                len(fresh_plan_ids),
+            )
+            return
+
+        logger.info(
+            "Auto-plan generation: %d rules need plans (scan=%s)",
+            len(candidates),
+            scan_id,
+        )
+
+        generated = 0
+        fallback = 0
+        for r in candidates:
+            rule_id = r.get("rule_id", "")
+            try:
+                res = generate_remediation_plan(scan_id, rule_id, user_id=0)
+                if not res.get("success"):
+                    logger.warning(
+                        "Auto-plan gen failed for %s: %s",
+                        rule_id,
+                        res.get("error", "unknown"),
+                    )
+                    continue
+                generated += 1
+                if res.get("fallback"):
+                    fallback += 1
+                logger.info(
+                    "Auto-plan gen: %s -> plan_id=%s fallback=%s",
+                    rule_id,
+                    res.get("plan_id"),
+                    res.get("fallback"),
+                )
+            except Exception as gen_err:
+                logger.warning("Auto-plan gen error for %s: %s", rule_id, gen_err)
+
+        logger.info(
+            "Auto-plan generation complete: %d plans (%d real, %d fallback)",
+            generated,
+            generated - fallback,
+            fallback,
+        )
+
+        if generated - fallback > 0:
+            try:
+                from tools.security_network.security_alerts import create_security_alert
+
+                create_security_alert(
+                    "compliance_plan",
+                    f"F.O.R.G.E. generated {generated} remediation plan(s)",
+                    f"{generated - fallback} real AI plans + {fallback} fallback(s). "
+                    f"Review in Department HQ Approvals or Compliance tab.",
+                    priority="normal",
+                    telegram=True,
+                )
+            except Exception:
+                pass  # Non-critical
+
+    except Exception as e:
+        logger.error("Auto-plan generation failed: %s", e, exc_info=True)
 
 
 # Schedule: every 5 min — collects per-device bandwidth from ntopng
@@ -1454,22 +1554,22 @@ def run_speed_test():
         _log_cycle("speed_test", 0, 1, dur, error_message=str(e))
 
 
-def enforce_parental_schedules():
-    """Enforce parental control schedules via AdGuard (every 5 min)."""
+def enforce_supervision_schedules():
+    """Enforce supervision control schedules via AdGuard (every 5 min)."""
     t0 = time.time()
     try:
-        from tools.security_network.parental_service import ParentalService
+        from tools.security_network.supervision_service import SupervisionService
 
-        svc = ParentalService()
+        svc = SupervisionService()
         enforced = svc.enforce_schedules()
 
         dur = int((time.time() - t0) * 1000)
-        _log_cycle("parental_enforce", enforced, 0, dur)
+        _log_cycle("supervision_enforce", enforced, 0, dur)
 
     except Exception as e:
         dur = int((time.time() - t0) * 1000)
-        logger.error("parental_enforce failed: %s", e)
-        _log_cycle("parental_enforce", 0, 1, dur, error_message=str(e))
+        logger.error("supervision_enforce failed: %s", e)
+        _log_cycle("supervision_enforce", 0, 1, dur, error_message=str(e))
 
 
 def register_security_jobs(scheduler, flask_app):
@@ -1567,6 +1667,17 @@ def register_security_jobs(scheduler, flask_app):
         trigger=IntervalTrigger(hours=6, start_date="2026-01-01 02:30:00"),
         id="agent_auto_remediation",
         name="Agent Loop: Compliance Auto-Remediation",
+        replace_existing=True,
+    )
+
+    # --- Auto-plan generation (Job #61) ---
+    # Runs 1h after each scan so blocklisted failures have F.O.R.G.E. plans
+    # waiting in Department HQ before the admin opens the Compliance tab.
+    scheduler.add_job(
+        with_ctx(run_auto_plan_generation),
+        trigger=IntervalTrigger(hours=6, start_date="2026-01-01 03:00:00"),
+        id="agent_compliance_auto_plan",
+        name="Agent Loop: F.O.R.G.E. Auto Plan Generation",
         replace_existing=True,
     )
 
@@ -1669,12 +1780,12 @@ def register_security_jobs(scheduler, flask_app):
         replace_existing=True,
     )
 
-    # --- Parental controls enforcement ---
+    # --- Supervision controls enforcement ---
     scheduler.add_job(
-        with_ctx(enforce_parental_schedules),
+        with_ctx(enforce_supervision_schedules),
         trigger=IntervalTrigger(minutes=5),
-        id="agent_parental_enforce",
-        name="Agent Loop: Parental Controls Enforcement",
+        id="agent_supervision_enforce",
+        name="Agent Loop: Supervision Controls Enforcement",
         replace_existing=True,
     )
 

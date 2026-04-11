@@ -2797,7 +2797,46 @@ COMMAND_REGISTRY = {
         "handler": "handle_compliance_run_check",
         "params": {
             "check_type": {"required": True, "regex": r"^(file_permission|service_status|package_installed|port_listening|command_safe)$"},
-            "target": {"required": True, "regex": r"^[a-zA-Z0-9_/.\-:]+$"},
+            "target": {"required": True, "regex": r"^[a-zA-Z0-9_/.\-: ]+$"},
+        },
+    },
+    "compliance_fix_sysctl": {
+        "handler": "handle_compliance_fix_sysctl",
+        "params": {
+            "param": {"required": True, "regex": r"^[a-zA-Z0-9_.]+$"},
+            "value": {"required": True, "regex": r"^[a-zA-Z0-9_.\- ]+$"},
+            "dry_run": {"required": False},
+        },
+    },
+    "compliance_fix_file_line": {
+        "handler": "handle_compliance_fix_file_line",
+        "params": {
+            "path": {"required": True, "regex": r"^/[a-zA-Z0-9_/.\-]+$"},
+            "line": {"required": True},
+            "restart_service": {"required": False},
+            "dry_run": {"required": False},
+        },
+    },
+    "compliance_fix_service": {
+        "handler": "handle_compliance_fix_service",
+        "params": {
+            "service": {"required": True, "regex": r"^[a-zA-Z0-9_.\-]+$"},
+            "action": {"required": True, "regex": r"^(start|stop|restart|enable|disable)$"},
+            "dry_run": {"required": False},
+        },
+    },
+    "compliance_restore_file": {
+        "handler": "handle_compliance_restore_file",
+        "params": {
+            "path": {"required": True, "regex": r"^/[a-zA-Z0-9_/.\-]+$"},
+            "content": {"required": True},
+        },
+    },
+    "compliance_fix_command": {
+        "handler": "handle_compliance_fix_command",
+        "params": {
+            "command": {"required": True},
+            "dry_run": {"required": False},
         },
     },
 }
@@ -5566,6 +5605,343 @@ def handle_compliance_run_check(params):
     return {"success": False, "error": f"Unknown check type: {check_type}"}
 
 
+# ============================================================================
+# COMPLIANCE REMEDIATION HANDLERS (added for compliance fix pipeline)
+# ============================================================================
+
+# Whitelist of sysctl params that can be safely modified via remediation.
+# Keep this list conservative — only STIG/CIS compliance items.
+_COMPLIANCE_SYSCTL_ALLOW = {
+    "kernel.randomize_va_space",
+    "kernel.kptr_restrict",
+    "kernel.dmesg_restrict",
+    "kernel.panic",
+    "kernel.panic_on_oops",
+    "net.ipv4.conf.all.accept_redirects",
+    "net.ipv4.conf.all.accept_source_route",
+    "net.ipv4.conf.all.log_martians",
+    "net.ipv4.conf.all.rp_filter",
+    "net.ipv4.conf.all.send_redirects",
+    "net.ipv4.conf.default.accept_redirects",
+    "net.ipv4.conf.default.accept_source_route",
+    "net.ipv4.conf.default.log_martians",
+    "net.ipv4.conf.default.rp_filter",
+    "net.ipv4.conf.default.send_redirects",
+    "net.ipv4.icmp_echo_ignore_broadcasts",
+    "net.ipv4.icmp_ignore_bogus_error_responses",
+    "net.ipv4.ip_forward",
+    "net.ipv4.tcp_syncookies",
+    "net.ipv6.conf.all.accept_ra",
+    "net.ipv6.conf.all.accept_redirects",
+    "net.ipv6.conf.all.accept_source_route",
+    "net.ipv6.conf.default.accept_ra",
+    "net.ipv6.conf.default.accept_redirects",
+    "net.ipv6.conf.default.accept_source_route",
+    "fs.suid_dumpable",
+    "fs.protected_hardlinks",
+    "fs.protected_symlinks",
+}
+
+# Whitelist of config file paths that can be edited via file_line fix.
+_COMPLIANCE_FILE_ALLOW = {
+    "/etc/sysctl.conf",
+    "/etc/sysctl.d/99-compliance.conf",
+    "/etc/ssh/sshd_config",
+    "/etc/login.defs",
+    "/etc/security/limits.conf",
+    "/etc/docker/daemon.json",
+    "/etc/default/grub",
+    "/etc/audit/auditd.conf",
+    "/etc/modprobe.d/blacklist.conf",
+}
+
+# Whitelist of services that can be controlled via remediation.
+_COMPLIANCE_SERVICE_ALLOW = {
+    "sshd", "ssh", "docker", "auditd", "ufw", "fail2ban",
+    "chronyd", "systemd-journald", "cron",
+}
+
+
+def handle_compliance_fix_sysctl(params):
+    """Apply or dry-run a sysctl parameter change.
+
+    Validates against _COMPLIANCE_SYSCTL_ALLOW whitelist.
+    Supports dry_run to preview without applying.
+    """
+    param = params["param"]
+    value = str(params["value"]).strip()
+    dry_run = bool(params.get("dry_run", False))
+
+    if param not in _COMPLIANCE_SYSCTL_ALLOW:
+        return {
+            "success": False,
+            "error": f"sysctl param '{param}' not in compliance whitelist",
+        }
+
+    # Get current value for preview
+    current = run_command_full(["sysctl", "-n", param], timeout=5)
+    current_value = current["stdout"].strip() if current["returncode"] == 0 else "unknown"
+
+    preview = f"sysctl {param}: {current_value} -> {value}"
+
+    if dry_run:
+        return {
+            "success": True,
+            "preview": preview,
+            "applied": False,
+            "current": current_value,
+            "target": value,
+        }
+
+    # Apply runtime change
+    result = run_command_full(
+        ["sudo", "-n", "sysctl", "-w", f"{param}={value}"],
+        timeout=10,
+    )
+    if result["returncode"] != 0:
+        return {"success": False, "error": result["stderr"] or "sysctl failed"}
+
+    # Persist to sysctl.d to survive reboots (idempotent append)
+    persist_file = "/etc/sysctl.d/99-compliance.conf"
+    entry = f"{param} = {value}"
+    persist_cmd = [
+        "sudo", "-n", "bash", "-c",
+        f"touch {persist_file} && "
+        f"sed -i '/^{param}[[:space:]]*=/d' {persist_file} && "
+        f"echo '{entry}' >> {persist_file}",
+    ]
+    persist_result = run_command_full(persist_cmd, timeout=10)
+
+    return {
+        "success": True,
+        "applied": True,
+        "preview": preview,
+        "output": result["stdout"].strip(),
+        "persisted": persist_result["returncode"] == 0,
+    }
+
+
+def handle_compliance_fix_file_line(params):
+    """Add or replace a line in a whitelisted config file.
+
+    Uses sed for atomic line replacement. The first word of the line is
+    treated as the 'key' — any existing line starting with that key is
+    removed before adding the new line.
+    """
+    path = params["path"]
+    line = str(params["line"]).strip()
+    restart_service = str(params.get("restart_service", "")).strip()
+    dry_run = bool(params.get("dry_run", False))
+
+    if path not in _COMPLIANCE_FILE_ALLOW:
+        return {"success": False, "error": f"Path '{path}' not in compliance whitelist"}
+
+    if not line:
+        return {"success": False, "error": "Empty line not allowed"}
+
+    # Sanitize — reject lines with shell metacharacters that could break sed
+    if any(c in line for c in ("'", '"', "\n", "\\", "`", "$(")):
+        return {"success": False, "error": "Line contains unsafe characters"}
+
+    key = line.split()[0] if line.split() else ""
+    if not key:
+        return {"success": False, "error": "Cannot determine key from line"}
+
+    # Preview current state
+    preview_lines = []
+    current = run_command_full(
+        ["grep", f"^{key}", path], timeout=5,
+    )
+    if current["returncode"] == 0:
+        preview_lines.append(f"Current: {current['stdout'].strip()}")
+    preview_lines.append(f"New:     {line}")
+    if restart_service:
+        preview_lines.append(f"Then restart: {restart_service}")
+    preview = "\n".join(preview_lines)
+
+    if dry_run:
+        return {
+            "success": True,
+            "preview": preview,
+            "applied": False,
+        }
+
+    # Ensure file exists
+    touch_cmd = run_command_full(["sudo", "-n", "touch", path], timeout=5)
+    if touch_cmd["returncode"] != 0:
+        return {"success": False, "error": f"Cannot touch {path}: {touch_cmd['stderr']}"}
+
+    # Remove any existing line with this key, then append the new line
+    fix_cmd = [
+        "sudo", "-n", "bash", "-c",
+        f"sed -i '/^{key}[[:space:]]*/d' '{path}' && "
+        f"echo '{line}' | sudo tee -a '{path}' > /dev/null",
+    ]
+    result = run_command_full(fix_cmd, timeout=15)
+    if result["returncode"] != 0:
+        return {"success": False, "error": result["stderr"] or "File edit failed"}
+
+    output = "File updated"
+    if restart_service and restart_service in _COMPLIANCE_SERVICE_ALLOW:
+        restart_result = run_command_full(
+            ["sudo", "-n", "systemctl", "restart", f"{restart_service}.service"],
+            timeout=30,
+        )
+        if restart_result["returncode"] == 0:
+            output += f"; {restart_service} restarted"
+        else:
+            output += f"; {restart_service} restart FAILED: {restart_result['stderr'][:100]}"
+
+    return {
+        "success": True,
+        "applied": True,
+        "preview": preview,
+        "output": output,
+    }
+
+
+def handle_compliance_fix_command(params):
+    """Execute an arbitrary shell command for a compliance fix.
+
+    SECURITY: This handler requires Tier-2 human approval via
+    autonomy_approval_queue — the command is NOT whitelisted here.
+    It should ONLY be called from apply_fix_approved() after
+    a human has explicitly approved the command via Telegram or web.
+
+    Rejects patterns that would be destructive regardless of approval.
+    """
+    command = params.get("command", "")
+    dry_run = bool(params.get("dry_run", False))
+
+    if not command or not isinstance(command, str):
+        return {"success": False, "error": "Empty or invalid command"}
+
+    # Hard-blocked patterns — always reject, even if human-approved
+    blocked_patterns = [
+        "rm -rf /",
+        "mkfs.",
+        "dd if=/dev/zero of=/dev/",
+        ":(){ :|:& };:",  # fork bomb
+        "> /dev/sda",
+        "chmod -R 000 /",
+        "chown -R nobody /",
+    ]
+    for pat in blocked_patterns:
+        if pat in command:
+            return {"success": False, "error": f"Command contains blocked pattern: {pat}"}
+
+    if dry_run:
+        return {
+            "success": True,
+            "preview": f"Would execute: {command[:200]}",
+            "applied": False,
+        }
+
+    # Execute via bash -c with sudo
+    result = run_command_full(
+        ["sudo", "-n", "bash", "-c", command],
+        timeout=60,
+    )
+    if result["returncode"] != 0:
+        return {
+            "success": False,
+            "error": result["stderr"] or result["stdout"] or "Command failed",
+            "returncode": result["returncode"],
+        }
+    return {
+        "success": True,
+        "applied": True,
+        "output": (result["stdout"] or "")[:2000],
+    }
+
+
+def handle_compliance_restore_file(params):
+    """Restore a config file to previous content (for git-style rollback).
+
+    Writes the given content to the file atomically via temp file + mv.
+    Only allowed on whitelisted paths, max 64KB.
+    """
+    import tempfile
+    import os
+
+    path = params["path"]
+    content = params["content"]
+
+    if path not in _COMPLIANCE_FILE_ALLOW:
+        return {"success": False, "error": f"Path '{path}' not in compliance whitelist"}
+
+    if len(content) > 64 * 1024:
+        return {"success": False, "error": "Content too large (>64KB)"}
+
+    # Write to temp file in /tmp, then sudo mv into place
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", delete=False, dir="/tmp", prefix="compliance_restore_"
+        ) as tf:
+            tf.write(content)
+            tmp_path = tf.name
+        os.chmod(tmp_path, 0o644)
+
+        result = run_command_full(
+            ["sudo", "-n", "mv", tmp_path, path],
+            timeout=10,
+        )
+        if result["returncode"] != 0:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+            return {"success": False, "error": result["stderr"] or "mv failed"}
+
+        return {"success": True, "restored": path, "size": len(content)}
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
+
+def handle_compliance_fix_service(params):
+    """Apply a service state change (start/stop/restart/enable/disable).
+
+    Only whitelisted services are allowed.
+    """
+    service = params["service"]
+    action = params["action"]
+    dry_run = bool(params.get("dry_run", False))
+
+    if service not in _COMPLIANCE_SERVICE_ALLOW:
+        return {
+            "success": False,
+            "error": f"Service '{service}' not in compliance whitelist",
+        }
+
+    # Get current state
+    active = run_command_full(["systemctl", "is-active", service], timeout=5)
+    enabled = run_command_full(["systemctl", "is-enabled", service], timeout=5)
+    current_state = f"active={active['stdout'].strip()}, enabled={enabled['stdout'].strip()}"
+    preview = f"systemctl {action} {service} (current: {current_state})"
+
+    if dry_run:
+        return {
+            "success": True,
+            "preview": preview,
+            "applied": False,
+            "current_state": current_state,
+        }
+
+    result = run_command_full(
+        ["sudo", "-n", "systemctl", action, f"{service}.service"],
+        timeout=30,
+    )
+    if result["returncode"] != 0:
+        return {"success": False, "error": result["stderr"] or f"systemctl {action} failed"}
+
+    return {
+        "success": True,
+        "applied": True,
+        "preview": preview,
+        "output": f"{service} {action} successful",
+    }
+
+
 # Handler dispatch table
 _HANDLER_MAP = {
     "handle_service_control": handle_service_control,
@@ -5613,6 +5989,11 @@ _HANDLER_MAP = {
     "handle_compliance_read_file": handle_compliance_read_file,
     "handle_compliance_check_sysctl": handle_compliance_check_sysctl,
     "handle_compliance_run_check": handle_compliance_run_check,
+    "handle_compliance_fix_sysctl": handle_compliance_fix_sysctl,
+    "handle_compliance_fix_file_line": handle_compliance_fix_file_line,
+    "handle_compliance_fix_service": handle_compliance_fix_service,
+    "handle_compliance_restore_file": handle_compliance_restore_file,
+    "handle_compliance_fix_command": handle_compliance_fix_command,
 }
 
 

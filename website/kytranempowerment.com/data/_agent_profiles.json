@@ -789,5 +789,12 @@
     "style": "scifi",
     "full_name": "E.T.H.O.S.",
     "department": "Legal & Regulatory"
+  },
+  "P.R.O.B.E.": {
+    "ethnicity": "diverse",
+    "gender": "neutral",
+    "style": "scifi",
+    "full_name": "P.R.O.B.E.",
+    "department": "Engineering & Technology"
   }
 }

@@ -16,11 +16,12 @@ from database import get_db_cursor
 logger = logging.getLogger(__name__)
 
 FEEDS = {
-    "urlhaus": {
-        "url": "https://urlhaus-api.abuse.ch/v1/urls/recent/",
-        "method": "POST",
-        "ioc_type": "domain",
-    },
+    # urlhaus disabled — requires API key since 2026
+    # "urlhaus": {
+    #     "url": "https://urlhaus-api.abuse.ch/v1/urls/recent/",
+    #     "method": "POST",
+    #     "ioc_type": "domain",
+    # },
     "feodo_tracker": {
         "url": "https://feodotracker.abuse.ch/downloads/ipblocklist_recommended.txt",
         "method": "GET",
@@ -28,6 +29,16 @@ FEEDS = {
     },
     "ssl_blacklist": {
         "url": "https://sslbl.abuse.ch/blacklist/sslipblacklist.txt",
+        "method": "GET",
+        "ioc_type": "ip",
+    },
+    "blocklist_de": {
+        "url": "https://lists.blocklist.de/lists/all.txt",
+        "method": "GET",
+        "ioc_type": "ip",
+    },
+    "cinsscore": {
+        "url": "https://cinsscore.com/list/ci-badguys.txt",
         "method": "GET",
         "ioc_type": "ip",
     },

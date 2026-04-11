@@ -120,6 +120,131 @@ def register_compliance_routes(bp, admin_required_decorator):
             logger.error("Fix failed: %s", exc)
             return jsonify({"error": str(exc)}), 500
 
+    @bp.route("/api/compliance/file-history", methods=["GET"])
+    @login_required
+    @admin_required_decorator
+    def compliance_file_history():
+        """Get change history for a config file (git-style log)."""
+        file_path = request.args.get("path", "").strip()
+        if not file_path:
+            return jsonify({"error": "path is required"}), 400
+        try:
+            history = compliance_service.get_file_history(file_path, limit=50)
+            return jsonify({"success": True, "history": history, "path": file_path})
+        except Exception as exc:
+            logger.error("File history failed: %s", exc)
+            return jsonify({"error": str(exc)}), 500
+
+    @bp.route("/api/compliance/blocklist", methods=["GET"])
+    @login_required
+    @admin_required_decorator
+    def compliance_blocklist_list():
+        """List all rules in the compliance blocklist."""
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT id, rule_id, pack_id, reason, risk_level,
+                              manual_steps, manually_applied_at,
+                              manually_applied_by, manually_applied_note,
+                              created_at
+                       FROM compliance_rule_blocklist
+                       ORDER BY pack_id, rule_id"""
+                )
+                rows = [dict(r) for r in cur.fetchall()]
+            for r in rows:
+                for k in ["manually_applied_at", "created_at"]:
+                    if r.get(k):
+                        r[k] = r[k].isoformat()
+            return jsonify({"success": True, "blocklist": rows, "count": len(rows)})
+        except Exception as exc:
+            logger.error("blocklist_list error: %s", exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
+    @bp.route("/api/compliance/blocklist/<rule_id>/mark-manual", methods=["POST"])
+    @login_required
+    @admin_required_decorator
+    def compliance_blocklist_mark_manual(rule_id):
+        """Mark a blocklisted rule as manually applied by the admin."""
+        try:
+            from database import get_db_cursor
+
+            data = request.get_json(silent=True) or {}
+            note = data.get("note", "")
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """UPDATE compliance_rule_blocklist
+                       SET manually_applied_at = NOW(),
+                           manually_applied_by = %s,
+                           manually_applied_note = %s,
+                           updated_at = NOW()
+                       WHERE rule_id = %s
+                       RETURNING id""",
+                    (current_user.id, note, rule_id),
+                )
+                row = cur.fetchone()
+            if not row:
+                return jsonify({"success": False, "error": "Rule not in blocklist"}), 404
+            return jsonify({"success": True, "rule_id": rule_id})
+        except Exception as exc:
+            logger.error("mark_manual error: %s", exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
+    @bp.route("/api/compliance/pending-fixes", methods=["GET"])
+    @login_required
+    @admin_required_decorator
+    def compliance_pending_fixes():
+        """List rules with pending Telegram approvals so the UI can show state."""
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT action_type, action_data->>'rule_id' AS rule_id,
+                              action_data->>'scan_id' AS scan_id,
+                              id AS approval_id, created_at
+                       FROM autonomy_approval_queue
+                       WHERE action_type LIKE 'compliance_fix_%%'
+                         AND status = 'pending'
+                       ORDER BY created_at DESC"""
+                )
+                rows = [dict(r) for r in cur.fetchall()]
+            return jsonify(
+                {
+                    "success": True,
+                    "pending": [
+                        {
+                            "rule_id": r["rule_id"],
+                            "scan_id": r["scan_id"],
+                            "approval_id": r["approval_id"],
+                        }
+                        for r in rows
+                    ],
+                }
+            )
+        except Exception as exc:
+            logger.error("pending-fixes error: %s", exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
+    @bp.route("/api/compliance/rollback", methods=["POST"])
+    @login_required
+    @admin_required_decorator
+    def compliance_rollback():
+        """Rollback a file to a previous snapshot."""
+        data = request.get_json(silent=True) or {}
+        snapshot_id = data.get("snapshot_id")
+        if not snapshot_id:
+            return jsonify({"error": "snapshot_id is required"}), 400
+        try:
+            result = compliance_service.rollback_file_snapshot(snapshot_id, user_id=current_user.id)
+            status_code = 200 if result.get("success") else 400
+            return jsonify(result), status_code
+        except Exception as exc:
+            logger.error("Rollback failed: %s", exc)
+            return jsonify({"error": str(exc)}), 500
+
     @bp.route("/api/compliance/export/ckl", methods=["GET"])
     @login_required
     @admin_required_decorator
@@ -226,3 +351,48 @@ def register_compliance_routes(bp, admin_required_decorator):
         except Exception as exc:
             logger.error("Pack reload failed: %s", exc)
             return jsonify({"error": str(exc)}), 500
+
+    @bp.route("/api/compliance/plan/<rule_id>", methods=["POST"])
+    @login_required
+    @admin_required_decorator
+    def compliance_generate_plan(rule_id):
+        """Ask F.O.R.G.E. to generate a customized remediation plan for a rule."""
+        data = request.get_json(silent=True) or {}
+        scan_id = data.get("scan_id")
+        if not scan_id:
+            return jsonify({"success": False, "error": "scan_id is required"}), 400
+        try:
+            result = compliance_service.generate_remediation_plan(scan_id, rule_id, user_id=current_user.id)
+            status_code = 200 if result.get("success") else 400
+            return jsonify(result), status_code
+        except Exception as exc:
+            logger.error("Plan generation failed: %s", exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
+    @bp.route("/api/compliance/plan/<int:plan_id>", methods=["GET"])
+    @login_required
+    @admin_required_decorator
+    def compliance_get_plan(plan_id):
+        """Fetch a stored remediation plan."""
+        try:
+            plan = compliance_service.get_remediation_plan(plan_id)
+            if plan is None:
+                return jsonify({"success": False, "error": "Plan not found"}), 404
+            return jsonify({"success": True, "plan": plan})
+        except Exception as exc:
+            logger.error("Get plan failed: %s", exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
+    @bp.route("/api/compliance/plans", methods=["GET"])
+    @login_required
+    @admin_required_decorator
+    def compliance_list_plans():
+        """List remediation plans, optionally filtered by rule_id or status."""
+        rule_id = request.args.get("rule_id")
+        status = request.args.get("status")
+        try:
+            plans = compliance_service.list_remediation_plans(rule_id=rule_id, status=status)
+            return jsonify({"success": True, "plans": plans, "count": len(plans)})
+        except Exception as exc:
+            logger.error("List plans failed: %s", exc)
+            return jsonify({"success": False, "error": str(exc)}), 500

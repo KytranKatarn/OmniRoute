@@ -18,10 +18,10 @@ jobs:
           python-version: "3.11"
 
       - name: Install linting tools
-        run: pip install flake8 black
+        run: pip install flake8 'black==24.4.2'
 
       - name: Check formatting with black
-        run: black --check --diff platform_v2/
+        run: black --check --diff --line-length=120 platform_v2/
 
       - name: Lint with flake8
         run: |

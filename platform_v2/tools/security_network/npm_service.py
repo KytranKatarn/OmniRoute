@@ -16,7 +16,7 @@ class NPMService:
     """Nginx Proxy Manager API client."""
 
     def __init__(self):
-        self.base_url = os.getenv("NPM_API_URL", "http://192.168.1.200:81/api")
+        self.base_url = os.getenv("NPM_API_URL", "http://nginx_proxy_manager:81/api")
         self.email = os.getenv("NPM_ADMIN_EMAIL", "")
         self.password = os.getenv("NPM_ADMIN_PASSWORD", "")
         self.token = None
@@ -58,7 +58,13 @@ class NPMService:
     def list_proxy_hosts(self) -> List[Dict]:
         """List all proxy hosts."""
         result = self._request("GET", "nginx/proxy-hosts")
+        logger.info(
+            "NPM list_proxy_hosts raw result type=%s len=%s",
+            type(result).__name__,
+            len(result) if isinstance(result, list) else "n/a",
+        )
         if isinstance(result, dict) and "error" in result:
+            logger.warning("NPM list_proxy_hosts returned error: %s", result.get("error"))
             return []
         return result or []
 

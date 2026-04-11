@@ -1258,309 +1258,1015 @@ function refreshSurveillance() {
 }
 
 /* ========== Reconnaissance ========== */
-async function loadReconModules() {
-    const grid = document.getElementById('recon-modules');
-    const select = document.getElementById('recon-module');
+/* ========== VULNERABILITY SCANNERS — LCARS Cards + Profiles ========== */
+var activeScannerType = '';
+var scannerData = {};
+var runningPollTimer = null;
+var scanElapsedTimers = {};
+
+var SCANNER_COLORS = {
+    nmap:   {color:'#00ffff', rgb:'0,255,255'},
+    nikto:  {color:'#ffaa00', rgb:'255,170,0'},
+    nuclei: {color:'#00ff41', rgb:'0,255,65'},
+    ssl:    {color:'#0ea5e9', rgb:'14,165,233'},
+    zap:    {color:'#ff6b6b', rgb:'239,68,68'}
+};
+
+var SCANNER_ICONS = {nmap:'network', nikto:'bug', nuclei:'atom', ssl:'lock', zap:'zap'};
+
+function _lucideIcon(name, size, color) {
+    var i = document.createElement('i');
+    i.setAttribute('data-lucide', name);
+    i.style.width = (size||16)+'px';
+    i.style.height = (size||16)+'px';
+    if(color) i.style.color = color;
+    return i;
+}
+
+async function loadScannerCards() {
+    var grid = document.getElementById('scanner-cards-grid');
+    if(!grid) return;
     try {
-        const r = await fetch(API+'/recon/modules');
-        const d = await r.json();
-        if(d.success && d.modules) {
-            grid.textContent='';
-            select.textContent='';
-            // Flatten categories dict into flat list
-            var allModules = [];
-            var mods = d.modules;
-            if (Array.isArray(mods)) {
-                allModules = mods;
-            } else if (typeof mods === 'object') {
-                Object.keys(mods).forEach(function(cat) {
-                    (mods[cat] || []).forEach(function(m) {
-                        m.category = cat;
-                        allModules.push(m);
-                    });
-                });
-            }
-            allModules.forEach(function(m) {
-                var opt = document.createElement('option');
-                opt.value = m.id || m.name;
-                opt.textContent = m.name;
-                select.appendChild(opt);
-                var card = document.createElement('div');
-                card.className='module-card';
-                card.addEventListener('click', function(){select.value=m.id||m.name;document.getElementById('recon-target').focus();});
-                var cat = document.createElement('div');
-                cat.className='mod-cat'; cat.textContent=m.category||'other';
-                var name = document.createElement('div');
-                name.className='mod-name'; name.textContent=m.name;
+        var r = await fetch(API+'/scanner/summary');
+        var d = await r.json();
+        if(!d.success) { showEmpty(grid,'Failed to load scanners'); return; }
+        scannerData = d.scanners;
+        grid.textContent = '';
+        var order = ['nmap','nikto','nuclei','ssl','zap'];
+        order.forEach(function(id) {
+            var s = scannerData[id];
+            if(!s) return;
+            var sc = SCANNER_COLORS[id] || {color:'#00ffff',rgb:'0,255,255'};
+            var card = document.createElement('div');
+            card.className = 'sn-scanner-card';
+            card.id = 'scanner-card-'+id;
+            card.style.setProperty('--sc-color', sc.color);
+            card.style.setProperty('--sc-color-rgb', sc.rgb);
+            card.addEventListener('click', function(){ selectScanner(id); });
+
+            /* Header: icon + status dot */
+            var header = document.createElement('div');
+            header.className = 'sn-sc-header';
+            var iconWrap = document.createElement('div');
+            iconWrap.className = 'sn-sc-icon';
+            iconWrap.appendChild(_lucideIcon(SCANNER_ICONS[id]||'scan', 20));
+            header.appendChild(iconWrap);
+            var dot = document.createElement('div');
+            dot.className = 'sn-sc-status '+(s.container_status==='running'?'online':s.container_status==='exited'?'offline':'unknown');
+            header.appendChild(dot);
+            card.appendChild(header);
+
+            /* Name + subtitle */
+            var name = document.createElement('div');
+            name.className = 'sn-sc-name';
+            name.textContent = s.label || id.toUpperCase();
+            card.appendChild(name);
+            var sub = document.createElement('div');
+            sub.className = 'sn-sc-subtitle';
+            sub.textContent = s.subtitle || '';
+            card.appendChild(sub);
+
+            /* Description */
+            if(s.description) {
                 var desc = document.createElement('div');
-                desc.className='mod-desc'; desc.textContent=m.description||'';
-                card.appendChild(cat); card.appendChild(name); card.appendChild(desc);
-                grid.appendChild(card);
+                desc.className = 'sn-sc-desc';
+                desc.textContent = s.description;
+                card.appendChild(desc);
+            }
+
+            /* Stats badges */
+            var stats = document.createElement('div');
+            stats.className = 'sn-sc-stats';
+            var total = s.total_findings || 0;
+            if(total > 0) {
+                var fb = document.createElement('span');
+                fb.className = 'sn-sc-stat findings';
+                fb.textContent = total + ' finding' + (total!==1?'s':'');
+                stats.appendChild(fb);
+            }
+            var findings = s.findings || {};
+            ['critical','high','medium'].forEach(function(sev){
+                if(findings[sev]) {
+                    var b = document.createElement('span');
+                    b.className = 'sn-sev-badge '+sev;
+                    b.textContent = findings[sev]+' '+sev;
+                    stats.appendChild(b);
+                }
+            });
+            card.appendChild(stats);
+
+            /* Last scan info */
+            if(s.last_scan) {
+                var ls = document.createElement('div');
+                ls.className = 'sn-sc-last-scan';
+                ls.textContent = (s.last_scan.target||'—') + ' \u2022 ' + (s.last_scan.started_at ? ArchieTime.format(s.last_scan.started_at,'short') : '—');
+                card.appendChild(ls);
+            }
+
+            /* Elapsed timer placeholder */
+            var elapsed = document.createElement('div');
+            elapsed.className = 'sn-sc-elapsed';
+            elapsed.id = 'scanner-elapsed-'+id;
+            elapsed.style.display = 'none';
+            card.appendChild(elapsed);
+
+            grid.appendChild(card);
+        });
+        if(typeof lucide !== 'undefined') lucide.createIcons();
+        /* Check for running scans */
+        pollRunningScans();
+    } catch(e) { showEmpty(grid,'Error loading scanners: '+e.message); }
+}
+
+function selectScanner(type) {
+    activeScannerType = type;
+    /* Highlight active card */
+    document.querySelectorAll('.sn-scanner-card').forEach(function(c){ c.classList.remove('active'); });
+    var card = document.getElementById('scanner-card-'+type);
+    if(card) card.classList.add('active');
+
+    /* Open LCARS modal */
+    var modal = document.getElementById('scan-launch-modal');
+    var sc = SCANNER_COLORS[type] || {color:'#00ffff', rgb:'0,255,255'};
+    modal.style.setProperty('--bm-accent', sc.color);
+    modal.style.setProperty('--bm-accent-rgb', sc.rgb);
+    var meta = scannerData[type] || {};
+    document.getElementById('scan-launch-title').textContent = (meta.label || type.toUpperCase()) + ' SCAN';
+    document.getElementById('scan-target').placeholder = type==='ssl'?'example.com':'IP, hostname, or URL';
+    document.getElementById('scan-target').value = '';
+    document.getElementById('scan-confirm-internal').style.display = 'none';
+
+    /* Update profile options */
+    var profileSel = document.getElementById('scan-profile');
+    profileSel.textContent = '';
+    var profiles = meta.profiles || {quick:{label:'Quick'},standard:{label:'Standard'},full:{label:'Full'}};
+    Object.keys(profiles).forEach(function(k){
+        var opt = document.createElement('option');
+        opt.value = k;
+        opt.textContent = profiles[k].label || k;
+        if(k==='standard') opt.selected = true;
+        profileSel.appendChild(opt);
+    });
+    updateProfileDesc();
+    profileSel.onchange = updateProfileDesc;
+
+    modal.classList.add('active');
+    if(typeof lucide !== 'undefined') lucide.createIcons();
+    setTimeout(function(){ document.getElementById('scan-target').focus(); }, 200);
+}
+
+function updateProfileDesc() {
+    var profiles = (scannerData[activeScannerType] || {}).profiles || {};
+    var sel = document.getElementById('scan-profile').value;
+    var desc = document.getElementById('scan-profile-desc');
+    var p = profiles[sel];
+    desc.textContent = p ? (p.label || sel) : '';
+}
+
+function closeScanLaunch() {
+    var modal = document.getElementById('scan-launch-modal');
+    if(modal) modal.classList.remove('active');
+    document.querySelectorAll('.sn-scanner-card').forEach(function(c){ c.classList.remove('active'); });
+    activeScannerType = '';
+}
+
+function runVulnScan() {
+    var target = document.getElementById('scan-target').value.trim();
+    if(!target) return showToast('error','Enter a target');
+    if(!activeScannerType) return showToast('error','Select a scanner first');
+
+    var internal = ['127.','localhost','192.168.','10.','172.'].some(function(p){return target.indexOf(p)===0;});
+    if(internal && !document.getElementById('scan-confirm-checkbox').checked) {
+        document.getElementById('scan-confirm-internal').style.display='block';
+        return showToast('warning','Confirm internal target scan');
+    }
+
+    var profile = document.getElementById('scan-profile').value;
+    var body = {target: target, profile: profile};
+    if(activeScannerType==='ssl') body.domain = target;
+    if(internal) body.confirm_internal = true;
+
+    var endpoint = activeScannerType==='ssl'?'/scanner/ssl':'/scanner/'+activeScannerType;
+
+    /* Set card to scanning state */
+    var card = document.getElementById('scanner-card-'+activeScannerType);
+    if(card) card.classList.add('scanning');
+    startElapsedTimer(activeScannerType);
+
+    showToast('info','Starting '+activeScannerType+' '+profile+' scan...');
+    var scanType = activeScannerType;
+    fetch(API+endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(function(r){return r.json();}).then(function(d){
+        stopElapsedTimer(scanType);
+        var c = document.getElementById('scanner-card-'+scanType);
+        if(c) c.classList.remove('scanning');
+        if(d.success){
+            showToast('success', scanType.toUpperCase()+' scan complete \u2014 '+(d.findings_count||0)+' findings');
+            loadScannerCards();
+            loadScanHistory();
+        } else {
+            showToast('error',d.error||'Scan failed');
+        }
+    }).catch(function(e){
+        stopElapsedTimer(scanType);
+        var c = document.getElementById('scanner-card-'+scanType);
+        if(c) c.classList.remove('scanning');
+        showToast('error',e.message);
+    });
+}
+
+function startElapsedTimer(scannerId) {
+    var start = Date.now();
+    var el = document.getElementById('scanner-elapsed-'+scannerId);
+    if(el) el.style.display = 'block';
+    scanElapsedTimers[scannerId] = setInterval(function(){
+        var secs = Math.floor((Date.now()-start)/1000);
+        var m = Math.floor(secs/60);
+        var s = secs%60;
+        if(el) el.textContent = 'SCANNING '+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+    }, 1000);
+}
+
+function stopElapsedTimer(scannerId) {
+    if(scanElapsedTimers[scannerId]) {
+        clearInterval(scanElapsedTimers[scannerId]);
+        delete scanElapsedTimers[scannerId];
+    }
+    var el = document.getElementById('scanner-elapsed-'+scannerId);
+    if(el) el.style.display = 'none';
+}
+
+async function pollRunningScans() {
+    try {
+        var r = await fetch(API+'/scanner/running');
+        var d = await r.json();
+        if(d.success && d.running && d.running.length) {
+            d.running.forEach(function(s){
+                var scannerId = s.scanner;
+                var card = document.getElementById('scanner-card-'+scannerId);
+                if(card && !card.classList.contains('scanning')) {
+                    card.classList.add('scanning');
+                    startElapsedTimer(scannerId);
+                }
             });
         }
-    } catch(e) { showEmpty(grid,'Error loading modules'); }
+    } catch(e) { /* silent */ }
+}
+
+/* ========== SCAN HISTORY / REPORTS ========== */
+async function loadScanHistory() {
+    var container = document.getElementById('scan-history-list');
+    if(!container) return;
+    var filterScanner = (document.getElementById('scan-filter-scanner')||{}).value || '';
+    try {
+        /* Fetch DB scans + filesystem scans in parallel */
+        var results = await Promise.allSettled([
+            fetch(API+'/recon/history?limit=50').then(function(r){return r.json();}),
+            fetch(API+'/scans').then(function(r){return r.json();})
+        ]);
+        var dbRes = results[0];
+        var fileRes = results[1];
+        var dbScans = (dbRes.status==='fulfilled' && dbRes.value.success && dbRes.value.history) ? dbRes.value.history : [];
+        var fileScans = (fileRes.status==='fulfilled' && fileRes.value.success && fileRes.value.scans) ? fileRes.value.scans : [];
+
+        /* Normalize */
+        var allScans = [];
+        dbScans.forEach(function(s){
+            allScans.push({
+                id: s.id, scanner: s.module_name, target: s.target, status: s.status,
+                started_at: s.started_at, completed_at: s.completed_at, source: 'db',
+                ts: s.started_at ? new Date(s.started_at).getTime() : 0
+            });
+        });
+        fileScans.forEach(function(s){
+            allScans.push({
+                scanner: s.scan_type, target: s.filename, status: 'completed',
+                started_at: s.created_at ? new Date(s.created_at*1000).toISOString() : null,
+                source: 'file', filename: s.filename,
+                ts: (s.created_at||0)*1000
+            });
+        });
+
+        /* Filter */
+        if(filterScanner) {
+            allScans = allScans.filter(function(s){ return s.scanner === filterScanner; });
+        }
+
+        /* Sort newest first */
+        allScans.sort(function(a,b){ return (b.ts||0)-(a.ts||0); });
+
+        container.textContent = '';
+        if(!allScans.length) { showEmpty(container,'No scan reports yet. Run a scan above.'); return; }
+
+        allScans.slice(0, 50).forEach(function(s) {
+            var sc = SCANNER_COLORS[s.scanner] || {color:'#00ffff', rgb:'0,255,255'};
+            var card = document.createElement('div');
+            card.className = 'sn-report-card';
+
+            var header = document.createElement('div');
+            header.className = 'sn-report-header';
+
+            /* Info: icon + scanner + target */
+            var info = document.createElement('div');
+            info.className = 'sn-report-info';
+            var icon = document.createElement('div');
+            icon.className = 'sn-report-scanner-icon';
+            icon.style.background = 'rgba('+sc.rgb+',0.12)';
+            icon.appendChild(_lucideIcon(SCANNER_ICONS[s.scanner]||'scan', 16, sc.color));
+            info.appendChild(icon);
+
+            var details = document.createElement('div');
+            var title = document.createElement('div');
+            title.className = 'sn-report-title';
+            title.textContent = (s.scanner||'scan').toUpperCase() + ' \u2014 ' + (s.target||'?');
+            details.appendChild(title);
+
+            var meta = document.createElement('div');
+            meta.className = 'sn-report-meta';
+            var statusBadge = document.createElement('span');
+            statusBadge.className = 'sn-sev-badge '+(s.status==='completed'?'low':s.status==='running'?'info':'high');
+            statusBadge.textContent = s.status||'unknown';
+            meta.appendChild(statusBadge);
+            var timeSpan = document.createElement('span');
+            timeSpan.textContent = s.started_at ? ArchieTime.format(s.started_at,'short') : '\u2014';
+            meta.appendChild(timeSpan);
+            details.appendChild(meta);
+            info.appendChild(details);
+            header.appendChild(info);
+
+            /* Actions */
+            var actions = document.createElement('div');
+            actions.className = 'sn-report-actions';
+            var viewBtn = document.createElement('button');
+            viewBtn.className = 'btn btn-sm';
+            viewBtn.textContent = 'View';
+            if(s.source === 'file') {
+                viewBtn.addEventListener('click', function(ev){ ev.stopPropagation(); viewScanFile(s.filename); });
+            } else {
+                viewBtn.addEventListener('click', function(ev){ ev.stopPropagation(); viewScanReport(s.id); });
+            }
+            actions.appendChild(viewBtn);
+
+            if(s.source === 'db' && s.id) {
+                var delBtn = document.createElement('button');
+                delBtn.className = 'btn btn-danger btn-sm';
+                delBtn.textContent = 'Del';
+                delBtn.addEventListener('click', function(ev){ ev.stopPropagation(); deleteReconScan(s.id); });
+                actions.appendChild(delBtn);
+            }
+            header.appendChild(actions);
+            card.appendChild(header);
+
+            /* Expandable detail area */
+            var detail = document.createElement('div');
+            detail.className = 'sn-report-detail';
+            detail.id = 'report-detail-'+(s.id||s.filename);
+            card.appendChild(detail);
+
+            card.addEventListener('click', function(){
+                detail.classList.toggle('open');
+                if(detail.classList.contains('open') && !detail.dataset.loaded) {
+                    loadReportDetail(detail, s);
+                }
+            });
+
+            container.appendChild(card);
+        });
+        if(typeof lucide !== 'undefined') lucide.createIcons();
+    } catch(e) { showEmpty(container,'Error loading scan reports'); }
+}
+
+async function loadReportDetail(detailEl, scan) {
+    detailEl.dataset.loaded = '1';
+    var spinner = document.createElement('div');
+    spinner.className = 'loading-state';
+    var sp = document.createElement('span');
+    sp.className = 'spinner';
+    spinner.appendChild(sp);
+    spinner.appendChild(document.createTextNode(' Loading...'));
+    detailEl.textContent = '';
+    detailEl.appendChild(spinner);
+    try {
+        if(scan.source === 'file') {
+            var r = await fetch(API+'/scans/'+encodeURIComponent(scan.filename));
+            var d = await r.json();
+            if(d.success) {
+                var pre = document.createElement('pre');
+                pre.textContent = typeof d.content === 'object' ? JSON.stringify(d.content,null,2) : d.content;
+                detailEl.textContent = '';
+                detailEl.appendChild(pre);
+            }
+        } else if(scan.id) {
+            /* Load findings from DB */
+            var results = await Promise.allSettled([
+                fetch(API+'/recon/scan/'+scan.id).then(function(r){return r.json();}),
+                fetch(API+'/scanner/findings?scanner='+encodeURIComponent(scan.scanner||'')+'&limit=50').then(function(r){return r.json();})
+            ]);
+            var scanRes = results[0];
+            var findingsRes = results[1];
+            detailEl.textContent = '';
+
+            /* Findings table */
+            var findings = (findingsRes.status==='fulfilled' && findingsRes.value.success) ? findingsRes.value.findings : [];
+            var scanFindings = findings.filter(function(f){ return f.scan_id === scan.id; });
+            if(scanFindings.length) {
+                var rows = scanFindings.map(function(f){
+                    var sevBadge = document.createElement('span');
+                    sevBadge.className = 'sn-sev-badge '+(f.severity||'info');
+                    sevBadge.textContent = f.severity||'info';
+                    return [sevBadge, f.finding||'\u2014', f.target||'\u2014'];
+                });
+                detailEl.appendChild(buildTable(['Severity','Finding','Target'], rows));
+            }
+
+            /* Raw results */
+            var scanData = (scanRes.status==='fulfilled' && scanRes.value.success) ? scanRes.value.scan : null;
+            if(scanData && scanData.results) {
+                var pre = document.createElement('pre');
+                pre.textContent = typeof scanData.results === 'object' ? JSON.stringify(scanData.results,null,2) : String(scanData.results);
+                detailEl.appendChild(pre);
+            }
+            if(!scanFindings.length && !scanData) {
+                detailEl.textContent = 'No detailed results available.';
+            }
+        }
+    } catch(e) {
+        detailEl.textContent = 'Error loading details: '+e.message;
+    }
+}
+
+function viewScanReport(scanId) {
+    fetch(API+'/recon/scan/'+scanId).then(function(r){return r.json();}).then(function(d){
+        if(!d.success) return showToast('error',d.error||'Failed');
+        var modal = document.getElementById('modal-content');
+        modal.textContent = '';
+        var header = document.createElement('div');
+        header.className = 'modal-header';
+        var h3 = document.createElement('h3');
+        h3.textContent = 'Scan #'+scanId+' \u2014 '+(d.scan?d.scan.module_name:'')+ ' \u2192 '+(d.scan?d.scan.target:'');
+        var closeBtn = document.createElement('button');
+        closeBtn.className='btn btn-sm'; closeBtn.textContent='Close';
+        closeBtn.addEventListener('click', closeModal);
+        header.appendChild(h3); header.appendChild(closeBtn);
+        modal.appendChild(header);
+
+        var info = document.createElement('div');
+        info.style.marginBottom='10px';
+        info.appendChild(createBadge(d.scan?d.scan.status:'', d.scan&&d.scan.status==='completed'?'success':'warning'));
+        if(d.scan && d.scan.started_at) {
+            var ts = document.createElement('span');
+            ts.style.cssText='font-size:0.78rem;color:var(--archie-text-muted);margin-left:10px';
+            ts.textContent = ArchieTime.format(d.scan.started_at,'short');
+            info.appendChild(ts);
+        }
+        modal.appendChild(info);
+
+        var pre = document.createElement('pre');
+        pre.style.cssText='background:var(--archie-bg-tertiary);padding:12px;border-radius:8px;font-size:0.72rem;max-height:450px;overflow:auto;color:var(--archie-text-secondary)';
+        var content = d.scan ? (d.scan.results || d.scan.raw_output || d.scan) : {};
+        pre.textContent = typeof content==='object'?JSON.stringify(content,null,2):String(content);
+        modal.appendChild(pre);
+        document.getElementById('modal-overlay').classList.add('open');
+    }).catch(function(e){showToast('error',e.message);});
+}
+
+function viewScanFile(filename) {
+    fetch(API+'/scans/'+encodeURIComponent(filename)).then(function(r){return r.json();}).then(function(d){
+        if(!d.success) return;
+        var modal = document.getElementById('modal-content');
+        modal.textContent='';
+        var header = document.createElement('div');
+        header.className='modal-header';
+        var h3 = document.createElement('h3');
+        h3.textContent=filename;
+        var closeBtn = document.createElement('button');
+        closeBtn.className='btn btn-sm'; closeBtn.textContent='Close';
+        closeBtn.addEventListener('click',closeModal);
+        header.appendChild(h3); header.appendChild(closeBtn);
+        modal.appendChild(header);
+        var pre = document.createElement('pre');
+        pre.style.cssText='background:var(--archie-bg-tertiary);padding:12px;border-radius:8px;font-size:0.72rem;max-height:450px;overflow:auto;color:var(--archie-text-secondary)';
+        pre.textContent = typeof d.content==='object'?JSON.stringify(d.content,null,2):d.content;
+        modal.appendChild(pre);
+        document.getElementById('modal-overlay').classList.add('open');
+    }).catch(function(e){showToast('error',e.message);});
+}
+
+function deleteReconScan(scanId) {
+    if(!confirm('Delete scan #'+scanId+'?')) return;
+    fetch(API+'/recon/scan/'+scanId,{method:'DELETE'}).then(function(r){return r.json();}).then(function(d){
+        if(d.success){showToast('success','Scan deleted');loadScanHistory();loadReconHistory();}else showToast('error',d.error||'Failed');
+    }).catch(function(e){showToast('error',e.message);});
+}
+
+/* ========== RECONNAISSANCE — Categorized Module Grid ========== */
+var RECON_CAT_COLORS = {
+    network:   {color:'#00ffff', rgb:'0,255,255'},
+    web:       {color:'#ffaa00', rgb:'255,170,0'},
+    threat:    {color:'#ff6b6b', rgb:'239,68,68'},
+    discovery: {color:'#8b5cf6', rgb:'139,92,246'},
+    scanning:  {color:'#00ff41', rgb:'0,255,65'}
+};
+
+async function loadReconModules() {
+    var container = document.getElementById('recon-modules-container');
+    var select = document.getElementById('recon-module');
+    if(!container) return;
+    try {
+        var r = await fetch(API+'/recon/modules');
+        var d = await r.json();
+        if(!d.success || !d.modules) { showEmpty(container,'Failed to load modules'); return; }
+
+        container.textContent = '';
+        select.textContent = '';
+        var mods = d.modules;
+        /* Populate recon campaign checkboxes */
+        populateReconCampaignChecks(mods);
+        var categories = (typeof mods === 'object' && !Array.isArray(mods)) ? mods : {other: mods};
+
+        Object.keys(categories).forEach(function(cat) {
+            var catColor = RECON_CAT_COLORS[cat] || {color:'#00ffff', rgb:'0,255,255'};
+            var section = document.createElement('div');
+            section.className = 'sn-recon-category';
+            section.style.setProperty('--cat-color', catColor.color);
+            section.style.setProperty('--cat-color-rgb', catColor.rgb);
+
+            var header = document.createElement('div');
+            header.className = 'sn-recon-cat-header';
+            header.textContent = cat.toUpperCase() + ' (' + (categories[cat]||[]).length + ')';
+            section.appendChild(header);
+
+            var grid = document.createElement('div');
+            grid.className = 'sn-recon-module-grid';
+
+            (categories[cat]||[]).forEach(function(m) {
+                var moduleId = m.id || m.name;
+                /* Add to dropdown */
+                var opt = document.createElement('option');
+                opt.value = moduleId;
+                opt.textContent = m.name + ' ('+cat+')';
+                select.appendChild(opt);
+
+                /* Module card */
+                var card = document.createElement('div');
+                card.className = 'sn-recon-mod';
+                card.addEventListener('click', function(){
+                    document.querySelectorAll('.sn-recon-mod').forEach(function(c){c.classList.remove('selected');});
+                    card.classList.add('selected');
+                    select.value = moduleId;
+                    openReconLaunch(m, cat);
+                });
+
+                var modName = document.createElement('div');
+                modName.className = 'sn-recon-mod-name';
+                modName.textContent = m.name;
+                card.appendChild(modName);
+
+                var desc = document.createElement('div');
+                desc.className = 'sn-recon-mod-desc';
+                desc.textContent = m.description || '';
+                card.appendChild(desc);
+
+                grid.appendChild(card);
+            });
+
+            section.appendChild(grid);
+            container.appendChild(section);
+        });
+    } catch(e) { showEmpty(container,'Error loading modules: '+e.message); }
 }
 
 async function loadReconHistory() {
-    const container = document.getElementById('recon-history');
+    var container = document.getElementById('recon-history');
+    if(!container) return;
     try {
-        const r = await fetch(API+'/recon/history?limit=20');
-        const d = await r.json();
-        if(d.success && d.scans && d.scans.length) {
+        var r = await fetch(API+'/recon/history?limit=30');
+        var d = await r.json();
+        if(d.success && d.history && d.history.length) {
             container.textContent='';
-            const rows = d.scans.map(s=>{
-                const statusCls = s.status==='completed'?'success':s.status==='running'?'warning':'danger';
-                const actions = document.createElement('div');
+            var rows = d.history.map(function(s){
+                var statusCls = s.status==='completed'?'success':s.status==='running'?'warning':'danger';
+                var actions = document.createElement('div');
                 actions.style.display='flex'; actions.style.gap='4px';
-                const viewBtn = document.createElement('button');
+                var viewBtn = document.createElement('button');
                 viewBtn.className='btn btn-sm'; viewBtn.textContent='View';
-                viewBtn.addEventListener('click',function(){viewScanResult(s.id);});
-                const delBtn = document.createElement('button');
+                viewBtn.addEventListener('click',function(){viewScanReport(s.id);});
+                var delBtn = document.createElement('button');
                 delBtn.className='btn btn-danger btn-sm'; delBtn.textContent='Del';
                 delBtn.addEventListener('click',function(){deleteReconScan(s.id);});
                 actions.appendChild(viewBtn); actions.appendChild(delBtn);
                 return ['#'+s.id, s.module_name, s.target, createBadge(s.status,statusCls), formatTime(s.started_at), actions];
             });
             container.appendChild(buildTable(['ID','Module','Target','Status','Started',''], rows));
-        } else { showEmpty(container,'No scan history yet'); }
+        } else { showEmpty(container,'No scan history yet. Select a module above and run a scan.'); }
     } catch(e) { showEmpty(container,'Error loading scan history'); }
 }
 
-function startReconScan() {
-    const module_name = document.getElementById('recon-module').value;
-    const target = document.getElementById('recon-target').value.trim();
-    if(!module_name||!target) return showToast('error','Select a module and enter a target');
-    showToast('info','Starting scan...');
-    fetch(API+'/recon/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_name:module_name,target:target})})
-    .then(r=>r.json()).then(d=>{
-        if(d.success){showToast('success','Scan started (ID: '+d.scan_id+')');setTimeout(loadReconHistory,2000);}
-        else showToast('error',d.error||'Failed');
-    }).catch(e=>showToast('error',e.message));
+function openReconLaunch(moduleData, category) {
+    var modal = document.getElementById('recon-launch-modal');
+    var catColor = RECON_CAT_COLORS[category] || {color:'#8b5cf6', rgb:'139,92,246'};
+    modal.style.setProperty('--bm-accent', catColor.color);
+    modal.style.setProperty('--bm-accent-rgb', catColor.rgb);
+    document.getElementById('recon-launch-title').textContent = (moduleData.name || 'SCAN').toUpperCase();
+    document.getElementById('recon-launch-desc').textContent = moduleData.description || '';
+    document.getElementById('recon-target').value = '';
+    modal.classList.add('active');
+    if(typeof lucide !== 'undefined') lucide.createIcons();
+    setTimeout(function(){ document.getElementById('recon-target').focus(); }, 200);
 }
 
-function viewScanResult(scanId) {
-    fetch(API+'/recon/scan/'+scanId).then(r=>r.json()).then(d=>{
+function closeReconLaunch() {
+    var modal = document.getElementById('recon-launch-modal');
+    if(modal) modal.classList.remove('active');
+    document.querySelectorAll('.sn-recon-mod').forEach(function(c){c.classList.remove('selected');});
+}
+
+function startReconScan() {
+    closeReconLaunch();
+    var module_name = document.getElementById('recon-module').value;
+    var target = document.getElementById('recon-target').value.trim();
+    if(!module_name||!target) return showToast('error','Select a module and enter a target');
+    showToast('info','Starting '+module_name+' scan...');
+    fetch(API+'/recon/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_name:module_name,target:target})})
+    .then(function(r){return r.json();}).then(function(d){
+        if(d.success){showToast('success','Scan started (ID: '+d.scan_id+')');setTimeout(loadReconHistory,2000);}
+        else showToast('error',d.error||'Failed');
+    }).catch(function(e){showToast('error',e.message);});
+}
+
+/* ========== RECON CAMPAIGN ========== */
+function populateReconCampaignChecks(modules) {
+    var container = document.getElementById('recon-campaign-checks');
+    if(!container) return;
+    container.textContent = '';
+    var categories = (typeof modules === 'object' && !Array.isArray(modules)) ? modules : {other: modules};
+    var catColors = {network:'#00ffff', web:'#ffaa00', threat:'#ff6b6b', discovery:'#8b5cf6', scanning:'#00ff41'};
+    Object.keys(categories).forEach(function(cat){
+        (categories[cat]||[]).forEach(function(m){
+            var moduleId = m.id || m.name;
+            var color = catColors[cat] || '#00ffff';
+            var label = document.createElement('label');
+            label.className = 'sn-check-item';
+            label.style.setProperty('--chk-color', color);
+            var cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.value = moduleId;
+            /* Default check popular ones */
+            if(['dns_lookup','whois','port_scan','header_analysis','tls_check'].indexOf(moduleId) !== -1) cb.checked = true;
+            label.appendChild(cb);
+            var txt = document.createTextNode(' ' + m.name);
+            label.appendChild(txt);
+            container.appendChild(label);
+        });
+    });
+}
+
+function launchReconCampaign() {
+    var client = document.getElementById('recon-campaign-client').value.trim();
+    var target = document.getElementById('recon-campaign-target').value.trim();
+    if(!client) return showToast('error','Enter a client or company name');
+    if(!target) return showToast('error','Enter a target');
+
+    var recon_modules = [];
+    document.querySelectorAll('#recon-campaign-checks input[type="checkbox"]:checked').forEach(function(cb){
+        recon_modules.push(cb.value);
+    });
+    if(!recon_modules.length) return showToast('error','Select at least one module');
+
+    showToast('info','Launching recon campaign for '+client+' ('+recon_modules.length+' modules)...');
+    fetch(API+'/scanner/campaign',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({client_name:client, target:target, profile:'standard', scanners:[], recon_modules:recon_modules})
+    }).then(function(r){return r.json();}).then(function(d){
+        if(d.success){
+            showToast('success','Recon campaign #'+d.campaign_id+' launched: '+recon_modules.length+' modules');
+            document.getElementById('recon-campaign-client').value = '';
+            document.getElementById('recon-campaign-target').value = '';
+            loadReconHistory();
+        } else {
+            showToast('error',d.error||'Failed');
+        }
+    }).catch(function(e){showToast('error',e.message);});
+}
+
+/* ========== NAGIOS MONITORING ========== */
+var nagiosLoaded = false;
+
+async function loadNagiosData() {
+    try {
+        var [statusRes, hostsRes, servicesRes, problemsRes] = await Promise.allSettled([
+            fetch(API+'/nagios/status').then(function(r){return r.json();}),
+            fetch(API+'/nagios/hosts').then(function(r){return r.json();}),
+            fetch(API+'/nagios/services').then(function(r){return r.json();}),
+            fetch(API+'/nagios/problems').then(function(r){return r.json();})
+        ]);
+
+        /* Hero stats */
+        if(statusRes.status === 'fulfilled' && statusRes.value.success) {
+            var s = statusRes.value;
+            var hc = (s.hosts && s.hosts.count) ? s.hosts.count : (s.hosts || {});
+            var sc = (s.services && s.services.count) ? s.services.count : (s.services || {});
+            document.getElementById('nagios-hosts-up').textContent = hc.up || 0;
+            document.getElementById('nagios-hosts-down').textContent = hc.down || 0;
+            document.getElementById('nagios-svc-ok').textContent = sc.ok || 0;
+            document.getElementById('nagios-svc-warn').textContent = sc.warning || 0;
+            document.getElementById('nagios-svc-crit').textContent = sc.critical || 0;
+        }
+
+        /* Problems */
+        var problemsContainer = document.getElementById('nagios-problems');
+        if(problemsRes.status === 'fulfilled' && problemsRes.value.success) {
+            var p = problemsRes.value.problems;
+            var allProblems = (p.hosts || []).concat(p.services || []);
+            problemsContainer.textContent = '';
+            if(!allProblems.length) {
+                var ok = document.createElement('div');
+                ok.style.cssText = 'text-align:center;padding:20px;color:var(--archie-green);font-family:Antonio,sans-serif;font-size:0.9rem;letter-spacing:0.1em';
+                ok.textContent = 'ALL SYSTEMS OPERATIONAL';
+                problemsContainer.appendChild(ok);
+            } else {
+                allProblems.forEach(function(prob) {
+                    var card = document.createElement('div');
+                    var status = (prob.status || '').toLowerCase();
+                    card.className = 'sn-nagios-problem' + (status === 'warning' ? ' warning' : '');
+                    var badge = document.createElement('span');
+                    badge.className = 'sn-nagios-status-badge ' + status;
+                    badge.textContent = prob.status || 'UNKNOWN';
+                    card.appendChild(badge);
+                    var name = document.createElement('span');
+                    name.className = 'sn-nagios-host-name';
+                    name.textContent = (prob.host || prob.name || '') + (prob.service ? ' / ' + prob.service : '');
+                    card.appendChild(name);
+                    var output = document.createElement('span');
+                    output.className = 'sn-nagios-output';
+                    output.textContent = prob.plugin_output || '';
+                    card.appendChild(output);
+                    problemsContainer.appendChild(card);
+                });
+            }
+        }
+
+        /* Hosts */
+        var hostsContainer = document.getElementById('nagios-hosts');
+        if(hostsRes.status === 'fulfilled' && hostsRes.value.success) {
+            hostsContainer.textContent = '';
+            (hostsRes.value.hosts || []).forEach(function(h) {
+                var card = document.createElement('div');
+                card.className = 'sn-nagios-host-card ' + (h.status || '').toLowerCase();
+                var badge = document.createElement('span');
+                badge.className = 'sn-nagios-status-badge ' + (h.status || '').toLowerCase();
+                badge.textContent = h.status || '?';
+                card.appendChild(badge);
+                var name = document.createElement('span');
+                name.className = 'sn-nagios-host-name';
+                name.textContent = h.name || '?';
+                card.appendChild(name);
+                var output = document.createElement('span');
+                output.className = 'sn-nagios-output';
+                output.textContent = h.plugin_output || '';
+                card.appendChild(output);
+                hostsContainer.appendChild(card);
+            });
+            if(!(hostsRes.value.hosts || []).length) showEmpty(hostsContainer, 'No hosts found');
+        }
+
+        /* Services */
+        var servicesContainer = document.getElementById('nagios-services');
+        if(servicesRes.status === 'fulfilled' && servicesRes.value.success) {
+            servicesContainer.textContent = '';
+            var svcs = servicesRes.value.services || [];
+            if(svcs.length) {
+                var rows = svcs.map(function(s) {
+                    var badge = document.createElement('span');
+                    badge.className = 'sn-nagios-status-badge ' + (s.status || '').toLowerCase();
+                    badge.textContent = s.status || '?';
+                    return [s.host || '?', s.service || '?', badge, s.plugin_output || ''];
+                });
+                servicesContainer.appendChild(buildTable(['Host', 'Service', 'Status', 'Output'], rows));
+            } else {
+                showEmpty(servicesContainer, 'No services found');
+            }
+        }
+
+        nagiosLoaded = true;
+    } catch(e) {
+        showToast('error', 'Nagios error: ' + e.message);
+    }
+}
+
+/* ========== SCAN CAMPAIGNS ========== */
+function launchCampaign() {
+    var client = document.getElementById('campaign-client').value.trim();
+    var target = document.getElementById('campaign-target').value.trim();
+    var profile = document.getElementById('campaign-profile').value;
+    if(!client) return showToast('error','Enter a client or company name');
+    if(!target) return showToast('error','Enter a target');
+
+    var scanners = [];
+    document.querySelectorAll('.sn-campaign-checks input[type="checkbox"]:checked').forEach(function(cb){
+        scanners.push(cb.value);
+    });
+    if(!scanners.length) return showToast('error','Select at least one scanner');
+
+    showToast('info','Launching campaign for '+client+'...');
+    fetch(API+'/scanner/campaign',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({client_name:client, target:target, profile:profile, scanners:scanners})
+    }).then(function(r){return r.json();}).then(function(d){
+        if(d.success){
+            showToast('success','Campaign #'+d.campaign_id+' launched: '+d.scanners_launched.length+' scanners');
+            document.getElementById('campaign-client').value = '';
+            document.getElementById('campaign-target').value = '';
+            loadCampaigns();
+            loadScannerCards();
+        } else {
+            showToast('error',d.error||'Failed to launch campaign');
+        }
+    }).catch(function(e){showToast('error',e.message);});
+}
+
+async function loadCampaigns() {
+    var container = document.getElementById('campaign-list');
+    if(!container) return;
+    try {
+        var r = await fetch(API+'/scanner/campaigns');
+        var d = await r.json();
+        if(!d.success || !d.campaigns || !d.campaigns.length) {
+            showEmpty(container,'No campaigns yet. Launch one above.');
+            return;
+        }
+        container.textContent = '';
+        d.campaigns.forEach(function(c) {
+            var card = document.createElement('div');
+            card.className = 'sn-campaign-card';
+            card.addEventListener('click', function(){ viewCampaignReport(c.id); });
+
+            var header = document.createElement('div');
+            header.className = 'sn-campaign-card-header';
+            var left = document.createElement('div');
+            var clientEl = document.createElement('div');
+            clientEl.className = 'sn-campaign-client';
+            clientEl.textContent = c.client_name;
+            left.appendChild(clientEl);
+            var meta = document.createElement('div');
+            meta.className = 'sn-campaign-meta';
+            var statusBadge = document.createElement('span');
+            statusBadge.className = 'sn-sev-badge '+(c.status==='completed'?'low':c.status==='running'?'info':'high');
+            statusBadge.textContent = c.status;
+            meta.appendChild(statusBadge);
+            var targetSpan = document.createElement('span');
+            targetSpan.textContent = c.target;
+            meta.appendChild(targetSpan);
+            var timeSpan = document.createElement('span');
+            timeSpan.textContent = c.created_at ? ArchieTime.format(c.created_at,'short') : '';
+            meta.appendChild(timeSpan);
+            left.appendChild(meta);
+            header.appendChild(left);
+
+            var viewBtn = document.createElement('button');
+            viewBtn.className = 'btn btn-sm';
+            viewBtn.textContent = 'Report';
+            viewBtn.addEventListener('click', function(ev){ ev.stopPropagation(); viewCampaignReport(c.id); });
+            header.appendChild(viewBtn);
+            card.appendChild(header);
+
+            /* Scanner badges */
+            var scanners = document.createElement('div');
+            scanners.className = 'sn-campaign-scanners';
+            (c.scanners||[]).forEach(function(s){
+                var sc = SCANNER_COLORS[s] || {color:'#00ffff'};
+                var badge = document.createElement('span');
+                badge.className = 'sn-sev-badge';
+                badge.style.background = 'rgba('+((SCANNER_COLORS[s]||{}).rgb||'0,255,255')+',0.15)';
+                badge.style.color = sc.color;
+                badge.textContent = s;
+                scanners.appendChild(badge);
+            });
+            card.appendChild(scanners);
+            container.appendChild(card);
+        });
+    } catch(e) { showEmpty(container,'Error loading campaigns'); }
+}
+
+function viewCampaignReport(campaignId) {
+    fetch(API+'/scanner/campaign/'+campaignId).then(function(r){return r.json();}).then(function(d){
         if(!d.success) return showToast('error',d.error||'Failed');
-        const modal = document.getElementById('modal-content');
+        var modal = document.getElementById('modal-content');
         modal.textContent = '';
-        const header = document.createElement('div');
+
+        /* Header */
+        var header = document.createElement('div');
         header.className = 'modal-header';
-        const h3 = document.createElement('h3');
-        h3.textContent = 'Scan #'+scanId+' - '+(d.scan?d.scan.module_name:'');
-        const closeBtn = document.createElement('button');
-        closeBtn.className = 'btn btn-sm';
-        closeBtn.textContent = 'Close';
+        var h3 = document.createElement('h3');
+        h3.textContent = d.campaign.client_name + ' \u2014 Campaign Report';
+        var closeBtn = document.createElement('button');
+        closeBtn.className='btn btn-sm'; closeBtn.textContent='Close';
         closeBtn.addEventListener('click', closeModal);
         header.appendChild(h3); header.appendChild(closeBtn);
         modal.appendChild(header);
-        const info = document.createElement('div');
-        info.style.marginBottom = '8px';
-        info.appendChild(createBadge(d.scan?d.scan.status:'', d.scan&&d.scan.status==='completed'?'success':'warning'));
-        const targetSpan = document.createElement('span');
-        targetSpan.style.cssText = 'font-size:0.78rem;color:var(--archie-text-muted);margin-left:8px';
-        targetSpan.textContent = 'Target: '+(d.scan?d.scan.target:'');
-        info.appendChild(targetSpan);
+
+        /* Campaign info */
+        var info = document.createElement('div');
+        info.style.cssText = 'margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center';
+        info.appendChild(createBadge(d.campaign.status, d.campaign.status==='completed'?'success':'warning'));
+        var tgt = document.createElement('span');
+        tgt.style.cssText = 'font-size:0.78rem;color:var(--archie-text-muted)';
+        tgt.textContent = 'Target: '+d.campaign.target+' | Profile: '+d.campaign.profile;
+        info.appendChild(tgt);
+        if(d.campaign.created_at) {
+            var ts = document.createElement('span');
+            ts.style.cssText = 'font-size:0.72rem;color:var(--archie-text-muted)';
+            ts.textContent = ArchieTime.format(d.campaign.created_at,'short');
+            info.appendChild(ts);
+        }
         modal.appendChild(info);
-        const pre = document.createElement('pre');
-        pre.style.cssText = 'background:var(--archie-bg-tertiary);padding:12px;border-radius:8px;font-size:0.75rem;max-height:400px;overflow:auto;color:var(--archie-text-secondary)';
-        pre.textContent = JSON.stringify(d.scan?d.scan.results:{}, null, 2);
-        modal.appendChild(pre);
-        document.getElementById('modal-overlay').classList.add('open');
-    }).catch(e=>showToast('error',e.message));
-}
 
-function deleteReconScan(scanId) {
-    if(!confirm('Delete scan #'+scanId+'?')) return;
-    fetch(API+'/recon/scan/'+scanId,{method:'DELETE'}).then(r=>r.json()).then(d=>{
-        if(d.success){showToast('success','Scan deleted');loadReconHistory();}else showToast('error',d.error||'Failed');
-    }).catch(e=>showToast('error',e.message));
-}
+        /* Scan results summary */
+        if(d.scans && d.scans.length) {
+            var scanHeader = document.createElement('div');
+            scanHeader.style.cssText = 'font-family:Antonio,sans-serif;font-size:0.82rem;letter-spacing:0.1em;color:var(--archie-cyan);margin:12px 0 8px';
+            scanHeader.textContent = 'SCANS ('+d.scans.length+')';
+            modal.appendChild(scanHeader);
 
-/* ========== Vulnerability Scanning ========== */
-function showScannerForm(type) {
-    activeScannerType = type;
-    var titles = {nmap:'Nmap Port Scanner',nikto:'Nikto Web Scanner',nuclei:'Nuclei Template Scanner',ssl:'SSL/TLS Check',zap:'ZAP Web App Scanner'};
-    document.getElementById('scanner-form-title').textContent = titles[type]||type;
-    document.getElementById('scanner-form-card').style.display = 'block';
-    document.getElementById('scan-type-group').style.display = (type==='nmap'||type==='zap')?'flex':'none';
-    document.getElementById('scan-confirm-internal').style.display = 'none';
-    document.getElementById('scan-target').placeholder = type==='ssl'?'example.com':'IP, hostname, or URL';
-    if(type==='zap') {
-        var sel = document.getElementById('scan-type');
-        sel.textContent = '';
-        ['spider','active','ajax'].forEach(function(v){var o=document.createElement('option');o.value=v;o.textContent=v;sel.appendChild(o);});
-    } else {
-        var sel = document.getElementById('scan-type');
-        sel.textContent = '';
-        ['quick','full','stealth'].forEach(function(v){var o=document.createElement('option');o.value=v;o.textContent=v;sel.appendChild(o);});
-    }
-}
-
-function runVulnScan() {
-    const target = document.getElementById('scan-target').value.trim();
-    if(!target) return showToast('error','Enter a target');
-    const internal = ['127.','localhost','192.168.','10.','172.'].some(function(p){return target.indexOf(p)===0;});
-    if(internal && !document.getElementById('scan-confirm-checkbox').checked) {
-        document.getElementById('scan-confirm-internal').style.display='block';
-        return showToast('warning','Confirm internal target scan');
-    }
-    var body = {target:target};
-    if(activeScannerType==='nmap'||activeScannerType==='zap') body.scan_type = document.getElementById('scan-type').value;
-    if(activeScannerType==='ssl') body.domain = target;
-    if(internal) body.confirm_internal = true;
-    var endpoint = activeScannerType==='ssl'?'/scanner/ssl':'/scanner/'+activeScannerType;
-    showToast('info','Starting '+activeScannerType+' scan...');
-    fetch(API+endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
-    .then(r=>r.json()).then(d=>{
-        if(d.success){showToast('success','Scan complete');loadScanResults();}else showToast('error',d.error||'Scan failed');
-    }).catch(e=>showToast('error',e.message));
-}
-
-async function loadScanResults() {
-    const container = document.getElementById('scan-results-list');
-    try {
-        /* Fetch both filesystem scans and DB recon scans in parallel */
-        const [fileRes, reconRes] = await Promise.allSettled([
-            fetch(API+'/scans').then(r=>r.json()),
-            fetch(API+'/recon/history').then(r=>r.json())
-        ]);
-        const fileScans = (fileRes.status==='fulfilled' && fileRes.value.success && fileRes.value.scans) ? fileRes.value.scans : [];
-        const reconScans = (reconRes.status==='fulfilled' && reconRes.value.success && reconRes.value.history) ? reconRes.value.history : [];
-
-        /* Normalise recon scans to same shape as file scans */
-        const normRecon = reconScans.map(s=>({
-            id: s.id,
-            filename: s.module_name+' → '+s.target,
-            scan_type: s.module_name||'recon',
-            created_at: s.started_at ? new Date(s.started_at).getTime()/1000 : 0,
-            status: s.status,
-            source: 'db'
-        }));
-        const normFile = fileScans.map(s=>({...s, source:'file'}));
-
-        /* Merge and sort by time descending */
-        const allScans = normFile.concat(normRecon).sort((a,b)=>(b.created_at||0)-(a.created_at||0));
-
-        if(allScans.length) {
-            container.textContent='';
-            allScans.forEach(s=>{
-                const card = document.createElement('div');
-                card.className='scan-card';
-                const info = document.createElement('div');
-                const nameEl = document.createElement('strong');
-                nameEl.textContent = s.filename;
-                const meta = document.createElement('small');
-                meta.style.color='var(--archie-text-muted)';
-                const timeStr = s.created_at ? ArchieTime.format(new Date(s.created_at*1000).toISOString(), 'short') : '-';
-                meta.textContent = ' | '+s.scan_type+' | '+timeStr;
-                if(s.status) {
-                    const badge = document.createElement('span');
-                    badge.style.cssText='margin-left:6px;padding:1px 6px;border-radius:4px;font-size:0.7rem;background:'+
-                        (s.status==='completed'?'var(--archie-green)':s.status==='running'?'var(--archie-cyan)':'var(--archie-orange)')+
-                        ';color:#000';
-                    badge.textContent=s.status;
-                    meta.appendChild(badge);
-                }
-                info.appendChild(nameEl);
-                info.appendChild(meta);
-                const actions = document.createElement('div');
-                actions.style.display='flex'; actions.style.gap='6px';
-                if(s.source==='file') {
-                    const viewBtn = document.createElement('button');
-                    viewBtn.className='btn btn-sm'; viewBtn.textContent='View';
-                    viewBtn.addEventListener('click',function(){viewScanFile(s.filename);});
-                    actions.appendChild(viewBtn);
-                    const dlLink = document.createElement('a');
-                    dlLink.href=API+'/reports/download/'+encodeURIComponent(s.filename);
-                    dlLink.className='btn btn-sm'; dlLink.textContent='Download';
-                    actions.appendChild(dlLink);
-                } else if(s.source==='db' && s.id) {
-                    const viewBtn = document.createElement('button');
-                    viewBtn.className='btn btn-sm'; viewBtn.textContent='View';
-                    viewBtn.addEventListener('click',function(){viewReconScan(s.id);});
-                    actions.appendChild(viewBtn);
-                    const delBtn = document.createElement('button');
-                    delBtn.className='btn btn-sm btn-danger'; delBtn.textContent='Delete';
-                    delBtn.addEventListener('click',function(){deleteReconScan(s.id);});
-                    actions.appendChild(delBtn);
-                }
-                card.appendChild(info); card.appendChild(actions);
-                container.appendChild(card);
+            var scanRows = d.scans.map(function(s){
+                var statusBadge = document.createElement('span');
+                statusBadge.className = 'sn-sev-badge '+(s.status==='completed'?'low':s.status==='running'?'info':'high');
+                statusBadge.textContent = s.status;
+                return [(s.scanner||'').toUpperCase(), s.target, statusBadge,
+                        s.started_at ? ArchieTime.format(s.started_at,'short') : '\u2014'];
             });
-        } else { showEmpty(container,'No scan results yet'); }
-    } catch(e) { showEmpty(container,'Error loading scan results'); }
-}
+            modal.appendChild(buildTable(['Scanner','Target','Status','Started'], scanRows));
+        }
 
-function viewScanFile(filename) {
-    fetch(API+'/scans/'+encodeURIComponent(filename)).then(r=>r.json()).then(d=>{
-        if(!d.success) return;
-        const modal = document.getElementById('modal-content');
-        modal.textContent='';
-        const header = document.createElement('div');
-        header.className='modal-header';
-        const h3 = document.createElement('h3');
-        h3.textContent=filename;
-        const closeBtn = document.createElement('button');
-        closeBtn.className='btn btn-sm'; closeBtn.textContent='Close';
-        closeBtn.addEventListener('click',closeModal);
-        header.appendChild(h3); header.appendChild(closeBtn);
-        modal.appendChild(header);
-        const pre = document.createElement('pre');
-        pre.style.cssText='background:var(--archie-bg-tertiary);padding:12px;border-radius:8px;font-size:0.75rem;max-height:500px;overflow:auto;color:var(--archie-text-secondary)';
-        pre.textContent = typeof d.content==='object'?JSON.stringify(d.content,null,2):d.content;
-        modal.appendChild(pre);
+        /* Findings */
+        if(d.findings && d.findings.length) {
+            var findHeader = document.createElement('div');
+            findHeader.style.cssText = 'font-family:Antonio,sans-serif;font-size:0.82rem;letter-spacing:0.1em;color:var(--archie-orange);margin:16px 0 8px';
+            findHeader.textContent = 'FINDINGS ('+d.findings.length+')';
+            modal.appendChild(findHeader);
+
+            var findRows = d.findings.map(function(f){
+                var sevBadge = document.createElement('span');
+                sevBadge.className = 'sn-sev-badge '+(f.severity||'info');
+                sevBadge.textContent = f.severity||'info';
+                return [sevBadge, (f.scanner||'').toUpperCase(), f.finding||'\u2014', f.target||''];
+            });
+            modal.appendChild(buildTable(['Severity','Scanner','Finding','Target'], findRows));
+        } else {
+            var noFind = document.createElement('div');
+            noFind.style.cssText = 'padding:16px;text-align:center;color:var(--archie-text-muted);font-size:0.8rem';
+            noFind.textContent = d.campaign.status==='running' ? 'Scans still running...' : 'No findings recorded.';
+            modal.appendChild(noFind);
+        }
+
         document.getElementById('modal-overlay').classList.add('open');
-    }).catch(e=>showToast('error',e.message));
+    }).catch(function(e){showToast('error',e.message);});
 }
 
-function viewReconScan(scanId) {
-    fetch(API+'/recon/scan/'+scanId).then(r=>r.json()).then(d=>{
-        if(!d.success) return showToast('error',d.error||'Failed to load scan');
-        const modal = document.getElementById('modal-content');
-        modal.textContent='';
-        const header = document.createElement('div');
-        header.className='modal-header';
-        const h3 = document.createElement('h3');
-        h3.textContent=(d.scan.module_name||'Scan')+' — '+(d.scan.target||'');
-        const closeBtn = document.createElement('button');
-        closeBtn.className='btn btn-sm'; closeBtn.textContent='Close';
-        closeBtn.addEventListener('click',closeModal);
-        header.appendChild(h3); header.appendChild(closeBtn);
-        modal.appendChild(header);
-        const pre = document.createElement('pre');
-        pre.style.cssText='background:var(--archie-bg-tertiary);padding:12px;border-radius:8px;font-size:0.75rem;max-height:500px;overflow:auto;color:var(--archie-text-secondary)';
-        const content = d.scan.results || d.scan.raw_output || d.scan;
-        pre.textContent = typeof content==='object'?JSON.stringify(content,null,2):String(content);
-        modal.appendChild(pre);
-        document.getElementById('modal-overlay').classList.add('open');
-    }).catch(e=>showToast('error',e.message));
-}
-
-/* SSL Monitors */
+/* ========== SSL Monitors ========== */
 async function loadSSLMonitors() {
-    const container = document.getElementById('ssl-monitors-list');
+    var container = document.getElementById('ssl-monitors-list');
+    if(!container) return;
     try {
-        const r = await fetch(API+'/ssl/monitors');
-        const d = await r.json();
+        var r = await fetch(API+'/ssl/monitors');
+        var d = await r.json();
         if(d.success && d.monitors && d.monitors.length) {
             container.textContent='';
-            const rows = d.monitors.map(m=>{
-                const daysColor = (m.days_until_expiry||0)<30?'danger':'success';
-                const expiry = document.createElement('span');
-                expiry.style.color = daysColor==='danger'?'var(--archie-red)':'var(--archie-green)';
-                expiry.textContent = (m.valid_until?ArchieTime.date(m.valid_until):'-')+' ('+(m.days_until_expiry||'?')+'d)';
-                return [m.domain, m.issuer||'-', expiry, createBadge(m.grade||'?', (m.grade==='A'||m.grade==='A+')?'success':'warning')];
+            d.monitors.forEach(function(m){
+                var card = document.createElement('div');
+                card.className = 'sn-ssl-card';
+                var left = document.createElement('div');
+                var domain = document.createElement('div');
+                domain.className = 'sn-ssl-domain';
+                domain.textContent = m.domain;
+                left.appendChild(domain);
+                var issuer = document.createElement('div');
+                issuer.className = 'sn-ssl-issuer';
+                issuer.textContent = m.issuer||'Unknown issuer';
+                left.appendChild(issuer);
+                card.appendChild(left);
+
+                var days = m.days_until_expiry || 0;
+                var expiry = document.createElement('div');
+                expiry.className = 'sn-ssl-expiry '+(days>30?'safe':days>7?'warning':'danger');
+                expiry.textContent = days+'d remaining';
+                card.appendChild(expiry);
+
+                if(m.grade) {
+                    card.appendChild(createBadge(m.grade, (m.grade==='A'||m.grade==='A+')?'success':'warning'));
+                }
+                container.appendChild(card);
             });
-            container.appendChild(buildTable(['Domain','Issuer','Expires','Grade'], rows));
         } else {
-            /* No monitors — offer to auto-seed from NPM proxy hosts */
             container.textContent='';
-            const wrap = document.createElement('div');
+            var wrap = document.createElement('div');
             wrap.style.cssText='text-align:center;padding:24px;color:var(--archie-text-muted)';
-            const msg = document.createElement('p');
+            var msg = document.createElement('p');
             msg.textContent='No SSL monitors configured.';
             wrap.appendChild(msg);
-            const seedBtn = document.createElement('button');
+            var seedBtn = document.createElement('button');
             seedBtn.className='btn btn-primary btn-sm';
             seedBtn.textContent='Auto-add from NPM Proxy Hosts';
             seedBtn.addEventListener('click', seedSSLFromProxyHosts);
@@ -1573,24 +2279,23 @@ async function loadSSLMonitors() {
 async function seedSSLFromProxyHosts() {
     try {
         showToast('info','Fetching proxy hosts...');
-        const r = await fetch(API+'/domains/proxy-hosts');
-        const d = await r.json();
+        var r = await fetch(API+'/domains/proxy-hosts');
+        var d = await r.json();
         if(!d.success || !d.proxy_hosts || !d.proxy_hosts.length) {
             return showToast('warning','No proxy hosts found in NPM');
         }
-        /* Extract unique domains from proxy hosts */
-        const domains = [];
-        d.proxy_hosts.forEach(h=>{
-            (h.domain_names||[]).forEach(dn=>{
-                if(dn && !domains.includes(dn)) domains.push(dn);
+        var domains = [];
+        d.proxy_hosts.forEach(function(h){
+            (h.domain_names||[]).forEach(function(dn){
+                if(dn && domains.indexOf(dn)===-1) domains.push(dn);
             });
         });
         if(!domains.length) return showToast('warning','No domains found in proxy hosts');
-        let added=0, failed=0;
-        for(const domain of domains) {
+        var added=0, failed=0;
+        for(var i=0;i<domains.length;i++) {
             try {
-                const ar = await fetch(API+'/ssl/monitors',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain:domain})});
-                const ad = await ar.json();
+                var ar = await fetch(API+'/ssl/monitors',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain:domains[i]})});
+                var ad = await ar.json();
                 if(ad.success) added++; else failed++;
             } catch(e) { failed++; }
         }
@@ -1600,17 +2305,17 @@ async function seedSSLFromProxyHosts() {
 }
 
 function showAddSSLModal() {
-    const domain = prompt('Enter domain to monitor (e.g., example.com):');
+    var domain = prompt('Enter domain to monitor (e.g., example.com):');
     if(!domain) return;
     fetch(API+'/ssl/monitors',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain:domain})})
-    .then(r=>r.json()).then(d=>{if(d.success){showToast('success','SSL monitor added');loadSSLMonitors();}else showToast('error',d.error||'Failed');})
-    .catch(e=>showToast('error',e.message));
+    .then(function(r){return r.json();}).then(function(d){if(d.success){showToast('success','SSL monitor added');loadSSLMonitors();}else showToast('error',d.error||'Failed');})
+    .catch(function(e){showToast('error',e.message);});
 }
 
 function refreshSSLMonitors() {
-    fetch(API+'/ssl/refresh',{method:'POST'}).then(r=>r.json()).then(d=>{
+    fetch(API+'/ssl/refresh',{method:'POST'}).then(function(r){return r.json();}).then(function(d){
         if(d.success){showToast('success','SSL monitors refreshed');loadSSLMonitors();}else showToast('error',d.error||'Failed');
-    }).catch(e=>showToast('error',e.message));
+    }).catch(function(e){showToast('error',e.message);});
 }
 
 /* ========== Access Control ========== */
@@ -3500,12 +4205,23 @@ document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ closeMod
 
 // ═══════ COMPLIANCE TAB ═══════
 let _complianceResults = [];
+let _complianceScanId = null;
 let _lastScanId = null;
 let _compHistoryChart = null;
+let _compliancePendingByRule = {};  // rule_id -> {approval_id, scan_id}
 
 function _compScoreColor(score) { return score >= 80 ? '#22c55e' : score >= 50 ? '#f59e0b' : '#ef4444'; }
 function _compGrade(score) { return score >= 95 ? 'A+' : score >= 90 ? 'A' : score >= 85 ? 'B+' : score >= 80 ? 'B' : score >= 70 ? 'C' : score >= 60 ? 'D' : 'F'; }
 function _compEsc(s) { return (s || '').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+function _complianceFixButtonHtml(ruleId) {
+    var safe = _compEsc(ruleId);
+    var pending = _compliancePendingByRule[ruleId];
+    if (pending) {
+        return '<a class="comp-finding-fix" style="color:#fbbf24;cursor:default" title="Approval #' + pending.approval_id + ' pending — see Department HQ > Approvals" onclick="return false;" href="#">Pending \u23F3</a>';
+    }
+    return '<a class="comp-finding-fix" onclick="applyComplianceFix(\'' + safe + '\', this);return false;" href="#">Fix \u25B6</a>';
+}
 
 async function runComplianceScan() {
     const statusEl = document.getElementById('compliance-scan-status');
@@ -3531,7 +4247,7 @@ async function runComplianceScan() {
             renderScoreCards(data);
             renderFrameworks(data);
             loadComplianceResults(data.scan_id);
-            loadScanHistory();
+            loadComplianceScanHistory();
             loadEvidenceStatus();
             loadHardeningContent(data.scan_id);
         } else {
@@ -3653,12 +4369,455 @@ function renderFrameworks(data) {
 
 async function loadComplianceResults(scanId) {
     try {
-        const resp = await fetch('/tools/security-network/api/compliance/scans/' + scanId);
-        const data = await resp.json();
+        // Fetch results + pending approvals in parallel
+        const [resultsResp, pendingResp] = await Promise.all([
+            fetch('/tools/security-network/api/compliance/scans/' + scanId),
+            fetch('/tools/security-network/api/compliance/pending-fixes').catch(function() { return null; })
+        ]);
+        const data = await resultsResp.json();
         _complianceResults = data.results || [];
+        _complianceScanId = scanId;
+
+        // Build pending map: rule_id -> approval info
+        _compliancePendingByRule = {};
+        if (pendingResp && pendingResp.ok) {
+            const pendingData = await pendingResp.json();
+            if (pendingData.success && pendingData.pending) {
+                pendingData.pending.forEach(function(p) {
+                    _compliancePendingByRule[p.rule_id] = p;
+                });
+            }
+        }
+
         filterComplianceResults();
     } catch (e) {
         console.error('Failed to load compliance results:', e);
+    }
+}
+
+function _stageRow(label, stage) {
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(0,229,255,0.08);font-size:0.85rem';
+    var icon = document.createElement('span');
+    icon.style.cssText = 'width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:bold';
+    var name = document.createElement('span');
+    name.style.cssText = 'flex:1;color:#e2e8f0';
+    name.textContent = label;
+    var status = document.createElement('span');
+    status.style.cssText = 'font-size:0.75rem;font-family:"IBM Plex Mono",monospace';
+
+    if (!stage) {
+        icon.textContent = '-';
+        icon.style.cssText += ';background:rgba(100,116,139,0.2);color:#64748b';
+        status.textContent = 'skipped';
+        status.style.color = '#64748b';
+    } else if (stage.success || stage.approve) {
+        icon.textContent = '\u2713';
+        icon.style.cssText += ';background:rgba(34,197,94,0.2);color:#22c55e';
+        status.textContent = 'ok';
+        status.style.color = '#22c55e';
+    } else if (stage.approval_id || stage.status === 'pending') {
+        icon.textContent = '\u23F3';
+        icon.style.cssText += ';background:rgba(251,191,36,0.2);color:#fbbf24';
+        status.textContent = 'pending';
+        status.style.color = '#fbbf24';
+    } else {
+        icon.textContent = '\u2717';
+        icon.style.cssText += ';background:rgba(239,68,68,0.2);color:#ef4444';
+        status.textContent = 'failed';
+        status.style.color = '#ef4444';
+    }
+
+    row.appendChild(icon);
+    row.appendChild(name);
+    row.appendChild(status);
+    return row;
+}
+
+function _showFixResultModal(ruleId, data) {
+    var existing = document.getElementById('fix-result-overlay');
+    if (existing) existing.remove();
+
+    var stages = data.stages || {};
+    var isSuccess = data.success;
+    var isPending = data.pending_approval;
+    var isManualOnly = data.manual_only;
+    var accent = isSuccess ? '#22c55e' : (isPending ? '#fbbf24' : (isManualOnly ? '#8b5cf6' : '#ef4444'));
+    var rgb = isSuccess ? '34,197,94' : (isPending ? '251,191,36' : (isManualOnly ? '139,92,246' : '239,68,68'));
+
+    var overlay = document.createElement('div');
+    overlay.id = 'fix-result-overlay';
+    overlay.className = 'bm-overlay active';
+    overlay.style.cssText = '--bm-accent:' + accent + ';--bm-accent-rgb:' + rgb;
+
+    var shell = document.createElement('div');
+    shell.className = 'bm-shell';
+    shell.style.maxWidth = '560px';
+    shell.style.maxHeight = '90vh';
+    var frame = document.createElement('div');
+    frame.className = 'bm-frame';
+    ['bm-frame-elbow-top','bm-frame-seg','bm-frame-seg dim','bm-frame-light on','bm-frame-light amber','bm-frame-seg purple','bm-frame-fill','bm-frame-elbow-bottom'].forEach(function(cls){
+        var el = document.createElement('div');
+        el.className = cls;
+        frame.appendChild(el);
+    });
+
+    var content = document.createElement('div');
+    content.className = 'bm-content';
+    content.style.maxHeight = '90vh';
+    content.style.display = 'flex';
+    content.style.flexDirection = 'column';
+
+    var header = document.createElement('div');
+    header.className = 'bm-header';
+    var headerTitle = document.createElement('span');
+    headerTitle.className = 'bm-header-title';
+    headerTitle.textContent = isSuccess ? 'FIX APPLIED' : (isPending ? 'APPROVAL PENDING' : (isManualOnly ? 'MANUAL ONLY' : 'FIX FAILED'));
+    var headerStrip = document.createElement('div');
+    headerStrip.className = 'bm-header-strip';
+    ['w1','w2','w3'].forEach(function(w){
+        var p = document.createElement('div');
+        p.className = 'bm-header-pip ' + w;
+        headerStrip.appendChild(p);
+    });
+    var closeBtn = document.createElement('button');
+    closeBtn.className = 'bm-close';
+    closeBtn.textContent = '\u00D7';
+    closeBtn.onclick = function() { overlay.remove(); };
+    headerStrip.appendChild(closeBtn);
+    header.appendChild(headerTitle);
+    header.appendChild(headerStrip);
+
+    var subtitle = document.createElement('div');
+    subtitle.style.cssText = 'padding:8px 16px;border-bottom:1px solid rgba(' + rgb + ',0.15);font-size:0.75rem;color:#94a3b8';
+    subtitle.textContent = 'Rule: ' + ruleId + (data.proposal_id ? '  |  Proposal #' + data.proposal_id : '') + (data.approval_id ? '  |  Approval #' + data.approval_id : '');
+
+    var body = document.createElement('div');
+    body.className = 'bm-body';
+    body.style.cssText = 'padding:12px 20px;flex:1 1 auto;min-height:0;overflow-y:auto';
+
+    var stagesTitle = document.createElement('div');
+    stagesTitle.style.cssText = 'font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px';
+    stagesTitle.textContent = 'Pipeline Stages';
+    body.appendChild(stagesTitle);
+
+    body.appendChild(_stageRow('AI Review', stages.review));
+    body.appendChild(_stageRow('Dry-run', stages.dry_run));
+    body.appendChild(_stageRow('Apply', stages.applied));
+    body.appendChild(_stageRow('Verify', stages.verified));
+    if (stages.snapshot) body.appendChild(_stageRow('Snapshot', stages.snapshot));
+    if (stages.escalation) body.appendChild(_stageRow('Telegram Escalation', stages.escalation));
+    if (stages.rollback) body.appendChild(_stageRow('Auto-Rollback', stages.rollback));
+
+    if (stages.review && stages.review.reasoning) {
+        var reasoningBlock = document.createElement('div');
+        reasoningBlock.style.cssText = 'margin-top:16px;padding:10px;background:rgba(0,229,255,0.05);border-left:3px solid ' + accent + ';font-size:0.8rem;color:#cbd5e1';
+        var rTitle = document.createElement('div');
+        rTitle.style.cssText = 'font-size:0.7rem;color:#64748b;text-transform:uppercase;margin-bottom:4px';
+        rTitle.textContent = 'AI Reasoning';
+        var rText = document.createElement('div');
+        rText.textContent = stages.review.reasoning;
+        reasoningBlock.appendChild(rTitle);
+        reasoningBlock.appendChild(rText);
+        body.appendChild(reasoningBlock);
+    }
+
+    if (data.error) {
+        var errorBlock = document.createElement('div');
+        errorBlock.style.cssText = 'margin-top:12px;padding:10px;background:rgba(239,68,68,0.08);border-left:3px solid #ef4444;font-size:0.8rem;color:#fca5a5';
+        var eTitle = document.createElement('div');
+        eTitle.style.cssText = 'font-size:0.7rem;color:#ef4444;text-transform:uppercase;margin-bottom:4px';
+        eTitle.textContent = 'Error';
+        var eText = document.createElement('div');
+        eText.textContent = data.error;
+        errorBlock.appendChild(eTitle);
+        errorBlock.appendChild(eText);
+        body.appendChild(errorBlock);
+    }
+
+    if (isPending) {
+        var noteBlock = document.createElement('div');
+        noteBlock.style.cssText = 'margin-top:12px;padding:10px;background:rgba(251,191,36,0.08);border-left:3px solid #fbbf24;font-size:0.8rem;color:#fde68a';
+        noteBlock.textContent = 'Check your Telegram for approval buttons. The agent loop will execute the fix automatically once approved.';
+        body.appendChild(noteBlock);
+    }
+
+    if (isManualOnly) {
+        var entry = data.blocklist_entry || {};
+        var reasonBlock = document.createElement('div');
+        reasonBlock.style.cssText = 'margin-top:12px;padding:10px;background:rgba(139,92,246,0.08);border-left:3px solid #8b5cf6;font-size:0.8rem;color:#c4b5fd';
+        var rt = document.createElement('div');
+        rt.style.cssText = 'font-size:0.7rem;color:#8b5cf6;text-transform:uppercase;margin-bottom:4px;font-weight:bold';
+        rt.textContent = 'Why This Is Blocked';
+        var rx = document.createElement('div');
+        rx.textContent = entry.reason || data.error || '';
+        reasonBlock.appendChild(rt);
+        reasonBlock.appendChild(rx);
+        body.appendChild(reasonBlock);
+
+        var planHost = document.createElement('div');
+        planHost.id = 'comp-plan-host-' + ruleId;
+        planHost.style.cssText = 'margin-top:12px';
+        body.appendChild(planHost);
+
+        var aiBtnRow = document.createElement('div');
+        aiBtnRow.style.cssText = 'margin-top:12px;display:flex;gap:8px;flex-wrap:wrap';
+        var aiBtn = document.createElement('button');
+        aiBtn.className = 'btn';
+        aiBtn.style.cssText = 'background:linear-gradient(135deg,#8b5cf6,#6366f1);color:#fff;border:none;padding:8px 14px;border-radius:4px;cursor:pointer;font-family:"Antonio",sans-serif;text-transform:uppercase;font-size:0.78rem;letter-spacing:0.5px';
+        aiBtn.innerHTML = '<i class="fas fa-brain"></i> Ask F.O.R.G.E. for a Custom Plan';
+        aiBtn.onclick = function() { _requestAiRemediationPlan(ruleId, aiBtn, planHost); };
+        aiBtnRow.appendChild(aiBtn);
+        body.appendChild(aiBtnRow);
+
+        if (data.manual_steps) {
+            var stepsBlock = document.createElement('div');
+            stepsBlock.style.cssText = 'margin-top:12px;padding:10px;background:rgba(0,0,0,0.3);border-left:3px solid #64748b;font-size:0.78rem;color:#cbd5e1;font-family:"IBM Plex Mono",monospace;white-space:pre-wrap;max-height:220px;overflow-y:auto';
+            var st = document.createElement('div');
+            st.style.cssText = 'font-size:0.7rem;color:#64748b;text-transform:uppercase;margin-bottom:6px;font-weight:bold;font-family:"Antonio",sans-serif';
+            st.textContent = 'Fallback Manual Steps (static)';
+            stepsBlock.appendChild(st);
+            var stx = document.createElement('div');
+            stx.textContent = data.manual_steps;
+            stepsBlock.appendChild(stx);
+            body.appendChild(stepsBlock);
+        }
+
+        if (entry.manually_applied_at) {
+            var appliedBlock = document.createElement('div');
+            appliedBlock.style.cssText = 'margin-top:12px;padding:10px;background:rgba(34,197,94,0.08);border-left:3px solid #22c55e;font-size:0.8rem;color:#86efac';
+            appliedBlock.textContent = 'Already marked as manually applied at ' + entry.manually_applied_at;
+            body.appendChild(appliedBlock);
+        }
+    }
+
+    var footer = document.createElement('div');
+    footer.className = 'bm-footer';
+    footer.style.cssText = 'padding:10px 20px;display:flex;gap:8px;justify-content:flex-end';
+    var closeButton = document.createElement('button');
+    closeButton.className = 'btn';
+    closeButton.style.opacity = '0.85';
+    closeButton.textContent = 'Close';
+    closeButton.onclick = function() { overlay.remove(); };
+    footer.appendChild(closeButton);
+
+    content.appendChild(header);
+    content.appendChild(subtitle);
+    content.appendChild(body);
+    content.appendChild(footer);
+    shell.appendChild(frame);
+    shell.appendChild(content);
+    overlay.appendChild(shell);
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) overlay.remove();
+    });
+
+    /* Auto-scroll the "Ask F.O.R.G.E." button into view on manual-only modals */
+    if (isManualOnly) {
+        setTimeout(function() {
+            var ab = Array.from(overlay.querySelectorAll('button')).find(function(b) {
+                return b.textContent.indexOf('Ask F.O.R.G.E.') >= 0;
+            });
+            if (ab) ab.scrollIntoView({block: 'center', behavior: 'smooth'});
+        }, 120);
+    }
+}
+
+async function _requestAiRemediationPlan(ruleId, btn, host) {
+    if (!_complianceScanId) {
+        host.innerHTML = '<div style="color:#ef4444;padding:10px">No active scan selected</div>';
+        return;
+    }
+    var origHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> F.O.R.G.E. is analyzing your deployment...';
+    btn.style.pointerEvents = 'none';
+    btn.style.opacity = '0.7';
+    host.innerHTML = '<div style="padding:10px;color:#a78bfa;font-size:0.8rem"><i class="fas fa-brain"></i> Reading docker-compose, inspecting containers, generating runbook (may take 30-60s)...</div>';
+    try {
+        const resp = await fetch('/tools/security-network/api/compliance/plan/' + encodeURIComponent(ruleId), {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({scan_id: _complianceScanId})
+        });
+        const data = await resp.json();
+        if (data.success && data.plan) {
+            _renderAiRemediationPlan(host, data);
+            btn.innerHTML = '<i class="fas fa-check"></i> Plan Generated (#' + data.plan_id + ')';
+            btn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
+        } else {
+            host.innerHTML = '<div style="padding:10px;color:#ef4444;font-size:0.8rem">Plan generation failed: ' + (data.error || 'unknown error') + '</div>';
+            btn.innerHTML = origHtml;
+            btn.style.pointerEvents = 'auto';
+            btn.style.opacity = '1';
+        }
+    } catch (e) {
+        host.innerHTML = '<div style="padding:10px;color:#ef4444;font-size:0.8rem">Network error: ' + e.message + '</div>';
+        btn.innerHTML = origHtml;
+        btn.style.pointerEvents = 'auto';
+        btn.style.opacity = '1';
+    }
+}
+
+function _renderAiRemediationPlan(host, data) {
+    var plan = data.plan || {};
+    var isFallback = !!data.fallback;
+    host.innerHTML = '';
+
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'padding:12px;background:rgba(139,92,246,0.06);border-left:3px solid #8b5cf6;border-radius:2px';
+
+    var hdr = document.createElement('div');
+    hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:10px';
+    var hdrL = document.createElement('div');
+    hdrL.style.cssText = 'font-size:0.75rem;color:#a78bfa;text-transform:uppercase;font-weight:bold;font-family:"Antonio",sans-serif;letter-spacing:0.5px';
+    hdrL.innerHTML = '<i class="fas fa-brain"></i> ' + (isFallback ? 'Fallback Plan (AI unavailable)' : 'F.O.R.G.E. Custom Runbook');
+    var hdrR = document.createElement('div');
+    hdrR.style.cssText = 'font-size:0.68rem;color:#64748b';
+    hdrR.textContent = 'Plan #' + (data.plan_id || '?');
+    hdr.appendChild(hdrL);
+    hdr.appendChild(hdrR);
+    wrap.appendChild(hdr);
+
+    function section(label, color, text) {
+        if (!text) return;
+        var s = document.createElement('div');
+        s.style.cssText = 'margin-top:10px;padding:8px 10px;background:rgba(0,0,0,0.25);border-left:2px solid ' + color + ';font-size:0.78rem;color:#e2e8f0';
+        var l = document.createElement('div');
+        l.style.cssText = 'font-size:0.65rem;color:' + color + ';text-transform:uppercase;margin-bottom:4px;font-weight:bold;font-family:"Antonio",sans-serif';
+        l.textContent = label;
+        var v = document.createElement('div');
+        v.style.whiteSpace = 'pre-wrap';
+        v.textContent = text;
+        s.appendChild(l);
+        s.appendChild(v);
+        wrap.appendChild(s);
+    }
+
+    /* Meta row */
+    var meta = document.createElement('div');
+    meta.style.cssText = 'display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px;font-size:0.72rem';
+    function chip(label, val, color) {
+        if (!val) return;
+        var c = document.createElement('div');
+        c.style.cssText = 'padding:4px 8px;background:rgba(0,0,0,0.3);border:1px solid ' + color + ';border-radius:2px;color:#e2e8f0';
+        c.innerHTML = '<span style="color:' + color + ';font-weight:bold">' + label + ':</span> ' + val;
+        meta.appendChild(c);
+    }
+    chip('DOWNTIME', plan.estimated_downtime, '#fbbf24');
+    chip('WINDOW', plan.best_window, '#00e5ff');
+    if (plan.exemption_candidate) chip('EXEMPTION', 'CANDIDATE', '#f472b6');
+    if (meta.children.length) wrap.appendChild(meta);
+
+    section('Impact Analysis', '#fbbf24', plan.impact_analysis);
+
+    if (Array.isArray(plan.affected_containers) && plan.affected_containers.length) {
+        section('Affected Containers', '#ef4444', plan.affected_containers.join(', '));
+    }
+
+    if (Array.isArray(plan.prerequisites) && plan.prerequisites.length) {
+        var pre = document.createElement('div');
+        pre.style.cssText = 'margin-top:10px;padding:8px 10px;background:rgba(0,0,0,0.25);border-left:2px solid #22d3ee;font-size:0.78rem;color:#e2e8f0';
+        var pl = document.createElement('div');
+        pl.style.cssText = 'font-size:0.65rem;color:#22d3ee;text-transform:uppercase;margin-bottom:4px;font-weight:bold;font-family:"Antonio",sans-serif';
+        pl.textContent = 'Prerequisites';
+        pre.appendChild(pl);
+        var ul = document.createElement('ul');
+        ul.style.cssText = 'margin:4px 0 0 16px;padding:0';
+        plan.prerequisites.forEach(function(p) {
+            var li = document.createElement('li');
+            li.textContent = p;
+            ul.appendChild(li);
+        });
+        pre.appendChild(ul);
+        wrap.appendChild(pre);
+    }
+
+    /* Steps */
+    if (Array.isArray(plan.steps) && plan.steps.length) {
+        var stepsWrap = document.createElement('div');
+        stepsWrap.style.cssText = 'margin-top:10px;padding:10px;background:rgba(0,0,0,0.3);border-left:3px solid #00e5ff';
+        var sl = document.createElement('div');
+        sl.style.cssText = 'font-size:0.7rem;color:#00e5ff;text-transform:uppercase;margin-bottom:8px;font-weight:bold;font-family:"Antonio",sans-serif';
+        sl.textContent = 'Step-by-Step Runbook';
+        stepsWrap.appendChild(sl);
+        plan.steps.forEach(function(step, idx) {
+            var sRow = document.createElement('div');
+            sRow.style.cssText = 'margin-top:8px;padding:8px;background:rgba(0,0,0,0.4);border-radius:2px;font-size:0.75rem;color:#e2e8f0';
+            var num = document.createElement('div');
+            num.style.cssText = 'font-family:"Antonio",sans-serif;color:#00e5ff;font-size:0.7rem;margin-bottom:4px;font-weight:bold';
+            var autoTag = step.safe_auto ? ' <span style="color:#22c55e">[SAFE-AUTO]</span>' : ' <span style="color:#fbbf24">[MANUAL]</span>';
+            num.innerHTML = 'STEP ' + (idx + 1) + autoTag;
+            sRow.appendChild(num);
+            var act = document.createElement('div');
+            act.style.cssText = 'font-family:"IBM Plex Mono",monospace;color:#e2e8f0;white-space:pre-wrap;word-break:break-word';
+            act.textContent = step.action || '';
+            sRow.appendChild(act);
+            if (step.why) {
+                var why = document.createElement('div');
+                why.style.cssText = 'margin-top:4px;color:#94a3b8;font-size:0.7rem;font-style:italic';
+                why.textContent = 'Why: ' + step.why;
+                sRow.appendChild(why);
+            }
+            stepsWrap.appendChild(sRow);
+        });
+        wrap.appendChild(stepsWrap);
+    }
+
+    section('Rollback Plan', '#ef4444', plan.rollback_plan);
+    if (plan.exemption_reason) section('Exemption Reason', '#f472b6', plan.exemption_reason);
+
+    host.appendChild(wrap);
+}
+
+async function applyComplianceFix(ruleId, btn) {
+    if (!_complianceScanId) {
+        _showFixResultModal(ruleId, {success: false, error: 'No active scan selected', stages: {}});
+        return;
+    }
+    if (btn) {
+        btn.textContent = 'Reviewing...';
+        btn.style.pointerEvents = 'none';
+        btn.style.color = '#94a3b8';
+    }
+    try {
+        const resp = await fetch('/tools/security-network/api/compliance/fix', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({scan_id: _complianceScanId, rule_id: ruleId})
+        });
+        const data = await resp.json();
+
+        if (data.success) {
+            if (btn) {
+                btn.textContent = 'Fixed \u2713';
+                btn.style.color = '#22c55e';
+            }
+            _showFixResultModal(ruleId, data);
+            setTimeout(function() { loadComplianceResults(_complianceScanId); }, 3000);
+        } else if (data.pending_approval) {
+            if (btn) {
+                btn.textContent = 'Pending \u23F3';
+                btn.style.color = '#fbbf24';
+                btn.title = 'Awaiting Telegram approval #' + data.approval_id;
+            }
+            _showFixResultModal(ruleId, data);
+        } else {
+            if (btn) {
+                btn.textContent = 'Failed';
+                btn.style.color = '#ef4444';
+                btn.style.pointerEvents = 'auto';
+            }
+            _showFixResultModal(ruleId, data);
+        }
+    } catch (e) {
+        if (btn) {
+            btn.textContent = 'Error';
+            btn.style.color = '#ef4444';
+            btn.style.pointerEvents = 'auto';
+        }
+        _showFixResultModal(ruleId, {success: false, error: 'Network error: ' + e.message, stages: {}});
     }
 }
 
@@ -3729,7 +4888,7 @@ function filterComplianceResults() {
                 + '<span class="comp-finding-id">' + _compEsc(r.rule_id) + '</span>'
                 + '<span class="comp-finding-desc" title="' + detailText.replace(/"/g, '&quot;') + '">' + detailText + '</span>'
                 + '<span class="comp-finding-pack">' + _compEsc((r.pack_id || '').replace('-stig', '').replace('-security', '')) + '</span>'
-                + (!isPass ? '<a class="comp-finding-fix" onclick="switchTab(\'hardening\');return false;" href="#">Fix \u25B6</a>' : '')
+                + (!isPass ? _complianceFixButtonHtml(r.rule_id) : '')
                 + '</div>';
         }
 
@@ -3739,7 +4898,7 @@ function filterComplianceResults() {
     container.innerHTML = html;
 }
 
-async function loadScanHistory() {
+async function loadComplianceScanHistory() {
     try {
         const resp = await fetch('/tools/security-network/api/compliance/scans');
         const data = await resp.json();
@@ -3962,7 +5121,7 @@ async function loadHardeningContent(scanId) {
 }
 
 function onComplianceTabShown() {
-    loadScanHistory();
+    loadComplianceScanHistory();
     loadEvidenceStatus();
     fetch('/tools/security-network/api/compliance/scores')
         .then(r => r.json())

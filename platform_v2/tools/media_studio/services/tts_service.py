@@ -226,15 +226,17 @@ def save_voice_sample(agent_name: str, audio_data: bytes, extension: str = ".wav
         with open(dest, "wb") as f:
             f.write(audio_data)
 
-        # Update agents table
+        # Update agents table — single-writer path via agent_service
+        # so the agents table only has one canonical mutation surface
+        # (Project #241 Track C.1).
         try:
-            from database import get_db_cursor
+            from services import agent_service
 
-            with get_db_cursor(commit=True) as (conn, cur):
-                cur.execute(
-                    "UPDATE agents SET voice_sample = %s WHERE name = %s",
-                    (dest, safe_name),
-                )
+            agent = agent_service.get_agent_by_name(safe_name)
+            if agent:
+                agent_service.update_agent(agent["id"], voice_sample=dest)
+            else:
+                logger.warning(f"Voice sample saved but no agent named {safe_name!r} to link it to")
         except Exception as e:
             logger.warning(f"Failed to update agent voice_sample: {e}")
 

@@ -9,6 +9,7 @@ import os
 from typing import Dict, List, Optional
 
 from database import get_db_cursor
+from services import agent_service
 
 logger = logging.getLogger(__name__)
 
@@ -250,10 +251,11 @@ def approve_canonical(agent_id: int, media_id: int) -> Dict:
         )
 
         thumb = media.get("thumbnail_path") or file_path
-        cur.execute(
-            "UPDATE agents SET avatar_url = %s WHERE id = %s",
-            (thumb, agent_id),
-        )
+
+    # Single-writer path: agents.avatar_url update goes through
+    # agent_service.update_agent so the agents table only has one
+    # canonical mutation surface (Project #241 Track C.1).
+    agent_service.update_agent(agent_id, avatar_url=thumb)
 
     return {"status": "approved", "agent_id": agent_id, "media_id": media_id}
 

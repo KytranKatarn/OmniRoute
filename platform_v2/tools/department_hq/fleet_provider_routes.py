@@ -1182,25 +1182,31 @@ def register_fleet_routes(bp, auth_decorator):
             with get_db_cursor() as (conn, cur):
                 cur.execute("SELECT id, name FROM agents WHERE id = %s AND status = 'active'", (agent_id,))
                 agent = cur.fetchone()
-                if not agent:
-                    return jsonify({"success": False, "error": "Agent not found or inactive"}), 404
+            if not agent:
+                return jsonify({"success": False, "error": "Agent not found or inactive"}), 404
 
-                cur.execute(
-                    "UPDATE agents SET department = %s, updated_at = NOW() WHERE id = %s",
-                    (department, agent_id),
-                )
+            # Single-writer path: department reassignment goes through
+            # agent_service.update_agent which auto-derives the floor
+            # from DEPARTMENT_FLOOR_MAP and stamps updated_at (Project
+            # #241 Track C.1).
+            from services import agent_service
 
-                logger.info(f"Agent {agent['name']} reassigned to {department} by {current_user.username}")
+            try:
+                agent_service.update_agent(agent_id, department=department)
+            except ValueError as ve:
+                return jsonify({"success": False, "error": str(ve)}), 400
 
-                return jsonify(
-                    {
-                        "success": True,
-                        "message": f"{agent['name']} reassigned to {department}",
-                        "agent_id": agent_id,
-                        "station_code": DEPARTMENT_TO_STATION.get(department, new_station_code or ""),
-                        "department": department,
-                    }
-                )
+            logger.info(f"Agent {agent['name']} reassigned to {department} by {current_user.username}")
+
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f"{agent['name']} reassigned to {department}",
+                    "agent_id": agent_id,
+                    "station_code": DEPARTMENT_TO_STATION.get(department, new_station_code or ""),
+                    "department": department,
+                }
+            )
 
         except Exception as e:
             logger.error(f"Error reassigning agent: {e}")

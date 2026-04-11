@@ -45,24 +45,31 @@ def update_agent_module_awareness():
             (catalog_text, Json(["agent-awareness", "module-catalog", "auto-generated"])),
         )
 
-    # Update each agent's metadata with module awareness flag
+    # Update each agent's metadata with module awareness flag.
+    # Single-writer path: route through agent_service.update_agent so the
+    # agents table only has one canonical mutation surface (Project #241
+    # Track C.1). update_agent REPLACES metadata wholesale, so we read the
+    # current row first and merge in Python to preserve other keys.
+    from services import agent_service
+
+    awareness_patch = {
+        "module_catalog_version": len(module_catalog),
+        "has_module_awareness": True,
+    }
+
     agents_updated = 0
-    with get_db_cursor(commit=True) as (conn, cur):
-        cur.execute("SELECT id, name FROM agents WHERE status IN ('active', 'inactive')")
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute("SELECT id, name, metadata FROM agents WHERE status IN ('active', 'inactive')")
         agents = cur.fetchall()
 
-        for agent in agents:
-            try:
-                cur.execute(
-                    """
-                    UPDATE agents SET metadata = COALESCE(metadata, '{}'::jsonb) || %s
-                    WHERE id = %s
-                    """,
-                    (Json({"module_catalog_version": len(module_catalog), "has_module_awareness": True}), agent["id"]),
-                )
+    for agent in agents:
+        try:
+            existing = agent.get("metadata") if isinstance(agent.get("metadata"), dict) else {}
+            merged = {**existing, **awareness_patch}
+            if agent_service.update_agent(agent["id"], metadata=merged):
                 agents_updated += 1
-            except Exception:
-                pass  # metadata column may not exist on all agent rows
+        except Exception as exc:
+            logger.warning(f"[Agent Awareness] Failed to update agent {agent.get('id')}: {exc}")
 
     logger.info(f"[Agent Awareness] Updated {agents_updated} agents with {len(module_catalog)} module catalog")
     return len(module_catalog)

@@ -19,6 +19,13 @@ var _diagnoseLoaded = false;
 var _testBayLoaded = false;
 var _shipLoaded = false;
 
+/* Reviews tab silent-refresh polling.
+ * Runs every REVIEWS_POLL_INTERVAL_MS while the Reviews tab is active.
+ * Cleared when user switches to any other tab. Project #242 follow-up. */
+var _reviewsPollTimer = null;
+var REVIEWS_POLL_INTERVAL_MS = 60000;  // 60s
+var _reviewsLastLoadedAt = null;
+
 /* ── Shared helpers ───────────────────────────────────────────── */
 function _rbFetchJson(url, opts) {
     return fetch(url, opts || {}).then(function(r) {
@@ -75,6 +82,11 @@ function _rbShowToast(kind, msg) {
 
 /* ── Tab dispatcher — called from switchTab() in repair_bay.html ── */
 function rbOnTabSwitch(tabId) {
+    // Stop the Reviews poll timer whenever we leave that tab so we're
+    // not burning GitHub API quota in the background.
+    if (tabId !== 'reviews') {
+        _stopReviewsPoll();
+    }
     switch (tabId) {
         case 'reviews':   loadReviews(); break;
         case 'proposals': loadRepairs(); break;
@@ -87,15 +99,47 @@ function rbOnTabSwitch(tabId) {
     }
 }
 
+function _startReviewsPoll() {
+    if (_reviewsPollTimer) return;  // already running
+    _reviewsPollTimer = setInterval(function() {
+        // Only poll if the Reviews tab is still the active surface —
+        // the rbOnTabSwitch dispatcher clears the timer on leave but
+        // double-check in case the user navigated via the URL hash.
+        var activePanel = document.getElementById('tab-reviews');
+        if (!activePanel || !activePanel.classList.contains('active')) {
+            _stopReviewsPoll();
+            return;
+        }
+        loadReviews(true);  // silent refresh
+    }, REVIEWS_POLL_INTERVAL_MS);
+}
+
+function _stopReviewsPoll() {
+    if (_reviewsPollTimer) {
+        clearInterval(_reviewsPollTimer);
+        _reviewsPollTimer = null;
+    }
+}
+
 /* ── Reviews tab — GitHub PR list ─────────────────────────────── */
-function loadReviews() {
+function loadReviews(silent) {
     _reviewsLoaded = true;
     var container = document.getElementById('reviewsList');
     var countEl = document.getElementById('reviewsCount');
     var state = (document.getElementById('reviewsStateFilter') || {}).value || 'open';
     if (!container) return;
 
-    _rbEmpty(container, 'Loading PRs from GitHub…');
+    // Silent refresh (used by auto-poll): keep current cards visible
+    // while the new fetch is in flight so the DOM doesn't flash empty.
+    if (!silent) {
+        _rbEmpty(container, 'Loading PRs from GitHub…');
+    }
+
+    // Start the poll timer on first load (not on silent refreshes to
+    // avoid stacking timers) when this tab is actually active.
+    if (!silent) {
+        _startReviewsPoll();
+    }
 
     _rbFetchJson(RB_API + '/forge/prs?state=' + encodeURIComponent(state))
         .then(function(data) {
@@ -123,10 +167,15 @@ function loadReviews() {
             mergeable.forEach(function(pr, i) { pr._mergeRank = i + 1; });
             var ordered = mergeable.concat(others);
 
+            _reviewsLastLoadedAt = new Date();
             if (countEl) {
+                var ts = _reviewsLastLoadedAt.toLocaleTimeString([], {
+                    hour: '2-digit', minute: '2-digit', second: '2-digit'
+                });
                 countEl.textContent =
                     prs.length + ' PR' + (prs.length !== 1 ? 's' : '') +
-                    ' · ' + mergeable.length + ' ready to merge';
+                    ' · ' + mergeable.length + ' ready to merge' +
+                    ' · auto-refresh ' + (REVIEWS_POLL_INTERVAL_MS / 1000) + 's · last ' + ts;
             }
 
             _rbClear(container);

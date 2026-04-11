@@ -3,12 +3,16 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies including Docker CLI for sandbox management
+# Install system dependencies including Docker CLI for sandbox management.
+# tzdata provides the IANA timezone database so APScheduler / zoneinfo
+# can resolve America/Toronto — the consciousness scheduler crashes on
+# boot without it (ZoneInfoNotFoundError).
 RUN apt-get update && apt-get install -y \
     gcc \
     postgresql-client \
     git \
     curl \
+    tzdata \
     espeak-ng \
     tesseract-ocr \
     tesseract-ocr-por \

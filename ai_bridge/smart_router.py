@@ -688,25 +688,20 @@ Original task:
             result = cur.fetchone()
             execution_id = result["id"] if result else None
 
-            # Update agent stats
-            if agent_id:
-                cur.execute(
-                    """
-                    UPDATE agents SET
-                        total_tasks_this_month = COALESCE(total_tasks_this_month, 0) + 1,
-                        opus_usage_this_month = CASE
-                            WHEN %s = 'opus'
-                            THEN COALESCE(opus_usage_this_month, 0) + 1
-                            ELSE COALESCE(opus_usage_this_month, 0)
-                        END
-                    WHERE id = %s
-                """,
-                    (tier, agent_id),
-                )
-
             conn.commit()
             cur.close()
             conn.close()
+
+            # Single-writer path: increment monthly usage counters via
+            # agent_service so the agents table only has one canonical
+            # mutation surface (Project #241 Track C.3).
+            if agent_id:
+                try:
+                    from services import agent_service
+
+                    agent_service.increment_usage(agent_id, tier)
+                except Exception as exc:
+                    logger.warning(f"increment_usage failed for agent {agent_id}: {exc}")
 
             return execution_id
 

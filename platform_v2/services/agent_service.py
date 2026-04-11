@@ -215,6 +215,33 @@ def delete_agent(agent_id, hard=False):
         logger.info("Soft-deleted agent #%d", agent_id)
 
 
+def increment_usage(agent_id, tier=None):
+    """Atomically increment this month's usage counters on the agents row.
+
+    Called by ai_bridge.smart_router after every LLM execution so the
+    counter lives inside the canonical single-writer path for the
+    agents table (Project #241 Track C.3).
+
+    - ``total_tasks_this_month`` is incremented by 1
+    - ``opus_usage_this_month`` is incremented by 1 IFF ``tier == 'opus'``
+    """
+    if not agent_id:
+        return
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """UPDATE agents SET
+                total_tasks_this_month = COALESCE(total_tasks_this_month, 0) + 1,
+                opus_usage_this_month = CASE
+                    WHEN %s = 'opus'
+                    THEN COALESCE(opus_usage_this_month, 0) + 1
+                    ELSE COALESCE(opus_usage_this_month, 0)
+                END,
+                updated_at = NOW()
+               WHERE id = %s""",
+            (tier, agent_id),
+        )
+
+
 # ---------------------------------------------------------------------------
 # Shift Lifecycle
 # ---------------------------------------------------------------------------

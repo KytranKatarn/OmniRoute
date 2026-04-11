@@ -47,11 +47,16 @@ def register_github_routes(bp, admin_required):
     @login_required
     @admin_required
     def forge_list_prs():
-        """List all F.O.R.G.E. pipeline PRs."""
-        from .services.github_service import list_pipeline_prs
+        """List open/closed PRs enriched with mergeable + review + check status.
+
+        Used by the Repair Bay Reviews tab. Returns ALL PRs (not label-filtered)
+        so admins can see every PR at a glance. The pipeline-label-only variant
+        is still available via list_pipeline_prs() for F.O.R.G.E.-specific views.
+        """
+        from .services.github_service import list_all_prs_enriched
 
         state = request.args.get("state", "open")
-        return jsonify(list_pipeline_prs(state))
+        return jsonify(list_all_prs_enriched(state))
 
     @bp.route("/api/forge/prs/<int:pr_number>", methods=["GET"])
     @login_required

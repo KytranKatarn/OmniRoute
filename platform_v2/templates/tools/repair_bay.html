@@ -65,101 +65,30 @@
         </div>
     </div>
 
-    <!-- Tab Navigation -->
+    <!-- Tab Navigation (pruned 2026-04-11: removed Vulnerabilities stub +
+         consolidated Repair Queue into Repairs. Reviews is default for PR flow.) -->
     {{ tab_nav(tabs=[
-        {'id': 'repair-queue', 'label': 'Repair Queue', 'icon': 'shield-alert'},
-        {'id': 'vulnerabilities', 'label': 'Vulnerabilities', 'icon': 'bug'},
         {'id': 'reviews', 'label': 'Reviews', 'icon': 'message-square'},
-        {'id': 'scan', 'label': 'Diagnose', 'icon': 'shield-check'},
         {'id': 'proposals', 'label': 'Repairs', 'icon': 'wrench'},
+        {'id': 'scan', 'label': 'Diagnose', 'icon': 'shield-check'},
         {'id': 'sandbox', 'label': 'Test Bay', 'icon': 'test-tube-2'},
         {'id': 'deploy', 'label': 'Ship', 'icon': 'rocket'},
         {'id': 'qa', 'label': 'QA', 'icon': 'check-circle'}
     ], onswitch='switchTab') }}
 
-    <!-- Repair Queue Tab (default) -->
-    <div id="tab-repair-queue" class="tab-content active">
-        <!-- Filter controls -->
-        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:16px;">
-            <select id="rqSeverityFilter" class="dp-module-select" onchange="loadRepairQueue()" style="min-width:110px;">
-                <option value="">All Severities</option>
-                <option value="critical">Critical</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
+    <!-- Reviews Tab (default — shows open GitHub PRs with CodeRabbit + check status) -->
+    <div id="tab-reviews" class="tab-content active">
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:16px; flex-wrap:wrap;">
+            <select id="reviewsStateFilter" class="dp-module-select" onchange="loadReviews()" style="min-width:110px;">
+                <option value="open" selected>Open</option>
+                <option value="all">All</option>
+                <option value="closed">Closed</option>
             </select>
-            <select id="rqSourceFilter" class="dp-module-select" onchange="loadRepairQueue()" style="min-width:110px;">
-                <option value="">All Sources</option>
-                <option value="dependabot">Dependabot</option>
-                <option value="coderabbit">CodeRabbit</option>
-                <option value="shield">S.H.I.E.L.D.</option>
-                <option value="forge_scan">F.O.R.G.E. Scan</option>
-            </select>
-            <select id="rqStatusFilter" class="dp-module-select" onchange="loadRepairQueue()" style="min-width:110px;">
-                <option value="open">Open</option>
-                <option value="">All Statuses</option>
-                <option value="triaged">Triaged</option>
-                <option value="in_progress">In Progress</option>
-                <option value="resolved">Resolved</option>
-                <option value="dismissed">Dismissed</option>
-            </select>
-            <button class="dp-filter" onclick="pollNow()" style="margin-left:auto; background:rgba(139,92,246,0.15); border-color:#8b5cf6; color:#8b5cf6;">
-                <i data-lucide="refresh-cw" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> Poll Now
+            <button class="dp-filter" onclick="loadReviews()" style="background:rgba(139,92,246,0.15); border-color:#8b5cf6; color:#8b5cf6;">
+                <i data-lucide="refresh-cw" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> Refresh
             </button>
+            <span id="reviewsCount" style="margin-left:auto; color:#94a3b8; font-size:0.8rem;"></span>
         </div>
-
-        <!-- Stats summary -->
-        <div class="dp-stats" id="rqStats">
-            <div class="dp-stat-card" style="--card-accent:#00d4ff;">
-                <div class="dp-stat-label">Total</div>
-                <div class="dp-stat-value" id="rqTotal">--</div>
-            </div>
-            <div class="dp-stat-card" style="--card-accent:#ef4444;">
-                <div class="dp-stat-label">Critical</div>
-                <div class="dp-stat-value" id="rqCritical">--</div>
-            </div>
-            <div class="dp-stat-card" style="--card-accent:#f97316;">
-                <div class="dp-stat-label">High</div>
-                <div class="dp-stat-value" id="rqHigh">--</div>
-            </div>
-            <div class="dp-stat-card" style="--card-accent:#fbbf24;">
-                <div class="dp-stat-label">Medium</div>
-                <div class="dp-stat-value" id="rqMedium">--</div>
-            </div>
-            <div class="dp-stat-card" style="--card-accent:#22d3ee;">
-                <div class="dp-stat-label">Low</div>
-                <div class="dp-stat-value" id="rqLow">--</div>
-            </div>
-        </div>
-
-        <!-- Repair queue list -->
-        <div id="repairQueueList" class="dp-proposal-list">
-            <div class="dp-empty" style="padding:40px;"><div class="dp-empty-desc">Loading repair queue...</div></div>
-        </div>
-    </div>
-
-    <!-- Vulnerabilities Tab -->
-    <div id="tab-vulnerabilities" class="tab-content">
-        <div class="dp-subtabs">
-            <button class="dp-subtab active" data-subtab="alerts" onclick="switchSubTab('vulnerabilities', 'alerts')">Dependabot Alerts</button>
-            <button class="dp-subtab" data-subtab="manifests" onclick="switchSubTab('vulnerabilities', 'manifests')">Discovered Manifests</button>
-        </div>
-
-        <div id="vulnerabilities-subtab-alerts" class="dp-subtab-content active">
-            <div id="vulnAlertsList" class="dp-proposal-list">
-                <div class="dp-empty" style="padding:40px;"><div class="dp-empty-desc">Loading vulnerability alerts...</div></div>
-            </div>
-        </div>
-
-        <div id="vulnerabilities-subtab-manifests" class="dp-subtab-content">
-            <div id="vulnManifestsList" class="dp-proposal-list">
-                <div class="dp-empty" style="padding:40px;"><div class="dp-empty-desc">Loading discovered manifests...</div></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Reviews Tab -->
-    <div id="tab-reviews" class="tab-content">
         <div id="reviewsList" class="dp-proposal-list">
             <div class="dp-empty" style="padding:40px;"><div class="dp-empty-desc">Loading PR reviews...</div></div>
         </div>
@@ -513,6 +442,7 @@
 
 <script src="{{ url_for('static', filename='js/department-ops.js') }}"></script>
 <script src="{{ url_for('static', filename='js/repair-bay-qa.js') }}"></script>
+<script src="{{ url_for('static', filename='js/repair-bay-main.js') }}"></script>
 <script>
 var API = '/tools/repair-bay/api';
 var _selectedFiles = [];
@@ -2233,71 +2163,9 @@ function loadVulnerabilities() {
     });
 }
 
-function loadReviews() {
-    fetch(API + '/forge/prs?state=all').then(function(r){ return r.json(); }).then(function(d) {
-        var list = document.getElementById('reviewsList');
-        var prs = d.prs || d.pull_requests || [];
-        if (!prs.length) {
-            _clearEl(list);
-            var empty = document.createElement('div');
-            empty.className = 'dp-empty';
-            empty.style.padding = '40px';
-            var t = document.createElement('div');
-            t.className = 'dp-empty-title';
-            t.textContent = 'No PR Reviews';
-            empty.appendChild(t);
-            var desc = document.createElement('div');
-            desc.className = 'dp-empty-desc';
-            desc.textContent = 'CodeRabbit reviews will appear here when PRs are opened.';
-            empty.appendChild(desc);
-            list.appendChild(empty);
-            return;
-        }
-        _clearEl(list);
-        prs.forEach(function(pr) {
-            var card = document.createElement('div');
-            card.className = 'dp-proposal-card';
-            var stateColor = pr.state === 'open' ? '#00ff41' : (pr.state === 'merged' ? '#8b5cf6' : '#ef4444');
-            card.style.setProperty('--prop-accent', stateColor);
-
-            var info = document.createElement('div');
-            info.className = 'dp-proposal-info';
-
-            var title = document.createElement('div');
-            title.className = 'dp-proposal-title';
-            title.textContent = (pr.title || 'Untitled PR');
-            info.appendChild(title);
-
-            var meta = document.createElement('div');
-            meta.className = 'dp-proposal-meta';
-
-            var numBadge = document.createElement('span');
-            numBadge.className = 'dp-proposal-id';
-            numBadge.textContent = '#' + (pr.number || pr.id || '?');
-            meta.appendChild(numBadge);
-            meta.appendChild(_makeBadge((pr.state || 'unknown').toUpperCase(), {color: stateColor}));
-            if (pr.user || pr.author) meta.appendChild(_makeBadge(pr.user || pr.author));
-            if (pr.review_comments != null) meta.appendChild(_makeBadge(pr.review_comments + ' comments', {color: '#22d3ee'}));
-            if (pr.created_at) meta.appendChild(_makeBadge(new Date(pr.created_at).toLocaleDateString(), {opacity: '0.5'}));
-            info.appendChild(meta);
-            card.appendChild(info);
-
-            if (pr.html_url || pr.url) {
-                var link = document.createElement('a');
-                link.href = pr.html_url || pr.url;
-                link.target = '_blank';
-                link.rel = 'noopener';
-                link.style.cssText = 'color:#00d4ff; font-size:0.7rem; flex-shrink:0; text-decoration:none;';
-                link.textContent = 'View \u2192';
-                card.appendChild(link);
-            }
-
-            list.appendChild(card);
-        });
-    }).catch(function() {
-        _clearAndShowEmpty(document.getElementById('reviewsList'), 'Failed to load PR reviews.');
-    });
-}
+// Reviews tab loader moved to static/js/repair-bay-main.js (Project #242).
+// The inline version was shadowing the enriched one because the inline
+// <script> runs after external scripts.
 
 // Tab switching with hash navigation
 function switchTab(tabId) {
@@ -2312,14 +2180,16 @@ function switchTab(tabId) {
     var btn = document.querySelector('.lcars-tab-btn[data-tab="' + tabId + '"]');
     if (btn) btn.classList.add('active');
     window.location.hash = '#' + tabId;
-    // Auto-load data when switching tabs
-    if (tabId === 'repair-queue') loadRepairQueue();
-    if (tabId === 'vulnerabilities') loadVulnerabilities();
+    // Auto-load data when switching tabs (6-tab set after 2026-04-11 prune)
     if (tabId === 'reviews') loadReviews();
-    if (tabId === 'proposals') loadProposals();
-    if (tabId === 'scan') checkScanAi();
-    if (tabId === 'sandbox') loadSandboxes();
-    if (tabId === 'deploy') { loadDeployReady(); loadDeployHistory(); }
+    if (tabId === 'proposals') { if (typeof loadProposals === 'function') loadProposals(); else loadRepairs(); }
+    if (tabId === 'scan') { if (typeof checkScanAi === 'function') checkScanAi(); loadDiagnose(); }
+    if (tabId === 'sandbox') { if (typeof loadSandboxes === 'function') loadSandboxes(); else loadTestBay(); }
+    if (tabId === 'deploy') {
+        if (typeof loadDeployReady === 'function') loadDeployReady();
+        if (typeof loadDeployHistory === 'function') loadDeployHistory();
+        loadShip();
+    }
     if (tabId === 'qa') loadQaTab();
 }
 
@@ -2328,10 +2198,9 @@ document.addEventListener('DOMContentLoaded', function() {
     var hash = window.location.hash.replace('#', '');
     if (hash && document.getElementById('tab-' + hash)) {
         switchTab(hash);
-    } else {
-        // Default to repair queue tab
-        loadRepairQueue();
     }
+    // Default is Reviews tab — its loader is registered in repair-bay-main.js
+    // and runs automatically via its own DOMContentLoaded hook.
     if (typeof lucide !== 'undefined') lucide.createIcons();
 });
 

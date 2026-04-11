@@ -369,6 +369,134 @@ def list_pipeline_prs(state: str = "open") -> Dict:
     return {"success": True, "prs": prs, "count": len(prs)}
 
 
+def list_all_prs_enriched(state: str = "open") -> Dict:
+    """List ALL PRs (not label-filtered) enriched with check status + review
+    decision. Used by the Repair Bay Reviews tab so admins can see every open
+    PR at a glance, not just pipeline-labeled ones.
+
+    Enrichment per PR (parallelized via ThreadPoolExecutor):
+      - mergeable: MERGEABLE | CONFLICTING | UNKNOWN
+      - review_decision: APPROVED | CHANGES_REQUESTED | REVIEW_REQUIRED | NONE
+      - checks: {lint, test, docker_build, coderabbit: success|failure|pending}
+      - coderabbit_status: success if a CodeRabbit review exists
+    """
+    import concurrent.futures
+
+    ok, data = _api_get(
+        f"/repos/{REPO_FULL}/pulls",
+        {"state": state, "per_page": 50, "sort": "updated", "direction": "desc"},
+    )
+    if not ok:
+        return {"success": False, "error": data.get("error")}
+
+    if not isinstance(data, list):
+        return {"success": True, "prs": [], "count": 0}
+
+    base_prs = [
+        {
+            "number": pr.get("number"),
+            "title": pr.get("title"),
+            "state": pr.get("state"),
+            "user": (pr.get("user") or {}).get("login"),
+            "head_ref": (pr.get("head") or {}).get("ref"),
+            "head_sha": (pr.get("head") or {}).get("sha"),
+            "created_at": pr.get("created_at"),
+            "updated_at": pr.get("updated_at"),
+            "html_url": pr.get("html_url"),
+            "draft": pr.get("draft", False),
+            "mergeable": "UNKNOWN",
+            "review_decision": "NONE",
+            "checks": {},
+            "coderabbit_status": None,
+        }
+        for pr in data
+    ]
+
+    def _enrich(pr):
+        num = pr["number"]
+        sha = pr["head_sha"]
+
+        # Detail call for mergeable state
+        det_ok, det = _api_get(f"/repos/{REPO_FULL}/pulls/{num}", timeout=8)
+        if det_ok and isinstance(det, dict):
+            mergeable = det.get("mergeable")
+            if mergeable is True:
+                pr["mergeable"] = "MERGEABLE"
+            elif mergeable is False:
+                pr["mergeable"] = "CONFLICTING"
+            # else leave UNKNOWN (still computing)
+
+        # Reviews → review decision
+        rev_ok, reviews = _api_get(f"/repos/{REPO_FULL}/pulls/{num}/reviews", timeout=8)
+        if rev_ok and isinstance(reviews, list) and reviews:
+            # Latest review per reviewer wins
+            latest = {}
+            for r in reviews:
+                reviewer = (r.get("user") or {}).get("login", "")
+                latest[reviewer] = r.get("state")
+            states = list(latest.values())
+            if any(s == "CHANGES_REQUESTED" for s in states):
+                pr["review_decision"] = "CHANGES_REQUESTED"
+            elif any(s == "APPROVED" for s in states):
+                pr["review_decision"] = "APPROVED"
+            # Detect CodeRabbit review
+            for reviewer, state_ in latest.items():
+                if "coderabbit" in reviewer.lower():
+                    pr["coderabbit_status"] = "success" if state_ in ("APPROVED", "COMMENTED") else "pending"
+                    pr["checks"]["coderabbit"] = pr["coderabbit_status"]
+                    break
+
+        # Check runs for the head SHA
+        if sha:
+            chk_ok, chk = _api_get(
+                f"/repos/{REPO_FULL}/commits/{sha}/check-runs",
+                params={"per_page": 30},
+                timeout=8,
+            )
+            if chk_ok and isinstance(chk, dict):
+                for run in chk.get("check_runs", []):
+                    name = (run.get("name") or "").lower()
+                    status = run.get("status")  # queued | in_progress | completed
+                    concl = run.get("conclusion")  # success | failure | skipped | ...
+                    if status != "completed":
+                        val = "pending"
+                    elif concl == "success":
+                        val = "success"
+                    elif concl in ("failure", "cancelled", "timed_out"):
+                        val = "failure"
+                    else:
+                        val = concl or "unknown"
+                    # Bucket by canonical name
+                    if "lint" in name:
+                        pr["checks"]["lint"] = val
+                    elif "test" in name:
+                        pr["checks"]["test"] = val
+                    elif "docker" in name or "build" in name:
+                        pr["checks"]["docker_build"] = val
+                    elif "coderabbit" in name:
+                        pr["checks"]["coderabbit"] = val
+                        if not pr["coderabbit_status"]:
+                            pr["coderabbit_status"] = val
+        return pr
+
+    enriched = []
+    # Parallelize enrichment — 11 PRs * 3 API calls each = ~33 HTTP requests
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        futures = {executor.submit(_enrich, pr): pr for pr in base_prs}
+        for fut in concurrent.futures.as_completed(futures, timeout=25):
+            try:
+                enriched.append(fut.result())
+            except Exception as exc:
+                logger.warning("PR enrichment failed: %s", exc)
+                enriched.append(futures[fut])
+
+    # Preserve the original order (updated_desc)
+    order_map = {pr["number"]: i for i, pr in enumerate(base_prs)}
+    enriched.sort(key=lambda p: order_map.get(p["number"], 999))
+
+    return {"success": True, "prs": enriched, "count": len(enriched)}
+
+
 def add_pr_comment(pr_number: int, body: str) -> Dict:
     """Add a comment to a PR."""
     ok, data = _api_post(

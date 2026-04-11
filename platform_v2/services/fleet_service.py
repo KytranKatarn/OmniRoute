@@ -433,6 +433,8 @@ def record_cloud_usage(
 
 def disconnect_node(node_id):
     """Mark a node as offline and return its agents to barracks."""
+    from services import agent_service
+
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute("SELECT node_name FROM remote_nodes WHERE id = %s", (node_id,))
         row = cur.fetchone()
@@ -453,20 +455,21 @@ def disconnect_node(node_id):
             (node_id,),
         )
         recalled = cur.fetchall()
-        for r in recalled:
-            if r["hub_agent_id"]:
-                cur.execute(
-                    "UPDATE agents SET shift_state = 'barracked' WHERE id = %s",
-                    (r["hub_agent_id"],),
-                )
 
-        logger.info(
-            "fleet_service: disconnected %s, recalled %d agents",
-            node_name,
-            len(recalled),
-        )
-        return {
-            "success": True,
-            "node_name": node_name,
-            "recalled_agents": len(recalled),
-        }
+    # Single-writer path: agents.shift_state transition goes through
+    # agent_service.barracks() so the agents table only has one canonical
+    # mutation surface (Project #241 Track C.1).
+    for r in recalled:
+        if r["hub_agent_id"]:
+            agent_service.barracks(r["hub_agent_id"])
+
+    logger.info(
+        "fleet_service: disconnected %s, recalled %d agents",
+        node_name,
+        len(recalled),
+    )
+    return {
+        "success": True,
+        "node_name": node_name,
+        "recalled_agents": len(recalled),
+    }

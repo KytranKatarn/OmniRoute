@@ -330,12 +330,294 @@ function _mergePr(prNumber, btn) {
     });
 }
 
-/* ── Stub loaders for other tabs (filled in Tasks 4-7) ────────── */
+/* ── Repairs tab — improvement_proposals + compliance action modal ───
+ * Task 4 (Project #242): the inline template script owns the list render
+ * (loadProposals + renderProposals) — this file nudges it on tab switch
+ * and provides the compliance action modal that cards open when a
+ * compliance_fix proposal's "Review ▶" button is clicked.
+ */
 function loadRepairs() {
-    if (_repairsLoaded) return;
+    if (typeof loadProposals === 'function') {
+        try { loadProposals(); } catch (e) { console.warn('loadProposals error:', e); }
+    }
     _repairsLoaded = true;
-    if (typeof filterProposals === 'function') {
-        try { filterProposals(); } catch (e) { console.warn('filterProposals error:', e); }
+}
+
+var SAFE_FIX_TYPES_JS = ['sysctl', 'file_line', 'service'];
+
+async function openRepairsComplianceModal(proposalId) {
+    var existing = document.getElementById('rb-compliance-modal');
+    if (existing) existing.remove();
+
+    var overlay = _rbMakeEl('div', {
+        cls: 'bm-overlay active',
+        style: '--bm-accent:#8b5cf6; --bm-accent-rgb:139,92,246;'
+    });
+    overlay.id = 'rb-compliance-modal';
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) overlay.remove();
+    });
+
+    var shell = _rbMakeEl('div', {cls: 'bm-shell', style: 'max-width:620px; max-height:90vh;'});
+
+    var frame = _rbMakeEl('div', {cls: 'bm-frame'});
+    ['bm-frame-elbow-top', 'bm-frame-seg', 'bm-frame-seg dim', 'bm-frame-light on',
+     'bm-frame-light amber', 'bm-frame-seg purple', 'bm-frame-fill', 'bm-frame-elbow-bottom'].forEach(function(cls) {
+        frame.appendChild(_rbMakeEl('div', {cls: cls}));
+    });
+
+    var content = _rbMakeEl('div', {cls: 'bm-content', style: 'max-height:90vh; display:flex; flex-direction:column;'});
+
+    var header = _rbMakeEl('div', {cls: 'bm-header'});
+    header.appendChild(_rbMakeEl('span', {cls: 'bm-header-title', text: 'COMPLIANCE REVIEW \u2014 #' + proposalId}));
+    var headerStrip = _rbMakeEl('div', {cls: 'bm-header-strip'});
+    ['w1', 'w2', 'w3'].forEach(function(w) {
+        headerStrip.appendChild(_rbMakeEl('div', {cls: 'bm-header-pip ' + w}));
+    });
+    headerStrip.appendChild(_rbMakeEl('button', {
+        cls: 'bm-close',
+        text: '\u00D7',
+        onclick: function() { overlay.remove(); }
+    }));
+    header.appendChild(headerStrip);
+
+    var body = _rbMakeEl('div', {
+        cls: 'bm-body',
+        style: 'padding:16px 22px; flex:1 1 auto; min-height:0; overflow-y:auto;'
+    });
+    body.appendChild(_rbMakeEl('div', {
+        style: 'text-align:center; padding:24px; color:#94a3b8; font-size:0.85rem;',
+        text: 'Loading proposal \u2026'
+    }));
+
+    content.appendChild(header);
+    content.appendChild(body);
+    shell.appendChild(frame);
+    shell.appendChild(content);
+    overlay.appendChild(shell);
+    document.body.appendChild(overlay);
+
+    try {
+        var resp = await _rbFetchJson(RB_API + '/proposals/' + proposalId);
+        var proposal = resp.proposal || resp;
+        _rbClear(body);
+
+        if (proposal.category !== 'compliance_fix') {
+            body.appendChild(_rbMakeEl('div', {
+                style: 'padding:14px; background:rgba(239,68,68,0.08); border-left:3px solid #ef4444; color:#fca5a5; font-size:0.82rem;',
+                text: 'Not a compliance_fix proposal (category="' + (proposal.category || 'unknown') + '"). Use legacy Approve/Reject on the card.'
+            }));
+            return;
+        }
+
+        var meta = proposal.metadata || {};
+        var fix_def = meta.fix_def || {};
+        var fix_type = fix_def.type;
+        var isSafe = SAFE_FIX_TYPES_JS.indexOf(fix_type) >= 0;
+
+        function _section(label, value, color) {
+            var s = _rbMakeEl('div', {style: 'margin-bottom:10px;'});
+            s.appendChild(_rbMakeEl('div', {
+                style: 'font-size:0.68rem; color:#64748b; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:3px;',
+                text: label
+            }));
+            s.appendChild(_rbMakeEl('div', {
+                style: 'font-size:0.85rem; color:' + (color || '#e2e8f0') +
+                       '; font-family:"IBM Plex Mono",monospace; word-break:break-word;',
+                text: value || '\u2014'
+            }));
+            return s;
+        }
+
+        var severity = proposal.priority || 'medium';
+        var sevColor = severity === 'critical' ? '#ef4444' :
+                       severity === 'high' ? '#f97316' :
+                       severity === 'medium' ? '#fbbf24' : '#64748b';
+
+        body.appendChild(_section('Rule ID', meta.rule_id || '?', '#8b5cf6'));
+        body.appendChild(_section('Severity', String(severity).toUpperCase(), sevColor));
+        body.appendChild(_section('Title', proposal.title));
+        body.appendChild(_section('Fix Type', fix_type || 'unknown'));
+
+        var summary = '\u2014';
+        if (fix_type === 'sysctl') summary = 'sysctl ' + (fix_def.parameter || '?') + ' = ' + (fix_def.value || '?');
+        else if (fix_type === 'file_line') summary = (fix_def.path || '?') + ' \u2192 ' + (fix_def.line || '?');
+        else if (fix_type === 'service') summary = (fix_def.action || 'enable') + ' ' + (fix_def.name || fix_def.service || '?');
+        else if (fix_type === 'command') {
+            var cmd = fix_def.command || '';
+            summary = cmd.length > 200 ? cmd.slice(0, 200) + '\u2026' : cmd;
+        }
+        body.appendChild(_section('Fix Summary', summary));
+
+        if (meta.blocklist_reason) {
+            var bl = _rbMakeEl('div', {
+                style: 'margin:12px 0; padding:10px 12px; background:rgba(239,68,68,0.08); border-left:3px solid #ef4444; font-size:0.78rem; color:#fca5a5;'
+            });
+            bl.appendChild(_rbMakeEl('div', {
+                style: 'font-size:0.68rem; color:#ef4444; text-transform:uppercase; margin-bottom:3px; font-weight:700;',
+                text: 'BLOCKLIST WARNING'
+            }));
+            bl.appendChild(_rbMakeEl('div', {text: meta.blocklist_reason}));
+            body.appendChild(bl);
+        }
+
+        var btnRow = _rbMakeEl('div', {
+            style: 'display:flex; flex-direction:column; gap:8px; margin-top:14px;'
+        });
+
+        function _mkBtn(label, bg, action, title, disabled) {
+            var b = _rbMakeEl('button', {
+                cls: 'btn',
+                style: 'padding:10px 14px; font-size:0.82rem; background:' + bg +
+                       '; color:#0a0e1a; border:none; border-radius:4px; font-weight:700; ' +
+                       'text-align:left; cursor:' + (disabled ? 'not-allowed' : 'pointer') +
+                       '; opacity:' + (disabled ? '0.45' : '1') + ';',
+                text: label
+            });
+            b.disabled = !!disabled;
+            if (title) b.title = title;
+            if (!disabled) {
+                b.onclick = function() { _rbComplianceAction(proposalId, action, overlay); };
+            }
+            return b;
+        }
+
+        btnRow.appendChild(_mkBtn(
+            '\u25B6  Apply Once',
+            isSafe ? '#22c55e' : '#374151',
+            'apply_once',
+            isSafe
+                ? 'Run safe-exec once: snapshot \u2192 apply \u2192 health gate \u2192 auto-rollback on failure.'
+                : 'Disabled: fix_type "' + fix_type + '" is not in SAFE_FIX_TYPES (sysctl/file_line/service).',
+            !isSafe
+        ));
+        btnRow.appendChild(_mkBtn(
+            '\u2713  Apply + Always Allow',
+            isSafe ? '#00e5ff' : '#374151',
+            'apply_and_allow',
+            isSafe
+                ? 'Run safe-exec now AND mark rule auto-allow for the Sunday 03:00 EDT window.'
+                : 'Disabled: fix_type "' + fix_type + '" is not auto-apply safe.',
+            !isSafe
+        ));
+        btnRow.appendChild(_mkBtn(
+            '\u2717  Dismiss (Mark Exempt)',
+            '#94a3b8',
+            'exempt',
+            'Mark rule exempt. Proposal moves to resolved. Always available.',
+            false
+        ));
+
+        body.appendChild(btnRow);
+    } catch (e) {
+        _rbClear(body);
+        body.appendChild(_rbMakeEl('div', {
+            style: 'padding:14px; background:rgba(239,68,68,0.08); border-left:3px solid #ef4444; color:#fca5a5; font-size:0.85rem;',
+            text: 'Failed to load proposal: ' + e.message
+        }));
+    }
+}
+
+async function _rbComplianceAction(proposalId, action, overlay) {
+    var buttons = overlay.querySelectorAll('button.btn');
+    buttons.forEach(function(b) {
+        b.disabled = true;
+        b.style.opacity = '0.5';
+        b.style.pointerEvents = 'none';
+    });
+
+    try {
+        var resp = await fetch(RB_API + '/proposals/' + proposalId + '/compliance-action', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({action: action})
+        });
+        var data = await resp.json();
+        overlay.remove();
+        _rbShowComplianceResult(proposalId, action, data);
+        setTimeout(function() {
+            if (typeof loadProposals === 'function') loadProposals();
+        }, 1500);
+    } catch (e) {
+        overlay.remove();
+        _rbShowToast('error', 'Action failed: ' + e.message);
+    }
+}
+
+function _rbShowComplianceResult(proposalId, action, data) {
+    var existing = document.getElementById('rb-compliance-result');
+    if (existing) existing.remove();
+
+    var success = data.success !== false;
+    var accent = success ? '#22c55e' : '#ef4444';
+    var rgb = success ? '34,197,94' : '239,68,68';
+
+    var overlay = _rbMakeEl('div', {
+        cls: 'bm-overlay active',
+        style: '--bm-accent:' + accent + '; --bm-accent-rgb:' + rgb + ';'
+    });
+    overlay.id = 'rb-compliance-result';
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+    var shell = _rbMakeEl('div', {cls: 'bm-shell', style: 'max-width:520px; max-height:80vh;'});
+    var frame = _rbMakeEl('div', {cls: 'bm-frame'});
+    ['bm-frame-elbow-top', 'bm-frame-seg', 'bm-frame-seg dim', 'bm-frame-light on',
+     'bm-frame-light amber', 'bm-frame-seg purple', 'bm-frame-fill', 'bm-frame-elbow-bottom'].forEach(function(cls) {
+        frame.appendChild(_rbMakeEl('div', {cls: cls}));
+    });
+
+    var content = _rbMakeEl('div', {cls: 'bm-content', style: 'display:flex; flex-direction:column;'});
+    var header = _rbMakeEl('div', {cls: 'bm-header'});
+    header.appendChild(_rbMakeEl('span', {
+        cls: 'bm-header-title',
+        text: success ? (action === 'exempt' ? 'EXEMPTED' : 'APPLIED') : 'FAILED'
+    }));
+    var strip = _rbMakeEl('div', {cls: 'bm-header-strip'});
+    ['w1', 'w2', 'w3'].forEach(function(w) {
+        strip.appendChild(_rbMakeEl('div', {cls: 'bm-header-pip ' + w}));
+    });
+    strip.appendChild(_rbMakeEl('button', {
+        cls: 'bm-close',
+        text: '\u00D7',
+        onclick: function() { overlay.remove(); }
+    }));
+    header.appendChild(strip);
+
+    var body = _rbMakeEl('div', {cls: 'bm-body', style: 'padding:16px 22px;'});
+    body.appendChild(_rbMakeEl('div', {
+        style: 'font-size:0.82rem; color:#cbd5e1; margin-bottom:10px;',
+        text: 'Proposal #' + proposalId + ' \u2014 action: ' + action
+    }));
+    if (data.status) {
+        body.appendChild(_rbMakeEl('div', {
+            style: 'font-size:0.78rem; color:#94a3b8; font-family:"IBM Plex Mono",monospace;',
+            text: 'Status: ' + data.status
+        }));
+    }
+    if (data.detail || data.error) {
+        body.appendChild(_rbMakeEl('div', {
+            style: 'margin-top:10px; padding:10px 12px; background:rgba(' + rgb + ',0.08); border-left:3px solid ' + accent + '; font-size:0.78rem; color:#cbd5e1; font-family:"IBM Plex Mono",monospace; word-break:break-word;',
+            text: data.detail || data.error
+        }));
+    }
+    if (data.rule_id) {
+        body.appendChild(_rbMakeEl('div', {
+            style: 'margin-top:10px; font-size:0.72rem; color:#64748b;',
+            text: 'Rule: ' + data.rule_id
+        }));
+    }
+
+    content.appendChild(header);
+    content.appendChild(body);
+    shell.appendChild(frame);
+    shell.appendChild(content);
+    overlay.appendChild(shell);
+    document.body.appendChild(overlay);
+
+    if (success) {
+        setTimeout(function() {
+            if (document.getElementById('rb-compliance-result')) overlay.remove();
+        }, 5000);
     }
 }
 

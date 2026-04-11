@@ -1378,6 +1378,24 @@ function renderProposals(proposals) {
             info.appendChild(actionsRow);
         }
 
+        // Compliance fix proposals get a Review button that opens the LCARS
+        // action modal with Apply Once / Apply + Always Allow / Dismiss buttons
+        // (wired to /api/proposals/<id>/compliance-action). Project #242 Task 4.
+        if (p.category === 'compliance_fix' &&
+            ['pending', 'proposed', 'pending_approval'].indexOf(p.status) >= 0 &&
+            typeof openRepairsComplianceModal === 'function') {
+            var complianceActions = document.createElement('div');
+            complianceActions.className = 'dp-proposal-actions-inline';
+            complianceActions.style.cssText = 'margin-top:8px;';
+            var reviewBtn = document.createElement('button');
+            reviewBtn.className = 'dp-btn-approve';
+            reviewBtn.style.cssText = 'background:#8b5cf6; color:#0a0e1a; border:none; padding:6px 14px; font-weight:700; border-radius:3px; cursor:pointer; font-size:0.78rem;';
+            reviewBtn.textContent = 'Review \u25B6';
+            reviewBtn.onclick = function(e) { e.stopPropagation(); openRepairsComplianceModal(p.id); };
+            complianceActions.appendChild(reviewBtn);
+            info.appendChild(complianceActions);
+        }
+
         card.appendChild(id);
         card.appendChild(info);
         el.appendChild(card);

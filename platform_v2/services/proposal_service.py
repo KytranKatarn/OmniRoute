@@ -95,7 +95,7 @@ def get_proposal(proposal_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(
             """SELECT ip.*, a.display_name AS agent_display_name,
-                      a.name AS agent_code_name, a.assigned_model AS agent_model
+                      a.name AS agent_code_name, a.model AS agent_model
                FROM improvement_proposals ip
                LEFT JOIN agents a ON a.id = ip.assigned_agent_id
                WHERE ip.id = %s""",

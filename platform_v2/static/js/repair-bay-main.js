@@ -621,9 +621,100 @@ function _rbShowComplianceResult(proposalId, action, data) {
     }
 }
 
-function loadDiagnose() {
-    if (_diagnoseLoaded) return;
+/* ── Diagnose tab — stats banner + AI routing status ────────────
+ * The inline template script owns the scanner UI (file browser, scan
+ * modes, run actions, history). This loader just injects a compact
+ * stats summary row at the top of the scanner sub-tab on first entry
+ * so users see the shape of things before clicking into files.
+ * Project #242 Task 5.
+ */
+async function loadDiagnose() {
     _diagnoseLoaded = true;
+
+    // Re-use existing checkScanAi if present (loads AI routing status)
+    if (typeof checkScanAi === 'function') {
+        try { checkScanAi(); } catch (e) { /* ok */ }
+    }
+
+    var scannerTab = document.getElementById('scan-subtab-scanner');
+    if (!scannerTab) return;
+
+    // Idempotent: remove prior banner before re-rendering
+    var existing = document.getElementById('rb-diagnose-stats');
+    if (existing) existing.remove();
+
+    var banner = _rbMakeEl('div', {
+        style: 'display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; padding:10px 12px; ' +
+               'background:rgba(0,212,255,0.04); border-left:3px solid #00d4ff; border-radius:3px; ' +
+               'font-size:0.78rem;'
+    });
+    banner.id = 'rb-diagnose-stats';
+
+    var title = _rbMakeEl('div', {
+        style: 'width:100%; color:#94a3b8; font-size:0.68rem; text-transform:uppercase; ' +
+               'letter-spacing:0.1em; margin-bottom:4px;',
+        text: 'Scan Summary'
+    });
+    banner.appendChild(title);
+
+    var loading = _rbMakeEl('span', {
+        style: 'color:#64748b;',
+        text: 'Loading stats\u2026'
+    });
+    banner.appendChild(loading);
+
+    // Insert banner as the first child of the scanner subtab
+    scannerTab.insertBefore(banner, scannerTab.firstChild);
+
+    try {
+        var data = await _rbFetchJson(RB_API + '/scan/stats');
+        if (!data.success) throw new Error(data.error || 'stats fetch failed');
+
+        _rbClear(banner);
+        banner.appendChild(title);
+
+        function _stat(label, value, color) {
+            var chip = _rbMakeEl('span', {
+                style: 'display:inline-flex; align-items:center; gap:6px; padding:4px 10px; ' +
+                       'background:' + color + '22; color:' + color + '; border:1px solid ' + color + '55; ' +
+                       'border-radius:12px; font-family:"IBM Plex Mono",monospace; font-size:0.74rem;'
+            });
+            chip.appendChild(_rbMakeEl('span', {style: 'opacity:0.7;', text: label}));
+            chip.appendChild(_rbMakeEl('strong', {text: String(value)}));
+            return chip;
+        }
+
+        var issueStats = data.issue_stats || {};
+        var scanStats = data.scan_stats || {};
+
+        banner.appendChild(_stat('open',     issueStats.open     || 0, '#00d4ff'));
+        banner.appendChild(_stat('critical', issueStats.critical || 0, '#ef4444'));
+        banner.appendChild(_stat('high',     issueStats.high     || 0, '#f97316'));
+        banner.appendChild(_stat('medium',   issueStats.medium   || 0, '#fbbf24'));
+        banner.appendChild(_stat('low',      issueStats.low      || 0, '#22c55e'));
+        banner.appendChild(_stat('fixed',    issueStats.fixed    || 0, '#8b5cf6'));
+
+        var sep = _rbMakeEl('span', {style: 'width:1px; background:#334155; align-self:stretch; margin:0 4px;'});
+        banner.appendChild(sep);
+
+        banner.appendChild(_stat('scans', scanStats.total_scans || 0, '#64748b'));
+        banner.appendChild(_stat('files', scanStats.files_scanned || 0, '#64748b'));
+        banner.appendChild(_stat('security', scanStats.security_issues || 0, '#ef4444'));
+
+        var avg = scanStats.avg_quality_score;
+        if (avg != null) {
+            var avgNum = typeof avg === 'number' ? avg : parseFloat(avg);
+            var grade = avgNum >= 90 ? '#22c55e' : avgNum >= 75 ? '#fbbf24' : '#ef4444';
+            banner.appendChild(_stat('avg quality', avgNum.toFixed(1) + '%', grade));
+        }
+    } catch (e) {
+        _rbClear(banner);
+        banner.appendChild(title);
+        banner.appendChild(_rbMakeEl('span', {
+            style: 'color:#ef4444;',
+            text: 'Failed to load scan stats: ' + e.message
+        }));
+    }
 }
 
 function loadTestBay() {

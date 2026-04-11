@@ -91,23 +91,34 @@ def _send_approval_telegram(
             lines.append(f"Capability: {cap}")
             lines.append(f"Department: {department}")
         elif action_type == "contractor_dispatch":
-            agent = action_data.get("agent", "?")
-            provider = action_data.get("provider", "?")
-            model = action_data.get("model", "?")
-            cap = action_data.get("capability", "?")
-            module = action_data.get("module_id", "?")
+            def _md_escape(s):
+                return (
+                    str(s)
+                    .replace("`", "'")
+                    .replace("*", "")
+                    .replace("_", "-")
+                )
+
+            agent = _md_escape(action_data.get("agent", "?"))
+            provider = _md_escape(action_data.get("provider", "?"))
+            model = _md_escape(action_data.get("model", "?"))
+            cap = _md_escape(action_data.get("capability", "?"))
+            module = _md_escape(action_data.get("module_id", "?"))
             est_cost = action_data.get("estimated_cost", 0)
             threshold = action_data.get("threshold", 0)
-            preview = action_data.get("prompt_preview", "")[:180]
-            lines.append(f"Type: Contractor Dispatch")
+            preview = _md_escape(action_data.get("prompt_preview", "")[:180])
+            lines.append("Type: Contractor Dispatch")
             lines.append(f"Agent: `{agent}`")
             lines.append(f"Provider: `{provider}` / `{model}`")
             lines.append(f"Capability: {cap}")
             lines.append(f"Module: {module}")
-            lines.append(f"\n*Estimated cost:* `${est_cost:.4f}`")
+            lines.append("")
+            lines.append(f"*Estimated cost:* `${est_cost:.4f}`")
             lines.append(f"*Threshold:* `${threshold:.4f}`")
             if preview:
-                lines.append(f"\n_Prompt preview:_\n`{preview}`")
+                lines.append("")
+                lines.append("Prompt preview:")
+                lines.append(f"`{preview}`")
         elif action_type.startswith("compliance_fix_"):
             rule_id = action_data.get("rule_id", "?")
             severity = action_data.get("severity", "?")
@@ -166,8 +177,9 @@ def _send_approval_telegram(
         cur.close()
         conn.close()
 
+        sent = 0
         for row in rows:
-            _req.post(
+            resp = _req.post(
                 f"https://api.telegram.org/bot{bot_token}/sendMessage",
                 json={
                     "chat_id": row[0],
@@ -177,7 +189,30 @@ def _send_approval_telegram(
                 },
                 timeout=15,
             )
-        logger.info(f"Telegram approval notification sent for #{approval_id}")
+            if resp.status_code == 200 and resp.json().get("ok"):
+                sent += 1
+            else:
+                try:
+                    body = resp.json()
+                    err = body.get("description", resp.text[:200])
+                    code = body.get("error_code", resp.status_code)
+                except Exception:
+                    err = resp.text[:200]
+                    code = resp.status_code
+                logger.warning(
+                    f"Telegram sendMessage failed for #{approval_id} "
+                    f"chat={row[0]} code={code} err={err}"
+                )
+        if sent:
+            logger.info(
+                f"Telegram approval notification sent for #{approval_id} "
+                f"({sent}/{len(rows)} recipients)"
+            )
+        else:
+            logger.warning(
+                f"Telegram approval notification FAILED for #{approval_id} "
+                f"— 0/{len(rows)} recipients received the message"
+            )
     except Exception as e:
         logger.warning(f"Telegram approval notification failed: {e}")
 

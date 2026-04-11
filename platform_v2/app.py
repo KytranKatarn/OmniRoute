@@ -3379,17 +3379,49 @@ if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
         #   register_agent_welfare_jobs(), register_fleet_jobs()
 
         # Initialize Telegram Gateway (Project Autonomy Phase 3)
+        # Guarded by an exclusive file lock so only ONE python process in the
+        # container runs the bot poller at a time. Without this guard, every
+        # subprocess that imports app.py (smoke tests, CLI scripts, etc.)
+        # spawns its own getUpdates poller that collides with the main
+        # gunicorn worker on the same bot token — python-telegram-bot handles
+        # the 409 Conflict by restarting, but callback_query updates get
+        # delivered to whichever instance wins the race and silently dropped.
+        # The lock file lives on tmpfs and is held for the life of the winning
+        # process; when it dies the OS releases the FD automatically.
         _tg_token = os.getenv("TELEGRAM_BOT_TOKEN")
         if _tg_token:
-            try:
-                from telegram_gateway import TelegramGateway
+            import fcntl
 
-                _telegram = TelegramGateway(bot_token=_tg_token, flask_app=app)
-                _telegram.start()
-                app.config["TELEGRAM_GATEWAY"] = _telegram
-                logger.info("Telegram gateway initialized and started")
-            except Exception as e:
-                logger.error(f"Failed to initialize Telegram gateway: {e}")
+            _tg_lock_path = "/tmp/archie_telegram_gateway.lock"
+            try:
+                _tg_lock_fd = open(_tg_lock_path, "w")
+                fcntl.flock(_tg_lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                # We hold the lock — start the gateway.
+                try:
+                    from telegram_gateway import TelegramGateway
+
+                    _telegram = TelegramGateway(bot_token=_tg_token, flask_app=app)
+                    _telegram.start()
+                    app.config["TELEGRAM_GATEWAY"] = _telegram
+                    # Pin the FD on app.config so the GC doesn't close it and
+                    # drop the lock mid-flight.
+                    app.config["_TELEGRAM_GATEWAY_LOCK_FD"] = _tg_lock_fd
+                    logger.info("Telegram gateway initialized and started (lock acquired)")
+                except Exception as e:
+                    logger.error(f"Failed to initialize Telegram gateway: {e}")
+                    app.config["TELEGRAM_GATEWAY"] = None
+                    try:
+                        fcntl.flock(_tg_lock_fd, fcntl.LOCK_UN)
+                        _tg_lock_fd.close()
+                    except Exception:
+                        pass
+            except BlockingIOError:
+                # Another process already owns the gateway — skip init.
+                # This is expected for subprocess imports (tests, CLI tools).
+                logger.info(
+                    "Telegram gateway skipped — another process holds the lock. "
+                    "This is normal for subprocess imports of app.py."
+                )
                 app.config["TELEGRAM_GATEWAY"] = None
         else:
             app.config["TELEGRAM_GATEWAY"] = None

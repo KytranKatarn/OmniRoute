@@ -49,13 +49,20 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "platform_v2"))
 
 
 def _push_event(event_type, agent_id=None, data=None):
-    """Push activity event to SSE queue. Fails silently if bridge not loaded."""
+    """Push activity event to the SSE queue that powers the Department HQ
+    mission control /api/dispatch/stream endpoint.
+
+    Note: the old code imported from platform_v2.tools.bridge.routes
+    which NEVER existed — the bridge module was renamed department_hq
+    long ago. Every call was failing silently in the except. Fixed to
+    point at the real producer at fleet_helpers.push_agent_event.
+    """
     try:
-        from platform_v2.tools.bridge.routes import push_agent_event
+        from tools.department_hq.fleet_helpers import push_agent_event
 
         push_agent_event(event_type, agent_id, data)
     except Exception as e:
-        logger.debug("SSE push skipped (bridge not loaded): %s", e)
+        logger.debug("SSE push skipped: %s", e)
 
 
 class StepType(Enum):

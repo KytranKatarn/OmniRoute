@@ -717,11 +717,104 @@ async function loadDiagnose() {
     }
 }
 
-function loadTestBay() {
-    if (_testBayLoaded) return;
+/* ── Test Bay tab — sandbox stats banner + auto-load ─────────────
+ * Inline template owns the sandbox list render (loadSandboxes),
+ * test runs history (loadTestRuns), and runNewTest triggers. This
+ * loader adds a compact stats banner at the top of the Environments
+ * sub-tab on first view and nudges the inline loaders so users don't
+ * have to manually click Refresh. Project #242 Task 6.
+ */
+async function loadTestBay() {
     _testBayLoaded = true;
+
     if (typeof loadSandboxes === 'function') {
         try { loadSandboxes(); } catch (e) { console.warn('loadSandboxes error:', e); }
+    }
+    if (typeof loadTestRuns === 'function') {
+        try { loadTestRuns(); } catch (e) { /* may not exist on first tab switch */ }
+    }
+
+    var envTab = document.getElementById('sandbox-subtab-environments');
+    if (!envTab) return;
+
+    var existing = document.getElementById('rb-testbay-stats');
+    if (existing) existing.remove();
+
+    var banner = _rbMakeEl('div', {
+        style: 'display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; padding:10px 12px; ' +
+               'background:rgba(139,92,246,0.05); border-left:3px solid #8b5cf6; border-radius:3px; ' +
+               'font-size:0.78rem;'
+    });
+    banner.id = 'rb-testbay-stats';
+    banner.appendChild(_rbMakeEl('div', {
+        style: 'width:100%; color:#94a3b8; font-size:0.68rem; text-transform:uppercase; ' +
+               'letter-spacing:0.1em; margin-bottom:4px;',
+        text: 'Test Bay Summary'
+    }));
+    banner.appendChild(_rbMakeEl('span', {style: 'color:#64748b;', text: 'Loading sandboxes\u2026'}));
+
+    envTab.insertBefore(banner, envTab.firstChild);
+
+    try {
+        var data = await _rbFetchJson(RB_API + '/sandbox/list');
+        var sandboxes = data.sandboxes || [];
+
+        _rbClear(banner);
+        banner.appendChild(_rbMakeEl('div', {
+            style: 'width:100%; color:#94a3b8; font-size:0.68rem; text-transform:uppercase; ' +
+                   'letter-spacing:0.1em; margin-bottom:4px;',
+            text: 'Test Bay Summary'
+        }));
+
+        function _stat(label, value, color) {
+            var chip = _rbMakeEl('span', {
+                style: 'display:inline-flex; align-items:center; gap:6px; padding:4px 10px; ' +
+                       'background:' + color + '22; color:' + color + '; border:1px solid ' + color + '55; ' +
+                       'border-radius:12px; font-family:"IBM Plex Mono",monospace; font-size:0.74rem;'
+            });
+            chip.appendChild(_rbMakeEl('span', {style: 'opacity:0.7;', text: label}));
+            chip.appendChild(_rbMakeEl('strong', {text: String(value)}));
+            return chip;
+        }
+
+        // Aggregate counts
+        var total = sandboxes.length;
+        var active = sandboxes.filter(function(s) { return s.status === 'active' || s.status === 'running'; }).length;
+        var inactive = sandboxes.filter(function(s) { return s.status === 'inactive'; }).length;
+        var withProposal = sandboxes.filter(function(s) { return s.current_proposal_id; }).length;
+
+        var totalRuns = 0;
+        var totalPassed = 0;
+        var totalFailed = 0;
+        sandboxes.forEach(function(s) {
+            totalRuns += parseInt(s.total_tests_run || 0, 10);
+            totalPassed += parseInt(s.tests_passed || 0, 10);
+            totalFailed += parseInt(s.tests_failed || 0, 10);
+        });
+        var passRate = totalRuns > 0 ? ((totalPassed / totalRuns) * 100).toFixed(1) + '%' : 'n/a';
+        var passColor = totalRuns === 0 ? '#64748b' :
+                        (totalPassed / totalRuns) >= 0.9 ? '#22c55e' :
+                        (totalPassed / totalRuns) >= 0.6 ? '#fbbf24' : '#ef4444';
+
+        banner.appendChild(_stat('sandboxes', total, '#8b5cf6'));
+        banner.appendChild(_stat('active', active, '#22c55e'));
+        banner.appendChild(_stat('inactive', inactive, '#64748b'));
+        banner.appendChild(_stat('with proposal', withProposal, '#00d4ff'));
+
+        banner.appendChild(_rbMakeEl('span', {
+            style: 'width:1px; background:#334155; align-self:stretch; margin:0 4px;'
+        }));
+
+        banner.appendChild(_stat('total runs', totalRuns, '#64748b'));
+        banner.appendChild(_stat('passed', totalPassed, '#22c55e'));
+        banner.appendChild(_stat('failed', totalFailed, '#ef4444'));
+        banner.appendChild(_stat('pass rate', passRate, passColor));
+    } catch (e) {
+        _rbClear(banner);
+        banner.appendChild(_rbMakeEl('span', {
+            style: 'color:#ef4444;',
+            text: 'Failed to load sandbox stats: ' + e.message
+        }));
     }
 }
 

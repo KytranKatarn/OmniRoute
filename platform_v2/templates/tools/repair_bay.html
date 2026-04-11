@@ -2198,16 +2198,15 @@ function switchTab(tabId) {
     var btn = document.querySelector('.lcars-tab-btn[data-tab="' + tabId + '"]');
     if (btn) btn.classList.add('active');
     window.location.hash = '#' + tabId;
-    // Auto-load data when switching tabs (6-tab set after 2026-04-11 prune)
+    // Auto-load data when switching tabs (6-tab set after 2026-04-11 prune).
+    // Main loaders (loadReviews/Repairs/Diagnose/TestBay/Ship) live in
+    // static/js/repair-bay-main.js and internally nudge any relevant inline
+    // legacy loaders (loadSandboxes/loadTestRuns/loadProposals/etc).
     if (tabId === 'reviews') loadReviews();
-    if (tabId === 'proposals') { if (typeof loadProposals === 'function') loadProposals(); else loadRepairs(); }
-    if (tabId === 'scan') { if (typeof checkScanAi === 'function') checkScanAi(); loadDiagnose(); }
-    if (tabId === 'sandbox') { if (typeof loadSandboxes === 'function') loadSandboxes(); else loadTestBay(); }
-    if (tabId === 'deploy') {
-        if (typeof loadDeployReady === 'function') loadDeployReady();
-        if (typeof loadDeployHistory === 'function') loadDeployHistory();
-        loadShip();
-    }
+    if (tabId === 'proposals') loadRepairs();
+    if (tabId === 'scan') loadDiagnose();
+    if (tabId === 'sandbox') loadTestBay();
+    if (tabId === 'deploy') loadShip();
     if (tabId === 'qa') loadQaTab();
 }
 

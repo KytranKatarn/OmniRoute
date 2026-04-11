@@ -159,6 +159,11 @@ def add_agent(agent_data):
     Returns:
         dict: Created agent with ID
     """
+    # Single-writer path: Project #241 Track C.3. Pre-flight validation
+    # queries stay here (type_id existence + email uniqueness), but the
+    # actual agents-table mutation flows through agent_service.
+    from services import agent_service as _svc
+
     conn = get_db()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -173,49 +178,6 @@ def add_agent(agent_data):
             cur.execute("SELECT id FROM agents WHERE email = %s", (agent_data["email"],))
             if cur.fetchone():
                 raise ValueError(f"Email {agent_data['email']} already exists")
-
-        # Insert agent
-        cur.execute(
-            """
-            INSERT INTO agents (
-                name, type_id, tier, status, model, system_prompt,
-                capabilities, monthly_budget, budget_alert_threshold,
-                metadata, first_name, last_name, email, title,
-                department, bio, pronouns, avatar_url, created_at
-            ) VALUES (
-                %(name)s, %(type_id)s, %(tier)s, %(status)s, %(model)s, %(system_prompt)s,
-                %(capabilities)s, %(monthly_budget)s, %(budget_alert_threshold)s,
-                %(metadata)s, %(first_name)s, %(last_name)s, %(email)s, %(title)s,
-                %(department)s, %(bio)s, %(pronouns)s, %(avatar_url)s, NOW()
-            )
-            RETURNING id
-        """,
-            {
-                "name": agent_data["name"],
-                "type_id": agent_data["type_id"],
-                "tier": agent_data.get("tier", 1),
-                "status": agent_data.get("status", "active"),
-                "model": agent_data["model"],
-                "system_prompt": agent_data["system_prompt"],
-                "capabilities": json.dumps(agent_data.get("capabilities", {})),
-                "monthly_budget": agent_data.get("monthly_budget"),
-                "budget_alert_threshold": agent_data.get("budget_alert_threshold", 0.80),
-                "metadata": json.dumps(agent_data.get("metadata", {})),
-                "first_name": agent_data.get("first_name"),
-                "last_name": agent_data.get("last_name"),
-                "email": agent_data.get("email"),
-                "title": agent_data.get("title"),
-                "department": agent_data.get("department"),
-                "bio": agent_data.get("bio"),
-                "pronouns": agent_data.get("pronouns", "they/them"),
-                "avatar_url": agent_data.get("avatar_url"),
-            },
-        )
-
-        agent_id = cur.fetchone()["id"]
-        conn.commit()
-
-        return get_agent(agent_id)
     finally:
         try:
             cur.close()
@@ -225,6 +187,36 @@ def add_agent(agent_data):
             conn.close()
         except Exception:
             pass
+
+    # Create via canonical helper
+    title = agent_data.get("title")
+    agent_id = _svc.create_agent(
+        name=agent_data["name"],
+        display_name=title or agent_data["name"],
+        department=agent_data.get("department") or "Engineering & Technology",
+        model=agent_data["model"],
+        system_prompt=agent_data["system_prompt"],
+        tier=agent_data.get("tier", 1),
+        capabilities=agent_data.get("capabilities") or {},
+    )
+
+    # Follow-up with extras not in create_agent's core signature
+    extras = {}
+    for field in (
+        "type_id", "monthly_budget", "budget_alert_threshold",
+        "first_name", "last_name", "email", "title", "bio", "avatar_url",
+    ):
+        if agent_data.get(field) is not None:
+            extras[field] = agent_data[field]
+    extras.setdefault("pronouns", agent_data.get("pronouns", "they/them"))
+    if agent_data.get("metadata"):
+        extras["metadata"] = agent_data["metadata"]
+    if agent_data.get("status") and agent_data["status"] != "active":
+        extras["status"] = agent_data["status"]
+    if extras:
+        _svc.update_agent(agent_id, **extras)
+
+    return get_agent(agent_id)
 
 
 # =============================================================================
@@ -243,6 +235,11 @@ def update_agent(agent_id, updates):
     Returns:
         dict: Updated agent
     """
+    # Single-writer path: Project #241 Track C.3. Pre-flight validation
+    # (existence + email uniqueness) stays here; the mutation flows
+    # through agent_service.
+    from services import agent_service as _svc
+
     conn = get_db()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -260,51 +257,6 @@ def update_agent(agent_id, updates):
             )
             if cur.fetchone():
                 raise ValueError(f"Email {updates['email']} already exists")
-
-        # Build update query
-        allowed_fields = [
-            "name",
-            "type_id",
-            "tier",
-            "status",
-            "model",
-            "system_prompt",
-            "capabilities",
-            "monthly_budget",
-            "budget_alert_threshold",
-            "metadata",
-            "first_name",
-            "last_name",
-            "email",
-            "title",
-            "department",
-            "bio",
-            "pronouns",
-            "avatar_url",
-        ]
-
-        set_clauses = []
-        params = []
-
-        for field, value in updates.items():
-            if field in allowed_fields:
-                # Handle JSON fields
-                if field in ["capabilities", "metadata"] and not isinstance(value, str):
-                    value = json.dumps(value)
-
-                set_clauses.append(f"{field} = %s")
-                params.append(value)
-
-        if not set_clauses:
-            raise ValueError("No valid fields to update")
-
-        params.append(agent_id)
-        query = f"UPDATE agents SET {', '.join(set_clauses)} WHERE id = %s"
-
-        cur.execute(query, params)
-        conn.commit()
-
-        return get_agent(agent_id)
     finally:
         try:
             cur.close()
@@ -314,6 +266,20 @@ def update_agent(agent_id, updates):
             conn.close()
         except Exception:
             pass
+
+    # Filter to allowed fields and dispatch to canonical helper
+    allowed_fields = {
+        "name", "type_id", "tier", "status", "model", "system_prompt",
+        "capabilities", "monthly_budget", "budget_alert_threshold",
+        "metadata", "first_name", "last_name", "email", "title",
+        "department", "bio", "pronouns", "avatar_url",
+    }
+    filtered = {k: v for k, v in updates.items() if k in allowed_fields}
+    if not filtered:
+        raise ValueError("No valid fields to update")
+
+    _svc.update_agent(agent_id, **filtered)
+    return get_agent(agent_id)
 
 
 # =============================================================================
@@ -332,23 +298,18 @@ def delete_agent(agent_id, soft_delete=True):
     Returns:
         bool: Success
     """
+    # Single-writer path: Project #241 Track C.3. Existence check stays
+    # here; the mutation flows through agent_service.delete_agent which
+    # handles both soft (status=inactive + shift_state=off_duty) and
+    # hard (DELETE) variants via its hard= kwarg.
+    from services import agent_service as _svc
+
     conn = get_db()
     try:
         cur = conn.cursor()
-
-        # Check if agent exists
         cur.execute("SELECT id FROM agents WHERE id = %s", (agent_id,))
         if not cur.fetchone():
             raise ValueError(f"Agent ID {agent_id} not found")
-
-        if soft_delete:
-            cur.execute("UPDATE agents SET status = 'inactive' WHERE id = %s", (agent_id,))
-        else:
-            cur.execute("DELETE FROM agents WHERE id = %s", (agent_id,))
-
-        conn.commit()
-
-        return True
     finally:
         try:
             cur.close()
@@ -358,6 +319,9 @@ def delete_agent(agent_id, soft_delete=True):
             conn.close()
         except Exception:
             pass
+
+    _svc.delete_agent(agent_id, hard=not soft_delete)
+    return True
 
 
 # =============================================================================

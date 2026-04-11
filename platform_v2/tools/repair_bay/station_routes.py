@@ -1,8 +1,16 @@
 """Repair Bay — Station integration routes.
 
-Proxies Starbase Command APIs filtered to ENGINEERING station and
+Proxies Department HQ APIs filtered to ENGINEERING station and
 repair_bay module_source. Provides crew roster, job status, and
 active job polling for the station panel UI.
+
+Single-source compliance (Project #242 Task 9 / Project #241 Track C):
+this module intentionally does NOT query the agents table directly.
+Crew data flows via HTTP from /tools/department-hq/api/stations — the
+canonical Department HQ read path. agent_service.py owns the agents
+table; any future code in this file that needs agent data must either
+call department_hq via HTTP (as station_crew does) or go through
+agent_service.
 """
 
 import logging

@@ -85,6 +85,15 @@ class TeamConsensusOrchestrator:
 
             preferred_dept = category_dept_map.get(category, "Engineering")
 
+            # A.R.C.H.I.E. is the facilitator — exclude from candidate pool.
+            # Single-source path: look up the id via agent_service rather than
+            # a raw SELECT subquery so the agents-table ownership stays with
+            # Department HQ (Project #242 Task 8 / Project #241 Track C).
+            from services import agent_service
+
+            archie = agent_service.get_agent_by_name("A.R.C.H.I.E.")
+            archie_id = archie["id"] if archie else 0
+
             # Select internal agents first (FREE), prioritize by department match
             cur.execute(
                 """
@@ -97,11 +106,11 @@ class TeamConsensusOrchestrator:
                 FROM agents a
                 WHERE a.status = 'active'
                 AND a.worker_type = 'internal'
-                AND a.id != (SELECT id FROM agents WHERE name = 'A.R.C.H.I.E.' LIMIT 1)  -- Exclude A.R.C.H.I.E. (facilitator)
+                AND a.id != %s  -- Exclude A.R.C.H.I.E. (facilitator)
                 ORDER BY dept_priority ASC, a.tier ASC, RANDOM()
                 LIMIT %s
             """,
-                (preferred_dept, target_team_size),
+                (preferred_dept, archie_id, target_team_size),
             )
 
             selected_agents = cur.fetchall()

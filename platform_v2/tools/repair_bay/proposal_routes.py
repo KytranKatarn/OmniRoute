@@ -12,6 +12,28 @@ from flask_login import login_required, current_user
 logger = logging.getLogger(__name__)
 
 
+def _legacy_proposal_execute(proposal_id):
+    """Original proposals_execute body — handles non-compliance_fix proposals.
+
+    Extracted 2026-04-11 so the compliance_fix branch can be added to the
+    route handler without entangling the two code paths.
+    """
+    from services import proposal_service
+
+    data = request.get_json(silent=True) or {}
+    result = proposal_service.run_proposal(
+        proposal_id,
+        user_id=current_user.id,
+        skip_backup=data.get("skip_backup", False),
+        use_orchestrator=data.get("use_orchestrator", True),
+        steps=data.get("steps"),
+    )
+    if not result.get("success"):
+        code = 404 if "not found" in result.get("error", "").lower() else 400 if result.get("legacy") else 500
+        return jsonify(result), code
+    return jsonify(result)
+
+
 def register_proposal_routes(bp, admin_required):
     """Register proposal-related routes on the repair_bay blueprint."""
 
@@ -79,18 +101,87 @@ def register_proposal_routes(bp, admin_required):
     @login_required
     @admin_required
     def proposals_execute(proposal_id):
-        data = request.get_json(silent=True) or {}
-        result = proposal_service.run_proposal(
-            proposal_id,
-            user_id=current_user.id,
-            skip_backup=data.get("skip_backup", False),
-            use_orchestrator=data.get("use_orchestrator", True),
-            steps=data.get("steps"),
-        )
-        if not result.get("success"):
-            code = 404 if "not found" in result.get("error", "").lower() else 400 if result.get("legacy") else 500
-            return jsonify(result), code
-        return jsonify(result)
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                "SELECT category FROM improvement_proposals WHERE id = %s",
+                (proposal_id,),
+            )
+            row = cur.fetchone()
+        if not row:
+            return jsonify({"success": False, "error": "not found"}), 404
+
+        category = row["category"] if isinstance(row, dict) else row[0]
+
+        if category == "compliance_fix":
+            from tools.security_network.compliance_safe_exec import _safe_execute_fix
+
+            result = _safe_execute_fix(proposal_id, user_id=current_user.id)
+            status_code = 200 if result.get("success") else 500
+            return jsonify(result), status_code
+
+        # Non-compliance proposals use the legacy path
+        return _legacy_proposal_execute(proposal_id)
+
+    @bp.route("/api/proposals/<int:proposal_id>/compliance-action", methods=["POST"])
+    @login_required
+    @admin_required
+    def proposals_compliance_action(proposal_id):
+        """Handle the three Repair Bay compliance card buttons.
+
+        Body: {"action": "apply_once" | "apply_and_allow" | "exempt"}
+        """
+        from database import get_db_cursor
+        from tools.security_network import compliance_service
+        from tools.security_network.compliance_safe_exec import _safe_execute_fix
+
+        action = (request.get_json(silent=True) or {}).get("action")
+        if action not in ("apply_once", "apply_and_allow", "exempt"):
+            return jsonify({"success": False, "error": "bad action"}), 400
+
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """SELECT category, metadata FROM improvement_proposals
+                   WHERE id = %s""",
+                (proposal_id,),
+            )
+            row = cur.fetchone()
+        if not row:
+            return jsonify({"success": False, "error": "not found"}), 404
+
+        cat = row["category"] if isinstance(row, dict) else row[0]
+        if cat != "compliance_fix":
+            return jsonify({"success": False, "error": "not a compliance_fix proposal"}), 400
+
+        meta_raw = row["metadata"] if isinstance(row, dict) else row[1]
+        meta = meta_raw if isinstance(meta_raw, dict) else {}
+        rule_id = meta.get("rule_id")
+        if not rule_id:
+            return jsonify({"success": False, "error": "proposal missing rule_id"}), 500
+
+        if action == "exempt":
+            compliance_service.set_rule_auto_approval(
+                rule_id, "exempt", current_user.id, "exempted via Repair Bay card"
+            )
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """UPDATE improvement_proposals
+                       SET status = 'resolved',
+                           reviewed_at = NOW(),
+                           metadata = metadata || '{"resolved_by":"exempt"}'::jsonb
+                       WHERE id = %s""",
+                    (proposal_id,),
+                )
+            return jsonify({"success": True, "action": "exempt", "rule_id": rule_id})
+
+        if action == "apply_and_allow":
+            compliance_service.set_rule_auto_approval(rule_id, "allow", current_user.id, "approved via Repair Bay")
+
+        result = _safe_execute_fix(proposal_id, user_id=current_user.id)
+        result["action"] = action
+        status_code = 200 if result.get("success") else 500
+        return jsonify(result), status_code
 
     @bp.route("/api/proposals/<int:proposal_id>/regenerate-plan", methods=["POST"])
     @login_required

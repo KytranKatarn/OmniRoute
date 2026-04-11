@@ -59,6 +59,78 @@ def register_compliance_routes(bp, admin_required_decorator):
             logger.error("Failed to get scan results: %s", exc)
             return jsonify({"error": str(exc)}), 500
 
+    @bp.route("/api/compliance/scans/<scan_id>/findings/<rule_id>/action-info", methods=["GET"])
+    @login_required
+    @admin_required_decorator
+    def compliance_finding_action_info(scan_id, rule_id):
+        """Return finding details + linked proposal_id + auto-approval state.
+
+        Powers the Repair Bay approval card buttons (Apply Once / Apply + Always
+        Allow / Dismiss) in the security_network compliance tab. The frontend
+        needs the proposal_id to POST to /api/proposals/<id>/compliance-action.
+        """
+        from database import get_db_cursor
+
+        try:
+            with get_db_cursor(commit=False) as (conn, cur):
+                cur.execute(
+                    """SELECT rule_id, severity, status, details, actual_value,
+                              expected_value, pack_id
+                       FROM compliance_scan_results
+                       WHERE scan_id = %s AND rule_id = %s
+                       LIMIT 1""",
+                    (scan_id, rule_id),
+                )
+                finding = cur.fetchone()
+                if not finding:
+                    return jsonify({"success": False, "error": "finding not found"}), 404
+
+                cur.execute(
+                    """SELECT id, status, metadata, proposed_at
+                       FROM improvement_proposals
+                       WHERE category = 'compliance_fix'
+                         AND status IN ('proposed', 'pending', 'pending_approval')
+                         AND metadata->>'rule_id' = %s
+                       ORDER BY proposed_at DESC
+                       LIMIT 1""",
+                    (rule_id,),
+                )
+                proposal = cur.fetchone()
+
+            approval = compliance_service.get_rule_auto_approval(rule_id)
+
+            finding_dict = dict(finding)
+            blocklist_reason = None
+            if proposal and proposal.get("metadata"):
+                meta = proposal["metadata"]
+                fix_def = meta.get("fix_def") or {}
+                finding_dict["fix_type"] = fix_def.get("type")
+                # Build a human-readable fix summary from whichever fields apply
+                if fix_def.get("type") == "sysctl":
+                    finding_dict["fix_summary"] = f"sysctl {fix_def.get('parameter')} = {fix_def.get('value')}"
+                elif fix_def.get("type") == "file_line":
+                    finding_dict["fix_summary"] = f"{fix_def.get('path')} → {fix_def.get('line')}"
+                elif fix_def.get("type") == "service":
+                    finding_dict["fix_summary"] = f"{fix_def.get('action', 'enable')} {fix_def.get('name')}"
+                elif fix_def.get("type") == "command":
+                    cmd = fix_def.get("command", "")
+                    finding_dict["fix_summary"] = (cmd[:160] + "…") if len(cmd) > 160 else cmd
+                blocklist_reason = meta.get("blocklist_reason")
+
+            return jsonify(
+                {
+                    "success": True,
+                    "finding": finding_dict,
+                    "proposal_id": proposal["id"] if proposal else None,
+                    "proposal_status": proposal["status"] if proposal else None,
+                    "auto_approval_status": approval["status"] if approval else None,
+                    "blocklist_reason": blocklist_reason,
+                }
+            )
+        except Exception as exc:
+            logger.error("action-info lookup failed for %s/%s: %s", scan_id, rule_id, exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
     @bp.route("/api/compliance/scores", methods=["GET"])
     @login_required
     @admin_required_decorator

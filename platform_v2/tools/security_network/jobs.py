@@ -12,7 +12,7 @@ Jobs extracted:
   - check_camera_anomaly (every 1h)
   - run_auto_block (every 15 min)
   - run_scheduled_compliance_scan (Job #57, every 6h)
-  - run_auto_remediation (Job #58, every 6h)
+  - run_compliance_enqueue (Job #58, every 6h) + run_auto_apply_window (Job #62, Sun 03:00 EDT)
   - run_anomaly_detection (Job #61, every 30 min)
   - generate_vigil_threat_report (daily 8AM)
 """
@@ -479,72 +479,218 @@ def run_scheduled_compliance_scan():
         logger.error("Scheduled compliance scan failed: %s", e)
 
 
-def run_auto_remediation():
-    """Job #58: Auto-fix low-risk compliance failures from the latest scan."""
-    try:
-        import json as _json
-        from tools.security_network.compliance_service import (
-            get_latest_scores,
-            get_scan_results,
-            apply_fix,
-        )
+def run_compliance_enqueue():
+    """Job #58 (renamed from run_auto_remediation 2026-04-11).
 
+    Reads the latest compliance scan results and creates a Repair Bay
+    proposal (improvement_proposals, category='compliance_fix') for every
+    failing rule that is not exempt, not blocklisted, and does not already
+    have an open proposal. Does NOT apply anything — apply happens only
+    via explicit admin click or the Sunday window job (#62).
+    """
+    import json as _json
+    from tools.security_network.compliance_service import (
+        get_latest_scores,
+        get_scan_results,
+        is_rule_exempt,
+        is_rule_auto_allowed,
+        _is_rule_blocked,
+    )
+    from database import get_db_cursor
+    from psycopg2.extras import Json
+
+    try:
         scores = get_latest_scores()
         if not scores or not scores.get("scan_id"):
             return
-
         scan_id = scores["scan_id"]
         results = get_scan_results(scan_id, status="fail")
-
         if not results:
             return
 
-        # Build a lookup of rule_id -> fix risk from loaded rule packs
-        from database import get_db_cursor
-
-        risk_lookup = {}
+        # Build rule_id → (fix_def, pack_id, severity)
+        rule_lookup = {}
         with get_db_cursor(commit=False) as (conn, cur):
             cur.execute("SELECT pack_id, rules FROM compliance_rule_packs")
             for pack_row in cur.fetchall():
                 rules = pack_row["rules"] if isinstance(pack_row["rules"], list) else _json.loads(pack_row["rules"])
                 for rule in rules:
                     rid = rule.get("rule_id", "")
-                    fix = rule.get("fix", {})
-                    risk_lookup[rid] = fix.get("risk", "high")
+                    rule_lookup[rid] = {
+                        "pack_id": pack_row["pack_id"],
+                        "fix_def": rule.get("fix", {}),
+                        "severity": rule.get("severity", "medium"),
+                    }
 
-        fixed = 0
-        skipped = 0
-        for result in results:
-            rule_id = result.get("rule_id", "")
-            risk = risk_lookup.get(rule_id, "high")
+        created = 0
+        skipped_exempt = 0
+        skipped_blocked = 0
+        skipped_existing = 0
+        skipped_unknown = 0
 
-            # Only auto-fix low-risk rules (Tier 1 auto-approvable)
-            if risk != "low":
-                skipped += 1
-                continue
+        SAFE_TYPES = {"sysctl", "file_line", "service"}
 
-            try:
-                fix_result = apply_fix(scan_id, rule_id, user_id=0)
-                if fix_result.get("success"):
-                    fixed += 1
-                    logger.info("Auto-remediation: fixed %s (risk=%s)", rule_id, risk)
-                else:
-                    logger.warning(
-                        "Auto-remediation: failed to fix %s: %s",
-                        rule_id,
-                        fix_result.get("error", "unknown"),
-                    )
-            except Exception as fix_err:
-                logger.warning("Auto-remediation: error fixing %s: %s", rule_id, fix_err)
+        with get_db_cursor(commit=True) as (conn, cur):
+            for result in results:
+                rule_id = result.get("rule_id", "")
+                if not rule_id:
+                    continue
 
-        if fixed > 0 or skipped > 0:
-            logger.info(
-                "Auto-remediation complete: %d fixed, %d skipped (non-low risk)",
-                fixed,
-                skipped,
+                if is_rule_exempt(rule_id):
+                    skipped_exempt += 1
+                    continue
+
+                blocked, _bl = _is_rule_blocked(rule_id)
+                if blocked:
+                    skipped_blocked += 1
+                    continue  # Job #61 handles blocklisted rules via F.O.R.G.E. plan
+
+                lookup = rule_lookup.get(rule_id)
+                if not lookup:
+                    skipped_unknown += 1
+                    continue
+
+                # Dedupe: skip if an open proposal already exists for this rule
+                cur.execute(
+                    """SELECT 1 FROM improvement_proposals
+                       WHERE category = 'compliance_fix'
+                         AND status = 'pending_approval'
+                         AND metadata->>'rule_id' = %s
+                       LIMIT 1""",
+                    (rule_id,),
+                )
+                if cur.fetchone():
+                    skipped_existing += 1
+                    continue
+
+                fix_def = lookup["fix_def"]
+                fix_type = fix_def.get("type")
+                auto_queued = is_rule_auto_allowed(rule_id) and fix_type in SAFE_TYPES
+
+                metadata = {
+                    "source": "compliance_enqueue",
+                    "scan_id": scan_id,
+                    "rule_id": rule_id,
+                    "pack_id": lookup["pack_id"],
+                    "fix_def": fix_def,
+                    "fix_type": fix_type,
+                    "severity": lookup["severity"],
+                    "auto_apply_queued": auto_queued,
+                }
+
+                cur.execute(
+                    """INSERT INTO improvement_proposals
+                           (title, description, category, priority, status,
+                            risk_level, metadata, proposed_at)
+                       VALUES (%s, %s, 'compliance_fix', %s, 'pending_approval',
+                               %s, %s, NOW())""",
+                    (
+                        f"Compliance fix pending: {rule_id}",
+                        f"Compliance rule {rule_id} failed in scan {scan_id}. "
+                        f"Approve in Repair Bay (fix_type={fix_type}).",
+                        lookup["severity"],
+                        lookup["severity"],
+                        Json(metadata),
+                    ),
+                )
+                created += 1
+
+        logger.info(
+            "compliance_enqueue: created=%d skipped_existing=%d "
+            "skipped_exempt=%d skipped_blocked=%d skipped_unknown=%d",
+            created,
+            skipped_existing,
+            skipped_exempt,
+            skipped_blocked,
+            skipped_unknown,
+        )
+    except Exception as exc:
+        logger.error("compliance_enqueue failed: %s", exc)
+
+
+# Compatibility alias — keep old name bound so any existing scheduler
+# registration or external reference still works during the transition.
+run_auto_remediation = run_compliance_enqueue
+
+
+def run_auto_apply_window():
+    """Job #62 — Sunday 03:00 EDT compliance auto-apply window.
+
+    Picks up to 5 compliance_fix proposals where
+    metadata.auto_apply_queued=true, re-verifies fix_type is in the safe
+    set, and runs each through compliance_safe_exec._safe_execute_fix.
+    Sends a Telegram digest at the end.
+    """
+    import datetime as _dt
+    from database import get_db_cursor
+    from tools.security_network.compliance_safe_exec import (
+        _safe_execute_fix,
+        SAFE_FIX_TYPES,
+    )
+
+    try:
+        from ai_bridge.agent_loop import _send_telegram  # type: ignore
+    except ImportError:
+
+        def _send_telegram(msg):  # type: ignore
+            logger.info("TELEGRAM (no sender): %s", msg)
+
+    max_fixes = 5
+    picked: list = []
+
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """SELECT id, metadata
+                   FROM improvement_proposals
+                   WHERE category = 'compliance_fix'
+                     AND status = 'pending_approval'
+                     AND (metadata->>'auto_apply_queued')::boolean IS TRUE
+                   ORDER BY proposed_at ASC
+                   LIMIT %s""",
+                (max_fixes,),
             )
-    except Exception as e:
-        logger.error("Auto-remediation failed: %s", e)
+            rows = cur.fetchall()
+
+        for row in rows:
+            meta = row["metadata"] if isinstance(row["metadata"], dict) else {}
+            fix_type = (meta.get("fix_def") or {}).get("type")
+            if fix_type not in SAFE_FIX_TYPES:
+                logger.info(
+                    "auto_apply_window: skipping proposal %s — fix_type=%s ineligible",
+                    row["id"],
+                    fix_type,
+                )
+                continue
+            picked.append(row["id"])
+
+        results = []
+        for pid in picked:
+            try:
+                r = _safe_execute_fix(pid, user_id=0)
+            except Exception as exc:
+                r = {"success": False, "status": "error", "detail": str(exc), "proposal_id": pid}
+            results.append(r)
+
+        # Digest
+        total = len(results)
+        ok = sum(1 for r in results if r.get("success"))
+        failed = total - ok
+        if total == 0:
+            msg = f"🛠 Compliance window {_dt.datetime.now():%Y-%m-%d %H:%M}: no auto-queued fixes."
+        else:
+            detail_lines = [
+                f"  • {r.get('status', '?')} — proposal #{r.get('proposal_id')}: {r.get('detail', '')[:80]}"
+                for r in results
+            ]
+            msg = (
+                f"🛠 Compliance window {_dt.datetime.now():%Y-%m-%d %H:%M}\n"
+                f"Applied: {ok}/{total} | Failed: {failed}\n" + "\n".join(detail_lines)
+            )
+        _send_telegram(msg)
+        logger.info("auto_apply_window summary: %s", msg.replace("\n", " | "))
+    except Exception as exc:
+        logger.error("auto_apply_window failed: %s", exc)
 
 
 def run_auto_plan_generation():
@@ -1668,6 +1814,16 @@ def register_security_jobs(scheduler, flask_app):
         id="agent_auto_remediation",
         name="Agent Loop: Compliance Auto-Remediation",
         replace_existing=True,
+    )
+
+    # --- Sunday maintenance-window auto-apply (Job #62, 2026-04-11) ---
+    scheduler.add_job(
+        with_ctx(run_auto_apply_window),
+        trigger=CronTrigger(day_of_week="sun", hour=3, minute=0, timezone="America/Toronto"),
+        id="agent_compliance_auto_apply_window",
+        name="Agent Loop: Compliance Auto-Apply Window",
+        replace_existing=True,
+        misfire_grace_time=900,
     )
 
     # --- Auto-plan generation (Job #61) ---

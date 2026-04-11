@@ -11,6 +11,7 @@ import os
 import re
 import uuid
 from datetime import datetime
+from typing import Any, Dict, Optional
 
 from psycopg2.extras import Json
 
@@ -3449,3 +3450,69 @@ def get_loaded_packs():
             if row.get("updated_at") and hasattr(row["updated_at"], "isoformat"):
                 row["updated_at"] = row["updated_at"].isoformat()
         return rows
+
+
+# ---------------------------------------------------------------------------
+# Rule auto-approval CRUD helpers (Task 5)
+# ---------------------------------------------------------------------------
+
+
+def set_rule_auto_approval(rule_id: str, status: str, user_id: int, notes: str = "") -> Dict[str, Any]:
+    """Upsert a row in compliance_rule_auto_approvals.
+
+    status: 'allow' | 'exempt'
+    """
+    if status not in ("allow", "exempt"):
+        return {"success": False, "error": f"invalid status: {status}"}
+
+    # Look up pack_id from any loaded rule pack
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute(
+            """SELECT p.pack_id
+               FROM compliance_rule_packs p,
+                    jsonb_array_elements(p.rules) r
+               WHERE r->>'rule_id' = %s
+               LIMIT 1""",
+            (rule_id,),
+        )
+        row = cur.fetchone()
+        pack_id = (row["pack_id"] if row else None) or "unknown"
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """INSERT INTO compliance_rule_auto_approvals
+                 (rule_id, pack_id, status, approved_by, notes)
+               VALUES (%s, %s, %s, %s, %s)
+               ON CONFLICT (rule_id) DO UPDATE
+                 SET status = EXCLUDED.status,
+                     approved_by = EXCLUDED.approved_by,
+                     approved_at = NOW(),
+                     notes = EXCLUDED.notes""",
+            (rule_id, pack_id, status, user_id, notes),
+        )
+    return {"success": True, "rule_id": rule_id, "status": status}
+
+
+def get_rule_auto_approval(rule_id: str) -> Optional[Dict[str, Any]]:
+    """Return dict with status/approved_by/approved_at, or None if not set."""
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute(
+            """SELECT rule_id, pack_id, status, approved_by, approved_at, notes
+               FROM compliance_rule_auto_approvals
+               WHERE rule_id = %s""",
+            (rule_id,),
+        )
+        row = cur.fetchone()
+    if not row:
+        return None
+    return dict(row)
+
+
+def is_rule_exempt(rule_id: str) -> bool:
+    entry = get_rule_auto_approval(rule_id)
+    return bool(entry and entry.get("status") == "exempt")
+
+
+def is_rule_auto_allowed(rule_id: str) -> bool:
+    entry = get_rule_auto_approval(rule_id)
+    return bool(entry and entry.get("status") == "allow")

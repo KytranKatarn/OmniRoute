@@ -4220,7 +4220,7 @@ function _complianceFixButtonHtml(ruleId) {
     if (pending) {
         return '<a class="comp-finding-fix" style="color:#fbbf24;cursor:default" title="Approval #' + pending.approval_id + ' pending — see Department HQ > Approvals" onclick="return false;" href="#">Pending \u23F3</a>';
     }
-    return '<a class="comp-finding-fix" onclick="applyComplianceFix(\'' + safe + '\', this);return false;" href="#">Fix \u25B6</a>';
+    return '<a class="comp-finding-fix" onclick="openComplianceActionModal(\'' + safe + '\');return false;" href="#">Review \u25B6</a>';
 }
 
 async function runComplianceScan() {
@@ -4817,6 +4817,210 @@ async function applyComplianceFix(ruleId, btn) {
             btn.style.color = '#ef4444';
             btn.style.pointerEvents = 'auto';
         }
+        _showFixResultModal(ruleId, {success: false, error: 'Network error: ' + e.message, stages: {}});
+    }
+}
+
+/* ── Repair Bay approval card: Apply Once / Apply + Always Allow / Dismiss ── */
+async function openComplianceActionModal(ruleId) {
+    if (!_complianceScanId) {
+        showToast('error', 'No active scan selected');
+        return;
+    }
+    var existing = document.getElementById('comp-action-overlay');
+    if (existing) existing.remove();
+
+    var overlay = document.createElement('div');
+    overlay.id = 'comp-action-overlay';
+    overlay.className = 'bm-overlay active';
+    overlay.style.cssText = '--bm-accent:#00e5ff;--bm-accent-rgb:0,229,255';
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+    var shell = document.createElement('div');
+    shell.className = 'bm-shell';
+    shell.style.maxWidth = '600px';
+    shell.style.maxHeight = '90vh';
+
+    var frame = document.createElement('div');
+    frame.className = 'bm-frame';
+    ['bm-frame-elbow-top','bm-frame-seg','bm-frame-seg dim','bm-frame-light on','bm-frame-light amber','bm-frame-seg purple','bm-frame-fill','bm-frame-elbow-bottom'].forEach(function(cls){
+        var el = document.createElement('div');
+        el.className = cls;
+        frame.appendChild(el);
+    });
+
+    var content = document.createElement('div');
+    content.className = 'bm-content';
+    content.style.cssText = 'max-height:90vh;display:flex;flex-direction:column';
+
+    var header = document.createElement('div');
+    header.className = 'bm-header';
+    var headerTitle = document.createElement('span');
+    headerTitle.className = 'bm-header-title';
+    headerTitle.textContent = 'COMPLIANCE REVIEW \u2014 ' + ruleId;
+    var headerStrip = document.createElement('div');
+    headerStrip.className = 'bm-header-strip';
+    ['w1','w2','w3'].forEach(function(w){
+        var p = document.createElement('div');
+        p.className = 'bm-header-pip ' + w;
+        headerStrip.appendChild(p);
+    });
+    var closeBtn = document.createElement('button');
+    closeBtn.className = 'bm-close';
+    closeBtn.textContent = '\u00D7';
+    closeBtn.onclick = function() { overlay.remove(); };
+    headerStrip.appendChild(closeBtn);
+    header.appendChild(headerTitle);
+    header.appendChild(headerStrip);
+
+    var body = document.createElement('div');
+    body.className = 'bm-body';
+    body.style.cssText = 'padding:14px 20px;flex:1 1 auto;min-height:0;overflow-y:auto';
+
+    var loading = document.createElement('div');
+    loading.style.cssText = 'text-align:center;padding:24px;color:#94a3b8;font-size:0.85rem';
+    loading.textContent = 'Loading rule details\u2026';
+    body.appendChild(loading);
+
+    content.appendChild(header);
+    content.appendChild(body);
+    shell.appendChild(frame);
+    shell.appendChild(content);
+    overlay.appendChild(shell);
+    document.body.appendChild(overlay);
+
+    /* Fetch action-info from backend */
+    try {
+        var url = '/tools/security-network/api/compliance/scans/' + encodeURIComponent(_complianceScanId)
+                + '/findings/' + encodeURIComponent(ruleId) + '/action-info';
+        var resp = await fetch(url);
+        var data = await resp.json();
+        if (!data.success) {
+            body.textContent = '';
+            var err = document.createElement('div');
+            err.style.cssText = 'padding:14px;background:rgba(239,68,68,0.08);border-left:3px solid #ef4444;color:#fca5a5;font-size:0.85rem';
+            err.textContent = 'Error: ' + (data.error || 'failed to load finding');
+            body.appendChild(err);
+            return;
+        }
+
+        body.textContent = '';
+        var f = data.finding || {};
+
+        function _section(label, value, color) {
+            var s = document.createElement('div');
+            s.style.cssText = 'margin-bottom:10px';
+            var lbl = document.createElement('div');
+            lbl.style.cssText = 'font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px';
+            lbl.textContent = label;
+            var val = document.createElement('div');
+            val.style.cssText = 'font-size:0.85rem;color:' + (color || '#e2e8f0') + ';font-family:"IBM Plex Mono",monospace;word-break:break-word';
+            val.textContent = value || '\u2014';
+            s.appendChild(lbl);
+            s.appendChild(val);
+            return s;
+        }
+
+        var sevColor = f.severity === 'critical' ? '#ef4444' : f.severity === 'high' ? '#f97316' : f.severity === 'medium' ? '#fbbf24' : '#64748b';
+        body.appendChild(_section('Severity', (f.severity || 'info').toUpperCase(), sevColor));
+        body.appendChild(_section('Pack', f.pack_id));
+        body.appendChild(_section('Details', f.details || f.actual_value));
+        body.appendChild(_section('Fix Type', f.fix_type));
+        if (f.fix_summary) body.appendChild(_section('Fix Summary', f.fix_summary));
+
+        if (data.auto_approval_status) {
+            var aa = document.createElement('div');
+            aa.style.cssText = 'margin:10px 0;padding:8px 12px;background:rgba(0,229,255,0.06);border-left:3px solid #00e5ff;font-size:0.78rem;color:#cbd5e1';
+            aa.textContent = 'Auto-approval state: ' + data.auto_approval_status;
+            body.appendChild(aa);
+        }
+
+        if (data.blocklist_reason) {
+            var bl = document.createElement('div');
+            bl.style.cssText = 'margin:10px 0;padding:10px 12px;background:rgba(239,68,68,0.08);border-left:3px solid #ef4444;font-size:0.78rem;color:#fca5a5';
+            var blTitle = document.createElement('div');
+            blTitle.style.cssText = 'font-size:0.7rem;color:#ef4444;text-transform:uppercase;margin-bottom:3px;font-weight:600';
+            blTitle.textContent = 'BLOCKLIST WARNING';
+            var blText = document.createElement('div');
+            blText.textContent = data.blocklist_reason;
+            bl.appendChild(blTitle);
+            bl.appendChild(blText);
+            body.appendChild(bl);
+        }
+
+        if (!data.proposal_id) {
+            var noProp = document.createElement('div');
+            noProp.style.cssText = 'margin-top:14px;padding:12px;background:rgba(251,191,36,0.08);border-left:3px solid #fbbf24;color:#fcd34d;font-size:0.82rem';
+            noProp.textContent = 'No open proposal for this rule yet. Generate a remediation plan from the Fix tab first, or run the compliance enqueuer.';
+            body.appendChild(noProp);
+            return;
+        }
+
+        var pidNote = document.createElement('div');
+        pidNote.style.cssText = 'margin:8px 0 14px;font-size:0.72rem;color:#64748b';
+        pidNote.textContent = 'Proposal #' + data.proposal_id + ' \u2014 status: ' + (data.proposal_status || 'proposed');
+        body.appendChild(pidNote);
+
+        var btnRow = document.createElement('div');
+        btnRow.style.cssText = 'display:flex;flex-direction:column;gap:8px;margin-top:8px';
+
+        function _mkBtn(label, color, action, title) {
+            var b = document.createElement('button');
+            b.className = 'btn';
+            b.style.cssText = 'padding:10px 14px;font-size:0.82rem;background:' + color + ';color:#0a0e1a;border:none;border-radius:4px;cursor:pointer;font-weight:600;text-align:left';
+            b.textContent = label;
+            if (title) b.title = title;
+            b.onclick = function() { _complianceCardAction(data.proposal_id, action, ruleId, overlay); };
+            return b;
+        }
+
+        btnRow.appendChild(_mkBtn('\u25B6  Apply Once', '#22c55e', 'apply_once',
+            'Run the safe-exec orchestrator for this rule one time. Snapshot \u2192 apply \u2192 health gate \u2192 auto-rollback on failure.'));
+        btnRow.appendChild(_mkBtn('\u2713  Apply + Always Allow', '#00e5ff', 'apply_and_allow',
+            'Run safe-exec now AND mark this rule as auto-allowed for the Sunday 03:00 EDT window.'));
+        btnRow.appendChild(_mkBtn('\u2717  Dismiss (Mark Exempt)', '#94a3b8', 'exempt',
+            'Mark this rule as exempt. The proposal will be resolved and the rule will not auto-apply.'));
+
+        body.appendChild(btnRow);
+    } catch (e) {
+        body.textContent = '';
+        var err = document.createElement('div');
+        err.style.cssText = 'padding:14px;background:rgba(239,68,68,0.08);border-left:3px solid #ef4444;color:#fca5a5;font-size:0.85rem';
+        err.textContent = 'Network error: ' + e.message;
+        body.appendChild(err);
+    }
+}
+
+async function _complianceCardAction(proposalId, action, ruleId, overlay) {
+    /* Disable buttons during request */
+    var buttons = overlay.querySelectorAll('button.btn');
+    buttons.forEach(function(b) { b.disabled = true; b.style.opacity = '0.5'; b.style.pointerEvents = 'none'; });
+
+    try {
+        var resp = await fetch('/tools/repair-bay/api/proposals/' + proposalId + '/compliance-action', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({action: action})
+        });
+        var data = await resp.json();
+        overlay.remove();
+
+        /* Show pipeline result via the existing fix-result modal */
+        var resultData = data.result || data;
+        resultData.proposal_id = proposalId;
+        if (action === 'exempt') {
+            resultData.success = data.success !== false;
+            resultData.manual_only = true;
+            resultData.stages = resultData.stages || {};
+        }
+        _showFixResultModal(ruleId, resultData);
+
+        /* Refresh findings list after a beat */
+        setTimeout(function() {
+            if (_complianceScanId) loadComplianceResults(_complianceScanId);
+        }, 1500);
+    } catch (e) {
+        overlay.remove();
         _showFixResultModal(ruleId, {success: false, error: 'Network error: ' + e.message, stages: {}});
     }
 }

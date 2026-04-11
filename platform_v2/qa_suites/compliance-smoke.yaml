@@ -1,0 +1,37 @@
+suite:
+  name: "compliance-smoke"
+  description: "15-second health canary for compliance auto-apply safety gate"
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: "dashboard-health"
+    type: api
+    method: GET
+    path: /health
+    skip_auth: true
+    expect:
+      status: 200
+
+  - name: "security-network-loads"
+    type: api
+    method: GET
+    path: /tools/security-network/
+    expect:
+      status: [200, 302]
+
+  - name: "repair-bay-loads"
+    type: api
+    method: GET
+    path: /tools/repair-bay/
+    expect:
+      status: [200, 302]
+
+  - name: "dashboard-loads"
+    type: api
+    method: GET
+    path: /dashboard
+    expect:
+      status: [200, 302]

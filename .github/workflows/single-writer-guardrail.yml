@@ -1,0 +1,66 @@
+name: Agent Single-Writer Guardrail
+
+# K.I.N. guardrail — Project #241 Track C.4
+# Rejects any PR introducing raw UPDATE/INSERT/DELETE on the agents
+# table outside platform_v2/services/agent_service.py and test fixtures.
+# Locks in the Tracks A-C.3 lifecycle consolidation so the single-writer
+# invariant can't drift.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '**.py'
+  push:
+    branches: [main]
+    paths:
+      - '**.py'
+
+jobs:
+  agent-single-writer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Collect changed Python files
+        id: changed
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          PUSH_HEAD_SHA: ${{ github.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            BASE="$PR_BASE_SHA"
+            HEAD="$PR_HEAD_SHA"
+          else
+            BASE="$PUSH_BEFORE_SHA"
+            HEAD="$PUSH_HEAD_SHA"
+          fi
+
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            # First push to branch — scan the whole tree
+            FILES=$(find ai_bridge platform_v2 -name '*.py' -type f 2>/dev/null | tr '\n' ' ')
+          else
+            FILES=$(git diff --name-only --diff-filter=AM "$BASE" "$HEAD" -- '*.py' | tr '\n' ' ')
+          fi
+
+          echo "Checking files: $FILES"
+          echo "files=$FILES" >> "$GITHUB_OUTPUT"
+
+      - name: Run K.I.N. guardrail
+        if: steps.changed.outputs.files != ''
+        env:
+          CHANGED_FILES: ${{ steps.changed.outputs.files }}
+        run: |
+          # shellcheck disable=SC2086
+          python3 scripts/check_agent_single_writer.py $CHANGED_FILES

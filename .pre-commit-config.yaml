@@ -24,3 +24,16 @@ repos:
       - id: flake8
         args: ['--max-line-length=120', '--extend-ignore=E203,W503,E501,F401,F811,F841,E402,E741,F541,E722,F821']
         files: ^platform_v2/
+
+  # K.I.N. single-writer guardrail for the agents table.
+  # Fails any commit that introduces a raw UPDATE/INSERT/DELETE on
+  # agents outside platform_v2/services/agent_service.py and test
+  # fixtures. Locks in Project #241 Tracks A-C.3 lifecycle work.
+  - repo: local
+    hooks:
+      - id: agent-single-writer-guardrail
+        name: K.I.N. — agents table single-writer guardrail
+        entry: python3 scripts/check_agent_single_writer.py
+        language: system
+        types: [python]
+        pass_filenames: true

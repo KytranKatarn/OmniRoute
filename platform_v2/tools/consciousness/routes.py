@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from rbac import require_permission, Permission, has_permission
 from logging_config import audit_log
-from services import project_service
+from services import project_service, agent_service
 
 from . import consciousness_bp
 
@@ -5555,36 +5555,34 @@ def voice_profile_delete(profile_id):
 @login_required
 @admin_required
 def voice_profile_rename_agent(profile_id):
-    """Rename the agent associated with a voice profile"""
-    conn = None
-    cur = None
-    conn = None
-    cur = None
+    """Rename the agent associated with a voice profile.
+
+    Single-writer path: routes through agent_service.update_agent so the agents
+    table only has one canonical mutation surface (Project #241 Track C.1).
+    """
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         new_name = (data.get("name") or "").strip()
         if not new_name:
             return jsonify({"success": False, "error": "Name is required"}), 400
 
-        conn = get_db()
-        cur = conn.cursor()
-        cur.execute("SELECT agent_id FROM agent_voice_profiles WHERE id = %s", (profile_id,))
-        row = cur.fetchone()
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=False) as (_conn, cur):
+            cur.execute("SELECT agent_id FROM agent_voice_profiles WHERE id = %s", (profile_id,))
+            row = cur.fetchone()
         if not row:
             return jsonify({"success": False, "error": "Profile not found"}), 404
 
-        cur.execute("UPDATE agents SET name = %s WHERE id = %s", (new_name, row[0]))
-        conn.commit()
+        agent_id = row[0] if not isinstance(row, dict) else row["agent_id"]
+        if not agent_service.update_agent(agent_id, name=new_name):
+            return jsonify({"success": False, "error": "Agent not found"}), 404
+
         return jsonify({"success": True})
 
     except Exception as e:
         logger.error(f"Voice agent rename error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        if cur:
-            cur.close()
-        if conn:
-            conn.close()
 
 
 @consciousness_bp.route("/api/voice/cache", methods=["GET"])

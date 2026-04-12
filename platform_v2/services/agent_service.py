@@ -99,7 +99,8 @@ def list_agents(
             f"""SELECT a.id, a.name, a.display_name, a.department, a.floor,
                        a.model, a.status, a.shift_state, a.is_department_ai,
                        a.temperature, a.max_tokens, a.system_prompt,
-                       a.capabilities, a.metadata, a.title, a.avatar_url
+                       a.capabilities, a.metadata, a.title, a.avatar_url,
+                       a.acronym, a.acronym_expansion
                 FROM agents a {where}
                 ORDER BY a.floor, a.department, a.is_department_ai DESC, a.name
                 LIMIT %s""",

@@ -63,6 +63,8 @@ def register_roster_routes(bp, admin_required):
                         "shift_state": a["shift_state"],
                         "model": a["model"],
                         "status": a["status"],
+                        "title": a.get("title"),
+                        "acronym_expansion": a.get("acronym_expansion"),
                     }
                 )
 

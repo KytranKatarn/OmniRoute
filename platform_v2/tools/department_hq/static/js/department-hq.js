@@ -398,7 +398,12 @@ function renderRosterCards(data, el) {
                 + '</div>'
                 + '<div class="dhq-crew-card-info">'
                 + '<div class="dhq-crew-card-name">' + esc(a.display_name || a.name) + '</div>'
-                + '<div class="dhq-crew-card-code">' + esc(a.name) + '</div>'
+                + (a.acronym_expansion
+                    ? '<div class="dhq-crew-card-acronym">&ldquo;' + esc(a.acronym_expansion) + '&rdquo;</div>'
+                    : '')
+                + (a.title
+                    ? '<div class="dhq-crew-card-title">' + esc(a.title) + '</div>'
+                    : '<div class="dhq-crew-card-code">' + esc(a.name) + '</div>')
                 + '</div>'
                 + '</div>'
                 + '<div class="dhq-crew-card-meta">'

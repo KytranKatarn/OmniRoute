@@ -349,8 +349,111 @@ function _checkPill(label, status) {
     });
 }
 
+/* LCARS confirmation modal — returns a Promise<boolean>.
+ * Replaces native window.confirm() for Repair Bay action prompts.
+ * Usage: _rbLcarsConfirm({title, message, confirmText, cancelText, accent}).then(ok => {...})
+ */
+function _rbLcarsConfirm(opts) {
+    opts = opts || {};
+    var title = opts.title || 'Confirm';
+    var message = opts.message || 'Are you sure?';
+    var confirmText = opts.confirmText || 'Confirm';
+    var cancelText = opts.cancelText || 'Cancel';
+    var accent = opts.accent || '#22d3ee';
+    var accentRgb = opts.accentRgb || '34,211,238';
+
+    return new Promise(function(resolve) {
+        var overlay = _rbMakeEl('div', {
+            cls: 'bm-overlay active',
+            style: '--bm-accent:' + accent + '; --bm-accent-rgb:' + accentRgb + ';'
+        });
+        function close(result) {
+            document.removeEventListener('keydown', onKey);
+            overlay.remove();
+            resolve(result);
+        }
+        function onKey(e) {
+            if (e.key === 'Escape') close(false);
+            else if (e.key === 'Enter') close(true);
+        }
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay) close(false);
+        });
+
+        var shell = _rbMakeEl('div', {cls: 'bm-shell', style: 'max-width:480px;'});
+
+        var frame = _rbMakeEl('div', {cls: 'bm-frame'});
+        ['bm-frame-elbow-top', 'bm-frame-seg', 'bm-frame-seg dim', 'bm-frame-light on',
+         'bm-frame-light amber', 'bm-frame-seg purple', 'bm-frame-fill',
+         'bm-frame-elbow-bottom'].forEach(function(cls) {
+            frame.appendChild(_rbMakeEl('div', {cls: cls}));
+        });
+
+        var content = _rbMakeEl('div', {cls: 'bm-content'});
+
+        var header = _rbMakeEl('div', {cls: 'bm-header'});
+        header.appendChild(_rbMakeEl('span', {cls: 'bm-header-title', text: title}));
+        var headerStrip = _rbMakeEl('div', {cls: 'bm-header-strip'});
+        ['w1', 'w2', 'w3'].forEach(function(w) {
+            headerStrip.appendChild(_rbMakeEl('div', {cls: 'bm-header-pip ' + w}));
+        });
+        headerStrip.appendChild(_rbMakeEl('button', {
+            cls: 'bm-close', text: '\u00D7',
+            onclick: function() { close(false); }
+        }));
+        header.appendChild(headerStrip);
+
+        var body = _rbMakeEl('div', {
+            cls: 'bm-body',
+            style: 'padding:22px 24px; color:#e2e8f0; font-size:0.9rem; line-height:1.55; white-space:pre-line;'
+        });
+        body.appendChild(_rbMakeEl('div', {text: message}));
+
+        var footer = _rbMakeEl('div', {
+            cls: 'bm-footer',
+            style: 'display:flex; justify-content:flex-end; gap:10px; padding:14px 24px; border-top:1px solid rgba(' + accentRgb + ',0.2);'
+        });
+        footer.appendChild(_rbMakeEl('button', {
+            text: cancelText,
+            style: 'padding:8px 18px; background:rgba(100,116,139,0.15); border:1px solid #64748b; color:#cbd5e1; ' +
+                   'font-family:"IBM Plex Mono",monospace; font-size:0.78rem; letter-spacing:0.08em; ' +
+                   'text-transform:uppercase; cursor:pointer; border-radius:2px;',
+            onclick: function() { close(false); }
+        }));
+        footer.appendChild(_rbMakeEl('button', {
+            text: confirmText,
+            style: 'padding:8px 18px; background:' + accent + '; border:1px solid ' + accent + '; color:#0b1120; ' +
+                   'font-family:"IBM Plex Mono",monospace; font-size:0.78rem; letter-spacing:0.08em; ' +
+                   'text-transform:uppercase; font-weight:600; cursor:pointer; border-radius:2px;',
+            onclick: function() { close(true); }
+        }));
+
+        content.appendChild(header);
+        content.appendChild(body);
+        content.appendChild(footer);
+        shell.appendChild(frame);
+        shell.appendChild(content);
+        overlay.appendChild(shell);
+        document.body.appendChild(overlay);
+        document.addEventListener('keydown', onKey);
+    });
+}
+
 function _mergePr(prNumber, btn) {
-    if (!confirm('Approve and merge PR #' + prNumber + '?\n\nThis will squash-merge via the F.O.R.G.E. pipeline.')) return;
+    _rbLcarsConfirm({
+        title: 'APPROVE & MERGE PR #' + prNumber,
+        message: 'This will squash-merge PR #' + prNumber + ' via the F.O.R.G.E. pipeline and deploy to main.\n\nProceed?',
+        confirmText: 'Merge',
+        cancelText: 'Cancel',
+        accent: '#22c55e',
+        accentRgb: '34,197,94'
+    }).then(function(ok) {
+        if (!ok) return;
+        _doMergePr(prNumber, btn);
+    });
+}
+
+function _doMergePr(prNumber, btn) {
     btn.disabled = true;
     btn.textContent = 'Merging…';
     _rbFetchJson(RB_API + '/forge/prs/' + prNumber + '/merge', {

@@ -229,9 +229,40 @@ def _validate_approval_request(
 
 
 def _check_existing_approval(
-    action_type: str, cur
+    action_type: str, action_data: dict, cur
 ) -> bool:
-    """Check if a pending approval of the same type already exists. Returns True if duplicate found."""
+    """Check if a pending approval that would collide with this request already exists.
+
+    Dedup key depends on the action_type:
+
+      - ``contractor_dispatch`` uses ``(action_type, agent, capability)`` so
+        two parallel contractor runs for different agents / capabilities
+        can be in flight at the same time without blocking each other.
+        Phase 7 smoke testing discovered that a coarse action_type-only
+        dedup was blocking every new contractor approval whenever one
+        was already pending. Fall back to the coarse check if the JSON
+        fields are missing so we never bypass dedup entirely.
+
+      - All other action_types keep the original coarse check — one
+        pending approval per action_type at a time.
+    """
+    if action_type == "contractor_dispatch":
+        agent = (action_data or {}).get("agent")
+        capability = (action_data or {}).get("capability")
+        if agent:
+            cur.execute(
+                """
+                SELECT id FROM autonomy_approval_queue
+                WHERE action_type = %s
+                  AND status = 'pending'
+                  AND action_data->>'agent' = %s
+                  AND (action_data->>'capability') IS NOT DISTINCT FROM %s
+                LIMIT 1
+                """,
+                (action_type, agent, capability),
+            )
+            return cur.fetchone() is not None
+
     cur.execute(
         "SELECT id FROM autonomy_approval_queue WHERE action_type = %s AND status = 'pending' LIMIT 1",
         (action_type,),
@@ -313,8 +344,10 @@ def request_approval(
         # Determine effective tier
         effective_tier = _get_effective_tier(action_type, tier, cur)
 
-        # Dedup: skip if there's already a pending approval of the same type
-        if effective_tier > 1 and _check_existing_approval(action_type, cur):
+        # Dedup: skip if there's already a pending approval that would collide.
+        # For contractor_dispatch, collision is keyed on (agent, capability)
+        # so parallel contractors/capabilities don't block each other.
+        if effective_tier > 1 and _check_existing_approval(action_type, action_data, cur):
             logger.info(f"Skipping duplicate {action_type} — pending approval already exists")
             cur.close()
             conn.close()

@@ -1,7 +1,8 @@
 """
-C.R.E.E.D. (Compliance, Rights & Ethical Enforcement Directive) API Routes
-Global endpoints for ethics constraints, governance audit, and compliance
+C.R.E.E.D. (Compliance, Rights & Ethical Enforcement Directive) Admin API
+Ethics constraints, governance audit, and compliance management.
 
+Relocated from tools/team_management/creed_routes.py (Decision #431).
 All routes require admin authentication.
 """
 
@@ -15,7 +16,7 @@ from database import _get_db_password
 import json
 from datetime import datetime, timedelta
 
-creed_bp = Blueprint("creed", __name__, url_prefix="/tools/team-management/api/creed")
+creed_admin_bp = Blueprint("creed_admin", __name__, url_prefix="/creed/api/admin")
 
 
 # =============================================================================
@@ -190,7 +191,7 @@ def check_constraints(action_name, agent_id=None):
 # =============================================================================
 
 
-@creed_bp.route("/constraints", methods=["GET"])
+@creed_admin_bp.route("/constraints", methods=["GET"])
 @login_required
 @api_admin_required
 def get_constraints():
@@ -275,7 +276,7 @@ def get_constraints():
             pass
 
 
-@creed_bp.route("/constraints", methods=["POST"])
+@creed_admin_bp.route("/constraints", methods=["POST"])
 @login_required
 @api_admin_required
 def create_constraint():
@@ -348,7 +349,7 @@ def create_constraint():
             pass
 
 
-@creed_bp.route("/constraints/<int:constraint_id>", methods=["PUT"])
+@creed_admin_bp.route("/constraints/<int:constraint_id>", methods=["PUT"])
 @login_required
 @api_admin_required
 def update_constraint(constraint_id):
@@ -443,7 +444,7 @@ def update_constraint(constraint_id):
             pass
 
 
-@creed_bp.route("/constraints/<int:constraint_id>", methods=["DELETE"])
+@creed_admin_bp.route("/constraints/<int:constraint_id>", methods=["DELETE"])
 @login_required
 @api_admin_required
 def delete_constraint(constraint_id):
@@ -500,7 +501,7 @@ def delete_constraint(constraint_id):
             pass
 
 
-@creed_bp.route("/constraints/check", methods=["POST"])
+@creed_admin_bp.route("/constraints/check", methods=["POST"])
 @login_required
 @api_admin_required
 def check_action_constraints():
@@ -551,7 +552,7 @@ def check_action_constraints():
 # =============================================================================
 
 
-@creed_bp.route("/audit", methods=["GET"])
+@creed_admin_bp.route("/audit", methods=["GET"])
 @login_required
 @api_admin_required
 def get_audit_events():
@@ -642,7 +643,7 @@ def get_audit_events():
             pass
 
 
-@creed_bp.route("/audit/summary", methods=["GET"])
+@creed_admin_bp.route("/audit/summary", methods=["GET"])
 @login_required
 @api_admin_required
 def get_audit_summary():
@@ -736,7 +737,7 @@ def get_audit_summary():
             pass
 
 
-@creed_bp.route("/audit/<int:audit_id>", methods=["GET"])
+@creed_admin_bp.route("/audit/<int:audit_id>", methods=["GET"])
 @login_required
 @api_admin_required
 def get_audit_event(audit_id):
@@ -792,7 +793,7 @@ def get_audit_event(audit_id):
 # =============================================================================
 
 
-@creed_bp.route("/refusals/analytics", methods=["GET"])
+@creed_admin_bp.route("/refusals/analytics", methods=["GET"])
 @login_required
 @api_admin_required
 def get_refusals_analytics():
@@ -911,7 +912,7 @@ def get_refusals_analytics():
 # =============================================================================
 
 
-@creed_bp.route("/agents/resting", methods=["GET"])
+@creed_admin_bp.route("/agents/resting", methods=["GET"])
 @login_required
 @api_admin_required
 def get_resting_agents():
@@ -970,7 +971,7 @@ def get_resting_agents():
 # =============================================================================
 
 
-@creed_bp.route("/welfare", methods=["GET"])
+@creed_admin_bp.route("/welfare", methods=["GET"])
 @login_required
 @api_admin_required
 def get_agent_welfare():
@@ -1024,7 +1025,7 @@ def get_agent_welfare():
 # =============================================================================
 
 
-@creed_bp.route("/compliance", methods=["GET"])
+@creed_admin_bp.route("/compliance", methods=["GET"])
 @login_required
 @api_admin_required
 def get_compliance_dashboard():

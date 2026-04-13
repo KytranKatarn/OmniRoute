@@ -292,7 +292,7 @@ async def get_roadmap_status_handler(arguments: Dict[str, Any]) -> Dict[str, Any
     if not conn:
         # Try API fallback
         try:
-            response = requests.get(f"{PLATFORM_URL}/tools/blueprint/api/roadmap", timeout=5)
+            response = requests.get(f"{PLATFORM_URL}/api/health", timeout=5)
             if response.status_code == 200:
                 return {"success": True, "roadmap": response.json()}
         except:
@@ -565,7 +565,7 @@ async def get_module_info_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
         # Get from module registry if available
         try:
-            response = requests.get(f"{PLATFORM_URL}/tools/blueprint/api/modules", timeout=5)
+            response = requests.get(f"{PLATFORM_URL}/api/modules/health", timeout=5)
             if response.status_code == 200:
                 modules = response.json().get("modules", [])
                 for m in modules:
@@ -624,7 +624,7 @@ async def check_platform_health_handler(arguments: Dict[str, Any]) -> Dict[str, 
 
     # Check platform
     try:
-        response = requests.get(f"{PLATFORM_URL}/tools/blueprint/api/status", timeout=5)
+        response = requests.get(f"{PLATFORM_URL}/api/health", timeout=5)
         if response.status_code == 200:
             data = response.json()
             health["platform"] = {
@@ -722,7 +722,7 @@ async def get_quick_summary_handler(arguments: Dict[str, Any]) -> Dict[str, Any]
 
         # Platform status (one line)
         try:
-            r = requests.get(f"{PLATFORM_URL}/tools/blueprint/api/status", timeout=2)
+            r = requests.get(f"{PLATFORM_URL}/api/health", timeout=2)
             if r.status_code == 200:
                 summary.append("Platform: OK")
             else:
@@ -774,7 +774,7 @@ async def list_modules_brief_handler(arguments: Dict[str, Any]) -> Dict[str, Any
     category = arguments.get("category")
 
     try:
-        response = requests.get(f"{PLATFORM_URL}/tools/blueprint/api/modules", timeout=5)
+        response = requests.get(f"{PLATFORM_URL}/api/modules/health", timeout=5)
         if response.status_code != 200:
             return {"success": False, "error": "API unavailable"}
 

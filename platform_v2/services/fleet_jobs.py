@@ -76,7 +76,7 @@ def _log_cycle(
 def check_fleet_health():
     """Job #45: Monitor fleet node heartbeats -- return agents to barracks if offline."""
     try:
-        from ai_bridge.bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.bridge_dispatcher import get_dispatcher
 
         dispatcher = get_dispatcher()
         dispatcher.check_fleet_health()
@@ -167,7 +167,7 @@ def check_mesh_health():
         # Refresh fleet cache if any node changed status
         if changed:
             try:
-                from ai_bridge.bridge_dispatcher import get_dispatcher
+                from tools.department_hq.services.bridge_dispatcher import get_dispatcher
 
                 dispatcher = get_dispatcher()
                 dispatcher._refresh_fleet_cache()
@@ -189,7 +189,7 @@ def check_mesh_health():
 def save_model_state():
     """Job #46: Save current loaded models to DB for restart recovery."""
     try:
-        from ai_bridge.bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.bridge_dispatcher import get_dispatcher
 
         dispatcher = get_dispatcher()
         dispatcher._save_model_state()  # Hub
@@ -218,7 +218,7 @@ def check_standalone_health():
     standalones = [
         {
             "name": "Kytran System Operations",
-            "url": os.getenv("STANDALONE_SYSOPS_URL", "http://192.168.1.200:8085"),
+            "url": os.getenv("STANDALONE_SYSOPS_URL", "https://server.kytranempowerment.com"),
             "health_path": "/dashboard/api/health",
         },
     ]

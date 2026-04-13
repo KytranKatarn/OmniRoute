@@ -1069,25 +1069,15 @@ def get_knowledge_graph():
     Get knowledge link graph for D3.js visualization.
     Returns nodes and edges of all knowledge connections.
     """
-    try:
-        from tools.consciousness.services.knowledge_vault_indexer import KnowledgeVaultIndexer
-
-        limit = request.args.get("limit", 100, type=int)
-
-        indexer = KnowledgeVaultIndexer()
-        graph = indexer.get_link_graph(limit=limit)
-
-        return jsonify(
-            {
-                "success": True,
-                "graph": graph,
-                "node_count": len(graph.get("nodes", [])),
-                "edge_count": len(graph.get("edges", [])),
-            }
-        )
-
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+    # TODO: Task #1806 — Knowledge Graph with wikilink/backlink relationships
+    return jsonify(
+        {
+            "success": True,
+            "graph": {"nodes": [], "edges": []},
+            "node_count": 0,
+            "edge_count": 0,
+        }
+    )
 
 
 @consciousness_bp.route("/brain-map/data", methods=["GET"])
@@ -1382,23 +1372,15 @@ def get_knowledge_backlinks(knowledge_id):
     Get all knowledge entries that link to this entry.
     Essential for understanding how knowledge is interconnected.
     """
-    try:
-        from tools.consciousness.services.knowledge_vault_indexer import KnowledgeVaultIndexer
-
-        indexer = KnowledgeVaultIndexer()
-        backlinks = indexer.get_backlinks(knowledge_id)
-
-        return jsonify(
-            {
-                "success": True,
-                "knowledge_id": knowledge_id,
-                "backlinks": backlinks,
-                "count": len(backlinks),
-            }
-        )
-
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+    # TODO: Task #1806 — Knowledge Graph with wikilink/backlink relationships
+    return jsonify(
+        {
+            "success": True,
+            "knowledge_id": knowledge_id,
+            "backlinks": [],
+            "count": 0,
+        }
+    )
 
 
 # team-awareness route moved to team_routes.py
@@ -4397,8 +4379,7 @@ def approve_work_product(product_id):
         if approved:
             # Log governance event for approval
             try:
-                sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "team_management"))
-                from creed_routes import log_governance_event
+                from tools.creed.admin_routes import log_governance_event
 
                 log_governance_event(
                     event_type="work_product_approval",

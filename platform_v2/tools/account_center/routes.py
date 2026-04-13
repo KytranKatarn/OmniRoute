@@ -867,22 +867,6 @@ def api_list_permissions():
             },
             "stock_bot:scan": {"label": "Stock Scanner", "category": "Finance"},
             "stock_bot:alerts": {"label": "Stock Alerts", "category": "Finance"},
-            "obsidian:read": {
-                "label": "Read Vault Notes",
-                "category": "Obsidian Vault",
-            },
-            "obsidian:write": {
-                "label": "Write Vault Notes",
-                "category": "Obsidian Vault",
-            },
-            "obsidian:delete": {
-                "label": "Delete Vault Notes",
-                "category": "Obsidian Vault",
-            },
-            "obsidian:admin": {
-                "label": "Vault Administration",
-                "category": "Obsidian Vault",
-            },
             "admin:access": {
                 "label": "Admin Panel Access",
                 "category": "Administration",

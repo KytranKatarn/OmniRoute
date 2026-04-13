@@ -12,6 +12,7 @@ import logging
 from flask import Blueprint, render_template, jsonify, request, session, make_response
 from flask_login import login_required
 from database import get_db_cursor
+from services.agent_service import list_agents_public, get_agent, get_skills
 
 from .helpers import derive_full_name, derive_email, map_agent_status
 
@@ -91,55 +92,28 @@ def directory_authenticated():
 def api_directory():
     """API endpoint for public business directory."""
     try:
-        search = request.args.get("search", "")
-        department = request.args.get("department", "")
-        employee_type = request.args.get("type", "")
+        search = request.args.get("search", "") or None
+        department = request.args.get("department", "") or None
+        employee_type = request.args.get("type", "") or None
         agent_type = request.args.get("agent_type", "all")
 
-        where_clauses = ["status = 'active'"]
-        params = []
-
-        if search:
-            where_clauses.append(
-                "(first_name ILIKE %s OR last_name ILIKE %s" " OR title ILIKE %s OR department ILIKE %s)"
-            )
-            params.extend([f"%{search}%"] * 4)
-
-        if department and department != "all":
-            where_clauses.append("department = %s")
-            params.append(department)
-
-        if employee_type == "ai":
-            where_clauses.append("worker_type IN ('internal', 'contract')")
-        elif employee_type == "human":
-            where_clauses.append("worker_type = 'human'")
-
+        is_dept_ai = None
         if agent_type == "ai":
-            where_clauses.append("is_department_ai = true")
+            is_dept_ai = True
         elif agent_type == "human":
-            where_clauses.append("(is_department_ai = false OR is_department_ai IS NULL)")
+            is_dept_ai = False
 
-        with get_db_cursor() as (conn, cur):
-            cur.execute(
-                f"""SELECT id, name, first_name, last_name,
-                       COALESCE(first_name || ' ' || last_name, name) as full_name,
-                       email, phone, title, department, pronouns, bio,
-                       avatar_url, tier, is_department_ai,
-                       CASE WHEN worker_type IN ('internal','contract')
-                            THEN 'AI' ELSE 'Human' END as employee_type,
-                       worker_type, capabilities
-                    FROM agents WHERE {' AND '.join(where_clauses)}
-                    ORDER BY department, first_name""",
-                params,
-            )
-            members = cur.fetchall()
+        members = list_agents_public(
+            department=department,
+            search=search,
+            is_department_ai=is_dept_ai,
+            agent_type=employee_type,
+        )
 
-        # Check if request is from an authenticated session
         authenticated = "user_id" in session
 
         by_department = {}
-        for m in members:
-            md = dict(m)
+        for md in members:
             if md.get("capabilities"):
                 try:
                     caps = (
@@ -150,30 +124,28 @@ def api_directory():
                     md["specialties"] = []
             else:
                 md["specialties"] = []
-            del md["capabilities"]
-            # Strip internal-only fields from public responses
+            md.pop("capabilities", None)
             if not authenticated:
                 md.pop("employee_type", None)
                 md.pop("worker_type", None)
-            dept = md["department"] or "General"
+            dept = md.get("department") or "General"
             by_department.setdefault(dept, []).append(md)
 
-        ai_count = sum(1 for m in members if dict(m).get("is_department_ai"))
+        ai_count = sum(1 for m in members if m.get("is_department_ai"))
         human_count = len(members) - ai_count
-        stats = {
-            "total_members": len(members),
-            "total_departments": len(by_department),
-            "ai_count": ai_count,
-            "human_count": human_count,
-        }
 
         return jsonify(
             {
                 "success": True,
-                "members": [dict(m) for m in members],
+                "members": members,
                 "by_department": by_department,
                 "departments": sorted(by_department.keys()),
-                "statistics": stats,
+                "statistics": {
+                    "total_members": len(members),
+                    "total_departments": len(by_department),
+                    "ai_count": ai_count,
+                    "human_count": human_count,
+                },
             }
         )
     except Exception as e:
@@ -185,53 +157,50 @@ def api_directory():
 def api_directory_employee(employee_id):
     """Get public details for a specific employee."""
     try:
-        with get_db_cursor() as (conn, cur):
-            cur.execute(
-                """SELECT id, name, first_name, last_name,
-                      COALESCE(first_name || ' ' || last_name, name) as full_name,
-                      email, phone, title, department, pronouns, bio,
-                      avatar_url, performance_score, reports_to_agent_id,
-                      is_department_ai,
-                      CASE WHEN worker_type IN ('internal','contract')
-                           THEN 'AI' ELSE 'Human' END as employee_type,
-                      capabilities
-                   FROM agents WHERE id = %s AND status = 'active'""",
-                (employee_id,),
-            )
-            emp = cur.fetchone()
+        agent = get_agent(employee_id)
+        if not agent or agent.get("status") != "active":
+            return jsonify({"success": False, "error": "Employee not found"}), 404
 
-            if not emp:
-                return jsonify({"success": False, "error": "Employee not found"}), 404
+        ed = {
+            "id": agent["id"],
+            "name": agent.get("name"),
+            "first_name": agent.get("first_name"),
+            "last_name": agent.get("last_name"),
+            "full_name": derive_full_name(agent),
+            "email": derive_email(agent),
+            "phone": agent.get("phone"),
+            "title": agent.get("title"),
+            "department": agent.get("department"),
+            "pronouns": agent.get("pronouns"),
+            "bio": agent.get("bio"),
+            "avatar_url": agent.get("avatar_url"),
+            "performance_score": agent.get("performance_score"),
+            "is_department_ai": agent.get("is_department_ai"),
+        }
 
-            ed = dict(emp)
+        # Employee type
+        worker_type = agent.get("worker_type", "")
+        if worker_type in ("internal", "contract"):
+            ed["employee_type"] = "AI"
+        else:
+            ed["employee_type"] = "Human"
 
-            # Fetch all skills
-            cur.execute(
-                """SELECT skill_name, skill_category, proficiency_level
-                   FROM agent_skills
-                   WHERE agent_id = %s
-                   ORDER BY proficiency_level DESC""",
-                (employee_id,),
-            )
-            ed["skills"] = [dict(row) for row in cur.fetchall()]
+        # Skills via agent_service
+        ed["skills"] = get_skills(employee_id)
 
-            # Fetch manager info if reports_to_agent_id is set
-            manager_id = ed.pop("reports_to_agent_id", None)
-            if manager_id:
-                cur.execute(
-                    """SELECT id,
-                          COALESCE(first_name || ' ' || last_name, display_name, name) as full_name
-                       FROM agents WHERE id = %s""",
-                    (manager_id,),
-                )
-                mgr = cur.fetchone()
-                ed["reports_to"] = dict(mgr) if mgr else None
-            else:
-                ed["reports_to"] = None
+        # Manager lookup
+        manager_id = agent.get("reports_to_agent_id")
+        if manager_id:
+            mgr = get_agent(manager_id)
+            ed["reports_to"] = {"id": mgr["id"], "full_name": derive_full_name(mgr)} if mgr else None
+        else:
+            ed["reports_to"] = None
 
-        if ed.get("capabilities"):
+        # Parse capabilities for specialties/tools
+        caps = agent.get("capabilities")
+        if caps:
             try:
-                caps = ed["capabilities"] if isinstance(ed["capabilities"], dict) else json.loads(ed["capabilities"])
+                caps = caps if isinstance(caps, dict) else json.loads(caps)
                 ed["specialties"] = caps.get("specialties", [])
                 ed["tools"] = caps.get("tools", [])
             except Exception:
@@ -240,7 +209,6 @@ def api_directory_employee(employee_id):
         else:
             ed["specialties"] = []
             ed["tools"] = []
-        del ed["capabilities"]
 
         # Generate extension from ID
         ed["extension"] = f"x{1000 + ed['id']}"
@@ -262,13 +230,8 @@ def api_directory_live_status():
     Returns per-agent: status label, online flag, mood, department.
     No internal details (model, hardware, jobs, stats) are exposed.
     """
-    import sys
-    import os
-
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "ai_bridge"))
-
     try:
-        from bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.bridge_dispatcher import get_dispatcher
 
         dispatcher = get_dispatcher()
         manifest = dispatcher.get_crew_manifest()

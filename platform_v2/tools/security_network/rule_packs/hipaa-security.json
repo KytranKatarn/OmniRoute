@@ -1,14 +1,13 @@
 {
   "pack_id": "hipaa-security",
   "name": "HIPAA Security Rule",
-  "description": "HIPAA Security Rule technical safeguards — 45 CFR Part 164 Subpart C",
+  "description": "HIPAA Security Rule technical safeguards \u2014 45 CFR Part 164 Subpart C",
   "version": "1.0",
   "category": "healthcare",
   "rules": [
     {
       "rule_id": "HIPAA-AC-01",
       "severity": "high",
-      "category": "access_control",
       "title": "Unique User Identification (164.312(a)(2)(i))",
       "description": "Assign a unique name/number for identifying and tracking user identity. No shared accounts.",
       "check": {
@@ -30,8 +29,7 @@
     {
       "rule_id": "HIPAA-AC-02",
       "severity": "high",
-      "category": "authentication",
-      "title": "Automatic Logoff — SSH ClientAliveInterval",
+      "title": "Automatic Logoff \u2014 SSH ClientAliveInterval",
       "description": "Implement electronic procedures that terminate an electronic session after a predetermined time of inactivity.",
       "check": {
         "type": "file_content",
@@ -47,17 +45,14 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "CC6.1",
-        "P1.1",
-        "P1.2"
+        "CC6.1"
       ],
       "hipaa_ref": "164.312(a)(2)(iii)"
     },
     {
       "rule_id": "HIPAA-AC-03",
       "severity": "high",
-      "category": "authentication",
-      "title": "Password Complexity — PAM pwquality",
+      "title": "Password Complexity \u2014 PAM pwquality",
       "description": "Enforce password complexity via PAM pwquality module.",
       "check": {
         "type": "file_content",
@@ -79,8 +74,7 @@
     {
       "rule_id": "HIPAA-AC-04",
       "severity": "high",
-      "category": "authentication",
-      "title": "Account Lockout — PAM faillock",
+      "title": "Account Lockout \u2014 PAM faillock",
       "description": "Lock accounts after repeated failed login attempts.",
       "check": {
         "type": "file_content",
@@ -95,16 +89,14 @@
       },
       "soc2_mapping": [
         "CC6.1",
-        "CC6.3",
-        "P1.1"
+        "CC6.3"
       ],
       "hipaa_ref": "164.312(a)(1)"
     },
     {
       "rule_id": "HIPAA-AC-05",
       "severity": "medium",
-      "category": "authentication",
-      "title": "Session Timeout — TMOUT variable",
+      "title": "Session Timeout \u2014 TMOUT variable",
       "description": "Shell session timeout must be set in /etc/profile or /etc/profile.d/.",
       "check": {
         "type": "command_output",
@@ -118,15 +110,13 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "CC6.1",
-        "P1.1"
+        "CC6.1"
       ],
       "hipaa_ref": "164.312(a)(2)(iii)"
     },
     {
       "rule_id": "HIPAA-AC-06",
       "severity": "medium",
-      "category": "access_control",
       "title": "No Default/Guest Accounts",
       "description": "Default or guest accounts must be disabled or removed.",
       "check": {
@@ -148,7 +138,6 @@
     {
       "rule_id": "HIPAA-AC-07",
       "severity": "high",
-      "category": "access_control",
       "title": "Root Login Restricted via SSH",
       "description": "Direct root login must be disabled over SSH.",
       "check": {
@@ -165,17 +154,14 @@
         "risk": "high"
       },
       "soc2_mapping": [
-        "C1.2",
         "CC6.1",
-        "CC6.3",
-        "P1.2"
+        "CC6.3"
       ],
       "hipaa_ref": "164.312(a)(1)"
     },
     {
       "rule_id": "HIPAA-AC-08",
       "severity": "medium",
-      "category": "access_control",
       "title": "Sudo Requires Password",
       "description": "All sudo entries must require password authentication (no NOPASSWD).",
       "check": {
@@ -197,7 +183,6 @@
     {
       "rule_id": "HIPAA-AU-01",
       "severity": "high",
-      "category": "audit_logging",
       "title": "auditd Installed and Running",
       "description": "The audit daemon must be installed and actively running to record system events.",
       "check": {
@@ -212,15 +197,13 @@
       },
       "soc2_mapping": [
         "CC7.1",
-        "CC7.2",
-        "P1.2"
+        "CC7.2"
       ],
       "hipaa_ref": "164.312(b)"
     },
     {
       "rule_id": "HIPAA-AU-02",
       "severity": "high",
-      "category": "audit_logging",
       "title": "Audit Log Retention >= 180 Days",
       "description": "Audit logs must be retained for at least 180 days (6 months).",
       "check": {
@@ -238,16 +221,13 @@
       },
       "soc2_mapping": [
         "CC7.1",
-        "CC7.2",
-        "P1.1",
-        "P1.2"
+        "CC7.2"
       ],
       "hipaa_ref": "164.312(b)"
     },
     {
       "rule_id": "HIPAA-AU-03",
       "severity": "medium",
-      "category": "audit_logging",
       "title": "Audit Log Permissions Restricted",
       "description": "Audit log files must not be readable by unauthorized users.",
       "check": {
@@ -262,16 +242,13 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "C1.2",
-        "CC7.1",
-        "P1.2"
+        "CC7.1"
       ],
       "hipaa_ref": "164.312(b)"
     },
     {
       "rule_id": "HIPAA-AU-04",
       "severity": "medium",
-      "category": "audit_logging",
       "title": "Failed Login Logging Enabled",
       "description": "Failed login attempts must be logged by the system.",
       "check": {
@@ -286,16 +263,14 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "CC7.2",
-        "P1.2"
+        "CC7.2"
       ],
       "hipaa_ref": "164.312(b)"
     },
     {
       "rule_id": "HIPAA-AU-05",
       "severity": "medium",
-      "category": "audit_logging",
-      "title": "Audit Log Integrity — Immutable Attribute",
+      "title": "Audit Log Integrity \u2014 Immutable Attribute",
       "description": "Audit configuration should use immutable flag to prevent runtime changes.",
       "check": {
         "type": "command_output",
@@ -309,15 +284,13 @@
         "risk": "medium"
       },
       "soc2_mapping": [
-        "CC7.1",
-        "P1.2"
+        "CC7.1"
       ],
       "hipaa_ref": "164.312(b)"
     },
     {
       "rule_id": "HIPAA-AU-06",
       "severity": "low",
-      "category": "audit_logging",
       "title": "Log Rotation Configured",
       "description": "System log rotation must be configured to prevent disk exhaustion.",
       "check": {
@@ -332,15 +305,13 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "CC7.1",
-        "P1.2"
+        "CC7.1"
       ],
       "hipaa_ref": "164.312(b)"
     },
     {
       "rule_id": "HIPAA-IN-01",
       "severity": "high",
-      "category": "filesystem",
       "title": "File Integrity Monitoring Installed (AIDE)",
       "description": "A file integrity monitoring tool (AIDE or Tripwire) must be installed.",
       "check": {
@@ -356,7 +327,6 @@
       },
       "soc2_mapping": [
         "CC6.1",
-        "P1.2",
         "PI1.3"
       ],
       "hipaa_ref": "164.312(c)(2)"
@@ -364,8 +334,7 @@
     {
       "rule_id": "HIPAA-IN-02",
       "severity": "high",
-      "category": "encryption",
-      "title": "Password Hashing — SHA-512",
+      "title": "Password Hashing \u2014 SHA-512",
       "description": "Passwords in /etc/shadow must use SHA-512 hashing algorithm.",
       "check": {
         "type": "file_content",
@@ -380,7 +349,6 @@
         "risk": "medium"
       },
       "soc2_mapping": [
-        "C1.1",
         "CC6.1"
       ],
       "hipaa_ref": "164.312(c)(1)"
@@ -388,7 +356,6 @@
     {
       "rule_id": "HIPAA-IN-03",
       "severity": "medium",
-      "category": "updates",
       "title": "Package Signature Verification (APT)",
       "description": "APT must verify package signatures before installation.",
       "check": {
@@ -410,8 +377,7 @@
     {
       "rule_id": "HIPAA-IN-04",
       "severity": "medium",
-      "category": "filesystem",
-      "title": "Mount Options — noexec on /tmp",
+      "title": "Mount Options \u2014 noexec on /tmp",
       "description": "The /tmp partition must be mounted with noexec to prevent execution of arbitrary binaries.",
       "check": {
         "type": "command_output",
@@ -432,7 +398,6 @@
     {
       "rule_id": "HIPAA-TX-01",
       "severity": "high",
-      "category": "encryption",
       "title": "TLS 1.2 Minimum Enforced",
       "description": "SSL/TLS connections must use TLS 1.2 or higher. TLS 1.0 and 1.1 must be disabled.",
       "check": {
@@ -447,7 +412,6 @@
         "risk": "medium"
       },
       "soc2_mapping": [
-        "C1.1",
         "CC6.1",
         "CC6.7"
       ],
@@ -456,7 +420,6 @@
     {
       "rule_id": "HIPAA-TX-02",
       "severity": "high",
-      "category": "encryption",
       "title": "SSH Protocol Version 2 Only",
       "description": "SSH must use protocol version 2 only. Protocol 1 is cryptographically weak.",
       "check": {
@@ -481,7 +444,6 @@
     {
       "rule_id": "HIPAA-TX-03",
       "severity": "high",
-      "category": "services",
       "title": "No Unencrypted FTP Service",
       "description": "Plain FTP must not be running. Use SFTP or FTPS instead.",
       "check": {
@@ -495,7 +457,6 @@
         "risk": "medium"
       },
       "soc2_mapping": [
-        "C1.1",
         "CC6.7"
       ],
       "hipaa_ref": "164.312(e)(1)"
@@ -503,7 +464,6 @@
     {
       "rule_id": "HIPAA-TX-04",
       "severity": "high",
-      "category": "services",
       "title": "No Telnet Service",
       "description": "Telnet transmits data in plaintext and must not be running.",
       "check": {
@@ -524,7 +484,6 @@
     {
       "rule_id": "HIPAA-TX-05",
       "severity": "medium",
-      "category": "network",
       "title": "No Plaintext HTTP on Port 80",
       "description": "Unencrypted HTTP should not serve sensitive data. Redirect to HTTPS.",
       "check": {
@@ -546,7 +505,6 @@
     {
       "rule_id": "HIPAA-TX-06",
       "severity": "medium",
-      "category": "encryption",
       "title": "SSH Strict Host Key Checking",
       "description": "SSH should verify host keys to prevent man-in-the-middle attacks.",
       "check": {
@@ -570,7 +528,6 @@
     {
       "rule_id": "HIPAA-AUTH-01",
       "severity": "high",
-      "category": "authentication",
       "title": "Minimum Password Length 14 Characters",
       "description": "Passwords must be at least 14 characters to meet HIPAA requirements.",
       "check": {
@@ -594,7 +551,6 @@
     {
       "rule_id": "HIPAA-AUTH-02",
       "severity": "medium",
-      "category": "authentication",
       "title": "Password History Depth >= 5",
       "description": "Users must not reuse their last 5 passwords.",
       "check": {
@@ -617,7 +573,6 @@
     {
       "rule_id": "HIPAA-AUTH-03",
       "severity": "medium",
-      "category": "authentication",
       "title": "Password Maximum Age 90 Days",
       "description": "Passwords must expire within 90 days.",
       "check": {
@@ -641,7 +596,6 @@
     {
       "rule_id": "HIPAA-AUTH-04",
       "severity": "low",
-      "category": "authentication",
       "title": "Password Minimum Age 1 Day",
       "description": "Passwords must not be changed more than once per day to prevent cycling.",
       "check": {
@@ -664,7 +618,6 @@
     {
       "rule_id": "HIPAA-AUTH-05",
       "severity": "medium",
-      "category": "authentication",
       "title": "MFA Available (PAM Google Authenticator or similar)",
       "description": "Multi-factor authentication should be available for privileged access.",
       "check": {
@@ -687,8 +640,7 @@
     {
       "rule_id": "HIPAA-AUTH-06",
       "severity": "high",
-      "category": "access_control",
-      "title": "Unique UIDs — No UID 0 Except Root",
+      "title": "Unique UIDs \u2014 No UID 0 Except Root",
       "description": "Only the root account should have UID 0.",
       "check": {
         "type": "command_output",
@@ -715,9 +667,9 @@
       "Health tech SaaS providers"
     ],
     "threshold_percent": 90,
-    "threshold_label": "90% minimum — HIPAA has no safe harbor for partial compliance",
-    "why": "HIPAA Security Rule (45 CFR 164) requires technical safeguards for electronic Protected Health Information (ePHI). Violations carry fines of $100–$50,000 per violation (up to $1.5M/year per category). Willful neglect can trigger criminal penalties.",
+    "threshold_label": "90% minimum \u2014 HIPAA has no safe harbor for partial compliance",
+    "why": "HIPAA Security Rule (45 CFR 164) requires technical safeguards for electronic Protected Health Information (ePHI). Violations carry fines of $100\u2013$50,000 per violation (up to $1.5M/year per category). Willful neglect can trigger criminal penalties.",
     "certification": "HIPAA Security Rule Compliance",
-    "penalty": "$100–$50,000 per violation, criminal penalties for willful neglect, OCR investigations"
+    "penalty": "$100\u2013$50,000 per violation, criminal penalties for willful neglect, OCR investigations"
   }
 }

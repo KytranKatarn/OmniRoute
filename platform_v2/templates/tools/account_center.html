@@ -21,7 +21,7 @@
     {% set cat_icon = 'settings-2' %}
     {% set cat_modules = [
         {'url': url_for('account_center.index'), 'endpoint_prefix': 'account_center', 'icon': 'user', 'label': 'Accounts', 'title': 'Account Center'},
-        {'url': url_for('system_operations.index'), 'endpoint_prefix': 'system_operations', 'icon': 'server', 'label': 'System Ops', 'title': 'System Operations'},
+        {'url': 'https://server.kytranempowerment.com', 'endpoint_prefix': 'kso_external', 'icon': 'server', 'label': 'System Ops', 'title': 'Kytran System Operations'},
         {'url': url_for('backup_manager.index'), 'endpoint_prefix': 'backup_manager', 'icon': 'hard-drive', 'label': 'Backups', 'title': 'Backup Manager'},
         {'url': url_for('security_network.index'), 'endpoint_prefix': 'security_network', 'icon': 'shield', 'label': 'Security', 'title': 'Security & Network'}
     ] %}
@@ -2783,9 +2783,7 @@ const PERM_LABELS = {
     'social_media:create': 'Social Posts', 'social_media:schedule': 'Schedule Social',
     'figma:import': 'Figma Import', 'analytics:view': 'Analytics',
     'stock_bot:scan': 'Stock Scanner', 'stock_bot:alerts': 'Stock Alerts',
-    'obsidian:read': 'Read Vault', 'obsidian:write': 'Write Vault',
-    'obsidian:delete': 'Delete Vault', 'obsidian:admin': 'Vault Admin',
-    'admin:access': 'Admin Panel', 'admin:agents': 'Manage Agents',
+'admin:access': 'Admin Panel', 'admin:agents': 'Manage Agents',
     'admin:improvements': 'Improvements', 'admin:users': 'Manage Users',
     'admin:backups': 'Backups', 'admin:logs': 'System Logs',
     'admin:sandbox': 'Sandbox', 'admin:fine_tuning': 'AI Fine-Tuning',

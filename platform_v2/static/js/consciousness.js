@@ -3439,9 +3439,9 @@ function _renderModuleChart(modules, displayNames) {
   var barHeight = Math.max(names.length * rowH, 300);
   canvas.style.height = barHeight + "px";
   canvas.height = barHeight;
-  // Grow the parent container to fit all bars (with padding)
+  // Let container scroll — don't override max-height, just ensure min-height
   var container = canvas.parentElement;
-  if (container) container.style.height = (barHeight + 30) + "px";
+  if (container) container.style.minHeight = Math.min(barHeight + 30, 600) + "px";
 
   if (_chModuleChart) _chModuleChart.destroy();
   _chModuleChart = new Chart(canvas, {

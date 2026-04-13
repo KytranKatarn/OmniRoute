@@ -63,7 +63,7 @@ admin_required = require_permission(Permission.ADMIN_ACCESS)
 @login_required
 def index():
     """Redirect to Kytran System Operations standalone."""
-    KSO_URL = os.getenv("KSO_BASE_URL", "http://192.168.1.200:8085")
+    KSO_URL = os.getenv("KSO_BASE_URL", "https://server.kytranempowerment.com")
     return redirect(KSO_URL)
 
 

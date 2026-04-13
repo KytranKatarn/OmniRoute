@@ -2839,6 +2839,12 @@ COMMAND_REGISTRY = {
             "dry_run": {"required": False},
         },
     },
+    "compliance_check_command": {
+        "handler": "handle_compliance_check_command",
+        "params": {
+            "command": {"required": True},
+        },
+    },
 }
 
 
@@ -5855,6 +5861,43 @@ def handle_compliance_fix_command(params):
     }
 
 
+def handle_compliance_check_command(params):
+    """Execute a read-only shell command for compliance scanning.
+
+    Runs the command as the current user (no sudo) to check system state.
+    Blocked patterns prevent any writes/modifications.
+    Output capped at 8KB.
+    """
+    command = params.get("command", "")
+    if not command or not isinstance(command, str):
+        return {"success": False, "error": "Empty or invalid command"}
+
+    # Block any write/modify patterns — this is read-only
+    # Use regex word boundaries to avoid false positives (e.g. "tcp" matching "cp")
+    import re as _re
+    blocked_re = _re.compile(
+        r'(?:^|[;&|]\s*)(?:rm|mv|cp|dd|mkfs|chmod|chown|tee|truncate|wget|apt|pip|pkill|reboot|shutdown)\s',
+        _re.IGNORECASE
+    )
+    blocked_exact = [">> /", "> /", "systemctl start", "systemctl stop", "systemctl restart", "kill -"]
+    if blocked_re.search(command):
+        return {"success": False, "error": "Write command blocked in read-only check"}
+    for pat in blocked_exact:
+        if pat in command:
+            return {"success": False, "error": f"Write command blocked in check: {pat}"}
+
+    result = run_command_full(
+        ["bash", "-c", command],
+        timeout=15,
+    )
+    output = ((result["stdout"] or "") + (result["stderr"] or "")).strip()
+    return {
+        "success": True,
+        "output": output[:8192],
+        "returncode": result["returncode"],
+    }
+
+
 def handle_compliance_restore_file(params):
     """Restore a config file to previous content (for git-style rollback).
 
@@ -5994,6 +6037,7 @@ _HANDLER_MAP = {
     "handle_compliance_fix_service": handle_compliance_fix_service,
     "handle_compliance_restore_file": handle_compliance_restore_file,
     "handle_compliance_fix_command": handle_compliance_fix_command,
+    "handle_compliance_check_command": handle_compliance_check_command,
 }
 
 

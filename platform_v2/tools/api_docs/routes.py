@@ -204,10 +204,8 @@ def get_parameters_from_rule(rule):
 
 def categorize_endpoint(rule_str):
     """Categorize endpoint based on URL pattern"""
-    if "/tools/team-management" in rule_str:
-        return "Team Management"
-    elif "/tools/blueprint" in rule_str:
-        return "Blueprint"
+    if "/creed/api/admin" in rule_str:
+        return "C.R.E.E.D. Admin"
     elif "/tools/consciousness" in rule_str:
         return "Consciousness"
     elif "/tools/website-studio" in rule_str:

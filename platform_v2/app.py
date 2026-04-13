@@ -1883,15 +1883,11 @@ app.register_blueprint(cursor_bp)  # Cursor IDE integration API
 app.register_blueprint(triage_bp)  # Phase 42: Conversation triage pipeline
 # OAuth authentication (Phase 6.5)
 app.register_blueprint(oauth_bp)  # OAuth authentication (Google Sign-In)
-# C.R.E.E.D. Compliance APIs (Phase 32-37)
-from tools.team_management.creed_routes import creed_bp  # noqa: E402
-
-app.register_blueprint(creed_bp)
-
-# C.R.E.E.D. Public Transparency Page (no login required)
-from tools.creed.routes import creed_public_bp  # noqa: E402
+# C.R.E.E.D. — public transparency + admin governance API
+from tools.creed import creed_public_bp, creed_admin_bp  # noqa: E402
 
 app.register_blueprint(creed_public_bp)
+app.register_blueprint(creed_admin_bp)
 
 # Products Showcase (public — no login required)
 from tools.products.routes import products_bp  # noqa: E402
@@ -1920,11 +1916,8 @@ from tools.dev_hq import dev_hq_bp  # noqa: E402
 
 app.register_blueprint(dev_hq_bp)
 
-# Blueprint API routes still needed for Dev HQ (schema, docs, intelligence endpoints)
-# Removed from module_registry 2026-02-04 but Flask routes must remain active
-from tools.blueprint import blueprint_bp  # noqa: E402
-
-app.register_blueprint(blueprint_bp)
+# Blueprint module removed (Decision #431) — intelligence functions moved to
+# consciousness/services/platform_intelligence.py
 
 # API Gateway — REST endpoints for ARCHIE Code CLI (exposes MCP tools via HTTP)
 from api_gateway import api_gateway_bp  # noqa: E402
@@ -1939,92 +1932,6 @@ register_fleet_proxy(app)
 # NOTE: System Operations (Phase 78) loaded via module_registry
 
 # NOTE: Business module now loaded via module_registry (business_directory module)
-
-# ============================================================================
-# DATABASE MIGRATION - Run Obsidian Vault migration on startup
-# ============================================================================
-print("[A.R.C.H.I.E.] Checking Obsidian Vault database migration...")
-try:
-    migration_file = "/mnt/archie_brain/platform_v2/migrations/006_add_obsidian_vault_tables.sql"
-
-    if os.path.exists(migration_file):
-        conn = get_db()
-        cur = conn.cursor()
-
-        # Check if migration already run (check if vault_links table exists)
-        cur.execute(
-            """
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables
-                WHERE table_schema = 'public'
-                AND table_name = 'vault_links'
-            )
-        """
-        )
-        migration_exists = cur.fetchone()[0]
-
-        if not migration_exists:
-            print("[A.R.C.H.I.E.] Running Obsidian Vault migration...")
-            with open(migration_file, "r") as f:
-                migration_sql = f.read()
-            cur.execute(migration_sql)
-            conn.commit()
-            print("[A.R.C.H.I.E.] ✅ Obsidian Vault migration completed successfully")
-        else:
-            print("[A.R.C.H.I.E.] ✅ Obsidian Vault migration already applied")
-
-        cur.close()
-        conn.close()
-    else:
-        print("[A.R.C.H.I.E.] ⚠️ Migration file not found, skipping")
-
-except Exception as e:
-    print(f"[A.R.C.H.I.E.] ⚠️ Migration error: {e}")
-    import traceback
-
-    traceback.print_exc()
-
-# ============================================================================
-# OBSIDIAN VAULT INDEXING - Index vault notes on startup (Phase 3)
-# ============================================================================
-print("[A.R.C.H.I.E.] Initializing Obsidian vault indexing...")
-try:
-    from tools.consciousness.services.knowledge_vault_indexer import reindex_all_notes
-
-    # Check if vault is already indexed
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("SELECT COUNT(*) FROM knowledge_base WHERE knowledge_type='vault_note'")
-    vault_count = cur.fetchone()[0]
-    cur.close()
-    conn.close()
-
-    if vault_count == 0:
-        print("[A.R.C.H.I.E.] Vault not indexed - running initial indexing...")
-        stats = reindex_all_notes(vault_path="/mnt/archie_brain/knowledge/")
-        print(f"[A.R.C.H.I.E.] ✅ Indexed {stats.get('notes_indexed', 0)} vault notes")
-    else:
-        print(f"[A.R.C.H.I.E.] ✅ Vault already indexed ({vault_count} notes)")
-
-except Exception as e:
-    print(f"[A.R.C.H.I.E.] ⚠️ Vault indexing failed: {e}")
-    # Don't crash app if indexing fails
-    import traceback
-
-    traceback.print_exc()
-
-# ============================================================================
-# OBSIDIAN VAULT WATCHER - DEPRECATED (2026-01-16)
-# Removed: Platform now uses unified knowledge_base table in PostgreSQL
-# The /mnt/archie_brain/knowledge/ directory no longer exists
-# ============================================================================
-# print("[A.R.C.H.I.E.] Starting Obsidian Vault file watcher...")
-# try:
-#     from obsidian_vault_watcher import start_watcher
-#     start_watcher()
-#     print("[A.R.C.H.I.E.] ✅ Obsidian Vault watcher started successfully")
-# except Exception as e:
-#     print(f"[A.R.C.H.I.E.] ⚠️ Failed to start Vault watcher: {e}")
 
 # ============================================================================
 # GIT COMMIT POLLER - Start automatically on application startup

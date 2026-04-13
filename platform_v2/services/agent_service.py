@@ -109,6 +109,51 @@ def list_agents(
         return [dict(r) for r in cur.fetchall()]
 
 
+def list_agents_public(department=None, search=None, is_department_ai=None, agent_type=None, limit=200):
+    """List agents with public-facing fields for the Employee Directory.
+
+    Returns fields needed for public display: name, email, phone, bio, etc.
+    Search matches name, display_name, title, and department.
+    """
+    conditions = ["a.status = 'active'"]
+    params = []
+
+    if department and department != "all":
+        conditions.append("a.department = %s")
+        params.append(department)
+    if is_department_ai is not None:
+        conditions.append("a.is_department_ai = %s")
+        params.append(is_department_ai)
+    if agent_type == "ai":
+        conditions.append("a.worker_type IN ('internal', 'contract')")
+    elif agent_type == "human":
+        conditions.append("a.worker_type = 'human'")
+    if search:
+        conditions.append(
+            "(a.first_name ILIKE %s OR a.last_name ILIKE %s" " OR a.title ILIKE %s OR a.department ILIKE %s)"
+        )
+        params.extend([f"%{search}%"] * 4)
+
+    where = "WHERE " + " AND ".join(conditions)
+    params.append(limit)
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            f"""SELECT a.id, a.name, a.first_name, a.last_name,
+                       COALESCE(a.first_name || ' ' || a.last_name, a.name) as full_name,
+                       a.email, a.phone, a.title, a.department, a.pronouns, a.bio,
+                       a.avatar_url, a.tier, a.is_department_ai,
+                       CASE WHEN a.worker_type IN ('internal','contract')
+                            THEN 'AI' ELSE 'Human' END as employee_type,
+                       a.worker_type, a.capabilities
+                FROM agents a {where}
+                ORDER BY a.department, a.first_name
+                LIMIT %s""",
+            params,
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+
 def create_agent(name, display_name, department, model, **kwargs):
     """Create a new agent. Returns agent_id.
 

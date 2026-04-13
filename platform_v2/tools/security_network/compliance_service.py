@@ -102,6 +102,34 @@ def load_all_packs():
     return results
 
 
+def get_all_rule_packs():
+    """Return all rule packs as a list of dicts for the API.
+
+    Each dict: {pack_id, name, rules_count, rules}
+    """
+    packs = []
+    if not os.path.isdir(RULE_PACKS_DIR):
+        return packs
+    for fname in sorted(os.listdir(RULE_PACKS_DIR)):
+        if not fname.endswith(".json"):
+            continue
+        try:
+            with open(os.path.join(RULE_PACKS_DIR, fname)) as f:
+                data = json.load(f)
+            rules = data.get("rules", data if isinstance(data, list) else [])
+            packs.append(
+                {
+                    "pack_id": data.get("pack_id", fname.replace(".json", "")),
+                    "name": data.get("name", fname),
+                    "rules_count": len(rules),
+                    "rules": rules,
+                }
+            )
+        except Exception as exc:
+            logger.error("Failed to read pack %s: %s", fname, exc)
+    return packs
+
+
 # ============================================================================
 # Scanning
 # ============================================================================
@@ -668,7 +696,46 @@ def _check_command_output(check):
         # Also allow shell variable assignments (val=..., count=...) and subshells
         if "=" in cmd_base and "$(" in command:
             cmd_base = "sh"  # Treat as shell builtin
-        if cmd_base in _SAFE_LOCAL:
+
+        # Host-level paths MUST run on the host, not inside the container
+        _HOST_PATHS = (
+            "/etc/ufw/",
+            "/etc/sysctl",
+            "/proc/sys/",
+            "/etc/ssh/",
+            "/etc/audit/",
+            "/etc/pam.d/",
+            "/etc/security/",
+            "/etc/modprobe",
+            "/etc/default/ufw",
+            "ip neigh",
+            "ufw status",
+            "ufw show",
+            "/etc/login.defs",
+            "/etc/passwd",
+            "/etc/shadow",
+            "/etc/group",
+            "/etc/cron",
+            "/etc/at.",
+            "/etc/anacrontab",
+            "auditctl",
+            "ausearch",
+            "dpkg-query",
+            "dpkg ",
+            "systemctl is-enabled",
+            "systemctl is-active",
+            "sysctl ",
+            "iptables",
+            "ip6tables",
+            "lsmod",
+            "modprobe",
+            "journalctl",
+            "timedatectl",
+            "apt-config",
+        )
+        _needs_host = any(hp in command for hp in _HOST_PATHS)
+
+        if cmd_base in _SAFE_LOCAL and not _needs_host:
             try:
                 proc = _subprocess.run(
                     command,
@@ -681,15 +748,13 @@ def _check_command_output(check):
             except (_subprocess.TimeoutExpired, FileNotFoundError, OSError):
                 pass  # Fall through to host_command
 
-        # Fall back to host_command queue if local didn't work or returned
-        # empty/unhelpful output (container can't see host state for many checks)
-        _CONTAINER_NOISE = {"not-found", "not-found\ndisabled", ""}
-        if actual is None or (actual in _CONTAINER_NOISE and expected):
+        # Fall back to host_command queue for host checks or when local failed
+        if actual is None:
             try:
                 result = _run_host_cmd(
-                    "compliance_run_check",
-                    {"check_type": "command_safe", "target": command},
-                    timeout=check.get("timeout", 10),
+                    "compliance_check_command",
+                    {"command": command},
+                    timeout=check.get("timeout", 15),
                 )
                 actual = result.get("output", "").strip()
             except Exception:

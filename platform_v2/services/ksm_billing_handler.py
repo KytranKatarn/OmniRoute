@@ -21,7 +21,7 @@ from services.stripe_service import (
 
 logger = logging.getLogger(__name__)
 
-STANDALONE_SYSOPS_URL = os.getenv("STANDALONE_SYSOPS_URL", "http://192.168.1.200:8085")
+STANDALONE_SYSOPS_URL = os.getenv("STANDALONE_SYSOPS_URL", "https://server.kytranempowerment.com")
 
 
 # ---------------------------------------------------------------------------

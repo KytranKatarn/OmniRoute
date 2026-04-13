@@ -822,15 +822,13 @@ function addMultiAgentMessage(data, meta = {}) {
 
 // Module action button configuration
 const moduleActions = {
-    'repair_bay': { icon: 'workflow', label: 'Repair Bay', color: '#00FFFF' },
-    'blueprint': { icon: 'clipboard-list', label: 'Blueprint Tasks', color: '#3b82f6' }
+    'repair_bay': { icon: 'workflow', label: 'Repair Bay', color: '#00FFFF' }
 };
 
 // Open a module in a new tab or navigate to it
 function openModule(moduleName) {
     const moduleUrls = {
-        'repair_bay': '/tools/repair-bay',
-        'blueprint': '/tools/blueprint'
+        'repair_bay': '/tools/repair-bay'
     };
     const url = moduleUrls[moduleName];
     if (url) {

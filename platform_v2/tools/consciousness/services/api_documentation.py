@@ -110,7 +110,7 @@ def discover_routes_from_files():
         "tools/store_builder/routes.py": "store_builder",
         "tools/call_center/routes.py": "call_center",
         "tools/account_center/routes.py": "account_center",
-        "tools/team_management/routes.py": "team_management",
+        "tools/creed/admin_routes.py": "creed_admin",
         "tools/security_network/routes.py": "security_network",
         "app.py": "core",
     }
@@ -173,8 +173,8 @@ def discover_routes_from_files():
                     full_path = "/tools/call-center" + path
                 elif module == "account_center":
                     full_path = "/tools/account-center" + path
-                elif module == "team_management":
-                    full_path = "/tools/team-management" + path
+                elif module == "creed_admin":
+                    full_path = "/creed/api/admin" + path
                 elif module == "security_network":
                     full_path = "/tools/security-network" + path
 

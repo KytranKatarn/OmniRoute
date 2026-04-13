@@ -14,11 +14,11 @@ from datetime import datetime
 from .helpers import get_db
 
 try:
-    from tools.blueprint.blueprint_intelligence import get_system_health
+    from tools.consciousness.services.platform_intelligence import get_system_health
 
-    BLUEPRINT_HEALTH_AVAILABLE = True
+    PLATFORM_HEALTH_AVAILABLE = True
 except ImportError:
-    BLUEPRINT_HEALTH_AVAILABLE = False
+    PLATFORM_HEALTH_AVAILABLE = False
 
 
 def register_health_routes(bp, admin_required_decorator):
@@ -430,7 +430,7 @@ def register_health_routes(bp, admin_required_decorator):
     @admin_required_decorator
     def api_system_health_full():
         """Full system health check (moved from Blueprint/Mission Control)."""
-        if not BLUEPRINT_HEALTH_AVAILABLE:
+        if not PLATFORM_HEALTH_AVAILABLE:
             return jsonify({"error": "Health check not available"}), 500
         try:
             health = get_system_health()

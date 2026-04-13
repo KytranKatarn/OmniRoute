@@ -41,6 +41,7 @@ from .dispatch_routes import register_dispatch_routes  # noqa: E402
 from .crew_routes import register_crew_routes  # noqa: E402
 from .contractor_routes import register_contractor_routes  # noqa: E402
 from .approvals_routes import register_approvals_routes  # noqa: E402
+from .chat_routes import register_chat_routes as register_agent_chat  # noqa: E402
 
 # Fleet routes (migrated from A.R.M.A.D.A.)
 from .fleet_dashboard_routes import register_dashboard_routes as register_fleet_dashboard  # noqa: E402
@@ -67,6 +68,7 @@ register_dispatch_routes(department_hq_bp, admin_required)
 register_crew_routes(department_hq_bp, admin_required)
 register_contractor_routes(department_hq_bp, admin_required)
 register_approvals_routes(department_hq_bp, admin_required)
+register_agent_chat(department_hq_bp, admin_required)
 
 # Fleet routes — all under /tools/department-hq/api/fleet/*
 register_fleet_dashboard(department_hq_bp, login_required)

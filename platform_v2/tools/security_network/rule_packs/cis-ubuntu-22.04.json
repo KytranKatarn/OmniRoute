@@ -1,21 +1,24 @@
 {
   "pack_id": "cis-ubuntu-22.04",
   "name": "CIS Ubuntu 22.04 Benchmark",
-  "description": "Center for Internet Security Benchmark for Ubuntu 22.04 LTS — enterprise-grade hardening rules",
-  "version": "1.0",
+  "description": "Center for Internet Security Benchmark for Ubuntu 22.04 LTS \u2014 enterprise-grade hardening rules",
+  "version": "1.1",
   "category": "os",
   "source": "CIS",
+  "container_context_notes": "Rules marked container_not_applicable=true are skipped when running inside a Docker container. These rules apply to the host OS and must be verified/remediated on the host directly, not from within a container.",
   "rules": [
     {
       "rule_id": "CIS-1.1.1",
       "severity": "low",
-      "category": "filesystem",
       "title": "Ensure mounting of cramfs is disabled",
       "description": "The cramfs filesystem type is a compressed read-only Linux filesystem. Removing support reduces the local attack surface.",
+      "container_not_applicable": true,
+      "container_reason": "Kernel module configuration requires host-level access. This check must be performed and remediated on the host OS, not from within a container.",
       "check": {
-        "type": "file_contains",
-        "path": "/etc/modprobe.d/cramfs.conf",
-        "expected": "/bin/true"
+        "type": "command_output",
+        "command": "modprobe -n -v cramfs 2>/dev/null || echo 'not found'",
+        "expected": "install /bin/true",
+        "match": "contains"
       },
       "fix": {
         "type": "command",
@@ -30,12 +33,13 @@
     {
       "rule_id": "CIS-1.1.2",
       "severity": "low",
-      "category": "filesystem",
       "title": "Ensure mounting of squashfs is disabled",
       "description": "The squashfs filesystem type is a compressed read-only Linux filesystem. Disabling reduces the local attack surface.",
+      "container_not_applicable": true,
+      "container_reason": "Kernel module configuration requires host-level access. This check must be performed and remediated on the host OS, not from within a container.",
       "check": {
-        "type": "file_contains",
-        "path": "/etc/modprobe.d/squashfs.conf",
+        "type": "command_output",
+        "command": "modprobe -n -v squashfs 2>/dev/null; cat /etc/modprobe.d/squashfs.conf 2>/dev/null || echo 'not configured'",
         "expected": "/bin/true"
       },
       "fix": {
@@ -51,13 +55,15 @@
     {
       "rule_id": "CIS-1.1.3",
       "severity": "low",
-      "category": "filesystem",
       "title": "Ensure mounting of udf is disabled",
       "description": "The udf filesystem type is the Universal Disk Format used for DVDs/Blu-ray. Disabling reduces the local attack surface.",
+      "container_not_applicable": true,
+      "container_reason": "Kernel module configuration requires host-level access. This check must be performed and remediated on the host OS, not from within a container.",
       "check": {
-        "type": "file_contains",
-        "path": "/etc/modprobe.d/udf.conf",
-        "expected": "/bin/true"
+        "type": "command_output",
+        "command": "modprobe -n -v udf 2>/dev/null || echo 'not found'",
+        "expected": "install /bin/true",
+        "match": "contains"
       },
       "fix": {
         "type": "command",
@@ -72,13 +78,15 @@
     {
       "rule_id": "CIS-1.1.4",
       "severity": "medium",
-      "category": "filesystem",
       "title": "Ensure /tmp is a separate partition",
       "description": "The /tmp directory should be on a separate partition to prevent resource exhaustion attacks against the root filesystem.",
+      "container_not_applicable": true,
+      "container_reason": "Filesystem partition layout is determined by the host OS. This check must be verified on the host, not from within a container where /tmp is a container-level tmpfs.",
       "check": {
-        "type": "file_contains",
-        "path": "/host/proc/mounts",
-        "expected": "/tmp"
+        "type": "command_output",
+        "command": "findmnt -n /tmp 2>/dev/null || echo 'not mounted'",
+        "expected": "/tmp",
+        "match": "contains"
       },
       "fix": {
         "type": "command",
@@ -94,14 +102,15 @@
     {
       "rule_id": "CIS-1.1.5",
       "severity": "medium",
-      "category": "filesystem",
       "title": "Ensure noexec option set on /tmp",
       "description": "The noexec mount option prevents execution of binaries on /tmp, mitigating temp-based attacks.",
+      "container_not_applicable": true,
+      "container_reason": "Mount options for /tmp are set by the container runtime or host. Cannot be verified or changed from within a container.",
       "check": {
-        "type": "file_contains",
-        "path": "/host/proc/mounts",
-        "expected": "noexec",
-        "match_line": "/tmp"
+        "type": "command_output",
+        "command": "findmnt -n /tmp 2>/dev/null | grep -c noexec || echo '0'",
+        "expected": "1",
+        "match": "contains"
       },
       "fix": {
         "type": "command",
@@ -116,14 +125,15 @@
     {
       "rule_id": "CIS-1.1.6",
       "severity": "medium",
-      "category": "filesystem",
       "title": "Ensure nosuid option set on /tmp",
       "description": "The nosuid mount option prevents setuid programs from running on /tmp.",
+      "container_not_applicable": true,
+      "container_reason": "Mount options for /tmp are set by the container runtime or host. Cannot be verified or changed from within a container.",
       "check": {
-        "type": "file_contains",
-        "path": "/host/proc/mounts",
-        "expected": "nosuid",
-        "match_line": "/tmp"
+        "type": "command_output",
+        "command": "findmnt -n /tmp 2>/dev/null | grep -c nosuid || echo '0'",
+        "expected": "1",
+        "match": "contains"
       },
       "fix": {
         "type": "command",
@@ -138,14 +148,15 @@
     {
       "rule_id": "CIS-1.1.7",
       "severity": "medium",
-      "category": "filesystem",
       "title": "Ensure nodev option set on /tmp",
       "description": "The nodev mount option prevents device files from being created on /tmp.",
+      "container_not_applicable": true,
+      "container_reason": "Mount options for /tmp are set by the container runtime or host. Cannot be verified or changed from within a container.",
       "check": {
-        "type": "file_contains",
-        "path": "/host/proc/mounts",
-        "expected": "nodev",
-        "match_line": "/tmp"
+        "type": "command_output",
+        "command": "findmnt -n /tmp 2>/dev/null | grep -c nodev || echo '0'",
+        "expected": "1",
+        "match": "contains"
       },
       "fix": {
         "type": "command",
@@ -160,13 +171,23 @@
     {
       "rule_id": "CIS-1.1.8",
       "severity": "low",
-      "category": "filesystem",
       "title": "Ensure separate /var partition exists",
       "description": "The /var directory should be on a separate partition to prevent resource exhaustion from logs/temp data.",
+      "container_not_applicable": true,
+      "container_reason": "Filesystem partition layout is determined by the host OS. Cannot be verified or changed from within a container.",
+      "status": "accepted_risk",
+      "accepted_risk_reason": "Single-server deployment \u2014 separate /var partition not feasible without OS reinstall. Mitigated by disk space monitoring via agent loop (Job #57) and Docker volume limits. Risk accepted per operational review 2026-03-29.",
+      "accepted_risk_mitigations": [
+        "Agent loop Job #57 monitors disk usage and alerts on threshold breach",
+        "Docker container storage limits prevent runaway log growth from containers",
+        "Log rotation configured via logrotate for /var/log",
+        "Manual review scheduled quarterly"
+      ],
       "check": {
-        "type": "file_contains",
-        "path": "/host/proc/mounts",
-        "expected": "/var"
+        "type": "command_output",
+        "command": "findmnt -n /var 2>/dev/null || echo 'not mounted'",
+        "expected": "/var",
+        "match": "contains"
       },
       "fix": {
         "type": "command",
@@ -182,9 +203,10 @@
     {
       "rule_id": "CIS-3.1.1",
       "severity": "medium",
-      "category": "network",
       "title": "Ensure IP forwarding is disabled",
       "description": "IP forwarding should be disabled unless the system is a router. CIS checks both IPv4 and IPv6. Note: ip_forward=1 is required on Docker hosts.",
+      "container_not_applicable": true,
+      "container_reason": "sysctl kernel parameters are read-only inside unprivileged containers and reflect the host kernel state. ip_forward=1 is intentionally required on this Docker host. This check must be assessed at the host level.",
       "check": {
         "type": "command_output",
         "command": "sysctl -n net.ipv4.ip_forward",
@@ -207,9 +229,10 @@
     {
       "rule_id": "CIS-3.1.2",
       "severity": "medium",
-      "category": "network",
       "title": "Ensure packet redirect sending is disabled",
       "description": "ICMP redirects should not be sent by a non-router system to prevent MITM attacks.",
+      "container_not_applicable": true,
+      "container_reason": "sysctl kernel parameters are read-only inside unprivileged containers. This check must be verified and remediated on the host OS.",
       "check": {
         "type": "sysctl_value",
         "param": "net.ipv4.conf.all.send_redirects",
@@ -230,9 +253,10 @@
     {
       "rule_id": "CIS-3.2.1",
       "severity": "medium",
-      "category": "network",
       "title": "Ensure source routed packets are not accepted",
       "description": "Source routed packets allow the sender to specify the route, which can be used to bypass network security.",
+      "container_not_applicable": true,
+      "container_reason": "sysctl kernel parameters are read-only inside unprivileged containers. This check must be verified and remediated on the host OS.",
       "check": {
         "type": "sysctl_value",
         "param": "net.ipv4.conf.all.accept_source_route",
@@ -253,9 +277,10 @@
     {
       "rule_id": "CIS-3.2.2",
       "severity": "medium",
-      "category": "network",
       "title": "Ensure ICMP redirects are not accepted",
       "description": "ICMP redirect messages can be used by an attacker to alter routing tables.",
+      "container_not_applicable": true,
+      "container_reason": "sysctl kernel parameters are read-only inside unprivileged containers. This check must be verified and remediated on the host OS.",
       "check": {
         "type": "sysctl_value",
         "param": "net.ipv4.conf.all.accept_redirects",
@@ -276,9 +301,10 @@
     {
       "rule_id": "CIS-3.2.3",
       "severity": "medium",
-      "category": "network",
       "title": "Ensure secure ICMP redirects are not accepted",
       "description": "Secure ICMP redirects from known gateways should still be rejected to prevent route table manipulation.",
+      "container_not_applicable": true,
+      "container_reason": "sysctl kernel parameters are read-only inside unprivileged containers. This check must be verified and remediated on the host OS.",
       "check": {
         "type": "sysctl_value",
         "param": "net.ipv4.conf.all.secure_redirects",
@@ -299,9 +325,10 @@
     {
       "rule_id": "CIS-3.2.4",
       "severity": "medium",
-      "category": "network",
       "title": "Ensure suspicious packets are logged (log_martians)",
       "description": "Logging martian packets helps detect spoofing and routing configuration issues.",
+      "container_not_applicable": true,
+      "container_reason": "sysctl kernel parameters are read-only inside unprivileged containers. This check must be verified and remediated on the host OS.",
       "check": {
         "type": "sysctl_value",
         "param": "net.ipv4.conf.all.log_martians",
@@ -315,21 +342,21 @@
       },
       "soc2_mapping": [
         "CC6.1",
-        "CC7.2",
-        "P1.2"
+        "CC7.2"
       ],
       "cis_section": "3.2.4"
     },
     {
       "rule_id": "CIS-3.3.1",
       "severity": "medium",
-      "category": "network",
       "title": "Ensure IPv6 router advertisements are not accepted",
       "description": "IPv6 router advertisements can be spoofed to redirect traffic. Disable unless using SLAAC.",
+      "container_not_applicable": true,
+      "container_reason": "sysctl kernel parameters are read-only inside unprivileged containers. This check must be verified and remediated on the host OS.",
       "check": {
-        "type": "file_contains",
-        "path": "/etc/sysctl.d/99-cis-hardening.conf",
-        "expected": "net.ipv6.conf.all.accept_ra = 0"
+        "type": "sysctl_value",
+        "param": "net.ipv6.conf.all.accept_ra",
+        "expected": "0"
       },
       "fix": {
         "type": "sysctl",
@@ -346,13 +373,14 @@
     {
       "rule_id": "CIS-3.3.2",
       "severity": "medium",
-      "category": "network",
       "title": "Ensure IPv6 redirects are not accepted",
       "description": "IPv6 redirect messages can alter routing tables. Disable to prevent MITM attacks.",
+      "container_not_applicable": true,
+      "container_reason": "sysctl kernel parameters are read-only inside unprivileged containers. This check must be verified and remediated on the host OS.",
       "check": {
-        "type": "file_contains",
-        "path": "/etc/sysctl.d/99-cis-hardening.conf",
-        "expected": "net.ipv6.conf.all.accept_redirects = 0"
+        "type": "sysctl_value",
+        "param": "net.ipv6.conf.all.accept_redirects",
+        "expected": "0"
       },
       "fix": {
         "type": "sysctl",
@@ -369,7 +397,6 @@
     {
       "rule_id": "CIS-4.1.1",
       "severity": "high",
-      "category": "audit_logging",
       "title": "Ensure auditd is installed",
       "description": "auditd is the Linux Audit daemon that records security-relevant events on the system.",
       "check": {
@@ -384,17 +411,17 @@
       "soc2_mapping": [
         "CC6.1",
         "CC7.2",
-        "CC7.3",
-        "P1.2"
+        "CC7.3"
       ],
       "cis_section": "4.1.1"
     },
     {
       "rule_id": "CIS-4.1.2",
       "severity": "high",
-      "category": "audit_logging",
       "title": "Ensure auditd service is enabled and running",
       "description": "The auditd service must be enabled to collect audit records.",
+      "container_not_applicable": true,
+      "container_reason": "systemd service management is not available inside containers. auditd service status must be checked and managed on the host OS directly.",
       "check": {
         "type": "command_output",
         "command": "systemctl is-enabled auditd 2>/dev/null || echo 'disabled'",
@@ -408,15 +435,13 @@
       },
       "soc2_mapping": [
         "CC6.1",
-        "CC7.2",
-        "P1.2"
+        "CC7.2"
       ],
       "cis_section": "4.1.2"
     },
     {
       "rule_id": "CIS-4.1.3",
       "severity": "medium",
-      "category": "audit_logging",
       "title": "Ensure audit log storage size is configured",
       "description": "The max_log_file parameter in auditd.conf should be set to ensure adequate log storage.",
       "check": {
@@ -434,21 +459,18 @@
       },
       "soc2_mapping": [
         "CC7.2",
-        "CC7.3",
-        "P1.2"
+        "CC7.3"
       ],
       "cis_section": "4.1.3"
     },
     {
       "rule_id": "CIS-4.2.1",
       "severity": "medium",
-      "category": "audit_logging",
       "title": "Ensure rsyslog is installed",
       "description": "rsyslog provides reliable syslog message transport and storage for system logging.",
       "check": {
-        "type": "file_contains",
-        "path": "/host/etc/rsyslog.conf",
-        "expected": "rsyslog"
+        "type": "package_installed",
+        "package": "rsyslog"
       },
       "fix": {
         "type": "command",
@@ -457,21 +479,22 @@
       },
       "soc2_mapping": [
         "CC7.2",
-        "CC7.3",
-        "P1.2"
+        "CC7.3"
       ],
       "cis_section": "4.2.1"
     },
     {
       "rule_id": "CIS-4.2.2",
       "severity": "medium",
-      "category": "audit_logging",
       "title": "Ensure rsyslog service is enabled",
       "description": "The rsyslog service must be enabled to collect system logs.",
+      "container_not_applicable": true,
+      "container_reason": "systemd service management is not available inside containers. rsyslog service status must be checked and managed on the host OS directly.",
       "check": {
-        "type": "file_contains",
-        "path": "/host/etc/rsyslog.conf",
-        "expected": "imuxsock"
+        "type": "command_output",
+        "command": "systemctl is-enabled rsyslog 2>/dev/null || echo 'disabled'",
+        "expected": "enabled",
+        "match": "exact"
       },
       "fix": {
         "type": "command",
@@ -479,21 +502,20 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "CC7.2",
-        "P1.2"
+        "CC7.2"
       ],
       "cis_section": "4.2.2"
     },
     {
       "rule_id": "CIS-4.2.3",
       "severity": "medium",
-      "category": "audit_logging",
       "title": "Ensure rsyslog default file permissions are configured",
       "description": "rsyslog should create log files with restrictive permissions (0640).",
       "check": {
-        "type": "file_permission",
-        "path": "/host/etc/rsyslog.conf",
-        "expected_mode": "0640"
+        "type": "file_content",
+        "path": "/etc/rsyslog.conf",
+        "pattern": "^\\$FileCreateMode",
+        "expected": "0640"
       },
       "fix": {
         "type": "file_line",
@@ -503,23 +525,23 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "C1.2",
         "CC6.1",
-        "CC7.2",
-        "P1.2"
+        "CC7.2"
       ],
       "cis_section": "4.2.3"
     },
     {
       "rule_id": "CIS-4.2.4",
       "severity": "medium",
-      "category": "audit_logging",
       "title": "Ensure journald is configured to send logs to rsyslog",
       "description": "Data from journald should be forwarded to rsyslog for centralized log management.",
+      "container_not_applicable": true,
+      "container_reason": "systemd-journald is not available inside containers. journald configuration must be managed on the host OS directly.",
       "check": {
-        "type": "file_contains",
-        "path": "/host/etc/journald.conf",
-        "expected": "ForwardToSyslog=yes"
+        "type": "file_content",
+        "path": "/etc/systemd/journald.conf",
+        "pattern": "^ForwardToSyslog",
+        "expected": "yes"
       },
       "fix": {
         "type": "file_line",
@@ -529,46 +551,44 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "CC7.2",
-        "P1.2"
+        "CC7.2"
       ],
       "cis_section": "4.2.4"
     },
     {
       "rule_id": "CIS-4.2.5",
       "severity": "medium",
-      "category": "audit_logging",
       "title": "Ensure remote logging is configured",
       "description": "System logs should be sent to a remote log host to preserve evidence and ensure availability.",
       "check": {
-        "type": "file_contains",
-        "path": "/host/etc/rsyslog.conf",
+        "type": "command_output",
+        "command": "grep -r '^*.*@@' /etc/rsyslog.conf /etc/rsyslog.d/ 2>/dev/null | head -1 || echo 'not found'",
         "expected": "@@"
       },
       "fix": {
         "type": "command",
-        "command": "echo 'INFO: Configure remote syslog destination in /etc/rsyslog.conf — *.* @@<remote-host>:514'",
+        "command": "echo 'INFO: Configure remote syslog destination in /etc/rsyslog.conf \u2014 *.* @@<remote-host>:514'",
         "risk": "high"
       },
       "soc2_mapping": [
         "CC7.2",
         "CC7.3",
-        "CC7.4",
-        "P1.2"
+        "CC7.4"
       ],
       "cis_section": "4.2.5"
     },
     {
       "rule_id": "CIS-5.1.1",
       "severity": "medium",
-      "category": "services",
       "title": "Ensure cron daemon is enabled and running",
       "description": "The cron daemon is used for scheduled jobs and must be running for system maintenance tasks.",
+      "container_not_applicable": true,
+      "container_reason": "systemd service management is not available inside containers. cron service status must be checked and managed on the host OS directly. Container-based scheduling is handled by APScheduler in the app.",
       "check": {
-        "type": "file_permission",
-        "path": "/host/etc/crontab",
-        "expected_mode": "0600",
-        "expected_owner": "root"
+        "type": "command_output",
+        "command": "systemctl is-enabled cron 2>/dev/null || echo 'disabled'",
+        "expected": "enabled",
+        "match": "exact"
       },
       "fix": {
         "type": "command",
@@ -583,13 +603,12 @@
     {
       "rule_id": "CIS-5.1.2",
       "severity": "medium",
-      "category": "filesystem",
       "title": "Ensure permissions on /etc/crontab are configured",
       "description": "The /etc/crontab file should be owned by root with restrictive permissions (0600).",
       "check": {
         "type": "file_permission",
-        "path": "/host/etc/crontab",
-        "expected_mode": "0600"
+        "path": "/etc/crontab",
+        "max_mode": "0600"
       },
       "fix": {
         "type": "command",
@@ -597,7 +616,6 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "C1.2",
         "CC6.1"
       ],
       "cis_section": "5.1.2"
@@ -605,13 +623,11 @@
     {
       "rule_id": "CIS-5.2.1",
       "severity": "medium",
-      "category": "access_control",
       "title": "Ensure sudo is installed",
       "description": "sudo allows controlled privilege escalation and must be installed for auditable administrative access.",
       "check": {
-        "type": "file_contains",
-        "path": "/host/etc/sudoers",
-        "expected": "Defaults"
+        "type": "package_installed",
+        "package": "sudo"
       },
       "fix": {
         "type": "command",
@@ -628,12 +644,11 @@
     {
       "rule_id": "CIS-5.2.2",
       "severity": "medium",
-      "category": "audit_logging",
       "title": "Ensure sudo log file exists",
       "description": "A custom log file for sudo provides additional audit trail for privileged commands.",
       "check": {
-        "type": "file_contains",
-        "path": "/host/etc/sudoers.d/logging",
+        "type": "command_output",
+        "command": "grep -r 'Defaults.*logfile' /etc/sudoers /etc/sudoers.d/ 2>/dev/null | head -1",
         "expected": "logfile"
       },
       "fix": {
@@ -643,15 +658,13 @@
       },
       "soc2_mapping": [
         "CC6.1",
-        "CC7.2",
-        "P1.2"
+        "CC7.2"
       ],
       "cis_section": "5.2.2"
     },
     {
       "rule_id": "CIS-5.3.1",
       "severity": "high",
-      "category": "authentication",
       "title": "Ensure password creation requirements are configured",
       "description": "Password policies should enforce minimum length and complexity via pam_pwquality.",
       "check": {
@@ -674,7 +687,6 @@
     {
       "rule_id": "CIS-5.3.2",
       "severity": "high",
-      "category": "authentication",
       "title": "Ensure lockout for failed password attempts is configured",
       "description": "Account lockout after repeated failures prevents brute-force attacks.",
       "check": {
@@ -690,15 +702,13 @@
       },
       "soc2_mapping": [
         "CC6.1",
-        "CC6.2",
-        "P1.1"
+        "CC6.2"
       ],
       "cis_section": "5.3.2"
     },
     {
       "rule_id": "CIS-5.3.3",
       "severity": "medium",
-      "category": "authentication",
       "title": "Ensure password reuse is limited",
       "description": "Users should not be able to reuse recent passwords. Enforce via pam_pwhistory.",
       "check": {
@@ -721,7 +731,6 @@
     {
       "rule_id": "CIS-5.4.1",
       "severity": "medium",
-      "category": "authentication",
       "title": "Ensure password expiration is 365 days or less",
       "description": "Password expiration forces periodic password changes to limit credential exposure.",
       "check": {
@@ -738,15 +747,13 @@
       },
       "soc2_mapping": [
         "CC6.1",
-        "CC6.2",
-        "P1.1"
+        "CC6.2"
       ],
       "cis_section": "5.4.1"
     },
     {
       "rule_id": "CIS-6.1.1",
       "severity": "medium",
-      "category": "filesystem",
       "title": "Ensure permissions on /etc/passwd are 644 or more restrictive",
       "description": "The /etc/passwd file must be readable but only writable by root.",
       "check": {
@@ -760,7 +767,6 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "C1.2",
         "CC6.1"
       ],
       "cis_section": "6.1.1"
@@ -768,7 +774,6 @@
     {
       "rule_id": "CIS-6.1.2",
       "severity": "high",
-      "category": "filesystem",
       "title": "Ensure permissions on /etc/shadow are 640 or more restrictive",
       "description": "The /etc/shadow file contains password hashes and must have restrictive permissions.",
       "check": {
@@ -782,8 +787,6 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "C1.1",
-        "C1.2",
         "CC6.1"
       ],
       "cis_section": "6.1.2"
@@ -791,7 +794,6 @@
     {
       "rule_id": "CIS-6.1.3",
       "severity": "medium",
-      "category": "filesystem",
       "title": "Ensure permissions on /etc/group are 644 or more restrictive",
       "description": "The /etc/group file must be readable but only writable by root.",
       "check": {
@@ -805,7 +807,6 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "C1.2",
         "CC6.1"
       ],
       "cis_section": "6.1.3"
@@ -813,7 +814,6 @@
     {
       "rule_id": "CIS-6.1.4",
       "severity": "high",
-      "category": "filesystem",
       "title": "Ensure permissions on /etc/gshadow are 640 or more restrictive",
       "description": "The /etc/gshadow file contains group password hashes and must have restrictive permissions.",
       "check": {
@@ -827,8 +827,6 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "C1.1",
-        "C1.2",
         "CC6.1"
       ],
       "cis_section": "6.1.4"
@@ -836,7 +834,6 @@
     {
       "rule_id": "CIS-6.1.5",
       "severity": "medium",
-      "category": "filesystem",
       "title": "Ensure no world-writable files exist",
       "description": "World-writable files can be modified by any user, which is a security risk.",
       "check": {
@@ -858,7 +855,6 @@
     {
       "rule_id": "CIS-6.2.1",
       "severity": "high",
-      "category": "authentication",
       "title": "Ensure no accounts have empty passwords",
       "description": "Empty passwords allow anyone to log in as that user without authentication.",
       "check": {
@@ -869,11 +865,10 @@
       },
       "fix": {
         "type": "command",
-        "command": "echo 'INFO: Lock accounts with empty passwords — passwd -l <username>'",
+        "command": "echo 'INFO: Lock accounts with empty passwords \u2014 passwd -l <username>'",
         "risk": "medium"
       },
       "soc2_mapping": [
-        "C1.2",
         "CC6.1",
         "CC6.2"
       ],
@@ -882,7 +877,6 @@
     {
       "rule_id": "CIS-6.2.2",
       "severity": "high",
-      "category": "access_control",
       "title": "Ensure root is the only UID 0 account",
       "description": "Only the root account should have UID 0. Additional UID 0 accounts bypass accountability.",
       "check": {
@@ -893,7 +887,7 @@
       },
       "fix": {
         "type": "command",
-        "command": "echo 'INFO: Investigate and remove additional UID 0 accounts — awk -F: ($3==0) /etc/passwd'",
+        "command": "echo 'INFO: Investigate and remove additional UID 0 accounts \u2014 awk -F: ($3==0) /etc/passwd'",
         "risk": "high"
       },
       "soc2_mapping": [
@@ -906,7 +900,6 @@
     {
       "rule_id": "CIS-6.2.3",
       "severity": "medium",
-      "category": "access_control",
       "title": "Ensure all users home directories exist",
       "description": "Users without home directories may have unpredictable behavior and file access issues.",
       "check": {
@@ -938,5 +931,20 @@
     "why": "CIS Benchmarks are the industry gold standard for system hardening. Most cyber insurance policies and SOC 2 audits reference CIS controls. Scoring below 80% often triggers audit findings or increased insurance premiums.",
     "certification": "CIS Level 1 Benchmark",
     "penalty": "SOC 2 audit findings, insurance premium increases, failed penetration tests"
-  }
+  },
+  "accepted_risks": [
+    {
+      "rule_id": "CIS-1.1.8",
+      "title": "Separate /var partition",
+      "reason": "Single-server deployment \u2014 separate /var partition not feasible without OS reinstall.",
+      "mitigations": [
+        "Disk space monitored by agent loop Job #57",
+        "Docker container storage limits in docker-compose.yml",
+        "Log rotation via logrotate",
+        "Quarterly manual review"
+      ],
+      "accepted_date": "2026-03-29",
+      "review_date": "2026-06-29"
+    }
+  ]
 }

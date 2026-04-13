@@ -1,17 +1,54 @@
-"""Directory chat routes — auth-required endpoints for status and messaging."""
+"""Agent chat routes — internal messaging with agents via Bridge dispatch.
 
-import sys
-import os
+Moved from tools/directory/ (Decision #431). Auth-required endpoints
+for real-time agent conversations with history and rate limiting.
+"""
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "ai_bridge"))
-
+import logging
 from flask import jsonify, request
-from flask_login import current_user, login_required
+from flask_login import current_user
 from functools import wraps
-from .helpers import chat_rate_limiter, map_agent_status
+from database import get_db_cursor
+from services.agent_service import get_agent
+
+logger = logging.getLogger(__name__)
 
 
-def login_required_api(f):
+class RateLimiter:
+    """Simple in-memory rate limiter for chat endpoints."""
+
+    import time
+
+    def __init__(self, per_user_limit=10, global_limit=50, window=60):
+        self.per_user_limit = per_user_limit
+        self.global_limit = global_limit
+        self.window = window
+        self.user_counts = {}
+        self.global_count = 0
+        self.global_window_start = self.time.time()
+
+    def check(self, user_id):
+        """Check if request is allowed. Returns (allowed, error_message)."""
+        now = self.time.time()
+        if now - self.global_window_start > self.window:
+            self.global_count = 0
+            self.global_window_start = now
+        user_data = self.user_counts.get(user_id, (0, now))
+        if now - user_data[1] > self.window:
+            user_data = (0, now)
+        if self.global_count >= self.global_limit:
+            return False, "Chat system is busy. Please wait a moment."
+        if user_data[0] >= self.per_user_limit:
+            return False, "Please wait before sending another message."
+        self.global_count += 1
+        self.user_counts[user_id] = (user_data[0] + 1, user_data[1])
+        return True, None
+
+
+chat_rate_limiter = RateLimiter()
+
+
+def _login_required_api(f):
     """API auth decorator — returns 401 JSON instead of redirect."""
 
     @wraps(f)
@@ -24,41 +61,14 @@ def login_required_api(f):
 
 
 def register_chat_routes(bp, admin_required):
-    """Register auth-gated directory routes."""
+    """Register agent chat routes on Department HQ blueprint."""
 
-    @bp.route("/api/directory/status")
-    @login_required_api
-    def get_agent_status():
-        """Get live roster status for all agents."""
-        try:
-            from bridge_dispatcher import get_dispatcher
-
-            dispatcher = get_dispatcher()
-            manifest = dispatcher.get_crew_manifest()
-        except Exception:
-            manifest = []
-
-        status_map = {}
-        for member in manifest:
-            agent_id = member.get("agent_id") or member.get("id")
-            if agent_id:
-                mapped = map_agent_status(member)
-                mapped["shift_state"] = member.get("shift_state", "off_duty")
-                mapped["current_job"] = member.get("current_job")
-                mapped["mood"] = member.get("wellness", {}).get("mood", "neutral")
-                status_map[str(agent_id)] = mapped
-
-        return jsonify({"status": status_map})
-
-    @bp.route("/api/directory/chat", methods=["POST"])
-    @login_required_api
+    @bp.route("/api/chat", methods=["POST"])
+    @_login_required_api
     def send_chat_message():
         """Send a message to an agent via Bridge dispatch."""
-        from database import get_db_cursor
-
         user_id = current_user.id
 
-        # --- Validate input ---
         data = request.get_json(silent=True) or {}
         agent_id = data.get("agent_id")
         message = (data.get("message") or "").strip()
@@ -70,14 +80,13 @@ def register_chat_routes(bp, admin_required):
         if len(message) > 2000:
             return jsonify({"error": "Message too long (max 2000 chars)"}), 400
 
-        # --- Rate limit ---
         allowed, error_msg = chat_rate_limiter.check(user_id)
         if not allowed:
             return jsonify({"error": error_msg}), 429
 
-        # --- Check agent is online via crew manifest ---
+        # Check agent is online via crew manifest
         try:
-            from bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.bridge_dispatcher import get_dispatcher
 
             dispatcher = get_dispatcher()
             manifest = dispatcher.get_crew_manifest()
@@ -94,37 +103,23 @@ def register_chat_routes(bp, admin_required):
         if not agent_manifest:
             return jsonify({"error": "Agent not found in roster"}), 404
 
-        agent_status = map_agent_status(agent_manifest)
-        if not agent_status["chat_available"]:
-            return (
-                jsonify({"error": f"Agent is currently {agent_status['status']}. Try again later."}),
-                503,
-            )
+        shift_state = agent_manifest.get("shift_state", "off_duty")
+        if shift_state not in ("active", "deployed"):
+            return jsonify({"error": f"Agent is currently {shift_state}. Try again later."}), 503
 
-        # --- Get agent info from DB ---
-        try:
-            with get_db_cursor() as (conn, cur):
-                cur.execute(
-                    """SELECT id, name, display_name, title, bio, capabilities,
-                              department, station_code
-                       FROM agents WHERE id = %s""",
-                    (agent_id,),
-                )
-                agent_row = cur.fetchone()
-        except Exception:
-            return jsonify({"error": "Failed to look up agent"}), 500
-
-        if not agent_row:
+        # Get agent info via agent_service
+        agent = get_agent(agent_id)
+        if not agent:
             return jsonify({"error": "Agent not found"}), 404
 
-        agent_code_name = agent_row[1]  # agents.name — what Bridge expects
-        agent_display = agent_row[2] or agent_code_name
-        agent_title = agent_row[3] or "Team Member"
-        agent_bio = agent_row[4] or ""
-        agent_capabilities = agent_row[5] or ""
-        agent_department = agent_row[6] or ""
+        agent_code_name = agent["name"]
+        agent_display = agent.get("display_name") or agent_code_name
+        agent_title = agent.get("title") or "Team Member"
+        agent_bio = agent.get("bio") or ""
+        agent_department = agent.get("department") or ""
+        agent_capabilities = agent.get("capabilities") or ""
 
-        # --- Get or create conversation (UPSERT) ---
+        # Get or create conversation
         try:
             with get_db_cursor(commit=True) as (conn, cur):
                 cur.execute(
@@ -139,7 +134,7 @@ def register_chat_routes(bp, admin_required):
         except Exception:
             return jsonify({"error": "Failed to create conversation"}), 500
 
-        # --- Store user message ---
+        # Store user message
         try:
             with get_db_cursor(commit=True) as (conn, cur):
                 cur.execute(
@@ -151,7 +146,7 @@ def register_chat_routes(bp, admin_required):
         except Exception:
             return jsonify({"error": "Failed to store message"}), 500
 
-        # --- Load context: last 10 messages ---
+        # Load context: last 10 messages
         try:
             with get_db_cursor() as (conn, cur):
                 cur.execute(
@@ -166,14 +161,13 @@ def register_chat_routes(bp, admin_required):
         except Exception:
             recent_rows = []
 
-        # Build conversation history (oldest first)
         conversation_lines = []
         for row in reversed(recent_rows):
             sender = "User" if row[0] == "user" else agent_display
             conversation_lines.append(f"{sender}: {row[1]}")
         conversation_text = "\n".join(conversation_lines)
 
-        # --- Build system prompt ---
+        # Build system prompt
         system_prompt = f"You are {agent_display}, {agent_title} at Kytran Empowerment."
         if agent_bio:
             system_prompt += f" {agent_bio}"
@@ -189,10 +183,8 @@ def register_chat_routes(bp, admin_required):
         if conversation_text:
             system_prompt += f"\n\n## Current conversation:\n{conversation_text}"
 
-        # --- Dispatch to Bridge ---
+        # Dispatch to Bridge
         try:
-            from bridge_dispatcher import get_dispatcher
-
             dispatcher = get_dispatcher()
             result = dispatcher.dispatch(
                 prompt=message,
@@ -204,7 +196,7 @@ def register_chat_routes(bp, admin_required):
         except Exception:
             response_text = "Sorry, I'm having trouble responding right now."
 
-        # --- Store agent response ---
+        # Store agent response
         resp_timestamp = None
         try:
             with get_db_cursor(commit=True) as (conn, cur):
@@ -217,7 +209,6 @@ def register_chat_routes(bp, admin_required):
                 )
                 resp_timestamp = cur.fetchone()[0]
 
-                # Update conversation counters
                 cur.execute(
                     """UPDATE directory_conversations
                        SET message_count = message_count + 2,
@@ -227,7 +218,7 @@ def register_chat_routes(bp, admin_required):
                     (conversation_id,),
                 )
         except Exception:
-            pass  # Response was generated, just counter update failed
+            pass
 
         return jsonify(
             {
@@ -237,20 +228,17 @@ def register_chat_routes(bp, admin_required):
             }
         )
 
-    @bp.route("/api/directory/chat/<int:agent_id>")
-    @login_required_api
+    @bp.route("/api/chat/<int:agent_id>")
+    @_login_required_api
     def get_chat_history(agent_id):
         """Return conversation history with an agent."""
-        from database import get_db_cursor
-
         user_id = current_user.id
         offset = request.args.get("offset", 0, type=int)
         limit = request.args.get("limit", 50, type=int)
-        limit = min(limit, 100)  # Cap at 100
+        limit = min(limit, 100)
 
         try:
             with get_db_cursor() as (conn, cur):
-                # Get conversation
                 cur.execute(
                     """SELECT id, last_message_at, message_count
                        FROM directory_conversations
@@ -274,7 +262,6 @@ def register_chat_routes(bp, admin_required):
                 last_msg_at = conv[1]
                 total = conv[2] or 0
 
-                # Get messages
                 cur.execute(
                     """SELECT id, sender_type, message, timestamp, is_pinned
                        FROM directory_messages
@@ -283,21 +270,17 @@ def register_chat_routes(bp, admin_required):
                        LIMIT %s OFFSET %s""",
                     (conv_id, limit, offset),
                 )
-                rows = cur.fetchall()
+                messages = [
+                    {
+                        "id": row[0],
+                        "sender_type": row[1],
+                        "message": row[2],
+                        "timestamp": row[3].isoformat() if row[3] else None,
+                        "is_pinned": row[4],
+                    }
+                    for row in cur.fetchall()
+                ]
 
-                messages = []
-                for row in rows:
-                    messages.append(
-                        {
-                            "id": row[0],
-                            "sender_type": row[1],
-                            "message": row[2],
-                            "timestamp": row[3].isoformat() if row[3] else None,
-                            "is_pinned": row[4],
-                        }
-                    )
-
-                # Get pinned messages as memories
                 cur.execute(
                     """SELECT message, timestamp
                        FROM directory_messages

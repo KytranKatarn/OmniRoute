@@ -257,7 +257,7 @@ def register_code_health_routes(bp, admin_required):
                 import requests as req
                 import os
 
-                standalone_url = os.getenv("STANDALONE_SYSOPS_URL", "http://192.168.1.200:8085")
+                standalone_url = os.getenv("STANDALONE_SYSOPS_URL", "https://server.kytranempowerment.com")
                 health_resp = req.get(f"{standalone_url}/dashboard/api/health", timeout=5)
                 if health_resp.status_code == 200:
                     tier_progress = health_resp.json().get("tier_progress")

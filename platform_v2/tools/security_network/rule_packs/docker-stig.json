@@ -8,7 +8,6 @@
     {
       "rule_id": "D-238001",
       "severity": "high",
-      "category": "encryption",
       "title": "Docker daemon must not listen on TCP socket without TLS",
       "description": "Exposing the Docker daemon over TCP without TLS allows remote command execution.",
       "check": {
@@ -23,7 +22,6 @@
         "risk": "high"
       },
       "soc2_mapping": [
-        "C1.1",
         "CC6.1",
         "CC6.7"
       ],
@@ -32,7 +30,6 @@
     {
       "rule_id": "D-238002",
       "severity": "high",
-      "category": "access_control",
       "title": "Docker daemon must enable user namespace remapping",
       "description": "User namespace remapping prevents container root from being host root.",
       "check": {
@@ -54,7 +51,6 @@
     {
       "rule_id": "D-238003",
       "severity": "medium",
-      "category": "services",
       "title": "Docker daemon must enable live restore",
       "description": "Live restore keeps containers running during daemon downtime, improving availability.",
       "check": {
@@ -75,7 +71,6 @@
     {
       "rule_id": "D-238004",
       "severity": "medium",
-      "category": "configuration",
       "title": "Docker daemon must configure default ulimits",
       "description": "Default ulimits prevent containers from consuming excessive system resources.",
       "check": {
@@ -96,7 +91,6 @@
     {
       "rule_id": "D-238005",
       "severity": "medium",
-      "category": "network",
       "title": "Docker daemon must use a custom bridge network",
       "description": "The default docker0 bridge has no security controls between containers.",
       "check": {
@@ -118,7 +112,6 @@
     {
       "rule_id": "D-238006",
       "severity": "high",
-      "category": "network",
       "title": "Docker daemon must disable inter-container communication by default",
       "description": "ICC allows all containers to communicate which violates least privilege.",
       "check": {
@@ -140,7 +133,6 @@
     {
       "rule_id": "D-238007",
       "severity": "medium",
-      "category": "audit_logging",
       "title": "Docker daemon must configure logging driver",
       "description": "A logging driver must be set to capture container output for auditing.",
       "check": {
@@ -154,15 +146,13 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "CC7.2",
-        "P1.2"
+        "CC7.2"
       ],
       "cci": "CCI-000169"
     },
     {
       "rule_id": "D-238008",
       "severity": "medium",
-      "category": "audit_logging",
       "title": "Docker daemon must configure log rotation",
       "description": "Without log rotation, container logs can fill the disk and cause denial of service.",
       "check": {
@@ -177,15 +167,13 @@
       },
       "soc2_mapping": [
         "CC7.1",
-        "CC7.2",
-        "P1.2"
+        "CC7.2"
       ],
       "cci": "CCI-000366"
     },
     {
       "rule_id": "D-238009",
       "severity": "medium",
-      "category": "services",
       "title": "Docker daemon must use a custom storage driver",
       "description": "The overlay2 storage driver is recommended for performance and stability.",
       "check": {
@@ -206,7 +194,6 @@
     {
       "rule_id": "D-238010",
       "severity": "high",
-      "category": "encryption",
       "title": "Docker daemon must not allow insecure registries",
       "description": "Insecure registries allow pulling images over unencrypted connections.",
       "check": {
@@ -228,7 +215,6 @@
     {
       "rule_id": "D-238011",
       "severity": "high",
-      "category": "access_control",
       "title": "Containers must not run with --privileged flag",
       "description": "Privileged containers have full access to host devices and bypass all security.",
       "check": {
@@ -243,7 +229,6 @@
         "risk": "high"
       },
       "soc2_mapping": [
-        "C1.2",
         "CC6.1",
         "CC6.3"
       ],
@@ -252,7 +237,6 @@
     {
       "rule_id": "D-238012",
       "severity": "high",
-      "category": "access_control",
       "title": "Containers must not mount the Docker socket",
       "description": "Mounting the Docker socket gives the container full control of the Docker daemon.",
       "check": {
@@ -275,7 +259,6 @@
     {
       "rule_id": "D-238013",
       "severity": "medium",
-      "category": "network",
       "title": "Containers must not use the host network namespace",
       "description": "Using host network exposes all host network interfaces to the container.",
       "check": {
@@ -297,7 +280,6 @@
     {
       "rule_id": "D-238014",
       "severity": "medium",
-      "category": "access_control",
       "title": "Containers must not use the host PID namespace",
       "description": "Sharing host PID namespace allows the container to see and signal all host processes.",
       "check": {
@@ -319,7 +301,6 @@
     {
       "rule_id": "D-238015",
       "severity": "medium",
-      "category": "access_control",
       "title": "Containers must drop all capabilities and add only needed ones",
       "description": "Default Linux capabilities are overly permissive for most workloads.",
       "check": {
@@ -342,7 +323,6 @@
     {
       "rule_id": "D-238016",
       "severity": "medium",
-      "category": "services",
       "title": "Containers must have health checks configured",
       "description": "Health checks enable automatic detection and restart of unhealthy containers.",
       "check": {
@@ -364,7 +344,6 @@
     {
       "rule_id": "D-238017",
       "severity": "medium",
-      "category": "services",
       "title": "Containers must have restart policy set",
       "description": "A restart policy ensures containers recover from failures automatically.",
       "check": {
@@ -386,7 +365,6 @@
     {
       "rule_id": "D-238018",
       "severity": "medium",
-      "category": "configuration",
       "title": "Containers must set memory limits",
       "description": "Without memory limits, a container can exhaust host memory causing denial of service.",
       "check": {
@@ -408,7 +386,6 @@
     {
       "rule_id": "D-238019",
       "severity": "medium",
-      "category": "configuration",
       "title": "Containers must set CPU limits",
       "description": "Without CPU limits, a container can starve other processes of CPU time.",
       "check": {
@@ -430,7 +407,6 @@
     {
       "rule_id": "D-238020",
       "severity": "medium",
-      "category": "filesystem",
       "title": "Containers must set read-only root filesystem where possible",
       "description": "A read-only root filesystem prevents modification of container binaries at runtime.",
       "check": {
@@ -452,7 +428,6 @@
     {
       "rule_id": "D-238021",
       "severity": "high",
-      "category": "updates",
       "title": "Docker images must not use latest tag in production",
       "description": "The latest tag is mutable and can lead to unexpected image changes in production.",
       "check": {
@@ -475,7 +450,6 @@
     {
       "rule_id": "D-238022",
       "severity": "medium",
-      "category": "encryption",
       "title": "Docker content trust must be enabled",
       "description": "Content trust ensures only signed images are pulled and run.",
       "check": {
@@ -498,7 +472,6 @@
     {
       "rule_id": "D-238023",
       "severity": "medium",
-      "category": "filesystem",
       "title": "Docker socket file permissions must be 0660",
       "description": "The Docker socket grants full daemon access and must have restrictive permissions.",
       "check": {
@@ -513,7 +486,6 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "C1.2",
         "CC6.1"
       ],
       "cci": "CCI-000366"
@@ -521,7 +493,6 @@
     {
       "rule_id": "D-238024",
       "severity": "medium",
-      "category": "filesystem",
       "title": "/etc/docker directory permissions must be 0755",
       "description": "Docker configuration directory must be protected from unauthorized modification.",
       "check": {
@@ -537,7 +508,6 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "C1.2",
         "CC6.1"
       ],
       "cci": "CCI-000366"
@@ -545,7 +515,6 @@
     {
       "rule_id": "D-238025",
       "severity": "medium",
-      "category": "filesystem",
       "title": "Docker daemon.json permissions must be 0644",
       "description": "Docker daemon configuration must not be world-writable.",
       "check": {
@@ -561,7 +530,6 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "C1.2",
         "CC6.1"
       ],
       "cci": "CCI-000366"
@@ -569,7 +537,6 @@
     {
       "rule_id": "D-238026",
       "severity": "medium",
-      "category": "services",
       "title": "Docker service must be enabled and running",
       "description": "Docker service must be active for container orchestration.",
       "check": {
@@ -592,7 +559,6 @@
     {
       "rule_id": "D-238027",
       "severity": "medium",
-      "category": "access_control",
       "title": "Docker must not store secrets in environment variables",
       "description": "Environment variables are visible in docker inspect output and process listings.",
       "check": {
@@ -607,7 +573,6 @@
         "risk": "medium"
       },
       "soc2_mapping": [
-        "C1.1",
         "CC6.1",
         "CC6.7"
       ],
@@ -616,7 +581,6 @@
     {
       "rule_id": "D-238028",
       "severity": "medium",
-      "category": "services",
       "title": "No dangling or unused images should exist",
       "description": "Dangling images waste disk space and may contain outdated vulnerable software.",
       "check": {
@@ -638,7 +602,6 @@
     {
       "rule_id": "D-238029",
       "severity": "medium",
-      "category": "configuration",
       "title": "Docker daemon must limit container PIDs",
       "description": "PID limits prevent fork bombs inside containers from exhausting host PIDs.",
       "check": {
@@ -659,7 +622,6 @@
     {
       "rule_id": "D-238030",
       "severity": "high",
-      "category": "configuration",
       "title": "Docker daemon must enable seccomp profiles",
       "description": "Seccomp restricts the system calls available to containers, reducing kernel attack surface.",
       "check": {

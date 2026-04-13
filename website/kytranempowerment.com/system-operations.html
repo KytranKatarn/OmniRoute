@@ -225,46 +225,62 @@
 
 
     <main data-barba="container" data-barba-namespace="system-operations">
-      <div class="watch-page" style="--watch-accent: #ef4444">
+      <div class="watch-page" style="--watch-accent: #10b981">
 
         <section class="watch-hero">
             <span class="watch-hero__badge">Infrastructure</span>
             <h1 class="watch-hero__title">System Operations</h1>
-            <p class="watch-hero__subtitle">Server monitoring, Docker management, compliance scanning, and firewall control. Your entire infrastructure in one dashboard.</p>
+            <p class="watch-hero__subtitle">Your server, under control — from anywhere. KSO gives you a single dashboard to monitor system health, manage containers, enforce security policies, and prove compliance. No SSH required.</p>
         </section>
 
         <section class="watch-features">
-            <h2 class="watch-features__heading">Features</h2>
+            <h2 class="watch-features__heading">One Dashboard. Full Visibility.</h2>
+            <p style="text-align:center; color: var(--text-secondary, #9ca3af); margin-bottom: 2rem; font-size: 0.95rem;">Nine purpose-built modules that replace dozens of CLI tools with a clean, real-time interface.</p>
             <div class="watch-features__grid">
                 <div class="watch-feature">
                     <div class="watch-feature__icon">&#9881;</div>
-                    <h3 class="watch-feature__title">Server Monitoring</h3>
-                    <p class="watch-feature__text">Real-time CPU, memory, disk, and network metrics. Alerts when thresholds are breached. Multi-server support.</p>
+                    <h3 class="watch-feature__title">System Overview</h3>
+                    <p class="watch-feature__text">Live CPU, memory, disk, and network utilization in one view. Spot bottlenecks instantly without juggling terminal windows.</p>
                 </div>
                 <div class="watch-feature">
                     <div class="watch-feature__icon">&#9635;</div>
-                    <h3 class="watch-feature__title">Docker Management</h3>
-                    <p class="watch-feature__text">Start, stop, restart, and monitor containers from a web dashboard. View logs, resource usage, and compose configurations.</p>
-                </div>
-                <div class="watch-feature">
-                    <div class="watch-feature__icon">&#9670;</div>
-                    <h3 class="watch-feature__title">Compliance Scanning</h3>
-                    <p class="watch-feature__text">Automated STIG, HIPAA, SOC 2, and CIS scanning across your infrastructure. JSON-driven rule packs with one-click remediation.</p>
+                    <h3 class="watch-feature__title">Storage Management</h3>
+                    <p class="watch-feature__text">Visualize disk usage across all volumes and partitions. Track SMART health, mount points, and get alerts before you run out of space.</p>
                 </div>
                 <div class="watch-feature">
                     <div class="watch-feature__icon">&#9889;</div>
-                    <h3 class="watch-feature__title">Firewall Control</h3>
-                    <p class="watch-feature__text">Manage UFW rules, view active connections, and configure port access — all from the browser. No SSH required.</p>
+                    <h3 class="watch-feature__title">Process Control</h3>
+                    <p class="watch-feature__text">See every running process sorted by resource consumption. Kill runaway tasks, restart services, and manage systemd units with one click.</p>
+                </div>
+                <div class="watch-feature">
+                    <div class="watch-feature__icon">&#9898;</div>
+                    <h3 class="watch-feature__title">Docker Management</h3>
+                    <p class="watch-feature__text">Start, stop, restart, and inspect containers without touching the CLI. View logs, manage stacks, and monitor resource limits per container.</p>
                 </div>
                 <div class="watch-feature">
                     <div class="watch-feature__icon">&#9672;</div>
-                    <h3 class="watch-feature__title">SSL &amp; DNS Management</h3>
-                    <p class="watch-feature__text">Monitor certificate expiry, manage DNS records, and configure reverse proxy routes. Stay secure without the complexity.</p>
+                    <h3 class="watch-feature__title">Network Intelligence</h3>
+                    <p class="watch-feature__text">Active connections, bandwidth usage, port mapping, and routing tables. Know exactly what's talking to your server and where traffic flows.</p>
                 </div>
                 <div class="watch-feature">
-                    <div class="watch-feature__icon">&#9201;</div>
-                    <h3 class="watch-feature__title">Backup &amp; Recovery</h3>
-                    <p class="watch-feature__text">Scheduled database and filesystem backups with one-click restore. External storage sync for disaster recovery.</p>
+                    <div class="watch-feature__icon">&#128737;</div>
+                    <h3 class="watch-feature__title">Firewall Control</h3>
+                    <p class="watch-feature__text">Manage UFW rules visually — allow, deny, and rate-limit with precision. See active rules at a glance and lock down access in seconds.</p>
+                </div>
+                <div class="watch-feature">
+                    <div class="watch-feature__icon">&#127760;</div>
+                    <h3 class="watch-feature__title">Reverse Proxy</h3>
+                    <p class="watch-feature__text">Configure Nginx Proxy Manager hosts, SSL certificates, and routing rules. Map subdomains to services without editing config files.</p>
+                </div>
+                <div class="watch-feature">
+                    <div class="watch-feature__icon">&#128230;</div>
+                    <h3 class="watch-feature__title">App Catalog</h3>
+                    <p class="watch-feature__text">Browse and deploy pre-configured applications with one click. Automatic Docker stack setup, health monitoring, and updates built in.</p>
+                </div>
+                <div class="watch-feature">
+                    <div class="watch-feature__icon">&#9670;</div>
+                    <h3 class="watch-feature__title">Compliance Scanner</h3>
+                    <p class="watch-feature__text">Automated security audits against STIG, CIS, HIPAA, and SOC 2 frameworks. Get actionable findings with one-click remediation and PDF reports.</p>
                 </div>
             </div>
         </section>
@@ -272,18 +288,78 @@
         <section class="watch-demo">
             <div class="watch-demo__panel">
                 <h2 class="watch-demo__heading">See It In Action</h2>
-                <p class="watch-demo__text">System Operations is available as an open-source self-hosted tool, or managed as part of Professional+ memberships.</p>
-                <a href="contact.html" class="watch-demo__link">Request a Demo</a>
+                <p class="watch-demo__text">One dashboard replaces dozens of CLI tools. Monitor, manage, and secure your entire infrastructure from any browser.</p>
+                <img src="assets/kso-dashboard-preview.png" alt="KSO Dashboard — live server monitoring" style="max-width: 100%; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 20px 60px rgba(0,0,0,0.5); margin: 1.5rem 0;">
+                <a href="https://server.kytranempowerment.com" class="watch-demo__link">Try It Now</a>
             </div>
         </section>
 
+        <!-- How It Works -->
+        <section class="watch-features" style="border-top: 1px solid rgba(255,255,255,0.06);">
+            <h2 class="watch-features__heading">Up and Running in Minutes</h2>
+            <p style="text-align:center; color: var(--text-secondary, #9ca3af); margin-bottom: 2rem; font-size: 0.95rem;">Deploy KSO on any Linux server with Docker. No agents, no dependencies, no complexity.</p>
+            <div class="watch-features__grid" style="max-width: 900px; margin: 0 auto;">
+                <div class="watch-feature">
+                    <div class="watch-feature__icon" style="font-size: 2rem; color: var(--watch-accent);">1</div>
+                    <h3 class="watch-feature__title">Install</h3>
+                    <p class="watch-feature__text">Pull the Docker image and run <code>docker compose up</code>. KSO auto-discovers your system hardware, containers, and network configuration.</p>
+                </div>
+                <div class="watch-feature">
+                    <div class="watch-feature__icon" style="font-size: 2rem; color: var(--watch-accent);">2</div>
+                    <h3 class="watch-feature__title">Connect</h3>
+                    <p class="watch-feature__text">Open your browser and log in. Optionally link your Kytran Empowerment account for SSO, subscription management, and AI features.</p>
+                </div>
+                <div class="watch-feature">
+                    <div class="watch-feature__icon" style="font-size: 2rem; color: var(--watch-accent);">3</div>
+                    <h3 class="watch-feature__title">Manage</h3>
+                    <p class="watch-feature__text">Monitor health, control containers, enforce firewall rules, and run compliance scans — all from one interface. No SSH required.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Compliance Badges -->
+        <section class="watch-features" style="border-top: 1px solid rgba(255,255,255,0.06);">
+            <h2 class="watch-features__heading">Built-In Compliance Scanning</h2>
+            <p style="text-align:center; color: var(--text-secondary, #9ca3af); margin-bottom: 2rem; font-size: 0.95rem;">Automated security audits against industry-standard frameworks. Know your posture in seconds.</p>
+            <div class="watch-features__grid" style="max-width: 900px; margin: 0 auto;">
+                <div class="watch-feature">
+                    <div class="watch-feature__icon">&#128737;</div>
+                    <h3 class="watch-feature__title">Ubuntu STIG</h3>
+                    <p class="watch-feature__text">51 security rules</p>
+                </div>
+                <div class="watch-feature">
+                    <div class="watch-feature__icon">&#128737;</div>
+                    <h3 class="watch-feature__title">Docker STIG</h3>
+                    <p class="watch-feature__text">30 container rules</p>
+                </div>
+                <div class="watch-feature">
+                    <div class="watch-feature__icon">&#128737;</div>
+                    <h3 class="watch-feature__title">HIPAA</h3>
+                    <p class="watch-feature__text">30 healthcare rules</p>
+                </div>
+                <div class="watch-feature">
+                    <div class="watch-feature__icon">&#128737;</div>
+                    <h3 class="watch-feature__title">Network STIG</h3>
+                    <p class="watch-feature__text">27 network rules</p>
+                </div>
+                <div class="watch-feature">
+                    <div class="watch-feature__icon">&#128737;</div>
+                    <h3 class="watch-feature__title">CIS Ubuntu</h3>
+                    <p class="watch-feature__text">40 benchmark rules</p>
+                </div>
+            </div>
+            <p style="text-align:center; color: var(--text-muted, #6b7280); font-size: 0.85rem; margin-top: 1.5rem;">178 total rules across 5 frameworks. Scans run automatically every 6 hours with one-click remediation and PDF export.</p>
+        </section>
+
         <section class="watch-pricing">
-            <p class="watch-pricing__text">Open-source core available on GitHub. Premium compliance features included with Professional+ tiers.</p>
+            <p class="watch-pricing__text" style="margin-bottom: 0.5rem;">Open-source core available on GitHub — download, install, and run the free version on your own server in minutes.</p>
+            <p class="watch-pricing__text">Unlock all 9 tabs, 5 themes, full compliance scanning, and AI-powered management with a standalone subscription or a Kytran Empowerment membership.</p>
         </section>
 
         <div class="watch-cta">
-            <a href="contact.html" class="watch-cta__primary">Request Access</a>
-            <a href="membership.html" class="watch-cta__secondary">See Plans</a>
+            <a href="https://github.com/KytranKatarn/kytran-system-operations" class="watch-cta__primary">Download from GitHub</a>
+            <a href="https://server.kytranempowerment.com" class="watch-cta__secondary">Try Live Demo</a>
+            <a href="membership.html" class="watch-cta__secondary">See Membership Plans</a>
         </div>
 
       </div>

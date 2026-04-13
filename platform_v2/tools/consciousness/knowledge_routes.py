@@ -575,8 +575,7 @@ def register_knowledge_routes(bp, admin_required):
     def ingest_all_docs():
         """DEPRECATED: Docs now live in knowledge_base table via docs_migration.py.
 
-        Use Mission Control's Knowledge Base tab or run:
-          docker exec archie_platform python3 /app/tools/blueprint/docs_migration.py
+        Use Dev HQ Knowledge tab or MCP search_knowledge instead.
 
         This endpoint returns a deprecation notice and points to the knowledge_base table.
         """
@@ -590,9 +589,8 @@ def register_knowledge_routes(bp, admin_required):
                     "success": True,
                     "deprecated": True,
                     "message": "This endpoint is deprecated. Docs are now stored in the knowledge_base table.",
-                    "migration_command": "docker exec archie_platform python3 /app/tools/blueprint/docs_migration.py",
                     "knowledge_base_entries": kb_count,
-                    "dashboard": "/tools/blueprint (Mission Control > Knowledge Base tab)",
+                    "dashboard": "/dev-hq (Dev HQ > Knowledge tab)",
                 }
             )
         except Exception as e:

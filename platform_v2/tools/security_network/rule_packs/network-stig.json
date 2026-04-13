@@ -8,7 +8,6 @@
     {
       "rule_id": "N-238001",
       "severity": "high",
-      "category": "network",
       "title": "UFW must be active with default deny incoming",
       "description": "A default deny policy ensures only explicitly allowed traffic is permitted.",
       "check": {
@@ -31,7 +30,6 @@
     {
       "rule_id": "N-238002",
       "severity": "medium",
-      "category": "network",
       "title": "UFW must allow SSH (port 22)",
       "description": "SSH access must be allowed for remote management.",
       "check": {
@@ -53,7 +51,6 @@
     {
       "rule_id": "N-238003",
       "severity": "medium",
-      "category": "network",
       "title": "HTTP port (80) must be accessible for web services",
       "description": "HTTP traffic should be explicitly allowed if a web server is running.",
       "check": {
@@ -75,7 +72,6 @@
     {
       "rule_id": "N-238004",
       "severity": "medium",
-      "category": "encryption",
       "title": "HTTPS port (443) must be accessible for encrypted web services",
       "description": "HTTPS traffic must be explicitly allowed for encrypted web services.",
       "check": {
@@ -90,7 +86,6 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "C1.1",
         "CC6.6",
         "CC6.7"
       ],
@@ -99,7 +94,6 @@
     {
       "rule_id": "N-238005",
       "severity": "high",
-      "category": "network",
       "title": "Telnet port (23) must not be open",
       "description": "Telnet transmits credentials in cleartext and must be blocked.",
       "check": {
@@ -121,7 +115,6 @@
     {
       "rule_id": "N-238006",
       "severity": "high",
-      "category": "network",
       "title": "FTP port (21) must not be open",
       "description": "FTP transmits credentials in cleartext and should be replaced with SFTP.",
       "check": {
@@ -143,7 +136,6 @@
     {
       "rule_id": "N-238007",
       "severity": "medium",
-      "category": "network",
       "title": "SNMP v1/v2c port (161) must not be externally accessible",
       "description": "SNMP v1/v2c use community strings in cleartext and should not be exposed.",
       "check": {
@@ -165,7 +157,6 @@
     {
       "rule_id": "N-238008",
       "severity": "high",
-      "category": "network",
       "title": "RDP port (3389) must not be open on Linux",
       "description": "RDP is not standard on Linux and if present may indicate unauthorized remote access software.",
       "check": {
@@ -186,7 +177,6 @@
     {
       "rule_id": "N-238009",
       "severity": "medium",
-      "category": "network",
       "title": "NetBIOS ports (137-139) must not be listening",
       "description": "NetBIOS services expose system information and are common attack vectors.",
       "check": {
@@ -208,7 +198,6 @@
     {
       "rule_id": "N-238010",
       "severity": "medium",
-      "category": "network",
       "title": "SMB port (445) must not be externally accessible",
       "description": "SMB has a history of critical vulnerabilities and should not be exposed to untrusted networks.",
       "check": {
@@ -230,7 +219,6 @@
     {
       "rule_id": "N-238011",
       "severity": "medium",
-      "category": "audit_logging",
       "title": "UFW logging must be enabled",
       "description": "Firewall logging is essential for detecting and investigating security events.",
       "check": {
@@ -246,15 +234,13 @@
       },
       "soc2_mapping": [
         "CC6.6",
-        "CC7.2",
-        "P1.2"
+        "CC7.2"
       ],
       "cci": "CCI-000366"
     },
     {
       "rule_id": "N-238012",
       "severity": "medium",
-      "category": "network",
       "title": "Only approved services should be listening on public interfaces",
       "description": "Unauthorized listening services increase the attack surface.",
       "check": {
@@ -277,7 +263,6 @@
     {
       "rule_id": "N-238013",
       "severity": "medium",
-      "category": "network",
       "title": "IPv6 must be disabled if not required",
       "description": "If IPv6 is not used, it should be disabled to reduce attack surface. Container network namespaces may show different values than the host.",
       "check": {
@@ -300,7 +285,6 @@
     {
       "rule_id": "N-238014",
       "severity": "medium",
-      "category": "network",
       "title": "TCP keepalive must be configured",
       "description": "Proper TCP keepalive settings prevent stale connections from consuming resources. Default 7200 is acceptable.",
       "check": {
@@ -316,15 +300,13 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "CC7.1",
-        "P1.1"
+        "CC7.1"
       ],
       "cci": "CCI-000366"
     },
     {
       "rule_id": "N-238015",
       "severity": "medium",
-      "category": "network",
       "title": "Reverse path filtering must be enabled",
       "description": "Reverse path filtering prevents IP spoofing by validating source addresses.",
       "check": {
@@ -346,7 +328,6 @@
     {
       "rule_id": "N-238016",
       "severity": "medium",
-      "category": "network",
       "title": "UFW must have rate limiting on SSH",
       "description": "Rate limiting SSH connections helps prevent brute force attacks.",
       "check": {
@@ -368,7 +349,6 @@
     {
       "rule_id": "N-238020",
       "severity": "high",
-      "category": "encryption",
       "title": "SSL/TLS must use TLS 1.2 or higher",
       "description": "TLS versions below 1.2 have known vulnerabilities and must be disabled.",
       "check": {
@@ -383,7 +363,6 @@
         "risk": "medium"
       },
       "soc2_mapping": [
-        "C1.1",
         "CC6.1",
         "CC6.7"
       ],
@@ -392,7 +371,6 @@
     {
       "rule_id": "N-238021",
       "severity": "high",
-      "category": "encryption",
       "title": "SSL/TLS must not use SSLv3",
       "description": "SSLv3 is vulnerable to the POODLE attack and must be disabled.",
       "check": {
@@ -407,7 +385,6 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "C1.1",
         "CC6.1",
         "CC6.7"
       ],
@@ -416,7 +393,6 @@
     {
       "rule_id": "N-238022",
       "severity": "medium",
-      "category": "encryption",
       "title": "SSL certificates must not be expired",
       "description": "Expired certificates cause service disruptions and indicate poor security hygiene.",
       "check": {
@@ -431,17 +407,14 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "C1.1",
         "CC6.1",
-        "CC6.7",
-        "P1.1"
+        "CC6.7"
       ],
       "cci": "CCI-000366"
     },
     {
       "rule_id": "N-238023",
       "severity": "medium",
-      "category": "encryption",
       "title": "SSL certificates must have at least 30 days before expiry",
       "description": "Certificates expiring within 30 days need immediate renewal attention.",
       "check": {
@@ -456,17 +429,14 @@
         "risk": "low"
       },
       "soc2_mapping": [
-        "C1.1",
         "CC6.1",
-        "CC6.7",
-        "P1.1"
+        "CC6.7"
       ],
       "cci": "CCI-000366"
     },
     {
       "rule_id": "N-238024",
       "severity": "high",
-      "category": "encryption",
       "title": "SSL must use strong cipher suites only",
       "description": "Weak cipher suites can be exploited to decrypt intercepted communications.",
       "check": {
@@ -481,7 +451,6 @@
         "risk": "medium"
       },
       "soc2_mapping": [
-        "C1.1",
         "CC6.1",
         "CC6.7"
       ],
@@ -490,7 +459,6 @@
     {
       "rule_id": "N-238025",
       "severity": "medium",
-      "category": "encryption",
       "title": "HSTS header must be configured for web services",
       "description": "HTTP Strict Transport Security prevents protocol downgrade attacks. Checked via reverse proxy config.",
       "check": {
@@ -512,7 +480,6 @@
     {
       "rule_id": "N-238026",
       "severity": "medium",
-      "category": "network",
       "title": "DNS must use secure resolvers",
       "description": "DNS queries should use encrypted DNS (DoH/DoT) or trusted resolvers.",
       "check": {
@@ -534,7 +501,6 @@
     {
       "rule_id": "N-238027",
       "severity": "medium",
-      "category": "network",
       "title": "ARP spoofing protection must be configured",
       "description": "Static ARP entries for critical hosts prevent ARP spoofing attacks on the local network. Inside containers, ARP is managed by the Docker network driver.",
       "check": {
@@ -556,7 +522,6 @@
     {
       "rule_id": "N-238028",
       "severity": "medium",
-      "category": "network",
       "title": "Network interfaces must not be in promiscuous mode",
       "description": "Promiscuous mode allows capturing all network traffic, indicating possible packet sniffing.",
       "check": {
@@ -578,7 +543,6 @@
     {
       "rule_id": "N-238029",
       "severity": "medium",
-      "category": "network",
       "title": "TCP timestamps must be enabled",
       "description": "TCP timestamps help protect against wrapped sequence numbers and improve RTT estimation.",
       "check": {
@@ -600,7 +564,6 @@
     {
       "rule_id": "N-238030",
       "severity": "high",
-      "category": "network",
       "title": "Database port (5432) must only listen on localhost or private network",
       "description": "PostgreSQL should not be exposed to public networks to prevent unauthorized access.",
       "check": {
@@ -630,7 +593,7 @@
     ],
     "threshold_percent": 80,
     "threshold_label": "80% minimum for network security baseline",
-    "why": "Network misconfigurations (open ports, weak TLS, missing firewall rules) are the most common attack vector. These checks ensure defense-in-depth at the network layer — the first line of defense before any application security matters.",
+    "why": "Network misconfigurations (open ports, weak TLS, missing firewall rules) are the most common attack vector. These checks ensure defense-in-depth at the network layer \u2014 the first line of defense before any application security matters.",
     "certification": "Network Security STIG / CIS Network Controls",
     "penalty": "Unauthorized access, data breaches, failed penetration tests, PCI DSS non-compliance"
   }

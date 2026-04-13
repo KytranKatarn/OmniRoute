@@ -62,6 +62,34 @@ def userinfo():
             "news-watch",
         ]
 
+    # Build per-product tier map from billing_subscriptions
+    # Maps stripe_price_id patterns to tiers; admins get staff (Kytran internal)
+    product_tiers = {}
+    if user["role"] == "admin":
+        for product in entitlements:
+            product_tiers[product] = "staff"
+    else:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT module, stripe_price_id FROM billing_subscriptions
+                   WHERE user_id = %s AND status IN ('active', 'trialing')""",
+                (user_id,),
+            )
+            for row in cur.fetchall():
+                module = row.get("module", "")
+                price_id = row.get("stripe_price_id", "")
+                # Determine tier from price_id suffix convention: _pro, _business, _enterprise
+                if "enterprise" in price_id.lower():
+                    product_tiers[module] = "enterprise"
+                elif "business" in price_id.lower():
+                    product_tiers[module] = "business"
+                else:
+                    product_tiers[module] = "pro"
+        # Any entitled product without a subscription row defaults to free
+        for product in entitlements:
+            if product not in product_tiers:
+                product_tiers[product] = "free"
+
     stripe_customer_id = None
     with get_db_cursor() as (conn, cur):
         cur.execute(
@@ -80,6 +108,7 @@ def userinfo():
             "name": user["username"],
             "role": user["role"],
             "entitlements": entitlements,
+            "product_tiers": product_tiers,
             "stripe_customer_id": stripe_customer_id,
         }
     )

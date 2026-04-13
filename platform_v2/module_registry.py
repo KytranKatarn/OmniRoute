@@ -38,9 +38,9 @@ class ModuleCategory(Enum):
 
     # New category structure from consolidation plan (2026-02-03)
     ADMIN_OPERATIONS = "admin_operations"  # backup_manager, security_network, account_center, system_ops
-    AI_COMMAND = "ai_command"  # blueprint, consciousness, team_management, bridge, repair_bay
+    AI_COMMAND = "ai_command"  # consciousness, team_management, bridge, repair_bay
     SAAS_SERVICES = "saas_services"  # crm, website_studio, store_builder, call_center, etc.
-    PROJECT_KNOWLEDGE = "project_knowledge"  # project_manager, obsidian_vault, api_docs
+    PROJECT_KNOWLEDGE = "project_knowledge"  # project_manager, api_docs
     MEDIA_HOME = "media_home"  # media_hub
     CRYPTO = "crypto"  # archie_pool, pool_management
     APPLICATIONS = "applications"  # fitness, therapy, doc, stockbot (Android/web apps)
@@ -272,66 +272,6 @@ def archie_chat_health_check() -> Dict:
         }
 
 
-def obsidian_vault_health_check() -> Dict:
-    """Health check for Obsidian vault"""
-    try:
-        vault_path = "/mnt/archie_brain/knowledge/"
-        vault_exists = os.path.exists(vault_path)
-
-        if not vault_exists:
-            return {
-                "healthy": False,
-                "module_id": "obsidian_vault",
-                "message": "Vault directory not found",
-                "status": "unhealthy",
-            }
-
-        # Check watcher status
-        try:
-            from tools.consciousness.services.obsidian_vault_watcher import get_watcher_status
-
-            watcher_status = get_watcher_status()
-            watcher_running = watcher_status.get("running", False)
-        except Exception:
-            watcher_running = False
-
-        # Count indexed notes
-        try:
-            from database import get_db
-
-            conn = get_db()
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM knowledge_base WHERE is_documentation = TRUE")
-            note_count = cursor.fetchone()[0]
-            cursor.close()
-            conn.close()
-        except Exception:
-            note_count = 0
-
-        healthy = vault_exists and watcher_running
-
-        return {
-            "healthy": healthy,
-            "module_id": "obsidian_vault",
-            "message": f"Vault operational: {note_count} notes indexed",
-            "status": "healthy" if healthy else "degraded",
-            "details": {
-                "vault_path": vault_path,
-                "vault_exists": vault_exists,
-                "watcher_running": watcher_running,
-                "note_count": note_count,
-            },
-        }
-
-    except Exception as e:
-        return {
-            "healthy": False,
-            "module_id": "obsidian_vault",
-            "message": f"Vault error: {str(e)}",
-            "status": "error",
-        }
-
-
 # ============================================================================
 # MODULE REGISTRY - Reorganized 2026-02-03
 # Categories: Admin Operations, AI Command, Development Tools, SaaS Services,
@@ -388,30 +328,23 @@ MODULES: List[ModuleDefinition] = [
         priority=3,
         tags=["accounts", "users", "permissions", "subscriptions", "admin-operations"],
     ),
+    # RETIRED: System Operations migrated to Kytran System Operations standalone (:8085)
+    # See standalone launcher at id="kytran_system_ops" below
     ModuleDefinition(
         id="system_operations",
         name="System Operations",
-        description="Host machine administration<br>CPU • RAM • Disk • Processes • Docker • Network",
+        description="Migrated to Kytran System Operations standalone",
         icon="server",
         category=ModuleCategory.ADMIN_OPERATIONS,
         route="/tools/system-operations",
         blueprint_import="tools.system_operations.routes:system_operations_bp",
         required_permissions=["admin:system"],
         minimum_role="ADMIN",
-        enabled=True,
+        enabled=False,
         coming_soon=False,
         health_check=lambda: check_service_health("system_operations", "/tools/system-operations/health"),
-        priority=4,
-        tags=[
-            "system",
-            "monitoring",
-            "admin",
-            "docker",
-            "processes",
-            "network",
-            "host",
-            "admin-operations",
-        ],
+        priority=99,
+        tags=["retired"],
     ),
     ModuleDefinition(
         id="saas_manager",
@@ -431,29 +364,12 @@ MODULES: List[ModuleDefinition] = [
         version="1.0",
     ),
     # ============================================
-    # AI COMMAND (3 modules)
+    # AI COMMAND (1 module)
     # ============================================
-    # consciousness, team_management, fleet (A.R.M.A.D.A.)
-    # NOTE: blueprint (Mission Control) removed from grid 2026-02-04
-    # Blueprint Flask routes still registered manually in app.py for Dev HQ API access
+    # consciousness
+    # NOTE: team_management removed (Decision #431) — C.R.E.E.D. admin moved to tools/creed/
+    # NOTE: blueprint removed (Decision #431) — intelligence moved to consciousness
     # NOTE: Starbase + Starship → A.R.M.A.D.A. → fully merged into Department HQ (2026-04-08)
-    # Fleet/node/mesh/OTA routes now registered on department_hq_bp
-    # Old /tools/fleet/* URLs redirect via app.py compat redirects
-    ModuleDefinition(
-        id="team_management",
-        name="Team Management",
-        description="[Deprecated] Internal API only — use Department HQ. Routes delegate to agent_service.",
-        icon="users-round",
-        category=ModuleCategory.AI_COMMAND,
-        route="/tools/team-management",
-        blueprint_import="tools.team_management.routes:team_management_bp",
-        required_permissions=["admin:access"],
-        minimum_role="ADMIN",
-        enabled=False,
-        health_check=lambda: default_health_check("team_management"),
-        priority=3,
-        tags=["team", "agents", "management", "execution", "hr", "creed", "ai-command", "internal", "deprecated"],
-    ),
     ModuleDefinition(
         id="department_hq",
         name="Department HQ",
@@ -607,9 +523,9 @@ MODULES: List[ModuleDefinition] = [
         tags=["social", "marketing", "scheduling", "business", "saas-services"],
     ),
     # ============================================
-    # PROJECT & KNOWLEDGE (3 modules)
+    # PROJECT & KNOWLEDGE (1 module)
     # ============================================
-    # project_manager, obsidian_vault, api_docs
+    # project_manager (api_docs placeholder)
     ModuleDefinition(
         id="project_manager",
         name="Project Manager",
@@ -635,8 +551,8 @@ MODULES: List[ModuleDefinition] = [
             "project-knowledge",
         ],
     ),
-    # NOTE: obsidian_vault functionality merged into Consciousness module
-    # The knowledge_vault_indexer and watcher are still active for backend indexing
+    # NOTE: obsidian_vault removed (Decision #431) — functionality in Consciousness.
+    # Wikilink graph concept salvaged as Task #1806.
     # NOTE: api_docs placeholder - could be implemented as OpenAPI/Swagger docs viewer
     # ============================================
     # MEDIA & HOME (1 module)
@@ -945,13 +861,13 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="kytran_system_ops",
         name="Kytran System Operations",
-        description="Server management, compliance scanning, and security hardening",
+        description="Server management dashboard<br>CPU • RAM • Disk • Docker • Network • Firewall • Compliance",
         icon="server",
         category=ModuleCategory.ADMIN_OPERATIONS,
         route="/external/kso",
         external_url="https://server.kytranempowerment.com",
         priority=1,
-        tags=["standalone", "product"],
+        tags=["standalone", "product", "admin-operations"],
     ),
     ModuleDefinition(
         id="kytran_business_suite",

@@ -89,12 +89,6 @@ class Permission(Enum):
     # FIGMA_IMPORT = "figma:import"
     ANALYTICS_VIEW = "analytics:view"
 
-    # Obsidian Vault permissions
-    OBSIDIAN_READ = "obsidian:read"
-    OBSIDIAN_WRITE = "obsidian:write"
-    OBSIDIAN_DELETE = "obsidian:delete"
-    OBSIDIAN_ADMIN = "obsidian:admin"
-
     # Admin permissions
     ADMIN_ACCESS = "admin:access"
     ADMIN_AGENTS = "admin:agents"
@@ -151,8 +145,6 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.GOOGLE_EMAIL,
         Permission.GOOGLE_CONTACTS,
         Permission.GOOGLE_CALENDAR,
-        # Obsidian Vault (read-only for free users)
-        Permission.OBSIDIAN_READ,
     },
     Role.PREMIUM: {
         # Inherit USER
@@ -169,7 +161,6 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.GOOGLE_EMAIL,
         Permission.GOOGLE_CONTACTS,
         Permission.GOOGLE_CALENDAR,
-        Permission.OBSIDIAN_READ,
         # PREMIUM specific
         Permission.APP_BUILDER_DEPLOY,
         Permission.APP_BUILDER_UNLIMITED,  # Unlimited projects
@@ -180,7 +171,6 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         # DEPRECATED 2026-02-03: Not needed
         # Permission.FIGMA_IMPORT,
         Permission.ANALYTICS_VIEW,
-        Permission.OBSIDIAN_WRITE,  # Create/edit notes
     },
     Role.ADMIN: {
         # Inherit PREMIUM
@@ -209,8 +199,6 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.GOOGLE_EMAIL,
         Permission.GOOGLE_CONTACTS,
         Permission.GOOGLE_CALENDAR,
-        Permission.OBSIDIAN_READ,
-        Permission.OBSIDIAN_WRITE,
         # ADMIN specific
         Permission.ADMIN_ACCESS,
         Permission.ADMIN_AGENTS,
@@ -228,8 +216,6 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.AUTONOMY_MANAGE,  # Project Autonomy: Agent Loop
         Permission.READ_ALL,
         Permission.WRITE_ALL,
-        Permission.OBSIDIAN_DELETE,  # Delete notes
-        Permission.OBSIDIAN_ADMIN,  # Re-indexing, migration
     },
     Role.SUPER_ADMIN: set(Permission),  # All permissions
 }

@@ -17,6 +17,16 @@ logger = logging.getLogger(__name__)
 def register_compliance_routes(bp, admin_required_decorator):
     """Register all compliance endpoints on the security_network blueprint."""
 
+    @bp.route("/api/compliance/rule-packs", methods=["GET"])
+    def compliance_rule_packs():
+        """Serve rule packs — public API for standalone products (KSO)."""
+        try:
+            packs = compliance_service.get_all_rule_packs()
+            return jsonify({"success": True, "packs": packs})
+        except Exception as exc:
+            logger.error("Failed to get rule packs: %s", exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
     @bp.route("/api/compliance/scan", methods=["POST"])
     @login_required
     @admin_required_decorator

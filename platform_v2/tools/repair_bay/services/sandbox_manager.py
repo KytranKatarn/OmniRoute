@@ -1080,7 +1080,6 @@ class SandboxManager:
             "tools/improvements/": "improvements",
             "tools/consciousness/": "consciousness",
             "tools/admin/": "admin",
-            "tools/blueprint/": "admin",
             "tools/backup_manager/": "admin",
             "tools/sandbox_manager/": "admin",
             "ai_bridge/": "ai_bridge",

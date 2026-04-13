@@ -1,7 +1,5 @@
 """Directory module helpers — name derivation, email generation, status mapping."""
 
-import time
-
 
 def derive_full_name(agent):
     """Get display name with fallback chain."""
@@ -43,35 +41,3 @@ def map_agent_status(crew_member):
     if on_shift:
         return {"status": "Standby", "is_online": True, "chat_available": False}
     return {"status": "Off Duty", "is_online": False, "chat_available": False}
-
-
-class RateLimiter:
-    """Simple in-memory rate limiter for chat endpoints."""
-
-    def __init__(self, per_user_limit=10, global_limit=50, window=60):
-        self.per_user_limit = per_user_limit
-        self.global_limit = global_limit
-        self.window = window
-        self.user_counts = {}
-        self.global_count = 0
-        self.global_window_start = time.time()
-
-    def check(self, user_id):
-        """Check if request is allowed. Returns (allowed, error_message)."""
-        now = time.time()
-        if now - self.global_window_start > self.window:
-            self.global_count = 0
-            self.global_window_start = now
-        user_data = self.user_counts.get(user_id, (0, now))
-        if now - user_data[1] > self.window:
-            user_data = (0, now)
-        if self.global_count >= self.global_limit:
-            return False, "Chat system is busy. Please wait a moment."
-        if user_data[0] >= self.per_user_limit:
-            return False, "Please wait before sending another message."
-        self.global_count += 1
-        self.user_counts[user_id] = (user_data[0] + 1, user_data[1])
-        return True, None
-
-
-chat_rate_limiter = RateLimiter()

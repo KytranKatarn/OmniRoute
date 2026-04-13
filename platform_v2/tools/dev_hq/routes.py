@@ -12,9 +12,9 @@ from database import get_db_connection
 from tools.consciousness.services import knowledge_service
 from . import dev_hq_bp
 
-# DB Schema and API Docs - reuse Blueprint intelligence functions
+# DB Schema and API Docs — from Consciousness platform intelligence
 try:
-    from tools.blueprint.blueprint_intelligence import (
+    from tools.consciousness.services.platform_intelligence import (
         get_database_schema,
         get_api_endpoints,
     )

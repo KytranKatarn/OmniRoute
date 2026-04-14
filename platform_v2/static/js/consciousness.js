@@ -4372,21 +4372,26 @@ function _renderAuditTable(entries) {
     return;
   }
 
-  // Count unique audited modules (excluding PATTERN_COMPLIANCE meta-audits)
-  var auditedSet = {};
-  var cleanSet = {};
+  // Track latest audit entry per module (entries come sorted desc by date)
   var latestPerModule = {};
   entries.forEach(function(e) {
     if (e.module_name !== "PATTERN_COMPLIANCE") {
-      auditedSet[e.module_name] = true;
-      if (e.status === "completed") cleanSet[e.module_name] = true;
-      // Track latest entry per module (entries come sorted desc)
       if (!latestPerModule[e.module_name]) latestPerModule[e.module_name] = e;
     }
   });
-  var auditedCount = Object.keys(auditedSet).length;
-  var cleanCount = Object.keys(cleanSet).length;
-  var totalModules = Object.keys(window._chDisplayNames || {}).length || auditedCount;
+
+  // Count from latest-per-module only, filtered to current snapshot modules
+  var currentModules = _chModuleData ? Object.keys(_chModuleData) : [];
+  var totalModules = currentModules.length || Object.keys(window._chDisplayNames || {}).length;
+  var auditedCount = 0;
+  var cleanCount = 0;
+  Object.keys(latestPerModule).forEach(function(key) {
+    // Only count modules that exist in the current snapshot
+    if (currentModules.length === 0 || currentModules.indexOf(key) !== -1) {
+      auditedCount++;
+      if (latestPerModule[key].status === "completed") cleanCount++;
+    }
+  });
   var auditPct = totalModules > 0 ? Math.round(auditedCount / totalModules * 100) : 0;
   var cleanPct = totalModules > 0 ? Math.round(cleanCount / totalModules * 100) : 0;
   var auditBarColor = auditPct >= 75 ? '#3b82f6' : auditPct >= 25 ? '#f59e0b' : '#ef4444';

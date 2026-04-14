@@ -3740,7 +3740,7 @@ function _renderModuleChart(modules, displayNames) {
 function _auditBtnCell(moduleKey) {
   var pCount = (window._chProposalCounts || {})[moduleKey] || 0;
   if (pCount > 0) {
-    return '<td class="center"><span style="font-size:0.55rem;color:#f59e0b;margin-right:4px;" title="' + pCount + ' proposals in Repair Bay">' + pCount + ' pending</span>' +
+    return '<td class="center"><span style="font-size:0.55rem;color:#a78bfa;margin-right:4px;" title="' + pCount + ' proposals in Repair Bay pipeline">' + pCount + ' in repair</span>' +
       '<button class="ch-audit-row-btn" data-module="' + escHtml(moduleKey) + '" style="background:rgba(245,158,11,0.1);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px;">Re-audit</button></td>';
   }
   return '<td class="center"><button class="ch-audit-row-btn" data-module="' + escHtml(moduleKey) + '" style="background:rgba(0,229,255,0.1);color:#00e5ff;border:1px solid rgba(0,229,255,0.3);padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px;">Audit</button></td>';

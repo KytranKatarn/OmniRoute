@@ -554,6 +554,65 @@ def register_dispatch_routes(bp, admin_required_decorator):
             logger.error("[Dispatch] Config update failed: %s", e)
             return jsonify({"success": False, "error": str(e)}), 500
 
+    # ── Job Monitoring by Department ──
+
+    @bp.route("/api/jobs/by-department")
+    @login_required
+    @admin_required_decorator
+    def jobs_by_department():
+        """Job monitoring — all jobs organized by department with failure stats."""
+        from tools.department_hq.services.job_registry import JOB_REGISTRY
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT job_name, department,
+                          COUNT(*) FILTER (WHERE status = 'error') as fail_count,
+                          COUNT(*) FILTER (WHERE status IN ('success', 'partial')) as success_count,
+                          MAX(created_at) as last_run,
+                          (array_agg(error_message ORDER BY created_at DESC))[1] as last_error
+                   FROM autonomy_loop_log
+                   WHERE created_at > NOW() - INTERVAL '24 hours'
+                   GROUP BY job_name, department"""
+            )
+            log_data = {r["job_name"]: dict(r) for r in cur.fetchall()}
+
+        departments = {}
+        for job_id, meta in JOB_REGISTRY.items():
+            dept = meta["department"]
+            if dept not in departments:
+                departments[dept] = {
+                    "name": dept,
+                    "director": meta["director"],
+                    "jobs": [],
+                    "total_fails": 0,
+                    "total_success": 0,
+                }
+            log = log_data.get(job_id, {})
+            fail_count = log.get("fail_count", 0) or 0
+            success_count = log.get("success_count", 0) or 0
+            job_info = {
+                "id": job_id,
+                "description": meta["description"],
+                "interval": meta["interval"],
+                "fail_count": fail_count,
+                "success_count": success_count,
+                "last_run": str(log["last_run"])[:19] if log.get("last_run") else None,
+                "last_error": (log.get("last_error") or "")[:200],
+                "status": (
+                    "error"
+                    if fail_count > 0 and success_count == 0
+                    else ("warning" if fail_count > 0 else ("ok" if success_count > 0 else "idle"))
+                ),
+            }
+            departments[dept]["jobs"].append(job_info)
+            departments[dept]["total_fails"] += fail_count
+            departments[dept]["total_success"] += success_count
+
+        # Sort departments by failure count descending
+        sorted_depts = dict(sorted(departments.items(), key=lambda x: -x[1]["total_fails"]))
+
+        return jsonify({"success": True, "departments": sorted_depts})
+
     # ── Repair Pipeline ──
 
     @bp.route("/api/dispatch/repair-pipeline", methods=["GET"])

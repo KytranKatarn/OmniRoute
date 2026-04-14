@@ -1714,14 +1714,18 @@ def log_audit(
     issues_fixed=0,
     notes="",
     status="completed",
+    audit_profile="python",
+    trigger_reason="scheduled",
+    dispatched_via=None,
 ):
     """Record an audit entry."""
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
             """INSERT INTO code_audit_log
                    (module_name, category, files_reviewed, lines_before, lines_after,
-                    issues_found, issues_fixed, notes, status)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    issues_found, issues_fixed, notes, status,
+                    audit_profile, trigger_reason, dispatched_via)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                RETURNING id""",
             (
                 module_name,
@@ -1733,6 +1737,9 @@ def log_audit(
                 issues_fixed,
                 notes,
                 status,
+                audit_profile,
+                trigger_reason,
+                dispatched_via,
             ),
         )
         return cur.fetchone()["id"]

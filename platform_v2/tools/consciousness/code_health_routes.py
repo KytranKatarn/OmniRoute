@@ -393,6 +393,77 @@ def register_code_health_routes(bp, admin_required):
 
         return jsonify({"success": True, "websites": results})
 
+    @bp.route("/api/code-health/audit", methods=["POST"])
+    @login_required
+    @admin_required
+    def code_health_audit():
+        """Trigger audit for one or all modules. Dispatched via F.O.R.G.E."""
+        from flask import request as req
+        from services.code_metrics_service import (
+            audit_single_module,
+            log_audit,
+            scan_codebase,
+        )
+
+        data = req.get_json(silent=True) or {}
+        module_key = data.get("module")  # single module key, or None for all
+
+        # Get current module data for profile detection
+        metrics = scan_codebase()
+        all_modules = metrics.get("modules", {})
+
+        if module_key:
+            if module_key not in all_modules:
+                return jsonify({"success": False, "error": f"Module not found: {module_key}"}), 404
+            targets = [module_key]
+        else:
+            targets = list(all_modules.keys())
+
+        results = []
+        for key in targets:
+            mod_data = all_modules.get(key, {})
+            try:
+                issues_found, notes, status, issues_list, profile = audit_single_module(key, module_data=mod_data)
+                log_audit(
+                    module_name=key,
+                    category=profile.upper(),
+                    files_reviewed=mod_data.get("files", 0),
+                    lines_before=mod_data.get("lines", 0),
+                    lines_after=mod_data.get("lines", 0),
+                    issues_found=issues_found,
+                    notes=notes,
+                    status=status,
+                    audit_profile=profile,
+                    trigger_reason="manual",
+                    dispatched_via="F.O.R.G.E.",
+                )
+                results.append(
+                    {
+                        "module": key,
+                        "profile": profile,
+                        "issues": issues_found,
+                        "status": status,
+                    }
+                )
+            except Exception as e:
+                results.append(
+                    {
+                        "module": key,
+                        "profile": "unknown",
+                        "issues": -1,
+                        "status": f"error: {str(e)[:100]}",
+                    }
+                )
+
+        return jsonify(
+            {
+                "success": True,
+                "audited": len(results),
+                "results": results,
+                "trigger": "manual",
+            }
+        )
+
     @bp.route("/api/code-health/structural-audit")
     @login_required
     @admin_required

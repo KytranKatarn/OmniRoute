@@ -86,6 +86,34 @@ def daily_code_metrics_scan():
             len(changed_modules),
         )
         _log_cycle("code_metrics_scan", 1, 0, duration_ms)
+
+        # Auto-audit changed modules via F.O.R.G.E.
+        if changed_modules:
+            from services.code_metrics_service import audit_single_module, log_audit
+
+            audited_count = 0
+            for key in changed_modules:
+                mod_data = metrics.get("modules", {}).get(key, {})
+                try:
+                    issues_found, notes, status, issues_list, profile = audit_single_module(key, module_data=mod_data)
+                    log_audit(
+                        module_name=key,
+                        category=profile.upper(),
+                        files_reviewed=mod_data.get("files", 0),
+                        lines_before=mod_data.get("lines", 0),
+                        lines_after=mod_data.get("lines", 0),
+                        issues_found=issues_found,
+                        notes=notes,
+                        status=status,
+                        audit_profile=profile,
+                        trigger_reason="change_detected",
+                        dispatched_via="F.O.R.G.E.",
+                    )
+                    audited_count += 1
+                except Exception as audit_err:
+                    logger.warning("Change-triggered audit failed for %s: %s", key, audit_err)
+            if audited_count:
+                logger.info("Change-triggered audits: %d/%d modules audited", audited_count, len(changed_modules))
     except Exception as e:
         _log_cycle("code_metrics_scan", 0, 1, int((time.time() - start) * 1000), error_message=str(e))
         logger.warning(f"Failed: {e}")
@@ -176,7 +204,7 @@ def automated_module_audit(flask_app):
         total_proposals = 0
 
         for module_name, stats in per_module.items():
-            issues_found, notes, status, issues_list, *_ = audit_single_module(module_name)
+            issues_found, notes, status, issues_list, profile = audit_single_module(module_name, module_data=stats)
 
             # Tally severity breakdown
             for issue in issues_list:
@@ -205,13 +233,16 @@ def automated_module_audit(flask_app):
 
             log_audit(
                 module_name=module_name,
-                category="automated_weekly",
+                category=profile.upper(),
                 files_reviewed=stats.get("files", 0),
                 lines_before=stats.get("lines", 0),
                 lines_after=stats.get("lines", 0),
                 issues_found=issues_found,
                 notes=notes,
                 status=status,
+                audit_profile=profile,
+                trigger_reason="scheduled",
+                dispatched_via="F.O.R.G.E.",
             )
 
             audited += 1

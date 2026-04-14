@@ -3320,26 +3320,51 @@ function _renderAttentionItems(summary, orphans, d) {
 
   var items = [];
   var r = summary.red || 0;
+  var o = summary.orange || 0;
   var y = summary.yellow || 0;
-  if (r > 0) items.push({label: "Unaudited modules", count: r, color: "#ef4444", action: "Scan", actionColor: "#ef4444"});
-  if (y > 0) items.push({label: "Stale audits (needs re-scan)", count: y, color: "#f59e0b", action: "Re-scan", actionColor: "#f59e0b"});
 
-  var orphanTotal = (orphans.templates || 0) + (orphans.js || 0) + (orphans.css || 0);
-  if (orphanTotal > 0) items.push({label: "Orphan files (unmapped)", count: orphanTotal, color: "#f97316", action: "Review", actionColor: "#f97316"});
+  if (r > 0) items.push({label: "Unaudited modules", count: r, color: "#ef4444", action: "Audit Now", actionFn: function() {
+    var btn = document.getElementById("chAuditAllBtn");
+    if (btn) btn.click();
+  }});
+  if (o > 0) items.push({label: "Modules with issues", count: o, color: "#f59e0b", action: "View Repairs", actionFn: function() {
+    window.location.href = "/tools/repair-bay";
+  }});
+  if (y > 0) items.push({label: "Stale audits (needs re-scan)", count: y, color: "#eab308", action: "Re-audit", actionFn: function() {
+    var btn = document.getElementById("chAuditAllBtn");
+    if (btn) btn.click();
+  }});
 
-  // KBS / standalone issues from structural audit
+  // Modules changed since last audit
+  var changed = d.modules_changed || [];
+  if (changed.length > 0) items.push({label: "Modules changed since last audit", count: changed.length, color: "#3b82f6", action: "Audit Changed", actionFn: function() {
+    // Audit only changed modules sequentially
+    var btn = document.getElementById("chAuditAllBtn");
+    if (btn) btn.click();
+  }});
+
+  // Orphan files
+  var orphanTotal = 0;
+  if (orphans) {
+    Object.keys(orphans).forEach(function(k) {
+      var v = orphans[k];
+      orphanTotal += Array.isArray(v) ? v.length : (typeof v === "number" ? v : 0);
+    });
+  }
+  if (orphanTotal > 0) items.push({label: "Orphan files (unmapped)", count: orphanTotal, color: "#f97316", action: null, actionFn: null});
+
+  // Health score deductions
   var hs = d.health_score || {};
   var deductions = hs.deductions || [];
   deductions.forEach(function(ded) {
-    items.push({label: ded.reason || ded, count: "-" + (ded.points || "?"), color: "#ef4444", action: null, actionColor: null});
+    items.push({label: ded.reason || ded, count: "-" + (ded.points || "?") + " pts", color: "#ef4444", action: null, actionFn: null});
   });
 
   if (items.length === 0) {
     var allGood = document.createElement("div");
     allGood.style.cssText = "padding:1rem;text-align:center;color:#10b981;font-size:0.85rem;font-weight:600;background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.15);border-radius:8px;";
-    allGood.textContent = "All clear — no issues detected";
+    allGood.textContent = "\u2705 All clear \u2014 no issues detected";
     el.appendChild(allGood);
-    // Hide orphan section if empty
     var orphSec = document.getElementById("chOrphanSection");
     if (orphSec && orphanTotal === 0) orphSec.style.display = "none";
     return;
@@ -3362,21 +3387,20 @@ function _renderAttentionItems(summary, orphans, d) {
     count.textContent = item.count;
     card.appendChild(count);
 
-    if (item.action) {
+    if (item.action && item.actionFn) {
       var btn = document.createElement("button");
       btn.className = "ch-attn-action";
-      btn.style.color = item.actionColor;
-      btn.style.borderColor = item.actionColor;
+      btn.style.color = item.color;
+      btn.style.borderColor = item.color;
       btn.style.background = "rgba(255,255,255,0.03)";
       btn.textContent = item.action;
-      btn.onclick = function() { window.location.href = "/tools/repair-bay"; };
+      btn.onclick = item.actionFn;
       card.appendChild(btn);
     }
 
     el.appendChild(card);
   });
 
-  // Hide orphan section if no orphans (already shown in attention items)
   var orphSec = document.getElementById("chOrphanSection");
   if (orphSec && orphanTotal === 0) orphSec.style.display = "none";
 }

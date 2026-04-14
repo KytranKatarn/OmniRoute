@@ -795,6 +795,8 @@ def _find_orphan_files(module_names):
         "system-operations-theme-vars.css",
         "lcars-header.css",
         "lcars-tokens.css",
+        "lcars-modals.css",
+        "fleet.css",
         "archie-breakpoints.css",
         "consciousness-dashboard-v2.css",
         "content-studio.css",

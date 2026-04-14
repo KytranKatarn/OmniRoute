@@ -209,6 +209,9 @@ def register_code_health_routes(bp, admin_required):
                     else:
                         mod = fp.split("/")[0]
                     proposal_counts[mod] = proposal_counts.get(mod, 0) + pr["cnt"]
+                    # Also map the raw file_path as module name (for standalone/special modules)
+                    if fp and fp not in proposal_counts:
+                        proposal_counts[fp] = pr["cnt"]
             except Exception:
                 pass
 

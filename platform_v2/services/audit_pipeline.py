@@ -810,7 +810,7 @@ def verify_fix_deployment(module_name, proposal_id, pre_issue_count):
         sys.path.insert(0, "/mnt/archie_brain/platform_v2")
         from services.code_metrics_service import audit_single_module
 
-        _issues_found, _notes, _status, issues_list = audit_single_module(module_name)
+        _issues_found, _notes, _status, issues_list, *_ = audit_single_module(module_name)
     except Exception as e:
         logger.error("verify_fix_deployment: re-audit of %s failed: %s", module_name, e)
         return {"verified": False, "pre_count": pre_issue_count, "post_count": -1, "delta": 0}

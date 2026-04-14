@@ -1319,21 +1319,43 @@ SEVERITY_MAP = {
     "SQL_INJECTION_RISK": "red",
     "DIRECT_OLLAMA": "red",
     "DIRECT_CLOUD": "red",
+    "INSECURE_DEFAULT": "red",
     "BARE_EXCEPT": "yellow",
     "LARGE_FILE": "yellow",
     "MISSING_INIT": "yellow",
+    "INLINE_SCRIPT": "yellow",
+    "CONSOLE_LOG": "yellow",
+    "LATEST_TAG": "yellow",
+    "MISSING_RESOURCE_LIMIT": "yellow",
     "DEBUG_PRINT": "info",
     "DEBUG_BREAKPOINT": "info",
     "NO_DOCSTRING": "info",
+    "TODO_FIXME": "info",
+    "MIXED_CONCERNS": "info",
+    "IMPORT_VIOLATION": "info",
 }
 
 
-def audit_single_module(module_name, module_path=None):
+def detect_audit_profile(module_data):
+    """Auto-detect audit profile from module's file type composition.
+    Returns 'python', 'web', or 'config' based on 60% threshold.
     """
-    Run automated checks on a single module and return audit results.
-    Returns (issues_found: int, notes: str, status: str, issues_list: list[dict]).
+    by_type = module_data.get("by_type", {})
+    total = sum(v.get("lines", 0) for v in by_type.values())
+    if total == 0:
+        return "python"
+    web_lines = sum(by_type.get(t, {}).get("lines", 0) for t in ["js", "html", "css", "svg"])
+    config_lines = sum(by_type.get(t, {}).get("lines", 0) for t in ["yaml", "config"])
+    if config_lines / total >= 0.6:
+        return "config"
+    if web_lines / total >= 0.6:
+        return "web"
+    return "python"
 
-    Each issue dict has: code, severity (red/yellow/info), file, detail.
+
+def audit_module_web(module_path):
+    """Run web-focused checks on JS/HTML/CSS files.
+    Returns (issues_found: int, notes: str, issues_list: list[dict]).
     """
     import re
 
@@ -1344,25 +1366,170 @@ def audit_single_module(module_name, module_path=None):
         severity = SEVERITY_MAP.get(code, "info")
         label = f"{code}: {fname}" if not detail else f"{code}: {fname} ({detail})"
         issues.append(label)
-        issues_list.append(
-            {
-                "code": code,
-                "severity": severity,
-                "file": fname,
-                "detail": detail,
-            }
-        )
+        issues_list.append({"code": code, "severity": severity, "file": fname, "detail": detail})
 
-    # Determine path — tool modules live under tools/, special modules have known paths
-    if module_path is None:
-        if module_name.startswith("[") or module_name.startswith("standalone_") or module_name.startswith("website_"):
-            # Skip non-tool modules — they're infrastructure, not auditable tool modules
-            return (0, "infrastructure module — skipped", "completed", [])
-        tools_base = os.path.join(PLATFORM_ROOT, "tools")
-        module_path = os.path.join(tools_base, module_name)
+    web_exts = {".js", ".mjs", ".html", ".htm", ".css", ".svg"}
+    todo_count = 0
 
-    if not os.path.isdir(module_path):
-        return (0, "module directory not found", "completed", [])
+    for root, dirs, files in os.walk(module_path):
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
+        for f in files:
+            ext = os.path.splitext(f)[1].lower()
+            if ext not in web_exts:
+                continue
+            fpath = os.path.join(root, f)
+            try:
+                with open(fpath, "r", encoding="utf-8", errors="ignore") as fh:
+                    content = fh.read()
+                fname = os.path.relpath(fpath, module_path)
+
+                # Hardcoded secrets
+                secret_pats = re.findall(
+                    r'(?:password|api_key|token|secret)\s*[=:]\s*["\']([^"\']{8,})["\']',
+                    content,
+                    re.IGNORECASE,
+                )
+                for match in secret_pats:
+                    if match.startswith("test_") or "${" in match or "process.env" in match:
+                        continue
+                    if re.match(r"^(sk-|ghp_|gho_|glpat-)", match):
+                        _add_issue("HARDCODED_SECRET", fname, "possible API key")
+                    elif not re.match(r"^[\w\-]+$", match):
+                        _add_issue("HARDCODED_SECRET", fname)
+
+                # Inline script blocks in HTML (>5 lines of logic)
+                if ext in (".html", ".htm"):
+                    script_blocks = re.findall(r"<script[^>]*>(.*?)</script>", content, re.DOTALL)
+                    for block in script_blocks:
+                        logic_lines = [
+                            ln.strip() for ln in block.split("\n") if ln.strip() and not ln.strip().startswith("//")
+                        ]
+                        if len(logic_lines) > 5:
+                            _add_issue("INLINE_SCRIPT", fname, f"{len(logic_lines)} lines of inline JS")
+                            break
+
+                # console.log in JS
+                if ext in (".js", ".mjs"):
+                    lines = content.split("\n")
+                    for i, line in enumerate(lines, 1):
+                        stripped = line.strip()
+                        if stripped.startswith("//"):
+                            continue
+                        if "console.log(" in stripped:
+                            _add_issue("CONSOLE_LOG", fname, f"line {i}")
+                            break
+
+                # Large file
+                line_count = content.count("\n") + 1
+                if line_count > 600:
+                    _add_issue("LARGE_FILE", fname, f"{line_count} lines")
+
+                # TODO/FIXME count
+                todo_count += len(re.findall(r"\b(TODO|FIXME|HACK|XXX)\b", content))
+
+            except Exception:
+                pass
+
+    if todo_count > 0:
+        _add_issue("TODO_FIXME", module_path, f"{todo_count} TODO/FIXME/HACK/XXX comments")
+
+    return (len(issues), "; ".join(issues[:30]) if issues else "clean — all web checks passed", issues_list)
+
+
+def audit_module_config(module_path):
+    """Run config-focused checks on YAML/TOML/Docker files.
+    Returns (issues_found: int, notes: str, issues_list: list[dict]).
+    """
+    import re
+
+    issues = []
+    issues_list = []
+
+    def _add_issue(code, fname, detail=""):
+        severity = SEVERITY_MAP.get(code, "info")
+        label = f"{code}: {fname}" if not detail else f"{code}: {fname} ({detail})"
+        issues.append(label)
+        issues_list.append({"code": code, "severity": severity, "file": fname, "detail": detail})
+
+    config_exts = {".yaml", ".yml", ".toml", ".conf", ".ini"}
+    docker_files = {"Dockerfile", "docker-compose.yml", "docker-compose.yaml", "docker-compose.hub.yml"}
+
+    for root, dirs, files in os.walk(module_path):
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
+        for f in files:
+            ext = os.path.splitext(f)[1].lower()
+            is_config = ext in config_exts
+            is_docker = f in docker_files or f.startswith("Dockerfile")
+            if not is_config and not is_docker:
+                continue
+            fpath = os.path.join(root, f)
+            try:
+                with open(fpath, "r", encoding="utf-8", errors="ignore") as fh:
+                    content = fh.read()
+                fname = os.path.relpath(fpath, module_path)
+
+                # Hardcoded secrets
+                secret_pats = re.findall(
+                    r'(?:password|api_key|token|secret)\s*[=:]\s*["\']?([^\s"\']{8,})["\']?',
+                    content,
+                    re.IGNORECASE,
+                )
+                for match in secret_pats:
+                    if "${" in match or "os.getenv" in match or match.startswith("$"):
+                        continue
+                    if re.match(r"^(sk-|ghp_|gho_|glpat-)", match):
+                        _add_issue("HARDCODED_SECRET", fname, "possible API key")
+                    elif not re.match(r"^[\w\-\.\/]+$", match):
+                        _add_issue("HARDCODED_SECRET", fname)
+
+                # Docker-specific checks
+                if is_docker:
+                    if "privileged: true" in content or "privileged=true" in content:
+                        _add_issue("INSECURE_DEFAULT", fname, "privileged: true")
+                    if "read_only: false" in content:
+                        _add_issue("INSECURE_DEFAULT", fname, "read_only: false")
+                    # Latest tag
+                    if re.search(r"image:\s*\S+:latest", content):
+                        _add_issue("LATEST_TAG", fname, "uses :latest tag")
+                    if f.startswith("Dockerfile") and re.search(r"^FROM\s+\S+:latest", content, re.MULTILINE):
+                        _add_issue("LATEST_TAG", fname, "FROM uses :latest tag")
+                    # Missing resource limits (docker-compose files)
+                    if f.startswith("docker-compose"):
+                        # Check each service block for resource limits
+                        services = re.findall(r"^\s{2}(\w[\w-]*):", content, re.MULTILINE)
+                        for svc in services:
+                            # Simple heuristic: look for mem_limit or resources in the content
+                            # after the service name
+                            svc_pattern = re.search(
+                                rf"^\s{{2}}{re.escape(svc)}:.*?(?=^\s{{2}}\w|\Z)",
+                                content,
+                                re.MULTILINE | re.DOTALL,
+                            )
+                            if svc_pattern:
+                                svc_block = svc_pattern.group()
+                                if "mem_limit" not in svc_block and "resources:" not in svc_block:
+                                    _add_issue("MISSING_RESOURCE_LIMIT", fname, f"service '{svc}'")
+
+            except Exception:
+                pass
+
+    return (len(issues), "; ".join(issues[:30]) if issues else "clean — all config checks passed", issues_list)
+
+
+def _audit_module_python(module_name, module_path):
+    """Run Python-focused checks on .py files.
+    Returns (issues_found: int, notes: str, issues_list: list[dict]).
+    """
+    import re
+
+    issues = []
+    issues_list = []
+
+    def _add_issue(code, fname, detail=""):
+        severity = SEVERITY_MAP.get(code, "info")
+        label = f"{code}: {fname}" if not detail else f"{code}: {fname} ({detail})"
+        issues.append(label)
+        issues_list.append({"code": code, "severity": severity, "file": fname, "detail": detail})
 
     py_files = []
     for root, dirs, files in os.walk(module_path):
@@ -1439,9 +1606,72 @@ def audit_single_module(module_name, module_path=None):
         except Exception:
             pass
 
-    status = "violations_found" if issues else "completed"
-    notes = "; ".join(issues[:30]) if issues else "clean — all checks passed"
-    return (len(issues), notes, status, issues_list)
+    return (len(issues), "; ".join(issues[:30]) if issues else "clean — all checks passed", issues_list)
+
+
+def audit_single_module(module_name, module_path=None, module_data=None):
+    """
+    Run automated checks on a single module and return audit results.
+    Returns (issues_found: int, notes: str, status: str, issues_list: list[dict], profile: str).
+
+    Each issue dict has: code, severity (red/yellow/info), file, detail.
+    Profile is one of: 'python', 'web', 'config'.
+    """
+    # Determine path — tool modules live under tools/, special modules have known paths
+    if module_path is None:
+        if module_name.startswith("standalone_"):
+            # Resolve from STANDALONE_PRODUCTS
+            for prod in STANDALONE_PRODUCTS:
+                if prod["module_key"] == module_name:
+                    module_path = prod["path"]
+                    break
+            if module_path is None:
+                return (0, "standalone not found in registry", "completed", [], "python")
+        elif module_name.startswith("website_"):
+            # Resolve from WEBSITE_PRODUCTS
+            for prod in WEBSITE_PRODUCTS:
+                if prod["module_key"] == module_name:
+                    module_path = prod["path"]
+                    break
+            if module_path is None:
+                return (0, "website not found in registry", "completed", [], "web")
+        elif module_name == "[APP_CORE]":
+            module_path = PLATFORM_ROOT
+        elif module_name == "[AI_BRIDGE]":
+            module_path = AI_BRIDGE_ROOT
+        elif module_name == "[MIGRATIONS]":
+            module_path = MIGRATIONS_ROOT
+        elif module_name == "[SHARED]":
+            module_path = os.path.join(PLATFORM_ROOT, "static")
+        elif module_name.startswith("["):
+            return (0, "special module — no audit profile", "completed", [], "python")
+        else:
+            tools_base = os.path.join(PLATFORM_ROOT, "tools")
+            module_path = os.path.join(tools_base, module_name)
+
+    if not os.path.isdir(module_path):
+        return (0, "module directory not found", "completed", [], "python")
+
+    # Detect audit profile
+    if module_data is not None:
+        profile = detect_audit_profile(module_data)
+    elif module_name.startswith("website_"):
+        profile = "web"
+    elif module_name == "[SHARED]":
+        profile = "web"
+    else:
+        profile = "python"
+
+    # Route to correct checker
+    if profile == "web":
+        count, notes, issues_list = audit_module_web(module_path)
+    elif profile == "config":
+        count, notes, issues_list = audit_module_config(module_path)
+    else:
+        count, notes, issues_list = _audit_module_python(module_name, module_path)
+
+    status = "violations_found" if count > 0 else "completed"
+    return (count, notes, status, issues_list, profile)
 
 
 def log_audit(

@@ -176,7 +176,7 @@ def automated_module_audit(flask_app):
         total_proposals = 0
 
         for module_name, stats in per_module.items():
-            issues_found, notes, status, issues_list = audit_single_module(module_name)
+            issues_found, notes, status, issues_list, *_ = audit_single_module(module_name)
 
             # Tally severity breakdown
             for issue in issues_list:

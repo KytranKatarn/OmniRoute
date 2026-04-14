@@ -196,13 +196,8 @@ services:
       - ./credentials:/app/credentials:rw
       # Browser automation screenshots (Project Autonomy Phase 4)
       - ./platform_v2/static/screenshots:/app/static/screenshots:rw
-      # ── Standalone Products (read-only for Code Health scanner) ──
-      - ./kytran-server-manager:/mnt/archie_brain/kytran-server-manager:ro
-      - ./kytran-business-suite:/mnt/archie_brain/kytran-business-suite:ro
-      - ./watch-api:/mnt/archie_brain/watch-api:ro
-      - ./legal-watch:/mnt/archie_brain/legal-watch:ro
-      - ./market-watch:/mnt/archie_brain/market-watch:ro
-      - ./kytran-gov-watch:/mnt/archie_brain/kytran-gov-watch:ro
+      # ── Standalone Products + Websites (read-only for Code Health scanner) ──
+      - /mnt/standalone:/mnt/standalone:ro
       - ./stalwart-mail:/mnt/archie_brain/stalwart-mail:ro
     ports:
       - "3000:3000"

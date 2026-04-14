@@ -2994,6 +2994,21 @@ var _chModuleChart = null;
 var _chHistoryChart = null;
 
 function loadCodeHealth() {
+  // Show loading indicator
+  var panel = document.getElementById("panel-codehealth");
+  if (panel) {
+    var loader = document.getElementById("chLoadingBar");
+    if (!loader) {
+      loader = document.createElement("div");
+      loader.id = "chLoadingBar";
+      loader.style.cssText = "position:fixed;top:0;left:0;width:100%;height:3px;background:linear-gradient(90deg,transparent,#00e5ff,transparent);animation:chSlide 1.2s infinite;z-index:9999;";
+      var style = document.createElement("style");
+      style.textContent = "@keyframes chSlide{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}";
+      document.head.appendChild(style);
+      document.body.appendChild(loader);
+    }
+    loader.style.display = "block";
+  }
   // Load audit log + module status so table can show colored badges
   // module-status is optional — don't let it break the whole tab
   Promise.all([
@@ -3003,6 +3018,9 @@ function loadCodeHealth() {
     api("/api/code-health/standalone-status").catch(function() { return {standalones: []}; }),
     api("/api/code-health/repair-pipeline").catch(function() { return {success: false, queue: {}, proposals: {}, governance: []}; })
   ]).then(function(results) {
+    // Hide loading bar
+    var loader = document.getElementById("chLoadingBar");
+    if (loader) loader.style.display = "none";
     var d = results[0];
     var auditData = results[1];
     var statusData = results[2];
@@ -3029,7 +3047,7 @@ function loadCodeHealth() {
     var allMods = d.modules || {};
     var modCount = Object.keys(allMods).length;
     var standaloneCount = Object.keys(allMods).filter(function(k) { return k.startsWith('standalone_'); }).length;
-    var websiteKeysAll = ['website_kytranempowerment_current', 'website_kytranempowerment', 'website_creed_ai', 'website_kytran_news'];
+    var websiteKeysAll = ['website_kytranempowerment_current', 'website_kytranempowerment', 'website_creed_ai', 'website_kytran_news', 'website_what_the_fact'];
     var websiteCount = Object.keys(allMods).filter(function(k) { return websiteKeysAll.indexOf(k) !== -1; }).length;
     var platformCount = modCount - standaloneCount - websiteCount;
     _renderCodeHealthSummaryBar(statusData.summary || {}, {platform: platformCount, standalone: standaloneCount, websites: websiteCount});
@@ -3040,7 +3058,7 @@ function loadCodeHealth() {
     var websiteModules = {};
     var platformModules = {};
     // Website keys from registered products (avoid false matches like website_studio)
-    var websiteKeys = ['website_kytranempowerment_current', 'website_kytranempowerment', 'website_creed_ai', 'website_kytran_news'];
+    var websiteKeys = ['website_kytranempowerment_current', 'website_kytranempowerment', 'website_creed_ai', 'website_kytran_news', 'website_what_the_fact'];
     Object.keys(allModules).forEach(function(key) {
         if (key.startsWith('standalone_')) {
             standaloneModules[key] = allModules[key];
@@ -3183,7 +3201,9 @@ function _renderCodeHealthStats(d) {
     {id: "chCssLines", key: "css"},
     {id: "chSqlLines", key: "sql"},
     {id: "chShellLines", key: "shell"},
-    {id: "chJsonLines", key: "json"}
+    {id: "chJsonLines", key: "json"},
+    {id: "chYamlLines", key: "yaml"},
+    {id: "chMarkdownLines", key: "markdown"}
   ];
   langs.forEach(function(l) {
     var data = d[l.key] || {files: 0, lines: 0};
@@ -3418,24 +3438,96 @@ function _timeAgo(date) {
   return days + "d ago";
 }
 
+// Store chart data globally for re-sorting
+var _chModuleData = null;
+var _chModuleDisplayNames = null;
+
+function _addOption(sel, value, text) {
+  var opt = document.createElement("option");
+  opt.value = value;
+  opt.textContent = text;
+  sel.appendChild(opt);
+}
+
+function _buildChartControls(canvas) {
+  if (document.getElementById("chChartControls")) return;
+  var wrapper = canvas.parentElement;
+  var controls = document.createElement("div");
+  controls.id = "chChartControls";
+  controls.style.cssText = "display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap;";
+
+  var sortLabel = document.createElement("span");
+  sortLabel.style.cssText = "color:rgba(255,255,255,0.5);font-size:0.7rem;text-transform:uppercase;letter-spacing:1px;";
+  sortLabel.textContent = "Sort:";
+
+  var sortSel = document.createElement("select");
+  sortSel.id = "chSortMode";
+  sortSel.style.cssText = "background:#0a1628;color:#00e5ff;border:1px solid rgba(0,229,255,0.3);padding:4px 8px;border-radius:4px;font-size:0.75rem;cursor:pointer;";
+  _addOption(sortSel, "lines-desc", "Lines (High \u2192 Low)");
+  _addOption(sortSel, "lines-asc", "Lines (Low \u2192 High)");
+  _addOption(sortSel, "files-desc", "Files (High \u2192 Low)");
+  _addOption(sortSel, "name-asc", "Name (A \u2192 Z)");
+  sortSel.onchange = function() { _renderModuleChart(_chModuleData, _chModuleDisplayNames); };
+
+  var filterLabel = document.createElement("span");
+  filterLabel.style.cssText = "color:rgba(255,255,255,0.5);font-size:0.7rem;text-transform:uppercase;letter-spacing:1px;margin-left:10px;";
+  filterLabel.textContent = "Show:";
+
+  var filterSel = document.createElement("select");
+  filterSel.id = "chFilterMode";
+  filterSel.style.cssText = "background:#0a1628;color:#00e5ff;border:1px solid rgba(0,229,255,0.3);padding:4px 8px;border-radius:4px;font-size:0.75rem;cursor:pointer;";
+  _addOption(filterSel, "all", "All Modules");
+  _addOption(filterSel, "platform", "Platform Only");
+  _addOption(filterSel, "standalone", "Standalone Only");
+  _addOption(filterSel, "website", "Websites Only");
+  filterSel.onchange = function() { _renderModuleChart(_chModuleData, _chModuleDisplayNames); };
+
+  controls.appendChild(sortLabel);
+  controls.appendChild(sortSel);
+  controls.appendChild(filterLabel);
+  controls.appendChild(filterSel);
+  wrapper.insertBefore(controls, canvas);
+}
+
 function _renderModuleChart(modules, displayNames) {
   var canvas = document.getElementById("chModuleChart");
   if (!canvas) return;
   displayNames = displayNames || {};
+  _chModuleData = modules;
+  _chModuleDisplayNames = displayNames;
+
+  // Build sort/filter controls if not present
+  _buildChartControls(canvas);
+
+  var sortMode = (document.getElementById("chSortMode") || {}).value || "lines-desc";
+  var filterMode = (document.getElementById("chFilterMode") || {}).value || "all";
 
   // Responsive: show fewer modules on mobile, all on desktop
   var maxBars = window.innerWidth < 480 ? 15 : window.innerWidth < 768 ? 25 : 60;
-  // Sort descending — Chart.js indexAxis:"y" renders index 0 at top
-  // Infrastructure entries ([SHARED], [APP_CORE], etc.) go to the end
-  var infraKeys = {"[SHARED]":1, "[APP_CORE]":1, "[AI_BRIDGE]":1, "[MIGRATIONS]":1};
+
   var allKeys = Object.keys(modules);
-  var realKeys = allKeys.filter(function(k) { return !infraKeys[k]; }).sort(function(a, b) {
-    return (modules[b].lines || 0) - (modules[a].lines || 0);
-  });
-  var infraSorted = allKeys.filter(function(k) { return infraKeys[k]; }).sort(function(a, b) {
-    return (modules[b].lines || 0) - (modules[a].lines || 0);
-  });
-  var names = realKeys.concat(infraSorted).slice(0, maxBars);
+
+  // Apply filter
+  if (filterMode === "platform") {
+    allKeys = allKeys.filter(function(k) { return !k.startsWith("standalone_") && !k.startsWith("website_"); });
+  } else if (filterMode === "standalone") {
+    allKeys = allKeys.filter(function(k) { return k.startsWith("standalone_"); });
+  } else if (filterMode === "website") {
+    allKeys = allKeys.filter(function(k) { return k.startsWith("website_"); });
+  }
+
+  // Apply sort
+  if (sortMode === "lines-desc") {
+    allKeys.sort(function(a, b) { return (modules[b].lines || 0) - (modules[a].lines || 0); });
+  } else if (sortMode === "lines-asc") {
+    allKeys.sort(function(a, b) { return (modules[a].lines || 0) - (modules[b].lines || 0); });
+  } else if (sortMode === "name-asc") {
+    allKeys.sort(function(a, b) { return (displayNames[a] || a).localeCompare(displayNames[b] || b); });
+  } else if (sortMode === "files-desc") {
+    allKeys.sort(function(a, b) { return (modules[b].files || 0) - (modules[a].files || 0); });
+  }
+
+  var names = allKeys.slice(0, maxBars);
 
   var pyData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.python ? bt.python.lines : 0; });
   var jsData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.js ? bt.js.lines : 0; });
@@ -3444,6 +3536,8 @@ function _renderModuleChart(modules, displayNames) {
   var sqlData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.sql ? bt.sql.lines : 0; });
   var shellData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.shell ? bt.shell.lines : 0; });
   var jsonData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.json ? bt.json.lines : 0; });
+  var yamlData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.yaml ? bt.yaml.lines : 0; });
+  var mdData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.markdown ? bt.markdown.lines : 0; });
   var otherData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.other ? bt.other.lines : 0; });
 
   var rowH = window.innerWidth < 480 ? 24 : 28;
@@ -3467,6 +3561,8 @@ function _renderModuleChart(modules, displayNames) {
         { label: "SQL", data: sqlData, backgroundColor: "rgba(253, 224, 71, 0.7)", borderWidth: 0 },
         { label: "JSON", data: jsonData, backgroundColor: "rgba(45, 212, 191, 0.7)", borderWidth: 0 },
         { label: "Shell", data: shellData, backgroundColor: "rgba(239, 68, 68, 0.7)", borderWidth: 0 },
+        { label: "YAML", data: yamlData, backgroundColor: "rgba(6, 182, 212, 0.7)", borderWidth: 0 },
+        { label: "Markdown", data: mdData, backgroundColor: "rgba(167, 139, 250, 0.7)", borderWidth: 0 },
         { label: "Other", data: otherData, backgroundColor: "rgba(168, 162, 255, 0.7)", borderWidth: 0 }
       ]
     },
@@ -3500,9 +3596,15 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
   moduleStatusMap = moduleStatusMap || {};
   moduleDisplayNames = moduleDisplayNames || {};
 
-  var sorted = Object.keys(modules).sort(function(a, b) {
+  // Sort: tool modules by lines desc, then infra modules at the bottom (matching chart order)
+  var infraKeys = {"[SHARED]":1, "[APP_CORE]":1, "[AI_BRIDGE]":1, "[MIGRATIONS]":1};
+  var toolKeys = Object.keys(modules).filter(function(k) { return !infraKeys[k]; }).sort(function(a, b) {
     return (modules[b].lines || 0) - (modules[a].lines || 0);
   });
+  var infraSorted = Object.keys(modules).filter(function(k) { return infraKeys[k]; }).sort(function(a, b) {
+    return (modules[b].lines || 0) - (modules[a].lines || 0);
+  });
+  var sorted = toolKeys.concat(infraSorted);
 
   var html = '<table class="ch-table"><thead><tr>' +
     '<th>Module</th><th class="center">Status</th><th class="center">Files</th><th class="center">Lines</th>' +

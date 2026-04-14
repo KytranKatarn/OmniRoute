@@ -17,7 +17,7 @@ def register_code_health_routes(bp, admin_required):
     def code_health_scan():
         from services.code_metrics_service import scan_codebase, save_snapshot
 
-        metrics = scan_codebase()
+        metrics = scan_codebase(force=True)
         snapshot_id = save_snapshot(metrics)
         return jsonify({"success": True, "snapshot_id": snapshot_id, "metrics": metrics})
 
@@ -25,6 +25,86 @@ def register_code_health_routes(bp, admin_required):
     @login_required
     @admin_required
     def code_health_current():
+        from flask import request as req
+
+        # Use latest DB snapshot by default (instant), live scan only if ?live=1
+        if req.args.get("live") == "1":
+            from services.code_metrics_service import scan_codebase
+
+            metrics = scan_codebase()
+            return jsonify(metrics)
+
+        # Try loading from latest snapshot first (instant — no filesystem walk)
+        row = None
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT total_files, total_lines, total_folders,
+                          python_files, python_lines, js_files, js_lines,
+                          css_files, css_lines, html_files, html_lines,
+                          sql_files, sql_lines, per_module, scanned_at
+                   FROM code_metrics_snapshots
+                   ORDER BY scanned_at DESC LIMIT 1"""
+            )
+            row = cur.fetchone()
+
+        if row and row.get("per_module"):
+            import json as _json
+
+            per_module = (
+                _json.loads(row["per_module"])
+                if isinstance(row["per_module"], str)
+                else row["per_module"]
+            )
+
+            # Reconstruct per-language totals from per_module by_type data
+            lang_totals = {}
+            for mod_data in per_module.values():
+                for lang, counts in (mod_data.get("by_type") or {}).items():
+                    if lang not in lang_totals:
+                        lang_totals[lang] = {"files": 0, "lines": 0}
+                    lang_totals[lang]["files"] += counts.get("files", 0)
+                    lang_totals[lang]["lines"] += counts.get("lines", 0)
+
+            metrics = {
+                "total_files": row["total_files"],
+                "total_lines": row["total_lines"],
+                "total_folders": row.get("total_folders", 0),
+                "modules": per_module,
+                "python": lang_totals.get("python", {"files": row.get("python_files", 0), "lines": row.get("python_lines", 0)}),
+                "js": lang_totals.get("js", {"files": row.get("js_files", 0), "lines": row.get("js_lines", 0)}),
+                "css": lang_totals.get("css", {"files": row.get("css_files", 0), "lines": row.get("css_lines", 0)}),
+                "html": lang_totals.get("html", {"files": row.get("html_files", 0), "lines": row.get("html_lines", 0)}),
+                "sql": lang_totals.get("sql", {"files": row.get("sql_files", 0), "lines": row.get("sql_lines", 0)}),
+                "shell": lang_totals.get("shell", {"files": 0, "lines": 0}),
+                "json": lang_totals.get("json", {"files": 0, "lines": 0}),
+                "yaml": lang_totals.get("yaml", {"files": 0, "lines": 0}),
+                "markdown": lang_totals.get("markdown", {"files": 0, "lines": 0}),
+                "orphans": {},
+                "snapshot_age": row["scanned_at"].isoformat() if row["scanned_at"] else None,
+            }
+
+            # Add structural audits (lightweight, no filesystem walk)
+            try:
+                from services.code_metrics_service import (
+                    _audit_kbs_plugins,
+                    _audit_standalone_products,
+                    _calculate_health_score,
+                    _detect_retired_modules,
+                    _find_orphan_files,
+                )
+
+                orphans = _find_orphan_files(set(per_module.keys()))
+                metrics["orphans"] = orphans
+                metrics["kbs_audit"] = _audit_kbs_plugins()
+                metrics["standalone_audit"] = _audit_standalone_products()
+                metrics["retired_modules"] = _detect_retired_modules()
+                metrics["health_score"] = _calculate_health_score(metrics)
+            except Exception:
+                pass
+
+            return jsonify(metrics)
+
+        # Fallback: live scan if no snapshot exists
         from services.code_metrics_service import scan_codebase
 
         metrics = scan_codebase()

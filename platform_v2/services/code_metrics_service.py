@@ -20,10 +20,16 @@ if os.path.isdir("/app/tools"):
     PLATFORM_ROOT = "/app"
     AI_BRIDGE_ROOT = "/mnt/archie_brain/ai_bridge"
     MIGRATIONS_ROOT = "/mnt/archie_brain/database/migrations"
+    # Standalone products: prefer /mnt/standalone if mounted, fall back to /mnt/archie_brain
+    STANDALONE_BASE = "/mnt/standalone" if os.path.isdir("/mnt/standalone") else "/mnt/archie_brain"
+    # Websites: prefer /mnt/standalone/websites, fall back to /mnt/archie_brain/website
+    WEBSITE_BASE = "/mnt/standalone/websites" if os.path.isdir("/mnt/standalone/websites") else "/mnt/archie_brain/website"
 else:
     PLATFORM_ROOT = "/mnt/archie_brain/platform_v2"
     AI_BRIDGE_ROOT = "/mnt/archie_brain/ai_bridge"
     MIGRATIONS_ROOT = "/mnt/archie_brain/database/migrations"
+    STANDALONE_BASE = "/mnt/standalone" if os.path.isdir("/mnt/standalone") else "/mnt/archie_brain"
+    WEBSITE_BASE = "/mnt/standalone/websites" if os.path.isdir("/mnt/standalone/websites") else "/mnt/archie_brain/website"
 
 SKIP_DIRS = {"__pycache__", "node_modules", ".git", ".venv", "venv", "static/vendor"}
 
@@ -36,66 +42,87 @@ EXT_MAP = {
     ".sql": "sql",
     ".sh": "shell",
     ".json": "json",
+    ".yaml": "yaml",
+    ".yml": "yaml",
+    ".md": "markdown",
 }
 
 # Standalone products tracked in Code Health (see .claude/rules/standalone-extraction.md)
-STANDALONE_PRODUCTS = [
+# dir_name is relative to STANDALONE_BASE; path is computed at scan time
+_STANDALONE_DEFS = [
     {
         "name": "Kytran System Operations",
-        "path": "/mnt/standalone/kytran-server-manager",
+        "dir_name": "kytran-server-manager",
         "module_key": "standalone_kytran_system_operations",
         "tier": 1,
         "compliance_packs": ["ubuntu-stig", "docker-stig", "network-stig", "cis-ubuntu", "hipaa"],
     },
     {
         "name": "Kytran Business Suite",
-        "path": "/mnt/standalone/kytran-business-suite",
+        "dir_name": "kytran-business-suite",
         "module_key": "standalone_kytran_business_suite",
         "tier": 1,
         "compliance_packs": ["ubuntu-stig", "docker-stig", "network-stig", "cis-ubuntu", "hipaa"],
     },
     {
         "name": "Kytran Civic Watch",
-        "path": "/mnt/standalone/kytran-civic-watch",
+        "dir_name": "kytran-civic-watch",
         "module_key": "standalone_kytran_civic_watch",
         "tier": 1,
         "compliance_packs": ["ubuntu-stig", "docker-stig", "network-stig", "cis-ubuntu"],
     },
     {
         "name": "Kytran Legal Watch",
-        "path": "/mnt/standalone/kytran-legal-watch",
+        "dir_name": "kytran-legal-watch",
         "module_key": "standalone_kytran_legal_watch",
         "tier": 1,
         "compliance_packs": ["ubuntu-stig", "docker-stig", "network-stig", "cis-ubuntu"],
     },
     {
         "name": "Kytran Market Watch",
-        "path": "/mnt/standalone/kytran-market-watch",
+        "dir_name": "kytran-market-watch",
         "module_key": "standalone_kytran_market_watch",
         "tier": 1,
         "compliance_packs": ["ubuntu-stig", "docker-stig", "network-stig", "cis-ubuntu"],
     },
     {
         "name": "Kytran Gov Watch",
-        "path": "/mnt/standalone/kytran-gov-watch",
+        "dir_name": "kytran-gov-watch",
         "module_key": "standalone_kytran_gov_watch",
         "tier": 1,
         "compliance_packs": ["ubuntu-stig", "docker-stig", "network-stig", "cis-ubuntu"],
     },
     {
         "name": "C.R.E.E.D. Governance Platform",
-        "path": "/mnt/standalone/kytran-creed",
+        "dir_name": "kytran-creed",
         "module_key": "standalone_creed_governance",
         "tier": 2,
         "compliance_packs": ["ubuntu-stig", "docker-stig", "network-stig", "cis-ubuntu"],
     },
     {
         "name": "The News (What The Fact)",
-        "path": "/mnt/standalone/kytran-news",
+        "dir_name": "kytran-news",
         "module_key": "standalone_kytran_news",
         "tier": 1,
         "compliance_packs": ["ubuntu-stig", "docker-stig"],
     },
+]
+
+
+def _resolve_standalone_path(dir_name):
+    """Find standalone product on filesystem, checking multiple known locations."""
+    candidates = [
+        os.path.join(STANDALONE_BASE, dir_name),
+        os.path.join("/mnt/archie_brain", dir_name),
+    ]
+    for c in candidates:
+        if os.path.isdir(c):
+            return c
+    return os.path.join(STANDALONE_BASE, dir_name)  # default even if missing
+
+
+STANDALONE_PRODUCTS = [
+    {**d, "path": _resolve_standalone_path(d["dir_name"])} for d in _STANDALONE_DEFS
 ]
 
 # Infrastructure services tracked in Code Health (not customer-facing products)
@@ -109,27 +136,15 @@ INFRASTRUCTURE_SERVICES = [
 ]
 
 # Website products tracked in Code Health (static sites deployed to Hostinger)
+_WEBSITE_DEFS = [
+    {"name": "kytranempowerment.com", "dir_name": "kytranempowerment.com", "module_key": "website_kytranempowerment"},
+    {"name": "creed-ai.org", "dir_name": "creed-ai.org", "module_key": "website_creed_ai"},
+    {"name": "thenews.kytranempowerment.com", "dir_name": "thenews.kytranempowerment.com", "module_key": "website_kytran_news"},
+    {"name": "what-the-fact.com", "dir_name": "what-the-fact.com", "module_key": "website_what_the_fact"},
+]
+
 WEBSITE_PRODUCTS = [
-    {
-        "name": "kytranempowerment.com",
-        "path": "/mnt/standalone/websites/kytranempowerment.com",
-        "module_key": "website_kytranempowerment",
-    },
-    {
-        "name": "creed-ai.org",
-        "path": "/mnt/standalone/websites/creed-ai.org",
-        "module_key": "website_creed_ai",
-    },
-    {
-        "name": "thenews.kytranempowerment.com",
-        "path": "/mnt/standalone/websites/thenews.kytranempowerment.com",
-        "module_key": "website_kytran_news",
-    },
-    {
-        "name": "what-the-fact.com",
-        "path": "/mnt/standalone/websites/what-the-fact.com",
-        "module_key": "website_what_the_fact",
-    },
+    {**d, "path": os.path.join(WEBSITE_BASE, d["dir_name"])} for d in _WEBSITE_DEFS
 ]
 
 
@@ -483,15 +498,6 @@ def _get_standalone_stats():
         if not os.path.isdir(path):
             continue
         stats = {"files": 0, "lines": 0, "folders": 0, "by_type": {}}
-        type_map = {
-            ".py": "python",
-            ".js": "js",
-            ".css": "css",
-            ".html": "html",
-            ".sql": "sql",
-            ".sh": "shell",
-            ".json": "json",
-        }
         seen_dirs = set()
         for root, dirs, files in os.walk(path):
             dirs[:] = [
@@ -501,7 +507,7 @@ def _get_standalone_stats():
             ]
             for f in files:
                 ext = os.path.splitext(f)[1].lower()
-                lang = type_map.get(ext)
+                lang = EXT_MAP.get(ext)
                 if lang is None:
                     continue
                 filepath = os.path.join(root, f)
@@ -528,16 +534,6 @@ def _get_website_stats():
         if not os.path.isdir(path):
             continue
         stats = {"files": 0, "lines": 0, "folders": 0, "by_type": {}}
-        type_map = {
-            ".py": "python",
-            ".js": "js",
-            ".mjs": "js",
-            ".css": "css",
-            ".html": "html",
-            ".sql": "sql",
-            ".sh": "shell",
-            ".json": "json",
-        }
         seen_dirs = set()
         for root, dirs, files in os.walk(path):
             dirs[:] = [
@@ -547,7 +543,7 @@ def _get_website_stats():
             ]
             for f in files:
                 ext = os.path.splitext(f)[1].lower()
-                lang = type_map.get(ext)
+                lang = EXT_MAP.get(ext)
                 if lang is None:
                     continue
                 filepath = os.path.join(root, f)
@@ -566,9 +562,31 @@ def _get_website_stats():
     return website_metrics
 
 
-def scan_codebase():
+import time as _time
+
+# In-memory cache for scan results (avoids rescanning filesystem on every page load)
+_scan_cache = {"result": None, "timestamp": 0}
+_SCAN_CACHE_TTL = 300  # 5 minutes
+
+
+def scan_codebase(force=False):
     """
     Full codebase scan. Returns comprehensive metrics dict.
+    Results are cached for 5 minutes to avoid rescanning on every page load.
+    Pass force=True to bypass cache (used by scheduled scans / manual trigger).
+    """
+    if not force and _scan_cache["result"] and (_time.time() - _scan_cache["timestamp"]) < _SCAN_CACHE_TTL:
+        return _scan_cache["result"]
+
+    result = _scan_codebase_uncached()
+    _scan_cache["result"] = result
+    _scan_cache["timestamp"] = _time.time()
+    return result
+
+
+def _scan_codebase_uncached():
+    """
+    Internal: full codebase scan without caching.
     """
     # Scan main areas
     platform_stats = _scan_directory(PLATFORM_ROOT)
@@ -601,6 +619,8 @@ def scan_codebase():
         "sql": dict(type_totals.get("sql", {"files": 0, "lines": 0})),
         "shell": dict(type_totals.get("shell", {"files": 0, "lines": 0})),
         "json": dict(type_totals.get("json", {"files": 0, "lines": 0})),
+        "yaml": dict(type_totals.get("yaml", {"files": 0, "lines": 0})),
+        "markdown": dict(type_totals.get("markdown", {"files": 0, "lines": 0})),
         "areas": {
             "platform": {"files": platform_stats["files"], "lines": platform_stats["lines"]},
             "ai_bridge": {"files": bridge_stats["files"], "lines": bridge_stats["lines"]},
@@ -618,7 +638,7 @@ def scan_codebase():
     if shared_lines > 0:
         # Calculate per-type breakdown for shared (total type - sum of module types)
         shared_by_type = {}
-        for ftype in ["python", "js", "css", "html", "sql", "shell", "json"]:
+        for ftype in ["python", "js", "css", "html", "sql", "shell", "json", "yaml", "markdown"]:
             total_t = type_totals.get(ftype, {"files": 0, "lines": 0})
             mod_t_files = sum(v.get("by_type", {}).get(ftype, {}).get("files", 0) for v in module_stats.values())
             mod_t_lines = sum(v.get("by_type", {}).get(ftype, {}).get("lines", 0) for v in module_stats.values())

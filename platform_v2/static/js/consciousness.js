@@ -3109,6 +3109,58 @@ function loadCodeHealth() {
     _renderStructuralAudit(d);
     _renderAuditTable(entries);
     _renderRepairBayPipeline(repairData);
+
+    // Audit button handlers
+    var auditAllBtn = document.getElementById("chAuditAllBtn");
+    if (auditAllBtn && !auditAllBtn._bound) {
+      auditAllBtn._bound = true;
+      auditAllBtn.addEventListener("click", function() {
+        auditAllBtn.disabled = true;
+        auditAllBtn.textContent = "Auditing...";
+        auditAllBtn.style.opacity = "0.6";
+        api("/api/code-health/audit", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({})}).then(function(d) {
+          auditAllBtn.disabled = false;
+          auditAllBtn.textContent = "Audit All Modules";
+          auditAllBtn.style.opacity = "1";
+          if (d.success) {
+            var clean = d.results.filter(function(r) { return r.status === "completed"; }).length;
+            var violations = d.audited - clean;
+            auditAllBtn.textContent = clean + " clean, " + violations + " issues — reloading...";
+            setTimeout(function() {
+              _cache = {};
+              loadCodeHealth();
+            }, 1000);
+          }
+        }).catch(function() {
+          auditAllBtn.disabled = false;
+          auditAllBtn.textContent = "Audit All Modules";
+          auditAllBtn.style.opacity = "1";
+        });
+      });
+    }
+
+    var refreshBtn = document.getElementById("chRefreshScanBtn");
+    if (refreshBtn && !refreshBtn._bound) {
+      refreshBtn._bound = true;
+      refreshBtn.addEventListener("click", function() {
+        refreshBtn.disabled = true;
+        refreshBtn.textContent = "Scanning...";
+        refreshBtn.style.opacity = "0.6";
+        api("/api/code-health/scan", {method: "POST"}).then(function(d) {
+          refreshBtn.disabled = false;
+          refreshBtn.textContent = "Refresh Scan";
+          refreshBtn.style.opacity = "1";
+          if (d.success) {
+            _cache = {};
+            loadCodeHealth();
+          }
+        }).catch(function() {
+          refreshBtn.disabled = false;
+          refreshBtn.textContent = "Refresh Scan";
+          refreshBtn.style.opacity = "1";
+        });
+      });
+    }
   }).catch(function(err) {
     console.error("Code health load error:", err);
   });
@@ -3619,6 +3671,18 @@ function _renderModuleChart(modules, displayNames) {
   });
 }
 
+function _detectProfile(mod) {
+  var bt = mod.by_type || {};
+  var total = 0;
+  Object.values(bt).forEach(function(v) { total += (v.lines || 0); });
+  if (total === 0) return "python";
+  var web = ((bt.js||{}).lines||0) + ((bt.html||{}).lines||0) + ((bt.css||{}).lines||0) + ((bt.svg||{}).lines||0);
+  var cfg = ((bt.yaml||{}).lines||0) + ((bt.config||{}).lines||0);
+  if (cfg / total >= 0.6) return "config";
+  if (web / total >= 0.6) return "web";
+  return "python";
+}
+
 function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisplayNames) {
   var el = document.getElementById("chModuleTable");
   if (!el) return;
@@ -3637,9 +3701,11 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
   var sorted = toolKeys.concat(infraSorted);
 
   var html = '<table class="ch-table"><thead><tr>' +
-    '<th>Module</th><th class="center">Status</th><th class="center">Files</th><th class="center">Lines</th>' +
+    '<th>Module</th><th class="center">Profile</th><th class="center">Status</th><th class="center">Files</th><th class="center">Lines</th>' +
     '<th class="center">Python</th><th class="center">JS</th><th class="center">HTML</th><th class="center">CSS</th><th class="center">SQL</th><th class="center">Shell</th><th class="center">JSON</th>' +
     '</tr></thead><tbody>';
+
+  var profileColors = {python: "#8b5cf6", web: "#f59e0b", config: "#94a3b8"};
 
   sorted.forEach(function(name) {
     var m = modules[name];
@@ -3647,6 +3713,12 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
     var status = auditedModules[name];
     var isCompleted = status === "completed";
     var isAudited = !!status;
+
+    // Profile badge
+    var profile = _detectProfile(m);
+    var profileBadge = '<span style="font-size:0.55rem;padding:1px 5px;border-radius:3px;background:' +
+      profileColors[profile] + '22;color:' + profileColors[profile] + ';border:1px solid ' +
+      profileColors[profile] + '44;text-transform:uppercase;">' + profile + '</span>';
 
     // Status badge from module-status endpoint
     var healthStatus = moduleStatusMap[name] || "red";
@@ -3663,8 +3735,9 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
 
     var nameClass = "ch-module-name" + (isCompleted ? " ch-name-clean" : isAudited ? " ch-name-amber" : "");
 
-    html += '<tr>' +
+    html += '<tr data-module="' + escHtml(name) + '" style="cursor:pointer;" title="Click to audit">' +
       '<td><span class="' + nameClass + '">' + escHtml(moduleDisplayNames[name] || name) + '</span>' + (isCompleted ? ' <span style="font-size:0.6rem;opacity:0.5;">&#x2713;</span>' : '') + '</td>' +
+      '<td class="center">' + profileBadge + '</td>' +
       '<td class="center">' + badgeHtml + '</td>' +
       '<td class="center">' + (m.files || 0) + '</td>' +
       '<td class="center"><strong>' + (m.lines || 0).toLocaleString() + '</strong></td>' +
@@ -3680,6 +3753,22 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
 
   html += '</tbody></table>';
   setHtml(el, html);
+
+  // Click-to-audit individual modules
+  el.querySelectorAll("tr[data-module]").forEach(function(row) {
+    row.addEventListener("click", function() {
+      var mod = row.getAttribute("data-module");
+      row.style.opacity = "0.5";
+      api("/api/code-health/audit", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({module: mod})}).then(function(d) {
+        row.style.opacity = "1";
+        if (d.success && d.results && d.results[0]) {
+          var r = d.results[0];
+          row.style.background = r.status === "completed" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)";
+          setTimeout(function() { row.style.background = ""; _cache = {}; loadCodeHealth(); }, 2000);
+        }
+      }).catch(function() { row.style.opacity = "1"; });
+    });
+  });
 }
 
 function _renderStandaloneTable(modules, moduleStatusMap, tierMap) {
@@ -4192,7 +4281,7 @@ function _renderAuditTable(entries) {
     + '</div>';
 
   html += '<table class="ch-table"><thead><tr>' +
-    '<th>Module</th><th>Category</th><th class="center">Files</th>' +
+    '<th>Module</th><th class="center">Profile</th><th class="center">Trigger</th><th>Category</th><th class="center">Files</th>' +
     '<th class="center">Before</th><th class="center">After</th><th class="center">\u0394</th>' +
     '<th class="center">Issues</th><th class="center">Fixed</th><th>Status</th><th>Date</th>' +
     '</tr></thead><tbody>';
@@ -4207,8 +4296,12 @@ function _renderAuditTable(entries) {
     var deltaColor = delta > 0 ? "color:#22c55e" : delta < 0 ? "color:#ef4444" : "";
     var badgeClass = e.status === "completed" ? "ch-badge-green" : e.status === "in_progress" ? "ch-badge-amber" : e.status === "known_issues" ? "ch-badge-amber" : e.status === "violations_found" ? "ch-badge-purple" : "ch-badge-red";
     var nameClass = e.status === "completed" ? " ch-name-clean" : "";
+    var profileCell = e.audit_profile ? '<span style="font-size:0.55rem;padding:1px 4px;border-radius:3px;background:rgba(139,92,246,0.15);color:#8b5cf6;">' + escHtml(e.audit_profile) + '</span>' : '\u2014';
+    var triggerCell = e.trigger_reason ? '<span style="font-size:0.55rem;padding:1px 4px;border-radius:3px;background:rgba(0,229,255,0.1);color:rgba(0,229,255,0.6);">' + escHtml(e.trigger_reason) + '</span>' : '\u2014';
     html += '<tr data-audit-id="' + e.id + '">' +
       '<td><span class="ch-module-name' + nameClass + '">' + escHtml(window._chDisplayNames && window._chDisplayNames[e.module_name] || e.module_name) + '</span></td>' +
+      '<td class="center">' + profileCell + '</td>' +
+      '<td class="center">' + triggerCell + '</td>' +
       '<td style="font-size:0.7rem;color:rgba(255,255,255,0.4);">' + escHtml(e.category || "") + '</td>' +
       '<td class="center">' + (e.files_reviewed || 0) + '</td>' +
       '<td class="center">' + (e.lines_before || 0).toLocaleString() + '</td>' +
@@ -4229,6 +4322,8 @@ function _renderAuditTable(entries) {
     html += '<tr data-audit-id="' + latestPat.id + '">' +
       '<td><span class="ch-module-name" style="color:rgba(255,255,255,0.4);">PATTERN_COMPLIANCE</span>' +
       ' <span style="font-size:0.6rem;background:rgba(139,92,246,0.15);color:#a78bfa;padding:1px 6px;border-radius:3px;">' + patternEntries.length + ' scans</span></td>' +
+      '<td class="center">\u2014</td>' +
+      '<td class="center"><span style="font-size:0.55rem;padding:1px 4px;border-radius:3px;background:rgba(0,229,255,0.1);color:rgba(0,229,255,0.6);">scheduled</span></td>' +
       '<td style="font-size:0.7rem;color:rgba(255,255,255,0.4);">automated_scan</td>' +
       '<td class="center" colspan="4" style="font-size:0.7rem;color:rgba(255,255,255,0.35);">automated pattern checks</td>' +
       '<td class="center">' + totalIssues + '</td>' +

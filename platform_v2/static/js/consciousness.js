@@ -3907,20 +3907,6 @@ function _renderStandaloneTable(modules, moduleStatusMap, tierMap) {
         var topLangs = langEntries.slice(0, 3).map(function(l) {
             return '<span style="font-size:0.6rem;padding:1px 4px;border-radius:3px;background:' + (langColors[l.lang] || '#666') + '22;color:' + (langColors[l.lang] || '#999') + ';margin-right:2px;">' + escHtml(l.lang) + ' ' + l.lines.toLocaleString() + '</span>';
         }).join('');
-        // Dynamic tier progress badge
-        var tierHtml;
-        var tp = tierMap[key];
-        if (tp && tp.total) {
-            var pct = Math.round(tp.completed / tp.total * 100);
-            var barColor = pct >= 75 ? '#22c55e' : pct >= 25 ? '#f59e0b' : '#ef4444';
-            tierHtml = '<div style="text-align:center;">'
-                + '<span style="font-size:10px;font-weight:600;color:' + barColor + ';">TIER ' + (tp.current_tier || 1) + ': ' + tp.completed + '/' + tp.total + '</span>'
-                + '<div style="height:4px;background:rgba(255,255,255,0.1);border-radius:2px;margin-top:3px;width:60px;display:inline-block;">'
-                + '<div style="height:100%;width:' + pct + '%;background:' + barColor + ';border-radius:2px;"></div>'
-                + '</div></div>';
-        } else {
-            tierHtml = '<span class="ch-tier-badge">TIER 1</span>';
-        }
         return '<tr>'
             + '<td><span style="color:' + nameColor + ';font-weight:600;">' + escHtml(displayName) + '</span></td>'
             + '<td class="center">' + profileBadge + '</td>'
@@ -3929,7 +3915,6 @@ function _renderStandaloneTable(modules, moduleStatusMap, tierMap) {
             + '<td class="center">' + (m.files || 0) + '</td>'
             + '<td class="center"><strong>' + (m.lines || 0).toLocaleString() + '</strong></td>'
             + '<td>' + (topLangs || '<span style="color:rgba(255,255,255,0.2);">\u2014</span>') + '</td>'
-            + '<td class="center">' + tierHtml + '</td>'
             + '<td class="center"><button class="ch-audit-row-btn" data-module="' + escHtml(key) + '" style="background:rgba(0,229,255,0.1);color:#00e5ff;border:1px solid rgba(0,229,255,0.3);padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px;">Audit</button></td>'
             + '</tr>';
     });
@@ -3942,7 +3927,6 @@ function _renderStandaloneTable(modules, moduleStatusMap, tierMap) {
         + '<th class="center">Files</th>'
         + '<th class="center">Lines</th>'
         + '<th>Top Languages</th>'
-        + '<th class="center">Tier</th>'
         + '<th class="center"></th>'
         + '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
     setHtml(el, html);

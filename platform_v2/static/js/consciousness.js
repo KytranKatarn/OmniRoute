@@ -3136,7 +3136,7 @@ function loadCodeHealth() {
             return;
           }
           var key = moduleKeys[idx];
-          api("/api/code-health/audit", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({module: key})}).then(function(d) {
+          api("/api/code-health/audit", {body: {module: key}}).then(function(d) {
             done++;
             if (d.success && d.results && d.results[0]) {
               if (d.results[0].status === "completed") cleanCount++; else issueCount++;
@@ -3774,7 +3774,7 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
     row.addEventListener("click", function() {
       var mod = row.getAttribute("data-module");
       row.style.opacity = "0.5";
-      api("/api/code-health/audit", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({module: mod})}).then(function(d) {
+      api("/api/code-health/audit", {body: {module: mod}}).then(function(d) {
         row.style.opacity = "1";
         if (d.success && d.results && d.results[0]) {
           var r = d.results[0];

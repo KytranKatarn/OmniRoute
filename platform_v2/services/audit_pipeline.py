@@ -312,7 +312,14 @@ def process_audit_findings(module_name, issues_list):
             continue
 
         try:
-            file_path = f"platform_v2/tools/{module_name}/{issue['file']}"
+            # Build file path — handle platform modules, standalone, and website products
+            issue_file = issue.get("file", module_name)
+            if module_name.startswith("standalone_") or module_name.startswith("website_"):
+                file_path = f"{module_name}/{issue_file}"
+            elif module_name.startswith("["):
+                file_path = f"{module_name}/{issue_file}"
+            else:
+                file_path = f"platform_v2/tools/{module_name}/{issue_file}"
             issue_code = issue["code"]
 
             if _has_open_audit_proposal(file_path, issue_code):

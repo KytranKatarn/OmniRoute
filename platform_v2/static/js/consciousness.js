@@ -4758,7 +4758,9 @@ window.showAuditDetail = function(auditId) {
         submitBtn.textContent = "Submitting...";
         api("/api/code-health/audit/" + auditId + "/submit-repair", {method: "POST"}).then(function(r) {
           if (r.success) {
-            submitBtn.textContent = r.proposals_created + " proposals created";
+            var msg = r.proposals_created + " new proposals";
+            if (r.skipped_duplicates > 0) msg += ", " + r.skipped_duplicates + " already in pipeline";
+            submitBtn.textContent = msg;
             submitBtn.style.background = "rgba(34,197,94,0.15)";
             submitBtn.style.color = "#22c55e";
             submitBtn.style.borderColor = "#22c55e";

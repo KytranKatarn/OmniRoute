@@ -3340,21 +3340,21 @@ function _renderAttentionItems(summary, orphans, d) {
   if (r > 0) items.push({label: "Unaudited modules", count: r, color: "#ef4444", icon: "alert-triangle", severity: "critical", action: "Audit Now", actionFn: function() {
     var btn = document.getElementById("chAuditAllBtn");
     if (btn) btn.click();
-  }});
+  }, repairType: null});
   if (o > 0) items.push({label: "Modules with issues", count: o, color: "#f59e0b", icon: "alert-circle", severity: "warning", action: "View Repairs", actionFn: function() {
     window.location.href = "/tools/repair-bay";
-  }});
+  }, repairType: "modules_with_issues"});
   if (y > 0) items.push({label: "Stale audits (needs re-scan)", count: y, color: "#eab308", icon: "clock", severity: "info", action: "Re-audit", actionFn: function() {
     var btn = document.getElementById("chAuditAllBtn");
     if (btn) btn.click();
-  }});
+  }, repairType: null});
 
   // Modules changed since last audit
   var changed = d.modules_changed || [];
   if (changed.length > 0) items.push({label: "Modules changed since last audit", count: changed.length, color: "#3b82f6", icon: "git-commit", severity: "info", action: "Audit Changed", actionFn: function() {
     var btn = document.getElementById("chAuditAllBtn");
     if (btn) btn.click();
-  }});
+  }, repairType: null});
 
   // Orphan files
   var orphanTotal = 0;
@@ -3364,7 +3364,7 @@ function _renderAttentionItems(summary, orphans, d) {
       orphanTotal += Array.isArray(v) ? v.length : (typeof v === "number" ? v : 0);
     });
   }
-  if (orphanTotal > 0) items.push({label: "Orphan files (unmapped)", count: orphanTotal, color: "#f97316", icon: "file-question", severity: "warning", action: null, actionFn: null});
+  if (orphanTotal > 0) items.push({label: "Orphan files (unmapped)", count: orphanTotal, color: "#f97316", icon: "file-question", severity: "warning", action: null, actionFn: null, repairType: "orphan_files"});
 
   // Deductions removed — they appear in the Structural Audit Score Deductions card
 
@@ -3423,6 +3423,39 @@ function _renderAttentionItems(summary, orphans, d) {
       btn.textContent = item.action;
       btn.onclick = item.actionFn;
       card.appendChild(btn);
+    }
+
+    // Submit to Repair Bay button
+    if (item.repairType) {
+      var repairBtn = document.createElement("button");
+      repairBtn.className = "ch-attn-action ch-attn-repair";
+      repairBtn.textContent = "Repair Bay";
+      repairBtn.onclick = (function(type, lbl, btnEl) {
+        return function() {
+          btnEl.disabled = true;
+          btnEl.textContent = "Submitting...";
+          api("/api/code-health/submit-attention", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({type: type, label: lbl})
+          }).then(function(r) {
+            if (r.success) {
+              btnEl.textContent = r.proposals_created + " submitted";
+              btnEl.style.color = "#10b981";
+              btnEl.style.borderColor = "rgba(16,185,129,0.5)";
+            } else {
+              btnEl.textContent = "Failed";
+              btnEl.style.color = "#ef4444";
+              btnEl.disabled = false;
+            }
+          }).catch(function() {
+            btnEl.textContent = "Error";
+            btnEl.style.color = "#ef4444";
+            btnEl.disabled = false;
+          });
+        };
+      })(item.repairType, item.label, repairBtn);
+      card.appendChild(repairBtn);
     }
 
     el.appendChild(card);
@@ -4170,12 +4203,32 @@ function _renderStructuralAudit(d, statusSummary) {
 
   var sections = [];
 
-  // Health Score summary card — radial ring
+  // Health Score summary card — radial ring + score breakdown bar
   var score = hs.score || 0;
   var grade = hs.grade || "?";
   var scoreColor = score >= 90 ? "#10b981" : score >= 70 ? "#3b82f6" : score >= 50 ? "#f59e0b" : "#ef4444";
   var circumference = 2 * Math.PI * 42;
   var dashOffset = circumference * (1 - score / 100);
+
+  // Build score breakdown bar segments
+  var deductions = hs.deductions || [];
+  var barSegments = '';
+  var legendItems = '';
+  var dedColors = ["#ef4444", "#f59e0b", "#f97316", "#a78bfa"];
+  var remaining = score;
+  barSegments += '<div class="ch-score-bar-fill" style="width:' + score + '%;background:' + scoreColor + ';"></div>';
+  deductions.forEach(function(ded, i) {
+    var dedText = typeof ded === 'string' ? ded : (ded.reason || '');
+    var penaltyMatch = dedText.match(/^-(\d+):/);
+    var pts = penaltyMatch ? parseInt(penaltyMatch[1]) : 0;
+    var col = dedColors[i % dedColors.length];
+    if (pts > 0) {
+      barSegments += '<div class="ch-score-bar-fill" style="width:' + pts + '%;background:' + col + ';"></div>';
+      var desc = penaltyMatch ? dedText.substring(penaltyMatch[0].length).trim() : dedText;
+      legendItems += '<div class="ch-score-legend-item"><span class="ch-score-legend-dot" style="background:' + col + ';"></span>' + escHtml(desc) + ' (-' + pts + ')</div>';
+    }
+  });
+
   sections.push(
     '<div class="ch-audit-card ch-audit-hero" style="text-align:center;">' +
     '<div class="ch-audit-title">Health Score</div>' +
@@ -4189,6 +4242,7 @@ function _renderStructuralAudit(d, statusSummary) {
     '<div class="ch-score-ring-sub">/ 100</div>' +
     '</div></div>' +
     '<div style="font-family:Antonio,sans-serif;font-size:1rem;font-weight:600;color:' + scoreColor + ';letter-spacing:2px;">GRADE: ' + escHtml(grade) + '</div>' +
+    (deductions.length > 0 ? '<div class="ch-score-bar">' + barSegments + '</div><div class="ch-score-legend">' + legendItems + '</div>' : '') +
     '</div>'
   );
 
@@ -4219,13 +4273,38 @@ function _renderStructuralAudit(d, statusSummary) {
     );
   }
 
-  // KBS Plugins — only show if there are any
+  // KBS Plugins — show per-plugin checklist
   if (kbs.total > 0) {
     var kbsColor = kbs.healthy === kbs.total ? "#10b981" : "#f59e0b";
+    var pluginRows = '';
+    var plugins = kbs.plugins || [];
+    if (plugins.length > 0) {
+      pluginRows = '<div style="margin-top:8px;">';
+      plugins.forEach(function(p) {
+        var checks = [
+          {key: "has_manifest", label: "manifest"},
+          {key: "has_routes", label: "routes"},
+          {key: "has_init", label: "init"},
+          {key: "has_templates", label: "templates"},
+          {key: "has_static", label: "static"}
+        ];
+        var checkHtml = checks.map(function(c) {
+          var pass = p[c.key];
+          return '<span class="ch-plugin-check ' + (pass ? 'pass' : 'fail') + '">' + (pass ? '\u2713' : '\u2717') + '</span>';
+        }).join('');
+        var healthy = !p.issues || p.issues.length === 0;
+        pluginRows += '<div class="ch-plugin-row">' +
+          '<span style="color:' + (healthy ? '#10b981' : '#f59e0b') + ';font-weight:600;min-width:80px;">' + escHtml(p.name) + '</span>' +
+          checkHtml +
+          '</div>';
+      });
+      pluginRows += '</div>';
+    }
     sections.push(
       '<div class="ch-audit-card">' +
       '<div class="ch-audit-title">KBS Plugins</div>' +
       '<div class="ch-audit-score" style="color:' + kbsColor + '">' + (kbs.healthy || 0) + '/' + (kbs.total || 0) + ' healthy</div>' +
+      pluginRows +
       '</div>'
     );
   }
@@ -4297,6 +4376,25 @@ function _renderStructuralAudit(d, statusSummary) {
       '<div class="ch-audit-card">' +
       '<div class="ch-audit-title">Score Deductions</div>' +
       dedHtml +
+      '</div>'
+    );
+  }
+
+  // Last Scanned timestamp — full-width
+  var snapAge = d.snapshot_age || null;
+  if (snapAge) {
+    var scanDate = new Date(snapAge);
+    var now = new Date();
+    var diffMs = now - scanDate;
+    var diffMins = Math.floor(diffMs / 60000);
+    var agoText = '';
+    if (diffMins < 1) agoText = 'just now';
+    else if (diffMins < 60) agoText = diffMins + 'm ago';
+    else if (diffMins < 1440) agoText = Math.floor(diffMins / 60) + 'h ago';
+    else agoText = Math.floor(diffMins / 1440) + 'd ago';
+    sections.push(
+      '<div class="ch-audit-card ch-audit-full" style="text-align:center;">' +
+      '<div class="ch-last-scanned">Last scanned: <strong>' + scanDate.toLocaleString() + '</strong> (' + agoText + ')</div>' +
       '</div>'
     );
   }

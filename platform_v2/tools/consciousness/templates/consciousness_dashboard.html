@@ -2260,6 +2260,13 @@
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 12px;
     padding: 14px 18px 18px;
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+/* Full-width card spanning grid */
+.ch-audit-card.ch-audit-full {
+    grid-column: 1 / -1;
 }
 
 /* Structural Audit cards */
@@ -2362,6 +2369,85 @@
     letter-spacing: 1px;
     text-transform: uppercase;
     margin-top: 2px;
+}
+
+/* Score breakdown bar */
+.ch-score-bar {
+    display: flex;
+    height: 6px;
+    border-radius: 3px;
+    overflow: hidden;
+    background: rgba(255,255,255,0.06);
+    margin: 10px 0 6px;
+}
+.ch-score-bar-fill {
+    height: 100%;
+    transition: width 0.6s ease;
+    border-radius: 3px;
+}
+.ch-score-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+}
+.ch-score-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.6rem;
+    color: rgba(255,255,255,0.45);
+}
+.ch-score-legend-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* Last scanned timestamp */
+.ch-last-scanned {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.35);
+    text-align: center;
+    padding: 8px 0 4px;
+    letter-spacing: 0.5px;
+}
+.ch-last-scanned strong {
+    color: rgba(255,255,255,0.6);
+    font-weight: 600;
+}
+
+/* KBS plugin checklist */
+.ch-plugin-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0;
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.6);
+}
+.ch-plugin-check {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.55rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+.ch-plugin-check.pass {
+    background: rgba(16,185,129,0.15);
+    color: #10b981;
+    border: 1px solid rgba(16,185,129,0.3);
+}
+.ch-plugin-check.fail {
+    background: rgba(239,68,68,0.15);
+    color: #ef4444;
+    border: 1px solid rgba(239,68,68,0.3);
 }
 
 /* Language color indicator bar */
@@ -4706,6 +4792,15 @@
                 .ch-attention-card .ch-attn-action:hover {
                     background:rgba(255,255,255,0.08);
                     transform:scale(1.03);
+                }
+                .ch-attention-card .ch-attn-repair {
+                    color: #a78bfa;
+                    border-color: rgba(167,139,250,0.4);
+                    background: rgba(167,139,250,0.08);
+                }
+                .ch-attention-card .ch-attn-repair:hover {
+                    background: rgba(167,139,250,0.15);
+                    box-shadow: 0 0 8px rgba(167,139,250,0.2);
                 }
                 .ch-attn-all-clear {
                     display:flex;align-items:center;justify-content:center;gap:8px;

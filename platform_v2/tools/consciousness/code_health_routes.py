@@ -4,10 +4,14 @@ Code Health Routes — Consciousness Module
 API endpoints for codebase metrics, audit progress, and snapshots.
 """
 
-from flask import jsonify
+import logging
+
+from flask import jsonify, request
 from flask_login import login_required
 
 from database import get_db_cursor
+
+logger = logging.getLogger(__name__)
 
 
 def register_code_health_routes(bp, admin_required):
@@ -689,6 +693,119 @@ def register_code_health_routes(bp, admin_required):
                 }
             )
         except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/code-health/submit-attention", methods=["POST"])
+    @login_required
+    @admin_required
+    def code_health_submit_attention():
+        """Submit a Needs Attention item to Repair Bay for investigation."""
+        data = request.get_json() or {}
+        item_type = data.get("type", "")
+        label = data.get("label", "")
+
+        if not item_type:
+            return jsonify({"success": False, "error": "type is required"}), 400
+
+        try:
+            from services.audit_pipeline import process_audit_findings
+
+            issues_list = []
+
+            if item_type == "orphan_files":
+                # Submit orphan files for investigation
+                from services.code_metrics_service import _find_orphan_files
+
+                with get_db_cursor() as (conn, cur):
+                    cur.execute(
+                        """SELECT per_module FROM code_metrics_snapshots
+                           ORDER BY scanned_at DESC LIMIT 1"""
+                    )
+                    row = cur.fetchone()
+                if row and row.get("per_module"):
+                    import json as _json
+
+                    per_module = (
+                        _json.loads(row["per_module"]) if isinstance(row["per_module"], str) else row["per_module"]
+                    )
+                    orphans = _find_orphan_files(set(per_module.keys()))
+                    for category, files in orphans.items():
+                        for f in files:
+                            fname = f if isinstance(f, str) else f.get("file", str(f))
+                            issues_list.append(
+                                {
+                                    "code": "ORPHAN_FILE",
+                                    "severity": "yellow",
+                                    "file": fname,
+                                    "detail": f"Unmapped {category} file — not claimed by any module",
+                                }
+                            )
+                module_name = "APP_CORE"
+
+            elif item_type == "modules_with_issues":
+                # Submit modules that have audit issues
+                with get_db_cursor() as (conn, cur):
+                    cur.execute(
+                        """SELECT DISTINCT module_name, notes, issues_found
+                           FROM code_audit_log
+                           WHERE status = 'completed' AND issues_found > 0
+                           AND id IN (
+                               SELECT MAX(id) FROM code_audit_log
+                               GROUP BY module_name
+                           )"""
+                    )
+                    rows = cur.fetchall()
+                for row in rows:
+                    notes = row["notes"] or ""
+                    for part in notes.split("; "):
+                        part = part.strip()
+                        if not part:
+                            continue
+                        code = part.split(":")[0].strip() if ":" in part else part
+                        detail = part.split(":", 1)[1].strip() if ":" in part else ""
+                        issues_list.append(
+                            {
+                                "code": code,
+                                "severity": "yellow",
+                                "file": row["module_name"],
+                                "detail": detail,
+                            }
+                        )
+                module_name = "PLATFORM"
+
+            elif item_type == "standalone_issues":
+                from services.code_metrics_service import _audit_standalone_products
+
+                sa = _audit_standalone_products()
+                for issue in sa.get("issues", []):
+                    issues_list.append(
+                        {
+                            "code": "STANDALONE_TIER1",
+                            "severity": "yellow",
+                            "file": issue.split("]")[0].replace("[", "").strip() if "]" in issue else "standalone",
+                            "detail": issue,
+                        }
+                    )
+                module_name = "STANDALONE"
+
+            else:
+                return jsonify({"success": False, "error": f"Unknown type: {item_type}"}), 400
+
+            if not issues_list:
+                return jsonify({"success": True, "proposals_created": 0, "message": "No issues to submit"})
+
+            result = process_audit_findings(module_name, issues_list)
+            return jsonify(
+                {
+                    "success": True,
+                    "proposals_created": result.get("proposals_created", 0),
+                    "skipped_duplicates": result.get("skipped_duplicates", 0),
+                    "type": item_type,
+                    "label": label,
+                }
+            )
+        except Exception as e:
+            logger.exception("Failed to submit attention item to Repair Bay")
             return jsonify({"success": False, "error": str(e)}), 500
 
     @bp.route("/api/code-health/structural-audit")

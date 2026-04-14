@@ -3106,7 +3106,7 @@ function loadCodeHealth() {
     _renderWebsiteTable(websiteModules, moduleStatusMap);
     _renderOrphanTable(d.orphans || {});
     _renderAttentionItems(statusData.summary || {}, d.orphans || {}, d);
-    _renderStructuralAudit(d);
+    _renderStructuralAudit(d, statusData.summary || {});
     _renderAuditTable(entries);
     _renderRepairBayPipeline(repairData);
 
@@ -3968,7 +3968,7 @@ function _renderOrphanTable(orphans) {
   setHtml(el, html);
 }
 
-function _renderStructuralAudit(d) {
+function _renderStructuralAudit(d, statusSummary) {
   var el = document.getElementById("chStructuralAudit");
   if (!el) return;
 
@@ -3990,6 +3990,24 @@ function _renderStructuralAudit(d) {
     '<div style="font-size:1rem;font-weight:600;color:' + scoreColor + ';">Grade: ' + escHtml(grade) + '</div>' +
     '</div>'
   );
+
+  // Audit Summary — breakdown by status
+  statusSummary = statusSummary || {};
+  var totalMods = (statusSummary.green || 0) + (statusSummary.orange || 0) + (statusSummary.yellow || 0) + (statusSummary.red || 0);
+  if (totalMods > 0) {
+    var auditedTotal = totalMods - (statusSummary.red || 0);
+    sections.push(
+      '<div class="ch-audit-card" style="text-align:center;">' +
+      '<div class="ch-audit-title">Audit Summary</div>' +
+      '<div style="display:flex;justify-content:center;gap:16px;margin-top:6px;">' +
+      '<div><span style="font-size:1.2rem;font-weight:700;color:#3b82f6;">' + auditedTotal + '</span><span style="font-size:0.6rem;color:rgba(255,255,255,0.4);">/' + totalMods + '</span><div style="font-size:0.6rem;color:rgba(255,255,255,0.4);">audited</div></div>' +
+      '<div><span style="font-size:1.2rem;font-weight:700;color:#22c55e;">' + (statusSummary.green || 0) + '</span><div style="font-size:0.6rem;color:rgba(255,255,255,0.4);">clean</div></div>' +
+      '<div><span style="font-size:1.2rem;font-weight:700;color:#f59e0b;">' + (statusSummary.orange || 0) + '</span><div style="font-size:0.6rem;color:rgba(255,255,255,0.4);">issues</div></div>' +
+      '<div><span style="font-size:1.2rem;font-weight:700;color:#ef4444;">' + (statusSummary.red || 0) + '</span><div style="font-size:0.6rem;color:rgba(255,255,255,0.4);">unaudited</div></div>' +
+      '</div>' +
+      '</div>'
+    );
+  }
 
   // KBS Plugins — only show if there are any
   if (kbs.total > 0) {
@@ -4065,7 +4083,7 @@ function _renderStructuralAudit(d) {
   }
 
   if (sections.length === 0) {
-    setHtml(el, '<div class="ch-empty ch-empty-success">Structural audit clean — no issues.</div>');
+    setHtml(el, '<div class="ch-empty ch-empty-success">Structural audit clean \u2014 no issues.</div>');
   } else {
     setHtml(el, sections.join(''));
   }

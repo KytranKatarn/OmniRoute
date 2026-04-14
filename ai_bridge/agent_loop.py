@@ -476,21 +476,23 @@ class AgentLoop:
             replace_existing=True,
         )
 
-        self.scheduler.add_job(
-            with_app_context(self._check_email_inbox),
-            trigger=IntervalTrigger(minutes=5),
-            id="agent_email_inbox",
-            name="Agent Loop: Email Inbox Check",
-            replace_existing=True,
-        )
+        # DISABLED 2026-04-14: 25 fails/day, old email integration — see Project #261
+        # self.scheduler.add_job(
+        #     with_app_context(self._check_email_inbox),
+        #     trigger=IntervalTrigger(minutes=5),
+        #     id="agent_email_inbox",
+        #     name="Agent Loop: Email Inbox Check",
+        #     replace_existing=True,
+        # )
 
-        self.scheduler.add_job(
-            with_app_context(self._auto_analyze_emails),
-            trigger=IntervalTrigger(minutes=10),
-            id="agent_email_analyze",
-            name="Agent Loop: Auto-Analyze Emails",
-            replace_existing=True,
-        )
+        # DISABLED 2026-04-14: depends on email_inbox above — see Project #261
+        # self.scheduler.add_job(
+        #     with_app_context(self._auto_analyze_emails),
+        #     trigger=IntervalTrigger(minutes=10),
+        #     id="agent_email_analyze",
+        #     name="Agent Loop: Auto-Analyze Emails",
+        #     replace_existing=True,
+        # )
 
         self.scheduler.add_job(
             with_app_context(self._forward_notifications_to_telegram),
@@ -1038,14 +1040,14 @@ class AgentLoop:
             replace_existing=True,
         )
 
-        # Health probe (every 15 min)
-        self.scheduler.add_job(
-            with_app_context(self._health_probe),
-            trigger=IntervalTrigger(minutes=15),
-            id="agent_health_probe",
-            name="Agent Loop: Service Health Probe",
-            replace_existing=True,
-        )
+        # DISABLED 2026-04-14: 77 fails/day, "No module named tools.dev_hq" — see Project #261
+        # self.scheduler.add_job(
+        #     with_app_context(self._health_probe),
+        #     trigger=IntervalTrigger(minutes=15),
+        #     id="agent_health_probe",
+        #     name="Agent Loop: Service Health Probe",
+        #     replace_existing=True,
+        # )
 
         # Crew wellness tick (every 5 min)
         self.scheduler.add_job(

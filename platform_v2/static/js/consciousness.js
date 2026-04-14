@@ -4392,25 +4392,26 @@ function _renderAuditTable(entries) {
   var auditBarColor = auditPct >= 75 ? '#3b82f6' : auditPct >= 25 ? '#f59e0b' : '#ef4444';
   var cleanBarColor = cleanPct >= 75 ? '#22c55e' : cleanPct >= 25 ? '#f59e0b' : '#ef4444';
 
-  var html = '<div style="display:flex;flex-wrap:wrap;gap:16px;padding:8px 12px;margin-bottom:8px;border-radius:6px;background:rgba(255,255,255,0.02);">'
+  // Centered progress bars
+  var html = '<div style="display:flex;flex-wrap:wrap;gap:16px;padding:10px 16px;margin-bottom:12px;border-radius:6px;background:rgba(255,255,255,0.02);justify-content:center;align-items:center;">'
     + '<div style="display:flex;align-items:center;gap:8px;">'
-    + '<span style="font-size:0.7rem;color:rgba(255,255,255,0.5);min-width:60px;">Audited</span>'
-    + '<div style="width:120px;height:6px;background:rgba(255,255,255,0.08);border-radius:3px;">'
-    + '<div style="height:100%;width:' + auditPct + '%;background:' + auditBarColor + ';border-radius:3px;"></div></div>'
+    + '<span style="font-size:0.7rem;color:rgba(255,255,255,0.5);min-width:55px;">Audited</span>'
+    + '<div style="width:140px;height:8px;background:rgba(255,255,255,0.08);border-radius:4px;">'
+    + '<div style="height:100%;width:' + auditPct + '%;background:' + auditBarColor + ';border-radius:4px;transition:width 0.5s;"></div></div>'
     + '<span style="font-size:0.7rem;font-weight:600;color:' + auditBarColor + ';">' + auditedCount + '/' + totalModules + ' (' + auditPct + '%)</span>'
     + '</div>'
     + '<div style="display:flex;align-items:center;gap:8px;">'
-    + '<span style="font-size:0.7rem;color:rgba(255,255,255,0.5);min-width:60px;">Clean</span>'
-    + '<div style="width:120px;height:6px;background:rgba(255,255,255,0.08);border-radius:3px;">'
-    + '<div style="height:100%;width:' + cleanPct + '%;background:' + cleanBarColor + ';border-radius:3px;"></div></div>'
+    + '<span style="font-size:0.7rem;color:rgba(255,255,255,0.5);min-width:55px;">Clean</span>'
+    + '<div style="width:140px;height:8px;background:rgba(255,255,255,0.08);border-radius:4px;">'
+    + '<div style="height:100%;width:' + cleanPct + '%;background:' + cleanBarColor + ';border-radius:4px;transition:width 0.5s;"></div></div>'
     + '<span style="font-size:0.7rem;font-weight:600;color:' + cleanBarColor + ';">' + cleanCount + '/' + totalModules + ' (' + cleanPct + '%)</span>'
     + '</div>'
     + '</div>';
 
   html += '<table class="ch-table"><thead><tr>' +
-    '<th>Module</th><th class="center">Profile</th><th class="center">Trigger</th><th>Category</th><th class="center">Files</th>' +
-    '<th class="center">Before</th><th class="center">After</th><th class="center">\u0394</th>' +
-    '<th class="center">Issues</th><th class="center">Fixed</th><th>Status</th><th>Date</th>' +
+    '<th>Module</th><th class="center">Profile</th><th class="center">Trigger</th>' +
+    '<th class="center">Files</th><th class="center">Lines</th>' +
+    '<th class="center">Issues</th><th class="center">Status</th><th class="center">Date</th>' +
     '</tr></thead><tbody>';
 
   // Separate PATTERN_COMPLIANCE scans from real module audits
@@ -4422,25 +4423,24 @@ function _renderAuditTable(entries) {
   latestEntries.sort(function(a, b) { return (b.audited_at || "").localeCompare(a.audited_at || ""); });
 
   latestEntries.forEach(function(e) {
-    var delta = (e.lines_after || 0) - (e.lines_before || 0);
-    var deltaColor = delta > 0 ? "color:#22c55e" : delta < 0 ? "color:#ef4444" : "";
     var badgeClass = e.status === "completed" ? "ch-badge-green" : e.status === "violations_found" ? "ch-badge-amber" : e.status === "in_progress" ? "ch-badge-amber" : "ch-badge-red";
+    var statusLabel = e.status === "completed" ? "CLEAN" : e.status === "violations_found" ? "ISSUES" : e.status || "PENDING";
     var nameColor = e.status === "completed" ? "#22c55e" : e.status === "violations_found" ? "#f59e0b" : "#ef4444";
-    var profileCell = e.audit_profile ? '<span style="font-size:0.55rem;padding:1px 4px;border-radius:3px;background:rgba(139,92,246,0.15);color:#8b5cf6;">' + escHtml(e.audit_profile) + '</span>' : '\u2014';
+    var issueColor = (e.issues_found || 0) === 0 ? "#22c55e" : (e.issues_found || 0) <= 5 ? "#f59e0b" : "#ef4444";
+    var profileColors = {python: "rgba(139,92,246,0.15)", web: "rgba(245,158,11,0.15)", config: "rgba(148,163,184,0.15)"};
+    var profileTextColors = {python: "#8b5cf6", web: "#f59e0b", config: "#94a3b8"};
+    var prof = e.audit_profile || "python";
+    var profileCell = '<span style="font-size:0.55rem;padding:1px 5px;border-radius:3px;background:' + (profileColors[prof] || profileColors.python) + ';color:' + (profileTextColors[prof] || profileTextColors.python) + ';text-transform:uppercase;">' + escHtml(prof) + '</span>';
     var triggerCell = e.trigger_reason ? '<span style="font-size:0.55rem;padding:1px 4px;border-radius:3px;background:rgba(0,229,255,0.1);color:rgba(0,229,255,0.6);">' + escHtml(e.trigger_reason) + '</span>' : '\u2014';
     html += '<tr data-audit-id="' + e.id + '">' +
       '<td><span style="color:' + nameColor + ';font-weight:600;">' + escHtml(window._chDisplayNames && window._chDisplayNames[e.module_name] || e.module_name) + '</span></td>' +
       '<td class="center">' + profileCell + '</td>' +
       '<td class="center">' + triggerCell + '</td>' +
-      '<td style="font-size:0.7rem;color:rgba(255,255,255,0.4);">' + escHtml(e.category || "") + '</td>' +
       '<td class="center">' + (e.files_reviewed || 0) + '</td>' +
       '<td class="center">' + (e.lines_before || 0).toLocaleString() + '</td>' +
-      '<td class="center">' + (e.lines_after || 0).toLocaleString() + '</td>' +
-      '<td class="center" style="' + deltaColor + ';">' + (delta > 0 ? "+" : "") + delta.toLocaleString() + '</td>' +
-      '<td class="center">' + (e.issues_found || 0) + '</td>' +
-      '<td class="center">' + (e.issues_fixed || 0) + '</td>' +
-      '<td><span class="ch-badge ' + badgeClass + ' ch-audit-btn" data-audit-btn="' + e.id + '"><span class="ch-badge-dot"></span>' + escHtml(e.status || "pending") + ' &#9654;</span></td>' +
-      '<td style="font-size:0.7rem;white-space:nowrap;color:rgba(255,255,255,0.5);">' + formatAge(e.audited_at) + '</td>' +
+      '<td class="center" style="color:' + issueColor + ';font-weight:600;">' + (e.issues_found || 0) + '</td>' +
+      '<td class="center"><span class="ch-badge ' + badgeClass + ' ch-audit-btn" data-audit-btn="' + e.id + '"><span class="ch-badge-dot"></span>' + statusLabel + '</span></td>' +
+      '<td class="center" style="font-size:0.7rem;white-space:nowrap;color:rgba(255,255,255,0.5);">' + formatAge(e.audited_at) + '</td>' +
       '</tr>';
   });
 
@@ -4449,17 +4449,16 @@ function _renderAuditTable(entries) {
     var totalIssues = patternEntries.reduce(function(s, e) { return s + (e.issues_found || 0); }, 0);
     var latestPat = patternEntries[0];
     var patBadgeClass = latestPat.status === "completed" ? "ch-badge-green" : "ch-badge-purple";
-    html += '<tr data-audit-id="' + latestPat.id + '">' +
-      '<td><span class="ch-module-name" style="color:rgba(255,255,255,0.4);">PATTERN_COMPLIANCE</span>' +
-      ' <span style="font-size:0.6rem;background:rgba(139,92,246,0.15);color:#a78bfa;padding:1px 6px;border-radius:3px;">' + patternEntries.length + ' scans</span></td>' +
+    var patStatusLabel = latestPat.status === "completed" ? "CLEAN" : "ISSUES";
+    html += '<tr data-audit-id="' + latestPat.id + '" style="border-top:1px solid rgba(255,255,255,0.08);">' +
+      '<td><span style="color:rgba(255,255,255,0.4);font-weight:600;">Pattern Compliance</span>' +
+      ' <span style="font-size:0.55rem;background:rgba(139,92,246,0.15);color:#a78bfa;padding:1px 5px;border-radius:3px;">' + patternEntries.length + ' scans</span></td>' +
       '<td class="center">\u2014</td>' +
       '<td class="center"><span style="font-size:0.55rem;padding:1px 4px;border-radius:3px;background:rgba(0,229,255,0.1);color:rgba(0,229,255,0.6);">scheduled</span></td>' +
-      '<td style="font-size:0.7rem;color:rgba(255,255,255,0.4);">automated_scan</td>' +
-      '<td class="center" colspan="4" style="font-size:0.7rem;color:rgba(255,255,255,0.35);">automated pattern checks</td>' +
-      '<td class="center">' + totalIssues + '</td>' +
-      '<td class="center">—</td>' +
-      '<td><span class="ch-badge ' + patBadgeClass + ' ch-audit-btn" data-audit-btn="' + latestPat.id + '"><span class="ch-badge-dot"></span>' + escHtml(latestPat.status || "pending") + ' &#9654;</span></td>' +
-      '<td style="font-size:0.7rem;white-space:nowrap;color:rgba(255,255,255,0.5);">' + formatAge(latestPat.audited_at) + '</td>' +
+      '<td class="center" colspan="2" style="font-size:0.7rem;color:rgba(255,255,255,0.35);">automated</td>' +
+      '<td class="center" style="color:' + (totalIssues > 0 ? '#f59e0b' : '#22c55e') + ';font-weight:600;">' + totalIssues + '</td>' +
+      '<td class="center"><span class="ch-badge ' + patBadgeClass + '"><span class="ch-badge-dot"></span>' + patStatusLabel + '</span></td>' +
+      '<td class="center" style="font-size:0.7rem;color:rgba(255,255,255,0.5);">' + formatAge(latestPat.audited_at) + '</td>' +
       '</tr>';
   }
 

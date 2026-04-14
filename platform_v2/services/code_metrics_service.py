@@ -115,6 +115,7 @@ _STANDALONE_DEFS = [
         "dir_name": "kytran-news",
         "module_key": "standalone_kytran_news",
         "tier": 1,
+        "type": "api",  # Flask API — no own static (served by frontend)
         "compliance_packs": ["ubuntu-stig", "docker-stig"],
     },
     {
@@ -122,6 +123,7 @@ _STANDALONE_DEFS = [
         "dir_name": "archie-code",
         "module_key": "standalone_archie_code",
         "tier": 1,
+        "type": "cli",  # CLI tool — no Docker, no static
         "compliance_packs": [],
     },
 ]
@@ -985,15 +987,24 @@ def _audit_standalone_products():
             continue
 
         if product_type == "standalone":
-            # Tier 1 checks
+            # Tier 1 checks — adapt based on product subtype
+            subtype = product.get("type", "webapp")  # webapp, api, cli
             checks = {
-                "dockerfile": os.path.isfile(os.path.join(path, "Dockerfile")),
-                "docker_compose": os.path.isfile(os.path.join(path, "docker-compose.yml"))
-                or os.path.isfile(os.path.join(path, "docker-compose.yaml")),
                 "readme": os.path.isfile(os.path.join(path, "README.md")),
-                "health_endpoint": _has_health_endpoint(path),
-                "own_static": _has_own_static(path),
             }
+            # Docker checks — skip for CLI tools
+            if subtype != "cli":
+                checks["dockerfile"] = os.path.isfile(os.path.join(path, "Dockerfile"))
+                checks["docker_compose"] = os.path.isfile(os.path.join(path, "docker-compose.yml")) or os.path.isfile(
+                    os.path.join(path, "docker-compose.yaml")
+                )
+            # Health endpoint — skip for CLI tools
+            if subtype != "cli":
+                checks["health_endpoint"] = _has_health_endpoint(path)
+            # Own static — skip for API-only and CLI products
+            if subtype not in ("api", "cli"):
+                checks["own_static"] = _has_own_static(path)
+
             audit["tier1"] = checks
 
             for check_name, passed in checks.items():

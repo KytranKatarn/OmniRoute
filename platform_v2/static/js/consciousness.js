@@ -166,7 +166,9 @@ function loadTabData(tab) {
     if (_knowledgePollTimer) { clearInterval(_knowledgePollTimer); _knowledgePollTimer = null; }
   }
 
-  _cache[tab] = true;
+  // Set cache immediately for sync-loaded tabs to prevent double-loads
+  // Code Health sets its own cache after async data loads
+  if (tab !== "codehealth") _cache[tab] = true;
 
   switch (tab) {
     case "dashboard":   loadDashboard(); break;
@@ -3018,9 +3020,10 @@ function loadCodeHealth() {
     api("/api/code-health/standalone-status").catch(function() { return {standalones: []}; }),
     api("/api/code-health/repair-pipeline").catch(function() { return {success: false, queue: {}, proposals: {}, governance: []}; })
   ]).then(function(results) {
-    // Hide loading bar
+    // Hide loading bar and mark as cached
     var loader = document.getElementById("chLoadingBar");
     if (loader) loader.style.display = "none";
+    _cache["codehealth"] = true;
     var d = results[0];
     var auditData = results[1];
     var statusData = results[2];
@@ -3052,6 +3055,21 @@ function loadCodeHealth() {
     var platformCount = modCount - standaloneCount - websiteCount;
     _renderCodeHealthSummaryBar(statusData.summary || {}, {platform: platformCount, standalone: standaloneCount, websites: websiteCount});
     _renderCodeHealthStats(d);
+    // Show "last scanned" timestamp after stats render
+    if (d.snapshot_age) {
+      var scanEl = document.getElementById("chLastScanned");
+      if (!scanEl) {
+        scanEl = document.createElement("div");
+        scanEl.id = "chLastScanned";
+        scanEl.style.cssText = "text-align:center;font-size:0.65rem;color:rgba(0,229,255,0.5);padding:4px 12px;margin-top:4px;background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.15);border-radius:4px;";
+        var healthScore = document.getElementById("chHealthScore");
+        if (healthScore) healthScore.parentNode.appendChild(scanEl);
+      }
+      var scanDate = new Date(d.snapshot_age);
+      var ago = Math.round((Date.now() - scanDate.getTime()) / 60000);
+      var agoText = ago < 1 ? "just now" : ago < 60 ? ago + "m ago" : Math.round(ago / 60) + "h ago";
+      scanEl.textContent = "Last scanned: " + scanDate.toLocaleTimeString() + " (" + agoText + ")";
+    }
     // Separate standalone products from platform modules
     var allModules = d.modules || {};
     var standaloneModules = {};
@@ -3121,7 +3139,7 @@ function _renderCodeHealthSummaryBar(summary, counts) {
   var total = g + y + r;
 
   // Build summary bar using safe DOM methods
-  el.style.cssText = "display:flex;gap:1rem;align-items:center;padding:0.6rem 1rem;margin-bottom:1rem;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;";
+  el.style.cssText = "display:flex;gap:1rem;align-items:center;justify-content:center;padding:0.6rem 1rem;margin-bottom:1rem;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;text-align:center;";
   while (el.firstChild) el.removeChild(el.firstChild);
 
   var label = document.createElement("span");
@@ -3155,7 +3173,7 @@ function _renderCodeHealthSummaryBar(summary, counts) {
   var trackingText = parts.length ? parts.join(" \u00b7 ") : (total + " modules");
 
   var totalSpan = document.createElement("span");
-  totalSpan.style.cssText = "font-size:0.7rem;color:rgba(255,255,255,0.3);margin-left:auto;";
+  totalSpan.style.cssText = "font-size:0.7rem;color:rgba(255,255,255,0.3);width:100%;text-align:center;margin-top:2px;";
   totalSpan.textContent = trackingText;
   el.appendChild(totalSpan);
 }
@@ -3203,7 +3221,11 @@ function _renderCodeHealthStats(d) {
     {id: "chShellLines", key: "shell"},
     {id: "chJsonLines", key: "json"},
     {id: "chYamlLines", key: "yaml"},
-    {id: "chMarkdownLines", key: "markdown"}
+    {id: "chMarkdownLines", key: "markdown"},
+    {id: "chGoLines", key: "go"},
+    {id: "chSvgLines", key: "svg"},
+    {id: "chConfigLines", key: "config"},
+    {id: "chTextLines", key: "text"}
   ];
   langs.forEach(function(l) {
     var data = d[l.key] || {files: 0, lines: 0};
@@ -3538,6 +3560,10 @@ function _renderModuleChart(modules, displayNames) {
   var jsonData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.json ? bt.json.lines : 0; });
   var yamlData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.yaml ? bt.yaml.lines : 0; });
   var mdData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.markdown ? bt.markdown.lines : 0; });
+  var goData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.go ? bt.go.lines : 0; });
+  var svgData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.svg ? bt.svg.lines : 0; });
+  var configData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.config ? bt.config.lines : 0; });
+  var textData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.text ? bt.text.lines : 0; });
   var otherData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.other ? bt.other.lines : 0; });
 
   var rowH = window.innerWidth < 480 ? 24 : 28;
@@ -3563,6 +3589,10 @@ function _renderModuleChart(modules, displayNames) {
         { label: "Shell", data: shellData, backgroundColor: "rgba(239, 68, 68, 0.7)", borderWidth: 0 },
         { label: "YAML", data: yamlData, backgroundColor: "rgba(6, 182, 212, 0.7)", borderWidth: 0 },
         { label: "Markdown", data: mdData, backgroundColor: "rgba(167, 139, 250, 0.7)", borderWidth: 0 },
+        { label: "Go", data: goData, backgroundColor: "rgba(56, 189, 248, 0.7)", borderWidth: 0 },
+        { label: "SVG", data: svgData, backgroundColor: "rgba(251, 146, 60, 0.7)", borderWidth: 0 },
+        { label: "Config", data: configData, backgroundColor: "rgba(148, 163, 184, 0.7)", borderWidth: 0 },
+        { label: "Text", data: textData, backgroundColor: "rgba(100, 116, 139, 0.7)", borderWidth: 0 },
         { label: "Other", data: otherData, backgroundColor: "rgba(168, 162, 255, 0.7)", borderWidth: 0 }
       ]
     },

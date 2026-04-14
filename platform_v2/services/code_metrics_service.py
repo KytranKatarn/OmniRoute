@@ -23,13 +23,17 @@ if os.path.isdir("/app/tools"):
     # Standalone products: prefer /mnt/standalone if mounted, fall back to /mnt/archie_brain
     STANDALONE_BASE = "/mnt/standalone" if os.path.isdir("/mnt/standalone") else "/mnt/archie_brain"
     # Websites: prefer /mnt/standalone/websites, fall back to /mnt/archie_brain/website
-    WEBSITE_BASE = "/mnt/standalone/websites" if os.path.isdir("/mnt/standalone/websites") else "/mnt/archie_brain/website"
+    WEBSITE_BASE = (
+        "/mnt/standalone/websites" if os.path.isdir("/mnt/standalone/websites") else "/mnt/archie_brain/website"
+    )
 else:
     PLATFORM_ROOT = "/mnt/archie_brain/platform_v2"
     AI_BRIDGE_ROOT = "/mnt/archie_brain/ai_bridge"
     MIGRATIONS_ROOT = "/mnt/archie_brain/database/migrations"
     STANDALONE_BASE = "/mnt/standalone" if os.path.isdir("/mnt/standalone") else "/mnt/archie_brain"
-    WEBSITE_BASE = "/mnt/standalone/websites" if os.path.isdir("/mnt/standalone/websites") else "/mnt/archie_brain/website"
+    WEBSITE_BASE = (
+        "/mnt/standalone/websites" if os.path.isdir("/mnt/standalone/websites") else "/mnt/archie_brain/website"
+    )
 
 SKIP_DIRS = {"__pycache__", "node_modules", ".git", ".venv", "venv", "static/vendor"}
 
@@ -45,6 +49,13 @@ EXT_MAP = {
     ".yaml": "yaml",
     ".yml": "yaml",
     ".md": "markdown",
+    ".go": "go",
+    ".svg": "svg",
+    ".conf": "config",
+    ".toml": "config",
+    ".ini": "config",
+    ".xml": "config",
+    ".txt": "text",
 }
 
 # Standalone products tracked in Code Health (see .claude/rules/standalone-extraction.md)
@@ -100,11 +111,18 @@ _STANDALONE_DEFS = [
         "compliance_packs": ["ubuntu-stig", "docker-stig", "network-stig", "cis-ubuntu"],
     },
     {
-        "name": "The News (What The Fact)",
+        "name": "What The Fact",
         "dir_name": "kytran-news",
         "module_key": "standalone_kytran_news",
         "tier": 1,
         "compliance_packs": ["ubuntu-stig", "docker-stig"],
+    },
+    {
+        "name": "A.R.C.H.I.E. Code (CLI)",
+        "dir_name": "archie-code",
+        "module_key": "standalone_archie_code",
+        "tier": 1,
+        "compliance_packs": [],
     },
 ]
 
@@ -121,9 +139,7 @@ def _resolve_standalone_path(dir_name):
     return os.path.join(STANDALONE_BASE, dir_name)  # default even if missing
 
 
-STANDALONE_PRODUCTS = [
-    {**d, "path": _resolve_standalone_path(d["dir_name"])} for d in _STANDALONE_DEFS
-]
+STANDALONE_PRODUCTS = [{**d, "path": _resolve_standalone_path(d["dir_name"])} for d in _STANDALONE_DEFS]
 
 # Infrastructure services tracked in Code Health (not customer-facing products)
 INFRASTRUCTURE_SERVICES = [
@@ -139,13 +155,15 @@ INFRASTRUCTURE_SERVICES = [
 _WEBSITE_DEFS = [
     {"name": "kytranempowerment.com", "dir_name": "kytranempowerment.com", "module_key": "website_kytranempowerment"},
     {"name": "creed-ai.org", "dir_name": "creed-ai.org", "module_key": "website_creed_ai"},
-    {"name": "thenews.kytranempowerment.com", "dir_name": "thenews.kytranempowerment.com", "module_key": "website_kytran_news"},
-    {"name": "what-the-fact.com", "dir_name": "what-the-fact.com", "module_key": "website_what_the_fact"},
+    {
+        "name": "What The Fact (subdomain)",
+        "dir_name": "thenews.kytranempowerment.com",
+        "module_key": "website_kytran_news",
+    },
+    {"name": "What The Fact (.com)", "dir_name": "what-the-fact.com", "module_key": "website_what_the_fact"},
 ]
 
-WEBSITE_PRODUCTS = [
-    {**d, "path": os.path.join(WEBSITE_BASE, d["dir_name"])} for d in _WEBSITE_DEFS
-]
+WEBSITE_PRODUCTS = [{**d, "path": os.path.join(WEBSITE_BASE, d["dir_name"])} for d in _WEBSITE_DEFS]
 
 
 def _count_lines(filepath):
@@ -621,6 +639,10 @@ def _scan_codebase_uncached():
         "json": dict(type_totals.get("json", {"files": 0, "lines": 0})),
         "yaml": dict(type_totals.get("yaml", {"files": 0, "lines": 0})),
         "markdown": dict(type_totals.get("markdown", {"files": 0, "lines": 0})),
+        "go": dict(type_totals.get("go", {"files": 0, "lines": 0})),
+        "svg": dict(type_totals.get("svg", {"files": 0, "lines": 0})),
+        "config": dict(type_totals.get("config", {"files": 0, "lines": 0})),
+        "text": dict(type_totals.get("text", {"files": 0, "lines": 0})),
         "areas": {
             "platform": {"files": platform_stats["files"], "lines": platform_stats["lines"]},
             "ai_bridge": {"files": bridge_stats["files"], "lines": bridge_stats["lines"]},
@@ -638,7 +660,21 @@ def _scan_codebase_uncached():
     if shared_lines > 0:
         # Calculate per-type breakdown for shared (total type - sum of module types)
         shared_by_type = {}
-        for ftype in ["python", "js", "css", "html", "sql", "shell", "json", "yaml", "markdown"]:
+        for ftype in [
+            "python",
+            "js",
+            "css",
+            "html",
+            "sql",
+            "shell",
+            "json",
+            "yaml",
+            "markdown",
+            "go",
+            "svg",
+            "config",
+            "text",
+        ]:
             total_t = type_totals.get(ftype, {"files": 0, "lines": 0})
             mod_t_files = sum(v.get("by_type", {}).get(ftype, {}).get("files", 0) for v in module_stats.values())
             mod_t_lines = sum(v.get("by_type", {}).get(ftype, {}).get("lines", 0) for v in module_stats.values())

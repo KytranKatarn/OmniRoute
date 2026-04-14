@@ -50,11 +50,7 @@ def register_code_health_routes(bp, admin_required):
         if row and row.get("per_module"):
             import json as _json
 
-            per_module = (
-                _json.loads(row["per_module"])
-                if isinstance(row["per_module"], str)
-                else row["per_module"]
-            )
+            per_module = _json.loads(row["per_module"]) if isinstance(row["per_module"], str) else row["per_module"]
 
             # Reconstruct per-language totals from per_module by_type data
             lang_totals = {}
@@ -70,7 +66,9 @@ def register_code_health_routes(bp, admin_required):
                 "total_lines": row["total_lines"],
                 "total_folders": row.get("total_folders", 0),
                 "modules": per_module,
-                "python": lang_totals.get("python", {"files": row.get("python_files", 0), "lines": row.get("python_lines", 0)}),
+                "python": lang_totals.get(
+                    "python", {"files": row.get("python_files", 0), "lines": row.get("python_lines", 0)}
+                ),
                 "js": lang_totals.get("js", {"files": row.get("js_files", 0), "lines": row.get("js_lines", 0)}),
                 "css": lang_totals.get("css", {"files": row.get("css_files", 0), "lines": row.get("css_lines", 0)}),
                 "html": lang_totals.get("html", {"files": row.get("html_files", 0), "lines": row.get("html_lines", 0)}),
@@ -79,6 +77,10 @@ def register_code_health_routes(bp, admin_required):
                 "json": lang_totals.get("json", {"files": 0, "lines": 0}),
                 "yaml": lang_totals.get("yaml", {"files": 0, "lines": 0}),
                 "markdown": lang_totals.get("markdown", {"files": 0, "lines": 0}),
+                "go": lang_totals.get("go", {"files": 0, "lines": 0}),
+                "svg": lang_totals.get("svg", {"files": 0, "lines": 0}),
+                "config": lang_totals.get("config", {"files": 0, "lines": 0}),
+                "text": lang_totals.get("text", {"files": 0, "lines": 0}),
                 "orphans": {},
                 "snapshot_age": row["scanned_at"].isoformat() if row["scanned_at"] else None,
             }
@@ -303,46 +305,50 @@ def register_code_health_routes(bp, admin_required):
     @login_required
     @admin_required
     def code_health_standalone_status():
-        """Return standalone product metrics with compliance tier info."""
-        from services.code_metrics_service import STANDALONE_PRODUCTS, _get_standalone_stats
+        """Return standalone product metrics with compliance tier info.
+        Uses latest snapshot for stats (fast), DB for compliance scores."""
+        from services.code_metrics_service import STANDALONE_PRODUCTS
+        import json as _json
 
-        standalone_stats = _get_standalone_stats()
+        # Get stats from latest snapshot (no filesystem walk)
+        standalone_stats = {}
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT per_module FROM code_metrics_snapshots
+                   ORDER BY scanned_at DESC LIMIT 1"""
+            )
+            row = cur.fetchone()
+            if row and row.get("per_module"):
+                pm = _json.loads(row["per_module"]) if isinstance(row["per_module"], str) else row["per_module"]
+                for k, v in pm.items():
+                    if k.startswith("standalone_"):
+                        standalone_stats[k] = v
+
+        # Get all compliance scores in one query
+        compliance_map = {}
+        try:
+            product_names = [p["name"] for p in STANDALONE_PRODUCTS]
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT DISTINCT ON (scan_target) scan_target, overall_score, scanned_at
+                       FROM compliance_scans
+                       WHERE scan_target = ANY(%s)
+                       ORDER BY scan_target, scanned_at DESC""",
+                    (product_names,),
+                )
+                for r in cur.fetchall():
+                    compliance_map[r["scan_target"]] = {
+                        "score": float(r["overall_score"]) if r.get("overall_score") else None,
+                        "scanned_at": r["scanned_at"].isoformat() if r.get("scanned_at") else None,
+                    }
+        except Exception:
+            pass
+
         results = []
         for product in STANDALONE_PRODUCTS:
             key = product["module_key"]
             stats = standalone_stats.get(key, {})
-
-            # Check compliance scan results if available
-            compliance_score = None
-            last_scan = None
-            try:
-                with get_db_cursor() as (conn, cur):
-                    cur.execute(
-                        """SELECT overall_score, scanned_at
-                           FROM compliance_scans
-                           WHERE scan_target = %s
-                           ORDER BY scanned_at DESC LIMIT 1""",
-                        (product["name"],),
-                    )
-                    row = cur.fetchone()
-                    if row:
-                        compliance_score = float(row["overall_score"]) if row.get("overall_score") else None
-                        last_scan = row["scanned_at"].isoformat() if row.get("scanned_at") else None
-            except Exception:
-                pass
-
-            # Fetch tier progress from standalone
-            tier_progress = None
-            try:
-                import requests as req
-                import os
-
-                standalone_url = os.getenv("STANDALONE_SYSOPS_URL", "https://server.kytranempowerment.com")
-                health_resp = req.get(f"{standalone_url}/dashboard/api/health", timeout=5)
-                if health_resp.status_code == 200:
-                    tier_progress = health_resp.json().get("tier_progress")
-            except Exception:
-                pass
+            comp = compliance_map.get(product["name"], {})
 
             results.append(
                 {
@@ -353,10 +359,9 @@ def register_code_health_routes(bp, admin_required):
                     "files": stats.get("files", 0),
                     "lines": stats.get("lines", 0),
                     "by_type": stats.get("by_type", {}),
-                    "compliance_score": compliance_score,
-                    "last_compliance_scan": last_scan,
+                    "compliance_score": comp.get("score"),
+                    "last_compliance_scan": comp.get("scanned_at"),
                     "compliance_packs": product.get("compliance_packs", []),
-                    "tier_progress": tier_progress,
                 }
             )
 

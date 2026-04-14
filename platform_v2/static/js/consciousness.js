@@ -3421,16 +3421,43 @@ function _renderRepairBayPipeline(data) {
   var qStatus = data.queue && data.queue.by_status ? data.queue.by_status : {};
   var qSeverity = data.queue && data.queue.by_severity ? data.queue.by_severity : {};
   var pStatus = data.proposals && data.proposals.by_status ? data.proposals.by_status : {};
+  var pTotal = data.proposals ? data.proposals.total || 0 : 0;
+  var qTotal = data.queue ? data.queue.total || 0 : 0;
+
+  // Quick summary bar
+  var summaryBar = document.createElement("div");
+  summaryBar.style.cssText = "display:flex;justify-content:center;gap:20px;padding:10px;margin-bottom:12px;background:rgba(255,255,255,0.02);border-radius:6px;flex-wrap:wrap;";
+
+  var summaryItems = [
+    {label: "Repair Queue", value: qTotal, color: qTotal > 0 ? "#f59e0b" : "#22c55e"},
+    {label: "Proposals", value: pTotal, color: pTotal > 0 ? "#3b82f6" : "#22c55e"},
+    {label: "Deployed", value: pStatus.deployed || 0, color: "#10b981"},
+    {label: "Pending Review", value: (pStatus.pending || 0) + (pStatus.pending_approval || 0), color: (pStatus.pending || 0) > 0 ? "#f59e0b" : "#22c55e"}
+  ];
+  summaryItems.forEach(function(item) {
+    var wrap = document.createElement("div");
+    wrap.style.cssText = "text-align:center;";
+    var val = document.createElement("div");
+    val.style.cssText = "font-size:1.2rem;font-weight:700;color:" + item.color + ";";
+    val.textContent = item.value;
+    var lbl = document.createElement("div");
+    lbl.style.cssText = "font-size:0.6rem;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.5px;";
+    lbl.textContent = item.label;
+    wrap.appendChild(val);
+    wrap.appendChild(lbl);
+    summaryBar.appendChild(wrap);
+  });
+  el.appendChild(summaryBar);
 
   // Pipeline flow cards
   var flow = document.createElement("div");
   flow.className = "ch-pipeline-flow";
 
   var stages = [
-    {label: "PENDING", count: qStatus.pending || 0, color: "#f59e0b", detail: _severityDetail(qSeverity)},
-    {label: "TRIAGED", count: qStatus.triaged || 0, color: "#3b82f6", detail: ""},
-    {label: "IN PROGRESS", count: qStatus.in_progress || 0, color: "#8b5cf6", detail: ""},
-    {label: "DEPLOYED", count: qStatus.deployed || 0, color: "#10b981", detail: ""}
+    {label: "PENDING", count: (qStatus.pending || 0) + (pStatus.pending || 0), color: "#f59e0b", detail: _severityDetail(qSeverity)},
+    {label: "IN REVIEW", count: (pStatus.pending_approval || 0) + (pStatus.ready_for_review || 0), color: "#3b82f6", detail: ""},
+    {label: "APPROVED", count: pStatus.approved || 0, color: "#8b5cf6", detail: ""},
+    {label: "DEPLOYED", count: pStatus.deployed || 0, color: "#10b981", detail: ""}
   ];
 
   stages.forEach(function(s) {
@@ -3459,25 +3486,20 @@ function _renderRepairBayPipeline(data) {
   });
   el.appendChild(flow);
 
-  // Proposals summary
-  var pTotal = data.proposals ? data.proposals.total || 0 : 0;
-  if (pTotal > 0 || Object.keys(pStatus).length > 0) {
-    var propRow = document.createElement("div");
-    propRow.style.cssText = "display:flex;gap:12px;flex-wrap:wrap;margin-bottom:1rem;padding:10px 14px;background:rgba(139,92,246,0.05);border:1px solid rgba(139,92,246,0.12);border-radius:8px;";
-
-    var propLabel = document.createElement("span");
-    propLabel.style.cssText = "font-size:0.75rem;color:rgba(255,255,255,0.4);font-weight:600;text-transform:uppercase;letter-spacing:0.1em;";
-    propLabel.textContent = "Proposals";
-    propRow.appendChild(propLabel);
-
+  // Status breakdown (compact chips)
+  if (Object.keys(pStatus).length > 0) {
+    var chipRow = document.createElement("div");
+    chipRow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1rem;justify-content:center;";
+    var statusColors = {pending:"#f59e0b",pending_approval:"#f59e0b",ready_for_review:"#3b82f6",approved:"#8b5cf6",deployed:"#10b981",archived:"#64748b",fix_requested:"#ef4444",failed:"#ef4444"};
     Object.keys(pStatus).forEach(function(k) {
+      if (pStatus[k] === 0) return;
       var chip = document.createElement("span");
-      chip.style.cssText = "font-size:0.8rem;color:rgba(255,255,255,0.6);";
-      chip.textContent = pStatus[k] + " " + k;
-      propRow.appendChild(chip);
+      var c = statusColors[k] || "#999";
+      chip.style.cssText = "font-size:0.6rem;padding:2px 8px;border-radius:3px;background:" + c + "15;color:" + c + ";border:1px solid " + c + "33;";
+      chip.textContent = pStatus[k] + " " + k.replace(/_/g, " ");
+      chipRow.appendChild(chip);
     });
-
-    el.appendChild(propRow);
+    el.appendChild(chipRow);
   }
 
   // Governance actions table

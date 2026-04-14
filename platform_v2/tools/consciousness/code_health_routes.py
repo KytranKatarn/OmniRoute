@@ -464,6 +464,153 @@ def register_code_health_routes(bp, admin_required):
             }
         )
 
+    @bp.route("/api/code-health/audit/<int:audit_id>/details")
+    @login_required
+    @admin_required
+    def code_health_audit_details(audit_id):
+        """Get full audit details including findings for a specific audit entry."""
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT id, module_name, category, files_reviewed, lines_before,
+                          lines_after, issues_found, issues_fixed, notes, status,
+                          audited_at, audit_profile, trigger_reason, dispatched_via
+                   FROM code_audit_log WHERE id = %s""",
+                (audit_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"success": False, "error": "Audit entry not found"}), 404
+
+            # Parse notes into structured findings
+            findings = []
+            notes = row["notes"] or ""
+            if notes and notes != "clean — all checks passed" and notes != "clean":
+                for part in notes.split("; "):
+                    part = part.strip()
+                    if not part:
+                        continue
+                    code = part.split(":")[0].strip() if ":" in part else part
+                    detail = part.split(":", 1)[1].strip() if ":" in part else ""
+                    severity = "info"
+                    red_codes = {
+                        "SQL_INJECTION_RISK",
+                        "HARDCODED_SECRET",
+                        "DIRECT_OLLAMA",
+                        "DIRECT_CLOUD",
+                        "INSECURE_DEFAULT",
+                    }
+                    yellow_codes = {
+                        "BARE_EXCEPT",
+                        "LARGE_FILE",
+                        "MISSING_INIT",
+                        "INLINE_SCRIPT",
+                        "CONSOLE_LOG",
+                        "LATEST_TAG",
+                        "MISSING_RESOURCE_LIMIT",
+                    }
+                    if code in red_codes:
+                        severity = "red"
+                    elif code in yellow_codes:
+                        severity = "yellow"
+                    findings.append({"code": code, "detail": detail, "severity": severity})
+
+            result = {
+                "success": True,
+                "audit": {
+                    "id": row["id"],
+                    "module_name": row["module_name"],
+                    "category": row["category"],
+                    "files_reviewed": row["files_reviewed"],
+                    "lines_before": row["lines_before"],
+                    "issues_found": row["issues_found"],
+                    "issues_fixed": row["issues_fixed"],
+                    "status": row["status"],
+                    "audited_at": row["audited_at"].isoformat() if row["audited_at"] else None,
+                    "audit_profile": row.get("audit_profile", "python"),
+                    "trigger_reason": row.get("trigger_reason", "unknown"),
+                    "dispatched_via": row.get("dispatched_via"),
+                },
+                "findings": findings,
+                "notes_raw": notes,
+            }
+            return jsonify(result)
+
+    @bp.route("/api/code-health/audit/<int:audit_id>/submit-repair", methods=["POST"])
+    @login_required
+    @admin_required
+    def code_health_submit_repair(audit_id):
+        """Submit audit findings to Repair Bay as improvement proposals."""
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT module_name, notes, issues_found, status FROM code_audit_log WHERE id = %s",
+                (audit_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"success": False, "error": "Audit entry not found"}), 404
+            if row["status"] == "completed" and row["issues_found"] == 0:
+                return jsonify(
+                    {
+                        "success": False,
+                        "error": "No issues to submit — module is clean",
+                    }
+                )
+
+        # Parse notes into issues_list format for process_audit_findings
+        issues_list = []
+        notes = row["notes"] or ""
+        for part in notes.split("; "):
+            part = part.strip()
+            if not part:
+                continue
+            code = part.split(":")[0].strip() if ":" in part else part
+            detail = part.split(":", 1)[1].strip() if ":" in part else ""
+            red_codes = {
+                "SQL_INJECTION_RISK",
+                "HARDCODED_SECRET",
+                "DIRECT_OLLAMA",
+                "DIRECT_CLOUD",
+                "INSECURE_DEFAULT",
+            }
+            yellow_codes = {
+                "BARE_EXCEPT",
+                "LARGE_FILE",
+                "MISSING_INIT",
+                "INLINE_SCRIPT",
+                "CONSOLE_LOG",
+                "LATEST_TAG",
+                "MISSING_RESOURCE_LIMIT",
+            }
+            if code in red_codes:
+                severity = "red"
+            elif code in yellow_codes:
+                severity = "yellow"
+            else:
+                severity = "info"
+            issues_list.append(
+                {
+                    "code": code,
+                    "severity": severity,
+                    "file": row["module_name"],
+                    "detail": detail,
+                }
+            )
+
+        try:
+            from services.audit_pipeline import process_audit_findings
+
+            result = process_audit_findings(row["module_name"], issues_list)
+            return jsonify(
+                {
+                    "success": True,
+                    "proposals_created": result.get("proposals_created", 0),
+                    "skipped_duplicates": result.get("skipped_duplicates", 0),
+                    "module": row["module_name"],
+                }
+            )
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
     @bp.route("/api/code-health/structural-audit")
     @login_required
     @admin_required

@@ -111,7 +111,8 @@ def register_qa_routes(bp, admin_required):
     def qa_run_generate_report(run_id):
         """Generate a PDF report for a test run."""
         try:
-            filepath = qa_report_service.generate_report(run_id)
+            branded = request.args.get("branded", "false").lower() == "true"
+            filepath = qa_report_service.generate_report(run_id, branded=branded)
             if not filepath:
                 return (
                     jsonify({"success": False, "error": "Report generation failed"}),

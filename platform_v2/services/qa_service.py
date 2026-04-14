@@ -7,6 +7,8 @@ Import:
 
 import logging
 import os
+import re
+import subprocess
 import time
 
 import requests as http_requests
@@ -15,6 +17,14 @@ from psycopg2.extras import Json
 from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
+
+# Directory containing pytest module test files
+PYTEST_MODULES_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "qa",
+    "tests",
+    "modules",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -71,6 +81,15 @@ def run_suite(suite_id, triggered_by="manual"):
                 "error_message": str(exc)[:500],
             }
         ]
+
+    # Run pytest E2E tests if a matching module file exists
+    try:
+        pytest_results = _run_pytest_module(suite["name"])
+        if pytest_results:
+            results.extend(pytest_results)
+            logger.info("Pytest added %d results for suite '%s'", len(pytest_results), suite["name"])
+    except Exception as exc:
+        logger.error("Pytest execution failed for suite %s: %s", suite_id, exc)
 
     # Store each result in DB
     for result in results:
@@ -160,6 +179,87 @@ def run_suite(suite_id, triggered_by="manual"):
         "failed": failed,
         "errors": errors,
     }
+
+
+def _run_pytest_module(suite_name):
+    """Run pytest for a module if a matching test file exists.
+
+    Looks for qa/tests/modules/{slug}.py where slug is the suite name
+    with spaces and hyphens normalized to underscores.
+
+    Returns list of result dicts, or empty list if no test file found.
+    """
+    slug = re.sub(r"[\s\-]+", "_", suite_name.lower().strip())
+    test_file = os.path.join(PYTEST_MODULES_DIR, f"{slug}.py")
+
+    if not os.path.exists(test_file):
+        logger.debug("No pytest module for suite '%s' (checked %s)", suite_name, test_file)
+        return []
+
+    logger.info("Running pytest module: %s", test_file)
+    try:
+        proc = subprocess.run(
+            ["python3", "-m", "pytest", test_file, "-v", "--tb=short", "--no-header", "-q"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        )
+        output = proc.stdout + proc.stderr
+    except subprocess.TimeoutExpired:
+        return [
+            {
+                "test_name": f"pytest:{slug}:timeout",
+                "test_type": "e2e",
+                "status": "error",
+                "error_message": "Pytest execution timed out after 120s",
+            }
+        ]
+    except Exception as exc:
+        return [
+            {
+                "test_name": f"pytest:{slug}:execution",
+                "test_type": "e2e",
+                "status": "error",
+                "error_message": str(exc)[:500],
+            }
+        ]
+
+    # Parse pytest -v output lines like:
+    #   tests/modules/consciousness.py::test_consciousness_loads PASSED
+    #   tests/modules/consciousness.py::test_consciousness_tabs FAILED
+    results = []
+    for line in output.splitlines():
+        match = re.match(r".*::(\S+)\s+(PASSED|FAILED|ERROR|SKIPPED)", line)
+        if match:
+            test_name = match.group(1)
+            raw_status = match.group(2)
+            status_map = {"PASSED": "pass", "FAILED": "fail", "ERROR": "error", "SKIPPED": "skip"}
+            results.append(
+                {
+                    "test_name": f"pytest:{test_name}",
+                    "test_type": "e2e",
+                    "status": status_map.get(raw_status, "error"),
+                    "error_message": None,
+                }
+            )
+
+    # If we got failures, try to extract error messages from the short traceback
+    if proc.returncode != 0 and results:
+        failure_blocks = re.split(r"_{3,}\s+", output)
+        for block in failure_blocks:
+            for r in results:
+                if r["status"] == "fail" and r["test_name"].split(":")[-1] in block:
+                    # Grab last line of the block as the assertion error
+                    lines = [l.strip() for l in block.strip().splitlines() if l.strip()]
+                    if lines:
+                        r["error_message"] = lines[-1][:500]
+
+    if not results:
+        logger.warning("Pytest ran but no test results parsed from output")
+        logger.debug("Pytest output: %s", output[:2000])
+
+    return results
 
 
 def get_run_results(run_id):

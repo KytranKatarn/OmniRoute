@@ -10,6 +10,8 @@ import logging
 import os
 from datetime import datetime
 
+import jinja2
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -19,6 +21,12 @@ except ImportError:
     logger.warning(
         "weasyprint not installed — PDF report generation will be unavailable. " "Install with: pip install weasyprint"
     )
+
+TEMPLATE_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "qa",
+    "report_templates",
+)
 
 REPORT_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -30,11 +38,13 @@ REPORT_DIR = os.path.join(
 os.makedirs(REPORT_DIR, exist_ok=True)
 
 
-def generate_report(run_id):
+def generate_report(run_id, branded=False):
     """Generate a PDF report for a QA test run.
 
     Args:
         run_id: The ID of the qa_test_runs row.
+        branded: If True, use the client-facing branded template with
+                 Kytran Empowerment header and C.R.E.E.D. badge.
 
     Returns:
         Absolute file path of the generated PDF, or None on failure.
@@ -48,7 +58,7 @@ def generate_report(run_id):
             logger.error("No run data found for run_id=%s", run_id)
             return None
 
-        html_content = _build_report_html(run)
+        html_content = _build_template_html(run, branded=branded)
 
         timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
 
@@ -82,6 +92,45 @@ def generate_report(run_id):
     except Exception:
         logger.exception("Failed to generate QA report for run_id=%s", run_id)
         return None
+
+
+def _build_template_html(run, branded=False):
+    """Build report HTML from Jinja2 templates.
+
+    Falls back to the inline _build_report_html() if templates are missing.
+    """
+    template_name = "branded.html" if branded else "internal.html"
+    template_path = os.path.join(TEMPLATE_DIR, template_name)
+
+    if not os.path.exists(template_path):
+        logger.warning("Template %s not found, falling back to inline HTML", template_name)
+        return _build_report_html(run)
+
+    total = run.get("total_tests", 0)
+    passed = run.get("passed", 0)
+    failed = run.get("failed", 0)
+    errors = run.get("errors", 0)
+    results = run.get("results", [])
+    pass_rate = round(passed / total * 100, 1) if total > 0 else 0
+
+    failures = [r for r in results if r.get("status") in ("fail", "error")]
+
+    with open(template_path) as f:
+        template_str = f.read()
+
+    template = jinja2.Template(template_str)
+    return template.render(
+        suite_name=run.get("suite_name", "Unknown Suite"),
+        run_date=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+        run_id=run.get("id", "?"),
+        total=total,
+        passed=passed,
+        failed=failed,
+        errors=errors,
+        pass_rate=pass_rate,
+        results=results,
+        failures=failures,
+    )
 
 
 def _build_report_html(run):

@@ -135,7 +135,7 @@ def register_code_health_routes(bp, admin_required):
     @admin_required
     def code_health_module_status():
         modules = []
-        summary = {"green": 0, "yellow": 0, "red": 0, "total": 0}
+        summary = {"green": 0, "yellow": 0, "orange": 0, "red": 0, "total": 0}
 
         # Map folder names to proper display names
         from module_registry import MODULES
@@ -190,13 +190,13 @@ def register_code_health_routes(bp, admin_required):
             for name in sorted(module_names):
                 audit = audits.get(name)
                 if not audit:
-                    status = "red"
+                    status = "red"  # never audited
                 elif audit["status"] == "violations_found":
-                    status = "red"
+                    status = "orange"  # audited but has issues
                 elif audit.get("stale"):
-                    status = "yellow"
+                    status = "yellow"  # audit expired (>30 days)
                 else:
-                    status = "green"
+                    status = "green"  # clean
 
                 summary[status] += 1
                 summary["total"] += 1

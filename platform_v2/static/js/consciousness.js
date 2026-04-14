@@ -3103,7 +3103,7 @@ function loadCodeHealth() {
         if (s.tier_progress) standaloneTierMap[s.module_key] = s.tier_progress;
     });
     _renderStandaloneTable(standaloneModules, moduleStatusMap, standaloneTierMap);
-    _renderWebsiteTable(websiteModules);
+    _renderWebsiteTable(websiteModules, moduleStatusMap);
     _renderOrphanTable(d.orphans || {});
     _renderAttentionItems(statusData.summary || {}, d.orphans || {}, d);
     _renderStructuralAudit(d);
@@ -3200,10 +3200,11 @@ function _renderCodeHealthSummaryBar(summary, counts) {
   if (!el) return;
 
   var g = summary.green || 0;
+  var o = summary.orange || 0;
   var y = summary.yellow || 0;
   var r = summary.red || 0;
   window._chUnauditedCount = r;
-  var total = g + y + r;
+  var total = g + o + y + r;
 
   // Build summary bar using safe DOM methods
   el.style.cssText = "display:flex;gap:1rem;align-items:center;justify-content:center;padding:0.6rem 1rem;margin-bottom:1rem;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;text-align:center;";
@@ -3216,7 +3217,8 @@ function _renderCodeHealthSummaryBar(summary, counts) {
 
   var items = [
     {color: "#22c55e", count: g, text: "clean"},
-    {color: "#f59e0b", count: y, text: "stale"},
+    {color: "#f59e0b", count: o, text: "issues"},
+    {color: "#eab308", count: y, text: "stale"},
     {color: "#ef4444", count: r, text: "unaudited"}
   ];
   items.forEach(function(item) {
@@ -3740,6 +3742,8 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
     var badgeClass, badgeLabel;
     if (healthStatus === "green") {
       badgeClass = "ch-badge-green"; badgeLabel = "CLEAN";
+    } else if (healthStatus === "orange") {
+      badgeClass = "ch-badge-amber"; badgeLabel = "ISSUES";
     } else if (healthStatus === "yellow") {
       badgeClass = "ch-badge-amber"; badgeLabel = "STALE";
     } else {
@@ -3748,10 +3752,12 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
     var badgeHtml = '<span class="ch-badge ' + badgeClass + '">' +
       '<span class="ch-badge-dot"></span>' + badgeLabel + '</span>';
 
-    var nameClass = "ch-module-name" + (isCompleted ? " ch-name-clean" : isAudited ? " ch-name-amber" : "");
+    // Module name color: green=clean, orange/yellow=issues/stale, red=unaudited
+    var nameColor = healthStatus === "green" ? "#22c55e" : healthStatus === "orange" ? "#f59e0b" : healthStatus === "yellow" ? "#f59e0b" : "#ef4444";
+    var nameStyle = "color:" + nameColor + ";font-weight:600;";
 
     html += '<tr data-module="' + escHtml(name) + '" style="cursor:pointer;" title="Click to audit">' +
-      '<td><span class="' + nameClass + '">' + escHtml(moduleDisplayNames[name] || name) + '</span>' + (isCompleted ? ' <span style="font-size:0.6rem;opacity:0.5;">&#x2713;</span>' : '') + '</td>' +
+      '<td><span style="' + nameStyle + '">' + escHtml(moduleDisplayNames[name] || name) + '</span>' + (healthStatus === "green" ? ' <span style="font-size:0.6rem;opacity:0.5;">&#x2713;</span>' : '') + '</td>' +
       '<td class="center">' + profileBadge + '</td>' +
       '<td class="center">' + badgeHtml + '</td>' +
       '<td class="center">' + (m.files || 0) + '</td>' +
@@ -3808,12 +3814,15 @@ function _renderStandaloneTable(modules, moduleStatusMap, tierMap) {
         var badgeClass, badgeLabel;
         if (healthStatus === "green") {
             badgeClass = "ch-badge-green"; badgeLabel = "CLEAN";
+        } else if (healthStatus === "orange") {
+            badgeClass = "ch-badge-amber"; badgeLabel = "ISSUES";
         } else if (healthStatus === "yellow") {
             badgeClass = "ch-badge-amber"; badgeLabel = "STALE";
         } else {
             badgeClass = "ch-badge-red"; badgeLabel = "UNAUDITED";
         }
         var badgeHtml = '<span class="ch-badge ' + badgeClass + '"><span class="ch-badge-dot"></span>' + badgeLabel + '</span>';
+        var nameColor = healthStatus === "green" ? "#22c55e" : healthStatus === "orange" ? "#f59e0b" : healthStatus === "yellow" ? "#f59e0b" : "#ef4444";
         // Dynamic tier progress badge
         var tierHtml;
         var tp = tierMap[key];
@@ -3828,8 +3837,8 @@ function _renderStandaloneTable(modules, moduleStatusMap, tierMap) {
         } else {
             tierHtml = '<span class="ch-tier-badge">TIER 1</span>';
         }
-        return '<tr>'
-            + '<td><span class="ch-module-name ch-name-gold">' + escHtml(displayName) + '</span></td>'
+        return '<tr data-module="' + escHtml(key) + '" style="cursor:pointer;" title="Click to audit">'
+            + '<td><span style="color:' + nameColor + ';font-weight:600;">' + escHtml(displayName) + '</span></td>'
             + '<td class="center">' + badgeHtml + '</td>'
             + '<td class="center">' + (m.files || 0) + '</td>'
             + '<td class="center"><strong>' + (m.lines || 0).toLocaleString() + '</strong></td>'
@@ -3855,9 +3864,10 @@ function _renderStandaloneTable(modules, moduleStatusMap, tierMap) {
     setHtml(el, html);
 }
 
-function _renderWebsiteTable(modules) {
+function _renderWebsiteTable(modules, moduleStatusMap) {
     var el = document.getElementById("chWebsiteTable");
     if (!el) return;
+    moduleStatusMap = moduleStatusMap || {};
     var keys = Object.keys(modules);
     if (keys.length === 0) {
         setHtml(el, '<div class="ch-empty">No website products registered.</div>');
@@ -3866,14 +3876,23 @@ function _renderWebsiteTable(modules) {
     var rows = keys.map(function(key) {
         var m = modules[key];
         var displayName = key.replace('website_', '').replace(/_/g, '.').replace(/\b\w/g, function(c) { return c; });
-        // Try to use the registered display name
         var dn = (window._chDisplayNames || {})[key] || displayName;
         var js = (m.by_type && m.by_type.js) || {files: 0, lines: 0};
         var ht = (m.by_type && m.by_type.html) || {files: 0, lines: 0};
         var cs = (m.by_type && m.by_type.css) || {files: 0, lines: 0};
         var jn = (m.by_type && m.by_type.json) || {files: 0, lines: 0};
-        return '<tr>'
-            + '<td><span class="ch-module-name" style="color:#00e5ff;">' + escHtml(dn) + '</span></td>'
+        // Status badge + name color
+        var healthStatus = moduleStatusMap[key] || "red";
+        var badgeClass, badgeLabel;
+        if (healthStatus === "green") { badgeClass = "ch-badge-green"; badgeLabel = "CLEAN"; }
+        else if (healthStatus === "orange") { badgeClass = "ch-badge-amber"; badgeLabel = "ISSUES"; }
+        else if (healthStatus === "yellow") { badgeClass = "ch-badge-amber"; badgeLabel = "STALE"; }
+        else { badgeClass = "ch-badge-red"; badgeLabel = "UNAUDITED"; }
+        var badgeHtml = '<span class="ch-badge ' + badgeClass + '"><span class="ch-badge-dot"></span>' + badgeLabel + '</span>';
+        var nameColor = healthStatus === "green" ? "#22c55e" : healthStatus === "orange" ? "#f59e0b" : healthStatus === "yellow" ? "#f59e0b" : "#ef4444";
+        return '<tr data-module="' + escHtml(key) + '" style="cursor:pointer;" title="Click to audit">'
+            + '<td><span style="color:' + nameColor + ';font-weight:600;">' + escHtml(dn) + '</span></td>'
+            + '<td class="center">' + badgeHtml + '</td>'
             + '<td class="center">' + (m.files || 0) + '</td>'
             + '<td class="center"><strong>' + (m.lines || 0).toLocaleString() + '</strong></td>'
             + '<td class="center">' + ht.lines.toLocaleString() + '</td>'
@@ -3885,6 +3904,7 @@ function _renderWebsiteTable(modules) {
     var html = '<table class="ch-table">'
         + '<thead><tr>'
         + '<th>Website</th>'
+        + '<th class="center">Status</th>'
         + '<th class="center">Files</th>'
         + '<th class="center">Lines</th>'
         + '<th class="center">HTML</th>'

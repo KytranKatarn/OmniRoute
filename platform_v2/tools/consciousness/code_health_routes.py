@@ -515,21 +515,39 @@ def register_code_health_routes(bp, admin_required):
                     findings.append({"code": code, "detail": detail, "severity": severity})
 
             # Check if proposals already exist for this module (use metadata for accuracy)
-            proposal_status = {"total": 0, "by_status": {}}
+            proposal_status = {"total": 0, "by_status": {}, "items": []}
             try:
-                module_path_pattern = f"platform_v2/tools/{row['module_name']}/%"
+                module_name = row["module_name"]
+                if (
+                    module_name.startswith("standalone_")
+                    or module_name.startswith("website_")
+                    or module_name.startswith("[")
+                ):
+                    module_path_pattern = f"{module_name}/%"
+                else:
+                    module_path_pattern = f"platform_v2/tools/{module_name}/%"
                 cur.execute(
-                    """SELECT status, COUNT(*) as cnt
+                    """SELECT id, title, status, priority
                        FROM improvement_proposals
                        WHERE metadata->>'source' = 'code_health_audit'
                          AND metadata->>'file_path' LIKE %s
-                         AND status NOT IN ('archived', 'rejected', 'deployed')
-                       GROUP BY status""",
+                         AND status NOT IN ('archived', 'rejected')
+                       ORDER BY id DESC
+                       LIMIT 20""",
                     (module_path_pattern,),
                 )
                 for pr in cur.fetchall():
-                    proposal_status["by_status"][pr["status"]] = pr["cnt"]
-                    proposal_status["total"] += pr["cnt"]
+                    s = pr["status"]
+                    proposal_status["by_status"][s] = proposal_status["by_status"].get(s, 0) + 1
+                    proposal_status["total"] += 1
+                    proposal_status["items"].append(
+                        {
+                            "id": pr["id"],
+                            "title": pr["title"],
+                            "status": pr["status"],
+                            "priority": pr["priority"],
+                        }
+                    )
             except Exception:
                 pass
 

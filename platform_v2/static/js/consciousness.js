@@ -4719,26 +4719,45 @@ window.showAuditDetail = function(auditId) {
       });
     }
 
-    // Proposal status indicator
-    var proposals = d.proposals || {total: 0, by_status: {}};
+    // Proposal status indicator with individual tracking
+    var proposals = d.proposals || {total: 0, by_status: {}, items: []};
     if (proposals.total > 0) {
       var propBar = document.createElement("div");
-      propBar.style.cssText = "text-align:center;padding:8px 12px;margin-top:16px;background:rgba(139,92,246,0.05);border:1px solid rgba(139,92,246,0.15);border-radius:6px;";
+      propBar.style.cssText = "padding:10px 12px;margin-top:16px;background:rgba(139,92,246,0.05);border:1px solid rgba(139,92,246,0.15);border-radius:6px;";
       var propTitle = document.createElement("div");
-      propTitle.style.cssText = "font-size:0.65rem;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;";
+      propTitle.style.cssText = "font-size:0.7rem;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;text-align:center;font-weight:600;";
       propTitle.textContent = "Repair Bay Proposals (" + proposals.total + " active)";
       propBar.appendChild(propTitle);
-      var chipRow = document.createElement("div");
-      chipRow.style.cssText = "display:flex;gap:6px;justify-content:center;flex-wrap:wrap;";
+
+      // Show individual proposals with IDs
+      var propList = document.createElement("div");
+      propList.style.cssText = "max-height:150px;overflow-y:auto;";
       var statusColors = {pending:"#f59e0b",pending_approval:"#f59e0b",approved:"#8b5cf6",deployed:"#10b981",fix_requested:"#ef4444"};
-      Object.keys(proposals.by_status).forEach(function(k) {
-        var chip = document.createElement("span");
-        var c = statusColors[k] || "#999";
-        chip.style.cssText = "font-size:0.6rem;padding:2px 6px;border-radius:3px;background:" + c + "15;color:" + c + ";border:1px solid " + c + "33;";
-        chip.textContent = proposals.by_status[k] + " " + k.replace(/_/g, " ");
-        chipRow.appendChild(chip);
+      var prioColors = {critical:"#ef4444",high:"#f59e0b",medium:"#3b82f6",low:"#22c55e"};
+      (proposals.items || []).forEach(function(p) {
+        var row = document.createElement("div");
+        row.style.cssText = "display:flex;align-items:center;gap:6px;padding:3px 0;font-size:0.7rem;";
+        var idBadge = document.createElement("span");
+        idBadge.style.cssText = "color:rgba(0,229,255,0.5);font-family:'IBM Plex Mono',monospace;font-size:0.6rem;min-width:35px;";
+        idBadge.textContent = "#" + p.id;
+        var statusBadge = document.createElement("span");
+        var sc = statusColors[p.status] || "#999";
+        statusBadge.style.cssText = "font-size:0.55rem;padding:1px 5px;border-radius:3px;background:" + sc + "15;color:" + sc + ";border:1px solid " + sc + "33;min-width:55px;text-align:center;";
+        statusBadge.textContent = p.status.replace(/_/g, " ");
+        var prioBadge = document.createElement("span");
+        var pc = prioColors[p.priority] || "#999";
+        prioBadge.style.cssText = "font-size:0.55rem;padding:1px 4px;border-radius:3px;background:" + pc + "15;color:" + pc + ";";
+        prioBadge.textContent = p.priority;
+        var titleSpan = document.createElement("span");
+        titleSpan.style.cssText = "color:rgba(255,255,255,0.5);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.65rem;";
+        titleSpan.textContent = p.title;
+        row.appendChild(idBadge);
+        row.appendChild(statusBadge);
+        row.appendChild(prioBadge);
+        row.appendChild(titleSpan);
+        propList.appendChild(row);
       });
-      propBar.appendChild(chipRow);
+      propBar.appendChild(propList);
       modal.appendChild(propBar);
     }
 

@@ -3979,35 +3979,62 @@ function _renderStructuralAudit(d) {
 
   var sections = [];
 
-  // KBS Plugins
-  var kbsColor = kbs.healthy === kbs.total ? "#10b981" : "#f59e0b";
+  // Health Score summary card
+  var score = hs.score || 0;
+  var grade = hs.grade || "?";
+  var scoreColor = score >= 90 ? "#10b981" : score >= 70 ? "#3b82f6" : score >= 50 ? "#f59e0b" : "#ef4444";
   sections.push(
-    '<div class="ch-audit-card">' +
-    '<div class="ch-audit-title">KBS Plugins</div>' +
-    '<div class="ch-audit-score" style="color:' + kbsColor + '">' + (kbs.healthy || 0) + '/' + (kbs.total || 0) + ' healthy</div>' +
+    '<div class="ch-audit-card" style="text-align:center;">' +
+    '<div class="ch-audit-title">Health Score</div>' +
+    '<div style="font-size:1.8rem;font-weight:700;color:' + scoreColor + ';">' + score + '<span style="font-size:0.9rem;color:rgba(255,255,255,0.4);">/100</span></div>' +
+    '<div style="font-size:1rem;font-weight:600;color:' + scoreColor + ';">Grade: ' + escHtml(grade) + '</div>' +
     '</div>'
   );
 
+  // KBS Plugins — only show if there are any
+  if (kbs.total > 0) {
+    var kbsColor = kbs.healthy === kbs.total ? "#10b981" : "#f59e0b";
+    sections.push(
+      '<div class="ch-audit-card">' +
+      '<div class="ch-audit-title">KBS Plugins</div>' +
+      '<div class="ch-audit-score" style="color:' + kbsColor + '">' + (kbs.healthy || 0) + '/' + (kbs.total || 0) + ' healthy</div>' +
+      '</div>'
+    );
+  }
+
   // Standalone Products
-  var saColor = sa.healthy === sa.total ? "#10b981" : sa.healthy >= sa.total - 2 ? "#3b82f6" : "#f59e0b";
-  var saIssues = (sa.issues || []).map(function(i) { return '<div class="ch-audit-issue">' + escHtml(i) + '</div>'; }).join('');
-  sections.push(
-    '<div class="ch-audit-card">' +
-    '<div class="ch-audit-title">Standalone Products</div>' +
-    '<div class="ch-audit-score" style="color:' + saColor + '">' + (sa.healthy || 0) + '/' + (sa.total || 0) + ' passing Tier 1</div>' +
-    (saIssues ? '<div class="ch-audit-issues">' + saIssues + '</div>' : '') +
-    '</div>'
-  );
+  if (sa.total > 0) {
+    var saColor = sa.healthy === sa.total ? "#10b981" : sa.healthy >= sa.total - 2 ? "#3b82f6" : "#f59e0b";
+    var saIssueHtml = '';
+    if (sa.issues && sa.issues.length > 0) {
+      saIssueHtml = '<div class="ch-audit-issues" style="margin-top:8px;">';
+      sa.issues.forEach(function(issue) {
+        var issueColor = issue.indexOf("missing") !== -1 ? "#f59e0b" : "#ef4444";
+        saIssueHtml += '<div class="ch-audit-issue" style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:0.75rem;">' +
+          '<span style="width:6px;height:6px;border-radius:50%;background:' + issueColor + ';flex-shrink:0;"></span>' +
+          '<span style="color:rgba(255,255,255,0.6);">' + escHtml(issue) + '</span></div>';
+      });
+      saIssueHtml += '</div>';
+    }
+    sections.push(
+      '<div class="ch-audit-card">' +
+      '<div class="ch-audit-title">Standalone Products</div>' +
+      '<div class="ch-audit-score" style="color:' + saColor + '">' + (sa.healthy || 0) + '/' + (sa.total || 0) + ' passing Tier 1</div>' +
+      saIssueHtml +
+      '</div>'
+    );
+  }
 
   // Retired Modules
   if (retired.length > 0) {
     var retiredRows = retired.map(function(m) {
       var badge = m.status === 'retired' ? 'ch-badge-cyan' : 'ch-badge-amber';
-      var target = m.redirect_target ? ' &rarr; ' + escHtml(String(m.redirect_target)) : '';
-      return '<div class="ch-audit-retired-row">' +
-        '<span class="ch-badge ' + badge + '"><span class="ch-badge-dot"></span>' + escHtml(m.status) + '</span> ' +
-        '<span style="margin-left:6px">' + escHtml(m.module) + '</span>' +
-        '<span style="color:rgba(255,255,255,0.35);margin-left:6px;font-size:0.75rem">' + target + '</span>' +
+      var target = m.redirect_target ? ' \u2192 ' + escHtml(String(m.redirect_target)) : '';
+      var linesInfo = m.functional_lines ? ' (' + m.functional_lines.toLocaleString() + ' lines)' : '';
+      return '<div class="ch-audit-retired-row" style="display:flex;align-items:center;gap:8px;margin:4px 0;">' +
+        '<span class="ch-badge ' + badge + '"><span class="ch-badge-dot"></span>' + escHtml(m.status).toUpperCase() + '</span>' +
+        '<span>' + escHtml(m.module) + '</span>' +
+        '<span style="color:rgba(255,255,255,0.3);font-size:0.7rem;">' + linesInfo + target + '</span>' +
         '</div>';
     }).join('');
     sections.push(
@@ -4018,19 +4045,30 @@ function _renderStructuralAudit(d) {
     );
   }
 
-  // Deductions
+  // Score Deductions — formatted with color dots
   var deductions = hs.deductions || [];
   if (deductions.length > 0) {
-    var dedRows = deductions.map(function(d) { return '<div class="ch-audit-issue">' + escHtml(d) + '</div>'; }).join('');
+    var dedHtml = '<div style="margin-top:4px;">';
+    deductions.forEach(function(ded) {
+      var dedText = typeof ded === 'string' ? ded : (ded.reason || JSON.stringify(ded));
+      dedHtml += '<div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:0.75rem;">' +
+        '<span style="width:6px;height:6px;border-radius:50%;background:#ef4444;flex-shrink:0;"></span>' +
+        '<span style="color:rgba(255,255,255,0.6);">' + escHtml(dedText) + '</span></div>';
+    });
+    dedHtml += '</div>';
     sections.push(
       '<div class="ch-audit-card">' +
       '<div class="ch-audit-title">Score Deductions</div>' +
-      dedRows +
+      dedHtml +
       '</div>'
     );
   }
 
-  setHtml(el, sections.join(''));
+  if (sections.length === 0) {
+    setHtml(el, '<div class="ch-empty ch-empty-success">Structural audit clean — no issues.</div>');
+  } else {
+    setHtml(el, sections.join(''));
+  }
 }
 
 window.chRunScan = function() {

@@ -1700,7 +1700,9 @@ def audit_single_module(module_name, module_path=None, module_data=None):
     else:
         count, notes, issues_list = _audit_module_python(module_name, module_path)
 
-    status = "violations_found" if count > 0 else "completed"
+    # Only count as violations if there are red/yellow issues (not just info)
+    has_actionable = any(i.get("severity") in ("red", "yellow") for i in issues_list) if issues_list else False
+    status = "violations_found" if has_actionable else "completed"
     return (count, notes, status, issues_list, profile)
 
 

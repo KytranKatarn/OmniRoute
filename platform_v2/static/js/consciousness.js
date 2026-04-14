@@ -4719,14 +4719,40 @@ window.showAuditDetail = function(auditId) {
       });
     }
 
+    // Proposal status indicator
+    var proposals = d.proposals || {total: 0, by_status: {}};
+    if (proposals.total > 0) {
+      var propBar = document.createElement("div");
+      propBar.style.cssText = "text-align:center;padding:8px 12px;margin-top:16px;background:rgba(139,92,246,0.05);border:1px solid rgba(139,92,246,0.15);border-radius:6px;";
+      var propTitle = document.createElement("div");
+      propTitle.style.cssText = "font-size:0.65rem;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;";
+      propTitle.textContent = "Repair Bay Proposals (" + proposals.total + " active)";
+      propBar.appendChild(propTitle);
+      var chipRow = document.createElement("div");
+      chipRow.style.cssText = "display:flex;gap:6px;justify-content:center;flex-wrap:wrap;";
+      var statusColors = {pending:"#f59e0b",pending_approval:"#f59e0b",approved:"#8b5cf6",deployed:"#10b981",fix_requested:"#ef4444"};
+      Object.keys(proposals.by_status).forEach(function(k) {
+        var chip = document.createElement("span");
+        var c = statusColors[k] || "#999";
+        chip.style.cssText = "font-size:0.6rem;padding:2px 6px;border-radius:3px;background:" + c + "15;color:" + c + ";border:1px solid " + c + "33;";
+        chip.textContent = proposals.by_status[k] + " " + k.replace(/_/g, " ");
+        chipRow.appendChild(chip);
+      });
+      propBar.appendChild(chipRow);
+      modal.appendChild(propBar);
+    }
+
     // Action buttons
     var actions = document.createElement("div");
-    actions.style.cssText = "display:flex;gap:10px;justify-content:center;margin-top:20px;padding-top:16px;border-top:1px solid rgba(0,229,255,0.1);";
+    actions.style.cssText = "display:flex;gap:10px;justify-content:center;margin-top:12px;padding-top:16px;border-top:1px solid rgba(0,229,255,0.1);";
 
     if (a.issues_found > 0) {
       var submitBtn = document.createElement("button");
-      submitBtn.style.cssText = "background:rgba(139,92,246,0.15);color:#a78bfa;border:1px solid rgba(139,92,246,0.4);padding:8px 20px;border-radius:4px;font-size:0.75rem;cursor:pointer;text-transform:uppercase;letter-spacing:1px;font-weight:600;";
-      submitBtn.textContent = "Submit to Repair Bay";
+      var alreadySubmitted = proposals.total > 0;
+      submitBtn.style.cssText = alreadySubmitted
+        ? "background:rgba(34,197,94,0.1);color:#22c55e;border:1px solid rgba(34,197,94,0.3);padding:8px 20px;border-radius:4px;font-size:0.75rem;cursor:pointer;text-transform:uppercase;letter-spacing:1px;font-weight:600;"
+        : "background:rgba(139,92,246,0.15);color:#a78bfa;border:1px solid rgba(139,92,246,0.4);padding:8px 20px;border-radius:4px;font-size:0.75rem;cursor:pointer;text-transform:uppercase;letter-spacing:1px;font-weight:600;";
+      submitBtn.textContent = alreadySubmitted ? "Re-submit to Repair Bay" : "Submit to Repair Bay";
       submitBtn.onclick = function() {
         submitBtn.disabled = true;
         submitBtn.textContent = "Submitting...";

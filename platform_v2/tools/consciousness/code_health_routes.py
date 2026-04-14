@@ -514,6 +514,24 @@ def register_code_health_routes(bp, admin_required):
                         severity = "yellow"
                     findings.append({"code": code, "detail": detail, "severity": severity})
 
+            # Check if proposals already exist for this module
+            proposal_status = {"total": 0, "by_status": {}}
+            try:
+                module_pattern = f"%{row['module_name']}%"
+                cur.execute(
+                    """SELECT status, COUNT(*) as cnt
+                       FROM improvement_proposals
+                       WHERE title ILIKE %s
+                         AND status NOT IN ('archived', 'rejected')
+                       GROUP BY status""",
+                    (module_pattern,),
+                )
+                for pr in cur.fetchall():
+                    proposal_status["by_status"][pr["status"]] = pr["cnt"]
+                    proposal_status["total"] += pr["cnt"]
+            except Exception:
+                pass
+
             result = {
                 "success": True,
                 "audit": {
@@ -532,6 +550,7 @@ def register_code_health_routes(bp, admin_required):
                 },
                 "findings": findings,
                 "notes_raw": notes,
+                "proposals": proposal_status,
             }
             return jsonify(result)
 

@@ -4227,7 +4227,14 @@ class AgentLoop:
             if items_failed > 0 and items_processed == 0
             else "partial" if items_failed > 0 else "success"
         )
-        department = JOB_DEPARTMENT_MAP.get(job_name, "Operations & Infrastructure")
+        try:
+            from tools.department_hq.services.job_registry import get_department_for_job
+            department = get_department_for_job(job_name)
+            if department == "UNKNOWN":
+                # Fall back to legacy inline map during transition
+                department = JOB_DEPARTMENT_MAP.get(job_name, "UNKNOWN")
+        except Exception:
+            department = JOB_DEPARTMENT_MAP.get(job_name, "UNKNOWN")
         try:
             conn = get_db()
             cur = conn.cursor()

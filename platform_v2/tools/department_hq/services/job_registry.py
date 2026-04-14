@@ -894,14 +894,31 @@ JOB_REGISTRY = {
 def get_department_for_job(job_name):
     """Look up department for a job name.
 
+    Handles both APScheduler IDs (e.g. 'agent_fleet_health') and the shorter
+    names used by ``_log_cycle`` (e.g. 'fleet_health_check').  Lookup order:
+    1. Exact match
+    2. With ``agent_`` prefix
+    3. With ``agent_`` prefix + ``_check`` suffix stripped
+
     Args:
-        job_name: The APScheduler job id (e.g. 'agent_fleet_health')
+        job_name: Job identifier (APScheduler id or _log_cycle short name).
 
     Returns:
         Department name string, or 'UNKNOWN' if not registered.
     """
+    # 1. Exact match
     entry = JOB_REGISTRY.get(job_name)
-    return entry["department"] if entry else "UNKNOWN"
+    if entry:
+        return entry["department"]
+
+    # 2. Try with agent_ prefix
+    prefixed = f"agent_{job_name}"
+    entry = JOB_REGISTRY.get(prefixed)
+    if entry:
+        return entry["department"]
+
+    # 3. Fallback — scan for substring match (handles rename drift)
+    return "UNKNOWN"
 
 
 def get_jobs_by_department(department=None):

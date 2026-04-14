@@ -4557,7 +4557,7 @@ function _renderAuditTable(entries) {
   html += '<table class="ch-table"><thead><tr>' +
     '<th>Module</th><th class="center">Profile</th><th class="center">Trigger</th>' +
     '<th class="center">Files</th><th class="center">Lines</th>' +
-    '<th class="center">Issues</th><th class="center">Status</th><th class="center"></th><th class="center">Date</th>' +
+    '<th class="center">Issues</th><th class="center">Status</th><th class="center">Proposals</th><th class="center"></th><th class="center">Date</th>' +
     '</tr></thead><tbody>';
 
   // Separate PATTERN_COMPLIANCE scans from real module audits
@@ -4569,15 +4569,34 @@ function _renderAuditTable(entries) {
   latestEntries.sort(function(a, b) { return (b.audited_at || "").localeCompare(a.audited_at || ""); });
 
   latestEntries.forEach(function(e) {
-    var badgeClass = e.status === "completed" ? "ch-badge-green" : e.status === "violations_found" ? "ch-badge-amber" : e.status === "in_progress" ? "ch-badge-amber" : "ch-badge-red";
-    var statusLabel = e.status === "completed" ? "CLEAN" : e.status === "violations_found" ? "ISSUES" : e.status || "PENDING";
-    var nameColor = e.status === "completed" ? "#22c55e" : e.status === "violations_found" ? "#f59e0b" : "#ef4444";
+    var pCount = (window._chProposalCounts || {})[e.module_name] || 0;
+    var hasProposals = pCount > 0;
+    // 5-status: clean, in repair (purple), issues (orange), stale, unaudited
+    var badgeClass, statusLabel, nameColor;
+    if (e.status === "completed") {
+      badgeClass = "ch-badge-green"; statusLabel = "CLEAN"; nameColor = "#22c55e";
+    } else if (e.status === "violations_found" && hasProposals) {
+      badgeClass = "ch-badge-purple"; statusLabel = "IN REPAIR"; nameColor = "#a78bfa";
+    } else if (e.status === "violations_found") {
+      badgeClass = "ch-badge-amber"; statusLabel = "ISSUES"; nameColor = "#f59e0b";
+    } else {
+      badgeClass = "ch-badge-red"; statusLabel = e.status || "PENDING"; nameColor = "#ef4444";
+    }
     var issueColor = (e.issues_found || 0) === 0 ? "#22c55e" : (e.issues_found || 0) <= 5 ? "#f59e0b" : "#ef4444";
     var profileColors = {python: "rgba(139,92,246,0.15)", web: "rgba(245,158,11,0.15)", config: "rgba(148,163,184,0.15)"};
     var profileTextColors = {python: "#8b5cf6", web: "#f59e0b", config: "#94a3b8"};
     var prof = e.audit_profile || "python";
     var profileCell = '<span style="font-size:0.55rem;padding:1px 5px;border-radius:3px;background:' + (profileColors[prof] || profileColors.python) + ';color:' + (profileTextColors[prof] || profileTextColors.python) + ';text-transform:uppercase;">' + escHtml(prof) + '</span>';
     var triggerCell = e.trigger_reason ? '<span style="font-size:0.55rem;padding:1px 4px;border-radius:3px;background:rgba(0,229,255,0.1);color:rgba(0,229,255,0.6);">' + escHtml(e.trigger_reason) + '</span>' : '\u2014';
+    // Proposals cell
+    var proposalCell;
+    if (pCount > 0) {
+      proposalCell = '<span style="font-size:0.6rem;color:#a78bfa;font-weight:600;">' + pCount + ' in repair</span>';
+    } else if (e.status === "violations_found") {
+      proposalCell = '<span style="font-size:0.6rem;color:rgba(255,255,255,0.3);">not submitted</span>';
+    } else {
+      proposalCell = '<span style="font-size:0.6rem;color:rgba(255,255,255,0.15);">\u2014</span>';
+    }
     html += '<tr data-audit-id="' + e.id + '">' +
       '<td><span style="color:' + nameColor + ';font-weight:600;">' + escHtml(window._chDisplayNames && window._chDisplayNames[e.module_name] || e.module_name) + '</span></td>' +
       '<td class="center">' + profileCell + '</td>' +
@@ -4586,6 +4605,7 @@ function _renderAuditTable(entries) {
       '<td class="center">' + (e.lines_before || 0).toLocaleString() + '</td>' +
       '<td class="center" style="color:' + issueColor + ';font-weight:600;">' + (e.issues_found || 0) + '</td>' +
       '<td class="center"><span class="ch-badge ' + badgeClass + '"><span class="ch-badge-dot"></span>' + statusLabel + '</span></td>' +
+      '<td class="center">' + proposalCell + '</td>' +
       '<td class="center"><button class="ch-report-btn" data-audit-id="' + e.id + '" style="background:rgba(139,92,246,0.1);color:#a78bfa;border:1px solid rgba(139,92,246,0.3);padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;text-transform:uppercase;">Report</button></td>' +
       '<td class="center" style="font-size:0.7rem;white-space:nowrap;color:rgba(255,255,255,0.5);">' + formatAge(e.audited_at) + '</td>' +
       '</tr>';
@@ -4605,6 +4625,7 @@ function _renderAuditTable(entries) {
       '<td class="center" colspan="2" style="font-size:0.7rem;color:rgba(255,255,255,0.35);">automated</td>' +
       '<td class="center" style="color:' + (totalIssues > 0 ? '#f59e0b' : '#22c55e') + ';font-weight:600;">' + totalIssues + '</td>' +
       '<td class="center"><span class="ch-badge ' + patBadgeClass + '"><span class="ch-badge-dot"></span>' + patStatusLabel + '</span></td>' +
+      '<td class="center"><span style="font-size:0.6rem;color:rgba(255,255,255,0.15);">\u2014</span></td>' +
       '<td class="center"><button class="ch-report-btn" data-audit-id="' + latestPat.id + '" style="background:rgba(139,92,246,0.1);color:#a78bfa;border:1px solid rgba(139,92,246,0.3);padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;text-transform:uppercase;">Report</button></td>' +
       '<td class="center" style="font-size:0.7rem;color:rgba(255,255,255,0.5);">' + formatAge(latestPat.audited_at) + '</td>' +
       '</tr>';

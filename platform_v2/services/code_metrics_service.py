@@ -1221,6 +1221,34 @@ def save_snapshot(metrics=None):
 
     try:
         with get_db_cursor(commit=True) as (conn, cur):
+            # Detect which modules changed since the last snapshot
+            modules_changed = []
+            cur.execute("SELECT per_module FROM code_metrics_snapshots ORDER BY scanned_at DESC LIMIT 1")
+            prev_row = cur.fetchone()
+            if prev_row and prev_row.get("per_module"):
+                prev_modules = (
+                    prev_row["per_module"]
+                    if isinstance(prev_row["per_module"], dict)
+                    else json.loads(prev_row["per_module"])
+                )
+                new_modules = metrics.get("modules", {})
+                for key, data in new_modules.items():
+                    prev_data = prev_modules.get(key, {})
+                    if data.get("files") != prev_data.get("files") or data.get("lines") != prev_data.get("lines"):
+                        modules_changed.append(key)
+                # New modules not in previous
+                for key in new_modules:
+                    if key not in prev_modules and key not in modules_changed:
+                        modules_changed.append(key)
+
+            if modules_changed:
+                logger.info(
+                    "Modules changed since last snapshot (%d): %s%s",
+                    len(modules_changed),
+                    ", ".join(modules_changed[:5]),
+                    " ..." if len(modules_changed) > 5 else "",
+                )
+
             # Skip if identical snapshot exists within last hour
             cur.execute(
                 """SELECT id FROM code_metrics_snapshots
@@ -1238,8 +1266,9 @@ def save_snapshot(metrics=None):
                        (total_files, total_lines, total_folders,
                         python_files, python_lines, js_files, js_lines,
                         css_files, css_lines, html_files, html_lines,
-                        sql_files, sql_lines, per_module, commit_hash)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        sql_files, sql_lines, per_module, commit_hash,
+                        modules_changed)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                    RETURNING id""",
                 (
                     metrics["total_files"],
@@ -1255,8 +1284,9 @@ def save_snapshot(metrics=None):
                     metrics["html"]["lines"],
                     metrics["sql"]["files"],
                     metrics["sql"]["lines"],
-                    __import__("json").dumps(metrics["modules"]),
+                    json.dumps(metrics["modules"]),
                     commit_hash,
+                    json.dumps(modules_changed),
                 ),
             )
             snapshot_id = cur.fetchone()["id"]

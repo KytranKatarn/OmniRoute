@@ -82,14 +82,10 @@ def run_suite(suite_id, triggered_by="manual"):
             }
         ]
 
-    # Run pytest E2E tests if a matching module file exists
-    try:
-        pytest_results = _run_pytest_module(suite["name"])
-        if pytest_results:
-            results.extend(pytest_results)
-            logger.info("Pytest added %d results for suite '%s'", len(pytest_results), suite["name"])
-    except Exception as exc:
-        logger.error("Pytest execution failed for suite %s: %s", suite_id, exc)
+    # NOTE: Pytest E2E tests run from the HOST (not inside Docker) because
+    # Playwright needs Chromium which OOM-kills the container. The /archie-qa
+    # slash command handles pytest execution and stores results separately.
+    # _run_pytest_module() is available for host-side callers.
 
     # Store each result in DB
     for result in results:
@@ -189,11 +185,30 @@ def _run_pytest_module(suite_name):
 
     Returns list of result dicts, or empty list if no test file found.
     """
-    slug = re.sub(r"[\s\-]+", "_", suite_name.lower().strip())
-    test_file = os.path.join(PYTEST_MODULES_DIR, f"{slug}.py")
+    # Try multiple slug strategies to match suite name to test file:
+    # "AI Command — Consciousness" -> try: consciousness, ai_command_consciousness, department_hq
+    candidates = []
+    # 1. Last segment after em-dash or hyphen-dash
+    if "—" in suite_name:
+        last_part = suite_name.split("—")[-1].strip()
+        candidates.append(re.sub(r"[\s\-\.]+", "_", last_part.lower().strip()))
+    if " - " in suite_name:
+        last_part = suite_name.split(" - ")[-1].strip()
+        candidates.append(re.sub(r"[\s\-\.]+", "_", last_part.lower().strip()))
+    # 2. Full name slugified
+    candidates.append(re.sub(r"[\s\-—\.]+", "_", suite_name.lower().strip()))
+    # 3. Just alphanumeric + underscores
+    candidates.append(re.sub(r"[^a-z0-9]+", "_", suite_name.lower().strip()).strip("_"))
 
-    if not os.path.exists(test_file):
-        logger.debug("No pytest module for suite '%s' (checked %s)", suite_name, test_file)
+    test_file = None
+    for slug in candidates:
+        candidate_path = os.path.join(PYTEST_MODULES_DIR, f"{slug}.py")
+        if os.path.exists(candidate_path):
+            test_file = candidate_path
+            break
+
+    if not test_file:
+        logger.debug("No pytest module for suite '%s' (tried %s)", suite_name, candidates)
         return []
 
     logger.info("Running pytest module: %s", test_file)

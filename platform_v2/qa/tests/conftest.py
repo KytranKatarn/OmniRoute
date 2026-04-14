@@ -1,11 +1,15 @@
 """P.R.O.B.E. QA Test Fixtures — shared across all module tests."""
 
 import pytest
+import pytest_asyncio
 import asyncio
 import os
 import logging
 from datetime import datetime
 from playwright.async_api import async_playwright
+
+# Configure pytest-asyncio to auto mode so all async tests/fixtures work
+pytestmark = pytest.mark.asyncio
 
 logger = logging.getLogger("probe.tests")
 
@@ -26,7 +30,7 @@ def event_loop():
     loop.close()
 
 
-@pytest.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session")
 async def browser():
     pw = await async_playwright().start()
     browser = await pw.chromium.launch(headless=True)
@@ -35,7 +39,7 @@ async def browser():
     await pw.stop()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def authenticated_page(browser):
     context = await browser.new_context(viewport={"width": 1280, "height": 800})
     page = await context.new_page()

@@ -1,9 +1,0 @@
-.salon-panel { display: block; }
-.salon-tab-btn { padding: 0.4rem 1rem; border: none; background: transparent; color: #888; cursor: pointer; border-bottom: 2px solid transparent; font-size: 0.875rem; }
-.salon-tab-btn.active { color: var(--kbs-accent, #0ea5e9); border-bottom-color: var(--kbs-accent, #0ea5e9); }
-.salon-stat-card { background: var(--kbs-panel-bg, #1a1a1a); border: 1px solid var(--kbs-border, #333); border-radius: 6px; padding: 1rem; }
-.salon-stat-card .stat-value { font-size: 1.75rem; font-weight: 700; }
-.salon-stat-card .stat-label { font-size: 0.75rem; color: #888; margin-top: 0.25rem; }
-.salon-row { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--kbs-border, #333); font-size: 0.875rem; }
-.salon-row:last-child { border-bottom: none; }
-.salon-badge { padding: 0.2rem 0.5rem; border-radius: 3px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; }

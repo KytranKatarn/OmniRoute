@@ -3115,27 +3115,42 @@ function loadCodeHealth() {
     if (auditAllBtn && !auditAllBtn._bound) {
       auditAllBtn._bound = true;
       auditAllBtn.addEventListener("click", function() {
+        // Audit modules one-by-one to avoid API timeout
+        var moduleKeys = _chModuleData ? Object.keys(_chModuleData) : [];
+        if (moduleKeys.length === 0) return;
         auditAllBtn.disabled = true;
-        auditAllBtn.textContent = "Auditing...";
         auditAllBtn.style.opacity = "0.6";
-        api("/api/code-health/audit", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({})}).then(function(d) {
-          auditAllBtn.disabled = false;
-          auditAllBtn.textContent = "Audit All Modules";
-          auditAllBtn.style.opacity = "1";
-          if (d.success) {
-            var clean = d.results.filter(function(r) { return r.status === "completed"; }).length;
-            var violations = d.audited - clean;
-            auditAllBtn.textContent = clean + " clean, " + violations + " issues — reloading...";
+        var done = 0, cleanCount = 0, issueCount = 0, total = moduleKeys.length;
+        auditAllBtn.textContent = "Auditing 0/" + total + "...";
+
+        function auditNext(idx) {
+          if (idx >= moduleKeys.length) {
+            auditAllBtn.textContent = cleanCount + " clean, " + issueCount + " issues — reloading...";
             setTimeout(function() {
+              auditAllBtn.disabled = false;
+              auditAllBtn.textContent = "Audit All Modules";
+              auditAllBtn.style.opacity = "1";
               _cache = {};
               loadCodeHealth();
-            }, 1000);
+            }, 1500);
+            return;
           }
-        }).catch(function() {
-          auditAllBtn.disabled = false;
-          auditAllBtn.textContent = "Audit All Modules";
-          auditAllBtn.style.opacity = "1";
-        });
+          var key = moduleKeys[idx];
+          api("/api/code-health/audit", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({module: key})}).then(function(d) {
+            done++;
+            if (d.success && d.results && d.results[0]) {
+              if (d.results[0].status === "completed") cleanCount++; else issueCount++;
+            }
+            auditAllBtn.textContent = "Auditing " + done + "/" + total + "...";
+            auditNext(idx + 1);
+          }).catch(function() {
+            done++;
+            issueCount++;
+            auditAllBtn.textContent = "Auditing " + done + "/" + total + "...";
+            auditNext(idx + 1);
+          });
+        }
+        auditNext(0);
       });
     }
 

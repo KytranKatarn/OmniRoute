@@ -3757,7 +3757,7 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
 
   var html = '<table class="ch-table"><thead><tr>' +
     '<th>Module</th><th class="center">Profile</th><th class="center">Status</th><th class="center">Issues</th><th class="center">Files</th><th class="center">Lines</th>' +
-    '<th>Top Languages</th>' +
+    '<th>Top Languages</th><th class="center"></th>' +
     '</tr></thead><tbody>';
 
   var profileColors = {python: "#8b5cf6", web: "#f59e0b", config: "#94a3b8"};
@@ -3808,14 +3808,15 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
     var nameColor = healthStatus === "green" ? "#22c55e" : healthStatus === "orange" ? "#f59e0b" : healthStatus === "yellow" ? "#f59e0b" : "#ef4444";
     var nameStyle = "color:" + nameColor + ";font-weight:600;";
 
-    html += '<tr data-module="' + escHtml(name) + '" style="cursor:pointer;" title="Click to audit">' +
+    html += '<tr>' +
       '<td><span style="' + nameStyle + '">' + escHtml(moduleDisplayNames[name] || name) + '</span>' + (healthStatus === "green" ? ' <span style="font-size:0.6rem;opacity:0.5;">&#x2713;</span>' : '') + '</td>' +
       '<td class="center">' + profileBadge + '</td>' +
       '<td class="center">' + badgeHtml + '</td>' +
       '<td class="center" style="color:' + issueColor + ';font-weight:600;">' + issueCount + '</td>' +
       '<td class="center">' + (m.files || 0) + '</td>' +
       '<td class="center"><strong>' + (m.lines || 0).toLocaleString() + '</strong></td>' +
-      '<td>' + (topLangs || '<span style="color:rgba(255,255,255,0.2);">—</span>') + '</td>' +
+      '<td>' + (topLangs || '<span style="color:rgba(255,255,255,0.2);">\u2014</span>') + '</td>' +
+      '<td class="center"><button class="ch-audit-row-btn" data-module="' + escHtml(name) + '" style="background:rgba(0,229,255,0.1);color:#00e5ff;border:1px solid rgba(0,229,255,0.3);padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px;">Audit</button></td>' +
       '</tr>';
   });
 
@@ -3834,19 +3835,24 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
     });
   }
 
-  // Click-to-audit individual modules
-  el.querySelectorAll("tr[data-module]").forEach(function(row) {
-    row.addEventListener("click", function() {
-      var mod = row.getAttribute("data-module");
-      row.style.opacity = "0.5";
+  // Audit buttons in each row
+  el.querySelectorAll(".ch-audit-row-btn").forEach(function(btn) {
+    btn.addEventListener("click", function(evt) {
+      evt.stopPropagation();
+      var mod = btn.getAttribute("data-module");
+      var row = btn.closest("tr");
+      btn.disabled = true;
+      btn.textContent = "...";
       api("/api/code-health/audit", {body: {module: mod}}).then(function(d) {
-        row.style.opacity = "1";
         if (d.success && d.results && d.results[0]) {
           var r = d.results[0];
-          row.style.background = r.status === "completed" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)";
-          setTimeout(function() { row.style.background = ""; _cache = {}; loadCodeHealth(); }, 2000);
+          btn.textContent = r.status === "completed" ? "\u2713" : r.issues + " issues";
+          btn.style.background = r.status === "completed" ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)";
+          btn.style.color = r.status === "completed" ? "#22c55e" : "#ef4444";
+          btn.style.borderColor = r.status === "completed" ? "#22c55e" : "#ef4444";
+          setTimeout(function() { _cache = {}; loadCodeHealth(); }, 2000);
         }
-      }).catch(function() { row.style.opacity = "1"; });
+      }).catch(function() { btn.disabled = false; btn.textContent = "Audit"; });
     });
   });
 }
@@ -3915,15 +3921,16 @@ function _renderStandaloneTable(modules, moduleStatusMap, tierMap) {
         } else {
             tierHtml = '<span class="ch-tier-badge">TIER 1</span>';
         }
-        return '<tr data-module="' + escHtml(key) + '" style="cursor:pointer;" title="Click to audit">'
+        return '<tr>'
             + '<td><span style="color:' + nameColor + ';font-weight:600;">' + escHtml(displayName) + '</span></td>'
             + '<td class="center">' + profileBadge + '</td>'
             + '<td class="center">' + badgeHtml + '</td>'
             + '<td class="center" style="color:' + issueColor + ';font-weight:600;">' + issueCount + '</td>'
             + '<td class="center">' + (m.files || 0) + '</td>'
             + '<td class="center"><strong>' + (m.lines || 0).toLocaleString() + '</strong></td>'
-            + '<td>' + (topLangs || '<span style="color:rgba(255,255,255,0.2);">—</span>') + '</td>'
+            + '<td>' + (topLangs || '<span style="color:rgba(255,255,255,0.2);">\u2014</span>') + '</td>'
             + '<td class="center">' + tierHtml + '</td>'
+            + '<td class="center"><button class="ch-audit-row-btn" data-module="' + escHtml(key) + '" style="background:rgba(0,229,255,0.1);color:#00e5ff;border:1px solid rgba(0,229,255,0.3);padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px;">Audit</button></td>'
             + '</tr>';
     });
     var html = '<table class="ch-table">'
@@ -3936,8 +3943,27 @@ function _renderStandaloneTable(modules, moduleStatusMap, tierMap) {
         + '<th class="center">Lines</th>'
         + '<th>Top Languages</th>'
         + '<th class="center">Tier</th>'
+        + '<th class="center"></th>'
         + '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
     setHtml(el, html);
+    // Audit buttons
+    el.querySelectorAll(".ch-audit-row-btn").forEach(function(btn) {
+      btn.addEventListener("click", function(evt) {
+        evt.stopPropagation();
+        var mod = btn.getAttribute("data-module");
+        btn.disabled = true; btn.textContent = "...";
+        api("/api/code-health/audit", {body: {module: mod}}).then(function(d) {
+          if (d.success && d.results && d.results[0]) {
+            var r = d.results[0];
+            btn.textContent = r.status === "completed" ? "\u2713" : r.issues + "";
+            btn.style.background = r.status === "completed" ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)";
+            btn.style.color = r.status === "completed" ? "#22c55e" : "#ef4444";
+            btn.style.borderColor = r.status === "completed" ? "#22c55e" : "#ef4444";
+            setTimeout(function() { _cache = {}; loadCodeHealth(); }, 2000);
+          }
+        }).catch(function() { btn.disabled = false; btn.textContent = "Audit"; });
+      });
+    });
 }
 
 function _renderWebsiteTable(modules, moduleStatusMap) {
@@ -3985,14 +4011,15 @@ function _renderWebsiteTable(modules, moduleStatusMap) {
         var topLangs = langEntries.slice(0, 3).map(function(l) {
             return '<span style="font-size:0.6rem;padding:1px 4px;border-radius:3px;background:' + (langColors[l.lang] || '#666') + '22;color:' + (langColors[l.lang] || '#999') + ';margin-right:2px;">' + escHtml(l.lang) + ' ' + l.lines.toLocaleString() + '</span>';
         }).join('');
-        return '<tr data-module="' + escHtml(key) + '" style="cursor:pointer;" title="Click to audit">'
+        return '<tr>'
             + '<td><span style="color:' + nameColor + ';font-weight:600;">' + escHtml(dn) + '</span></td>'
             + '<td class="center">' + profileBadge + '</td>'
             + '<td class="center">' + badgeHtml + '</td>'
             + '<td class="center" style="color:' + issueColor + ';font-weight:600;">' + issueCount + '</td>'
             + '<td class="center">' + (m.files || 0) + '</td>'
             + '<td class="center"><strong>' + (m.lines || 0).toLocaleString() + '</strong></td>'
-            + '<td>' + (topLangs || '<span style="color:rgba(255,255,255,0.2);">—</span>') + '</td>'
+            + '<td>' + (topLangs || '<span style="color:rgba(255,255,255,0.2);">\u2014</span>') + '</td>'
+            + '<td class="center"><button class="ch-audit-row-btn" data-module="' + escHtml(key) + '" style="background:rgba(0,229,255,0.1);color:#00e5ff;border:1px solid rgba(0,229,255,0.3);padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px;">Audit</button></td>'
             + '</tr>';
     });
     var html = '<table class="ch-table">'
@@ -4004,8 +4031,27 @@ function _renderWebsiteTable(modules, moduleStatusMap) {
         + '<th class="center">Files</th>'
         + '<th class="center">Lines</th>'
         + '<th>Top Languages</th>'
+        + '<th class="center"></th>'
         + '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
     setHtml(el, html);
+    // Audit buttons
+    el.querySelectorAll(".ch-audit-row-btn").forEach(function(btn) {
+      btn.addEventListener("click", function(evt) {
+        evt.stopPropagation();
+        var mod = btn.getAttribute("data-module");
+        btn.disabled = true; btn.textContent = "...";
+        api("/api/code-health/audit", {body: {module: mod}}).then(function(d) {
+          if (d.success && d.results && d.results[0]) {
+            var r = d.results[0];
+            btn.textContent = r.status === "completed" ? "\u2713" : r.issues + "";
+            btn.style.background = r.status === "completed" ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)";
+            btn.style.color = r.status === "completed" ? "#22c55e" : "#ef4444";
+            btn.style.borderColor = r.status === "completed" ? "#22c55e" : "#ef4444";
+            setTimeout(function() { _cache = {}; loadCodeHealth(); }, 2000);
+          }
+        }).catch(function() { btn.disabled = false; btn.textContent = "Audit"; });
+      });
+    });
 }
 
 function _renderOrphanTable(orphans) {

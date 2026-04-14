@@ -19,6 +19,8 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
   width: 100%;
   background: var(--archie-bg-primary, #0a0a0f);
   font-family: 'Antonio', sans-serif;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 
 .lcars-header-elbow {

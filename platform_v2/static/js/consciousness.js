@@ -3336,22 +3336,22 @@ function _renderAttentionItems(summary, orphans, d) {
   var o = summary.orange || 0;
   var y = summary.yellow || 0;
 
-  if (r > 0) items.push({label: "Unaudited modules", count: r, color: "#ef4444", action: "Audit Now", actionFn: function() {
+  // Hardcoded safe icon names — no user input in data-lucide attributes
+  if (r > 0) items.push({label: "Unaudited modules", count: r, color: "#ef4444", icon: "alert-triangle", severity: "critical", action: "Audit Now", actionFn: function() {
     var btn = document.getElementById("chAuditAllBtn");
     if (btn) btn.click();
   }});
-  if (o > 0) items.push({label: "Modules with issues", count: o, color: "#f59e0b", action: "View Repairs", actionFn: function() {
+  if (o > 0) items.push({label: "Modules with issues", count: o, color: "#f59e0b", icon: "alert-circle", severity: "warning", action: "View Repairs", actionFn: function() {
     window.location.href = "/tools/repair-bay";
   }});
-  if (y > 0) items.push({label: "Stale audits (needs re-scan)", count: y, color: "#eab308", action: "Re-audit", actionFn: function() {
+  if (y > 0) items.push({label: "Stale audits (needs re-scan)", count: y, color: "#eab308", icon: "clock", severity: "info", action: "Re-audit", actionFn: function() {
     var btn = document.getElementById("chAuditAllBtn");
     if (btn) btn.click();
   }});
 
   // Modules changed since last audit
   var changed = d.modules_changed || [];
-  if (changed.length > 0) items.push({label: "Modules changed since last audit", count: changed.length, color: "#3b82f6", action: "Audit Changed", actionFn: function() {
-    // Audit only changed modules sequentially
+  if (changed.length > 0) items.push({label: "Modules changed since last audit", count: changed.length, color: "#3b82f6", icon: "git-commit", severity: "info", action: "Audit Changed", actionFn: function() {
     var btn = document.getElementById("chAuditAllBtn");
     if (btn) btn.click();
   }});
@@ -3364,20 +3364,20 @@ function _renderAttentionItems(summary, orphans, d) {
       orphanTotal += Array.isArray(v) ? v.length : (typeof v === "number" ? v : 0);
     });
   }
-  if (orphanTotal > 0) items.push({label: "Orphan files (unmapped)", count: orphanTotal, color: "#f97316", action: null, actionFn: null});
+  if (orphanTotal > 0) items.push({label: "Orphan files (unmapped)", count: orphanTotal, color: "#f97316", icon: "file-question", severity: "warning", action: null, actionFn: null});
 
-  // Health score deductions
-  var hs = d.health_score || {};
-  var deductions = hs.deductions || [];
-  deductions.forEach(function(ded) {
-    items.push({label: ded.reason || ded, count: "-" + (ded.points || "?") + " pts", color: "#ef4444", action: null, actionFn: null});
-  });
+  // Deductions removed — they appear in the Structural Audit Score Deductions card
 
   if (items.length === 0) {
     var allGood = document.createElement("div");
-    allGood.style.cssText = "padding:1rem;text-align:center;color:#10b981;font-size:0.85rem;font-weight:600;background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.15);border-radius:8px;";
-    allGood.textContent = "\u2705 All clear \u2014 no issues detected";
+    allGood.className = "ch-attn-all-clear";
+    var checkIcon = document.createElement("i");
+    checkIcon.setAttribute("data-lucide", "check-circle-2");
+    checkIcon.style.cssText = "width:20px;height:20px;color:#10b981;";
+    allGood.appendChild(checkIcon);
+    allGood.appendChild(document.createTextNode(" All clear \u2014 no issues detected"));
     el.appendChild(allGood);
+    if (typeof lucide !== "undefined") lucide.createIcons();
     var orphSec = document.getElementById("chOrphanSection");
     if (orphSec && orphanTotal === 0) orphSec.style.display = "none";
     return;
@@ -3385,27 +3385,41 @@ function _renderAttentionItems(summary, orphans, d) {
 
   items.forEach(function(item) {
     var card = document.createElement("div");
-    card.className = "ch-attention-card";
-    card.style.borderLeftColor = item.color;
-    card.style.borderLeftWidth = "3px";
+    card.className = "ch-attention-card ch-attn-" + item.severity;
 
+    // Severity icon with glow
+    var iconWrap = document.createElement("div");
+    iconWrap.className = "ch-attn-icon";
+    iconWrap.style.color = item.color;
+    var iconEl = document.createElement("i");
+    iconEl.setAttribute("data-lucide", item.icon);
+    iconWrap.appendChild(iconEl);
+    card.appendChild(iconWrap);
+
+    // Label
+    var info = document.createElement("div");
+    info.className = "ch-attn-info";
     var label = document.createElement("span");
     label.className = "ch-attn-label";
     label.textContent = item.label;
-    card.appendChild(label);
+    info.appendChild(label);
+    card.appendChild(info);
 
+    // Count badge
     var count = document.createElement("span");
     count.className = "ch-attn-count";
     count.style.color = item.color;
+    count.style.borderColor = item.color + "40";
+    count.style.background = item.color + "15";
     count.textContent = item.count;
     card.appendChild(count);
 
+    // Action button
     if (item.action && item.actionFn) {
       var btn = document.createElement("button");
       btn.className = "ch-attn-action";
       btn.style.color = item.color;
-      btn.style.borderColor = item.color;
-      btn.style.background = "rgba(255,255,255,0.03)";
+      btn.style.borderColor = item.color + "50";
       btn.textContent = item.action;
       btn.onclick = item.actionFn;
       card.appendChild(btn);
@@ -3413,6 +3427,8 @@ function _renderAttentionItems(summary, orphans, d) {
 
     el.appendChild(card);
   });
+
+  if (typeof lucide !== "undefined") lucide.createIcons();
 
   var orphSec = document.getElementById("chOrphanSection");
   if (orphSec && orphanTotal === 0) orphSec.style.display = "none";
@@ -4154,15 +4170,25 @@ function _renderStructuralAudit(d, statusSummary) {
 
   var sections = [];
 
-  // Health Score summary card
+  // Health Score summary card — radial ring
   var score = hs.score || 0;
   var grade = hs.grade || "?";
   var scoreColor = score >= 90 ? "#10b981" : score >= 70 ? "#3b82f6" : score >= 50 ? "#f59e0b" : "#ef4444";
+  var circumference = 2 * Math.PI * 42;
+  var dashOffset = circumference * (1 - score / 100);
   sections.push(
-    '<div class="ch-audit-card" style="text-align:center;">' +
+    '<div class="ch-audit-card ch-audit-hero" style="text-align:center;">' +
     '<div class="ch-audit-title">Health Score</div>' +
-    '<div style="font-size:1.8rem;font-weight:700;color:' + scoreColor + ';">' + score + '<span style="font-size:0.9rem;color:rgba(255,255,255,0.4);">/100</span></div>' +
-    '<div style="font-size:1rem;font-weight:600;color:' + scoreColor + ';">Grade: ' + escHtml(grade) + '</div>' +
+    '<div class="ch-score-ring">' +
+    '<svg width="100" height="100" viewBox="0 0 100 100">' +
+    '<circle class="ch-score-ring-bg" cx="50" cy="50" r="42"/>' +
+    '<circle class="ch-score-ring-fg" cx="50" cy="50" r="42" stroke="' + scoreColor + '" stroke-dasharray="' + circumference.toFixed(1) + '" stroke-dashoffset="' + dashOffset.toFixed(1) + '"/>' +
+    '</svg>' +
+    '<div class="ch-score-ring-label">' +
+    '<div class="ch-score-ring-value" style="color:' + scoreColor + ';">' + score + '</div>' +
+    '<div class="ch-score-ring-sub">/ 100</div>' +
+    '</div></div>' +
+    '<div style="font-family:Antonio,sans-serif;font-size:1rem;font-weight:600;color:' + scoreColor + ';letter-spacing:2px;">GRADE: ' + escHtml(grade) + '</div>' +
     '</div>'
   );
 
@@ -4171,16 +4197,24 @@ function _renderStructuralAudit(d, statusSummary) {
   var totalMods = (statusSummary.green || 0) + (statusSummary.orange || 0) + (statusSummary.yellow || 0) + (statusSummary.red || 0);
   if (totalMods > 0) {
     var auditedTotal = totalMods - (statusSummary.red || 0);
+    var summaryItems = [
+      { val: auditedTotal, suffix: '/' + totalMods, label: 'audited', color: '#3b82f6' },
+      { val: statusSummary.green || 0, suffix: '', label: 'clean', color: '#22c55e' },
+      { val: statusSummary.purple || 0, suffix: '', label: 'in repair', color: '#a78bfa' },
+      { val: statusSummary.orange || 0, suffix: '', label: 'issues', color: '#f59e0b' },
+      { val: statusSummary.red || 0, suffix: '', label: 'unaudited', color: '#ef4444' }
+    ];
+    var summaryHtml = summaryItems.map(function(item) {
+      return '<div style="text-align:center;flex:1;min-width:50px;">' +
+        '<div style="width:8px;height:8px;border-radius:50%;background:' + item.color + ';box-shadow:0 0 6px ' + item.color + '40;margin:0 auto 6px;"></div>' +
+        '<div style="font-family:Orbitron,monospace;font-size:1.3rem;font-weight:700;color:' + item.color + ';line-height:1;">' + item.val + '<span style="font-size:0.55rem;color:rgba(255,255,255,0.35);">' + item.suffix + '</span></div>' +
+        '<div style="font-size:0.6rem;color:rgba(255,255,255,0.4);letter-spacing:0.5px;margin-top:4px;text-transform:uppercase;">' + item.label + '</div>' +
+        '</div>';
+    }).join('');
     sections.push(
-      '<div class="ch-audit-card" style="text-align:center;">' +
+      '<div class="ch-audit-card ch-audit-hero" style="text-align:center;">' +
       '<div class="ch-audit-title">Audit Summary</div>' +
-      '<div style="display:flex;justify-content:center;gap:16px;margin-top:6px;">' +
-      '<div><span style="font-size:1.2rem;font-weight:700;color:#3b82f6;">' + auditedTotal + '</span><span style="font-size:0.6rem;color:rgba(255,255,255,0.4);">/' + totalMods + '</span><div style="font-size:0.6rem;color:rgba(255,255,255,0.4);">audited</div></div>' +
-      '<div><span style="font-size:1.2rem;font-weight:700;color:#22c55e;">' + (statusSummary.green || 0) + '</span><div style="font-size:0.6rem;color:rgba(255,255,255,0.4);">clean</div></div>' +
-      '<div><span style="font-size:1.2rem;font-weight:700;color:#a78bfa;">' + (statusSummary.purple || 0) + '</span><div style="font-size:0.6rem;color:rgba(255,255,255,0.4);">in repair</div></div>' +
-      '<div><span style="font-size:1.2rem;font-weight:700;color:#f59e0b;">' + (statusSummary.orange || 0) + '</span><div style="font-size:0.6rem;color:rgba(255,255,255,0.4);">issues</div></div>' +
-      '<div><span style="font-size:1.2rem;font-weight:700;color:#ef4444;">' + (statusSummary.red || 0) + '</span><div style="font-size:0.6rem;color:rgba(255,255,255,0.4);">unaudited</div></div>' +
-      '</div>' +
+      '<div style="display:flex;justify-content:center;gap:8px;margin-top:8px;">' + summaryHtml + '</div>' +
       '</div>'
     );
   }
@@ -4239,15 +4273,24 @@ function _renderStructuralAudit(d, statusSummary) {
     );
   }
 
-  // Score Deductions — formatted with color dots
+  // Score Deductions — severity-colored with penalty badges
   var deductions = hs.deductions || [];
   if (deductions.length > 0) {
     var dedHtml = '<div style="margin-top:4px;">';
     deductions.forEach(function(ded) {
       var dedText = typeof ded === 'string' ? ded : (ded.reason || JSON.stringify(ded));
-      dedHtml += '<div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:0.75rem;">' +
-        '<span style="width:6px;height:6px;border-radius:50%;background:#ef4444;flex-shrink:0;"></span>' +
-        '<span style="color:rgba(255,255,255,0.6);">' + escHtml(dedText) + '</span></div>';
+      var penaltyMatch = dedText.match(/^(-\d+):/);
+      var penalty = penaltyMatch ? parseInt(penaltyMatch[1]) : 0;
+      var dedColor = penalty <= -20 ? '#ef4444' : penalty <= -10 ? '#f59e0b' : '#3b82f6';
+      var badgeText = penaltyMatch ? penaltyMatch[1] : '';
+      var descText = penaltyMatch ? dedText.substring(penaltyMatch[0].length).trim() : dedText;
+      dedHtml += '<div style="display:flex;align-items:center;gap:8px;margin:5px 0;font-size:0.8rem;">';
+      if (badgeText) {
+        dedHtml += '<span style="font-family:Orbitron,monospace;font-size:0.65rem;font-weight:700;color:' + dedColor + ';background:' + dedColor + '15;border:1px solid ' + dedColor + '30;border-radius:4px;padding:2px 6px;min-width:32px;text-align:center;">' + badgeText + '</span>';
+      } else {
+        dedHtml += '<span style="width:6px;height:6px;border-radius:50%;background:' + dedColor + ';flex-shrink:0;"></span>';
+      }
+      dedHtml += '<span style="color:rgba(255,255,255,0.6);">' + escHtml(descText) + '</span></div>';
     });
     dedHtml += '</div>';
     sections.push(
